@@ -1,5 +1,1410 @@
 # @object-ui/components
 
+## 17.6.0
+
+### Minor Changes
+
+- 279fb13: `ComponentInput.type` can declare a UNION, so a block stops warning about legal
+  writes its own description recommends
+  
+  A registration's `type` was one coarse control kind, while a good number of spec
+  keys accept more than one shape. A declaration therefore had to pick an arm, and
+  the repo's own manifest gate then reported `type-mismatch` on the other arm's
+  legal values. Four of the five measured cases were the loud shape: the input's
+  `description` teaches the author to write an inline translation map
+  (`{ en, "zh-CN", … }`) while the same input's `type: 'string'` made
+  `sdui-parser`'s `checkType` warn about exactly that map — one platform authority
+  contradicting itself on the write it had just recommended. Because these land at
+  warning severity the page still compiled and rendered; the cost is that noise on
+  correct authoring trains authors, AI authors included, to dismiss the
+  `unknown-prop` and `type-mismatch` reports that are real.
+  
+  `type` now accepts an ARRAY of coarse kinds as well as a single one (maintainer
+  ruling on objectui#3832, direction (a)), and a value passes the coarse check when
+  ANY declared arm accepts it. Both declaration sites in `@object-ui/types` move
+  together with the registry's own copy in `@object-ui/core`, and
+  `ComponentInputSchema` enforces the same widening — a non-empty array of
+  DISTINCT kinds, so an empty arm list or a repeated arm is refused at authoring
+  time rather than normalized behind the author's back.
+  
+  Five declarations now spell their real contract, and the `type-mismatch` warning
+  on each of these legal writes is gone:
+  
+  - `page:header.title`, `page:header.subtitle`, `page:card.title` —
+    string **or** inline translation map (the spec's union, measured against
+    `ComponentPropsMap` at the pinned rc.6; the renderers resolve both through
+    `pickLocalized`);
+  - `record:alert.title`, `record:alert.body` — the same two shapes, justified
+    against the RENDERER since the pinned spec carries no `record:alert` props
+    schema;
+  - `element:text_input.defaultValue` — `string | number`, the spec's union,
+    which had been narrowed to `'string'` with the number arm named only in prose.
+  
+  **Backward compatible, and measured as such.** The single-kind form stays valid
+  and is still the canonical spelling for a one-arm key: it validates identically
+  (the diagnostics for one arm, `invalid-enum` and its `error` severity included,
+  are byte-identical), and `manifestFromConfigs` collapses a one-element array back
+  to the bare string, so every entry already in a published `sdui.manifest.json`
+  serializes unchanged and arrays appear only where a union was really declared.
+  The JSX authoring surface follows in the same step — `generateDts` emits a
+  TypeScript union for a union input, so the `.d.ts` an author type-checks against
+  accepts exactly what the gate accepts.
+  
+  A union widens what is legal; it does not switch the check off. A value matching
+  NO declared arm is still reported, a multi-arm mismatch reports at its strictest
+  arm's severity (`error` when an `enum` arm is present, so an enum's closed list
+  does not become dismissible by having a second arm added next to it), and arms
+  are meant to match the contract rather than relax the gate:
+  `element:text_input.defaultValue` deliberately gains no `object` arm because the
+  spec rejects a map there, and `element:record_picker.emptyText` keeps its single
+  `'string'` arm because that renderer drops the map form (objectui#4163) — an arm
+  the renderer never honours would advertise a shape that cannot reach the screen.
+- 8b9dc62: `element:text.content` and `element:button.label` declare the inline translation
+  map they already accept
+  
+  Two more instances of the contradiction objectui#3832 fixed the mechanism for,
+  measured after that ruling had fixed its scope at five specimens and filed
+  separately as objectui#4970. Both inputs' own `description` tells the author to
+  write an inline translation map (`{ en, "zh-CN", … }`), both renderers resolve one
+  through `pickLocalized`, and both spec props schemas accept one — while the
+  declaration said `type: 'string'`, so the manifest gate reported
+  `type-mismatch` on the exact shape the block had recommended. Both blocks are in
+  `PUBLIC_BLOCKS`, so this reached authors through `sdui.manifest.json` and
+  `sdui-intrinsics.d.ts` as well as the save gate.
+  
+  Each declaration is now `type: ['string', 'object']`, the union form
+  objectui#3832 introduced, and the arms are the ones the contract accepts —
+  re-measured on the `@objectstack/spec` 17.0.0 GA pin rather than carried over
+  from the issue, which was written at the 17.0.0-rc.6 pin:
+  `ComponentPropsMap['element:text'].content` and
+  `ComponentPropsMap['element:button'].label` are both
+  `string | Record< string, string >`, and both refuse a number, a boolean and an
+  array. Those three refusals are the controls in the acceptance test, which is
+  what keeps a widening distinguishable from a silenced check.
+  
+  Nothing else about the two blocks moves. A plain-string `content` / `label`
+  validates exactly as before, values matching neither arm are still reported, and
+  no other manifest entry changes shape — the public manifest now carries seven
+  array-valued input types, the five from objectui#3832 plus these two, with the
+  remaining 57 public blocks serializing byte for byte as they did.
+  
+  `record:alert`'s renderer-local prop type is corrected in the same pass
+  (`plugin-detail`): its `title` / `body` were still typed `string` while the same
+  file resolves both through `pickLocalized` and the block's published `inputs`
+  have declared `['string', 'object']` since objectui#3832, so the two slots were
+  narrower than both the renderer and the block's own published surface. The type
+  is not exported, so no consumer was misled and no published surface changes. The
+  CTA's `action.label` one level down is left alone on purpose (objectui#4998):
+  `action` is published as a bare `object` whose member shape lives in prose, so
+  there are no declared arms for it to be aligned against yet.
+- a2a9747: `FieldValidationRules.pattern.value` narrows to `RegExp`, and the form renderer reports unrecognized validation rule names loudly (objectui#5099, maintainer ruling 2026-08-18).
+  
+  **BREAKING for hand-written form schemas — deliberately declared `minor`.** This
+  repo's version policy reserves `major` for tracking `@objectstack` majors and is
+  mechanically enforced (`scripts/check-changeset-no-major.mjs`); per that policy,
+  objectui's own breaking changes ship as `minor` with the breaking semantics
+  stated plainly here:
+  
+  - **What breaks:** `validation: { pattern: { value: '^…$', message } }` with a
+    **string** value no longer compiles. Write a `RegExp` literal instead:
+    `pattern: { value: /^…$/, message }`.
+  - **Why red is the fix, not the damage:** react-hook-form applies `pattern`
+    only when `value instanceof RegExp`, and the renderer's single read point
+    spreads `validation` verbatim — so every string pattern accepted by the old
+    type ran **zero** validations, silently. Callers turning red were not
+    validating anything yesterday; the error converts silent non-validation into
+    explicit failure at authoring time.
+  - **Unaffected:** the metadata route. `FieldSchema.pattern` (a string in field
+    metadata) is still compiled by `buildValidationRules` in `@object-ui/fields`
+    via `new RegExp(...)` before it reaches the renderer.
+  
+  Also, per the same ruling's second limb, the form renderer now reports rule
+  names react-hook-form does not run (`console.error`, message doubles as the fix
+  instruction): a misspelled `minlength`, an invented `email`, or numeric keys
+  left by spreading an array into `validation` shout instead of vanishing. The
+  recognized set is pinned against the installed react-hook-form bundle so a
+  future bump cannot silently rot the diagnostic. The ruling's rejected half is
+  equally binding and equally pinned by test: the read point does **not** compile
+  string patterns — that consumer-side tolerance would harden the ambiguous
+  declaration into contract (AGENTS.md #0.1).
+- 232f61a: Form-field type resolution no longer falls back to `ui`-namespace SDUI node renderers.
+  
+  A `FormSchema` field's `type` now resolves a `field:`-namespaced widget or takes
+  the builtin `default` input branch. It no longer falls back to
+  `ComponentRegistry.get(type)` — the bare name in whatever namespace happened to
+  hold it. (Maintainer ruling of 2026-08-19 on objectui#5254, option B.)
+  
+  **This is a behaviour change, and it is the point of the change, not a side
+  effect.** A spelling that resolved yesterday stops resolving: a form field whose
+  `type` names a non-field component renders the default input instead of that
+  component. Measured on the built-in (no-`registerAllFields()`) path, the removed
+  fallback answered **126** bare names — `div`, `h1`, `card`, `button`, `form`,
+  `alert`, `badge`, the display `text` widget — and 116 of them with the fields
+  package registered as well. Marked `minor` for that reason. It is released as a
+  behaviour change rather than a fix because callers cannot tell from their own
+  metadata which of the two rules answered them; anyone who deliberately pointed a
+  form field at an SDUI component was relying on a rule no contract stated, and
+  that reliance now needs a `field:`-namespaced widget instead.
+  
+  Nothing changes for the two paths that carry real traffic. With
+  `registerAllFields()` — the production configuration — every affected field type
+  already resolved its own `field:` widget (`email` to `field:email`, `password`
+  to `field:password`, `text` to `field:text`), and object-derived forms go
+  through `mapFieldTypeToFormType`, which has always emitted the `field:`-prefixed
+  id. Rendering one of these components as a top-level SDUI **node** is untouched:
+  this rule governs field resolution only.
+  
+  What the fallback was producing on the built-in path, for
+  `{ name: 'contact', type: 'email', max_length: 50 }`:
+  
+  ```
+  attrs=["class","id","max_length","field","aria-describedby",
+         "aria-invalid","type","value","name"]   maxlength=null
+  ```
+  
+  `email` and `password` are registered as `ui`-namespace node renderers for
+  top-level `{ type: 'email' }` nodes, so reached as a *field* they received the
+  field-widget prop bundle they do not implement and spread it onto the element:
+  the raw metadata object landed as `field="[object Object]"`, `max_length`
+  landed as an inert attribute with no cap in effect (`maxlength` null), and the
+  node renderer's own `<Label>` gave the control a second `<label>` on top of the
+  form's. All three are gone; the declared ceiling now actually caps
+  (`maxlength="50"`).
+  
+  `email` and `password` keep rendering the native input they always rendered.
+  The default branch derives `<input type>` from those two declared field types
+  (`EmailFieldMetadata` / `PasswordFieldMetadata`), because `inputType` there is
+  whatever the author wrote and a plain `{ name, type: 'password' }` authors none
+  — without it that field would have rendered `type="text"` and shown a secret in
+  clear text. An explicitly authored `inputType` still wins. Other declared types
+  with a native HTML equivalent (`url`, `phone`, `number`, `color`, `date`)
+  already took this branch as `type="text"` and are unchanged.
+- 5673576: fix(components): call `FormSchema.onChange` — the declared callback the form renderer never invoked (objectui#4259)
+  
+  `FormSchema` declares four lifecycle callbacks and the form renderer
+  destructures all four off `schema` in one block: `onSubmit`, `onChange`,
+  `onDirtyChange`, `onCancel`. Three were wired. `onChange` was destructured and
+  then never referenced again — the destructure was its only occurrence in the
+  whole file — so a consumer who authored it got a typed, exported, documented,
+  autocompleted callback that did nothing at all. No warning, no dev-mode notice,
+  no type error: the declaration said it was supported.
+  
+  It is now called with the live form values whenever a value changes, through the
+  same `form.watch` subscription plumbing the `onDirtyChange` and `onAction`
+  channels already use, so the value channel cannot drift into its own schedule.
+  
+  Two properties are deliberate and pinned by tests:
+  
+  - **The subscription is guarded.** A schema that authors no `onChange`
+    establishes no subscription at all, exactly like the existing `onAction`
+    channel and unlike the unconditional `onDirtyChange` one. Watching
+    unconditionally would have put a third `form.watch` on every form in the
+    product on behalf of callers who asked for nothing; honouring the declaration
+    is meant to be purely additive for everyone else.
+  - **It runs in the layout phase**, matching the `defaultValues` reset and the
+    two subscriptions beside it. React runs every layout destroy before any layout
+    create, so a caller passing a fresh inline arrow each render — the common
+    shape — has the subscription torn down before the reset and re-established
+    after. That is what keeps a record landing in edit mode from being reported to
+    the host as if the user had edited every field it filled. A passive effect
+    inverts that order.
+  
+  The callback receives the form values, per its declared
+  `(data) => void` signature — not a DOM event. A top-level `onChange` spread onto
+  the form node is still stripped before it can reach the `form` element, where it
+  would have fired with a SyntheticEvent instead; that block's behaviour is
+  unchanged, only its now-outdated comment was corrected.
+  
+  No change to `@object-ui/types` — the declaration was already there and already
+  correct. This is the renderer starting to honour it.
+- 911ceaa: The fullscreen long-text dialog announces the field's validation state and carries the field's name
+  
+  objectui#4824, objectui#4832.
+  
+  `mobile.fullscreenLongText` is a shipped opt-in, and with it on the phone user
+  edits long text in this dialog and nowhere else. Measured on all three surfaces
+  that render the dialog — `TextAreaField`, `RichTextField`, and the form
+  renderer's built-in `textarea` branch — with the field genuinely invalid at that
+  moment:
+  
+  ```
+  INLINE  richtext  aria-invalid= true
+  DIALOG  richtext  aria-invalid= false   aria-describedby= null
+  INLINE  textarea  aria-invalid= true
+  DIALOG  textarea  aria-invalid= null    aria-describedby= null
+  ```
+  
+  and the accessible name of every dialog control empty, against `F` on every
+  inline one. The rich-text row is the sharp half: the dialog was not silent about
+  the failure, it was announcing the OPPOSITE of the inline control for the same
+  field at the same moment, because `RichTextEditorSurface` computed
+  `aria-invalid={!!error}` from an `error` prop the dialog rendering never
+  received. 3 surfaces, 3 broken, one cause: the dialog's control is built from
+  scratch by the host, so none of the wiring the inline control gets from the form
+  renderer reaches it.
+  
+  **Answered once, in the primitive.** `FullscreenEditor` now takes the field's
+  `error` and owns what the dialog does with it: it renders the message in a
+  dialog-local node, and hands `children` a required fourth argument — a
+  spreadable set of DOM attributes — carrying `aria-labelledby` (the dialog
+  title's text, i.e. the field label #3393 already put there), `aria-invalid`, and
+  `aria-errormessage` naming that node. The host spreads it; the host never learns
+  an id, so it cannot name the wrong node, cannot compose the attributes subtly
+  wrong, and cannot compute its own `aria-invalid` from a prop it forgot to plumb.
+  Three hosts hand-answering this is the shape that produced three identical
+  holes.
+  
+  **On objectui#3222's "the text belongs to `FormMessage`".** The maintainer's
+  ruling of 2026-08-16 restates that rule as what it was always protecting —
+  only one copy of the error text is in the accessibility tree at any moment —
+  which the dialog-local node satisfies: it exists only while the dialog is open,
+  and for exactly that window Radix `aria-hidden`s everything outside the modal,
+  `FormMessage` included. The shortcut of pointing the dialog control's
+  `aria-describedby` / `aria-errormessage` at the host's `FormMessage` id is
+  forbidden rather than merely unused: it resolves to a node that is `aria-hidden`
+  for the whole time the reference is live (an ARIA MUST violation), and neither
+  happy-dom nor jsdom can see the difference — which is why every new pin asserts
+  that the named node is inside THIS dialog, not merely that it exists.
+  
+  `aria-errormessage` carries a single IDREF and is emitted only alongside
+  `aria-invalid="true"`. It is deliberately not folded into the host's
+  `aria-describedby` chain, which on the textarea surface already carries the
+  fullscreen character counter's sentence.
+  
+  **The name reuses the visible title rather than minting a second author for it**
+  (#3978): `aria-labelledby` points at a span inside `DialogTitle`, not at
+  `DialogTitle` itself — Radix renders the title as `h2` with the id its own
+  `DialogContent` `aria-labelledby` names, so putting an id on it would buy the
+  control a name at the cost of the dialog's.
+  
+  **Breaking (shipped as `minor`, see below), `@object-ui/components` only.**
+  `FullscreenEditorProps.error` is REQUIRED, not optional, and
+  `FullscreenEditorProps['children']` takes a fourth argument.
+  
+  FROM → TO for an out-of-repo host:
+  
+  ```
+  <FullscreenEditor value={v} onCommit={c} label={l} testIdPrefix="x">
+    {(draft, setDraft, disabled) => <textarea … />}
+  </FullscreenEditor>
+  
+  <FullscreenEditor value={v} onCommit={c} label={l} testIdPrefix="x" error={err}>
+    {(draft, setDraft, disabled, aria) => <textarea {...aria} … />}
+  </FullscreenEditor>
+  ```
+  
+  A render prop may still declare fewer parameters, so only `error` fails to
+  compile — which is the point of making it required. Every consumer already has
+  the value at hand (registered widgets take `error` off the widget props
+  contract, objectui#3222; the built-in branch reads `fieldState.error?.message`),
+  and an omitted `error` reproduces this defect exactly: a dialog announcing
+  `aria-invalid="false"` for a field its own form has already failed. An optional
+  key was forgotten by three surfaces in a row; a required one cannot be.
+  
+  `@object-ui/fields` is `patch`: `FullscreenFieldEditor` is internal to that
+  package (not re-exported from its entry), so nothing in its public surface
+  changes — only the behaviour of the two long-text widgets' dialogs.
+  
+  `minor` rather than `major` follows the repo's standing retirement precedent
+  (AGENTS.md §版本号策略, enforced by `scripts/check-changeset-no-major.mjs`): all
+  publishable packages sit in one `fixed` group, so a `major` here would carry the
+  whole family up against an `@objectstack` that has not moved.
+- 98eab36: Publish the five `@objectstack/spec` 17.0.0 keys the renderers already honoured, so
+  authors can discover them
+  
+  `page:header.maxVisible`, `page:header.mobileMaxVisible`, `page:tabs.alwaysShowStrip`,
+  `record:details.inlineEdit` and `record:details.showHeader` are declared by the spec and
+  read by the renderers today, and none of them was in its block's published `inputs`. That
+  is the direction nothing reports: `gen-manifest.ts` left all five out of
+  `sdui.manifest.json` and `sdui-intrinsics.d.ts`, so they were in no designer panel and no
+  generated type; `sdui-parser`'s prop walk reported `unknown-prop` on an author who wrote
+  one anyway; and the renderer honoured it regardless. Measured on the console's own
+  manifest before this change, all five drew
+  
+  ```
+  unknown-prop: page:header has no prop "maxVisible"
+  unknown-prop: page:header has no prop "mobileMaxVisible"
+  unknown-prop: page:tabs has no prop "alwaysShowStrip"
+  unknown-prop: record:details has no prop "inlineEdit"
+  unknown-prop: record:details has no prop "showHeader"
+  ```
+  
+  and now draw nothing. Same defect as `record:details.hideFields` in objectui#3808 and
+  `readonly` in objectui#3407; it could not land until the GA pin moved (objectui#4636),
+  because the pre-GA pin declared none of the five and publishing them would have failed the
+  repo-wide parity gate's forward direction.
+  
+  Each entry carries a description, because for these keys the discoverability IS the fix.
+  Two are worth reading before use:
+  
+  - `maxVisible` / `mobileMaxVisible` are positive integers — the contract rejects `0` and
+    fractional values — and they do not govern every action: an action declaring
+    `record_more` without `record_header`, and any action with `component: 'action:menu'`,
+    is routed to the overflow menu regardless of the budget.
+  - `inlineEdit` is an opt-OUT only. The value is combined with the object's own resolved
+    editability (ADR-0103) and with the server's effective API operation set, so `false`
+    always wins while `true` cannot open editing the platform refuses.
+  
+  **`page:tabs` also gains a read.** `alwaysShowStrip` was honoured only as
+  `schema.properties.alwaysShowStrip`, while `inputs` publishes TOP-LEVEL keys — the shape
+  the manifest whitelists, the generated types declare and the JSX-page compiler validates.
+  Measured on a one-tab schema: the wrapped form showed the strip, the flat form did not, so
+  publishing the key alone would have advertised a write the renderer throws away. The
+  canonical top-level arm is read first now, with the `properties` arm kept for paths that
+  reach the renderer without `SchemaRenderer`'s hoist — the same dual read `maxVisible` has
+  always had. This can only ever ADD a strip to a one-tab page; multi-tab pages are
+  unaffected, and `false` and non-boolean values both read as "not set".
+  
+  The five GA-pending entries that held this card's place in
+  `registry-inputs-spec-parity.test.ts` are deleted, which is what the gate's own
+  `carries no stale unpublished-key exemption` check demands once the keys are published.
+- 167ec42: `ComponentMeta.labelling` grows a third value: `'control' | 'group' | 'display'`
+  (objectui#4857, ruled jointly with objectui#4871 as the single repo-wide vocabulary for
+  "how does a host learn what a widget will render"). `'display'` declares a widget whose
+  whole surface is a pure display in EVERY state — no focusable control, nothing a
+  `<label for>` could ever reach.
+  
+  The form renderer answers the declaration with the objectui#4788 host container (field
+  id + `aria-labelledby` + `aria-describedby` + `role="group"`) in the editable state too;
+  the `readonly === true` arm keeps its exact #4788 semantics for undeclared widgets. The
+  display-only four (`formula` / `summary` / `auto_number` / `vector`) declare `'display'`
+  — on the real object-form path they arrive `disabled`, never `readonly` (a deliberate
+  distinction this change does not touch), so their visible labels pointed `for` at an id
+  no element carried and their help text had zero consumers in every editable form.
+  
+  `grid` was re-measured before being classified: its only bare-config focusable is the
+  auxiliary "Add line" button (routing `for` there would have label clicks insert rows),
+  and every realistic config is a table of per-cell inputs — a composite. It declares
+  `labelling: 'group'` and its root container now consumes the host id, name and
+  description, exactly like `address` / `checkboxes`.
+  
+  Companion registry gate: `FIELD_WIDGET_LABELLING` (exported) is a `Record` keyed by the
+  field-widget map's own literal key union, so registering a widget without deciding its
+  labelling is a compile error rather than a silent fall-through to the dangling-`for`
+  path, and the declaration test asserts the registered meta agrees with it key by key.
+- f1d4748: Remove the retired `striped` / `bordered` / `virtualScroll` list-view surface
+  
+  objectstack#7176 retired `list.striped`, `list.bordered` and `list.virtualScroll`
+  from the spec after measuring every objectui reader as pass-through: each one
+  copied the key onward and no renderer ever applied it. objectui stops declaring,
+  typing and forwarding them.
+  
+  Off the chain: the `@objectstack/spec` list-view bridge in `@object-ui/react`,
+  `ListView`'s child-view props in `@object-ui/plugin-list`, both `ObjectView`
+  relays (`@object-ui/plugin-view` and `@object-ui/app-shell`), the `ObjectGridSchema`
+  and `NamedListView` declarations in `@object-ui/types` (interface and zod),
+  `ObjectGrid.component.yml` in `@object-ui/components`, and the page-block
+  inspector's `striped` / `bordered` toggles in the metadata-admin designer.
+  
+  Behaviour is unchanged: nothing read these keys, so nothing rendered differently
+  for them. Stored view metadata that still carries one keeps validating — the keys
+  are simply no longer relayed. `ListViewSchema` continues to take the spec's
+  list-view fields by reference, so the protocol's own retirement tombstones
+  arrive with the next `@objectstack/spec` bump and reject the keys at the
+  authoring boundary. Restoring any of the three as live surface requires an
+  implementation card filed first, per the ruling.
+- 58b8346: Settle the two declared-but-unread keys on `AccordionItem`: retire `icon`, wire
+  `disabled` (objectui#4652).
+  
+  The same defect as objectui#4632 (PR #4651), one interface up in the same file.
+  `AccordionItem` declared `disabled?: boolean` and `icon?: string` while the
+  `accordion` renderer read neither — it mapped items to `value`/`title`/`content`
+  and dropped the rest. Nothing went red: an author who declared either key got a
+  correctly rendered accordion with the key silently ignored.
+  
+  The two keys are settled in opposite directions, by measurement rather than by
+  symmetry. A full corpus sweep (schema catalog, docs, example apps, and this
+  repo's `objectstack` sibling checkout) found **zero** sites authoring either key
+  on an `AccordionItem`:
+  
+  - **`icon` is retired** from the TypeScript interface and from the
+    `AccordionItemSchema` Zod mirror. It had zero measured pull anywhere in the
+    corpus and no established convention to lean on, so under this platform's
+    declared=enforced doctrine it is removed rather than speculatively
+    implemented.
+  - **`disabled` is honored**, despite also having zero catalog pull today.
+    Item-level `disabled` is already established live convention in this
+    codebase — `tabs`, `select`, `dropdown-menu`, `menubar`, `context-menu` and
+    (objectui#4632) `toggle-group` all forward it, and `accordion` was the next
+    outlier. The underlying Radix accordion item supports `disabled` natively, so
+    the renderer forwarding one prop is the whole change; the synced
+    `ui/accordion.tsx` primitive is untouched. The schema catalog's
+    `basic-accordion` example now demonstrates a disabled item.
+  
+  **Breaking for TypeScript authors of `icon` only** (marked `minor` per this
+  repo's version-alignment rule, which reserves `major` for following
+  `@objectstack` across a major — see AGENTS.md's 版本号策略 and the identical
+  classification PR #4651 used for `ToggleGroupItem.icon`). Runtime behaviour of
+  an authored `icon` is unchanged — it rendered nothing before and renders
+  nothing now; what changes is that the contract no longer claims otherwise, so
+  the mistake surfaces at authoring time. Authored `disabled` changes from
+  silently ignored to actually disabling that one item (and blocking its
+  expand/collapse).
+- 93fe362: layout: `flex` and `container` now honour a declared scale value of `0`
+  
+  `FlexSchema.gap` and `ContainerSchema.padding` are declared `number`, and both
+  renderers already carried an explicit zero branch (`gap === 0 && 'gap-0'`,
+  `padding === 0 && 'p-0'`). Neither branch was reachable: the value was read with
+  `||`, so a declared `0` was folded into the default before the branch was tested.
+  A `flex` asking for no gap rendered `gap-1.5 sm:gap-2`, and a `container` asking
+  for no padding rendered `p-2 sm:p-3 md:p-4` — the JSON said one thing and the DOM
+  did another, with nothing reported.
+  
+  Both now read the value with `??`, matching how the sibling `stack` and `grid`
+  renderers already read theirs. Omitting the key still applies the same defaults
+  (`gap: 2`, `padding: 4`); only an explicitly declared `0` changes, and no node in
+  this repository declared either key as `0` before this change.
+- 99bd015: Settle the two declared-but-unread keys on `ToggleGroupItem`: retire `icon`, wire
+  `disabled` (objectui#4632).
+  
+  `ToggleGroupItem` declared `icon?: string` and `disabled?: boolean` while the
+  `toggle-group` renderer read neither — it mapped items to value + aria-label +
+  label and dropped the rest. Nothing went red, which is what made it durable: an
+  author who declared either key got a correctly rendered group with the key
+  silently ignored, and the schema catalog (the corpus AI authoring tools retrieve
+  from) was teaching `icon` on all three items of
+  `components-disclosure-toggle-group/with-labels`.
+  
+  The two keys are settled in opposite directions, by measurement rather than by
+  symmetry:
+  
+  - **`icon` is retired** from the TypeScript interface, from the `ToggleGroupItemSchema`
+    Zod mirror, from that catalog entry and from the component's docs page. It had zero
+    measured pull — across the repo the single catalog entry was the only site authoring
+    it, no application code or example app declared it, and no renderer resolved it.
+  - **`disabled` is honored.** Item-level `disabled` is already live convention here —
+    `tabs`, `select`, `dropdown-menu`, `menubar` and `context-menu` all forward it, and
+    `toggle-group` was the lone outlier. The underlying Radix item supports it natively,
+    so the renderer forwarding the prop is the whole change; the synced `ui/toggle-group.tsx`
+    primitive is untouched.
+  
+  **Breaking for TypeScript authors of `icon` only** (marked `minor` per this repo's
+  version-alignment rule, which reserves `major` for following `@objectstack` across a
+  major). Runtime behaviour of an authored `icon` is unchanged — it rendered nothing
+  before and renders nothing now; what changes is that the contract no longer claims
+  otherwise, so the mistake surfaces at authoring time. Authored `disabled` changes from
+  silently ignored to actually disabling that one item.
+
+### Patch Changes
+
+- 460c4d0: The built-in form `input` branch now honours a declared ceiling in both authored spellings.
+  
+  The branch spread its leftover field props straight onto the element and never
+  read the declared ceiling, so one declaration produced two different outcomes.
+  Measured on `origin/main`, rendering the built-in branch (no `registerAllFields()`)
+  and dumping the element's `getAttributeNames()` / `getAttribute('maxlength')`:
+  
+  | declaration | `maxlength` on the element | effect |
+  |---|---|---|
+  | `maxLength: 50` | `"50"` | capped — but only by the coincidence that `maxLength` names a real DOM attribute |
+  | `max_length: 50` | `null`, plus a stray `max_length="50"` | no cap at all, and invalid HTML |
+  
+  Two distinct defects: the missing cap, and an inert attribute on the DOM that
+  reads like a working cap to whoever greps the file next.
+  
+  `max_length` is a live authoring spelling, not a fossil. The registered
+  `field:*` widgets have dual-read `maxLength ?? max_length` since framework#1878
+  §3, all three producers of a form field normalize it (`ObjectForm`,
+  `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`) and `@object-ui/types`
+  declares it on several field types. Every reader in the repo honoured it except
+  this branch — which is precisely the one serving a hand-written `FormSchema` fed
+  straight to the renderer, where no producer sits in between to normalize it and
+  the author is the producer. This is the same mechanism objectui#3439 resolved
+  for the built-in `textarea` branch.
+  
+  The legacy key is destructured off locally rather than added to the shared
+  `stripRendererOnlyProps` list: that helper feeds every branch
+  (`checkbox`/`switch`/`select`/`default` all share `domFieldProps`), so extending
+  it would change what reaches the DOM for widgets this change neither fixes nor
+  tests. The neighbouring `textarea` branch strips it the same local way.
+  
+  Scope, stated because the sibling card resolved more than this one: the ceiling
+  only. Whether a single-line input should also carry the visible `{n}/{max}`
+  counter and the announced limit that the `textarea` branch grew in
+  objectui#3439 is an independent design trade-off that does not follow from that
+  card's conclusion, and is deliberately left undecided here.
+- 0ae27f7: The form renderer's built-in `textarea` branch now honours a declared character cap the same way the registered `field:textarea` widget does.
+  
+  One `maxLength` declaration produced two experiences. The registered path has
+  shipped four things since objectui#3406/#3408/#3417 — the native cap, visible
+  `{n}/{max}` digits, a description reached through `aria-describedby` so the
+  limit is announced on focus, and a threshold-gated debounced near-limit notice.
+  The built-in branch — the path standalone and embedded hosts take, the ones that
+  call no `registerAllFields()` — shipped a subset of one of them.
+  
+  The accessibility half is the half that mattered: a screen-reader user on this
+  path learned the field's limit only as a validation error AFTER submitting. All
+  four affordances now render on both of the branch's surfaces (the inline control
+  and the fullscreen dialog), from the SAME `CharacterCount` component the widget
+  renders rather than a second copy of it.
+  
+  Also fixed, and wider than the visible gap: the branch never READ the cap, it
+  only spread its leftover field props onto the element. A camelCase `maxLength`
+  therefore worked by coincidence — it names a real DOM attribute — while the
+  legacy `max_length` spelling, which the registered widget and all three
+  producers of a form field have dual-read since framework#1878 §3, landed as a
+  stray inert `max_length="…"` attribute and capped nothing at all. The branch now
+  resolves both spellings and keeps the non-attribute spelling off the DOM.
+  
+  `CharacterCount` moved from `@object-ui/fields` to `@object-ui/components`, the
+  package both render paths may import, in the direction and for the reason
+  objectui#3398 measured for `FullscreenEditor`. It was internal to `fields` (never
+  exported from that package's barrel), so no published export changed; it is a
+  new export of `@object-ui/components`. Its copy moved with it onto the same
+  `fields.textarea.*` keys with byte-identical English defaults, so the ten locale
+  packs need no edit and provider-less rendering is unchanged.
+- 78c0f9a: The form's cascade clear now recognises object-form fields, so a narrowed option list no longer submits a stale value.
+  
+  `field:select` and `select` name the SAME field kind: the object-form path
+  (`mapFieldTypeToFormType`) emits the prefixed widget id, hand-written SDUI
+  schemas the bare one. The form host's cascade-clear effect (objectui#2284)
+  compared the RAW type string against the bare-name set, so every option field
+  coming from an OBJECT schema fell out of the effect entirely. Its controlling
+  field could change, its option list narrow, and the no-longer-offered value was
+  never dropped — the form submitted exactly the stale "china + california" pair
+  the effect exists to prevent. Only genuinely cascading fields were affected
+  (those carrying a `dependsOn` or a per-option `visibleWhen`); a plain picklist
+  has nothing to recompute either way.
+  
+  The comparison now normalizes the type before the lookup, which is what the
+  render path a few hundred lines below has done for `isOptionField` since
+  objectui#3231 — the two readers of "is this an option field?" no longer
+  disagree about what a `select` is. This half was the one missed then.
+  
+  Stated because it is a behavior change and not an equivalent refactor: the
+  object-form path gains cascade clearing for the FIRST time. A form whose stored
+  value is genuinely excluded by its chosen parent will now clear that value where
+  it previously kept it. The narrowing is bounded by the rules already in place
+  for the bare-name path, both of which the object path now inherits unchanged: a
+  GATED list (a declared `dependsOn` parent still empty) is treated as unknown
+  rather than invalid and never deletes anything (objectui#4247), and a field with
+  no `dependsOn` and no per-option predicate is never recomputed at all.
+- bbe8b86: The allow-list of option widgets that are fed the live record is now one exported constant, `CASCADE_OPTION_WIDGET_TYPES`, instead of three private copies.
+  
+  `select` / `multiselect` / `radio` / `checkboxes` are the widgets whose OFFERED
+  option set is re-resolved against a record (per-option `visibleWhen`, plus the
+  `dependsOn` gate), so they are the widgets a surface must thread its live record
+  to. Three surfaces feed that one evaluator — the object form, the single-record
+  action dialog and the bulk action dialog — and until now each carried its own
+  private `new Set([...])` of the same four keys, with a comment in each asking the
+  next person to change all three together. Nothing could have reported them
+  drifting: every copy passed its own behavioural tests, and a divergence would
+  have shown up only as one surface silently disagreeing with another about what
+  "the record" is.
+  
+  The set now lives in `@object-ui/core`, next to `resolveCascadingOptions` — the
+  evaluator that reads that record — because core is the one package all three
+  surfaces already depend on, and it is re-exported from `@object-ui/fields` next
+  to `resolveFormWidgetType`, whose output is the vocabulary the keys are written
+  in. Both are the same object, pinned by test; each consumer keeps its own
+  normalization (`normalizeFieldType` in the form, `resolveFormWidgetType` in the
+  dialogs), which agree on these four members.
+  
+  No behaviour changes: the members are identical on all three surfaces, and the
+  existing pins for each surface still assert the same records reaching the same
+  widgets. The rationale that was repeated in the three copies — including the
+  note that the widget-hint picker family (`filter-condition`, `recipient-picker`,
+  the lookup family) reads a different sibling key off the same channel and is
+  deliberately NOT in this set — is now stated once, in the constant's own
+  documentation. Whether the action and bulk dialogs should ever feed those
+  pickers stays an open question (objectui#4771), unchanged by this convergence.
+- 2e82ab2: The config panel footer translates: `ConfigPanelRenderer`'s Save / Discard labels come from the locale pack.
+  
+  `saveLabel` and `discardLabel` carried the English literals `'Save'` and
+  `'Discard'` as parameter defaults, and no caller in the repo passes either prop,
+  so the sticky footer that appears the moment a config draft is dirty stayed
+  English in every locale — inside panels whose every other string had already
+  been routed through `t()`. The fix is in the renderer rather than per-caller:
+  the footer is the renderer's own chrome, so a caller-side fix would translate
+  one panel's footer and leave the next host's English.
+  
+  Both labels now resolve through `createSafeTranslation` — the mechanism this
+  package already uses for its built-in copy in `form.tsx`,
+  `fullscreen-editor.tsx`, `data-table.tsx` and friends. An explicitly passed
+  `saveLabel` / `discardLabel` still wins, unchanged and untranslated.
+  
+  `common.save` is reused rather than twinned: it already ships `Save` in all ten
+  packs and is what the console's other save buttons read. `common.discard` is
+  new, because the packs carried no shared spelling of the word — the three that
+  existed are each scoped to one surface (`form.discard`,
+  `console.settingsView.discard`, `console.objectView.discard`) and the last of
+  them diverges from the other two in zh/ko/fr. Its ten values are the majority
+  spelling, byte-identical to `form.discard` and `console.settingsView.discard`.
+  
+  Both English defaults are byte-identical to the literals they replace, so a
+  host that mounts no `I18nProvider` renders exactly what it did before.
+- 40d3a33: `div` 的废弃提示按 provenance 收窄:只对 **JSON 作者面**的节点报,不再对 `kind:'html'` tier 自己解析出的节点开火。
+  
+  html tier 的页面是一段受限 JSX/Tailwind 文本,由引擎自己的解析器编译(只解析、不执行),标签名原样映射成节点 —— 作者在那一层写下的盒子标签,是该 tier 词表里的一等成员,**没有别的拼法可迁移**。提示照旧对他们开火,给的还是 JSON 作者面的替代建议:一条谁都无法执行的提示不是废弃,是噪声;它同时意味着这个类型永远退不掉,因为引擎自己的编译器一直在产出它。
+  
+  判据是**来源**,由生产者确立:解析器给它产出的每个节点打一个 symbol 标记(`Symbol.for` 注册键),渲染器读这个标记。symbol 对 `JSON.stringify` / `Object.keys` / DOM 全部不可见 —— 所以它既不会落进被持久化的文档,也就无法被一份(手写或 AI 生成的)JSON 元数据复制回来给自己买到豁免;通过花括号属性夹带进来的 JSON **不打标记**,那部分本来就是手写的,建议对它成立。
+  
+  迁移建议一字未改,JSON 作者面照旧每次模块加载报一次;提示文案现在写明它针对哪一个作者面。
+- a1609a6: Console list filters: a `between` range is submitted only when both bounds are filled, and six operator labels stop rendering as raw i18n keys.
+  
+  Two defects in the list-view filter panel (objectstack#8815), both in the Console
+  render layer, with no workaround available downstream.
+  
+  **A half-filled range no longer refuses the whole view.** Picking a date column
+  and 「介于」 draws two inputs — that part landed in objectui#3958 — but typing
+  only one bound produced `["2024-01-01", ""]`, and both write paths read "is this
+  row filled in?" with one shape-blind predicate (`null` / `''` / empty array).
+  An array of length 2 passed it, so the empty bound went to the server, which
+  refuses the query outright (`400 INVALID_FILTER`): the list showed
+  「该视图的查询被拒绝」 and the filters the user had already applied stopped
+  applying too. The saved-view fold persisted the same half-range, so the refusal
+  came back on every later read of that view, for every user of it.
+  
+  The spec cannot intercept this — `ViewFilterRuleSchema` accepts
+  `["2024-01-01", ""]` because it counts the two slots rather than what is in
+  them, while refusing a scalar or a one-element array. Authoring validation is
+  therefore green on exactly the shape that fails at query time, which makes not
+  emitting it the producer's job. `@object-ui/components` now exports
+  `isFilterValueComplete(operator, value)` — arity-aware, so a `pair` row needs
+  both bounds — and the two consumers that had each kept a copy of the old
+  predicate (`plugin-list`'s `convertFilterGroupToAST`, `app-shell`'s
+  `foldFilterGroupToSpecRules`) read it instead. A half-filled range is now
+  dropped exactly as a half-typed `equals` row already was: no filter, rather than
+  a filter the server will reject. Bounds of `0` and `false` stay real bounds.
+  
+  **Six operator labels are translated in all ten locale packs.**
+  `startsWith`, `endsWith`, `isNull`, `isNotNull`, `exists` and `notExists` were
+  missing from every pack, so i18next resolved them to the raw key and the dropdown
+  showed `filterBuilder.operators.isNull` beside translated entries. The
+  component's own defaults table could not cover it: that table serves only the
+  no-provider path, and the Console mounts a provider. The report named four —
+  a `date` column's bucket offers the four nullness operators; a `text` column
+  showed all six.
+  
+  Because the label key is built dynamically (`t(\`filterBuilder.operators.${op}\`)`),
+  no existing gate could see the gap: the call-site checker classifies a template
+  key as `missing-prefix` and only asks whether the prefix resolves, and
+  cross-pack parity is satisfied when all ten packs are missing a key together.
+  A new parity test pins the packs against `FILTER_BUILDER_OPERATORS` in both
+  directions, so an operator added to the dropdown now fails loudly until every
+  pack labels it.
+- 53f23bc: `FilterBuilder` shows the falsy values a row actually holds — a boolean `false` and a number `0` are values, not empty boxes.
+  
+  The value controls asked `!condition.value` and `String(condition.value || "")`,
+  which folds `false` and `0` in with the rows nobody has filled in yet. Both rows
+  saved, persisted and filtered by their value the whole time; only the control
+  said otherwise:
+  
+  - a boolean column filtered `equals false` snapped back to the **Select value**
+    placeholder the moment the user clicked **False**, while the row carried
+    `value: false`;
+  - a number column filtered `equals 0` showed an empty box — and typing `0` into
+    one looked like the keystroke had never landed, because the row took the value
+    and the very next render blanked the input;
+  - a single-select whose option id is `0` showed the placeholder too, even though
+    the same control's multi-select branch already drew that option as checked.
+  
+  "No value" is now one judgement (`undefined` / `null` / `''`), read by every
+  value control and by the two helpers that already spelled it out correctly, so
+  "not picked yet" and "picked False" stay two distinguishable states rather than
+  trading places.
+  
+  The three keyed numeric paths — the token input's commit, a range bound, and the
+  single value input — no longer read with `parseFloat(raw) || 0`, which takes half
+  of `"42abc"` and turns `"acme"` into `0`: a filter the user never wrote. All
+  three now use the same strict reading a field switch uses, so this component
+  holds one answer to "is this string a number" instead of a strict one and a
+  lenient one. An unreadable entry becomes an unfilled value, except in the token
+  input, which declines the commit and leaves the text in the draft box to be
+  fixed. No behaviour a user can reach today changes: those inputs are
+  `<input type="number">`, which never hands a non-numeric string to the component
+  in the first place — this closes the drift, before a text box, a formula or a
+  paste path opens it.
+- c4533dc: `FilterBuilder` settles a row's operator when its **field** changes, instead of leaving an operator the new field's dropdown does not list.
+  
+  The operator buckets are per field type and they do not nest: a `select` column
+  offers `in` / `notIn`, a `text` column offers none of them, and only a date
+  column offers `between`. Changing a row's field wrote `{ field }` alone, so the
+  operator survived into a bucket that no longer contained it. Radix's
+  `SelectValue` matches against the `SelectItem`s actually mounted, so the
+  operator trigger rendered **blank** — while the row went on filtering by an
+  operator the user could neither see nor reach, and could only clear by deleting
+  the row.
+  
+  Changing the field is now one edit with the operator and the value's shape, the
+  same way objectui#3958 / PR #4762 made changing the operator one edit with the
+  value's shape:
+  
+  - an operator the new field's bucket still offers is **kept** — switching
+    `contains` from one text column to another must not silently become `equals`,
+    and the value it carries is left alone;
+  - one the new bucket cannot offer is replaced by that bucket's **first** entry,
+    and the row's `value` is then re-shaped for the family it lands in — a list
+    under `in` collapses to its first entry under `equals`, a `between` range
+    keeps its lower bound, an untouched `[]` becomes `''`.
+  
+  Membership is decided through the spec's own `normalizeFilterOperator`, the fold
+  `filterValueArity` already uses, so a stored rule that reaches the builder
+  spelled `not_in` is recognised as the operator the dropdown lists as `notIn` and
+  is not reset out from under the author. The fold is injective over this
+  builder's whole operator vocabulary, which is what makes comparing through it
+  safe; a test pins that, and fails the day an added operator would break it.
+- be60815: `FilterBuilder` settles a row's **value** when its field changes, instead of leaving a value the new column's input cannot show.
+  
+  objectui#4768 / PR #4779 settled the row's operator on a field switch and
+  re-shaped the value only when the operator's family changed — scalar to scalar
+  has no shape question, so what the user typed was carried through on purpose.
+  But the field's **type** changed too, and the value input is redrawn from it: a
+  browser renders a non-numeric value in `<input type="number">` as **blank**. A
+  `text` row filtered `equals "acme"`, pointed at a number column, showed an empty
+  box while the row went on carrying `"acme"` — `foldFilterGroupToSpecRules`
+  persisted it and the live grid queried `amount equals "acme"`. The same
+  invisible-value shape as objectui#4768, one column over.
+  
+  Changing the field is now one edit with the operator, the value's shape **and**
+  the value's type. Convertible values are carried, the rest clear to the family's
+  empty shape (scalar `''`, list `[]`, range `[]`):
+  
+  - `"42"` on a number column becomes the number `42`; `"acme"`, `"42abc"` and
+    `"1,000"` clear. The reading is deliberately stricter than `parseFloat`, which
+    would turn `"acme"` into `0` — a filter the user never wrote;
+  - `"true"` / `"false"` convert on a boolean column, and a boolean becomes
+    `"true"` / `"false"` on a text column, so the round trip closes; `1` and
+    `"yes"` are conventions rather than readings, and clear;
+  - date-like columns take only what their own input can render, plus the one
+    truncation that loses nothing it could have shown (`"2024-03-05T14:30"` →
+    `"2024-03-05"` on a date column). A bare date does **not** gain a midnight to
+    fit a `datetime` column: `equals 2024-03-05T00:00` is a filter that looks
+    answered and matches almost nothing;
+  - a value the new column can already hold is left alone — switching between two
+    text columns, or two numeric ones, still keeps what the user typed, and an
+    unfilled row stays unfilled.
+  
+  The convertibility judgement is defined once, next to `reshapeFilterValue`,
+  and `getInputType` now reads the same family table it does — so the type a value
+  is converted **to** and the input it is edited **in** cannot drift apart.
+- 37f6844: FilterConditionField can author the spec's `$icontains` — case-insensitive contains is reachable from the filter UI.
+  
+  `@objectstack/spec`'s `FieldOperatorsSchema` gained `$icontains` between
+  `17.0.0-rc.2` and `rc.5`, and every driver and evaluation face the platform
+  ships now executes it. `FilterConditionField` had no builder operator that could
+  author it, so the capability was unreachable from the sharing-rule criteria
+  builder and sat in that widget's parity test as an explicit `KNOWN_UNREACHABLE`
+  entry.
+  
+  The FilterBuilder gains a `containsCaseInsensitive` operator ("Contains (ignore
+  case)", translated in all ten locale packs). `condToMongo` emits
+  `{ field: { $icontains: value } }` and `kvToCondition` reads it back, so a saved
+  criteria reopens in the visual builder instead of falling into the raw-JSON
+  editor. Today's `contains` is unchanged and still emits the case-SENSITIVE
+  `$contains`; whether it should have been case-insensitive all along is a product
+  question that stays open, and stored filter views keep meaning what they meant.
+  
+  The fold is ASCII-only by contract — `café` does not match `CAFÉ`.
+  
+  The new operator is **opt-in per consumer**: `FilterBuilder` takes an
+  `extraOperators` prop, and only `FilterConditionField` passes it. The one
+  dropdown feeds three at-rest dialects and only the MongoDB-style criteria this
+  widget writes can carry the operator — the spec's `VIEW_FILTER_OPERATORS` (saved
+  views) and `VALID_AST_OPERATORS` (the live grid's filter AST) have no
+  case-insensitive contains, so offering it there would author a filter those
+  paths cannot execute. Every other FilterBuilder is unchanged.
+- 93de4f6: fix(components): FilterBuilder 的 lookup 列不再因 `options: []` 被拒掉远程搜索 (objectui#5031)
+  
+  `renderValueInput` 里那条远程 picker 分支的条件写的是 `!field?.options`,而 `[]`
+  是真值 —— 于是一个带 `referenceTo`、`options` 为空数组的 lookup 列**进不到**
+  `LookupValuePicker`,落进按 options 画的分支:标量算子得到一个候选数为 0 的
+  Select(没有搜索框),`in` / `notIn` 得到一个空的勾选框列表。用户在这一列上挑不出
+  任何**新**值,而同一列若 `options` 键干脆缺席反而能拿到完整的远程搜索。可达性不需要
+  任何异常状态:`@object-ui/fields` 的 `deriveFilterFields` 与 `plugin-view` 的
+  `deriveFieldOptions` 都把 `options` 原样透传,对象元数据里 picklist 值尚未到位时
+  就是这个形状。
+  
+  objectui#4874(PR #5030)已经为「静态选项集是否真的在位」建了唯一判据
+  `hasStaticOptionDomain(field)`(= `options` 是**非空数组**),并按「`options: []`
+  属于远程/未到位」这一侧裁定了值域行为。这条分支条件把同一个问题又答了一遍,两个答案
+  对 `options: []` 相反:值域侧当它是远程列(保值),控件侧当它是静态列(画空 Select)。
+  
+  按 2026-08-17 维护者裁定,分支条件改读同一个判据:
+  
+  - `referenceTo`(或 `type` 为 `user` / `owner`)且 `options` 为 `[]` 的 lookup 列
+    → `LookupValuePicker`,与 `options` 键缺席时完全一致:有搜索框、有候选、能选出
+    新值;多值算子走 picker 的多选形态,仍然回吐列表(objectui#3958)。
+  - `options` **非空**的列不受影响 —— 选项集就是它的全部值域,静态 Select 依旧。
+  - 分支的其余条件未动:没有 `referenceTo` 又不是 `user` / `owner` 的列(无处可搜)、
+    以及 `select` 这类非 lookup 列,路由与此前逐字相同。
+  
+  「值必须可见」这一条不变,只是由 picker 而不是临时 `SelectItem` 兑现。
+- 2b50261: `FilterBuilder` gives the set and range operators an input that matches the value shape the spec accepts, and stops minting the shape it refuses.
+  
+  Three independent paths let one filter row end up with `operator: 'in'` and a
+  SCALAR `value` — the shape `ViewFilterRuleSchema` refuses at save time since
+  objectstack#6227, and the shape the query path answered `400 INVALID_FILTER` on
+  before that (objectstack#5869):
+  
+  - Changing the operator dropdown wrote `{ operator }` alone, so the seed `''`
+    (or whatever the previous family had produced) survived the switch into
+    `in` / `not_in` / `between`. The operator and the shape of its value are one
+    edit, so they are now made together: switching families re-shapes the value —
+    a typed scalar becomes a one-element list, an empty one becomes `[]`, a range
+    keeps its first bound and leaves the second open, and a list collapsing to a
+    scalar keeps its first entry.
+  - A plain text or number column has no static `options`, so `in` fell through to
+    the single-value input and the user could only ever type a scalar into it.
+    Those columns now get a token input (type, Enter or comma commits, `×` or
+    Backspace removes) that always emits an array; `between` gets its two bounds
+    instead of one box. The lookup picker's no-DataSource fallback, which also
+    handed back a scalar while `multiple`, emits a list too.
+  - The multi-value families were decided from a local `["in", "notIn"]` literal,
+    already one spelling adrift: `notIn` is an alias and the canonical member is
+    `not_in`, so a stored view read back in canonical form got the single-value
+    input for a set operator. The families are now read from `@objectstack/spec`'s
+    exported `VIEW_FILTER_LIST_VALUE_OPERATORS` / `VIEW_FILTER_PAIR_VALUE_OPERATORS`
+    and folded through `normalizeFilterOperator`, so both spellings of one operator
+    get one answer and a family the spec widens is picked up without an edit here.
+  
+  `foldFilterGroupToSpecRules` is unchanged and needed no change: it normalizes the
+  operator and carries `value` through verbatim, so the shape that reaches storage
+  is the producer's to get right. An untouched `in` row arrives as `[]`, which the
+  fold's existing incomplete-row rule already drops.
+  
+  Four locale keys are added to all ten packs for the new inputs
+  (`filterBuilder.addValue` / `.removeValue` / `.rangeStart` / `.rangeEnd`).
+- 384f30d: fix(components): FilterBuilder 的值不再落在列的选项集之外还看不见 (objectui#4874)
+  
+  带 `options` 的 select/lookup 列，其值控件是一个受控的 Radix Select，而
+  `SelectValue` 只认已挂载的 `SelectItem`。于是文本列的 `equals "acme"` 指到
+  picklist 列（选项 `won` / `lost`）之后，值控件显示空，行里仍是
+  `value: "acme"` —— `foldFilterGroupToSpecRules` 照样持久化、实时网格照样拿
+  `stage equals "acme"` 去查。这是 #4768（operator）、#4781（值的类型）之后
+  「看不见的值」的第三张脸，成因是**值域**而不是类型：`select` / `lookup` 属于
+  文本族，`"acme"` 在类型上装得下，只是不在该列的选项集里。
+  
+  按 2026-08-17 维护者裁定（A + C 组合）：
+  
+  - **静态选项列**（`options` 是非空数组，选项集就是该列的全部值域）：切换 field
+    时做成员判定，不在选项集里的值清到 #4781 的那套空形 —— 标量 `''`、列表逐项
+    过滤后 `[]`。列表是**逐项**判定，用户写对的那几项不会被一颗坏项连坐。
+  - **远程/异步列**（lookup 远程搜索、`options` 缺席，或 `options: []` 尚未到位）：
+    值**保留**并**可见** —— 绝不因一份从未声称完整的本地选项集去删一个合法的
+    lookup id。Select 把该值挂成一个临时项（标签用值本身，与
+    `LookupValuePicker` 对没有 label 的 id 的做法一致），多值列表把它渲染成一行
+    已勾选、可取消的条目。
+  - 可见性是**无条件**的：无论值是切列带来的、从已存视图读回来的，还是选项集晚到
+    才对不上，控件都显示行里真正带着的东西。「行带值、控件空白」这个形态不再存在，
+    也不会为了显示去悄悄改写传入的 `value`。
+- ac600e5: A `user` field in a form now receives `dataSource` / `dependentValues` / `dependsOnLabels`, like every other reference field.
+  
+  The form renderer decided which registered widget gets those three props from a
+  module-private `DATA_SOURCE_FIELD_TYPES` set, while `@object-ui/core` kept
+  `EXPANDABLE_FIELD_TYPES` for the same underlying fact — a field whose stored
+  value is a foreign key into another object. The core side's TSDoc claimed to
+  mirror the form's set, and it did for 15 days: the form's copy then gained
+  `capability-multiselect` (objectui#2403) and the three widget-hint pickers
+  `object-ref` / `filter-condition` / `recipient-picker` (objectui#2421) on the
+  same day, after which the two sets were not in a subset relation in either
+  direction — `user` only in core, the picker names only in the form — with
+  nothing able to report it.
+  
+  The form now derives its rule instead of restating it: the reference half is
+  core's set, the form-specific half is the three picker names, which are widget
+  hints and can never be a declarable field `type`. Adding a member to
+  `EXPANDABLE_FIELD_TYPES` therefore also grants it the form's data-source wiring;
+  that coupling is intended and is now written down on both sides.
+  
+  The user-visible half is `user`. It previously received none of the three props.
+  `dataSource` and `dependentValues` each have a `SchemaRendererContext` fallback
+  inside the widget, so the person picker limped along wherever a provider
+  happened to supply one; `dependsOnLabels` has no fallback, so a
+  dependency-gated user picker interpolated the raw API name into its
+  "select ... first" hint in every locale — the leak objectstack#5407 closed for
+  lookups and left open here. The widget contract's own `dataSource` doc has
+  always named `user` among the types the form renderer injects for.
+  
+  No change to what is expanded, projected or rendered anywhere else: the core
+  set's members are untouched.
+- 97fba31: The built-in form's `default` fallback branch now enforces a declared `max_length` ceiling.
+  
+  The last arm of the field switch — the one serving a `type` that is neither a
+  built-in field type nor resolvable from the registry — spread its props straight
+  onto the rendered `Input` and never read the declared ceiling. One declaration
+  therefore split into two outcomes depending on how it was spelled. Measured on
+  `main` after objectui#5201 landed:
+  
+      max_length: 50 -> attrs=["class","max_length",...]  maxlength=null
+      maxLength: 50  -> attrs=["class","maxlength",...]   maxlength="50"
+  
+  The camelCase spelling capped by coincidence — it happens to name a real DOM
+  attribute. The legacy `max_length` capped nothing at all and landed as a stray,
+  inert `max_length="50"` attribute: invalid HTML that reads like a working cap to
+  the next reader. Two independent defects, both now fixed.
+  
+  `max_length` is a live authoring spelling, not a fossil: the registered `field:*`
+  widgets have dual-read `maxLength ?? max_length` since framework#1878 §3, all
+  three producers of a form field normalize it (`ObjectForm`, `sectionFields`,
+  `EmbeddableForm.applyDefaultMaxLengths`), and `@object-ui/types` declares it on
+  several field types. This branch serves a hand-authored `FormSchema` handed
+  straight to the renderer, where there is no normalizing producer in between and
+  the author is the producer — so it was the one reader in the repo that dropped
+  the declaration.
+  
+  Same defect and same fix shape as objectui#5201 (the `input` arm) and
+  objectui#3439 (the `textarea` arm): the ceiling is resolved locally inside the
+  branch, and the legacy key is destructured off locally. The shared
+  renderer-only strip table is deliberately unchanged — it feeds the `checkbox`,
+  `switch` and `select` arms too, and widening it would alter branches this change
+  does not test.
+  
+  A field that declares no ceiling in either spelling renders no `maxlength`
+  attribute, exactly as before.
+- 3fbbea1: `container`: honour a declared `maxWidth: false` as "no maximum width"
+  
+  `ContainerSchema` has always declared `maxWidth?: … | false`, but the renderer
+  read it as `schema.maxWidth || 'xl'`, so `false` folded into the default and a
+  container asking for **no** constraint rendered `max-w-xl` (`max-width: 36rem`)
+  — the opposite of what it declared. The `false` arm of the union had no
+  reachable path from the day it was declared.
+  
+  `maxWidth` is now read with `??` (the spelling `stack` / `grid` always used, and
+  the one objectui#4003 gave this file's `padding` and `flex`'s `gap`), and `false`
+  emits an explicit **`max-w-none`** rather than simply omitting a class. The two
+  are not the same fact: an omitted class leaves an inherited max-width standing —
+  `@tailwindcss/typography`'s `.prose` sets `max-width: 65ch` — while `max-w-none`
+  cancels it. The registry `inputs` enum for `maxWidth` gains `false` to match the
+  type it lagged, so the designer and `sdui-parser`'s manifest gate stop reporting
+  a legal value as `invalid-enum`.
+  
+  No authored node in the repo declared `maxWidth: false`, so nothing that renders
+  today changes.
+- 616a2a5: The list filter builder no longer offers `Is set` / `Is not set`, which its query dialects cannot express.
+  
+  **User-visible before/after.** The operator dropdown in the list toolbar's
+  filter popover — and in the Studio view/tab/page filter inspectors, the dataset
+  inspector and the generic `filter` config field — loses two rows: **"Is set"**
+  and **"Is not set"**. The sharing-rule criteria builder (`FilterConditionField`)
+  keeps both, unchanged. `Is null` / `Is not null` and `Is empty` / `Is not empty`
+  are untouched everywhere and remain the way to filter on a missing value from
+  the list.
+  
+  Nothing that worked stops working. Every save path behind those two rows was
+  already broken, in three different ways depending on the surface:
+  
+  - **Live grid** — `ListView.mapOperator` had no row for either id, so its
+    `default:` arm returned the id verbatim and the query went out as
+    `['name', 'exists', 'x']`. `exists` is not a member of the spec's
+    `VALID_AST_OPERATORS`, so `isFilterAST()` rejects the shape: an unfiltered
+    read or a 400, never the filter the user asked for.
+  - **Save as view** — `foldFilterGroupToSpecRules` normalizes through the spec's
+    `normalizeFilterOperator`, which does not know the pair, and
+    `ViewFilterRuleSchema`'s enum then refuses the rule.
+  - **Dataset inspector** — `groupToCondition` has no row either and drops the
+    condition silently, so the filter simply never applied.
+  
+  **Why withheld rather than mapped.** Measured on `@objectstack/spec`
+  17.0.0-rc.6: neither `VIEW_FILTER_OPERATORS` nor `VALID_AST_OPERATORS` contains
+  an existence operator, under any spelling — both sets have zero members matching
+  `/exist/`. Only the MongoDB-style `FieldOperatorsSchema` criteria carries
+  `$exists`, and that is precisely the dialect `FilterConditionField` writes, so
+  the pair moves behind the existing `OPT_IN_OPERATORS` gate and that widget opts
+  in. Collapsing them onto `isNotNull` / `isNull` was rejected: the builder
+  already draws those as their own rows, the round trip is lossy (a saved
+  `exists` reads back as `isNotNull`), and the spec's own note records `$exists` =
+  has-value as still unsettled across drivers — `driver-memory`'s live mingo path
+  and `driver-mongodb` read key-presence.
+  
+  **The class is now closed by an assertion, not by discipline.** objectui's three
+  existing operator-parity guards all sweep spec vocabulary → objectui; none asked
+  whether an id the dropdown draws is an id the consumer can persist, which is the
+  direction that broke. `plugin-list`'s new
+  `list-offered-operator-expressible-parity.test.ts` forces the set the list
+  toolbar offers to **equal** the set its two dialects can express, in both
+  directions — so an unexpressible operator cannot be offered, and an operator
+  that becomes expressible upstream cannot stay needlessly withheld.
+- 4a0bd17: `page:accordion` now renders an item's `icon` in its panel trigger.
+  
+  `PageAccordionItem` (`packages/components/src/renderers/layout/containers.tsx`)
+  has always declared `icon?: string`, but `PageAccordionRenderer` never read it
+  — an authored icon reached the trigger and was silently dropped. The
+  `objectstack` spec's `PageAccordionProps.items[].icon` already treats this as
+  legitimate, undeprecated authorable surface (unlike the neighboring `value`
+  key, which the same schema explicitly flags as dead), so the renderer was the
+  side out of sync. It now renders the Lucide icon before the panel label,
+  following the same convention `page:tabs` items already use in this file.
+- b8b9af4: `page:header`'s `maxVisible` / `mobileMaxVisible` now honour the contract's value domain instead of a laxer renderer tolerance.
+  
+  Three authorities gave two answers for the same value (objectui#5006). Measured on
+  `ComponentPropsMap['page:header']` at `@objectstack/spec@17.0.0` — the member lives
+  on the `@objectstack/spec/ui` subpath, not the package root — both keys are a
+  POSITIVE SAFE INTEGER (`{format:'safeint'}` plus
+  `{check:'greater_than',value:0,inclusive:false}`). Spec rejects `0`, `-1`, `1.5`
+  and anything past `Number.MAX_SAFE_INTEGER`. objectui's manifest gate and
+  `sdui-parser`'s `checkType` said nothing about any of them, and the renderer's
+  `readMax` was looser still: it accepted `0` and floored fractions. So the loosest
+  of the three layers decided what shipped on screen, while `os validate` / `os build`
+  rejected the very same metadata outright.
+  
+  `readMax` now accepts only what the contract accepts. `Number.isSafeInteger(v) && v > 0`
+  is the exact translation of `safeint`, not an approximation — plain `Number.isInteger`
+  would admit `2**53 + 2` and `1e21`, which spec rejects.
+  
+  Behaviour change, stated because this NARROWS the renderer's accept set rather than
+  only fixing a fault: a contract-rejected value no longer takes effect and falls back
+  to the documented default (3 desktop / 1 mobile). Concretely, `maxVisible: 0` used to
+  render zero inline buttons and sweep every action into the overflow menu, and
+  `maxVisible: 1.5` used to be floored to `1`; both now render the default 3-inline
+  split. This is a narrowing *toward* an already-published contract — no in-tree
+  producer writes a rejected value, so nothing in the repo changes behaviour. Both
+  schema-level and `properties.*` spellings go through the one reader. `action:bar`'s
+  `maxVisible` is an unrelated reader with no `ComponentPropsMap` entry and is
+  deliberately untouched.
+  
+  `ComponentInput.type`'s doc comment now records the trade the ruling fixed in place
+  (maintainer, 2026-08-17): the coarse `number` arm plus `description` is the
+  publication face's expression ceiling today, and spec is the sole judge of values.
+  Giving `ComponentInput` real constraint slots, and binding `checkType` to spec, were
+  both deferred with a named reopen condition — a measured case of an author shipping
+  a spec-rejected value that objectui's silence let through.
+- aff10e2: A `field:`-prefixed `password` no longer renders as clear text when its widget is not registered
+  
+  On the built-in path (`@object-ui/fields` not registered) a form field spelled with the
+  `field:`-prefixed widget id resolved nothing and took the form renderer's `default` input
+  branch. That branch's native-input table was keyed on the raw `type`, so the prefixed
+  spelling missed it and rendered `type="text"` — and `mapFieldTypeToFormType` emits the
+  prefixed id for **every** object-derived form, so this was the normal path, not an edge
+  case. An object-derived `password` field therefore put the secret on screen in clear text,
+  and an object-derived `email` field lost its native keyboard and validation.
+  
+  The two spellings now get the answer each deserves:
+  
+  - **`field:password` refuses.** Reaching the unregistered default with a registry key
+    proves the app shipped without the widget it declares, so the value is not rendered at
+    all — no input, nothing carrying the secret in the DOM. In its place is an inline
+    `role="alert"` refusal naming the missing widget, plus a `console.error` that doubles as
+    the fix instruction. Masking alone would still invite a user to type a secret into a form
+    whose password widget is absent.
+  - **`field:email` renders the native email input**, because the native-input table is now
+    keyed on the declared type with the `field:` prefix stripped.
+  - **The bare `password` / `email` spellings are unchanged.** They claim no registered
+    widget, the default branch is their intended home, and their native input stays exactly
+    as it was.
+  
+  Deliberately narrow: only `password` refuses, and only under the `field:` namespace. Every
+  other unregistered `field:*` id renders the same text box it rendered before, and a
+  registered `field:password` widget still wins.
+- 7458a41: A readonly field's replacement display is now named by the field's label and described by its help text.
+  
+  A registered field widget's readonly branch renders a replacement display — a
+  `mailto:` anchor, a formatted span, a chip row, a preview table — and returns
+  before its DOM pass-through, so nothing the form renderer handed down reached an
+  element. Measured on a real form, one field per row, with `description` set: the
+  host control id (`…-form-item`) was on NO element in the document, so the visible
+  label's `for` pointed at nothing and the readonly surface had NO accessible name
+  at all, while the rendered help text had zero consumers. All 34 registered
+  non-group-labelled widget types read identically, including the four display-only
+  ones (`formula` / `summary` / `auto_number` / `vector`) whose whole widget is a
+  replacement display.
+  
+  The form renderer now wraps a readonly registered field widget's output in a
+  container carrying the host id, `role="group"`, `aria-labelledby` and
+  `aria-describedby`, and the label publishes an `id` in place of its `for` — the
+  same WAI-ARIA group pattern objectui#3961 / #3990 / #4005 established for the
+  seven composite widgets, applied at the host instead of in each widget. Not one
+  widget file changed: the mechanism lands once, so the current widgets and any
+  future third-party one are correct by construction, with no "remember to spread
+  the host props" step left to miss.
+  
+  The name is composite — the label's id AND the container's own — so the VALUE
+  stays in the accessible name (`Email user@example.com`, not just `Email`);
+  `group` is not a name-from-content role, and the value is usually the only thing
+  on screen. `aria-invalid` is deliberately dropped at this boundary: it is
+  control-channel state reporting what a user's own editing may do wrong, and a
+  readonly display cannot be edited (objectui#3291 / #3318 / #4005).
+  
+  Two consequences worth stating. Readonly registered fields gain one DOM layer,
+  which end-to-end selectors written against the widget root as a direct child of
+  the form item will see; the layer carries `data-slot="readonly-field-group"` as a
+  stable locator. And because that layer is a block box where several readonly
+  faces were inline, those rows now take the form's standard label-to-value
+  spacing, matching the editable state. Builtin types (`input` / `textarea` /
+  `checkbox` / `switch` / `select`), editable fields, group-labelled widgets and
+  fields rendered without a label are untouched, byte for byte.
+- d971e51: A create form no longer deadlocks on a `requiredWhen` field that also declares a runtime `defaultValue`.
+  
+  `#4069` ruled that in **create** mode a field whose `defaultValue` is a runtime
+  instruction the server resolves per insert (`NOW()` / `current_user`, or a CEL
+  Expression envelope) is producer-owned: the control is deliberately left empty
+  and the key is omitted from the payload, because `ObjectQL.applyFieldDefaults`
+  resolves the declaration only for a field that arrives absent or null. That was
+  implemented on the STATIC `required` flag.
+  
+  The conditional spelling was not covered. `requiredWhen` is resolved one layer
+  downstream, in the form renderer, against the live record — so a predicate
+  resolving TRUE on a create form put the requirement straight back: the control
+  was still empty by design, the submit was refused, and the user had nothing
+  sensible to type.
+  
+  Both spellings now behave identically on a producer-owned field. A
+  `requiredWhen` predicate is a claim about the value at rest in a given state,
+  and `NOW()` / `current_user` resolve at insert regardless of state, so the
+  producer's guarantee covers the conditional claim by the same argument that
+  covers the unconditional one. An author who really means "the user must supply
+  this in this state" has a natural spelling for it: do not declare the default.
+  
+  The suppression lands in the single evaluator both layers read,
+  `resolveFieldRuleState` — the same verdict that draws the required marker and
+  the one the submit-time check consults — so a field can never lose its asterisk
+  while still refusing the write. The classifier that answers "is this value the
+  producer's to supply" moved down to `@object-ui/core`
+  (`isRuntimeDefault` / `isServerOwnedValue`, re-exported from
+  `@object-ui/plugin-form`) so the renderer, the wizard's cross-step gate and the
+  create-form field builders all read one implementation rather than three.
+  
+  **Edit mode is unchanged.** Defaults do not re-apply to an existing record, so
+  on a persisted row the token was already resolved at insert and blanking the
+  column is a real removal: `requiredWhen` enforces there exactly as authored.
+  Fields with no declared default, and fields whose default is a static literal
+  (which IS seeded into the control), are also unaffected in both modes.
+- 75444e3: The dependency-gate hint now enumerates its controlling fields with the locale's
+  own list separator, and reads identically whichever caller produced it.
+  
+  `lookup.selectFirst` and `fields.options.selectFirst` are deliberately one
+  wording, so a field gated on two or more parents says the same thing whether the
+  lookup widget or the form renderer rendered it. The sentence was shared but its
+  `{{fields}}` slot was not: each call site joined the controlling-field names
+  with its own hardcoded separator, and not even the same one — `', '` in
+  `LookupField`, `' / '` in the form renderer's `gatedHint` and in
+  `OptionsEmptyState`. A field gated on Account and Lead Source read
+  `Select Account, Lead Source first` from one side and
+  `Select Account / Lead Source first` from the other.
+  
+  A list separator is a property of the locale rather than of the code, so both
+  spellings were also wrong for the script under zh/ja (which enumerate with
+  U+3001) and under ar (U+060C). All three call sites now read
+  `validation.formInvalidJoiner` — the key already shipped in all ten packs for
+  the invalid-submit toast's field list, which is the same class of truncated-name
+  list. One key, every caller: a second, gate-specific key would have recreated
+  the divergence the shared sentence exists to prevent.
+  
+  No locale pack changes, and no change to what a provider-less render produces in
+  English: the `@object-ui/fields` defaults table declares the joiner as `', '`,
+  the `en` pack's value and the literal `LookupField` previously hardcoded.
+- 2d0bd16: Remove two unreachable renderer registrations, and fail the build on any new same-namespace duplicate.
+  
+  The component registry silently keeps the LAST registration for a given
+  `namespace:type` key. Two renderers on `main` were therefore dead code — they
+  compiled, type-checked, and never ran:
+  
+  - `renderers/data-display/table.tsx` (`SimpleTableRenderer`) lost `ui:table` to
+    `renderers/complex/table.tsx`, because `renderers/index.ts` imports
+    `./data-display` before `./complex`. It was the only table renderer that read
+    `bind`, which is why a `table` node with a two-row `bind` rendered a header and
+    zero rows (objectui#5125).
+  - The `kbd` entry in `renderers/basic/html-elements.tsx`'s `TAGS` loop lost
+    `ui:kbd` to `renderers/data-display/kbd.tsx` — despite that list's own comment
+    stating it excludes anything already registered.
+  
+  In both cases the renderer that serves the key today is the one kept, so no
+  reachable behaviour changes: `table` still renders inline `data` against
+  `columns` and still ignores `bind`, and `kbd` still renders one `<kbd>` per entry
+  in `keys`. Both readings are now pinned by tests.
+  
+  Whether `table` *should* read `bind` is deliberately left open — that would widen
+  the authorable key surface and is a product decision, not a consequence of
+  deleting dead code.
+  
+  The new gate (`renderers/__tests__/registration-uniqueness.test.tsx`) counts every
+  registration the production barrel makes and fails on any key registered twice
+  under one namespace, so a re-introduced duplicate is caught at CI rather than by
+  an accidental probe. It is a test rather than a runtime warning because
+  re-registering a key is a supported pattern for test stubs, and a warning there
+  would fire mostly on legitimate overrides.
+- dad51e5: fix(fields): deliver the host's a11y channels to `slider` and name `signature`
+  
+  `SliderField` and `SignatureField` forwarded nothing a form host handed them —
+  neither spread `toDomProps(props)` at all — so `<FormControl>`'s whole payload
+  landed on nothing. Measured on a real form, one required field per row, freshly
+  failed validation:
+  
+  ```
+  slider     ariaInvalidTrue=[]  labelFor=…-form-item -> DANGLING  descConsumers=0  ids=[]
+  signature  ariaInvalidTrue=[]  labelFor=…-form-item -> DANGLING  descConsumers=0  ids=[]
+  text       ariaInvalidTrue=[input]  labelFor -> input            descConsumers=1
+  ```
+  
+  `ids=[]` is the tell: no element in either row carried an id at all, so the
+  visible label pointed `for` at nothing, the rendered help text had zero
+  consumers, and a failed slider announced no error state.
+  
+  **`slider`** now delivers all three. Its focusable control is Radix's
+  `span[role="slider"]` thumb, which the synced `ui/slider.tsx` renders internally
+  and does not export, so the primitive grew a declared `thumbProps` — routed
+  through a new `lib/slider-thumb` and applied to the no-touch file as a declared
+  sync patch, so it survives regeneration. The split of which keys stay on Root
+  (`name`, `disabled`) is the one the `select` fix already settled.
+  
+  **`signature`** gets the name and the description on a `role="group"` container.
+  Its control state deliberately does not follow: the drawing surface is a
+  `<canvas>` with no keyboard path, and its only other element is disabled while
+  the pad is empty, so there is no element a control state could be read from.
+  
+  Both are now declared `labelling: 'group'` — a `<span>` and a `<canvas>` are not
+  labelable elements, so a host `for` could only dangle at them.
+- 1c9c342: The `span` deprecation notice is now reported once per page load, and only to the authoring surface it applies to.
+  
+  `SpanRenderer` was two rulings behind `div`. It still `console.warn`ed on **every
+  render**, and it still fired at nodes the `kind:'html'` tier's own parser had
+  emitted — the two defects that were ruled on for `div` in objectui#3965 (PR
+  #3998, which explicitly named `span` as the follow-up) and objectui#4000 (PR
+  #4916, which built the provenance mechanism). This is that follow-up
+  (objectui#4917); it copies the shape now in `basic/div.tsx` rather than inventing
+  a second one.
+  
+  - **Once per module load.** The notice is a property of the deprecated TYPE, not
+    of each node, so repeating it per render only buries the page's real console
+    errors. The deprecation still fires in dev builds, exactly once.
+  - **JSON-authored nodes only.** An author writing the plain inline tag in a
+    `kind:'html'` page gets a node this deprecated renderer serves — and was told
+    to migrate to `badge` / `text`, neither of which exists in that tier's
+    vocabulary, with nothing they could write to make it stop. Provenance is
+    established by the producer (the parser stamps what it emits, via
+    `isHtmlTierNode`), not guessed from the node's shape here.
+  - **The notice now names its surface**, so whoever reads the console can tell
+    which of their pages it is about. The migration guidance itself is unchanged:
+    this narrows WHO is told, it does not water down WHAT they are told.
+  
+  Order is load-bearing and pinned by tests: the html-tier exemption is checked
+  BEFORE the warn-once set is marked, so an html-tier node rendering first cannot
+  swallow the notice a JSON-authored node earns later on the same page.
+- 787c738: `span` renders the `value` its type and its published doc both declare, with child content winning when both are present.
+  
+  Two declared authoring surfaces named `value` the text content of a span and the
+  renderer read neither: `TextSpanSchema` declares `value?: string` commented
+  `Text content` (`packages/types/src/layout.ts`), and the published doc's Schema
+  block lists the same key with the same comment. Before objectui#5027 the
+  renderer read `body`, which no producer emits; #5027 moved it to the canonical
+  `children`. Neither version ever read `value`. So an author writing
+  `{ "type": "span", "value": "hello" }` — exactly what the type and the docs
+  instruct — got an empty element, with no warning and no diagnostic. Same failure
+  shape as #5027 (content silently dropped), one key over, and not catchable on
+  the type surface: `BaseSchema` carries an index signature, so no spelling on
+  this node is ever a TS error.
+  
+  Precedence, ruled 2026-08-17: `children` wins, `value` is the fallback. This is
+  the shape the sibling type in the same family already sets — `basic/text.tsx`
+  renders `schema.content || schema.value` — so `span` stops being the odd one out
+  rather than growing a rule of its own. "No child content" means an absent, empty
+  or empty-array `children`; that is exactly when `value` renders.
+  
+  Both declared faces stay as written. The fix makes them true instead of
+  retracting a key that has been published as authorable. `body` remains refused
+  (objectui#5027): it is declared nowhere for this type, whereas `value` is
+  declared twice — the question is whether a key was published as authorable, not
+  whether a tolerant read would be convenient.
+- 8396656: The `span` renderer renders its content again — it reads `children`, the key its own type declares and its producers emit.
+  
+  The renderer read `schema.body` and nothing else, and no producer on either of
+  its authoring surfaces emits that key. In a `kind:'html'` page the parser
+  assigns compiled child nodes to `children`
+  (`@object-ui/sdui-parser`'s `parse.ts`), so an author writing the plain inline
+  tag with text inside it got an EMPTY element back — the text was dropped with no
+  warning and no diagnostic, because the parser's tree validation does not inspect
+  child keys. A sibling paragraph on the same page rendered normally, which is what
+  made this read as anything but a compile failure. On the JSON surface the same
+  thing happened to anyone following the declaration: `TextSpanSchema` declares
+  `value` and `children`, so `children` is what an author writes, and `children` is
+  what rendered nothing.
+  
+  The canonical child key is `children` — what the type declares, what the parser
+  emits, and what the sibling `div` renderer already reads. `body` is deliberately
+  NOT accepted as a second spelling: a tolerant read would fossilize a second
+  de-facto contract for the one type whose declaration never named it
+  (Commandment #0.1), and a repo sweep found no page, example, catalog entry or
+  metadata document authoring it on this tag. A pin test states both halves — the
+  content renders, and a `body` alias renders nothing — so re-adding the lenient
+  read turns a test red rather than passing review.
+  
+  Reachability, stated plainly: the `span` type is deprecated for JSON-authored
+  pages, but it is permanent first-class vocabulary of the `kind:'html'` tier,
+  where the tag is compiled straight through and no other spelling exists. So the
+  authors who could do nothing about the deprecation were exactly the ones losing
+  their text.
+  
+  Not changed here, and named because the declaration still promises it: `value`
+  on this tag is declared by `TextSpanSchema` and read by nobody, as it was before
+  this fix. Making it render needs a ruling on precedence against `children`,
+  which belongs with the wider child-key drift (objectui#4631) rather than in a
+  rendering-path fix.
+- 138ab04: Fix a list filter that silently applied nothing when the first thing you picked was **Is null** or **Is not null**.
+  
+  Adding a filter seeds the row with no value, and changing the operator keeps it that way — which is correct for an operator that takes no value, since the panel draws no input for one. The live grid read that row as unfinished and dropped it: the filter appeared in the panel, the query went out without it, and every record came back with no error to explain it. Only `Is empty` / `Is not empty` were exempt; the builder renders six operators value-less.
+  
+  Which operators are complete without a value now has a single owner — `VALUELESS_FILTER_BUILDER_OPERATORS`, exported from `@object-ui/components` beside the code that decides it. The live grid and the saved-view fold both read it instead of keeping their own lists, so the two halves of one interaction can no longer disagree about whether a row is finished.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [2533ec5]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [37f6844]
+- Updated dependencies [2b50261]
+- Updated dependencies [ac600e5]
+- Updated dependencies [d374caf]
+- Updated dependencies [c1ef923]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/sdui-parser@17.6.0
+  - @object-ui/react-runtime@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

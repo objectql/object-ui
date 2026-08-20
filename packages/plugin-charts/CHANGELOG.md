@@ -1,5 +1,308 @@
 # @object-ui/plugin-charts
 
+## 17.6.0
+
+### Minor Changes
+
+- 9ce096f: Give a chart bucket an identity distinct from its display label
+  
+  objectui#4508. `buildChartSeries` used the bucket's DISPLAY string as the
+  bucket's own key, so two pairs of genuinely different groups were conflated —
+  and the segment click that drills a bar back to its records inherited both
+  conflations. The maintainer ruling (2026-08-14) approved the sentinel-identity
+  direction, aligning the chart branch with the distinct-bucket-id form the pivot
+  TABLE (`buildPivot`) already uses over the same dataset rows.
+  
+  Two collisions, one cause:
+  
+  - **A null group and an empty-string group drew ONE bar.** The pivot branch
+    keyed buckets by `String(xRaw ?? '')`, which spells `null` and `''`
+    identically. The bar took its label from whichever row created the bucket, and
+    the other group's segment then resolved to no row at all — a visible bar whose
+    click did nothing.
+  - **A record whose stored value spells the bucket label stole the null bucket's
+    drill.** A row storing the literal text `(None)` (or any localized
+    `chart.nullCategory` — `(未指定)` and the other nine packs) kept its own
+    bucket, so two bars carried the same axis text and BOTH resolved to the first.
+    That one is a wrong drill, not a dead one: clicking the null bucket's bar
+    opened the drawer on another group's records.
+  
+  What changed:
+  
+  - **`chartBucketId`** (`@object-ui/core`) is the bucket identity — the SAME
+    encoder `buildPivot` keys its buckets with (`pivotBucketId` over
+    `pivotDimensionValue`), so the two surfaces stop answering one question two
+    ways. The pivot branch now buckets by it, which is what makes null and `''`
+    two groups again.
+  - **`CHART_BUCKET_ID_KEY`** carries that identity on an emitted row, written
+    exactly where two DISTINCT buckets paint the same axis text — the complete set
+    of cases where the display string cannot name what was clicked. An ordinary
+    chart's rows are returned untouched (by identity), so no renderer-internal key
+    reaches an authoring surface.
+  - **`findChartSeriesRow`** takes that identity back as `options.bucketId` and
+    treats it as authoritative. The renderers forward it: the drill event gains
+    `categoryId` (`ChartSegmentClickEvent`, now declared once in
+    `@object-ui/core` instead of inline in three packages), `AdvancedChartImpl`
+    reads it off the clicked row on the cartesian, pie and funnel paths, and
+    `DatasetWidget.handleChartDrill` hands it to the lookup.
+  
+  Behaviour change worth noting: an empty-string category no longer resolves to a
+  null-valued row. That tolerance was justified as the drill layer's own spelling
+  of "no group value", but no producer of this lookup's `category` writes it,
+  while `''` IS the axis text a genuine empty-string group paints — so the
+  tolerance was giving that group's bar a different group's records. A host that
+  forwards no `categoryId` keeps its existing drill unchanged.
+
+### Patch Changes
+
+- e132433: A grouped chart whose SECOND dimension was never projected says so instead of
+  drawing an empty frame.
+  
+  "Cannot know refuses loudly" was answered on the first dimension only.
+  `AdvancedChartImpl`'s `hasNoCategoryKey` (framework#4033) names an unprojected
+  x-axis dimension rather than drawing a bare axis; the series axis had no
+  counterpart, so a pivot whose second dimension was absent from the result rows
+  produced `series: []` and rendered axes, grid, tooltip and legend around zero
+  marks — indistinguishable, to the author, from "no data matched".
+  
+  Such a chart now renders the same explanatory placeholder
+  (`data-chart-error="no-plottable-series"`) and logs the same diagnostic pair the
+  category-axis guard logs: the axis it did plot, and the keys its rows actually
+  carry.
+  
+  The three-way distinction is unchanged and pinned: null / empty-string group
+  values still DRAW (they are real groups with real buckets), a partially
+  projected group key still draws what projects — mirroring the category axis,
+  which refuses only when NOT ONE row carries the key — and an ordinary pivot
+  renders unchanged. The refusal is limited to the families whose marks come from
+  `series` and nothing else (bar, horizontal-bar, line, area, combo); pie, donut,
+  funnel, radar and scatter draw from a `value` column with no series declared, so
+  they are untouched. A caller that computed no series binding at all
+  (`series === undefined`) is also untouched.
+- f95434b: Combo charts drill from their marks
+  
+  objectui#4692, ruled Option B. `AdvancedChartImpl` built `cartesianClickProps` once and
+  applied it to exactly one element — the final cartesian `ChartComponent`. The `combo`
+  branch returns earlier, from its own `ComposedChart`, which was rendered with `data` and
+  no click props at all, so a combo chart fired `onChartClick` never: not on a mark, not on
+  the axis. Its marks are the same `Bar` / `Line` / `Area` components the drillable branch
+  renders.
+  
+  The trap that made this worth fixing rather than documenting is that the family is
+  **derived**, not only authored: `effectiveChartFamily` resolves a chart to `combo`
+  whenever its series declare different families (objectui#2945), so adding `type: 'line'`
+  to one series of a drillable bar chart silently turned that chart's drill-through off —
+  nothing in the authored spec said drill had been touched, and nothing errored.
+  
+  A combo's `Bar` / `Line` / `Area` marks now emit `{ category, categoryId, series, value }`
+  with the same semantics the plain cartesian branch gives, reusing the item-level
+  series-identity machinery from objectui#4672 / objectui#4682: the mark handler records the
+  series it was rendered with, the chart-level handler composes the one event, so a gesture
+  still produces exactly one `onChartClick`. Retyping one series now changes that series'
+  mark and nothing else.
+  
+  **Only the marks drill.** A click on a combo's plot surface or axis stays silent, where
+  the plain cartesian branch falls back to its axis-level answer. A combo plots several
+  measures on one plot, so a surface click there has no single series to report and the
+  fallback would have to invent one — the same reasoning objectui#4672's ruling gave the
+  pivoted case. Combo also carries no chart-wide pointer cursor for that reason; the
+  affordance sits on the marks that answer.
+  
+  Radar is now the one cartesian-adjacent family with no click wiring. The `onChartClick`
+  doc comment, corrected in objectui#4705 to say combo was a no-op, states the new rule and
+  its one deliberate exception.
+- e05db88: A clicked cartesian mark names its own series, and the drill title reads its label
+  
+  objectui#4672, objectui#4682.
+  
+  **The dead pivoted drill.** objectui#4680 fixed what a cartesian click could
+  read out of recharts 3's `MouseHandlerDataParam`, and measured the wall it could
+  not get past: a chart-level click is an AXIS interaction, and recharts
+  dispatches those with `activeDataKey` hard-coded `undefined`, because the shared
+  cursor spans every series at that tick. A pivoted dataset chart — 2 dimensions,
+  1 measure, the shape ADR-0021 introduced — needs the series to resolve its drill
+  row, so every segment of every such dashboard chart stayed a dead click. The
+  series was left unresolved rather than guessed, and the card carried the rest.
+  
+  The answer is the mark itself. This renderer draws the `Bar` / `Line` / `Area`,
+  so an item-level `onClick` closes over the very `dataKey` it was rendered with —
+  the series is statically known, not inferred from tooltip state.
+  
+  Both handlers fire for one gesture (measured: item first, chart second, sharing
+  one `nativeEvent` object), so the item handler does not emit. It RECORDS its
+  series, stamped with that gesture, and the chart-level handler composes the one
+  event. That is the double-fire answer and the additive property together:
+  
+  - **one click, one drill event**, because there is one emit site — not a second
+    event suppressed after the fact;
+  - **a click that lands on no mark is untouched**: it records nothing and falls
+    through to the objectui#4680 axis answer exactly as shipped — category, bucket
+    identity, and the series only where one series is plotted. Empty plot area
+    stays category-only, and "drill the whole category" was rejected as a
+    different product question. Nothing that resolved before stops resolving; a
+    line's `dot={false}` stroke simply GAINS the exact series where it is hit;
+  - pairing on the shared DOM event rather than on a flag means a record left by
+    one gesture can never be adopted by a later click.
+  
+  The clicked key is forwarded exactly as rendered, `''` included: the
+  empty-string second-dimension group draws its own bar since objectui#4673, and
+  `''` is falsy, so a truthiness test on the way out would send no series at all
+  and leave that bar's drill standing on the reader's coercion instead of on what
+  was clicked.
+  
+  **The opaque drill title.** `ChartSegmentClickEvent` gains `seriesLabel`, and
+  `DatasetWidget`'s drill drawer titles itself from `seriesLabel ?? series`.
+  `ev.series` stays the LOOKUP key — `findChartSeriesRow` resolves it through the
+  same assignment `buildChartSeries` made — and only the title reads the label.
+  
+  The two strings are equal for every ordinary group, which is why reading the key
+  as a title went unnoticed. They part company when a group's label cannot name
+  it: the null bucket beside a record whose stored value literally spells
+  `(None)`, which is objectui#4508's collision on the series axis, reachable since
+  objectui#4673. Both groups then key by `chartBucketId`, and the drawer opened on
+  the right records under the title `Backlog / [null]`. An internal id where a
+  label belongs reads as broken DATA rather than as a broken title.
+  
+  Neither string can do the other's job, which is why this is a second field
+  rather than a change to the first: the label is not resolvable (it is exactly
+  what the colliding groups share) and the key is not showable. `seriesLabel` is
+  optional and absent wherever a renderer resolved no label, so every other
+  chart's title is byte-identical.
+- d298be8: Cartesian chart clicks report the clicked series and value again
+  
+  objectui#4672. `AdvancedChartImpl`'s chart-level click handler built its drill
+  event from `payload.activePayload[0]` — a **recharts 2** field. This package is
+  on recharts 3, which hands a chart-level `onClick` a `MouseHandlerDataParam`:
+  `{ activeCoordinate, activeDataKey, activeIndex, activeLabel, activeTooltipIndex,
+  isTooltipActive }`, and nothing else. `activePayload` appears nowhere in the
+  shipped library, so the read was `undefined` on **every** cartesian click and
+  every bar / line / area drill event carried `series: undefined, value: undefined`.
+  Nothing went red: the payload is typed `any` at the call site, and every existing
+  drill test either calls the pure lookup directly or stubs the chart.
+  
+  The handler now works from the payload recharts 3 actually sends:
+  
+  - **The value** is read off the clicked row — `data[activeTooltipIndex]`, the
+    array this component was given — for the resolved measure, the same way the
+    bucket identity has been read since objectui#4508.
+  - **The series** comes from `activeDataKey` when the payload carries one, and
+    otherwise from the chart's own series list when it plots exactly one series,
+    where the clicked column can belong to nothing else.
+  - **A click with no active tick** (the plot margins, an axis label) resolves to
+    no row instead of to bucket zero. recharts reports a **null** index there, not
+    an absent one, and `Number(null)` is `0` — so such a click used to drill the
+    first bucket's records. That is a wrong drill, not a dead one.
+  
+  A drill on a single-measure chart therefore names its measure and carries its
+  value again — `resolveDrillTitle` composes the drawer title from them, and an
+  authored drill filter can reference `${event.value}`.
+  
+  **Still open, deliberately:** a chart plotting several series under the default
+  SHARED cursor. Measured against recharts 3.10.1, an axis interaction is
+  dispatched with `activeDataKey` hard-coded `undefined` (bar, line and area
+  alike, on the mark and on empty plot area), so the payload names no series at
+  all — and a pivoted dataset chart's drill lookup requires one. The series is
+  left unresolved rather than guessed: naming a series the user did not click
+  drills to another group's records, which is worse than the dead click. Resolving
+  it needs the clicked mark rather than this payload; objectui#4672 carries that
+  half.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

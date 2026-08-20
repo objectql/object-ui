@@ -1,5 +1,291 @@
 # @object-ui/plugin-map
 
+## 17.6.0
+
+### Minor Changes
+
+- 0a73b51: `ObjectView` and `ListView` now flatten a view's `map` block through a
+  whitelist instead of spreading the whole (untyped) block to the top level.
+  
+  Both `case 'map'` flatteners used to build the `object-map` schema with
+  `...(options.map || {})` — a raw spread of an untyped bag
+  (`NamedListView.options?: Record<string, any>`), so any key an author wrote in
+  the `map` block reached the top level unfiltered. `ObjectMap`'s own
+  `FlatMapConfigKeys = Omit<ObjectMapConfig, 'style'>` declares `style` OUT of
+  this flat form (`style` is also `BaseSchema.style`, inline CSS legal on every
+  node), so the two disagreed about the same shape. `style` was the live
+  specimen: `map: { style: '<url>' }` reached the top level as a CSS-shaped
+  `style` key it was never supposed to carry.
+  
+  Behavior narrowing, stated because it changes what reaches the flattened
+  schema: a `map` block key that is not one of `ObjectMapConfig`'s declared
+  flat keys (`latitudeField` / `longitudeField` / `locationField` / `titleField`
+  / `descriptionField` / `zoom` / `center`) — including `style` — no longer
+  reaches the top level of the flattened `object-map` schema. This closes a gap
+  rather than removing working behavior: the pinned strict spec view schemas
+  accept no `map` block at all today, so no author-facing surface could reach
+  this path, and `ObjectMap` already stopped reading a top-level `style` as a
+  map style (a dev warning names the correct spelling instead).
+  
+  The whitelist is DERIVED from `ObjectMapConfigSchema` (`@object-ui/types/zod`)
+  rather than hand-listed, so the flatteners and the declaration cannot drift
+  apart again — a key added to (or removed from) the schema reaches both
+  flatteners without a second edit. `ObjectMap`'s own `FLAT_MAP_CONFIG_KEYS` is
+  derived from the same schema for the same reason.
+- 578e025: `ObjectMapSchema` declares what ObjectMap reads, and the `map` block outranks the flat spelling
+  
+  `object-map` carried three disagreeing shapes for one component. The declared face
+  (`ObjectMapSchema`) had four keys — `type`, `objectName`, `locationField`,
+  `titleField`, `mapStyle`. The renderer read about fifteen. And `ObjectMapProps.schema`
+  was typed `ObjectGridSchema`, so every map-specific read went through
+  `(schema as any)`. A TypeScript author could not write the `map` block the docs teach,
+  and misspelling `latitudeField` as `latitudeFieId` was caught by nothing: the map
+  rendered empty and looked like bad data.
+  
+  Declared now, each with a read site in `ObjectMap.tsx`: `data`, `staticData`, `filter`,
+  `sort`, `map`, `enableClustering`, `navigation`. `ObjectMapConfig` (interface) and
+  `ObjectMapConfigSchema` (zod) are lifted out of `plugin-map`, where the zod was
+  package-private and called `MapConfigSchema`, into `@object-ui/types` and
+  `@object-ui/types/zod` — so the declared authoring face and the validation the renderer
+  performs are one schema rather than two that can drift. The `Object` prefix is not
+  decoration: `@objectstack/spec/automation` already exports `MapConfigSchema` for an
+  unrelated concept, and a local declaration under a spec export's name is what
+  `check:spec-symbols` exists to refuse. `ObjectMapProps.schema` is `ObjectMapSchema`, and the `as any` map reads
+  are gone.
+  
+  Behavior change, ruled by the maintainer on objectui#5018 (2026-08-17): the `map` block
+  is the author face and the flat top-level spelling (`schema.latitudeField`, …) is the
+  internal form ObjectView / ListView produce when they flatten `options.map`. When a
+  schema carries both, **the `map` block now wins** — the reverse of the previous order,
+  under which the flatten product silently shadowed an authored block — and a dev-mode
+  warning names the top-level keys that were ignored. The flat spelling stays out of the
+  declared surface and out of the docs.
+  
+  Nothing changes for views built by ObjectView / ListView: both flatteners emit the flat
+  keys and no `map` key at all, so the branch the flip reorders is never reached for their
+  output. That property is now pinned rather than assumed
+  (`plugin-view/src/__tests__/ObjectView.mapFlatten.test.tsx`).
+  
+  Bound worth stating, because it limits what the typed surface can promise: `BaseSchema`
+  carries an index signature (`[key: string]: any`), so a misspelled key at the TOP level
+  still type-checks — for every component schema in the repo. The `map` BLOCK is closed,
+  which is what makes the card's headline typo a compile error.
+
+### Patch Changes
+
+- 5edc0c5: `object-gantt` / `object-map` / `object-calendar` no longer drop a sort entry that omits `order`.
+  
+  The three blocks each inlined a byte-identical private copy of the `sort` →
+  `$orderby` conversion. That copy required BOTH `field` and `order` on an array
+  entry and silently skipped any entry missing one, so a stored view sorting by
+  `[{ field: 'amount' }]` reached the wire with no ordering at all — the authored
+  sort key was lost, not applied. The same copy already treated the STRING
+  spelling `"amount"` as ascending, so this was an inconsistency between two
+  spellings of one thing rather than deliberate strictness.
+  
+  All three now import the shared `convertSortToQueryParams` sink from
+  `@object-ui/core` (introduced by objectstack#7137, already used by
+  `object-timeline` and `record:line_items`), and the private copies are gone —
+  the sink is the repo's only definition. Two behavior changes come with it, both
+  of which make the blocks more faithful to what is already declared rather than
+  more tolerant:
+  
+  - An array entry that omits `order` now orders ASCENDING instead of vanishing.
+    That is what `QueryParams.$orderby`'s own member shape
+    (`{ field: string; order?: 'asc' | 'desc' }`) says, and what
+    `@object-ui/data-objectstack`'s `serializeOrderBy` already did with a missing
+    direction.
+  - When nothing orderable was authored, the query now carries no `$orderby` at
+    all instead of an empty object. `{}` is truthy and meant "no ordering" only by
+    accident of the adapter's serializer.
+  
+  Reachability, so the size of this is not overstated: `SortConfig.order` and
+  `ElementDataSourceSort.order` are REQUIRED in objectui's own types, so a typed
+  caller could never author the dropped shape. The affected surface is untyped
+  stored view metadata (`ElementSavedView` is a loose record by design) — which is
+  exactly where an order-less entry can arrive today.
+- 25819c4: A map view now fits its camera to the records it queried, so a view with data never first-paints an empty viewport.
+  
+  The initial camera was never derived from the data. The zoom came from
+  `getMapConfig`'s default branch — the branch reached precisely when the author
+  declared nothing — which synthesized `zoom: 10` at the origin, and the fabricated
+  value was indistinguishable from a declared one at the read site. An unconfigured
+  object list view of continent-wide records therefore opened on a ~30km-wide
+  viewport centred on the set's midpoint: no markers anywhere on screen, the
+  records reachable only by zooming out and panning by hand (objectui#4941, seen on
+  the showcase `task` map view, whose ten seeded US-city locations span ~4000km).
+  
+  The camera is now the marker set's bounding box, handed to MapLibre as
+  `initialViewState.bounds` so the fit happens against the real container size,
+  with padding and a city-scale zoom ceiling (a single record, or several at one
+  address, fits a zero-width box — unbounded, that answers with a rooftop view of a
+  style whose tiles stop far short of it).
+  
+  The box is measured along the **shortest arc** containing every marker, not
+  between the naive longitude extremes. Read as a line rather than a circle, two
+  records two degrees apart across the antimeridian (179 and -179) describe a
+  358-degree box whose centre is their antipode; MapLibre then places the markers in
+  whichever copy of the world is nearest their previous screen position, which is
+  how a fitted-looking camera ends up showing empty ocean with the records sitting
+  on a neighbouring copy.
+  
+  Unchanged on purpose: record coordinates are not rescued. The platform's
+  `location` value bounds longitude to [-180, 180], so an out-of-range coordinate is
+  a producer-side defect — such records keep being rejected and counted in the
+  view's "invalid coordinates" notice, and the normalization above is camera
+  arithmetic over already-valid values. No new configuration key was added either:
+  the documented `zoom` / `center` pair of the `map` block is still the only camera
+  declaration, it still wins outright, and declaring one half keeps the other
+  derived (`zoom` alone applies at the records' centre; `center` alone at a
+  continental zoom). An empty result set is not fitted — it opens on the whole
+  world rather than a zoom-10 patch of sea.
+- 072085d: A map node's top-level `style` is inline CSS again, not a MapLibre style URL.
+  
+  `ObjectMap.getMapConfig` resolved the map style from three spellings with the
+  top-level `style` FIRST — `schema.style || schema.mapStyle || schema.map?.style`
+  — but `style` is `BaseSchema.style`, a record of inline CSS properties that
+  every schema node may legally carry. Writing the base face's own
+  `style: { height: '400px' }` on a map node therefore handed that object to
+  MapGL's `mapStyle` prop: it never passed the config `safeParse` (which only ever
+  looked at `schema.map`), so there was no validation and no diagnostic either.
+  
+  `@object-ui/types` had already named the map's key `mapStyle` — explicitly "not
+  `style`, to avoid colliding with `BaseSchema.style`" — so the consumer was
+  reading, at top priority, the very name the declaration went out of its way to
+  avoid. The declaration is now what is enforced: the map style comes from
+  `mapStyle` on the schema or `style` inside the declared `map` block, and a
+  top-level `style` is not consumed as a map style in any shape.
+  
+  Behaviour change, stated because it is one: a map configured through a top-level
+  `style` URL now renders with the default public demo tiles. That spelling was
+  never documented (the README teaches `map.style`) and no metadata in this repo
+  used it, but it was runtime-reachable one way — `ObjectView` / `ListView`
+  flatten `options.map`'s CONTENTS to the top level, so a view authored with
+  `map: { style: '<url>' }` arrived here as a top-level string. That shape is not
+  spec-authorable (`@objectstack/spec`'s list-view schemas are strict and declare
+  no `map` block at all, so such a view fails validation outright), and it now
+  gets a dev warning naming both surviving spellings rather than silently painting
+  the demo tiles. The object form gets no warning: legal base-face authoring, and
+  dropping it is the fix.
+- 687bc0c: Fix two pieces of `ObjectMap` state that stopped tracking their source after mount
+  (objectui#5003):
+  
+  - **`data` prop threading**: the fetch effect preferred records passed via `props.data`,
+    but `data` was read off the `rest` spread and was not one of the effect's dependencies.
+    A host rendering `<ObjectMap data={[]} .../>` while its own query is in flight, then
+    re-rendering with the resolved rows, kept showing the empty map — the prop changed, the
+    effect never re-ran to notice. `data` is now a declared prop (`data: dataProp`), tracked
+    directly in the effect's dependency array; the whole `rest` object is intentionally
+    **not** added there (it is a fresh object every render, which would refetch on every
+    render instead).
+  - **Clustering zoom seed**: `currentZoom` — what `clusterMarkers` uses for its grid cell
+    size — was seeded with a nominal `mapConfig.zoom || 3` and updated only by `onZoom`.
+    MapLibre applies the initial camera (including a `bounds` fit) via its constructor,
+    before react-map-gl attaches React's event handlers, so no `onZoom` ever fired for that
+    first camera — the seed stayed nominal until the user's first zoom. It is now also
+    seeded from `onLoad`, which fires once the initial camera has settled, so clustering at
+    first paint reflects the camera MapLibre actually applied.
+  
+  Both were dormant on the console path (never exercised in the example apps) — see the
+  issue for why — so this ships with dedicated tests exercising the prop-update path and
+  the pre-`onZoom` clustering state directly.
+- 084155e: Fix the two remaining `object/api/value` claims that objectui#5019 (PR #5162) left
+  behind — its dispatch was scoped to only the "API Provider" section of
+  `content/docs/plugins/plugin-map.mdx`, so the same false claim survived in the Features
+  list and in the `ObjectMap.tsx` file-header JSDoc:
+  
+  - `content/docs/plugins/plugin-map.mdx:24` (Features list): "Works seamlessly with
+    object/api/value data providers" → "Works seamlessly with object/value data providers".
+  - `packages/plugin-map/src/ObjectMap.tsx:20` (file-header JSDoc): "Works with
+    object/api/value data providers" → "Works with object/value data providers".
+  
+  `provider: 'api'` still hits `console.warn('API provider not yet implemented for
+  ObjectMap')` and returns an empty record set (`ObjectMap.tsx:584`); `endpoint`/`method`
+  have no read point in the package. Implementing the `api` provider is capability
+  expansion and is explicitly out of scope here, same as it was for #5019.
+  
+  No runtime behaviour changes — a source comment and a docs line only.
+- Updated dependencies [88085e3]
+- Updated dependencies [516663d]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

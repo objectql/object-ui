@@ -1,5 +1,639 @@
 # @object-ui/i18n
 
+## 17.6.0
+
+### Minor Changes
+
+- deb157a: Retire the field designer's `Indexed` toggle — the ObjectStack spec has no
+  field-level index flag
+  
+  `indexed` was never a `FieldSchema` key. The field-level flag built no index
+  (objectstack#2377 removed it) and, since objectstack#4001 replaced silent
+  drops with loud rejection, `FieldSchema.safeParse` refuses it by name. Ticking
+  `Indexed` in Studio therefore made `PUT /api/v1/meta/object/:name` fail with
+  `422 INVALID_METADATA`, and — because the key was stored — every later save of
+  that object stayed blocked until the author found and cleared the toggle.
+  
+  Both field designers stop offering the control and stop authoring the key
+  (`ObjectFieldInspector`'s Advanced section; `FieldDesigner`'s advanced
+  section, `MetadataFieldsPage`, `MetadataService`, `metadataConverters`), the
+  `designer.field.indexed` / `appDesigner.fieldDesigner.indexed` labels retire
+  with it across all ten locale packs, and `DesignerFieldDefinition.indexed` is
+  removed from `@object-ui/types`.
+  
+  Drafts and objects that already carry the key are un-poisoned on load rather
+  than migrated, so an edit-and-save round-trip of previously blocked metadata
+  now succeeds. The strip is keyed to the retired key alone — every other
+  unknown key on a field definition still survives the round-trip.
+  
+  Declare indexes on the object instead: `indexes: [{ name, fields, unique }]`.
+- 9c60144: **Breaking (published API):** `NavigationRenderer` no longer accepts `resolveGroupLabel` or `resolveItemLabel`. If your build just broke on one of these props, delete the prop — it never did anything.
+  
+  Both were id-keyed label resolvers on `NavigationRendererProps` (`@object-ui/layout`), typically wired to `useObjectLabel().navGroupLabel` from `@object-ui/i18n` to translate sidebar group and leaf labels from a client translation pack keyed `{ns}.apps.{appName}.navigation.{nodeId}.label`.
+  
+  **They could never fire.** The renderer guards convention-based resolution with `isCustomized` — a case-insensitive "the authored label differs from this branch's comparison target" test. On the `object` / `dashboard` branches the target is the object or dashboard name, and the test is meaningful: it protects an author's custom label (`Projects`) from being overwritten by an `objects.project.label` translation. On the two id-keyed branches the target was the nav node's own **`id`** — `grp_workspace`, `group_sales` — while the label was its text — `Workspace`, `Sales`. Those never compare equal, so the guard was true for every real navigation entry and the resolver beneath it was unreachable. The only node that could have reached it is one whose label is literally its own id.
+  
+  Nothing regresses when they go, because nothing was using them to begin with: **app-navigation localization is owned solely by the server-side `/meta` boundary.** `translateApp` (`@objectstack/spec`, `src/system/i18n-resolver.ts`) rewrites every navigation node's `label` by id, and `@objectstack/rest` applies it before the metadata reaches the client — so nav labels arrive already localized and the client-side path was never the one answering. One owner, not two.
+  
+  **If you wired these hooks to localize navigation, your labels were never being localized by them.** Move the translation to the server side: add it to the app's i18n bundle that `translateApp` reads, keyed by navigation node id. A client-side pack keyed `apps.*.navigation.*.label` changes nothing in the sidebar.
+  
+  Also in this change:
+  
+  - `useObjectLabel().navGroupLabel` (`@object-ui/i18n`) is **kept**, but its docstring no longer promises `"Sales" → "销售"` for sidebar groups — that promise was false, and a live docstring describing an unreachable path is how an agent or a developer ends up wiring a translation pack and receiving silent non-localization. It is now documented for what it is: a plain reader for `{ns}.apps.{appName}.navigation.{groupId}.label` with no first-party caller, pointing at the server boundary for anything nav-related.
+  - `UnifiedSidebar` (`@object-ui/app-shell`) drops the two prop wirings, including a `studio` carve-out that existed only to stop `resolveItemLabel` from re-translating an already-translated "Package management" label.
+  - The `object` / `dashboard` / `viewName` branches — `resolveObjectLabel`, `resolveDashboardLabel`, `resolveViewLabel` — are untouched and keep both their resolvers and the `isCustomized` guard.
+- b8ce7dc: Show the current organization in the console top bar for users with exactly one
+  membership.
+  
+  `WorkspaceSwitcher` is a multi-membership affordance — with one organization
+  there is nothing to switch to, so it renders nothing — and it was also the only
+  place the console ever displayed the organization name. On a deployment whose
+  tenancy posture puts an organization wall in force (`isolated` or `group`), that
+  left a single-membership business user with no indication anywhere of which
+  organization they were looking at, while every list on the page was silently
+  scoped to it. Found in a downstream multi-tenant acceptance run.
+  
+  The new `CurrentOrganizationIndicator` renders the active organization name
+  read-only — no trigger, no menu, no click target — in exactly the case the
+  switcher declines. The switcher's own visibility rule is unchanged, and
+  deployments without an organization wall (`single` posture, or a server that
+  reports no posture at all) render nothing new: the top bar stays
+  organization-silent where organizations are not a scope the user is inside.
+  
+  Adds one translated string, `organization.current.label`, in all ten packs.
+
+### Patch Changes
+
+- 69251bf: `AddressField` is translatable, shows no US example placeholders, and formats its readonly line in the reader's address order.
+  
+  The five sub-labels ("Street Address", "City", "State / Province", "ZIP /
+  Postal Code", "Country") were English string literals with no i18n key. On a
+  non-English console every address field showed five English words in the middle
+  of an otherwise fully translated form, and an app had no way to reach them: the
+  parts are not fields on the object (`billing_address` is a single `address`
+  column), so a translation bundle had nothing to key on, there is no `subLabels`
+  property to declare, and the widget cannot be replaced from metadata. They now
+  resolve through `fields.address.street` / `.city` / `.state` / `.postalCode` /
+  `.country`, added to all ten locale packs. The `en` values are byte-identical to
+  the literals they replace, and `FIELD_DEFAULTS` carries the same five, so
+  English and provider-less rendering are unchanged.
+  
+  The five input placeholders (`123 Main St`, `San Francisco`, `CA`, `94102`,
+  `United States`) are **removed** rather than keyed. They were untranslated and
+  US-specific — a zh/ja/ar user was shown an American address as the example of
+  what to type — and the right example is a function of the address's country,
+  not the reader's language, which no channel in the stored value can supply
+  today. Each box keeps the visible label that names it.
+  
+  The readonly line's part order now follows the reader's display locale
+  (`useDisplayLocale()`): `zh`, `ja` and `ko` read largest-first (`Country, ZIP
+  State, City, Street`), every other locale keeps the unchanged small-to-large
+  order (`Street, City, State ZIP, Country`). The display cell renderer takes the
+  same locale through the same shared `formatAddress`, so a stored address reads
+  identically in a readonly form and in a grid cell.
+- 57e668f: An admin override of an approval now looks like one — before the click, and in the timeline afterwards.
+  
+  A platform/tenant admin who holds **no slot** in a request's pending-approver
+  slate saw the exact same filled **Approve** / **Reject** / **Reassign** a
+  designated approver sees: no distinct styling, no warning, nothing. One unmarked
+  click takes framework#3424's privileged branch, which is *authoritative* — it
+  finalises the node even under `per_group` / `unanimous` / `quorum`, silently
+  bypassing every co-sign group that has not voted. The measured consequence in a
+  real app project was a PM who clicked Approve *"to see if it was real"* and
+  finalised a stage for an approver who never acted, then filed it as "countersign
+  is broken". The backend was working as designed; the console gave the admin no
+  way to see that.
+  
+  Two halves, both client-side:
+  
+  - **Affordance.** A viewer the server reports as `can_act: false` **and**
+    `can_override: true` now gets a warning-styled action labelled as an override
+    (`Override Approve`), and the dialog it opens **names the pending approvers
+    being bypassed**. The wording is the fix, not decoration — a warning that does
+    not say what is about to be bypassed would not have stopped that click.
+  - **Timeline.** `sys_approval_action.via_override` has been written since
+    framework#4466 and sent on the wire ever since, but **no console surface read
+    it** — an override rendered byte-for-byte like an ordinary approval in both the
+    record page's approvals panel and the Approval Center. Override rows are now
+    marked with an `Admin override` chip and a distinct timeline dot. This is
+    framework#4466's own *Expected* ("surfaced in the timeline"), which never
+    landed.
+  
+  Nothing here relaxes anything. Who may act or override is unchanged, the request
+  the console sends is byte-identical, and no audit record is altered — this only
+  renders one that was already being written, and adds friction in front of a
+  privileged path.
+  
+  Two details worth knowing, because both are load-bearing:
+  
+  - The warning rides the **param dialog's** title and description rather than a
+    chained `confirmText`. These decision actions collect params, so the param
+    dialog is already the confirm — nothing is POSTed until its own Confirm — and
+    putting a second dialog in front of it produces a first prompt that reads as
+    "the action ran" (framework#7278, maintainer ruling 2026-08-10). One condition,
+    one wording, one dialog.
+  - The notice travels as its own dispatch key, **not** folded into the action's
+    `description`. The runtime resolves `description` through
+    `_actions.<name>.description`, preferring a bundle hit over the passed literal,
+    and `plugin-approvals` ships exactly such an entry for `approval_reject` — so a
+    warning routed that way would have been silently replaced by the ordinary
+    reject copy in every locale carrying the bundle. A safety notice a translation
+    can delete is not a safety notice.
+  
+  Which actions get the treatment is read from each action's **own declared
+  `visible` gate** (does it OR in `can_override`?), not from a hard-coded name
+  list, so a future decision action still ships as metadata alone — and
+  `approval_recall`, gated on `is_submitter`, is never relabelled. Every new string
+  goes through the `approvalsInbox.*` i18n path in all ten locale packs.
+- 516663d: RecordAttachmentsPanel no longer offers a Retry for an api-disabled `sys_attachment` read.
+  
+  `OBJECT_API_DISABLED` (404, `enable.apiEnabled: false`) and its sibling
+  `OBJECT_API_METHOD_NOT_ALLOWED` (405, the operation is absent from
+  `enable.apiMethods`) are pure functions of the object's metadata — no user, no
+  session, no request body — so every retry of every persona re-fetches the
+  identical refusal. Before this change both landed in `RecordAttachmentsPanel`'s
+  `unavailable` state and offered a Retry that was guaranteed to change nothing,
+  the same wrong advice `ListView`'s error panel already stops giving for list
+  reads.
+  
+  The panel gains a fifth status, `api-unavailable`: no Retry button, and honest
+  copy ("The attachments list is not available on this object.", new
+  `detail.attachmentsApiUnavailable` key in all ten locale packs) instead of
+  "We couldn't load the attachments for this record." The pre-existing `denied`
+  (authorization) and `unavailable` (network/5xx/expired-session) states and
+  their affordances are unchanged.
+  
+  `ListView.classifyLoadError` — the classifier that already separated this case
+  into its own `api-disabled` kind for list views — is lifted out of
+  `packages/plugin-list/src/ListView.tsx`'s module scope into
+  `@object-ui/react` (`classifyLoadError`, `LoadErrorKind`), so both surfaces
+  consume one classification instead of `RecordAttachmentsPanel` re-deriving it.
+  `ListView`'s own behavior is unchanged — it now imports the function it
+  previously defined locally. The classifier delegates its api-disabled check to
+  `isApiAccessDeniedError` (`@object-ui/data-objectstack`), removing a second,
+  independently-maintained copy of the same code list.
+- 41ac1b7: RecordAttachmentsPanel distinguishes a DENIED attachment list from an empty one.
+  
+  A `sys_attachment` list read refused for authorization reasons (HTTP 403 /
+  `PERMISSION_DENIED` / `FORBIDDEN` / a row-level-security denial) was swallowed
+  into the panel's empty state, so a member denied the parent record was told
+  "No attachments yet. Upload a file to get started." about a record holding
+  2095+ attachments — and was offered an Upload the server would refuse.
+  
+  The panel now classifies that refusal with the same `isPermissionError`
+  predicate the kanban, calendar and form surfaces branch on, renders a distinct
+  denied state ("You don't have access to these attachments.", new
+  `detail.attachmentsAccessDenied` key in all ten locale packs), and withdraws
+  the Upload affordance. The denied state renders the translated sentence and
+  nothing sourced from the error — no status code, no server text, no row count.
+  The empty state is now reserved for a genuine 200-with-zero-rows; non-authz
+  failures keep their pre-existing handling.
+- 1eaf0a1: RecordAttachmentsPanel distinguishes an UNLOADED attachment list from an empty one.
+  
+  A `sys_attachment` list read that failed for any non-authorization reason — a
+  network failure (server unreachable, DNS, aborted request), a 5xx, or a 401 /
+  `AUTH_REQUIRED` (an expired session is authentication, not authorization, so the
+  denied predicate deliberately does not claim it) — was swallowed into the
+  panel's empty state. All three rendered "No attachments yet. Upload a file to
+  get started.": an affirmative claim about the record's contents, made by a panel
+  that never got an answer, over a record that may hold thousands of files.
+  
+  The panel now carries the same four-way status vocabulary its siblings use —
+  `loading` / `loaded` / `denied` / `unavailable` — and every state that means
+  "the panel does not know" is answered before `rows.length === 0` is allowed to
+  mean "the record holds nothing". A failed read renders a distinct unavailable
+  state ("We couldn't load the attachments for this record.", new
+  `detail.attachmentsLoadFailed` and `detail.retryLoadAttachments` keys in all ten
+  locale packs) with a **retry** — unlike the denied state, an outage and a lapsed
+  session are both things a second attempt can fix — and withdraws the Upload
+  affordance, because offering an upload against a list the panel could not reach
+  is the same over-assertion as the empty state it replaces. Like the denied
+  state, it renders the translated sentence and nothing sourced from the error: no
+  status code, no server message, no host.
+  
+  The empty state is now reserved for a genuine 200-with-zero-rows, and the
+  denied state (403 / `PERMISSION_DENIED` / `FORBIDDEN` / a row-level-security
+  denial) is unchanged. The "table not provisioned on an older stack" case is
+  unaffected: the ObjectStack adapter degrades a bare 404 to `{ data: [], total: 0 }`,
+  so it resolves through the success path and still renders the empty state.
+  
+  This restores a house rule that had already landed twice as a bug fix —
+  `HomeActionCenter` may only say "You're all caught up" once the inbox has
+  answered, and an unloadable app list is UNKNOWN rather than "no default app".
+- 2e82ab2: The config panel footer translates: `ConfigPanelRenderer`'s Save / Discard labels come from the locale pack.
+  
+  `saveLabel` and `discardLabel` carried the English literals `'Save'` and
+  `'Discard'` as parameter defaults, and no caller in the repo passes either prop,
+  so the sticky footer that appears the moment a config draft is dirty stayed
+  English in every locale — inside panels whose every other string had already
+  been routed through `t()`. The fix is in the renderer rather than per-caller:
+  the footer is the renderer's own chrome, so a caller-side fix would translate
+  one panel's footer and leave the next host's English.
+  
+  Both labels now resolve through `createSafeTranslation` — the mechanism this
+  package already uses for its built-in copy in `form.tsx`,
+  `fullscreen-editor.tsx`, `data-table.tsx` and friends. An explicitly passed
+  `saveLabel` / `discardLabel` still wins, unchanged and untranslated.
+  
+  `common.save` is reused rather than twinned: it already ships `Save` in all ten
+  packs and is what the console's other save buttons read. `common.discard` is
+  new, because the packs carried no shared spelling of the word — the three that
+  existed are each scoped to one surface (`form.discard`,
+  `console.settingsView.discard`, `console.objectView.discard`) and the last of
+  them diverges from the other two in zh/ko/fr. Its ten values are the majority
+  spelling, byte-identical to `form.discard` and `console.settingsView.discard`.
+  
+  Both English defaults are byte-identical to the literals they replace, so a
+  host that mounts no `I18nProvider` renders exactly what it did before.
+- ef0d150: The dashboard config sidebar translates: `WidgetConfigPanel` and `DashboardConfigPanel` are wired through `t()`.
+  
+  Both panels build a `ConfigPanelSchema` — breadcrumb, section titles, field
+  labels, placeholders, help text and option labels — and neither imported a
+  translation hook at all, so all 61 of their user-visible strings were English
+  literals. Both are exported from the package barrel and mounted by
+  `DashboardWithConfig` as the dashboard editing sidebar, so a user on any
+  non-English console opened a panel that stayed English inside chrome that had
+  translated around it.
+  
+  They now resolve through a new `dashboard.config.*` namespace — 75 keys, added
+  to all ten locale packs. The namespace sits beside `dashboard.trend.*` and
+  `dashboard.filters.*`, which is where this package's other translated surfaces
+  already read from, and the panels reach it through
+  `useConfigPanelTranslation`, a `createSafeTranslation` hook whose
+  `CONFIG_PANEL_DEFAULT_TRANSLATIONS` map carries the English defaults for hosts
+  that mount no `I18nProvider`.
+  
+  The keys are authored fresh against the wording the panels actually ship rather
+  than restored from the retired `configPanel.*` block: that vocabulary had no
+  reader, was never validated against a shipped label, and covered 16 of the 61
+  strings. Where the two name the same word the translations are reused.
+  
+  Every `en` pack value and every built-in default is byte-identical to the
+  literal it replaces, so English rendering and provider-less rendering are
+  unchanged — asserted row by row, in both directions, against a frozen table of
+  the pre-change literals.
+- f34226e: Delete two dead i18n namespaces — `configPanel.*` (16 keys) and `renderer.*` (13 keys) — from all ten locale packs.
+  
+  290 translated strings (29 keys x 10 packs) with **no reader anywhere in the
+  repo**. Measured with `node scripts/check-i18n-dead-keys.mjs`, the reverse sweep
+  from objectui#4658: it subtracts the referenced key set (the AST walk that
+  `check-i18n-call-site-keys.mjs` already uses, plus plural suffixes, plus
+  `returnObjects` branches, plus every dynamic template head) from the pack key
+  set, then re-checks each survivor with a fixed-string grep over the whole repo.
+  Both namespaces scored a clean sweep — `configPanel.*` 16/16 CONFIRMED and
+  `renderer.*` 13/13 CONFIRMED, zero NEEDS-REVIEW, and a fixed-string grep for all
+  29 keys returns nothing at all outside `packages/i18n/src/locales/`.
+  
+  `configPanel.*` is a dashboard-widget config-panel vocabulary (`layout`,
+  `columns`, `gap`, `rowHeight`, `refreshInterval`, `appearance`, `theme`,
+  `general`/`advanced`, …). The two components that surface exactly that
+  vocabulary — `packages/plugin-dashboard/src/WidgetConfigPanel.tsx` and
+  `DashboardConfigPanel.tsx` — import no translation hook at all and hardcode the
+  same words in English (`title: 'Layout'`, `label: 'Columns'`, `label: 'Gap'`,
+  `label: 'Show description'`, `label: 'Theme'`). The two config panels that do
+  use i18n read other namespaces: `ViewConfigPanel.tsx` reads
+  `console.objectView.*`, `ReportConfigPanel.tsx` reads `common.*` and
+  `report.editor.*`. No component reads `configPanel.*`.
+  
+  `renderer.*` is SchemaRenderer placeholder/status vocabulary (`noPageSchema`,
+  `noFormSchema`, `noDashboardSchema`, `pageRendering`, `dashboardRendering`,
+  `formRenderingMode`, …). It is dead in the stronger sense: the English strings
+  have no hardcoded twin either — `No page schema provided`, `No form schema
+  provided`, `No dashboard schema provided`, `Page rendering`, `Dashboard
+  rendering` and `Form rendering in` each return zero hits repo-wide outside the
+  packs, and `packages/react/src/SchemaRenderer.tsx` imports no translation hook.
+  The messages themselves are gone from the product, not merely un-translated.
+  
+  No behaviour change is possible: a key with no reader cannot be read. No test
+  fixture pinned any of the 29 keys, and neither i18n baseline JSON names one, so
+  nothing else had to move.
+  
+  Part of #4730.
+- 564b605: Delete two dead i18n namespaces — `workflow.*` (58 keys) and `publicForm.demo.*` (36 keys) — from all ten locale packs.
+  
+  940 translated strings (94 keys x 10 packs) with **no reader anywhere in the
+  repo**. Measured with `node scripts/check-i18n-dead-keys.mjs`, the reverse sweep
+  from objectui#4658: it subtracts the referenced key set (the AST walk that
+  `check-i18n-call-site-keys.mjs` already uses, plus plural suffixes, plus
+  `returnObjects` branches, plus every dynamic template head) from the pack key
+  set, then re-checks each survivor with a fixed-string grep over the whole repo.
+  `workflow.*` scored 54/58 CONFIRMED with the other 4 appearing only in two i18n
+  test fixtures — mentions, not consumers; `publicForm.demo.*` scored 36/36 with
+  zero textual footprint anywhere outside the packs.
+  
+  `workflow.*` is a complete BPMN/workflow-designer vocabulary (`userTask`,
+  `serviceTask`, `parallelGateway`, `boundaryEvent`, `importBpmn`/`exportBpmn`,
+  `undo`/`redo`, …). Its one plausible consumer,
+  `packages/plugin-designer/src/ProcessDesigner.tsx`, hardcodes English
+  (`{ label: 'User Task', value: 'user-task' }`) and imports no translation hook
+  at all, while six sibling components in the same package do use one — the
+  vocabulary was never wired up. `publicForm.demo.*` is demo content (contact and
+  support form titles, field labels, industry/issue-type/priority options) for a
+  public-form showcase page that does not exist in this repo.
+  
+  No behaviour changes: a key with no reader cannot be read. The `publicForm.*`
+  parent namespace and every other namespace are untouched.
+- a1609a6: Console list filters: a `between` range is submitted only when both bounds are filled, and six operator labels stop rendering as raw i18n keys.
+  
+  Two defects in the list-view filter panel (objectstack#8815), both in the Console
+  render layer, with no workaround available downstream.
+  
+  **A half-filled range no longer refuses the whole view.** Picking a date column
+  and 「介于」 draws two inputs — that part landed in objectui#3958 — but typing
+  only one bound produced `["2024-01-01", ""]`, and both write paths read "is this
+  row filled in?" with one shape-blind predicate (`null` / `''` / empty array).
+  An array of length 2 passed it, so the empty bound went to the server, which
+  refuses the query outright (`400 INVALID_FILTER`): the list showed
+  「该视图的查询被拒绝」 and the filters the user had already applied stopped
+  applying too. The saved-view fold persisted the same half-range, so the refusal
+  came back on every later read of that view, for every user of it.
+  
+  The spec cannot intercept this — `ViewFilterRuleSchema` accepts
+  `["2024-01-01", ""]` because it counts the two slots rather than what is in
+  them, while refusing a scalar or a one-element array. Authoring validation is
+  therefore green on exactly the shape that fails at query time, which makes not
+  emitting it the producer's job. `@object-ui/components` now exports
+  `isFilterValueComplete(operator, value)` — arity-aware, so a `pair` row needs
+  both bounds — and the two consumers that had each kept a copy of the old
+  predicate (`plugin-list`'s `convertFilterGroupToAST`, `app-shell`'s
+  `foldFilterGroupToSpecRules`) read it instead. A half-filled range is now
+  dropped exactly as a half-typed `equals` row already was: no filter, rather than
+  a filter the server will reject. Bounds of `0` and `false` stay real bounds.
+  
+  **Six operator labels are translated in all ten locale packs.**
+  `startsWith`, `endsWith`, `isNull`, `isNotNull`, `exists` and `notExists` were
+  missing from every pack, so i18next resolved them to the raw key and the dropdown
+  showed `filterBuilder.operators.isNull` beside translated entries. The
+  component's own defaults table could not cover it: that table serves only the
+  no-provider path, and the Console mounts a provider. The report named four —
+  a `date` column's bucket offers the four nullness operators; a `text` column
+  showed all six.
+  
+  Because the label key is built dynamically (`t(\`filterBuilder.operators.${op}\`)`),
+  no existing gate could see the gap: the call-site checker classifies a template
+  key as `missing-prefix` and only asks whether the prefix resolves, and
+  cross-pack parity is satisfied when all ten packs are missing a key together.
+  A new parity test pins the packs against `FILTER_BUILDER_OPERATORS` in both
+  directions, so an operator added to the dropdown now fails loudly until every
+  pack labels it.
+- 37f6844: FilterConditionField can author the spec's `$icontains` — case-insensitive contains is reachable from the filter UI.
+  
+  `@objectstack/spec`'s `FieldOperatorsSchema` gained `$icontains` between
+  `17.0.0-rc.2` and `rc.5`, and every driver and evaluation face the platform
+  ships now executes it. `FilterConditionField` had no builder operator that could
+  author it, so the capability was unreachable from the sharing-rule criteria
+  builder and sat in that widget's parity test as an explicit `KNOWN_UNREACHABLE`
+  entry.
+  
+  The FilterBuilder gains a `containsCaseInsensitive` operator ("Contains (ignore
+  case)", translated in all ten locale packs). `condToMongo` emits
+  `{ field: { $icontains: value } }` and `kvToCondition` reads it back, so a saved
+  criteria reopens in the visual builder instead of falling into the raw-JSON
+  editor. Today's `contains` is unchanged and still emits the case-SENSITIVE
+  `$contains`; whether it should have been case-insensitive all along is a product
+  question that stays open, and stored filter views keep meaning what they meant.
+  
+  The fold is ASCII-only by contract — `café` does not match `CAFÉ`.
+  
+  The new operator is **opt-in per consumer**: `FilterBuilder` takes an
+  `extraOperators` prop, and only `FilterConditionField` passes it. The one
+  dropdown feeds three at-rest dialects and only the MongoDB-style criteria this
+  widget writes can carry the operator — the spec's `VIEW_FILTER_OPERATORS` (saved
+  views) and `VALID_AST_OPERATORS` (the live grid's filter AST) have no
+  case-insensitive contains, so offering it there would author a filter those
+  paths cannot execute. Every other FilterBuilder is unchanged.
+- 2b50261: `FilterBuilder` gives the set and range operators an input that matches the value shape the spec accepts, and stops minting the shape it refuses.
+  
+  Three independent paths let one filter row end up with `operator: 'in'` and a
+  SCALAR `value` — the shape `ViewFilterRuleSchema` refuses at save time since
+  objectstack#6227, and the shape the query path answered `400 INVALID_FILTER` on
+  before that (objectstack#5869):
+  
+  - Changing the operator dropdown wrote `{ operator }` alone, so the seed `''`
+    (or whatever the previous family had produced) survived the switch into
+    `in` / `not_in` / `between`. The operator and the shape of its value are one
+    edit, so they are now made together: switching families re-shapes the value —
+    a typed scalar becomes a one-element list, an empty one becomes `[]`, a range
+    keeps its first bound and leaves the second open, and a list collapsing to a
+    scalar keeps its first entry.
+  - A plain text or number column has no static `options`, so `in` fell through to
+    the single-value input and the user could only ever type a scalar into it.
+    Those columns now get a token input (type, Enter or comma commits, `×` or
+    Backspace removes) that always emits an array; `between` gets its two bounds
+    instead of one box. The lookup picker's no-DataSource fallback, which also
+    handed back a scalar while `multiple`, emits a list too.
+  - The multi-value families were decided from a local `["in", "notIn"]` literal,
+    already one spelling adrift: `notIn` is an alias and the canonical member is
+    `not_in`, so a stored view read back in canonical form got the single-value
+    input for a set operator. The families are now read from `@objectstack/spec`'s
+    exported `VIEW_FILTER_LIST_VALUE_OPERATORS` / `VIEW_FILTER_PAIR_VALUE_OPERATORS`
+    and folded through `normalizeFilterOperator`, so both spellings of one operator
+    get one answer and a family the spec widens is picked up without an edit here.
+  
+  `foldFilterGroupToSpecRules` is unchanged and needed no change: it normalizes the
+  operator and carries `value` through verbatim, so the shape that reaches storage
+  is the producer's to get right. An untouched `in` row arrives as `[]`, which the
+  fold's existing incomplete-row rule already drops.
+  
+  Four locale keys are added to all ten packs for the new inputs
+  (`filterBuilder.addValue` / `.removeValue` / `.rangeStart` / `.rangeEnd`).
+- af5e292: Emit explicit file extensions on relative import specifiers, so the published
+  entries can be imported by Node's own ESM resolver.
+  
+  `@object-ui/react`'s built entry re-exported through extensionless relative
+  specifiers (`export * from './SchemaRenderer'`). Node does not extension-search
+  relative specifiers, so `import('@object-ui/react')` under plain Node — an SSR
+  host, or any consumer without a bundler — failed with `ERR_MODULE_NOT_FOUND`.
+  Bundled consumers were never affected and are unchanged by this.
+  
+  `@object-ui/types`, `@object-ui/core` and `@object-ui/i18n` carried the same
+  emission; `@object-ui/react`'s entry stayed unloadable until they were fixed
+  too, because evaluation crosses into them. No exported API changed.
+- bea374e: A KPI card's sub-caption now translates from its own convention key
+  
+  objectui#4032 item 4. The metric card renders two authored strings, and they
+  are two different authored fields:
+  
+  | authored field        | rendered as             | bundle key                                |
+  |-----------------------|-------------------------|-------------------------------------------|
+  | `widget.description`  | the shared card header  | `dashboards.<d>.widgets.<id>.description` |
+  | `options.description` | the KPI sub-caption     | `dashboards.<d>.widgets.<id>.subCaption`  |
+  
+  Only the first resolved. The metric dispatch spread `...options` straight
+  through, so the sub-caption reached `MetricWidget` as the raw authored English
+  and a `zh` dashboard showed a translated header above an untranslated caption.
+  
+  They get two keys, not one — the objectstack#5428 item-4 ruling (2026-08-06):
+  "两个作者字段两个 key". That is why PR #4358 landed items 1-3 and deliberately
+  stopped here: at the time `@objectstack/spec` accepted no segment for the
+  sub-caption and the only key it would take was `description`, the shared key the
+  ruling forbids. objectstack#8056 added `subCaption` to the widget translation
+  node, and it ships in `@objectstack/spec@17.0.0` — the version this repo pins.
+  
+  The server half already existed: `translateDashboard` overlays `subCaption` onto
+  `options.description` on the `/meta` path, so a served document was already
+  correct. This is the client half — the same key path, for the app bundles
+  objectui loads into `I18nProvider` itself.
+  
+  - `@object-ui/i18n` gains `widgetSubCaption(dashboardName, widgetId, fallback?)`,
+    mirroring `widgetDescription` limb for limb rather than re-implementing
+    namespace discovery inside the plugin.
+  - `DashboardRenderer`'s `tWidgetSubCaption` composes the two channels in the
+    order `tWidgetTitle` already fixed — the authored value is collapsed to the
+    active language first (an inline per-locale map, the `pickLocalized` seam),
+    and the plain string that falls out is offered to the bundle as its fallback —
+    so a bundle entry always wins over an inline map, and neither channel is
+    replaced by the other. The resolved value is assigned after the `...options`
+    spread in both the `object-metric` and static-value branches.
+  
+  The separation is pinned in both directions, because a shared key is exactly
+  what a later tidy-up would reach for: the `description` key never reaches
+  `options.description`, and `subCaption` never reaches `widget.description`. On a
+  `kpi` / `gauge` / `bullet` widget both are on screen at once, so one shared key
+  would make a single translation entry overwrite the other field's text.
+  
+  Untranslated dashboards are unchanged: with no bundle entry the resolver hands
+  back exactly what the spread would have, and with nothing authored and nothing
+  translated it answers `undefined` rather than `''`, so a card that has no
+  sub-caption grows no caption row.
+- d109a4d: The `organizations.*` picker locale family (avatar menu / console picker —
+  `mine`, `title`, `heading`, `subtitle`, `searchPlaceholder`, `new`, `current`,
+  `emptyTitle`, `emptyDescription`, `noMatches`) is now internally consistent in
+  all eight non-en/zh packs (`ar`, `de`, `es`, `fr`, `ja`, `ko`, `pt`, `ru`).
+  
+  `en` and `zh` were renamed from "organization" to "workspace" terminology in
+  full; the other eight packs only had `create` follow, leaving each pack mixing
+  both nouns in one dropdown (e.g. `de.ts` read `create: "Workspace erstellen"`
+  directly beside `mine: "Meine Organisationen"`). Since PR #4638 restored the
+  avatar menu's "My Workspaces" entry, both lines render two apart in the same
+  menu. Each pack now uses the workspace term its own `create` key already
+  committed to (`Arbeitsbereich`-style German phrasing → `Workspace`, French
+  `espace de travail`, Japanese `ワークスペース`, Korean `워크스페이스`, Spanish/
+  Portuguese `espacio de trabajo` / `workspace`, Russian `рабочее пространство`,
+  Arabic `مساحة عمل`), with grammatical agreement (gender, definiteness,
+  particles) adjusted per key.
+  
+  The sibling `organization.*` (singular) namespace — organization
+  **management**, a deliberately distinct surface per the comment separating the
+  two blocks in `en.ts` — is untouched in every pack.
+- ad13d63: Removed five locale keys that had no call site in any package, app, example,
+  or e2e test: `console.objectView.striped`, `console.objectView.bordered`,
+  `console.objectView.virtualScroll`, `appDesigner.stripedRows`, and
+  `appDesigner.bordered`. Deleted from all ten packs (`en` plus the nine
+  translations) to keep `all-locales-key-parity.test.ts` green.
+  
+  The `console.objectView.*` three describe grid options ObjectStack retired
+  upstream (objectstack#7176, 2026-08-10) and objectui stopped forwarding
+  (objectui#4649); the `appDesigner.*` pair is textually identical in name only
+  and was independently dead — no `AppCreationWizard.tsx` control, no fallback
+  entry in `useDesignerTranslation.ts`'s `DESIGNER_DEFAULT_TRANSLATIONS`, and no
+  mention anywhere in the repo outside the locale packs themselves.
+  
+  No runtime behavior changes: nothing rendered these labels before this patch.
+- a9e17b4: `auth.forgotPassword.successDescription`'s address hole is now spelled with
+  single braces (`{email}`) instead of i18next's double braces (`{{email}}`),
+  in all ten locale packs.
+  
+  This is a spelling-only change — rendered output is byte-identical in every
+  language, because the hole was never filled by i18next in the first place:
+  `ForgotPasswordForm` substitutes the address itself once the user submits
+  the form (the label renders before the address exists, so `t()` cannot do
+  it). `{{email}}` and a genuinely unfilled i18next hole were indistinguishable
+  at the call site, and passing `email` as an interpolation argument — the
+  natural "fix" for what looks like a missing argument — would let i18next
+  consume the hole and cause the address to be appended a second time
+  (objectui#4135).
+  
+  Converging on `{x}` for every hole a component fills downstream of `t()`
+  (the convention `resendOtpCountdownText`'s `{seconds}` already used) puts
+  this hole outside i18next's `{{…}}` syntax entirely, so the ambiguity is
+  gone by construction rather than fenced by an exemption. Accordingly,
+  `scripts/check-i18n-call-site-keys.mjs`'s `EXTERNALLY_INTERPOLATED_HOLES`
+  registry entry for this key is retired — the gate needs no exemption for a
+  hole i18next was never going to touch.
+  
+  `ForgotPasswordForm.tsx`'s replacement marker and its own built-in default
+  label move to the same spelling in the same change, as does the inline
+  `defaultValue` at `apps/console/src/pages/auth/ForgotPasswordPage.tsx`'s
+  call site.
+- 8871c14: Gate Home's metadata-authoring CTAs on the `manage_metadata` capability the
+  server reports, with a visible localized reason.
+  
+  "Build an app" and "Start with a template" were gated on `useIsWorkspaceAdmin()`
+  — a ROLE check. On a multi-tenant deployment that deliberately withholds
+  metadata authoring from tenants, a workspace owner is an admin by role yet holds
+  no `manage_metadata`, so the most prominent CTA on their home page led into
+  `/studio`, a filled-in new-package dialog, and a capability refusal at submit.
+  
+  Both cover cards are now disabled, with the reason shown on screen and in the
+  tooltip, whenever the session lacks the capability. The marketplace shortcut in
+  the apps strip is withheld with them (it targets the same route, so leaving it
+  live would have made the gate cosmetic), as is the "Build with AI" hero CTA
+  (its output is draft metadata that cannot be published without the capability).
+  On a workspace with no apps yet, the admin empty state explains the posture
+  instead of directing the owner to build their first application.
+  
+  The gate consumes the answer `GET /api/v1/auth/me/permissions` already returns,
+  surfaced through the permissions provider — no permission logic is re-derived in
+  the client. Unknown capabilities fail OPEN: a backend that reports no
+  `systemPermissions` at all is indistinguishable from one reporting an empty set,
+  and the server enforces regardless, so nothing is withheld on missing client
+  data. New key `home.build.noCapability` in all ten locale packs.
+- 21e4585: A write-warning toast now words each strip reason on its own instead of calling everything that is not `readonly_when` "read-only".
+  
+  `emitWriteWarning` picked its sentence with a two-way conditional on
+  `reason === 'readonly_when'`. The other arm was never "readonly" — it was
+  "everything that is not `readonly_when`", so any reason the server-side write
+  path gained afterwards was announced to the user as a read-only lock, pointing
+  them at a permission problem that does not exist. That is the same defect
+  objectui#3484 / framework#3794 fixed for `readonly_when` itself, one reason
+  later.
+  
+  The reason is now resolved through a table declared
+  `Record<DroppedFieldsEvent['reason'], …>`, mirroring the framework side of the
+  same seam (`service-automation`'s `DROPPED_REASON_LABEL`) and the shape the
+  spec's own `DroppedFieldsEventSchema` comment asks consumers for. The next reason
+  added upstream is a `type-check` failure here, unworded, where the conditional
+  compiled forever — which is what re-exporting THE spec type rather than a
+  hand-widened `string` was for all along.
+  
+  Not a latent fix: the pinned spec (`@objectstack/spec` 17.0.0-rc.6) already
+  carries `primary_key` (objectstack#6437), the strip that keeps a payload `id` the
+  update dispatch ruled is not an identifier out of the targeted rows' primary key.
+  Until now a user who triggered it was told the field was read-only. It gets its
+  own wording in all ten locale packs: "The record's identifier cannot be changed
+  by a save, so it did not take effect".
+  
+  One more line was added for a reason ahead of this bundle's pin — the adapter
+  reads `reason` structurally off the wire without checking it against the enum, so
+  a server newer than the bundle can deliver a value no table can have an arm for.
+  It names the fields and claims nothing about the cause, rather than throwing
+  inside a listener invoked as `void emitWriteWarning(...)` (which would cost the
+  user the whole toast, including the reasons that did resolve) or reusing a
+  wording that would state a cause we do not know.
+- Updated dependencies [2533ec5]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [e1d4251]
+- Updated dependencies [ac600e5]
+- Updated dependencies [c1ef923]
+- Updated dependencies [af5e292]
+- Updated dependencies [167ec42]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [af025ee]
+- Updated dependencies [31676be]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [d2ce342]
+- Updated dependencies [dfc6975]
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

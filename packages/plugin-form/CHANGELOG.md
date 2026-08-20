@@ -1,5 +1,659 @@
 # @object-ui/plugin-form
 
+## 17.6.0
+
+### Minor Changes
+
+- 8c0d52e: A form's ruled `submitBehavior.url` redirect can now be performed by the HOST, so a destination stays inside a console mounted at a sub-path (objectui#4989 defect 4).
+  
+  `ObjectForm` and `WizardForm` accept a relative in-app path and used to travel to it with `window.location.assign`. A rooted path resolves against the ORIGIN there, so under a mounted host — `<BrowserRouter basename="/_console">`, which the framework CLI configures for every embedded deployment — an authored `/thanks` left the application. The destination was correct and the navigation was wrong, and a published renderer cannot fix that alone: only the host knows its mount.
+  
+  **New: `HostNavigationContext` (`@object-ui/react`).** A host offers its own navigate; a renderer uses it when it is there:
+  
+  ```tsx
+  import { HostNavigationProvider } from '@object-ui/react';
+  import { useNavigate } from 'react-router-dom';
+  
+  function Bridge({ children }) {
+    const navigate = useNavigate();
+    return (
+      <HostNavigationProvider value={{ navigate: (to, o) => navigate(to, { replace: o?.replace ?? false }) }}>
+        {children}
+      </HostNavigationProvider>
+    );
+  }
+  ```
+  
+  `@object-ui/app-shell`'s `ConsoleShell` now mounts that bridge above every console route, so the console's own routes, and its basename, are what a post-submit redirect resolves against — and the redirect becomes an SPA transition instead of a full page load.
+  
+  **Nothing changes for a host that wires nothing.** With no provider the behaviour is byte-for-byte what it was: one `window.location.assign` of the resolved path after the declared `delayMs`. A host with no router has no basename, so origin-rooted resolution is already right there — the seam changes what a MOUNTED host gets and nothing else. `useHostNavigation()` outside a provider answers `{ navigate: undefined }` and never throws.
+  
+  Two mechanisms were weighed and rejected by the ruling, recorded so they are not re-proposed. **Reading React Router's context when a router happens to be present** is implicit, and unavailable anyway: a React context is a module-instance object, so reading the host's means importing `react-router` into the renderer — which `@object-ui/plugin-form` declares in none of its dependency fields, whose published build externalises every bare specifier, and which two real consumers (`apps/site`, `packages/plugin-view`) do not install. **Requiring `react-router` as a peer** is the honest version of the same thing and costs the package its property of dropping into any React application.
+  
+  What the host takes on by supplying a navigate: the destination becomes a client-side transition, so an in-app path with no matching route renders the host's not-found instead of a full page load. That is the host's routing table to answer for, which is why the choice is the host's. The contract verdict is unchanged either way — a destination `@objectstack/spec` refuses is refused identically with or without a seam, so an injected navigate can never launder a value the authoring door rejects.
+  
+  `navigateOnSuccess` is a different declared key with its own open contract question (objectui#5034) and is deliberately untouched here.
+
+### Patch Changes
+
+- 9b20dea: Fix: a `drawer` form with no `sections` now renders the object's declared
+  `fieldGroups` as sections, matching `ObjectForm` and `ModalForm`.
+  
+  `deriveFieldGroupSections` had exactly two call sites in the repo —
+  `ObjectForm` and `ModalForm` — so the same object, with the same metadata,
+  rendered one section per declared group in the modal create dialog and one
+  ungrouped flat list in the drawer. The author who laid the groups out in the
+  object designer saw them honoured on two surfaces out of three.
+  
+  `DrawerForm` now runs the same fallback the modal does: gated on "no explicit
+  `sections`, no `customFields`", over the same auto-layout-filtered field list
+  (system fields dropped, auto-generated fields dropped in create mode), with the
+  flat path's inferred column count carried onto the grouped layout. A curated
+  `sections` list from a form view still wins, and an object whose fields join no
+  declared group keeps its flat layout untouched. A derived group declaring
+  ADR-0085 `collapse` renders as a collapsible header, like an authored one.
+- 469b604: Fix: a `drawer` form with no `sections` now honours the object's field-level
+  conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`) and field
+  `group`.
+  
+  `ModalForm` and `DrawerForm` each carried their own copy of the "object-schema
+  field to runtime FormField" loop for the no-sections case, and the drawer's
+  copy had fallen behind: it stopped at `multiple`, so the ADR-0036 predicates
+  never reached the runtime field and `resolveFieldRuleState` had nothing to
+  resolve. A hidden field rendered anyway, a frozen field stayed editable (with
+  the server then dropping the write), and a conditionally-required field never
+  blocked the submit.
+  
+  Both containers now build that list through one shared `buildFlatFields`, which
+  resolves each field through the same `fromObjectSchema` the sectioned path uses
+  — so the next field-mapping fix lands once and reaches every container.
+- d7be3bd: `EmbeddableForm`'s thank-you redirect stops being mount-blind: an in-app destination now goes through the host's injected navigate.
+  
+  The redirect ended in one unconditional `window.location.href = url`. That is
+  right for the external destination this key deliberately admits, and wrong for
+  the in-app one it equally admits: a rooted path such as `/thanks` assigned to
+  `location.href` resolves against the ORIGIN root, so under a host mounted at a
+  sub-path — the framework CLI configures one for every embedded deployment, and
+  the console runs at basename `/_console` — the submitter landed outside the
+  application, usually on the host's own 404. Nothing refused either half of that
+  authoring, so the failure was silent. This is objectui#4989 defect 4 on the key
+  that card explicitly did not cover, and it is fixed here through the seam
+  objectui#5111 landed (`HostNavigationContext`, `@object-ui/react`).
+  
+  The destinations are now split by who can travel to them:
+  
+  - an **app-relative** destination (`/thanks`, `thanks`, `?ok=1`, `#done`) is
+    handed to the host's navigate when a host supplied one, so a mounted host
+    places it inside its mount; with no provider the behaviour is byte-for-byte
+    what it was — a host with no router has no basename, so origin-rooted
+    resolution is already correct there;
+  - an **external** destination admitted by `allowedRedirectHosts` keeps
+    browser-level navigation **unconditionally**. This is the seam's own declared
+    input contract, not a conservatism: `HostNavigationValue.navigate` documents
+    `to` as an application-relative path, "never an absolute URL", because a host
+    navigate is a client-side router transition. Since a relative reference cannot
+    carry an authority, the seam is now structurally incapable of being handed a
+    cross-origin URL.
+  
+  A same-origin **absolute** URL — the one shape those two arms do not name — also
+  keeps browser-level navigation. Routing it through the seam would mean rewriting
+  the author's full address into a path a mounted router then places at a
+  different address; an author who spelled out the whole address asked for that
+  address.
+  
+  Not changed, deliberately: `isRedirectUrlSafe` and `allowedRedirectHosts` —
+  WHICH destinations are followed. That acceptance set (same-origin OR the
+  author's allowlist) is this key's own contract, a refused destination reaches
+  neither the seam nor the browser, and objectstack#7496's relative-only ruling
+  belongs to `submitBehavior.url` and is not imported onto this key. The wait's
+  ownership (objectui#5049) and the thank-you panel's copy (objectui#5073) are
+  carried over unchanged: unmounting or pressing "Submit Another Response" still
+  cancels a pending redirect, seam or no seam.
+- a954b48: A public form's thank-you countdown ("Redirecting in {{seconds}} seconds…") now
+  actually counts down, instead of rendering a number once and leaving it frozen
+  for the whole wait.
+  
+  All ten locale packs document `publicForm.redirecting`'s `{{seconds}}` as "the
+  remaining seconds", but `EmbeddableForm` computed it exactly once — at the render
+  that first shows the thank-you panel — from `pendingRedirect.delayMs`, and never
+  touched it again. On the 3 second default delay, a submitter saw a fully static
+  "Redirecting in 3 seconds…" for the entire wait (objectui#5083).
+  
+  The number is now owned by a per-second `setInterval`, on the same ownership
+  model PR #5070 established for the redirect wait itself: an effect keyed on the
+  accepted destination (`pendingRedirect`), cancelled on unmount and on
+  `handleReset`'s `Submit Another Response` — the exact regression surface
+  objectui#5049 fixed for the navigation timer, restated here rather than
+  reintroduced. The interval also stops itself once it reaches 0, rather than
+  ticking indefinitely past a wait that has already ended.
+  
+  Nothing about WHICH destinations are followed or refused changes
+  (`isRedirectUrlSafe` / `allowedRedirectHosts`, objectui#4989), and neither does
+  the navigation wait's own ownership (objectui#5049 / PR #5070) — this is the
+  display only.
+- bda9b12: A public form's thank-you panel no longer promises a redirect its own guard just
+  refused, and the `texts.redirectBlocked` string can finally reach a screen.
+  
+  `EmbeddableForm` decided whether to redirect from `isRedirectUrlSafe` /
+  `allowedRedirectHosts`, but the panel's copy was keyed on something else: whether
+  a `thankYouPage.redirectUrl` had been *authored* (objectui#5073). An author who
+  declared a cross-origin destination without allowlisting its host therefore got a
+  submitter who was told `Redirecting in 3 seconds…` and was then never redirected.
+  The guard did its job; the screen contradicted it. That screen is the terminal
+  state of a public form, so nothing came after to correct the impression.
+  
+  On the same path, the `texts.redirectBlocked` string the refusal set was
+  unreachable in every locale. It was recorded with `setError(...)`, whose banner
+  lives in the form branch — and `setSubmitted(true)` has already run one statement
+  earlier, so the component is showing the thank-you branch, which renders no error
+  at all. That was the only assignment of the key anywhere; pressing
+  `Submit Another Response` cleared it rather than showing it.
+  
+  Both now follow the verdict:
+  
+  - The countdown renders on `pendingRedirect` — the destination that was actually
+    accepted — and reads its seconds from the delay captured with it, so the
+    displayed wait is the wait being served. A refused destination, and the
+    honeypot's silent fake-success (which accepts no destination either), simply
+    omit the line.
+  - A refused destination renders `texts.redirectBlocked` in the thank-you panel
+    when the author declared it — the case the key exists for, in the author's own
+    words to the public. Undeclared means silence; the author keeps the existing
+    `console.warn`, which is the channel for the person who can fix the
+    declaration.
+  
+  Which destinations are refused is unchanged: `isRedirectUrlSafe` and
+  `allowedRedirectHosts` are untouched, as is the timer ownership introduced for
+  objectui#5049. Nothing was ever at risk in the data — the write succeeds before
+  any of this — the harm was a false statement on the confirmation screen and a
+  shipped, translated string no user could see.
+- e354dd0: A public form's thank-you redirect no longer outlives the form that armed it, and
+  "Submit Another Response" now cancels it.
+  
+  `EmbeddableForm` armed the `thankYouPage.redirectUrl` wait with a bare
+  `setTimeout` inside the submit handler: the handle was not stored, nothing cleared
+  it, and no part of the component owned it (objectui#5049). Two consequences, and
+  the second needs no unmount at all:
+  
+  - For the whole of the delay a full-page navigation was pending that survived the
+    form being taken off screen — an embed removed by the host page, a route change,
+    a re-keyed subtree. With `redirectDelay` unset that window is the 3000 ms
+    default, so this was the normal state of every submit on this surface rather
+    than an edge authoring; the thank-you panel says as much out loud with
+    `Redirecting in {{seconds}} seconds…`.
+  - Under `allowMultiple`, `Submit Another Response` only flipped `submitted` back
+    to false while the pending navigation kept ticking. The component invited the
+    submitter into a fresh form and then, about three seconds later, threw the whole
+    page away while they were typing the next response.
+  
+  The wait now lives in an effect keyed on the accepted destination, with a
+  `clearTimeout` cleanup, so unmounting cancels it; and `handleReset` drops the
+  destination, so pressing `Submit Another Response` cancels it too. The button
+  offers the submitter a fresh form, and that offer cannot be honoured alongside
+  discarding the page a moment later. This is the same move `ObjectForm` /
+  `WizardForm` (objectui#5033) and `apps/console`'s `FormPage` already made for
+  their own copies of this defect.
+  
+  Nothing else changed. Which destinations are followed and which are refused is
+  still decided by the same `isRedirectUrlSafe` / `allowedRedirectHosts` guard, on
+  the same line as before — only who owns the wait changed. The delay is captured
+  together with the destination at the moment the write is accepted, so a host
+  re-rendering with a different `redirectDelay` mid-wait cannot restart the pause
+  under the submitter. The countdown copy is untouched. No data was ever at risk:
+  the write has already succeeded before the wait begins, so the harm was a
+  surprising navigation — and, on the `allowMultiple` path, the loss of what the
+  submitter had just re-typed.
+- f68018d: A form's declared redirect delay no longer outlives the form that armed it.
+  
+  `ObjectForm` and `WizardForm` consumed `submitBehavior: { kind: 'redirect' }` by
+  arming the `delayMs` wait with a bare `setTimeout` inside the submit handler. The
+  handle was not stored, nothing cleared it on unmount, and no part of the component
+  owned it — so for the whole of the declared delay there was a pending full-page
+  navigation that survived the form being taken off screen (objectui#5033). A
+  submitter who dismissed the modal or drawer variant after the confirmation, who
+  clicked an in-app link, or whose host re-keyed the subtree for its own reasons was
+  pulled away from wherever they had gone by a timer belonging to a form that no
+  longer existed. The longer the authored delay, the wider that window — and a
+  non-trivial delay is the intended authoring, since `delayMs` exists so the
+  confirmation is readable before the redirect.
+  
+  The wait now lives in an effect keyed on the accepted destination, with a
+  `clearTimeout` cleanup, so unmounting cancels it. This is the same move
+  `apps/console`'s `FormPage` already made for its own copy of this defect.
+  
+  `delayMs` semantics are unchanged: the pause is still a pause, an unset value is
+  still "go now" (a zero timer, exactly as the in-handler version scheduled it), and
+  which destinations are followed or refused is untouched — the contract verdict
+  that decides WHETHER to navigate is the same one, only WHEN it happens is now
+  owned by the component. The delay is captured together with the destination at the
+  moment the write is accepted, so a host re-rendering with a different `delayMs`
+  mid-wait cannot restart the pause under the submitter. Nothing was ever at risk of
+  being lost: the write has already succeeded before the wait begins, so the harm
+  was a surprising navigation, not a corrupted record.
+- 375efb4: Publish the authoring surfaces of the four GA `object-*` blocks
+  
+  `object-form`, `object-grid`, `object-master-detail-form` and `object-metric`
+  each honoured far more keys than they declared as registry `inputs`. An author —
+  very often an AI author — who wrote one of the undeclared keys got an
+  `unknown-prop` report from `sdui-parser` on a key that works, while the designer
+  panel and the generated `sdui-intrinsics.d.ts` denied it existed.
+  
+  68 keys are now declared with descriptions written to teach correct authoring:
+  `object-form` +20 (record binding, button labels, post-submit behaviour, mobile
+  overrides), `object-grid` +21 (sorting, pagination, grouping, selection, row and
+  bulk actions, navigation, export), `object-master-detail-form` +10, and
+  `object-metric` +14 (formatting, comparison, drill-down). No renderer behaviour
+  changes — this documents what already shipped, so the manifest, the generated
+  `.d.ts`, the designer panel and the renderers finally agree.
+  
+  Ten of `object-grid`'s spec-declared keys are deliberately NOT published:
+  its own `@deprecated` legacy spellings (`fields`, `staticData`, `selectable`,
+  `pageSize`, `showSearch`, `showPagination`, `defaultSort`, `defaultFilters`,
+  `resizableColumns`, `title`). The renderer keeps reading them so existing
+  documents render, but recommending a deprecated alias as new authoring surface
+  would harden it into a second dialect. Each canonical replacement — `columns`,
+  `data`, `selection`, `pagination`, `searchableFields`, `sort`, `filter`,
+  `resizable`, `label` — is declared, and each carries a description naming the
+  legacy spelling it supersedes.
+- 800f455: fix(fields): grid columns are keyed by the declared `name`, so spec-compliant grid metadata renders populated cells
+  
+  `GridField` declared its own column interface keyed by `field` and read
+  `c.field` at every site (`key=`, `row[…]`, the blank row, cell writes, the
+  column chooser, the running-total lookup), while the published
+  `GridColumnDefinition` in `@object-ui/types` — and the grid documentation, and
+  the `fields-grid` catalog examples — declare the key as `name`. Metadata
+  authored against the published type therefore rendered a grid with the correct
+  row count and every cell empty, plus a React "unique key" warning per column.
+  
+  The renderer now reads the declared `name`, and the master-detail derivation
+  (`deriveColumns` / `hydrateColumns` / `pickAmountField`) produces and consumes
+  the same key. There is deliberately **no** `col.field ?? col.name` alias: one
+  spelling at the producer (AGENTS.md #0.1).
+  
+  **Breaking for `field`-keyed columns.** Grid / line-item / master-detail
+  subform columns spelled `{ field: 'amount' }` must be re-spelled
+  `{ name: 'amount' }`. This affects author-supplied `columns` on the `grid`
+  field, `record:line_items`, `object-master-detail-form` details and a
+  relationship field's `inlineColumns`. Auto-derived columns (no explicit
+  `columns` block) need no change. List-view and `object-grid` columns are a
+  different contract (`ListColumn`) and keep their own `field` key.
+- 3b03704: `mobile.fullscreenLongText` now reaches fields the spec spells `richtext` (objectui#4831).
+  
+  `ObjectForm` is the one and only producer of the `mobile_fullscreen` flag: when a form
+  sets `mobile: { fullscreenLongText: true }` it stamps that flag onto the metadata of
+  every long-text field, and the widget renders an expand affordance plus a full-height
+  editing dialog from it. The list of types it stamped was four hand-written literals —
+  `textarea`, `field:textarea`, `field:markdown`, `field:html` — and `field:richtext` was
+  not among them.
+  
+  `richtext` is the name `@objectstack/spec`'s `FieldType` gives this type; `markdown` and
+  `html` are the other two, and all three are registry keys on ONE widget, `RichTextField`,
+  which has read the flag since objectui#3301. So the consumer side was complete and two of
+  the widget's three keys were stamped: a field authored exactly as the spec prescribes
+  (`type: richtext`) rendered the rich-text editor with no expand button, on a form whose
+  `mobile` documentation promises "textarea/rich-text get an expand button". `markdown` and
+  `html` beside it worked. This is the same hole objectui#4250 found in this package's
+  `WIDE_FIELD_TYPES`, which is why the twin set already lists `richtext` and this one did
+  not.
+  
+  Adding the missing key is the whole change; no other type's behaviour moves, and a form
+  that has not opted in still stamps nothing.
+- 958d757: The plugin-form documentation-site page now teaches the `validation` shape the
+  form renderer actually reads, so a copied example validates instead of only
+  looking as though it does.
+  
+  `content/docs/plugins/plugin-form.mdx` carried the same two defects
+  `packages/plugin-form/README.md` did before it was rewritten (objectui#5075 /
+  objectui#5118): the README half was fixed and the documentation-site mirror was
+  not touched.
+  
+  `### Form Field` redeclared a local `interface FormField` whose `validation` was
+  `ValidationRule[]`. No `ValidationRule` type exists in this repository under any
+  spelling, and `validation` is not an array — it is `FieldValidationRules`
+  (`packages/types/src/form.ts`), an object keyed by rule name. The block also
+  listed `defaultValue` and `className`, neither of which is a declared member of
+  `FormField`, and marked `type` and `label` required when `name` is the only
+  required key of the 23. The section no longer declares a local interface at all
+  — a hand-written `interface` in a documentation snippet compiles nowhere, which
+  is how it drifted this far — and references the declared keys instead, each one
+  measured against the renderer's read points.
+  
+  `### Form with Validation` authored the array to match, and that spelling fails
+  silently rather than loudly. The only reader of the key spreads it into the rule
+  object handed to react-hook-form (`const rules: any = { ...validation }`,
+  `packages/components/src/renderers/form/form.tsx:1652`); spreading an array
+  produces numeric keys, react-hook-form recognises none of them, and every rule
+  is dropped without an error. Measured against the real renderer: the old snippet
+  submits a two-character username under `minLength: 3` with no message shown,
+  while the rewritten one blocks it. The example is now annotated `FormSchema`, so
+  the array spelling is a compile error (TS2559) rather than a runtime surprise,
+  and a JSON variant is given alongside it for metadata authoring.
+  
+  Three facts a reader could previously only discover by experiment are now
+  stated: `validation.required` supplies the required *message* while `required` /
+  `requiredWhen` on the field decide whether it is required; there is no `email`
+  rule name, an email check is a `pattern`; and a hand-authored `pattern` has to
+  carry a RegExp, because react-hook-form applies a pattern only when its value is
+  `instanceof RegExp` — it is the object-metadata path (`buildValidationRules`)
+  that compiles a declared string into one.
+  
+  The two `DOC_TYPE_EXEMPTIONS` entries this page held in
+  `scripts/check-doc-component-types.mjs` are deleted with it. They exempted
+  `minLength` / `maxLength` as "ValidationRule discriminants under a field's
+  `validation[]`" — a reason whose every clause was the fiction being removed —
+  and without them the gate now fails if the array spelling returns.
+- bfb64ee: `plugin-form` README: the "Integration with Data Sources" section now teaches the adapter's real path instead of two keys no form renderer reads.
+  
+  The section taught backend wiring as two keys on a form schema — `dataSource`
+  (the adapter itself) and `resource: 'users'` — on an un-annotated
+  `const schema = { … }`. Neither key is read anywhere on either form route:
+  
+  - **`dataSource`** is *discarded* by the basic form. The renderer reads its
+    adapter off `SchemaRendererContext`
+    (`packages/components/src/renderers/form/form.tsx:1004`) and passes it down per
+    field (`:2061`); a same-named key arriving on the schema or props is dropped by
+    the discard destructures at `form.tsx:304` and `:2168`, so it reaches neither a
+    widget nor the DOM.
+  - **`resource`** is declared on neither `FormSchema` nor `ObjectFormSchema`. The
+    key exists in the protocol, but on `CRUDSchema` (`packages/types/src/crud.ts`,
+    `type: 'crud'`); no form renderer reads it under any spelling.
+  
+  Both survived compilation because `FormSchema` and `ObjectFormSchema` extend
+  `BaseSchema`, which declares `[key: string]: any` — so an invented key is never a
+  type error, merely never read. A reader who copied the block got a form that did
+  not connect to a backend, with nothing reported: what appeared to work was the
+  hand-written `onSubmit` closure, which genuinely runs (the renderer awaits it at
+  `form.tsx:1428`) using the adapter its *closure* captured, entirely independently
+  of the two keys beside it.
+  
+  The section is rewritten around the real mechanism: the adapter is injected once
+  by `SchemaRendererProvider` and travels on context, the metadata route uses
+  `object-form` with its required `objectName` + `mode`, and the TypeScript route
+  is a bare `form` whose `onSubmit` owns persistence. Both examples now carry real
+  type annotations (`ObjectFormSchema` / `FormSchema`) in line with the rest of the
+  file — an un-annotated object literal type-checks whatever is written in it. A
+  closing note records the one thing a top-level `dataSource` *does* mean on a
+  schema node: the spec's element binding (`{ object }`, objectstack#6953), which
+  explicitly rejects a live adapter (`element-data-source.ts:131` refuses any value
+  carrying a `find` method).
+  
+  Documentation only — no source, type or behavior change. This also removes a
+  self-contradiction inside the same README, whose "Registering a component under
+  your own key" section already stated the rule correctly ("never a `dataSource` —
+  that travels on `SchemaRendererContext`").
+- e09f9e8: Docs only: `packages/plugin-form/README.md`'s Schema API and Examples now spell
+  the keys the form renderers actually read (objectui#5075). Three connected
+  drifts, judged against the build product's `dist/index.d.ts` under `strict`:
+  
+  - **`validation` was written as an ARRAY** of `{ type, value, message }` entries
+    in three places. The real key is `FormField.validation?: FieldValidationRules`
+    — an OBJECT keyed by rule name (`required`, `minLength`, `maxLength`, `min`,
+    `max`, `pattern`, `validate`). The array form is worse than a type error,
+    because its runtime failure is SILENT: the only reader spreads the value into
+    the rule object handed to react-hook-form (`const rules: any = { ...validation }`,
+    `packages/components/src/renderers/form/form.tsx:1652`), and spreading an array
+    into an object literal yields numeric keys (`{ '0': …, '1': … }`).
+    react-hook-form's field validator reads exactly `required`, `maxLength`,
+    `minLength`, `min`, `max`, `pattern`, `validate`, `valueAsNumber` off its
+    descriptor, so every documented rule was dropped with nothing thrown — a form
+    copied from this README looked validated while validating nothing. The rewrite
+    also records two facts a reader could not have guessed: `validation.required`
+    supplies the required MESSAGE only (presence is decided by the field's own
+    `required` / `requiredWhen`), and a hand-authored `pattern.value` must be a
+    RegExp, since react-hook-form only applies a pattern whose value
+    `instanceof RegExp` and it is the object-metadata path (`buildValidationRules`)
+    that compiles a declared string into one.
+  
+  - **`type: 'multi-step-form'` is registered nowhere**, and `steps` is not a key
+    on any form schema — so the whole "Multi-Step Form" example rendered the
+    unknown-component placeholder, with the fields inside `steps` never read. The
+    example is replaced by the two real entry points: an `object-form` with
+    `formType: 'wizard'`, whose steps are its `sections` (this is what
+    `ObjectForm` routes to `WizardForm`), and the exported `WizardForm` itself
+    with inline section fields and no data source — the shape closest to what the
+    old snippet was reaching for. No new schema type was registered to make the
+    old spelling true.
+  
+  - **The `FormField` reference block declared a local `interface FormField`**,
+    which type-checks whatever it says because it is unrelated to the real type.
+    Five of its rows were wrong (`type` and `label` are OPTIONAL; `validation` is
+    the object above; `defaultValue` and `className` are not declared keys — the
+    form-level `defaultValues` and `span` / `colSpan` / `fieldContainerClass` are),
+    it named a `ValidationRule` type that exists nowhere in the repo, and it listed
+    7 of the real 23 keys. The block is now a key table over the real declaration,
+    with `FormSchema`'s own keys beside it, and both examples are annotated with
+    their real types — the annotation is the point: `FormField` and `BaseSchema`
+    both declare `[key: string]: any`, so an un-annotated `const schema = { … }`
+    accepts any invented key and a nonexistent key is never a compile error.
+  
+  No renderer behaviour changes, and no capability, export or type was added to
+  make an example true.
+- 03e5f97: `packages/plugin-form/README.md`: three assertions about this package's export
+  surface were false, and the export names are now taken from the built
+  `dist/index.d.ts` (TS compiler API `checker.getExportsOfModule`) with every
+  TypeScript block compiled against those same declarations under `strict`.
+  
+  - **`formComponents`** — fiction, and not a name that could be corrected: there
+    is no aggregate component map on the surface at all, so the "Manual
+    Registration" section described a mechanism that does not exist. Copying it got
+    `undefined` and threw on `Object.entries(undefined)`. It is replaced by what
+    actually happens: registration is a side effect of importing the entry, whose
+    six `ComponentRegistry.register(...)` calls claim
+    `plugin-form:object-form`, `view:form`, `plugin-form:embeddable-form`,
+    `plugin-form:form-analytics`, `plugin-form:object-master-detail-form` and
+    `record:line_items` — the two `skipFallback: true` calls being why bare `form`
+    and bare `line_items` are *not* taken over. The section also lists the real
+    export surface, and shows the thing the old snippet was reaching for: putting
+    an exported component on a schema type of your own, with the caveat that the
+    package's own registered renderers are internal wrappers that first resolve
+    `dataSource` from `SchemaRendererContext`.
+  - **`FormSchema` / `FormField`** — real types imported from the wrong package.
+    Both are protocol types declared in `@object-ui/types` (`src/form.ts`); this
+    package imports them and does not re-export them, so the documented import was
+    a `TS2305` pair. Only the import path changed — no re-export was added to make
+    the old path true, since widening a package's public surface is a contract
+    change and not a documentation fix. The section now also points at the form
+    types that *are* on this entry (`TabbedFormSchema`, `WizardFormSchema`,
+    `ModalFormSchema`, …).
+  - **`isRuntimeDefault` "(re-exported here)"** — the create-defaults section
+    claimed the predicate is re-exported by this package. It is re-exported by
+    `src/schemaDefaults.ts` for internal use only, never from the entry, and the
+    package publishes just the `"."` export — so `import { isRuntimeDefault } from
+    '@object-ui/plugin-form'` is another `TS2305`. The parenthetical now says where
+    the re-export actually lives.
+  
+  No code, types or runtime behaviour change — the diff is one README plus this
+  changeset. It declares a patch because `README.md` is in the package's published
+  `files`, so the correction reaches npm with the next release.
+- ae804ec: `ObjectForm` and `WizardForm` now consume a declared `submitBehavior: { kind: 'redirect' }` the way objectstack#7496 ruled it (objectui#4989): the destination is a **relative** path, `{{record.field_name}}` tokens are substituted from the record the submit just wrote and URL-escaped as the redirect is built, and a destination outside the contract is **refused on screen** instead of being dropped in silence.
+  
+  Both call sites previously read the value through `isSameOriginUrl` — resolve against `window.location.href`, compare origins — and navigated when that answered yes. That is not an open redirect (a cross-origin destination never reached the navigation) but it diverged from the ruled contract three ways, all fixed here:
+  
+  - **An out-of-contract destination was dropped in silence.** When the guard answered no the `if` simply did not fire: no toast, no error, no confirmation. The write had already succeeded, so the submitter was left facing a still-filled form with no feedback about what happened — and the obvious next move, submitting again, wrote a second record. A refusal now shows the spec's own author-facing prescription in an alert beside the confirmation that the record WAS written, toasts it, and replaces the filled form so there is nothing left to resubmit. Silence is the one outcome the ruling's consumer half rules out.
+  - **A same-origin ABSOLUTE url was followed**, where the contract is relative-only — so this renderer accepted a spelling the authoring door refuses, which is how a rejected spelling stays alive in a corpus. The verdict is no longer restated here at all: `resolveSubmitRedirect` asks `@objectstack/spec`'s own `FormViewSchema` at the moment of use, so an absolute URL, a protocol-relative `//host`, a backslash, a whitespace or control-character smuggle, a malformed token or a document-relative path is refused with the spec's own wording — and a later widening of the ruling is followed by the version pin rather than by an edit here.
+  - **`{{record.field_name}}` tokens were never substituted**, so an authored `/thanks?ref={{record.id}}` navigated with the literal braces in the query. Substitution now happens where the ruling assigns it — when the redirect is built — from the values as submitted with whatever the DataSource answered layered on top, and every interpolated value goes through `encodeURIComponent`, so a token is a value in the path and never a way to add path structure.
+  
+  `delayMs` semantics are unchanged. `navigateOnSuccess` is a different declared key with its own dialect and its own open contract question, and is deliberately untouched; `isSameOriginUrl` survives because that key still needs it.
+  
+  **Escalated rather than guessed at, and since ruled:** this change left a ruled in-app path handed to a browser-level navigation, which resolves it against the origin root, so under a host mounted at a sub-path the destination still left the app (objectui#4989 defect 4). Applying the mount means learning it, and every mechanism available to a published renderer package changes its contract. The maintainer ruled the mechanism on 2026-08-17 — an optional injected navigation seam — and it ships in the same release; see the `plugin-form-injected-navigation-4989` changeset for what a host now supplies and what a host that supplies nothing still gets.
+- d971e51: A create form no longer deadlocks on a `requiredWhen` field that also declares a runtime `defaultValue`.
+  
+  `#4069` ruled that in **create** mode a field whose `defaultValue` is a runtime
+  instruction the server resolves per insert (`NOW()` / `current_user`, or a CEL
+  Expression envelope) is producer-owned: the control is deliberately left empty
+  and the key is omitted from the payload, because `ObjectQL.applyFieldDefaults`
+  resolves the declaration only for a field that arrives absent or null. That was
+  implemented on the STATIC `required` flag.
+  
+  The conditional spelling was not covered. `requiredWhen` is resolved one layer
+  downstream, in the form renderer, against the live record — so a predicate
+  resolving TRUE on a create form put the requirement straight back: the control
+  was still empty by design, the submit was refused, and the user had nothing
+  sensible to type.
+  
+  Both spellings now behave identically on a producer-owned field. A
+  `requiredWhen` predicate is a claim about the value at rest in a given state,
+  and `NOW()` / `current_user` resolve at insert regardless of state, so the
+  producer's guarantee covers the conditional claim by the same argument that
+  covers the unconditional one. An author who really means "the user must supply
+  this in this state" has a natural spelling for it: do not declare the default.
+  
+  The suppression lands in the single evaluator both layers read,
+  `resolveFieldRuleState` — the same verdict that draws the required marker and
+  the one the submit-time check consults — so a field can never lose its asterisk
+  while still refusing the write. The classifier that answers "is this value the
+  producer's to supply" moved down to `@object-ui/core`
+  (`isRuntimeDefault` / `isServerOwnedValue`, re-exported from
+  `@object-ui/plugin-form`) so the renderer, the wizard's cross-step gate and the
+  create-form field builders all read one implementation rather than three.
+  
+  **Edit mode is unchanged.** Defaults do not re-apply to an existing record, so
+  on a persisted row the token was already resolved at insert and blanking the
+  column is a real removal: `requiredWhen` enforces there exactly as authored.
+  Fields with no declared default, and fields whose default is a static literal
+  (which IS seeded into the control), are also unaffected in both modes.
+- 2165d88: Rename four component-props types off the names `@objectstack/spec` starts owning in
+  17.0.0, keeping the old spellings as deprecated aliases. No behaviour changes and no
+  importer breaks.
+  
+  `@objectstack/spec/ui` exports `ObjectCalendarProps`, `ObjectFormProps`, `ObjectGridProps`
+  and `ObjectKanbanProps` from 17.0.0, where each is the AUTHORED props document of the
+  matching element — a serialisable authoring surface (`z.input< typeof
+  ObjectGridPropsSchema >`). The same-named interfaces here are the RENDERERS' props: a live
+  `dataSource`, records pre-fetched by a parent, and the host callbacks. Two different things
+  under one word, so the local ones are renamed rather than derived, following the split this
+  repo already made for `PageHeaderProps` -> `PageHeaderComponentProps` and the
+  `Record*ComponentProps` family in `@object-ui/types`:
+  
+  | package | new name | old name |
+  |---|---|---|
+  | `@object-ui/plugin-calendar` | `ObjectCalendarComponentProps` | `ObjectCalendarProps` |
+  | `@object-ui/plugin-form` | `ObjectFormComponentProps` | `ObjectFormProps` |
+  | `@object-ui/plugin-grid` | `ObjectGridComponentProps` | `ObjectGridProps` |
+  | `@object-ui/plugin-kanban` | `ObjectKanbanComponentProps` | `ObjectKanbanProps` |
+  
+  Every old name is still exported from its package barrel as a `@deprecated` alias denoting
+  the SAME type, pinned per package by `spec-symbol-4650.test.ts`, so existing imports keep
+  compiling. New code should use the `ComponentProps` spelling.
+  
+  `@object-ui/app-shell` carries no API change: its `SECRET_MASK` — the ADR-0100 credential
+  read mask, which 17.0.0 moves into `@objectstack/spec/data` — is renamed to
+  `OBJECTUI_SECRET_MASK` at its declaration in `views/metadata-admin/widgets.tsx`. That
+  constant is package-internal and is not re-exported from the barrel, so nothing published
+  changes; the rename exists so the local copy cannot be read as the spec's own definition
+  while this repo is still pinned below the release that exports it.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [d8b9259]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [61556dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/permissions@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

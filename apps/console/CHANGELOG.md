@@ -1,5 +1,168 @@
 # @object-ui/console
 
+## 17.6.0
+
+### Minor Changes
+
+- 86f633f: Remove the published optional key `logo` from `AppShellBranding` (`@object-ui/layout`).
+  
+  The key was declared but never read. `useAppShellBranding` applies only
+  `primaryColor`, `accentColor`, `favicon` and `title`, and `AppShell` installs no
+  context provider at all — so its doc comment, "Logo URL — passed to sidebar/navbar
+  via context", described a mechanism that did not exist. Three call sites were
+  feeding the key a real value that was silently discarded, and all three are removed
+  with it: `AppSchemaRenderer`, `ConsoleLayout` and the console's `useBranding` hook.
+  
+  The real logo entry point is unchanged and is where it always was: the app schema's
+  own `branding.logo`, read directly by `AppSidebar` in `@object-ui/app-shell`, plus
+  the app schema's top-level `logo`, rendered directly by `AppSchemaRenderer`'s
+  default sidebar header. Neither path went through `AppShellBranding`, so nothing
+  rendering-visible changes.
+  
+  Migration: a consumer that passes `logo` inside an `AppShellBranding` object literal
+  now gets a compile error. Delete the key — it never reached a renderer. To show a
+  logo, set it on the app schema's `branding.logo` instead.
+
+### Patch Changes
+
+- 092e2ba: API Console's endpoint catalog drops the `workflow` and `feed` entries — 7 endpoint declarations that could never render on any host
+  
+  `SERVICE_ENDPOINT_CATALOG` keys are looked up directly in `/discovery`'s `services` map, which the framework keys by `CoreServiceName`. Neither `workflow` (5 endpoints under `/api/v1/workflow/*`) nor `feed` (2 endpoints under `/api/v1/feed/*`) names a `CoreServiceName` slot: the `workflow` slot was retired upstream (objectstack#4451) and `feed` never was one. Both were unconditionally hidden by the fail-closed lookup (ADR-0076 D12) — a miss is indistinguishable from "no such service" — so this changes no rendered output; it only removes two catalog entries that could never surface an endpoint.
+  
+  Counter-probed against current objectstack `origin/main` before removal: no `registerService('workflow')`, no mounted `/api/v1/workflow` route, and no `/api/v1/feed` route anywhere in source — both are confirmed dead, not merely unused. Per objectui#4303's ruling, this is dead-code removal, not a rename: neither key has a correctly-spelled slot to move to.
+  
+  #4240's tripwire test — which pins `SERVICE_ENDPOINT_CATALOG` keys against `CoreServiceName` and had carried `workflow`/`feed` as a documented exception set — is trimmed alongside the catalog: the exception set and its `#4303` reference are removed now that both keys are gone, so the assertion goes back to a plain "every catalog key is a canonical slot" with no carve-outs.
+- 57e668f: An admin override of an approval now looks like one — before the click, and in the timeline afterwards.
+  
+  A platform/tenant admin who holds **no slot** in a request's pending-approver
+  slate saw the exact same filled **Approve** / **Reject** / **Reassign** a
+  designated approver sees: no distinct styling, no warning, nothing. One unmarked
+  click takes framework#3424's privileged branch, which is *authoritative* — it
+  finalises the node even under `per_group` / `unanimous` / `quorum`, silently
+  bypassing every co-sign group that has not voted. The measured consequence in a
+  real app project was a PM who clicked Approve *"to see if it was real"* and
+  finalised a stage for an approver who never acted, then filed it as "countersign
+  is broken". The backend was working as designed; the console gave the admin no
+  way to see that.
+  
+  Two halves, both client-side:
+  
+  - **Affordance.** A viewer the server reports as `can_act: false` **and**
+    `can_override: true` now gets a warning-styled action labelled as an override
+    (`Override Approve`), and the dialog it opens **names the pending approvers
+    being bypassed**. The wording is the fix, not decoration — a warning that does
+    not say what is about to be bypassed would not have stopped that click.
+  - **Timeline.** `sys_approval_action.via_override` has been written since
+    framework#4466 and sent on the wire ever since, but **no console surface read
+    it** — an override rendered byte-for-byte like an ordinary approval in both the
+    record page's approvals panel and the Approval Center. Override rows are now
+    marked with an `Admin override` chip and a distinct timeline dot. This is
+    framework#4466's own *Expected* ("surfaced in the timeline"), which never
+    landed.
+  
+  Nothing here relaxes anything. Who may act or override is unchanged, the request
+  the console sends is byte-identical, and no audit record is altered — this only
+  renders one that was already being written, and adds friction in front of a
+  privileged path.
+  
+  Two details worth knowing, because both are load-bearing:
+  
+  - The warning rides the **param dialog's** title and description rather than a
+    chained `confirmText`. These decision actions collect params, so the param
+    dialog is already the confirm — nothing is POSTed until its own Confirm — and
+    putting a second dialog in front of it produces a first prompt that reads as
+    "the action ran" (framework#7278, maintainer ruling 2026-08-10). One condition,
+    one wording, one dialog.
+  - The notice travels as its own dispatch key, **not** folded into the action's
+    `description`. The runtime resolves `description` through
+    `_actions.<name>.description`, preferring a bundle hit over the passed literal,
+    and `plugin-approvals` ships exactly such an entry for `approval_reject` — so a
+    warning routed that way would have been silently replaced by the ordinary
+    reject copy in every locale carrying the bundle. A safety notice a translation
+    can delete is not a safety notice.
+  
+  Which actions get the treatment is read from each action's **own declared
+  `visible` gate** (does it OR in `can_override`?), not from a hard-coded name
+  list, so a future decision action still ships as metadata alone — and
+  `approval_recall`, gated on `is_submitter`, is never relabelled. Every new string
+  goes through the `approvalsInbox.*` i18n path in all ten locale packs.
+- 7c297e3: Retire `permission_change`, `export`, and `restore` from the audit-log action filter (`AuditLogPage`'s `ACTION_OPTIONS`) and badge maps (`AuditLogPage` and `HistoryTimeline`'s `ACTION_VARIANT`). These three values never had a writer anywhere on the platform, so the filter always returned zero rows for them and the badges never rendered — a visible product defect (audit surface should be narrow-but-honest, not broad-but-lying). `import`, `login`, and `config_change` are kept: `import` has a real writer (`plugin-auth`'s `admin-import-users.ts`) and is still declared by the server enum and filtered by the `config_changes` list view; `login`/`config_change` gained real writers in objectstack#8144/#8145.
+- a34c0b2: `FormPage`'s post-submit `redirect` behaviour now consumes the destination the way objectstack#7496 ruled it (objectui#4190): as a **relative in-app path**, navigated to with the router, with `{{record.field}}` interpolation URL-escaped when the redirect is built — and an out-of-contract destination refused on screen instead of followed.
+  
+  The url was previously handed to a browser-level, full-page navigation exactly as authored. Two consequences, both fixed here:
+  
+  - **A ruled in-app path left the app.** A full-page navigation does not see React Router's `basename`, so on a console served under a mount — which the framework CLI configures for every embedded deployment — an authored `/objects/lead` resolved against the origin root and dropped the submitter out of the SPA. Both mounts of this renderer (`/f/:slug` and `/forms/:name`) live inside the console's router, so the destination is now a router navigation and the mount is applied by the router itself. `withConsoleBase()` is deliberately not used: it prefixes anything not already targeting another absolute SPA mount, so it would have mangled an absolute destination rather than fixing it.
+  - **`{{record.field}}` tokens were never substituted.** The ruled shape accepts them and assigns the substitution — and the URL-escaping of every interpolated value — to the moment the redirect is built, which is here. The scope is the record the submit just wrote (values as submitted, with whatever the server echoed back layered over them, and the id read by the same one rule the `created-record` behaviour uses).
+  
+  The shape verdict is not restated in this app: `resolveSubmitRedirect` asks `@objectstack/spec`'s own `FormViewSchema` at the moment of use, so an absolute URL, a protocol-relative `//host`, a backslash, a control-character smuggle, a malformed token or a document-relative path is refused with the spec's own author-facing prescription, and a later widening of the ruling is followed by the pin rather than by an edit here. A refusal confirms the submit — the write succeeded, only the destination was out of contract — and shows the reason, rather than leaving the submitter watching a redirect that must not happen.
+  
+  `delayMs` semantics are unchanged. The wait now lives in an effect tied to the component, so a submitter who navigates away during the delay is no longer yanked back by a timer that outlived the page.
+- 8739c8e: Approvals Inbox: stop offering a record link that dead-ends for the viewer it is
+  offered to. Approver routing goes by position while record visibility is a
+  separate gate, so an approver can be routed a request about a record they cannot
+  read — the row's record chip then landed on the record page's "Record not found".
+  The row (and the drawer's record title) now suppress the link for exactly those
+  targets, decided by one batched readability read per distinct object. Nothing
+  else changes: the title still shows, the approval decision path is untouched, and
+  the server's access semantics are neither read nor reported on.
+- ab9c970: The Public Forms dialog now refuses an out-of-contract `submitBehavior.url` at the moment it is authored, with the contract's own prescription shown next to the field (objectui#4990).
+  
+  The redirect branch validated one thing — that the field was not empty — and wrote whatever else was typed into the view metadata. objectstack#7496 rules this key **relative-only** and refuses seven families of value; this door enforced the first. An admin could type `https://example.com/thanks`, or `javascript:alert(1)`, and be told nothing by the surface that had just taught them the value was acceptable — the field was `type="url"`, whose own notion of valid is an absolute URL, under a `https://example.com/thanks` placeholder.
+  
+  What changed:
+  
+  - **The save is refused, with the spec's sentence.** The verdict comes from `checkSubmitRedirectUrl`, the same `@objectstack/spec` `FormViewSchema` parse the renderer already asks at submit time — now exported from `submitRedirect` and called by the door. An absolute URL, a script or data scheme, a protocol-relative `//host`, a backslash, whitespace or a control character, a malformed `{{record.field_name}}` token, a document-relative path and an empty value each get their own author-facing prescription, naming the rule and what to write instead. The rule is not restated here: a second copy in the dialog would pass every value comparison right up to the release that moved the original, so a later widening of the ruling is followed by the pin rather than by an edit.
+  - **`Redirect URL is required` is gone.** Empty is one of the seven families, so it routes through the contract too and the author reads a sentence that says what a destination looks like.
+  - **The field no longer teaches the wrong value.** It is a plain text input with a `/thanks` placeholder, and a hint stating the rule — an in-app path, `{{record.field_name}}` interpolation, and the app navigation item that is declared for a deliberately external destination.
+  
+  The saved value is the one the schema accepted, read back off the parse, so the door and the renderer cannot hold different opinions about a destination. `thank-you`'s `title` and `message` stay unvalidated deliberately: the spec declares both as free-form strings, so there is no contract for a door to state about them.
+  
+  The server's own metadata gate already refused these bodies (`422 invalid_metadata` on `submitBehavior.url`, from the same schema), so this closes an error path rather than a silent-save hole: the correction now arrives in the field the admin can fix instead of as a failed round-trip.
+- a9e17b4: `auth.forgotPassword.successDescription`'s address hole is now spelled with
+  single braces (`{email}`) instead of i18next's double braces (`{{email}}`),
+  in all ten locale packs.
+  
+  This is a spelling-only change — rendered output is byte-identical in every
+  language, because the hole was never filled by i18next in the first place:
+  `ForgotPasswordForm` substitutes the address itself once the user submits
+  the form (the label renders before the address exists, so `t()` cannot do
+  it). `{{email}}` and a genuinely unfilled i18next hole were indistinguishable
+  at the call site, and passing `email` as an interpolation argument — the
+  natural "fix" for what looks like a missing argument — would let i18next
+  consume the hole and cause the address to be appended a second time
+  (objectui#4135).
+  
+  Converging on `{x}` for every hole a component fills downstream of `t()`
+  (the convention `resendOtpCountdownText`'s `{seconds}` already used) puts
+  this hole outside i18next's `{{…}}` syntax entirely, so the ambiguity is
+  gone by construction rather than fenced by an exemption. Accordingly,
+  `scripts/check-i18n-call-site-keys.mjs`'s `EXTERNALLY_INTERPOLATED_HOLES`
+  registry entry for this key is retired — the gate needs no exemption for a
+  hole i18next was never going to touch.
+  
+  `ForgotPasswordForm.tsx`'s replacement marker and its own built-in default
+  label move to the same spelling in the same change, as does the inline
+  `defaultValue` at `apps/console/src/pages/auth/ForgotPasswordPage.tsx`'s
+  call site.
+- 38ba3dd: API Console's endpoint catalog reads the canonical `storage` service slot
+  first, falling back to the deprecated `file-storage` slot while the
+  framework's v17 alias lives (objectui#5286, framework#9683).
+  
+  `useApiDiscovery`'s `SERVICE_ENDPOINT_CATALOG` looks its service names up
+  directly in `/discovery`'s `services` map, and that lookup is deliberately
+  fail-closed (ADR-0076 D12) — a miss hides the whole endpoint group rather
+  than erroring. The framework's #9683 ruling made `storage` the canonical
+  `CoreServiceName` slot and kept `file-storage` mirrored, byte-equal,
+  alongside it for `@objectstack/spec`'s v17 lifetime. Before this change the
+  console only ever read the deprecated key; it now reads the canonical key
+  first, so the Storage group correctly reflects the framework's own naming,
+  and still renders unchanged against a backend that has not deployed the
+  #9683 mirror row yet.
+- Updated dependencies [279fb13]
+- Updated dependencies [40d3a33]
+  - @object-ui/sdui-parser@17.6.0
+  - @object-ui/react-runtime@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

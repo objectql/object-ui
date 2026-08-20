@@ -1,5 +1,69 @@
 # @object-ui/permissions
 
+## 17.6.0
+
+### Patch Changes
+
+- 5458414: Publish relative import specifiers with explicit `.js` extensions so these six packages load under plain Node ESM.
+  
+  Node's ESM resolver does not extension-search relative specifiers and `tsc` never rewrites them, so an extensionless `./Foo` in the source shipped as an extensionless `./Foo` in `dist` and importing the package entry outside a bundler failed with `ERR_MODULE_NOT_FOUND`. Bundled consumers were unaffected. Unbundled consumers — plain Node ESM, an SSR host importing the package directly, anyone running the published tarball without a build step — can now import these entries, and so can the downstream `@object-ui/plugin-*` packages that evaluate through `mobile`, `permissions` and `providers`.
+- d8b9259: `MePermissionsProvider` distinguishes an unreported `systemPermissions` (a
+  backend predating ADR-0066, which omits the field from `/me/permissions`
+  entirely) from a genuinely empty one (a real answer: "this session holds zero
+  system capabilities").
+  
+  Both used to collapse into the same `[]`, so `hasCapabilities` consumers could
+  not gate strictly on a real empty answer without also stripping
+  capability-gated UI from every user on a non-reporting deployment
+  (objectstack#8270) — the only way around it was a per-call-site "empty ⇒
+  treat as unreported" heuristic (`HomePage.tsx`'s `useCanAuthorMetadata`).
+  
+  `systemPermissions` on `PermissionContextValue` is now `string[] | undefined`
+  (same shape `@object-ui/react`'s `useCapabilityGate` already uses for the
+  ADR-0066 D4 action gate), and `hasCapabilities` itself fails OPEN when it is
+  `undefined` and gates strictly on a reported empty array. The call-site
+  heuristic in `HomePage.tsx` retires in favor of the centralized signal.
+  
+  Two more call sites that fed `systemPermissions` into the ADR-0066 D4 action
+  gate (`RecordDetailView`'s `resolveActionUser`, and the shell-level
+  `useConsoleActionRuntime`) used to default a loaded-but-`undefined` answer to
+  `[]` before forwarding it, which silently re-collapsed the same distinction
+  one layer down and gated every `requiredPermissions` action closed on a
+  non-reporting deployment instead of open. Both now forward the value as-is.
+- 61556dc: Permission reads no longer throw on a config that omits the required `roles`
+  member. `ObjectPermissionConfig.roles` is declared required, but a config
+  arriving from plain JS or from metadata loaded at runtime can omit it, and
+  `objectConfig.roles[roleName]` then threw a `TypeError` out of `check()` and
+  took the whole render down — the failure mode the evaluator's own note already
+  forbids (`a permission check must never be able to crash a render`).
+  
+  `evaluatePermission` now treats a missing `roles` as granting nothing: no role
+  resolves, and the call returns the ordinary `allowed: false` denial. The
+  `publicAccess` channel is evaluated before this and is unchanged. The three
+  matching reads in `PermissionProvider` (`checkField`, `getFieldPermissions`,
+  `getRowFilter`) are guarded the same way and keep their own documented
+  defaults — the guard removes the crash, not the semantics.
+- Updated dependencies [88085e3]
+- Updated dependencies [279fb13]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [f1d4748]
+- Updated dependencies [578e025]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

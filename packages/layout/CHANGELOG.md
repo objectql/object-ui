@@ -1,5 +1,264 @@
 # @object-ui/layout
 
+## 17.6.0
+
+### Minor Changes
+
+- 88085e3: Consume the declared nav `runAction` slot; retire the private `?runAction=` string convention
+  
+  An `object` navigation item can now declare `runAction: '<actionName>'` and the shell will run that action once on arrival at the object's list surface, through the ordinary execute path — so param dialogs, confirms and entitlement gates all still apply. The slot is `@objectstack/spec`'s `ObjectNavItemSchema.runAction`; objectui now reads it instead of a private convention.
+  
+  - `NavigationItem` declares `runAction` (derived from the spec's object-nav variant), and objectui's own nav schema stops stripping it — `objectui validate` previously discarded the key, so an entry carrying a deep link validated clean with the deep link thrown away.
+  - `resolveHref` encodes it onto the list href as the reserved `?runAction=` param, on the list landings only. A `recordId` entry resolves to a record page, which has no list toolbar to answer it, so the slot is not encoded there.
+  - The deep link is honoured on **every** object list, not just the environments list. The action is armed only when it is actually present at `list_toolbar`; a name no action answers to runs nothing and deliberately leaves the URL untouched, so a later mount with fresher metadata can still honour it. Undefined references are rejected upstream at authoring time by `defineStack`.
+  - The param name now has exactly one definition (`NAV_RUN_ACTION_PARAM`, exported from `@object-ui/layout`) and is registered in the console's reserved-param collision check. It was previously a bare literal hand-written at both the producing and consuming ends, declared by no schema and listed in no registry.
+  - `CloudOnboardingNext` takes an optional `properties.createAction` (defaulting to `create_environment`) instead of hand-concatenating its deep link.
+- 86f633f: Remove the published optional key `logo` from `AppShellBranding` (`@object-ui/layout`).
+  
+  The key was declared but never read. `useAppShellBranding` applies only
+  `primaryColor`, `accentColor`, `favicon` and `title`, and `AppShell` installs no
+  context provider at all — so its doc comment, "Logo URL — passed to sidebar/navbar
+  via context", described a mechanism that did not exist. Three call sites were
+  feeding the key a real value that was silently discarded, and all three are removed
+  with it: `AppSchemaRenderer`, `ConsoleLayout` and the console's `useBranding` hook.
+  
+  The real logo entry point is unchanged and is where it always was: the app schema's
+  own `branding.logo`, read directly by `AppSidebar` in `@object-ui/app-shell`, plus
+  the app schema's top-level `logo`, rendered directly by `AppSchemaRenderer`'s
+  default sidebar header. Neither path went through `AppShellBranding`, so nothing
+  rendering-visible changes.
+  
+  Migration: a consumer that passes `logo` inside an `AppShellBranding` object literal
+  now gets a compile error. Delete the key — it never reached a renderer. To show a
+  logo, set it on the app schema's `branding.logo` instead.
+- 29167d5: **Breaking (shipped as `minor`, following the `page-header` `description` retirement):**
+  `app-shell` is no longer a component key. `registerLayout()` registered `AppShell` under
+  that key with no `inputs`; the registration is gone (objectui#4841, ADR-0049
+  enforce-or-remove, remove side, maintainer ruling 2026-08-16).
+  
+  **What it could never do.** Four of `AppShellProps`' seven keys are `React.ReactNode`
+  slots — `sidebar`, `navbar`, `children`, `rightRail` — and a JSON document can fill none
+  of them, so `{ "type": "app-shell" }` resolved to a component that had exactly two
+  outcomes, neither of them a shell. `children` was dropped in silence: `SchemaRenderer`
+  strips `children` (and `body`) before spreading a node's keys as props, and `AppShell`
+  reads its `children` prop, never `schema.children`, so the `<main>` element rendered
+  empty with nothing logged. A schema written into `sidebar` / `navbar` / `rightRail`
+  arrived as a plain object React refuses to render, replacing the node with an error box.
+  Only `className`, `defaultOpen` and `branding` ever survived the JSON path, i.e. the best
+  result JSON could reach was a shell with no navigation, no top bar and an empty content
+  area. With no `inputs` declared, `sdui-parser` had no declaration face to compare a node
+  against either, so neither outcome was diagnosed.
+  
+  **What changes for an author.** The middle state — parses, resolves, renders nothing — is
+  replaced by a named refusal. `SchemaRenderer` now shows its `Unknown component type:
+  app-shell` panel (`OBJUI-001`) and `sdui-parser` reports an `error`-severity
+  `unknown-component` diagnostic before render.
+  
+  **FROM → TO.** There is no in-place rewrite, because the node never produced a shell.
+  Schema authors who want the whole shell from metadata use `app-schema-renderer`
+  (`AppSchemaRenderer`), which declares its `inputs` and builds branding and sidebar
+  navigation from an `AppSchema` document: `{ "type": "app-shell", … }` →
+  `{ "type": "app-schema-renderer", "schema": { … } }`. Everyone else composes in React —
+  `AppShell` is **unchanged and still exported** from `@object-ui/layout`, and remains the
+  way to build a shell and render JSON pages inside it.
+  
+  Repo-wide scan before removal found no `"type": "app-shell"` node anywhere in
+  `objectstack-ai/objectui` or `objectstack-ai/objectstack` at `origin/main` — no example,
+  catalog schema, fixture or template authored one. `content/docs/guide/layout.md` is
+  updated to state the new fact, and
+  `packages/layout/src/__tests__/app-shell-not-a-component-key.test.tsx` pins it on both
+  faces (source and live registry) plus the rendered diagnostic.
+- 45f7dcc: **Breaking (shipped as `minor`, following the `app-shell` component-key deregistration):**
+  `app-schema-renderer`'s `mobileNavMode` is now declared as the vocabulary the renderer
+  implements — `enum: ['drawer', 'bottom_nav']` — instead of free-text `string`, and the
+  third member of `MobileNavMode` is retired (objectui#3985, ADR-0049 enforce-or-remove,
+  maintainer ruling 2026-08-10).
+  
+  **What used to happen.** The registration declared `{ name: 'mobileNavMode', type:
+  'string' }`, so `sdui-parser`'s `checkType` asked only whether the value was a string.
+  `mobileNavMode="bottom-nav"` — the hyphenated spelling of the underscored value, and the
+  likeliest typo on this key — passed the manifest gate, passed the parser, reached the
+  renderer, missed its one equality test, and rendered the drawer. Nothing reported
+  anything, at any layer. The declaration was WIDER than the implementation, which is why
+  the `invalid-enum` that should have fired never could.
+  
+  **What happens now.** A value outside the vocabulary is an **error**-level `invalid-enum`
+  from `validateTree` / `compile`, so a schema-driven author — very often an AI author — is
+  stopped at the typo instead of debugging a mode that silently did nothing. The generated
+  `sdui-intrinsics.d.ts` narrows from `mobileNavMode?: string` to the two-value union for
+  the same reason.
+  
+  **Retirement.** `MobileNavMode` had a third member documented as "collapsed sidebar" with
+  **zero read points** in `AppSchemaRenderer`: the only two reads are the `drawer` default
+  and the `=== 'bottom_nav'` comparison that gates the bottom bar, so the value was
+  behaviourally identical to the default while the union, the JSDoc and `ROADMAP.md`
+  presented it as a capability. It is gone from the union and from the published
+  vocabulary. Making it real behaviour is an implementation card first — the value comes
+  back together with a renderer read point, never as a declaration on its own.
+  
+  **Migration.** Both implemented modes are unchanged; no runtime behaviour moves. A
+  TypeScript caller passing the retired literal now fails to compile (it previously
+  compiled and rendered the drawer), and a JSON/JSX author writing it — or any other
+  out-of-vocabulary value — now gets a validation error where they previously got silence.
+  In both cases the value that reproduces the old behaviour exactly is `drawer`.
+- f923b7c: **Breaking (shipped as `minor`, see below):** `@object-ui/layout`'s `<PageHeader>` retires the legacy `description` prop. `subtitle` is now the only spelling for the secondary line.
+  
+  `PageHeader` read `subtitle ?? description`. The alias was not tolerance for a sloppy author — it was the only thing standing between an externally authored `description` and a page that renders its title and silently drops its second line, which is why objectui#3226 refused to delete it: "no in-repo author writes `description`" (true, verified) says nothing about the stored metadata of out-of-repo consumers.
+  
+  **FROM → TO.** JSX call sites: `<PageHeader title="X" description="Y" />` → `<PageHeader title="X" subtitle="Y" />`. Schema authors: `{ "type": "page-header", "description": "Y" }` → `{ "type": "page-header", "subtitle": "Y" }`. Stored stack metadata needs no hand edit — `os migrate meta` rewrites it, and a protocol 17 loader rewrites it on the way in.
+  
+  **Why the read could go now.** The normalization moved upstream, where a contract belongs: protocol 17's ADR-0087 D2 conversion `page-header-subtitle-alias` rewrites a header node's `properties.description` to `properties.subtitle` as the stack loads. The gate on this side was a measurement, not a date — every position a `page-header` node can occupy had to be shown to pass through that rewrite. It did not, at first: measured 2026-08-08 against `@objectstack/spec@17.0.0-rc.5`, the conversion walk reached `pages[].regions[].components[]` and stopped, leaving seven spec-valid header positions unconverted — including `slots.header` on a `kind: 'slotted'` record page, the shape this repo's own slotted-pages guide prescribes (objectstack#6775). With the walk widened by objectstack#6776 (slots) and objectstack PR #7034 (containers nested to any depth: `properties.children`, `items[].children`, `body`, `footer`), all seven convert. Re-measured against `@objectstack/spec@17.0.0-rc.6`, which this package depends on, before the read was deleted.
+  
+  The measurement is now a standing pin rather than a one-off: `packages/layout/src/__tests__/page-header-subtitle-conversion-coverage.test.ts` re-runs all seven positions against the resolved spec build on every test run. If a future spec narrows that reach — or a dependency is pinned back below `17.0.0-rc.6` — it fails there, at the seam, instead of turning into a second line that quietly stops rendering in a consumer's app. The two tests in `page-header-authorable-keys.test.tsx` that pinned the fallback's continued existence were deleted in this same change, as their own SEQUENCING note instructed, and replaced with the opposite assertion: a lone `description` now renders no secondary line.
+  
+  **Not affected, despite the shared word:** the `page` renderer's own `description` prop (the page's prose under the page title) is a live declared key of a different node, untouched here. `@object-ui/app-shell`'s separate `<PageHeader>` uses `description` as its only secondary-line prop and is likewise unchanged.
+  
+  `minor` rather than `major` is deliberate and follows the repo's retirement precedent (PR #3793): all 39 publishable packages sit in one `fixed` group, so a `major` here would carry the whole family to 18.0.0 against an `@objectstack` still on 17 and break the "same major ⇒ compatible" pin between the two repos (AGENTS.md §版本号策略, enforced by `scripts/check-changeset-no-major.mjs`). objectui's own breaking changes ship as `minor` with the break spelled out in the body — which is what the FROM → TO above is.
+- 9c60144: **Breaking (published API):** `NavigationRenderer` no longer accepts `resolveGroupLabel` or `resolveItemLabel`. If your build just broke on one of these props, delete the prop — it never did anything.
+  
+  Both were id-keyed label resolvers on `NavigationRendererProps` (`@object-ui/layout`), typically wired to `useObjectLabel().navGroupLabel` from `@object-ui/i18n` to translate sidebar group and leaf labels from a client translation pack keyed `{ns}.apps.{appName}.navigation.{nodeId}.label`.
+  
+  **They could never fire.** The renderer guards convention-based resolution with `isCustomized` — a case-insensitive "the authored label differs from this branch's comparison target" test. On the `object` / `dashboard` branches the target is the object or dashboard name, and the test is meaningful: it protects an author's custom label (`Projects`) from being overwritten by an `objects.project.label` translation. On the two id-keyed branches the target was the nav node's own **`id`** — `grp_workspace`, `group_sales` — while the label was its text — `Workspace`, `Sales`. Those never compare equal, so the guard was true for every real navigation entry and the resolver beneath it was unreachable. The only node that could have reached it is one whose label is literally its own id.
+  
+  Nothing regresses when they go, because nothing was using them to begin with: **app-navigation localization is owned solely by the server-side `/meta` boundary.** `translateApp` (`@objectstack/spec`, `src/system/i18n-resolver.ts`) rewrites every navigation node's `label` by id, and `@objectstack/rest` applies it before the metadata reaches the client — so nav labels arrive already localized and the client-side path was never the one answering. One owner, not two.
+  
+  **If you wired these hooks to localize navigation, your labels were never being localized by them.** Move the translation to the server side: add it to the app's i18n bundle that `translateApp` reads, keyed by navigation node id. A client-side pack keyed `apps.*.navigation.*.label` changes nothing in the sidebar.
+  
+  Also in this change:
+  
+  - `useObjectLabel().navGroupLabel` (`@object-ui/i18n`) is **kept**, but its docstring no longer promises `"Sales" → "销售"` for sidebar groups — that promise was false, and a live docstring describing an unreachable path is how an agent or a developer ends up wiring a translation pack and receiving silent non-localization. It is now documented for what it is: a plain reader for `{ns}.apps.{appName}.navigation.{groupId}.label` with no first-party caller, pointing at the server boundary for anything nav-related.
+  - `UnifiedSidebar` (`@object-ui/app-shell`) drops the two prop wirings, including a `studio` carve-out that existed only to stop `resolveItemLabel` from re-translating an already-translated "Package management" label.
+  - The `object` / `dashboard` / `viewName` branches — `resolveObjectLabel`, `resolveDashboardLabel`, `resolveViewLabel` — are untouched and keep both their resolvers and the `isCustomized` guard.
+
+### Patch Changes
+
+- d442795: AppShell: drop the unused `Sidebar` import. `AppShell` renders the node the caller passes
+  in the `sidebar` prop and never constructs a `Sidebar` itself, so the import was dead
+  (tree-shaken out of every bundle) and only suggested otherwise to readers. No runtime
+  behaviour changes.
+- 8a9dece: `SidebarNav`'s README example teaches the shape the component actually reads.
+  
+  `packages/layout/README.md` — the package's npm landing page, shipped in `files` —
+  spelled every nav item `{ label, path, icon: 'home' }`. `NavItem` declares none of
+  those three keys: the label is `title`, the target is `href`, and `icon` is a
+  `React.ComponentType` rendered as `<item.icon />`, not an icon name. Copied
+  verbatim the example produced a sidebar whose every row was unlabelled
+  (`<span>{item.title}</span>` reading `undefined`), a `NavLink` with
+  `to={undefined}`, and the string `'home'` handed to React as an unknown lowercase
+  tag. Both README examples now use `title` / `href` / imported Lucide components,
+  and annotate the array as `NavItem[]` so the same class of typo becomes a compile
+  error where it is written instead of a blank sidebar at runtime.
+  
+  Adds the props tables the README never carried — `SidebarNavProps`, `NavItem`
+  (`badge`, `badgeVariant` and `children` included) and `NavGroup`, plus a grouped
+  and nested example — and pins all of it rather than leaving a second surface free
+  to rot the same way: the examples are real, type-checked code in
+  `readme-sidebar-nav-example.test.ts` asserted to appear verbatim in the README, and
+  the tables are compared against the interface keys read out of `SidebarNav.tsx` on
+  every run. Also corrects a comment in `side-effects-manifest.test.ts` that named
+  `SidebarNav` as the component behind the `navigation-renderer` registration; that
+  key belongs to a different component, and `SidebarNav` is registered under no key
+  at all.
+  
+  No runtime change — `SidebarNav.tsx` is untouched. This is `patch` rather than a
+  no-release declaration because the corrected landing page only reaches npm through
+  a publish.
+- 183d09b: Studio 页面设计器不再为 canonical `page:header` 提供 `icon` 编辑框(objectui#3829)
+  
+  `PageHeaderProps.icon` 已在 `@objectstack/spec` 17.0.0 随 ADR-0087 D2 退役
+  (objectstack#6946 / PR objectstack#7115):canonical `page:header` 渲染器从未读过它,
+  表头的身份由 record chrome(`recordChrome`)与每个 action 自带的 `icon` 承担。退役前
+  作者填入的值被静默丢弃,退役后平台按名拒绝整个节点 —— 而设计器仍在提供那个输入框,
+  等于教作者写出解析失败的元数据。本次移除该字段与它此时已成孤儿的两条 i18n 键
+  (en / zh 同一次改动,两张表的键集保持一致),并把「不得回潮」钉在
+  `previews/__tests__/block-config.test.ts`。
+  
+  `@object-ui/layout` 的 `page-header` / `layout:page-header` 别名**保留** `icon` 输入,
+  行为不变:那是另一个渲染器,它真读真画(`PageHeader.tsx`),文档与本仓唯一的活 demo
+  都写它。变的只是这条声明的**依据** —— 从 spec parity 改述为 renderer-read 事实,并让
+  `page-header-authorable-keys` 守卫在派生 spec 键集时跳过墓碑成员,不再因为
+  `Object.keys(shape)` 仍列着已退役的 `icon` 而假绿。
+- Updated dependencies [88085e3]
+- Updated dependencies [516663d]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

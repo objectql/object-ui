@@ -1,5 +1,480 @@
 # @object-ui/plugin-detail
 
+## 17.6.0
+
+### Minor Changes
+
+- 279fb13: `ComponentInput.type` can declare a UNION, so a block stops warning about legal
+  writes its own description recommends
+  
+  A registration's `type` was one coarse control kind, while a good number of spec
+  keys accept more than one shape. A declaration therefore had to pick an arm, and
+  the repo's own manifest gate then reported `type-mismatch` on the other arm's
+  legal values. Four of the five measured cases were the loud shape: the input's
+  `description` teaches the author to write an inline translation map
+  (`{ en, "zh-CN", … }`) while the same input's `type: 'string'` made
+  `sdui-parser`'s `checkType` warn about exactly that map — one platform authority
+  contradicting itself on the write it had just recommended. Because these land at
+  warning severity the page still compiled and rendered; the cost is that noise on
+  correct authoring trains authors, AI authors included, to dismiss the
+  `unknown-prop` and `type-mismatch` reports that are real.
+  
+  `type` now accepts an ARRAY of coarse kinds as well as a single one (maintainer
+  ruling on objectui#3832, direction (a)), and a value passes the coarse check when
+  ANY declared arm accepts it. Both declaration sites in `@object-ui/types` move
+  together with the registry's own copy in `@object-ui/core`, and
+  `ComponentInputSchema` enforces the same widening — a non-empty array of
+  DISTINCT kinds, so an empty arm list or a repeated arm is refused at authoring
+  time rather than normalized behind the author's back.
+  
+  Five declarations now spell their real contract, and the `type-mismatch` warning
+  on each of these legal writes is gone:
+  
+  - `page:header.title`, `page:header.subtitle`, `page:card.title` —
+    string **or** inline translation map (the spec's union, measured against
+    `ComponentPropsMap` at the pinned rc.6; the renderers resolve both through
+    `pickLocalized`);
+  - `record:alert.title`, `record:alert.body` — the same two shapes, justified
+    against the RENDERER since the pinned spec carries no `record:alert` props
+    schema;
+  - `element:text_input.defaultValue` — `string | number`, the spec's union,
+    which had been narrowed to `'string'` with the number arm named only in prose.
+  
+  **Backward compatible, and measured as such.** The single-kind form stays valid
+  and is still the canonical spelling for a one-arm key: it validates identically
+  (the diagnostics for one arm, `invalid-enum` and its `error` severity included,
+  are byte-identical), and `manifestFromConfigs` collapses a one-element array back
+  to the bare string, so every entry already in a published `sdui.manifest.json`
+  serializes unchanged and arrays appear only where a union was really declared.
+  The JSX authoring surface follows in the same step — `generateDts` emits a
+  TypeScript union for a union input, so the `.d.ts` an author type-checks against
+  accepts exactly what the gate accepts.
+  
+  A union widens what is legal; it does not switch the check off. A value matching
+  NO declared arm is still reported, a multi-arm mismatch reports at its strictest
+  arm's severity (`error` when an `enum` arm is present, so an enum's closed list
+  does not become dismissible by having a second arm added next to it), and arms
+  are meant to match the contract rather than relax the gate:
+  `element:text_input.defaultValue` deliberately gains no `object` arm because the
+  spec rejects a map there, and `element:record_picker.emptyText` keeps its single
+  `'string'` arm because that renderer drops the map form (objectui#4163) — an arm
+  the renderer never honours would advertise a shape that cannot reach the screen.
+- 8b9dc62: `element:text.content` and `element:button.label` declare the inline translation
+  map they already accept
+  
+  Two more instances of the contradiction objectui#3832 fixed the mechanism for,
+  measured after that ruling had fixed its scope at five specimens and filed
+  separately as objectui#4970. Both inputs' own `description` tells the author to
+  write an inline translation map (`{ en, "zh-CN", … }`), both renderers resolve one
+  through `pickLocalized`, and both spec props schemas accept one — while the
+  declaration said `type: 'string'`, so the manifest gate reported
+  `type-mismatch` on the exact shape the block had recommended. Both blocks are in
+  `PUBLIC_BLOCKS`, so this reached authors through `sdui.manifest.json` and
+  `sdui-intrinsics.d.ts` as well as the save gate.
+  
+  Each declaration is now `type: ['string', 'object']`, the union form
+  objectui#3832 introduced, and the arms are the ones the contract accepts —
+  re-measured on the `@objectstack/spec` 17.0.0 GA pin rather than carried over
+  from the issue, which was written at the 17.0.0-rc.6 pin:
+  `ComponentPropsMap['element:text'].content` and
+  `ComponentPropsMap['element:button'].label` are both
+  `string | Record< string, string >`, and both refuse a number, a boolean and an
+  array. Those three refusals are the controls in the acceptance test, which is
+  what keeps a widening distinguishable from a silenced check.
+  
+  Nothing else about the two blocks moves. A plain-string `content` / `label`
+  validates exactly as before, values matching neither arm are still reported, and
+  no other manifest entry changes shape — the public manifest now carries seven
+  array-valued input types, the five from objectui#3832 plus these two, with the
+  remaining 57 public blocks serializing byte for byte as they did.
+  
+  `record:alert`'s renderer-local prop type is corrected in the same pass
+  (`plugin-detail`): its `title` / `body` were still typed `string` while the same
+  file resolves both through `pickLocalized` and the block's published `inputs`
+  have declared `['string', 'object']` since objectui#3832, so the two slots were
+  narrower than both the renderer and the block's own published surface. The type
+  is not exported, so no consumer was misled and no published surface changes. The
+  CTA's `action.label` one level down is left alone on purpose (objectui#4998):
+  `action` is published as a bare `object` whose member shape lives in prose, so
+  there are no declared arms for it to be aligned against yet.
+- 98eab36: Publish the five `@objectstack/spec` 17.0.0 keys the renderers already honoured, so
+  authors can discover them
+  
+  `page:header.maxVisible`, `page:header.mobileMaxVisible`, `page:tabs.alwaysShowStrip`,
+  `record:details.inlineEdit` and `record:details.showHeader` are declared by the spec and
+  read by the renderers today, and none of them was in its block's published `inputs`. That
+  is the direction nothing reports: `gen-manifest.ts` left all five out of
+  `sdui.manifest.json` and `sdui-intrinsics.d.ts`, so they were in no designer panel and no
+  generated type; `sdui-parser`'s prop walk reported `unknown-prop` on an author who wrote
+  one anyway; and the renderer honoured it regardless. Measured on the console's own
+  manifest before this change, all five drew
+  
+  ```
+  unknown-prop: page:header has no prop "maxVisible"
+  unknown-prop: page:header has no prop "mobileMaxVisible"
+  unknown-prop: page:tabs has no prop "alwaysShowStrip"
+  unknown-prop: record:details has no prop "inlineEdit"
+  unknown-prop: record:details has no prop "showHeader"
+  ```
+  
+  and now draw nothing. Same defect as `record:details.hideFields` in objectui#3808 and
+  `readonly` in objectui#3407; it could not land until the GA pin moved (objectui#4636),
+  because the pre-GA pin declared none of the five and publishing them would have failed the
+  repo-wide parity gate's forward direction.
+  
+  Each entry carries a description, because for these keys the discoverability IS the fix.
+  Two are worth reading before use:
+  
+  - `maxVisible` / `mobileMaxVisible` are positive integers — the contract rejects `0` and
+    fractional values — and they do not govern every action: an action declaring
+    `record_more` without `record_header`, and any action with `component: 'action:menu'`,
+    is routed to the overflow menu regardless of the budget.
+  - `inlineEdit` is an opt-OUT only. The value is combined with the object's own resolved
+    editability (ADR-0103) and with the server's effective API operation set, so `false`
+    always wins while `true` cannot open editing the platform refuses.
+  
+  **`page:tabs` also gains a read.** `alwaysShowStrip` was honoured only as
+  `schema.properties.alwaysShowStrip`, while `inputs` publishes TOP-LEVEL keys — the shape
+  the manifest whitelists, the generated types declare and the JSX-page compiler validates.
+  Measured on a one-tab schema: the wrapped form showed the strip, the flat form did not, so
+  publishing the key alone would have advertised a write the renderer throws away. The
+  canonical top-level arm is read first now, with the `properties` arm kept for paths that
+  reach the renderer without `SchemaRenderer`'s hoist — the same dual read `maxVisible` has
+  always had. This can only ever ADD a strip to a one-tab page; multi-tab pages are
+  unaffected, and `false` and non-boolean values both read as "not set".
+  
+  The five GA-pending entries that held this card's place in
+  `registry-inputs-spec-parity.test.ts` are deleted, which is what the gate's own
+  `carries no stale unpublished-key exemption` check demands once the keys are published.
+
+### Patch Changes
+
+- 7c297e3: Retire `permission_change`, `export`, and `restore` from the audit-log action filter (`AuditLogPage`'s `ACTION_OPTIONS`) and badge maps (`AuditLogPage` and `HistoryTimeline`'s `ACTION_VARIANT`). These three values never had a writer anywhere on the platform, so the filter always returned zero rows for them and the badges never rendered — a visible product defect (audit surface should be narrow-but-honest, not broad-but-lying). `import`, `login`, and `config_change` are kept: `import` has a real writer (`plugin-auth`'s `admin-import-users.ts`) and is still declared by the server enum and filtered by the `config_changes` list view; `login`/`config_change` gained real writers in objectstack#8144/#8145.
+- c1ef923: Grid and related-list column headers no longer offer a sort on a `formula` column.
+  
+  A `formula` value is computed on read: no driver materialises a column for it, so
+  a server `$orderby` naming one has nothing to order by. That sort never worked.
+  Until objectstack#6994 the platform did not say so — the response carried the very
+  values it had been asked to order by, out of order, under a `200`, with ascending
+  and descending byte-identical on a real SQL driver — and it now answers
+  `400 INVALID_SORT`. So the header was wrong before the platform's refusal and is
+  wrong after it, for the same reason: it offers a sort that cannot be performed.
+  
+  `ObjectGrid` withheld the affordance only from reference-bearing columns
+  (objectui#3096). Unmaterialized types are a SECOND reason a server sort is
+  impossible, not a different mechanism, so it now reads both — and so do the two
+  sort entry points of a related list (the embedded table's headers and the
+  sort-button row a `data-list` card keeps), which each derived that rule
+  separately.
+  
+  Client-side sorting is deliberately unchanged. There the rows are all in the
+  browser and the formula value is the one the server hydrated on read, so ordering
+  by what the cell shows is honest — the same split the relational carve-out makes.
+  A sort DECLARED in view metadata is also unchanged: it still goes out and is still
+  refused by name, because silently dropping an author's declaration would hide the
+  authoring error instead of surfacing it (the toolbar's sort picker keeps such a
+  field listed for exactly that reason — it is the only way to remove it).
+  
+  The membership — `formula` alone — moved out of a private set in `ListView` into
+  `@object-ui/core` (`UNMATERIALIZED_FIELD_TYPES` / `isUnmaterializedFieldType`),
+  bound to `@objectstack/spec`'s own storage predicate so the renderer cannot drift
+  from what the drivers actually store. It is deliberately narrower than the spec's
+  write contract `COMPUTED_VALUE_TYPES`: a `summary` and an `autonumber` each get a
+  real maintained column and sort correctly, and withholding their headers would
+  have broken two affordances that work.
+- 5607092: objectui#4029 — the repo root now lints `no-console` (`error`, allowing
+  `warn`/`error`) so a stray module- or function-scope `console.log`/`info`/
+  `debug` fails CI instead of shipping silently (as `console.log('Registering
+  object-map...')` did in #7139, caught only by hand). Landing the rule meant
+  individually judging every real hit outside the tooling exemptions
+  (`scripts/**`, `**/examples/**`, test files, `packages/cli/src/**`,
+  `packages/create-plugin/src/**`) — this changeset covers the published
+  packages whose call sites changed:
+  
+  - `@object-ui/app-shell`: `ObjectDataPage`'s dropped-URL-filter message is a
+    real diagnostic (data silently discarded), so it moves from `console.debug`
+    to `console.warn` to match the house convention.
+  - `@object-ui/plugin-detail`: `DetailView`'s Web Share API failure now reports
+    via `console.error` (it is a real failure, not debug noise); a redundant
+    "Link copied to clipboard" success log is removed.
+  - `@object-ui/fields`: `MasterDetailField`'s `handleView` stub no longer logs
+    the item it does nothing with.
+  - `@object-ui/runner`: `App`'s loader-selection debug prints, `LayoutRenderer`'s
+    unused click-handler stub log, and `MockDataSource`'s per-call narration
+    (`find`/`create`/`getObjectSchema`) are removed — none diagnosed a problem,
+    they only echoed the happy path.
+  - `object-ui` (VS Code extension): the "extension is now active!" activation
+    log is removed.
+  
+  No behavior changes beyond console output. `@object-ui/core` and
+  `@object-ui/data-objectstack` also touch `no-console`-adjacent lines
+  (`debugLog`/`debugTime`/`debugTimeEnd`, `createQuietHttpLogger`) but only to
+  add `eslint-disable-next-line` documentation — those ARE the repo's
+  deliberate debug/logger infrastructure, not leaked residue, so their own
+  changeset carries empty frontmatter.
+- 598c89a: The retired `owner` field-type spelling stops being blessed by the published contract, and inline edit refuses it the way the record form already does.
+  
+  objectui#4814 retired `owner` as a field type (ruling A′): it was a synonym for
+  `user` with zero behavioral delta — both resolved to the same person-picker
+  widget — and it was never a member of `@objectstack/spec`'s closed `FieldType`,
+  so no object schema could ever declare it. `@object-ui/fields` now answers the
+  spelling with a visible tombstone refusal plus a console prescription. That PR
+  shrank the three public DOC unions; their CODE twins were left behind, so this
+  package spent the interval telling an author "legal" for a word the renderer
+  refuses.
+  
+  **`@object-ui/types` — the three published twins shrink (objectui#4914 items 1-3).**
+  `ReportFieldSchema.type` (`zod/reports.zod.ts`) is a RUNTIME validator, so the
+  contradiction was executable, not merely advisory: a report document authored
+  with `type: 'owner'` validated green and then rendered a refusal. It now fails
+  validation, with the issue on the `type` path. Its TS twin `ReportField['type']`
+  and `UserFieldMetadata['type']` drop the member in the same batch, so published
+  `.d.ts` autocomplete stops offering it. This is an accept-set SHRINK on a
+  published validator and a narrowing of two published unions — patch-level
+  because the spelling it removes has had no working renderer since #4814, but
+  callers still passing `type: 'owner'` will now see a type error and a failed
+  parse. The record-owner idiom survives verbatim as
+  `{ type: 'user', name: 'owner' }`: the field NAME carries the ownership meaning,
+  the type carries the widget.
+  
+  **`@object-ui/plugin-detail` — inline edit joins the tombstone (objectui#4914 item 5).**
+  `InlineFieldInput` routes by a STORED field's actual type, so a record whose
+  field is still typed `owner` was getting a working person picker inline while
+  the record form showed the refusal — two edit surfaces disagreeing about one
+  field, which is worse than either uniform outcome. A retired spelling now
+  renders the same `RetiredFieldTombstone` the form does, reported once per
+  spelling rather than once per row. The table is read live from
+  `@object-ui/fields`, so a future retirement is covered the day it lands.
+  
+  Measured while implementing, and the reason the refusal is the load-bearing
+  half: simply deleting `owner` from the inline routing table would have changed
+  nothing an author could see. `hasFieldEditWidget('owner')` is still true — the
+  fields package maps `owner: UserField` in `EDIT_WIDGETS` — so the type would
+  have reached the same picker down the delegation road instead of the routing
+  road. That residual face is outside this change's scope and is filed separately.
+- 7dd93c0: `record:quick_actions` reads the toolbar's accessible name under the spelling the ARIA contract accepts, and stops advertising an action fallback it never had.
+  
+  Two producer-side defects in the same component (objectui#4663), found while
+  objectstack#8744 measured this renderer's read points.
+  
+  **The `aria` read point was dead in both directions.** The toolbar read
+  `schema.aria?.label` and nothing else — the ONE spelling `@objectstack/spec`'s
+  `AriaPropsSchema` refuses. On that closed shape `label` is an ALIAS ENTRY: a
+  rename prescription pointing at `ariaLabel`, there to produce a better rejection
+  message, never accepted (measured: `safeParse({ label })` returns
+  `unrecognized_keys` naming `label`, while `safeParse({ ariaLabel })` passes). So
+  a spec-valid `aria: { ariaLabel: 'Account actions' }` reached the renderer and
+  was read by nothing — the built-in "Quick actions" default won every time — and
+  the spelling that did work was one no author can write without the contract
+  rejecting the document. `SchemaRenderer`'s generic ARIA channel was no escape
+  hatch either: it reads the FLAT `schema.ariaLabel` and injects `aria-label` as a
+  component prop, which this renderer drops along with every other non-designer
+  prop.
+  
+  The read is now `(aria.ariaLabel ?? aria.label) || 'Quick actions'`. The legacy
+  leg is back-compat only, for documents stored before the contract closed;
+  canonical wins when both are present. Both halves follow how the repo already
+  handles this key: `normalizeListViewSchema`'s aria fold copies the legacy key
+  across only when the canonical one is `undefined` (so a declared `ariaLabel: ''`
+  shadows a stale `label`), and `ListView`'s own read point treats an empty string
+  as no accessible name at all — which here resolves to the built-in default,
+  since `role="toolbar"` needs a name.
+  
+  **The `actionNames` description promised a fallback that exists on no path.** It
+  read "(else every action declared for the object at this location)". Measured:
+  with no `actionNames` and no host-supplied `actions`, `namesToResolve` is empty,
+  `needsLookup` is false, the object metadata is never queried, and the bar renders
+  its dashed placeholder. The registry `inputs` are published — they are serialized
+  into `sdui.manifest.json` and the JSX authoring types, and Studio teaches authors
+  from them — so the promise reached tooling; objectstack#8744's dispatch prompt
+  quoted it verbatim as a declared input. Per the triage ruling the sentence is
+  what changes: implementing the fallback would be a behaviour expansion and needs
+  its own card. No runtime behaviour changes with it, and a regression test now
+  drives a LOADED metadata provider to prove the object's declared actions really
+  are not pulled in (with a control proving the same wiring delivers them the
+  moment a name asks).
+- 229b17e: 修复相关列表(`RelatedList`)以 spec 规范拼写 `field` 声明的对象列只出表头、单元格全空的问题(objectui#5022)。
+  
+  `RelatedList` 的所有身份读点都经由 `columnIdentity` 规范优先解析,因此
+  `{ field: 'status', label: 'Status' }` 能通过 FLS 过滤、外键过滤、空列裁剪与排序判定;而它喂给的
+  `data-table` 只按 `col.accessorKey || col.name` 归一化访问键,从不读 `field`,于是每个单元格取的是
+  `row[undefined]`,渲染成空值占位符 —— 与 objectui#3951 同形,只差一种拼写。
+  
+  现在 `normalizeColumn` 在把对象列交给表格前,把解析出的身份写回 `accessorKey`:
+  词表解析留在 `RelatedList` 一侧,不并入表格适配器(`column-identity.ts` 有意画下的
+  `TABLE_ADAPTER_COLUMN_KEY` 边界)。作者已显式声明的 `accessorKey` 不被覆盖,原有拼写一并保留,
+  无法解析出身份的条目原样返回。legacy `name` 拼写、字符串列与显式 `accessorKey` 列行为不变。
+  
+  同一处身份现在同时供给单元格取数与表头排序 —— 此前 `field` 列的表头排序派发的是
+  `undefined` 字段(被 `RelatedList` 丢弃),该列在取数与排序两个方向上同时失效。
+- dfc6975: Related-list "+ New" now honours `userActions.create` predicates, and the grid
+  toolbar's inline-edit affordance is gated on `update` permission (objectui#4646,
+  objectui#4647).
+  
+  Two declared-but-unenforced gaps on the same toolbar surface.
+  
+  **#4646 — `createPredicates` had a producer and no consumer.**
+  `@objectstack/spec@17.0.0` widened `userActions.create` to
+  `z.union([z.boolean(), RowCrudActionOverrideSchema])`, so `resolveCrudAffordances`
+  emits `createPredicates` — and nothing in objectui read them, against roughly
+  fifteen consumption sites apiece for `editPredicates` / `deletePredicates`. The
+  symptom: a parent record entering a frozen state correctly greyed its children's
+  row Edit/Delete while the related list's "+ New" stayed fully live, so the user
+  filled in the whole child form to earn a server 409. The related-list toolbar now
+  evaluates `visibleWhen` / `disabledWhen` **once against the host parent record**,
+  per the spec docblock's binding for this key, on top of the existing
+  `o.create ∧ can(child, 'create')` check. `visibleWhen` hides "+ New" and fails
+  CLOSED; `disabledWhen` greys it and fails SOFT — the same evaluator, fail
+  directions and hidden-vs-disabled split the record header already uses for
+  edit/delete (objectui#4419 / PR #4515). A bare-boolean `userActions.create` is
+  untouched: with no predicates there is nothing to evaluate.
+  
+  **#4647 — the inline-edit toggle was the one ungated affordance on its toolbar.**
+  It rendered on "grid view ∧ the host wired `onInlineEditChange` ∧ not the compact
+  toolbar", and every host wires that callback unconditionally. New and Import are
+  hidden for an account without the grant and the bulk-delete entry on the same
+  toolbar ANDs `can(obj, 'delete')`, but a read-only principal could flip inline
+  edit, modify cells and press "Save all" to earn a server 403. It is now gated on
+  the object's resolved edit affordance ∧ `can(object, 'update')`, mirroring that
+  bulk-delete gate. The gate is applied at all three sites that carry this
+  affordance — the wide toolbar's toggle, the compact toolbar's settings-popover
+  entry (which previously had no gate at all, not even the callback), and the
+  `editable` mode handed to the grid, so a stored view carrying `inlineEdit: true`
+  can no longer drop a read-only principal into editable cells with no toggle to
+  press.
+  
+  `ListViewSchema.userActions.editInline` is also consumed now: an explicit `false`
+  withholds the affordance wholesale, which authors previously could not do.
+  
+  **Behaviour change for read-only users, stated plainly.** Where the UI used to
+  offer inline editing and let the server refuse it, it now declines to offer the
+  entry point at all. No data access changes — the server gate was and remains the
+  enforcement boundary; this only stops the UI walking users into round-trips
+  guaranteed to fail. Accounts *with* the grant see no change, and hosts with no
+  `PermissionProvider` mounted (standalone embeds, the Studio designer) keep
+  today's behaviour, since `can()` answers `true` there by design.
+  
+  One deliberate non-change: the absent case of `userActions.editInline` defers to
+  the host's existing `inlineEdit` channel rather than enforcing the spec's
+  `.default(false)`. Enforcing that default would remove the toggle from every
+  stored console list view in one release, since nothing folds a legacy key into
+  `editInline` and no existing view declares it. This follows the rule the
+  surrounding toolbar-flag block already states for itself — defaults chosen to
+  match what the flags have always done. `InterfaceListPage`, the key's other
+  consumer, reads the absent case as OFF, because the ADR-0047 interface page has
+  no such host channel to defer to.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [d8b9259]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [61556dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/permissions@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

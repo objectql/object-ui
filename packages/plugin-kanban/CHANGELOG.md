@@ -1,5 +1,218 @@
 # @object-ui/plugin-kanban
 
+## 17.6.0
+
+### Patch Changes
+
+- feb6b16: Grid group headers, compact cards and kanban card badges honour an author-declared option hex, matching the grid cell.
+  
+  objectui#5141 taught the grid's cell renderer (`SelectCellRenderer`) to render an
+  explicitly declared `options[].color` hex as declared instead of quantizing it
+  onto one of nine palette families. Four badge call sites in `plugin-grid` and
+  `plugin-kanban` still resolved through `getBadgeColorClasses`, which returns a
+  class string and therefore cannot carry a runtime colour — Tailwind can only
+  emit classes it saw in the source at build time.
+  
+  The result was worse than the bug it replaced: the same option in the same
+  object rendered one colour in a desktop grid cell and a different one in the
+  group header above it or on the kanban card beside it. The pre-#5141 state was
+  at least uniformly wrong.
+  
+  All four sites now resolve exactly as the cell does — prefer
+  `getBadgeHexAppearance(color)` and use its `className` **and** its `style`,
+  falling back to `getBadgeColorClasses` for palette-family names, no colour, and
+  every other declaration. The compact card keeps its pipeline-stage heuristic
+  when the author declared no colour at all.
+  
+  Two carriers were widened so the style can reach the element, because these
+  badges are not all plain JSX: `GroupRow` takes a `labelColorStyle` alongside
+  `labelColorClass`, and a kanban card badge takes `colorStyle` alongside
+  `colorClass` (`KanbanCard.badges[]`). Both additions are optional and additive;
+  a badge that carries only a class renders exactly as before. The colours ride
+  CSS custom properties that the class reads, so a class passed without its style
+  paints against undefined variables — the two halves have to travel together.
+  
+  Behaviour is unchanged for every declaration that is not an explicit hex.
+- 3241559: `object-kanban` now caps its fetch with a real top-level `$top`, and honours `limit`.
+  
+  The board's row cap was written `dataSource.find(objectName, { options: { $top: 100 }, $filter: … })`
+  — `$filter` at the top level, where the adapters read it, and the cap one level
+  down under `options`, which is not a `QueryParams` key. Nothing in this repo
+  reads `params.options` (`convertQueryParams` in `@object-ui/data-objectstack` and
+  `ApiDataSource` both read `params.$top`), so the intended cap never reached the
+  wire: a board over a large object fetched every row the server would return and
+  grouped all of it into lanes client-side. The author's 100 was never live.
+  
+  The cap is now `$top: schema.limit ?? 100`, the shape `object-timeline` took for
+  the identical defect. Two consequences worth reading before upgrading:
+  
+  - **A board that used to fetch unbounded now fetches 100 rows by default.** That
+    is the previously-declared intent taking effect, not a new limit — but a board
+    over an object with more than 100 matching records will show fewer cards than
+    it did. Authors who want the old behaviour should declare the window they
+    actually want (`limit: 500`), not rely on the absence of one.
+  - **`limit` is now mapped from the `dataSource` binding** (`object-kanban`'s
+    `ElementDataSourceMapping` gains `limit: 'limit'`). A board bound to a saved
+    view is capped by that view's `pagination.pageSize`, and the binding's own
+    `limit` overrides it. The flag comes with the read site: it stayed unmapped
+    until now on the rationale that the board had a "fixed window", which is the
+    claim this change falsifies. `sort` remains unmapped — the board still has no
+    `$orderby` read site — and `columns` remains unmapped because a board's columns
+    are its swimlanes, not a field projection.
+  
+  `KanbanSchema` gains `limit?: number` (the board's row cap; distinct from a
+  column's `limit`, which is that lane's WIP limit and never reaches the query),
+  and the guide's per-block table in `content/docs/guide/data-source.md` no longer
+  claims a fixed window for `object-kanban`.
+  
+  `@object-ui/fields` carried the same nesting in the lookup-name fallback
+  (`find(referenceTo, { $filter: { id }, options: { $top: 1 } })`) where it was
+  harmless — a primary-key equality returns at most one row with or without a cap.
+  It is spelled `$top: 1` now, so no live instance of the dead nesting is left in
+  the repo to read as precedent. No behaviour change there.
+- 2165d88: Rename four component-props types off the names `@objectstack/spec` starts owning in
+  17.0.0, keeping the old spellings as deprecated aliases. No behaviour changes and no
+  importer breaks.
+  
+  `@objectstack/spec/ui` exports `ObjectCalendarProps`, `ObjectFormProps`, `ObjectGridProps`
+  and `ObjectKanbanProps` from 17.0.0, where each is the AUTHORED props document of the
+  matching element — a serialisable authoring surface (`z.input< typeof
+  ObjectGridPropsSchema >`). The same-named interfaces here are the RENDERERS' props: a live
+  `dataSource`, records pre-fetched by a parent, and the host callbacks. Two different things
+  under one word, so the local ones are renamed rather than derived, following the split this
+  repo already made for `PageHeaderProps` -> `PageHeaderComponentProps` and the
+  `Record*ComponentProps` family in `@object-ui/types`:
+  
+  | package | new name | old name |
+  |---|---|---|
+  | `@object-ui/plugin-calendar` | `ObjectCalendarComponentProps` | `ObjectCalendarProps` |
+  | `@object-ui/plugin-form` | `ObjectFormComponentProps` | `ObjectFormProps` |
+  | `@object-ui/plugin-grid` | `ObjectGridComponentProps` | `ObjectGridProps` |
+  | `@object-ui/plugin-kanban` | `ObjectKanbanComponentProps` | `ObjectKanbanProps` |
+  
+  Every old name is still exported from its package barrel as a `@deprecated` alias denoting
+  the SAME type, pinned per package by `spec-symbol-4650.test.ts`, so existing imports keep
+  compiling. New code should use the `ComponentProps` spelling.
+  
+  `@object-ui/app-shell` carries no API change: its `SECRET_MASK` — the ADR-0100 credential
+  read mask, which 17.0.0 moves into `@objectstack/spec/data` — is renamed to
+  `OBJECTUI_SECRET_MASK` at its declaration in `views/metadata-admin/widgets.tsx`. That
+  constant is package-internal and is not re-exported from the barrel, so nothing published
+  changes; the rename exists so the local copy cannot be read as the spec's own definition
+  while this repo is still pinned below the release that exports it.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [7c297e3]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [7dd93c0]
+- Updated dependencies [229b17e]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/plugin-detail@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

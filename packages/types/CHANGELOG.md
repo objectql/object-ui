@@ -1,5 +1,467 @@
 # @object-ui/types
 
+## 17.6.0
+
+### Minor Changes
+
+- 88085e3: Consume the declared nav `runAction` slot; retire the private `?runAction=` string convention
+  
+  An `object` navigation item can now declare `runAction: '<actionName>'` and the shell will run that action once on arrival at the object's list surface, through the ordinary execute path — so param dialogs, confirms and entitlement gates all still apply. The slot is `@objectstack/spec`'s `ObjectNavItemSchema.runAction`; objectui now reads it instead of a private convention.
+  
+  - `NavigationItem` declares `runAction` (derived from the spec's object-nav variant), and objectui's own nav schema stops stripping it — `objectui validate` previously discarded the key, so an entry carrying a deep link validated clean with the deep link thrown away.
+  - `resolveHref` encodes it onto the list href as the reserved `?runAction=` param, on the list landings only. A `recordId` entry resolves to a record page, which has no list toolbar to answer it, so the slot is not encoded there.
+  - The deep link is honoured on **every** object list, not just the environments list. The action is armed only when it is actually present at `list_toolbar`; a name no action answers to runs nothing and deliberately leaves the URL untouched, so a later mount with fresher metadata can still honour it. Undefined references are rejected upstream at authoring time by `defineStack`.
+  - The param name now has exactly one definition (`NAV_RUN_ACTION_PARAM`, exported from `@object-ui/layout`) and is registered in the console's reserved-param collision check. It was previously a bare literal hand-written at both the producing and consuming ends, declared by no schema and listed in no registry.
+  - `CloudOnboardingNext` takes an optional `properties.createAction` (defaulting to `create_environment`) instead of hand-concatenating its deep link.
+- 279fb13: `ComponentInput.type` can declare a UNION, so a block stops warning about legal
+  writes its own description recommends
+  
+  A registration's `type` was one coarse control kind, while a good number of spec
+  keys accept more than one shape. A declaration therefore had to pick an arm, and
+  the repo's own manifest gate then reported `type-mismatch` on the other arm's
+  legal values. Four of the five measured cases were the loud shape: the input's
+  `description` teaches the author to write an inline translation map
+  (`{ en, "zh-CN", … }`) while the same input's `type: 'string'` made
+  `sdui-parser`'s `checkType` warn about exactly that map — one platform authority
+  contradicting itself on the write it had just recommended. Because these land at
+  warning severity the page still compiled and rendered; the cost is that noise on
+  correct authoring trains authors, AI authors included, to dismiss the
+  `unknown-prop` and `type-mismatch` reports that are real.
+  
+  `type` now accepts an ARRAY of coarse kinds as well as a single one (maintainer
+  ruling on objectui#3832, direction (a)), and a value passes the coarse check when
+  ANY declared arm accepts it. Both declaration sites in `@object-ui/types` move
+  together with the registry's own copy in `@object-ui/core`, and
+  `ComponentInputSchema` enforces the same widening — a non-empty array of
+  DISTINCT kinds, so an empty arm list or a repeated arm is refused at authoring
+  time rather than normalized behind the author's back.
+  
+  Five declarations now spell their real contract, and the `type-mismatch` warning
+  on each of these legal writes is gone:
+  
+  - `page:header.title`, `page:header.subtitle`, `page:card.title` —
+    string **or** inline translation map (the spec's union, measured against
+    `ComponentPropsMap` at the pinned rc.6; the renderers resolve both through
+    `pickLocalized`);
+  - `record:alert.title`, `record:alert.body` — the same two shapes, justified
+    against the RENDERER since the pinned spec carries no `record:alert` props
+    schema;
+  - `element:text_input.defaultValue` — `string | number`, the spec's union,
+    which had been narrowed to `'string'` with the number arm named only in prose.
+  
+  **Backward compatible, and measured as such.** The single-kind form stays valid
+  and is still the canonical spelling for a one-arm key: it validates identically
+  (the diagnostics for one arm, `invalid-enum` and its `error` severity included,
+  are byte-identical), and `manifestFromConfigs` collapses a one-element array back
+  to the bare string, so every entry already in a published `sdui.manifest.json`
+  serializes unchanged and arrays appear only where a union was really declared.
+  The JSX authoring surface follows in the same step — `generateDts` emits a
+  TypeScript union for a union input, so the `.d.ts` an author type-checks against
+  accepts exactly what the gate accepts.
+  
+  A union widens what is legal; it does not switch the check off. A value matching
+  NO declared arm is still reported, a multi-arm mismatch reports at its strictest
+  arm's severity (`error` when an `enum` arm is present, so an enum's closed list
+  does not become dismissible by having a second arm added next to it), and arms
+  are meant to match the contract rather than relax the gate:
+  `element:text_input.defaultValue` deliberately gains no `object` arm because the
+  spec rejects a map there, and `element:record_picker.emptyText` keeps its single
+  `'string'` arm because that renderer drops the map form (objectui#4163) — an arm
+  the renderer never honours would advertise a shape that cannot reach the screen.
+- 1184192: Align `FieldConstraintsSchema` (the zod face of `FormFieldSchema.validation`) to the public TS contract `FieldValidationRules`. Behaviour change in `objectui validate`: `validation` written to the TS contract — `required: string | boolean`, `minLength`/`maxLength`/`min`/`max` as `{ value, message }` objects, `validate` function — is now accepted (it was rejected before), and the flat scalar dialect (`minLength: 3`, `pattern: '^[a-z]+$'`) that react-hook-form never runs is now rejected (it passed before, validating nothing — the objectui#5099 symptom on the zod face). `pattern.value` must be a compiled RegExp per the objectui#5099 ruling; JSON/YAML cannot express one, so a string `pattern.value` is rejected by name with guidance toward the metadata route (`FieldSchema.pattern`). No silent strip, no string-to-RegExp coercion.
+- a2a9747: `FieldValidationRules.pattern.value` narrows to `RegExp`, and the form renderer reports unrecognized validation rule names loudly (objectui#5099, maintainer ruling 2026-08-18).
+  
+  **BREAKING for hand-written form schemas — deliberately declared `minor`.** This
+  repo's version policy reserves `major` for tracking `@objectstack` majors and is
+  mechanically enforced (`scripts/check-changeset-no-major.mjs`); per that policy,
+  objectui's own breaking changes ship as `minor` with the breaking semantics
+  stated plainly here:
+  
+  - **What breaks:** `validation: { pattern: { value: '^…$', message } }` with a
+    **string** value no longer compiles. Write a `RegExp` literal instead:
+    `pattern: { value: /^…$/, message }`.
+  - **Why red is the fix, not the damage:** react-hook-form applies `pattern`
+    only when `value instanceof RegExp`, and the renderer's single read point
+    spreads `validation` verbatim — so every string pattern accepted by the old
+    type ran **zero** validations, silently. Callers turning red were not
+    validating anything yesterday; the error converts silent non-validation into
+    explicit failure at authoring time.
+  - **Unaffected:** the metadata route. `FieldSchema.pattern` (a string in field
+    metadata) is still compiled by `buildValidationRules` in `@object-ui/fields`
+    via `new RegExp(...)` before it reaches the renderer.
+  
+  Also, per the same ruling's second limb, the form renderer now reports rule
+  names react-hook-form does not run (`console.error`, message doubles as the fix
+  instruction): a misspelled `minlength`, an invented `email`, or numeric keys
+  left by spreading an array into `validation` shout instead of vanishing. The
+  recognized set is pinned against the installed react-hook-form bundle so a
+  future bump cannot silently rot the diagnostic. The ruling's rejected half is
+  equally binding and equally pinned by test: the read point does **not** compile
+  string patterns — that consumer-side tolerance would harden the ambiguous
+  declaration into contract (AGENTS.md #0.1).
+- f1d4748: Remove the retired `striped` / `bordered` / `virtualScroll` list-view surface
+  
+  objectstack#7176 retired `list.striped`, `list.bordered` and `list.virtualScroll`
+  from the spec after measuring every objectui reader as pass-through: each one
+  copied the key onward and no renderer ever applied it. objectui stops declaring,
+  typing and forwarding them.
+  
+  Off the chain: the `@objectstack/spec` list-view bridge in `@object-ui/react`,
+  `ListView`'s child-view props in `@object-ui/plugin-list`, both `ObjectView`
+  relays (`@object-ui/plugin-view` and `@object-ui/app-shell`), the `ObjectGridSchema`
+  and `NamedListView` declarations in `@object-ui/types` (interface and zod),
+  `ObjectGrid.component.yml` in `@object-ui/components`, and the page-block
+  inspector's `striped` / `bordered` toggles in the metadata-admin designer.
+  
+  Behaviour is unchanged: nothing read these keys, so nothing rendered differently
+  for them. Stored view metadata that still carries one keeps validating — the keys
+  are simply no longer relayed. `ListViewSchema` continues to take the spec's
+  list-view fields by reference, so the protocol's own retirement tombstones
+  arrive with the next `@objectstack/spec` bump and reject the keys at the
+  authoring boundary. Restoring any of the three as live surface requires an
+  implementation card filed first, per the ruling.
+- 578e025: `ObjectMapSchema` declares what ObjectMap reads, and the `map` block outranks the flat spelling
+  
+  `object-map` carried three disagreeing shapes for one component. The declared face
+  (`ObjectMapSchema`) had four keys — `type`, `objectName`, `locationField`,
+  `titleField`, `mapStyle`. The renderer read about fifteen. And `ObjectMapProps.schema`
+  was typed `ObjectGridSchema`, so every map-specific read went through
+  `(schema as any)`. A TypeScript author could not write the `map` block the docs teach,
+  and misspelling `latitudeField` as `latitudeFieId` was caught by nothing: the map
+  rendered empty and looked like bad data.
+  
+  Declared now, each with a read site in `ObjectMap.tsx`: `data`, `staticData`, `filter`,
+  `sort`, `map`, `enableClustering`, `navigation`. `ObjectMapConfig` (interface) and
+  `ObjectMapConfigSchema` (zod) are lifted out of `plugin-map`, where the zod was
+  package-private and called `MapConfigSchema`, into `@object-ui/types` and
+  `@object-ui/types/zod` — so the declared authoring face and the validation the renderer
+  performs are one schema rather than two that can drift. The `Object` prefix is not
+  decoration: `@objectstack/spec/automation` already exports `MapConfigSchema` for an
+  unrelated concept, and a local declaration under a spec export's name is what
+  `check:spec-symbols` exists to refuse. `ObjectMapProps.schema` is `ObjectMapSchema`, and the `as any` map reads
+  are gone.
+  
+  Behavior change, ruled by the maintainer on objectui#5018 (2026-08-17): the `map` block
+  is the author face and the flat top-level spelling (`schema.latitudeField`, …) is the
+  internal form ObjectView / ListView produce when they flatten `options.map`. When a
+  schema carries both, **the `map` block now wins** — the reverse of the previous order,
+  under which the flatten product silently shadowed an authored block — and a dev-mode
+  warning names the top-level keys that were ignored. The flat spelling stays out of the
+  declared surface and out of the docs.
+  
+  Nothing changes for views built by ObjectView / ListView: both flatteners emit the flat
+  keys and no `map` key at all, so the branch the flip reorders is never reached for their
+  output. That property is now pinned rather than assumed
+  (`plugin-view/src/__tests__/ObjectView.mapFlatten.test.tsx`).
+  
+  Bound worth stating, because it limits what the typed surface can promise: `BaseSchema`
+  carries an index signature (`[key: string]: any`), so a misspelled key at the TOP level
+  still type-checks — for every component schema in the repo. The `map` BLOCK is closed,
+  which is what makes the card's headline typo a compile error.
+- 97abb24: Remove `BaseFieldMetadata.indexed` — the ObjectStack spec has no field-level
+  index flag
+  
+  `indexed` was never a `FieldSchema` key. The field-level flag built no index
+  (objectstack#2377 removed it) and, since objectstack#4001 replaced silent
+  drops with loud rejection, `FieldSchema.safeParse` refuses it by name. PR
+  #4675 already removed the designer-side declaration
+  (`DesignerFieldDefinition.indexed`) and retired the Studio control that wrote
+  it; this was the *other* declaration of the same dead key, on the
+  renderer-side field-metadata type (`BaseFieldMetadata`, the type
+  `FieldWidgetComponentProps.field` resolves to). Measured on current `main`:
+  zero readers and zero writers anywhere in `packages/*/src` or `apps/*/src`
+  outside of an unrelated "0-indexed" prose comment.
+  
+  Declare indexes on the object instead: `indexes: [{ name, fields, unique }]`.
+- deb157a: Retire the field designer's `Indexed` toggle — the ObjectStack spec has no
+  field-level index flag
+  
+  `indexed` was never a `FieldSchema` key. The field-level flag built no index
+  (objectstack#2377 removed it) and, since objectstack#4001 replaced silent
+  drops with loud rejection, `FieldSchema.safeParse` refuses it by name. Ticking
+  `Indexed` in Studio therefore made `PUT /api/v1/meta/object/:name` fail with
+  `422 INVALID_METADATA`, and — because the key was stored — every later save of
+  that object stayed blocked until the author found and cleared the toggle.
+  
+  Both field designers stop offering the control and stop authoring the key
+  (`ObjectFieldInspector`'s Advanced section; `FieldDesigner`'s advanced
+  section, `MetadataFieldsPage`, `MetadataService`, `metadataConverters`), the
+  `designer.field.indexed` / `appDesigner.fieldDesigner.indexed` labels retire
+  with it across all ten locale packs, and `DesignerFieldDefinition.indexed` is
+  removed from `@object-ui/types`.
+  
+  Drafts and objects that already carry the key are un-poisoned on load rather
+  than migrated, so an edit-and-save round-trip of previously blocked metadata
+  now succeeds. The strip is keyed to the retired key alone — every other
+  unknown key on a field definition still survives the round-trip.
+  
+  Declare indexes on the object instead: `indexes: [{ name, fields, unique }]`.
+- d2ce342: Retire the structured `confirm` object on actions (objectui#4314, maintainer ruling
+  2026-08-17, ADR-0049 enforce-or-remove). `confirmText` is now the one confirm
+  spelling — the only one the translation bundle can address
+  (`{ns}.objects.{obj}._actions.{name}.confirmText`), matching `@objectstack/spec`'s
+  action surface.
+  
+  Breaking semantics (flagged `minor` per this repo's version-alignment policy):
+  
+  - `@object-ui/types`: `ActionSchema.confirm` is a `?: never` tombstone — authoring
+    it is now a tsc error, and the Zod twin rejects any authored value at parse time
+    (it previously accepted the object). The backwards `@deprecated` note that
+    steered authors from `confirmText` INTO the structured arm is gone.
+  - `@object-ui/core`: `ActionRunner` no longer reads `confirm.message` (which used
+    to outrank `confirmText`, untranslated). `ActionDef.confirm` carries the same
+    `never` tombstone. The `ConfirmationHandler` signature is unchanged, but the
+    runner now invokes it without the `options` argument.
+  - `@object-ui/plugin-grid`: `resolveBulkActions` no longer falls back to
+    `confirm.message` when promoting an object action — spec metadata can never
+    deliver that key.
+  
+  Nothing in the repo, the example apps, or the schema catalog authored the
+  structured form (verified on the issue); a dialog authored that way silently lost
+  localization. Reopen condition recorded on objectui#4314: real demand returns the
+  arm WITH bundle keys designed in.
+- 9695da7: Remove `VectorFieldMetadata.indexed` and `VectorFieldMetadata.distance_metric`
+  — both declared keys the ObjectStack spec rejects
+  
+  Two separate dead keys on `VectorFieldMetadata`
+  (`packages/types/src/field-types.ts`), found alongside PR #4686's sibling
+  `BaseFieldMetadata.indexed` deletion:
+  
+  - `indexed` was never a `FieldSchema` key — same class as `BaseFieldMetadata`
+    above: the field-level flag built no index (objectstack#2377 removed it),
+    and `FieldSchema.safeParse` rejects it by name (objectstack#4001).
+  - `distance_metric` was measured first rather than assumed removable: the
+    installed `@objectstack/spec` 17.0.0-rc.6's vector field shape declares no
+    metric-spelling key under any candidate spelling probed (`metric`,
+    `distanceMetric`, `similarity`, `similarityMetric`, `metricType`,
+    `vectorMetric`) — `dimensions` is the only vector-specific key
+    `FieldSchema` recognizes, and its `FIELD_KEY_GUIDANCE` alias/retirement
+    table carries no entry for `distance_metric` at all. With no equivalent to
+    align to, and zero measured readers/writers, removal takes no capability
+    away.
+  
+  Both are rejected by `FieldSchema.safeParse` as `unrecognized_keys`; `dimensions`
+  is accepted (control). Repo-wide sweep (excluding tests) found zero readers or
+  writers of either key on the vector path — `VectorField.tsx` (the renderer)
+  reads only `field.dimensions`. Declare the index on the object instead:
+  `indexes: [{ name, fields, unique }]`.
+- 58b8346: Settle the two declared-but-unread keys on `AccordionItem`: retire `icon`, wire
+  `disabled` (objectui#4652).
+  
+  The same defect as objectui#4632 (PR #4651), one interface up in the same file.
+  `AccordionItem` declared `disabled?: boolean` and `icon?: string` while the
+  `accordion` renderer read neither — it mapped items to `value`/`title`/`content`
+  and dropped the rest. Nothing went red: an author who declared either key got a
+  correctly rendered accordion with the key silently ignored.
+  
+  The two keys are settled in opposite directions, by measurement rather than by
+  symmetry. A full corpus sweep (schema catalog, docs, example apps, and this
+  repo's `objectstack` sibling checkout) found **zero** sites authoring either key
+  on an `AccordionItem`:
+  
+  - **`icon` is retired** from the TypeScript interface and from the
+    `AccordionItemSchema` Zod mirror. It had zero measured pull anywhere in the
+    corpus and no established convention to lean on, so under this platform's
+    declared=enforced doctrine it is removed rather than speculatively
+    implemented.
+  - **`disabled` is honored**, despite also having zero catalog pull today.
+    Item-level `disabled` is already established live convention in this
+    codebase — `tabs`, `select`, `dropdown-menu`, `menubar`, `context-menu` and
+    (objectui#4632) `toggle-group` all forward it, and `accordion` was the next
+    outlier. The underlying Radix accordion item supports `disabled` natively, so
+    the renderer forwarding one prop is the whole change; the synced
+    `ui/accordion.tsx` primitive is untouched. The schema catalog's
+    `basic-accordion` example now demonstrates a disabled item.
+  
+  **Breaking for TypeScript authors of `icon` only** (marked `minor` per this
+  repo's version-alignment rule, which reserves `major` for following
+  `@objectstack` across a major — see AGENTS.md's 版本号策略 and the identical
+  classification PR #4651 used for `ToggleGroupItem.icon`). Runtime behaviour of
+  an authored `icon` is unchanged — it rendered nothing before and renders
+  nothing now; what changes is that the contract no longer claims otherwise, so
+  the mistake surfaces at authoring time. Authored `disabled` changes from
+  silently ignored to actually disabling that one item (and blocking its
+  expand/collapse).
+- 99bd015: Settle the two declared-but-unread keys on `ToggleGroupItem`: retire `icon`, wire
+  `disabled` (objectui#4632).
+  
+  `ToggleGroupItem` declared `icon?: string` and `disabled?: boolean` while the
+  `toggle-group` renderer read neither — it mapped items to value + aria-label +
+  label and dropped the rest. Nothing went red, which is what made it durable: an
+  author who declared either key got a correctly rendered group with the key
+  silently ignored, and the schema catalog (the corpus AI authoring tools retrieve
+  from) was teaching `icon` on all three items of
+  `components-disclosure-toggle-group/with-labels`.
+  
+  The two keys are settled in opposite directions, by measurement rather than by
+  symmetry:
+  
+  - **`icon` is retired** from the TypeScript interface, from the `ToggleGroupItemSchema`
+    Zod mirror, from that catalog entry and from the component's docs page. It had zero
+    measured pull — across the repo the single catalog entry was the only site authoring
+    it, no application code or example app declared it, and no renderer resolved it.
+  - **`disabled` is honored.** Item-level `disabled` is already live convention here —
+    `tabs`, `select`, `dropdown-menu`, `menubar` and `context-menu` all forward it, and
+    `toggle-group` was the lone outlier. The underlying Radix item supports it natively,
+    so the renderer forwarding the prop is the whole change; the synced `ui/toggle-group.tsx`
+    primitive is untouched.
+  
+  **Breaking for TypeScript authors of `icon` only** (marked `minor` per this repo's
+  version-alignment rule, which reserves `major` for following `@objectstack` across a
+  major). Runtime behaviour of an authored `icon` is unchanged — it rendered nothing
+  before and renders nothing now; what changes is that the contract no longer claims
+  otherwise, so the mistake surfaces at authoring time. Authored `disabled` changes from
+  silently ignored to actually disabling that one item.
+
+### Patch Changes
+
+- af5e292: Emit explicit file extensions on relative import specifiers, so the published
+  entries can be imported by Node's own ESM resolver.
+  
+  `@object-ui/react`'s built entry re-exported through extensionless relative
+  specifiers (`export * from './SchemaRenderer'`). Node does not extension-search
+  relative specifiers, so `import('@object-ui/react')` under plain Node — an SSR
+  host, or any consumer without a bundler — failed with `ERR_MODULE_NOT_FOUND`.
+  Bundled consumers were never affected and are unchanged by this.
+  
+  `@object-ui/types`, `@object-ui/core` and `@object-ui/i18n` carried the same
+  emission; `@object-ui/react`'s entry stayed unloadable until they were fixed
+  too, because evaluation crosses into them. No exported API changed.
+- 7f96b10: `DashboardWidgetSchema`: stop re-typing the retired `responsive` key as `any`
+  
+  `dashboard.widgets[].responsive` was retired in `@objectstack/spec` 17.0.0-rc.6
+  (objectstack#4876, ADR-0049 D2), and objectui's Zod twin — which derives every
+  spec key by reference — has refused it ever since. The TypeScript interface did
+  not follow: `responsive` was held out of the inherited key set by an `Omit` and
+  re-declared as `any`, so one key was accepted by tsc and rejected by validation.
+  
+  Authoring `responsive` on a widget is now a tsc error, matching the Zod tombstone
+  that already refuses it. The key inherits as `?: never`, the same way the four
+  keys objectstack#5010 retired do.
+  
+  The `any` was deliberate and carried a written reason — that objectui's renderer
+  reads a per-breakpoint record the spec's single object could not express.
+  objectui#3173 measured that claim and it was false: there are no
+  `widget.responsive` read points in the repo and no authored occurrences in either
+  corpus, so nothing migrates. Breakpoint behaviour is unaffected — the shared
+  `ResponsiveConfig` shape stays live on `page.components[].responsive`, which
+  `useResponsiveConfig` really does read.
+- 598c89a: The retired `owner` field-type spelling stops being blessed by the published contract, and inline edit refuses it the way the record form already does.
+  
+  objectui#4814 retired `owner` as a field type (ruling A′): it was a synonym for
+  `user` with zero behavioral delta — both resolved to the same person-picker
+  widget — and it was never a member of `@objectstack/spec`'s closed `FieldType`,
+  so no object schema could ever declare it. `@object-ui/fields` now answers the
+  spelling with a visible tombstone refusal plus a console prescription. That PR
+  shrank the three public DOC unions; their CODE twins were left behind, so this
+  package spent the interval telling an author "legal" for a word the renderer
+  refuses.
+  
+  **`@object-ui/types` — the three published twins shrink (objectui#4914 items 1-3).**
+  `ReportFieldSchema.type` (`zod/reports.zod.ts`) is a RUNTIME validator, so the
+  contradiction was executable, not merely advisory: a report document authored
+  with `type: 'owner'` validated green and then rendered a refusal. It now fails
+  validation, with the issue on the `type` path. Its TS twin `ReportField['type']`
+  and `UserFieldMetadata['type']` drop the member in the same batch, so published
+  `.d.ts` autocomplete stops offering it. This is an accept-set SHRINK on a
+  published validator and a narrowing of two published unions — patch-level
+  because the spelling it removes has had no working renderer since #4814, but
+  callers still passing `type: 'owner'` will now see a type error and a failed
+  parse. The record-owner idiom survives verbatim as
+  `{ type: 'user', name: 'owner' }`: the field NAME carries the ownership meaning,
+  the type carries the widget.
+  
+  **`@object-ui/plugin-detail` — inline edit joins the tombstone (objectui#4914 item 5).**
+  `InlineFieldInput` routes by a STORED field's actual type, so a record whose
+  field is still typed `owner` was getting a working person picker inline while
+  the record form showed the refusal — two edit surfaces disagreeing about one
+  field, which is worse than either uniform outcome. A retired spelling now
+  renders the same `RetiredFieldTombstone` the form does, reported once per
+  spelling rather than once per row. The table is read live from
+  `@object-ui/fields`, so a future retirement is covered the day it lands.
+  
+  Measured while implementing, and the reason the refusal is the load-bearing
+  half: simply deleting `owner` from the inline routing table would have changed
+  nothing an author could see. `hasFieldEditWidget('owner')` is still true — the
+  fields package maps `owner: UserField` in `EDIT_WIDGETS` — so the type would
+  have reached the same picker down the delegation road instead of the routing
+  road. That residual face is outside this change's scope and is filed separately.
+- b8b9af4: `page:header`'s `maxVisible` / `mobileMaxVisible` now honour the contract's value domain instead of a laxer renderer tolerance.
+  
+  Three authorities gave two answers for the same value (objectui#5006). Measured on
+  `ComponentPropsMap['page:header']` at `@objectstack/spec@17.0.0` — the member lives
+  on the `@objectstack/spec/ui` subpath, not the package root — both keys are a
+  POSITIVE SAFE INTEGER (`{format:'safeint'}` plus
+  `{check:'greater_than',value:0,inclusive:false}`). Spec rejects `0`, `-1`, `1.5`
+  and anything past `Number.MAX_SAFE_INTEGER`. objectui's manifest gate and
+  `sdui-parser`'s `checkType` said nothing about any of them, and the renderer's
+  `readMax` was looser still: it accepted `0` and floored fractions. So the loosest
+  of the three layers decided what shipped on screen, while `os validate` / `os build`
+  rejected the very same metadata outright.
+  
+  `readMax` now accepts only what the contract accepts. `Number.isSafeInteger(v) && v > 0`
+  is the exact translation of `safeint`, not an approximation — plain `Number.isInteger`
+  would admit `2**53 + 2` and `1e21`, which spec rejects.
+  
+  Behaviour change, stated because this NARROWS the renderer's accept set rather than
+  only fixing a fault: a contract-rejected value no longer takes effect and falls back
+  to the documented default (3 desktop / 1 mobile). Concretely, `maxVisible: 0` used to
+  render zero inline buttons and sweep every action into the overflow menu, and
+  `maxVisible: 1.5` used to be floored to `1`; both now render the default 3-inline
+  split. This is a narrowing *toward* an already-published contract — no in-tree
+  producer writes a rejected value, so nothing in the repo changes behaviour. Both
+  schema-level and `properties.*` spellings go through the one reader. `action:bar`'s
+  `maxVisible` is an unrelated reader with no `ComponentPropsMap` entry and is
+  deliberately untouched.
+  
+  `ComponentInput.type`'s doc comment now records the trade the ruling fixed in place
+  (maintainer, 2026-08-17): the coarse `number` arm plus `description` is the
+  publication face's expression ceiling today, and spec is the sole judge of values.
+  Giving `ComponentInput` real constraint slots, and binding `checkType` to spec, were
+  both deferred with a named reopen condition — a measured case of an author shipping
+  a spec-rejected value that objectui's silence let through.
+- 3cf4de0: Removed the dead `require` condition from `exports["."]` in `@object-ui/types`'s `package.json`. It pointed at `dist/index.cjs`, a file the package's `"build": "tsc"` script (bare `tsc`, no bundler) structurally never emits — verified on a clean rebuild (`rm -rf dist tsconfig.tsbuildinfo && tsc`): zero `.cjs` files under `dist/`.
+  
+  **Judged non-breaking (`patch`), because the condition never resolved to anything a consumer could depend on** — measured both ways from a real `require()` call through the package's own resolved workspace symlink (not asserted):
+  
+  - **Before this change**: `require('@object-ui/types')` → `MODULE_NOT_FOUND: Cannot find module '.../dist/index.cjs'` (the condition existed but its target was never written by the build).
+  - **After this change**: `require('@object-ui/types')` → `ERR_PACKAGE_PATH_NOT_EXPORTED: No "exports" main defined ...` (no matching condition).
+  
+  Both throw. No working `require()` call is turned into a failing one — there was no working one to begin with, in this repo or in any published version, since the build has never emitted `dist/index.cjs`. The `import` condition (`./dist/index.js`, real and always present) and the `types` condition are unchanged.
+  
+  The package declares `"type": "module"` and ships no bundler, so ESM-only is the contract-honest shape going forward; adding a second build format to satisfy a condition nothing used was the alternative and was not taken.
+- c9dc811: `@object-ui/types` stops publishing its `src/` tree
+  
+  Its manifest's `files` array listed `src` alongside `dist`, so every published tarball carried all 91 source files. Unlike the two sibling packages already fixed (`@object-ui/data-objectstack` #4847, `@object-ui/fields` #4856), this one was not a mechanical delete: `packages/types/tsconfig.json` built with a bare `tsc` and `declarationMap: true`, and its shipped `dist/*.d.ts.map` named `sources: ["../src/*.ts"]` with `sourcesContent: false` — a real, if small, consumer (editor go-to-source). Deleting `src` from `files` while that map still pointed at it would have shipped a tarball with a broken-link map.
+  
+  Maintainer ruling (2026-08-17, objectui#4851): turn `declarationMap` off at the source rather than keep a permanent per-package exception in the phantom-dependencies gate's header, or add `inlineSources` (which saves nothing and adds a third emitter shape). `types` is a pure-types package built by bare `tsc`, so its `.d.ts` is near-isomorphic to its source — go-to-source degrading to the `.d.ts` is a near-zero-pull, deliberate trade.
+  
+  Order followed: flipped `declarationMap: false` in `packages/types/tsconfig.json` first, clean-rebuilt, and confirmed the published `dist` has zero `.map` files, zero `sourceMappingURL` occurrences, and zero `../src` references (a positive control against the pre-flip build showed 54 of each, so the greps are exercised, not vacuous) — only then trimmed `files` to `["dist", "README.md", "CHANGELOG.md", "LICENSE"]`.
+  
+  `npm pack --dry-run` across the change, on the freshly rebuilt `dist`:
+  
+  | | before | after |
+  | --- | --- | --- |
+  | entries | 203 | 112 |
+  | unpacked | 3974143 B | 2828454 B |
+  | tarball | 656307 B | 414644 B |
+  
+  91 `src/*.ts` files leave, none arrives; the `dist/` entry count (108) is unchanged, and its `.d.ts` payload is now map-free.
+- a0b9e91: A system (code-defined) view's personalization overlay row no longer masquerades as a user-created saved view.
+  
+  Toggling density / sort / hidden columns / column widths / inline-edit on a code-defined view persists a row under the same `type='view'` metadata namespace a genuinely saved view lives in, keyed by the same id (`ObjectStackAdapter.updateViewConfig`). `listViews()` previously returned that row indistinguishably from a real saved view, so `ObjectView`'s `isSystem = !saved` check flipped to `false` and the tab gained Rename / Delete / Set-default / Pin against a view that lives in code — `handleDeleteView` would even call `dataSource.deleteView` on it.
+  
+  Two layers now keep the two kinds of rows apart:
+  
+  - **Write side**: `updateViewConfig` — the only production writer of personalization overlays — stamps an explicit `_isOverride: true` discriminant on every row it saves, UNLESS the write targets an already-saved view's own row (see below).
+  - **Read side**: `listViews()` excludes any row carrying that marker, and (for rows already persisted before this fix shipped) a best-effort legacy shape: a flat body with a `viewKind` the platform can only have server-side-backfilled from a registry (code-defined) baseline — a genuine runtime-created saved view never has one.
+  
+  `listViewOverrides()` (the reader `ObjectView` uses to merge these settings back into the live view for display) is unchanged — it is supposed to keep seeing overlay rows.
+  
+  The overlay this stores is **org-wide shared view settings**, not a per-user preference (a true per-user scope is a parked platform-side v18 direction) — comments describing it as "personal" have been corrected to say so.
+  
+  **Follow-up fix (same card, post-review):** `updateViewConfig`'s ONE call site (`ObjectView`'s toolbar-driven toggle) fires for a toggle on EITHER a system view OR an already-saved view — a saved view whose own toolbar the user toggles writes to that same view's own row. Stamping the overlay marker unconditionally there would flag the user's own saved view as an overlay and make `listViews()` exclude it on the very next read, i.e. the saved view would vanish from the switcher the moment its density was adjusted. `updateViewConfig` gains an optional `opts.isSavedView` parameter (also added to the `DataSource` interface in `@object-ui/types`); `ObjectView` passes it from the same `isSavedViewId` classification its readonly gate and mutating handlers already use, and the marker is withheld when it's true.
+
 ## 17.5.0
 
 ### Minor Changes

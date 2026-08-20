@@ -1,5 +1,274 @@
 # @object-ui/cli
 
+## 17.6.0
+
+### Patch Changes
+
+- 195b9e4: The routed temp app's generated manifest now asks for the same `lucide-react` range this repo installs.
+  
+  `utils/app-generator.ts` writes the routed variant's `dependencies` with two
+  quoted third-party ranges, and `lucide-react` had fossilised a minor behind the
+  22 sibling manifests that declare it: the generated manifest said `^1.29.0`
+  while the repo had moved to `^1.31.0`. A generated app therefore asked npm for
+  an icon library older than the one every `@object-ui/*` package it installs
+  alongside was built against.
+  
+  The drift was not silent — `app-generator.test.ts` derives its expectation from
+  the in-repo range precisely so a bump on one side and not the other fails a
+  test, and both of its pins were red. What went wrong is that they went red too
+  late to stop anything: the dependency PR that moved the repo range merged while
+  those shards were still running, so the failure surfaced on `main` and then on
+  the merge ref of every unrelated open PR. The range is now caught up; the
+  reporting hole and the merge-ordering hole are filed separately (objectui#4968).
+  
+  The remaining eleven anchored ranges were swept against the same dependabot
+  batch and are all in sync, so this is the batch's only consumer-side follow-up.
+  Deriving the value from the workspace instead of quoting it was considered and
+  rejected: nine of the thirteen anchored ranges quote the repo root manifest,
+  which is not published with this CLI, so no single derivation can serve the
+  table and a bespoke one for this one name would leave the class untouched.
+- 68d9e28: `objectui check`: the known-type list is now derived from the component registry instead of being a hand-written copy, which had drifted in both directions at once.
+  
+  The command judged a schema's `type` against a seventeen-entry array typed by
+  hand into `packages/cli/src/commands/check.ts`. Nothing held that array against
+  the registry, and measured on `origin/main` @ `8378e9954` it was wrong in both
+  directions simultaneously:
+  
+  - **Two phantoms.** `crud` and `gallery` were on the list and are registered by
+    nothing. `objectui check` passed `{ "type": "crud" }` in silence while
+    `SchemaRenderer` painted the OBJUI-001 "Unknown component type" panel for the
+    very same file — measured, both halves. `CRUDSchema` still has its interface,
+    zod mirror, validator branch and builder; what it has never had is a
+    registration. For `gallery`, the registered spelling is `object-gallery`.
+  - **221 bare keys missing, plus every namespaced spelling.** `object-grid`,
+    `object-form`, `card`, `div` and `view:grid` were all reported as
+    `⚠️ Unknown schema type`. False warnings at that volume are not a cosmetic
+    problem: they train authors to skip the output, which costs the phantom
+    direction its only reader.
+  
+  The list now lives in `packages/cli/src/utils/known-schema-types.ts`, generated
+  by `node scripts/regenerate-known-schema-types.mjs` from the same
+  `deriveRegistryKeys` derivation that judges documentation snippets, and held to
+  it by a bidirectional pin in
+  `scripts/__tests__/known-schema-types-derivation-5115.test.ts` — a key the
+  registry has and the list lacks fails, and so does a key the list has and the
+  registry lacks. Bare and namespaced spellings are both carried, because
+  `register('grid', C, { namespace: 'view' })` really does store both.
+  
+  A runtime lookup through `ComponentRegistry` was measured and rejected: eleven
+  of the fifteen genuinely-registered entries come from plugin packages the CLI
+  does not depend on, and a published CLI runs against a user project whose plugin
+  set this repository cannot know either way.
+  
+  **Behaviour change, in both directions.** `{ "type": "crud" }` and
+  `{ "type": "gallery" }` now produce the `Unknown schema type` warning they
+  always should have, and a large number of real component types stop producing
+  one. The warning remains advisory — it never changes the command's exit code,
+  which is still driven only by files that fail to parse — so no run that passed
+  before fails now.
+  
+  `check()` additionally takes the directory to scan as an optional argument
+  (defaulting, as before, to `process.cwd()`), so the behaviour can be tested
+  against a fixture tree.
+- e6a8960: `objectui check` reads `.json` as JSONC, so a `tsconfig.json` no longer fails the run.
+  
+  `check` globbed every `**/*.{json,yaml,yml}` and handed each `.json` straight to
+  `JSON.parse`. A throw there is the only thing that increments the error count, and
+  a non-zero error count is the only thing that calls `process.exit(1)` — so a `//`
+  comment or a trailing comma, which is how TypeScript documents `tsconfig.json`,
+  was reported as a malformed file and **failed the command**. Every TypeScript
+  project hit this: `objectui check` exited 1 for anyone who ran it, and at this
+  repository's own root it reported 64 errors, all of them `tsconfig*.json`
+  (objectui#5237).
+  
+  `.json` on disk means JSONC in practice — `tsconfig.json`, `.eslintrc.json`,
+  `devcontainer.json` and VS Code's own settings are all written that way — so the
+  file is now read with `jsonc-parser`, which permits comments and trailing commas.
+  No new package enters what users install: `jsonc-parser` is already a runtime
+  dependency of `@object-ui/app-shell`, it is already at the version the lockfile
+  resolves, and it declares no dependencies of its own.
+  
+  The reader is a real JSONC parser and **not** a comment-stripping regex, because
+  a `//` inside a string value — a URL, say — is not a comment, and a stripper that
+  cannot tell the difference corrupts valid files instead of reading them.
+  
+  Genuinely malformed JSON still errors and still exits 1. That needed saying in
+  code as well as in tests: `jsonc-parser`'s reader is error-tolerant and returns a
+  best-effort value rather than throwing, so the command consults its reported-error
+  array instead of inferring success from the absence of a throw. Error output now
+  names the reason and the line and column.
+  
+  The unknown-schema-type warning arm is deliberately untouched: it still warns, and
+  it still does not affect the exit code. Files that previously died at the parse
+  step now reach it, so a JSONC file carrying an unrecognised root `type` warns
+  where it used to error — the verdict and the exit-code neutrality are unchanged.
+- 51e65d4: `dev`, `serve` and `build` accept the documented directory argument from anywhere, and refuse a non-project directory in plain language.
+  
+  `content/docs/utilities/cli.mdx` has recorded the positional argument as "Path
+  to JSON/YAML schema file or `pages/` directory" and printed `objectui dev
+  pages/` as the file-system-routing example. That promise had never actually been
+  parsed. Detection's first step required `statSync(...).isFile()`, so a directory
+  argument fell straight through it; the one spelling that worked — `objectui dev
+  pages/` from inside the project — worked by coincidence of position, caught by
+  the working-directory fallback rather than read as an argument. Every pathful
+  spelling reached single-schema mode and handed a directory to `readFileSync`:
+  
+  ```
+  $ objectui dev my-app/pages
+  Error: Invalid schema file: EISDIR: illegal operation on a directory, read
+  ```
+  
+  A directory argument now resolves through file-system routing in the shared
+  resolution step the three commands were centralized on (objectui#4923), in
+  either of the two shapes a user can mean: the directory **is** a `pages`
+  directory, or it **contains** one. Both produce the same routed answer as naming
+  the app config beside them — same project root, same routes, same app config —
+  so `objectui dev my-app/pages`, `objectui dev my-app` and `objectui dev
+  my-app/app.json` agree, from any working directory, across all three commands.
+  The limb lives in the shared resolver, not in three command branches.
+  
+  The remaining directory-shaped miss is now diagnosed instead of leaking a
+  `readFileSync` errno: a directory that is neither shape is refused by name,
+  saying what would have been accepted. The refusal sits **after** the
+  working-directory fallback, so nothing that resolves today stops resolving: this
+  change accepts strictly more than before and rejects nothing that worked.
+- bbfbc54: `objectui serve` and `objectui build` now locate the project the way `dev` does, instead of looking only in the current directory.
+  
+  For a project with an app config and a `pages/` directory beside it, the three
+  commands answered one invocation two different ways. `dev` anchored on the
+  schema argument — `dirname(<schema>)` is the project root, `pages/` beside it
+  means file-system routing, the named file is the app config. `serve` and `build`
+  looked for a `pages/` directory in the current working directory and nowhere
+  else, so from any directory above the project they fell through to single-schema
+  mode and handed the app config to the renderer as if it were a page.
+  
+  Measured on the reported fixture (`<root>/app.json` + `<root>/pages/index.json`,
+  invoked from the directory above): `dev` reported the project and one route,
+  `serve` reported `Loading schema: <root>/app.json`, and `build` did the same and
+  **exited 0** — the emitted bundle embedded the app config as the page schema and
+  contained no page from `pages/` at all. A wrong artifact, produced silently.
+  
+  The detection now lives in one helper the three commands share
+  (`utils/project-source.ts`), resolving in a fixed order: a `pages/` directory
+  beside the schema argument, else one under the current directory, else
+  single-schema mode. `serve` and `build` also pass the resolved app config to the
+  routed app generator, which they never did, so a routed project keeps its layout
+  under all three commands.
+  
+  A lone schema file with no `pages/` beside it is unchanged — that is the
+  fallback, and it is still a supported way to run.
+- 82fbc09: `objectui serve` gains `--no-open`, matching the flag `objectui dev` already ships, and no
+  longer prints a bare `Error: spawn xdg-open ENOENT` stack after its success banner in a
+  headless environment.
+  
+  **`--no-open`.** `serve` hardcoded Vite's `open: true` and its only options were
+  `--port`/`--host` — `dev` already had `--no-open` (`options.open !== false`), so the same
+  invocation behaved inconsistently across the two commands. `serve` now threads the same
+  flag the same way; the default is unchanged — with the flag omitted, `serve` still opens a
+  browser exactly as it always has (objectui#4924).
+  
+  **The headless spawn failure.** Vite's own browser-open step already catches a failed
+  `open(url)`, but reports it via `logger.error(err.stack || err.message)` with no
+  `{ timestamp: true }`, so the default logger prints the bare Node `ChildProcess` stack with
+  no `[vite]` prefix and no context — and because that promise chain is fire-and-forget from
+  `server.listen()`, it lands *after* the "✓ Server started successfully!" banner, reading
+  like a crash even though the server is fine. There's nothing in `serve.ts` to try/catch —
+  the error never leaves Vite. `serve` now supplies a `customLogger` that wraps Vite's default
+  logger and replaces exactly that message with a short, contextual line naming the missing
+  opener binary (`(could not open the browser automatically — 'xdg-open' is not available in
+  this environment; open the URL above manually)`); every other log call — including
+  unrelated errors — passes through unchanged.
+  
+  Sibling card objectui#4923 (project-root detection on the same command) is intentionally
+  untouched here; it is a separate defect with a separate PR.
+- 4102bfc: Inside a pnpm workspace, `objectui dev` / `serve` / `build` now resolve every platform package
+  from workspace source (objectui#3890).
+  
+  The temp app these commands generate installs nothing inside a workspace — it resolves by
+  hoisting, and the repo root declares no `@object-ui/*` — so a Vite alias table is the only thing
+  that resolves a platform package there. That table was a hand-kept list of eleven names in
+  `dev`, which is not a list of what the app imports but of what it imports *transitively*:
+  measured on the reported commit, the generated entry closes over 21 packages, ten were unlisted,
+  and every module whose transform hit one of them answered 500 with a blank page behind it. Vite's
+  dependency scan named only four of the ten, because a scan stops at the first layer it cannot
+  resolve.
+  
+  The table is now derived from `pnpm-workspace.yaml` — every scoped workspace package that exposes
+  a source barrel, targeting its `src` directory — and a test reconciles it against the manifest so
+  it cannot drift again. `serve` and `build` had no workspace branch at all (no aliases, and an
+  unconditional `npm install` against a manifest that is empty here); all three commands now share
+  one helper. The `lucide-react` entry moved from a resolved entry file to the package root, so
+  subpath imports of it stop being rewritten into a path that cannot exist.
+  
+  Measured with the reported repro, from the repo root: 8 of the first 400 modules a browser walk
+  reaches answered 500 before, 0 of 2498 after, and the page renders its schema instead of nothing.
+- Updated dependencies [88085e3]
+- Updated dependencies [516663d]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [578e025]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [7458a41]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

@@ -1,5 +1,253 @@
 # @object-ui/plugin-calendar
 
+## 17.6.0
+
+### Patch Changes
+
+- 5edc0c5: `object-gantt` / `object-map` / `object-calendar` no longer drop a sort entry that omits `order`.
+  
+  The three blocks each inlined a byte-identical private copy of the `sort` →
+  `$orderby` conversion. That copy required BOTH `field` and `order` on an array
+  entry and silently skipped any entry missing one, so a stored view sorting by
+  `[{ field: 'amount' }]` reached the wire with no ordering at all — the authored
+  sort key was lost, not applied. The same copy already treated the STRING
+  spelling `"amount"` as ascending, so this was an inconsistency between two
+  spellings of one thing rather than deliberate strictness.
+  
+  All three now import the shared `convertSortToQueryParams` sink from
+  `@object-ui/core` (introduced by objectstack#7137, already used by
+  `object-timeline` and `record:line_items`), and the private copies are gone —
+  the sink is the repo's only definition. Two behavior changes come with it, both
+  of which make the blocks more faithful to what is already declared rather than
+  more tolerant:
+  
+  - An array entry that omits `order` now orders ASCENDING instead of vanishing.
+    That is what `QueryParams.$orderby`'s own member shape
+    (`{ field: string; order?: 'asc' | 'desc' }`) says, and what
+    `@object-ui/data-objectstack`'s `serializeOrderBy` already did with a missing
+    direction.
+  - When nothing orderable was authored, the query now carries no `$orderby` at
+    all instead of an empty object. `{}` is truthy and meant "no ordering" only by
+    accident of the adapter's serializer.
+  
+  Reachability, so the size of this is not overstated: `SortConfig.order` and
+  `ElementDataSourceSort.order` are REQUIRED in objectui's own types, so a typed
+  caller could never author the dropped shape. The affected surface is untyped
+  stored view metadata (`ElementSavedView` is a loose record by design) — which is
+  exactly where an order-less entry can arrive today.
+- 1cd46bd: Correct the published "works with the `api` data provider" claim for plugin-calendar,
+  which `ObjectCalendar` does not implement. `data.provider: 'api'` reaches
+  `console.warn('API provider not yet implemented for ObjectCalendar')`
+  (`ObjectCalendar.tsx:294-296`), sets the record set to empty and renders a calendar
+  with no events; `endpoint` and `method` have no read point anywhere in
+  `packages/plugin-calendar/src`, and the package never resolves an `ApiDataSource`.
+  
+  Four publication sites corrected:
+  
+  - `packages/plugin-calendar/src/ObjectCalendar.tsx:22` (file-header JSDoc): "Works
+    with object/api/value data providers" → "Works with object/value data providers".
+  - `content/docs/plugins/plugin-calendar.mdx:178` (Features list): "Works seamlessly
+    with object/api/value data providers" → "Works seamlessly with object/value data
+    providers".
+  - `content/docs/plugins/index.md:168` (Calendar Plugin section): "Works with
+    object/api/value providers" → "Works with object/value providers".
+  - `content/docs/plugins/plugin-calendar.mdx` "API Provider" section: the
+    copy-pasteable `provider: 'api'` + `endpoint` + `method` recipe is replaced by a
+    statement of the real behaviour, matching the merged plugin-map wording.
+  
+  The identical sentence published for **plugin-gantt** is left untouched: there
+  `provider: 'api'` is genuinely implemented (`ObjectGantt.tsx:442-445` resolves a real
+  `ApiDataSource` through `resolveDataSource`, and `:1155` / `:1495` route write-backs
+  through it), so the gantt claim is true and this is a shared sentence, not a shared
+  defect.
+  
+  Implementing the `api` provider for calendar is capability expansion and is explicitly
+  out of scope here, the same line objectui#5163 drew for plugin-map. No runtime
+  behaviour changes: a source comment and docs prose only.
+- e7c5a80: `plugin-calendar`'s README no longer documents imports the package does not export.
+  
+  Three defects in `packages/plugin-calendar/README.md`, all of which made a
+  copy-pasted snippet fail to compile. Checked by taking the package's real export
+  name set off `src/index.tsx` through the TypeScript compiler API and cross-checking
+  every import statement in the README against it — including multi-line import
+  blocks, which a single-line grep cannot see.
+  
+  1. **Fabricated (deleted).** A "Manual Registration" section taught
+     `import { calendarComponents } from '@object-ui/plugin-calendar'` followed by
+     `Object.entries(calendarComponents).forEach(register)`. There is no
+     `calendarComponents` export and never was — the identifier does not occur
+     anywhere in `src/`. Copying it gave `undefined`, and `Object.entries(undefined)`
+     throws a `TypeError`, so the section could not run at all. Registration in this
+     package is purely a side effect of importing the entry point, so there is no
+     components map to iterate. The fabricated section is replaced by what the
+     side-effect import actually claims (the three registered schema types and their
+     namespaced keys) and by the package's real export surface — `ObjectCalendar`,
+     `CalendarView`, `ObjectCalendarRenderer` plus the component prop types. Hosts
+     that want their own registry key are shown the honest way to get one:
+     registering the exported `ObjectCalendarRenderer` under it.
+  
+  2. **Wrong import path (path corrected).** `CalendarViewSchema` was imported from
+     `@object-ui/plugin-calendar`. The type is real but belongs to `@object-ui/types`;
+     this package imports it and does not re-export it, so the documented import was
+     a "no exported member" error. The path now points at `@object-ui/types`.
+  
+  3. **Name collision (import re-pointed).** Correcting (2) alone still left the
+     snippet uncompilable: the same example imported `CalendarEvent` from
+     `@object-ui/plugin-calendar`, which is a real export but a *different* type —
+     the `CalendarView` component's runtime shape (`id: string | number`,
+     `start: Date`), not the authored JSON shape (`id: string`, `start: string | Date`)
+     that `CalendarViewSchema.events` requires and that the README's own "Calendar
+     Event Structure" section documents. The example's ISO-string values therefore did
+     not typecheck, and the plugin's event type was not assignable to the schema's.
+     Both authored types now come from `@object-ui/types`, and the two same-named
+     types are documented side by side so the next reader does not re-pick the wrong one.
+  
+  No exports were added to make the README true — the docs were moved to the code,
+  not the reverse.
+- 2165d88: Rename four component-props types off the names `@objectstack/spec` starts owning in
+  17.0.0, keeping the old spellings as deprecated aliases. No behaviour changes and no
+  importer breaks.
+  
+  `@objectstack/spec/ui` exports `ObjectCalendarProps`, `ObjectFormProps`, `ObjectGridProps`
+  and `ObjectKanbanProps` from 17.0.0, where each is the AUTHORED props document of the
+  matching element — a serialisable authoring surface (`z.input< typeof
+  ObjectGridPropsSchema >`). The same-named interfaces here are the RENDERERS' props: a live
+  `dataSource`, records pre-fetched by a parent, and the host callbacks. Two different things
+  under one word, so the local ones are renamed rather than derived, following the split this
+  repo already made for `PageHeaderProps` -> `PageHeaderComponentProps` and the
+  `Record*ComponentProps` family in `@object-ui/types`:
+  
+  | package | new name | old name |
+  |---|---|---|
+  | `@object-ui/plugin-calendar` | `ObjectCalendarComponentProps` | `ObjectCalendarProps` |
+  | `@object-ui/plugin-form` | `ObjectFormComponentProps` | `ObjectFormProps` |
+  | `@object-ui/plugin-grid` | `ObjectGridComponentProps` | `ObjectGridProps` |
+  | `@object-ui/plugin-kanban` | `ObjectKanbanComponentProps` | `ObjectKanbanProps` |
+  
+  Every old name is still exported from its package barrel as a `@deprecated` alias denoting
+  the SAME type, pinned per package by `spec-symbol-4650.test.ts`, so existing imports keep
+  compiling. New code should use the `ComponentProps` spelling.
+  
+  `@object-ui/app-shell` carries no API change: its `SECRET_MASK` — the ADR-0100 credential
+  read mask, which 17.0.0 moves into `@objectstack/spec/data` — is renamed to
+  `OBJECTUI_SECRET_MASK` at its declaration in `views/metadata-admin/widgets.tsx`. That
+  constant is package-internal and is not re-exported from the barrel, so nothing published
+  changes; the rename exists so the local copy cannot be read as the spec's own definition
+  while this repo is still pinned below the release that exports it.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [7c297e3]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [7dd93c0]
+- Updated dependencies [229b17e]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/plugin-detail@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/mobile@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

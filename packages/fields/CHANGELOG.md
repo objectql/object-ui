@@ -1,5 +1,719 @@
 # @object-ui/fields
 
+## 17.6.0
+
+### Minor Changes
+
+- a09bc33: fix(fields): render the option colour an author declared as an explicit hex, instead of quantizing it to nine palette families (objectui#5141)
+  
+  `options[].color` accepts any hex, but the badge renderer answered a lossy
+  question with it: `hexToPaletteName` bucketed the value by hue into nine
+  families (`red`/`orange`/`yellow`/`green`/`blue`/`indigo`/`purple`/`pink`, plus
+  `gray` below 22% saturation), and `BADGE_COLOR_MAP` held exactly one class set
+  per family. Two tiers an author declared as distinct therefore rendered
+  byte-identical: `#2ecc71` ("in progress") and `#1e8449` ("completed") differ by
+  0.1 degree of hue, both landed in `green`, and both emitted
+  `bg-green-50 text-green-700 border-green-200`. Pressing the second colour darker
+  still changed nothing. End users could not tell the two states apart in a list.
+  
+  `plugin-gantt` had already settled this class of conflict the other way —
+  *explicit colorField value (hex or semantic name) — metadata wins* — and
+  Studio's own option editor paints the author's swatch straight from the raw hex.
+  Badges were the odd surface out.
+  
+  Now an explicitly declared hex is rendered as declared: the soft-pill surface,
+  label and border are derived from that hex rather than snapped to a family, for
+  both `appearance: 'badge'` and `appearance: 'dot'`.
+  
+  Two properties the family maps gave us for free are kept deliberately:
+  
+  - **The design system keeps control of theming.** The derived colours are
+    published as CSS custom properties and consumed by *static* Tailwind
+    utilities, so light and dark remain ordinary `dark:` variants
+    (`.dark\:bg-...:where(.dark, .dark *)` in the built sheet) rather than a
+    hard-coded inline background that would render identically in dark mode.
+    Tailwind cannot generate a class for a runtime value, so the custom property —
+    not the colour — has to be the dynamic part.
+  - **Contrast is pinned, not just colour identity.** The label is the lightness
+    along the declared hue nearest the declared one that still clears WCAG AA
+    (4.5:1) against the surface actually rendered. Authors can and do declare
+    colours that are unreadable under a label; honoring the declaration must not
+    turn legibility loose across every list view. Dots are held to 1.9:1 against
+    the row, the measured floor of the `-500` shades shipped today.
+  
+  **What changes for an author relying on the current look:** every select/status
+  badge whose option colour is declared as a hex — which the renderer's own notes
+  describe as almost all of them — will render in that declared colour rather than
+  its palette family's fixed pill. Colours near a family's canonical shade look
+  much as before; a colour the author picked deliberately *away* from it (a deep
+  green, a muted red) now looks like what was written, and the pill's depth tracks
+  the declared lightness. Declarations that are not an explicit hex are untouched:
+  family names, the semantic value map and the deterministic hash fallback all
+  resolve exactly as they did, and `getSemanticColorName` still returns family
+  names, so the Gantt path is unaffected.
+  
+  The badge classes exported by `getBadgeColorClasses` are unchanged, so callers
+  that consume only a class string (the grid's compact card view and group-header
+  pills, Kanban) keep today's quantized rendering until they adopt the new
+  `getBadgeHexAppearance` / `getDotHexAppearance` helpers.
+- 167ec42: `ComponentMeta.labelling` grows a third value: `'control' | 'group' | 'display'`
+  (objectui#4857, ruled jointly with objectui#4871 as the single repo-wide vocabulary for
+  "how does a host learn what a widget will render"). `'display'` declares a widget whose
+  whole surface is a pure display in EVERY state — no focusable control, nothing a
+  `<label for>` could ever reach.
+  
+  The form renderer answers the declaration with the objectui#4788 host container (field
+  id + `aria-labelledby` + `aria-describedby` + `role="group"`) in the editable state too;
+  the `readonly === true` arm keeps its exact #4788 semantics for undeclared widgets. The
+  display-only four (`formula` / `summary` / `auto_number` / `vector`) declare `'display'`
+  — on the real object-form path they arrive `disabled`, never `readonly` (a deliberate
+  distinction this change does not touch), so their visible labels pointed `for` at an id
+  no element carried and their help text had zero consumers in every editable form.
+  
+  `grid` was re-measured before being classified: its only bare-config focusable is the
+  auxiliary "Add line" button (routing `for` there would have label clicks insert rows),
+  and every realistic config is a table of per-cell inputs — a composite. It declares
+  `labelling: 'group'` and its root container now consumes the host id, name and
+  description, exactly like `address` / `checkboxes`.
+  
+  Companion registry gate: `FIELD_WIDGET_LABELLING` (exported) is a `Record` keyed by the
+  field-widget map's own literal key union, so registering a widget without deciding its
+  labelling is a compile error rather than a silent fall-through to the dangling-`for`
+  path, and the declaration test asserts the registered meta agrees with it key by key.
+
+### Patch Changes
+
+- 69251bf: `AddressField` is translatable, shows no US example placeholders, and formats its readonly line in the reader's address order.
+  
+  The five sub-labels ("Street Address", "City", "State / Province", "ZIP /
+  Postal Code", "Country") were English string literals with no i18n key. On a
+  non-English console every address field showed five English words in the middle
+  of an otherwise fully translated form, and an app had no way to reach them: the
+  parts are not fields on the object (`billing_address` is a single `address`
+  column), so a translation bundle had nothing to key on, there is no `subLabels`
+  property to declare, and the widget cannot be replaced from metadata. They now
+  resolve through `fields.address.street` / `.city` / `.state` / `.postalCode` /
+  `.country`, added to all ten locale packs. The `en` values are byte-identical to
+  the literals they replace, and `FIELD_DEFAULTS` carries the same five, so
+  English and provider-less rendering are unchanged.
+  
+  The five input placeholders (`123 Main St`, `San Francisco`, `CA`, `94102`,
+  `United States`) are **removed** rather than keyed. They were untranslated and
+  US-specific — a zh/ja/ar user was shown an American address as the example of
+  what to type — and the right example is a function of the address's country,
+  not the reader's language, which no channel in the stored value can supply
+  today. Each box keeps the visible label that names it.
+  
+  The readonly line's part order now follows the reader's display locale
+  (`useDisplayLocale()`): `zh`, `ja` and `ko` read largest-first (`Country, ZIP
+  State, City, Street`), every other locale keeps the unchanged small-to-large
+  order (`Street, City, State ZIP, Country`). The display cell renderer takes the
+  same locale through the same shared `formatAddress`, so a stored address reads
+  identically in a readonly form and in a grid cell.
+- 0ae27f7: The form renderer's built-in `textarea` branch now honours a declared character cap the same way the registered `field:textarea` widget does.
+  
+  One `maxLength` declaration produced two experiences. The registered path has
+  shipped four things since objectui#3406/#3408/#3417 — the native cap, visible
+  `{n}/{max}` digits, a description reached through `aria-describedby` so the
+  limit is announced on focus, and a threshold-gated debounced near-limit notice.
+  The built-in branch — the path standalone and embedded hosts take, the ones that
+  call no `registerAllFields()` — shipped a subset of one of them.
+  
+  The accessibility half is the half that mattered: a screen-reader user on this
+  path learned the field's limit only as a validation error AFTER submitting. All
+  four affordances now render on both of the branch's surfaces (the inline control
+  and the fullscreen dialog), from the SAME `CharacterCount` component the widget
+  renders rather than a second copy of it.
+  
+  Also fixed, and wider than the visible gap: the branch never READ the cap, it
+  only spread its leftover field props onto the element. A camelCase `maxLength`
+  therefore worked by coincidence — it names a real DOM attribute — while the
+  legacy `max_length` spelling, which the registered widget and all three
+  producers of a form field have dual-read since framework#1878 §3, landed as a
+  stray inert `max_length="…"` attribute and capped nothing at all. The branch now
+  resolves both spellings and keeps the non-attribute spelling off the DOM.
+  
+  `CharacterCount` moved from `@object-ui/fields` to `@object-ui/components`, the
+  package both render paths may import, in the direction and for the reason
+  objectui#3398 measured for `FullscreenEditor`. It was internal to `fields` (never
+  exported from that package's barrel), so no published export changed; it is a
+  new export of `@object-ui/components`. Its copy moved with it onto the same
+  `fields.textarea.*` keys with byte-identical English defaults, so the ten locale
+  packs need no edit and provider-less rendering is unchanged.
+- bbe8b86: The allow-list of option widgets that are fed the live record is now one exported constant, `CASCADE_OPTION_WIDGET_TYPES`, instead of three private copies.
+  
+  `select` / `multiselect` / `radio` / `checkboxes` are the widgets whose OFFERED
+  option set is re-resolved against a record (per-option `visibleWhen`, plus the
+  `dependsOn` gate), so they are the widgets a surface must thread its live record
+  to. Three surfaces feed that one evaluator — the object form, the single-record
+  action dialog and the bulk action dialog — and until now each carried its own
+  private `new Set([...])` of the same four keys, with a comment in each asking the
+  next person to change all three together. Nothing could have reported them
+  drifting: every copy passed its own behavioural tests, and a divergence would
+  have shown up only as one surface silently disagreeing with another about what
+  "the record" is.
+  
+  The set now lives in `@object-ui/core`, next to `resolveCascadingOptions` — the
+  evaluator that reads that record — because core is the one package all three
+  surfaces already depend on, and it is re-exported from `@object-ui/fields` next
+  to `resolveFormWidgetType`, whose output is the vocabulary the keys are written
+  in. Both are the same object, pinned by test; each consumer keeps its own
+  normalization (`normalizeFieldType` in the form, `resolveFormWidgetType` in the
+  dialogs), which agree on these four members.
+  
+  No behaviour changes: the members are identical on all three surfaces, and the
+  existing pins for each surface still assert the same records reaching the same
+  widgets. The rationale that was repeated in the three copies — including the
+  note that the widget-hint picker family (`filter-condition`, `recipient-picker`,
+  the lookup family) reads a different sibling key off the same channel and is
+  deliberately NOT in this set — is now stated once, in the constant's own
+  documentation. Whether the action and bulk dialogs should ever feed those
+  pickers stays an open question (objectui#4771), unchanged by this convergence.
+- 65e88e6: `@object-ui/fields` stops publishing its `src/` tree
+  
+  The manifest's `files` array listed `src` alongside `dist`, so every published tarball carried all 173 source files — 97 of them `*.test.tsx` / `*.test.ts`. It has been that way since the file's first commit (`780a1b993`), where `files` was already `["dist", "src", "README.md"]` while `exports` named only `dist`, so the entry was never added for a consumer. objectui#4006 recorded this exact shape and did not act on it: its scope was the `*.test.d.ts` half the build program emitted into `dist`, and it noted in passing that the test sources were already in the tarball by this other route.
+  
+  Nothing in the published surface reached those files, which is why no consumer changes in either direction. Measured on a cleanly rebuilt `dist`, all four ways in are closed: the `exports` map has two entries and both target `dist` (`.` resolves `types` / `import` / `require` to `./dist/index.d.ts` / `./dist/index.js` / `./dist/index.cjs`, and `./style.css` to `./dist/index.css`); `main` / `module` / `types` are `./dist/index.cjs`, `./dist/index.js`, `./dist/index.d.ts`; no deep import into this package exists anywhere in the repo or the docs — the one that used to, `@object-ui/fields/widgets/MarkdownContent`, was ruled out by objectui#4325 precisely because a package's surface is its index, and the `../fields/src` paths in sibling `vite.config.ts` files are workspace aliases resolved through `resolve()` against the source tree, which no `files` array shapes; and the tarball holds no sourcemap that could point back at `src`. That last one is the check that had to be measured rather than assumed, because this package emits its declarations through `vite-plugin-dts` rather than the `tsup` of objectui#4847 or the bare `tsc` of `@object-ui/types`: a clean rebuild writes 78 files into `dist`, of which zero are `.d.ts.map`, zero are `.js.map`, zero contain a `sourceMappingURL` comment and zero mention `../src`. `src/index.css` is an input to `scripts/build-css.mjs`, not an output anyone resolves; the sheet the `./style.css` export names is the built `dist/index.css`, which still ships.
+  
+  `npm pack --dry-run` across the change, on the same `dist`:
+  
+  | | before | after |
+  | --- | --- | --- |
+  | entries | 255 | 82 |
+  | unpacked | 2265557 B | 841772 B |
+  | tarball | 629843 B | 252364 B |
+  
+  173 files leave, none arrives, nothing outside `src/` moves, and every surviving entry is byte-identical apart from the edited `package.json` itself. The 173 are the 97 tests plus 76 implementation modules, whose published form remains the bundled `dist/index.js` / `dist/index.cjs` and the 75 declaration files beside them.
+  
+  `@object-ui/types` keeps its `src` entry for now, and that is a different judgement rather than an omission: it builds with a bare `tsc` under a `declarationMap` / `sourceMap` config with no `inlineSources`, so its shipped `dist/*.d.ts.map` name `../src/*.ts` with no embedded content and dropping `src` there would leave published maps pointing at files the tarball no longer carries. That trade-off is filed as objectui#4851.
+- 37f6844: FilterConditionField can author the spec's `$icontains` — case-insensitive contains is reachable from the filter UI.
+  
+  `@objectstack/spec`'s `FieldOperatorsSchema` gained `$icontains` between
+  `17.0.0-rc.2` and `rc.5`, and every driver and evaluation face the platform
+  ships now executes it. `FilterConditionField` had no builder operator that could
+  author it, so the capability was unreachable from the sharing-rule criteria
+  builder and sat in that widget's parity test as an explicit `KNOWN_UNREACHABLE`
+  entry.
+  
+  The FilterBuilder gains a `containsCaseInsensitive` operator ("Contains (ignore
+  case)", translated in all ten locale packs). `condToMongo` emits
+  `{ field: { $icontains: value } }` and `kvToCondition` reads it back, so a saved
+  criteria reopens in the visual builder instead of falling into the raw-JSON
+  editor. Today's `contains` is unchanged and still emits the case-SENSITIVE
+  `$contains`; whether it should have been case-insensitive all along is a product
+  question that stays open, and stored filter views keep meaning what they meant.
+  
+  The fold is ASCII-only by contract — `café` does not match `CAFÉ`.
+  
+  The new operator is **opt-in per consumer**: `FilterBuilder` takes an
+  `extraOperators` prop, and only `FilterConditionField` passes it. The one
+  dropdown feeds three at-rest dialects and only the MongoDB-style criteria this
+  widget writes can carry the operator — the spec's `VIEW_FILTER_OPERATORS` (saved
+  views) and `VALID_AST_OPERATORS` (the live grid's filter AST) have no
+  case-insensitive contains, so offering it there would author a filter those
+  paths cannot execute. Every other FilterBuilder is unchanged.
+- 911ceaa: The fullscreen long-text dialog announces the field's validation state and carries the field's name
+  
+  objectui#4824, objectui#4832.
+  
+  `mobile.fullscreenLongText` is a shipped opt-in, and with it on the phone user
+  edits long text in this dialog and nowhere else. Measured on all three surfaces
+  that render the dialog — `TextAreaField`, `RichTextField`, and the form
+  renderer's built-in `textarea` branch — with the field genuinely invalid at that
+  moment:
+  
+  ```
+  INLINE  richtext  aria-invalid= true
+  DIALOG  richtext  aria-invalid= false   aria-describedby= null
+  INLINE  textarea  aria-invalid= true
+  DIALOG  textarea  aria-invalid= null    aria-describedby= null
+  ```
+  
+  and the accessible name of every dialog control empty, against `F` on every
+  inline one. The rich-text row is the sharp half: the dialog was not silent about
+  the failure, it was announcing the OPPOSITE of the inline control for the same
+  field at the same moment, because `RichTextEditorSurface` computed
+  `aria-invalid={!!error}` from an `error` prop the dialog rendering never
+  received. 3 surfaces, 3 broken, one cause: the dialog's control is built from
+  scratch by the host, so none of the wiring the inline control gets from the form
+  renderer reaches it.
+  
+  **Answered once, in the primitive.** `FullscreenEditor` now takes the field's
+  `error` and owns what the dialog does with it: it renders the message in a
+  dialog-local node, and hands `children` a required fourth argument — a
+  spreadable set of DOM attributes — carrying `aria-labelledby` (the dialog
+  title's text, i.e. the field label #3393 already put there), `aria-invalid`, and
+  `aria-errormessage` naming that node. The host spreads it; the host never learns
+  an id, so it cannot name the wrong node, cannot compose the attributes subtly
+  wrong, and cannot compute its own `aria-invalid` from a prop it forgot to plumb.
+  Three hosts hand-answering this is the shape that produced three identical
+  holes.
+  
+  **On objectui#3222's "the text belongs to `FormMessage`".** The maintainer's
+  ruling of 2026-08-16 restates that rule as what it was always protecting —
+  only one copy of the error text is in the accessibility tree at any moment —
+  which the dialog-local node satisfies: it exists only while the dialog is open,
+  and for exactly that window Radix `aria-hidden`s everything outside the modal,
+  `FormMessage` included. The shortcut of pointing the dialog control's
+  `aria-describedby` / `aria-errormessage` at the host's `FormMessage` id is
+  forbidden rather than merely unused: it resolves to a node that is `aria-hidden`
+  for the whole time the reference is live (an ARIA MUST violation), and neither
+  happy-dom nor jsdom can see the difference — which is why every new pin asserts
+  that the named node is inside THIS dialog, not merely that it exists.
+  
+  `aria-errormessage` carries a single IDREF and is emitted only alongside
+  `aria-invalid="true"`. It is deliberately not folded into the host's
+  `aria-describedby` chain, which on the textarea surface already carries the
+  fullscreen character counter's sentence.
+  
+  **The name reuses the visible title rather than minting a second author for it**
+  (#3978): `aria-labelledby` points at a span inside `DialogTitle`, not at
+  `DialogTitle` itself — Radix renders the title as `h2` with the id its own
+  `DialogContent` `aria-labelledby` names, so putting an id on it would buy the
+  control a name at the cost of the dialog's.
+  
+  **Breaking (shipped as `minor`, see below), `@object-ui/components` only.**
+  `FullscreenEditorProps.error` is REQUIRED, not optional, and
+  `FullscreenEditorProps['children']` takes a fourth argument.
+  
+  FROM → TO for an out-of-repo host:
+  
+  ```
+  <FullscreenEditor value={v} onCommit={c} label={l} testIdPrefix="x">
+    {(draft, setDraft, disabled) => <textarea … />}
+  </FullscreenEditor>
+  
+  <FullscreenEditor value={v} onCommit={c} label={l} testIdPrefix="x" error={err}>
+    {(draft, setDraft, disabled, aria) => <textarea {...aria} … />}
+  </FullscreenEditor>
+  ```
+  
+  A render prop may still declare fewer parameters, so only `error` fails to
+  compile — which is the point of making it required. Every consumer already has
+  the value at hand (registered widgets take `error` off the widget props
+  contract, objectui#3222; the built-in branch reads `fieldState.error?.message`),
+  and an omitted `error` reproduces this defect exactly: a dialog announcing
+  `aria-invalid="false"` for a field its own form has already failed. An optional
+  key was forgotten by three surfaces in a row; a required one cannot be.
+  
+  `@object-ui/fields` is `patch`: `FullscreenFieldEditor` is internal to that
+  package (not re-exported from its entry), so nothing in its public surface
+  changes — only the behaviour of the two long-text widgets' dialogs.
+  
+  `minor` rather than `major` follows the repo's standing retirement precedent
+  (AGENTS.md §版本号策略, enforced by `scripts/check-changeset-no-major.mjs`): all
+  publishable packages sit in one `fixed` group, so a `major` here would carry the
+  whole family up against an `@objectstack` that has not moved.
+- 0bffb18: A readonly group-labelled field is now DESCRIBED by its own help text, not just named by its label.
+  
+  The seven `labelling: 'group'` widgets (`address`, `geolocation`, `checkboxes`, `radio`, `rating`, `file`, `multiselect`) render a `<FormDescription>` in their readonly and zero-option states, and the form renderer publishes its `id` — but nothing in the document referenced that id, so the visible help text had no programmatic association with the field it describes. Measured before the change, one field per row: `consumers=0` on every readonly surface of all seven, against `consumers=1` on the same widget's editable one.
+  
+  `toHostGroupProps` now carries `aria-describedby` alongside the host `id` and `aria-labelledby`, onto the `role="group"` surface those states already render (a group is a description carrier under ARIA 1.2 — no focusable control required, which is why this became possible only once objectui#3990 gave those surfaces a role).
+  
+  Control-channel state deliberately does NOT come along: `aria-invalid` and `aria-required` report what a user's editing may do wrong, and a readonly display cannot be edited. The boundary is pinned from both sides, including with a live failed validation on a readonly required field. Editable surfaces are unchanged — a composite's editable container still leaves the description on the sub-input the user focuses, so the help text is never announced twice.
+- 800f455: fix(fields): grid columns are keyed by the declared `name`, so spec-compliant grid metadata renders populated cells
+  
+  `GridField` declared its own column interface keyed by `field` and read
+  `c.field` at every site (`key=`, `row[…]`, the blank row, cell writes, the
+  column chooser, the running-total lookup), while the published
+  `GridColumnDefinition` in `@object-ui/types` — and the grid documentation, and
+  the `fields-grid` catalog examples — declare the key as `name`. Metadata
+  authored against the published type therefore rendered a grid with the correct
+  row count and every cell empty, plus a React "unique key" warning per column.
+  
+  The renderer now reads the declared `name`, and the master-detail derivation
+  (`deriveColumns` / `hydrateColumns` / `pickAmountField`) produces and consumes
+  the same key. There is deliberately **no** `col.field ?? col.name` alias: one
+  spelling at the producer (AGENTS.md #0.1).
+  
+  **Breaking for `field`-keyed columns.** Grid / line-item / master-detail
+  subform columns spelled `{ field: 'amount' }` must be re-spelled
+  `{ name: 'amount' }`. This affects author-supplied `columns` on the `grid`
+  field, `record:line_items`, `object-master-detail-form` details and a
+  relationship field's `inlineColumns`. Auto-derived columns (no explicit
+  `columns` block) need no change. List-view and `object-grid` columns are a
+  different contract (`ListColumn`) and keep their own `field` key.
+- 5458414: Publish relative import specifiers with explicit `.js` extensions so these six packages load under plain Node ESM.
+  
+  Node's ESM resolver does not extension-search relative specifiers and `tsc` never rewrites them, so an extensionless `./Foo` in the source shipped as an extensionless `./Foo` in `dist` and importing the package entry outside a bundler failed with `ERR_MODULE_NOT_FOUND`. Bundled consumers were unaffected. Unbundled consumers — plain Node ESM, an SSR host importing the package directly, anyone running the published tarball without a build step — can now import these entries, and so can the downstream `@object-ui/plugin-*` packages that evaluate through `mobile`, `permissions` and `providers`.
+- 3241559: `object-kanban` now caps its fetch with a real top-level `$top`, and honours `limit`.
+  
+  The board's row cap was written `dataSource.find(objectName, { options: { $top: 100 }, $filter: … })`
+  — `$filter` at the top level, where the adapters read it, and the cap one level
+  down under `options`, which is not a `QueryParams` key. Nothing in this repo
+  reads `params.options` (`convertQueryParams` in `@object-ui/data-objectstack` and
+  `ApiDataSource` both read `params.$top`), so the intended cap never reached the
+  wire: a board over a large object fetched every row the server would return and
+  grouped all of it into lanes client-side. The author's 100 was never live.
+  
+  The cap is now `$top: schema.limit ?? 100`, the shape `object-timeline` took for
+  the identical defect. Two consequences worth reading before upgrading:
+  
+  - **A board that used to fetch unbounded now fetches 100 rows by default.** That
+    is the previously-declared intent taking effect, not a new limit — but a board
+    over an object with more than 100 matching records will show fewer cards than
+    it did. Authors who want the old behaviour should declare the window they
+    actually want (`limit: 500`), not rely on the absence of one.
+  - **`limit` is now mapped from the `dataSource` binding** (`object-kanban`'s
+    `ElementDataSourceMapping` gains `limit: 'limit'`). A board bound to a saved
+    view is capped by that view's `pagination.pageSize`, and the binding's own
+    `limit` overrides it. The flag comes with the read site: it stayed unmapped
+    until now on the rationale that the board had a "fixed window", which is the
+    claim this change falsifies. `sort` remains unmapped — the board still has no
+    `$orderby` read site — and `columns` remains unmapped because a board's columns
+    are its swimlanes, not a field projection.
+  
+  `KanbanSchema` gains `limit?: number` (the board's row cap; distinct from a
+  column's `limit`, which is that lane's WIP limit and never reaches the query),
+  and the guide's per-block table in `content/docs/guide/data-source.md` no longer
+  claims a fixed window for `object-kanban`.
+  
+  `@object-ui/fields` carried the same nesting in the lookup-name fallback
+  (`find(referenceTo, { $filter: { id }, options: { $top: 1 } })`) where it was
+  harmless — a primary-key equality returns at most one row with or without a cap.
+  It is spelled `$top: 1` now, so no live instance of the dead nesting is left in
+  the repo to read as precedent. No behaviour change there.
+- 616a2a5: The list filter builder no longer offers `Is set` / `Is not set`, which its query dialects cannot express.
+  
+  **User-visible before/after.** The operator dropdown in the list toolbar's
+  filter popover — and in the Studio view/tab/page filter inspectors, the dataset
+  inspector and the generic `filter` config field — loses two rows: **"Is set"**
+  and **"Is not set"**. The sharing-rule criteria builder (`FilterConditionField`)
+  keeps both, unchanged. `Is null` / `Is not null` and `Is empty` / `Is not empty`
+  are untouched everywhere and remain the way to filter on a missing value from
+  the list.
+  
+  Nothing that worked stops working. Every save path behind those two rows was
+  already broken, in three different ways depending on the surface:
+  
+  - **Live grid** — `ListView.mapOperator` had no row for either id, so its
+    `default:` arm returned the id verbatim and the query went out as
+    `['name', 'exists', 'x']`. `exists` is not a member of the spec's
+    `VALID_AST_OPERATORS`, so `isFilterAST()` rejects the shape: an unfiltered
+    read or a 400, never the filter the user asked for.
+  - **Save as view** — `foldFilterGroupToSpecRules` normalizes through the spec's
+    `normalizeFilterOperator`, which does not know the pair, and
+    `ViewFilterRuleSchema`'s enum then refuses the rule.
+  - **Dataset inspector** — `groupToCondition` has no row either and drops the
+    condition silently, so the filter simply never applied.
+  
+  **Why withheld rather than mapped.** Measured on `@objectstack/spec`
+  17.0.0-rc.6: neither `VIEW_FILTER_OPERATORS` nor `VALID_AST_OPERATORS` contains
+  an existence operator, under any spelling — both sets have zero members matching
+  `/exist/`. Only the MongoDB-style `FieldOperatorsSchema` criteria carries
+  `$exists`, and that is precisely the dialect `FilterConditionField` writes, so
+  the pair moves behind the existing `OPT_IN_OPERATORS` gate and that widget opts
+  in. Collapsing them onto `isNotNull` / `isNull` was rejected: the builder
+  already draws those as their own rows, the round trip is lossy (a saved
+  `exists` reads back as `isNotNull`), and the spec's own note records `$exists` =
+  has-value as still unsettled across drivers — `driver-memory`'s live mingo path
+  and `driver-mongodb` read key-presence.
+  
+  **The class is now closed by an assertion, not by discipline.** objectui's three
+  existing operator-parity guards all sweep spec vocabulary → objectui; none asked
+  whether an id the dropdown draws is an id the consumer can persist, which is the
+  direction that broke. `plugin-list`'s new
+  `list-offered-operator-expressible-parity.test.ts` forces the set the list
+  toolbar offers to **equal** the set its two dialects can express, in both
+  directions — so an unexpressible operator cannot be offered, and an operator
+  that becomes expressible upstream cannot stay needlessly withheld.
+- 6c68b13: Lookup "recently used" now obeys the field's declared filters. The recents rail
+  re-fetched its rows without merging either `lookupFilters` or the `dependsOn`
+  cascade, so a record the author's metadata excludes stayed visible and
+  selectable — pick a product under project A, switch the form to project B, and
+  project A's product was still offered. Both re-fetch channels are fixed: the
+  inline dropdown (which re-read each remembered id with an unfiltered `findOne`)
+  and the search-first picker (which batched recents into an unfiltered `$in`
+  query). The currently-selected value still resolves unfiltered, so an existing
+  value keeps its label and a selection tray is never silently emptied.
+- 5607092: objectui#4029 — the repo root now lints `no-console` (`error`, allowing
+  `warn`/`error`) so a stray module- or function-scope `console.log`/`info`/
+  `debug` fails CI instead of shipping silently (as `console.log('Registering
+  object-map...')` did in #7139, caught only by hand). Landing the rule meant
+  individually judging every real hit outside the tooling exemptions
+  (`scripts/**`, `**/examples/**`, test files, `packages/cli/src/**`,
+  `packages/create-plugin/src/**`) — this changeset covers the published
+  packages whose call sites changed:
+  
+  - `@object-ui/app-shell`: `ObjectDataPage`'s dropped-URL-filter message is a
+    real diagnostic (data silently discarded), so it moves from `console.debug`
+    to `console.warn` to match the house convention.
+  - `@object-ui/plugin-detail`: `DetailView`'s Web Share API failure now reports
+    via `console.error` (it is a real failure, not debug noise); a redundant
+    "Link copied to clipboard" success log is removed.
+  - `@object-ui/fields`: `MasterDetailField`'s `handleView` stub no longer logs
+    the item it does nothing with.
+  - `@object-ui/runner`: `App`'s loader-selection debug prints, `LayoutRenderer`'s
+    unused click-handler stub log, and `MockDataSource`'s per-call narration
+    (`find`/`create`/`getObjectSchema`) are removed — none diagnosed a problem,
+    they only echoed the happy path.
+  - `object-ui` (VS Code extension): the "extension is now active!" activation
+    log is removed.
+  
+  No behavior changes beyond console output. `@object-ui/core` and
+  `@object-ui/data-objectstack` also touch `no-console`-adjacent lines
+  (`debugLog`/`debugTime`/`debugTimeEnd`, `createQuietHttpLogger`) but only to
+  add `eslint-disable-next-line` documentation — those ARE the repo's
+  deliberate debug/logger infrastructure, not leaked residue, so their own
+  changeset carries empty frontmatter.
+- e7747f1: fix(fields): retire the `owner` field-type alias with a loud tombstone
+  
+  `owner` was a synonym for `user` with zero behavioral delta — both resolved to
+  the same `UserField` widget — and it is not a member of `@objectstack/spec`'s
+  closed `FieldType`, so no object schema could ever declare it. It was reachable
+  only through hand-written SDUI, and the three code faces that read it had
+  already drifted apart on the word: the form's data-source rule excluded it,
+  while plugin-grid's bulk-action dialog and app-shell's `paramToField` included
+  it.
+  
+  The retired spelling now fails **loudly**. Deleting the alias on its own would
+  have been absorbed by two silent tails (`mapFieldTypeToFormType`'s
+  `|| 'field:text'` and `resolveFormWidgetType`'s `: 'text'`), each handing back a
+  working plain text input with no check turning red — so anyone who had written
+  `type: 'owner'`, including an AI author copying it out of a doc, would have
+  shipped a text box believing they shipped a person picker. Instead:
+  
+  - `type: 'owner'` and `widget: 'field:owner'` both resolve to a registered
+    tombstone widget that renders a visible refusal naming the migration;
+  - the same prescription is written to the console once per spelling;
+  - the read/cell path degrades to the text cell deliberately and says so.
+  
+  Migration: write the record-owner field as `{ type: 'user', name: 'owner' }` —
+  the field NAME carries the ownership meaning, the type carries the widget.
+  `UserField` and `UserCellRenderer` are unchanged; only the synonym is gone.
+  
+  Also corrects the `dataSource` TSDoc in `@object-ui/fields`, which listed `grid`
+  among the widgets the form renderer wires a DataSource to. `GridField` never
+  read `dataSource` and no data-source table ever contained the key.
+- ac2f332: Retired field-type spellings can no longer reach an inline editor by delegation — the grid's inline cell editor stops offering a working person picker for `owner`.
+  
+  objectui#4814 retired the `owner` field type with a loud tombstone, and the
+  record form has answered `type: 'owner'` with a visible refusal ever since.
+  `FieldEditWidget` did not participate, and the reason it was missed is that no
+  routing table had to list the spelling for it to stay alive:
+  `hasFieldEditWidget` answers `resolveInlineEditType(type) in EDIT_WIDGETS`, and
+  `resolveInlineEditType` returns a type **unchanged** when it is already a key of
+  `EDIT_WIDGETS`. So while `owner: UserField` sat in that map, the alias table —
+  where the retirement lives — was never consulted, and the retirement never
+  applied. Measured: `hasFieldEditWidget('owner') === true`, and a direct
+  `FieldEditWidget` call rendered a working person picker. Every host built on
+  this seam, the data grid's inline cell editor being the user-facing one, still
+  let a person be picked and saved for a field the record form refuses.
+  
+  The gate now consults the retirement table itself, so this closes the **class**
+  rather than the spelling — the next retirement covers this seam the day it lands
+  in `RETIRED_FIELD_TYPES`, with no edit here:
+  
+  - `hasFieldEditWidget()` answers `false` for any retired spelling, ahead of
+    every table lookup (so it holds even if a retired spelling is still a key of
+    the widget map);
+  - `isInlineExcludedFieldType()` answers `true` for any retired spelling, which
+    is what routes a host to its read-only path;
+  - `FieldEditWidget` itself renders no control for a retired spelling and writes
+    the once-per-spelling console prescription naming the migration;
+  - `owner` is dropped from `EDIT_WIDGETS` and from the cosmetic
+    `COMPACT_EDIT_TYPES` sizing set.
+  
+  The second bullet is load-bearing and not cosmetic. `ObjectGrid` marks a column
+  `editable: false` exactly when `isFieldInlineEditable` is false, and that
+  predicate consults `isInlineExcludedFieldType`. Without it, closing the first
+  gate alone would have left the column editable, handed the cell editor a `null`
+  widget, and let DataTable fall back to its built-in **plain text input** — which
+  for a stored person reference displays a coerced value and writes a bare string
+  straight back over it. Measured before/after on the grid consumer: a stored
+  `owner` field went from an editable cell rendering the person picker to a
+  read-only cell (`isFieldInlineEditable('owner')` `true` → `false`), which is the
+  same disposition `password`, `formula` and `composite` already get, for the same
+  reason. The read path is unchanged from #4814: the text cell plus the console
+  prescription.
+  
+  `user` is untouched — it keeps the person picker, its compact sizing and its
+  expanded-object value resolution. The record-owner idiom survives verbatim as
+  `{ type: 'user', name: 'owner' }`: the field NAME carries the ownership meaning,
+  the type carries the widget.
+- a777058: Editable `markdown` / `html` / `richtext` fields now carry the host's `id` and `aria-describedby` on the editor.
+  
+  `RichTextField` — the one widget all three registry keys resolve to — read only
+  `className` and `disabled` off its props and had no `toDomProps` anywhere in the
+  file, so everything `<FormControl>`'s Radix `Slot` hands a field widget landed on
+  no element at all. Measured on a real form with a field carrying a description:
+  
+  ```
+  markdown  editable  descEl=SET  consumers=0  hostIdEl=NONE  for=DANGLING
+  text      editable  descEl=SET  consumers=1  hostIdEl=input     for=RESOLVES
+  textarea  editable  descEl=SET  consumers=1  hostIdEl=textarea  for=RESOLVES
+  ```
+  
+  Two user-visible consequences: the form's visible label pointed at an id nothing
+  carried, so clicking it did not reach the editor and the control had no
+  accessible name; and the `<FormDescription>` the form rendered below the field
+  had zero consumers, so a screen reader never announced the help text or — on a
+  failed submit — the error message id that rides in the same `aria-describedby`.
+  
+  The fix is objectui#3318's standing recipe: `toDomProps(props)` spread onto the
+  REAL focusable control, which here is the `<Textarea>` inside the shared
+  `RichTextEditorSurface`. The pass-through is given to the inline surface only —
+  the fullscreen dialog's copy of the same surface must not carry a duplicate of
+  the host id, and the description ids it names sit outside the modal Radix
+  `aria-hidden`s. `aria-invalid` still comes from the widget's own `error` read,
+  kept after the spread so objectui#3318's PASS entry for this widget is unchanged.
+  
+  The readonly branch is untouched: the same reading there belongs to
+  objectui#4788, whose mechanism is still open.
+- 75444e3: The dependency-gate hint now enumerates its controlling fields with the locale's
+  own list separator, and reads identically whichever caller produced it.
+  
+  `lookup.selectFirst` and `fields.options.selectFirst` are deliberately one
+  wording, so a field gated on two or more parents says the same thing whether the
+  lookup widget or the form renderer rendered it. The sentence was shared but its
+  `{{fields}}` slot was not: each call site joined the controlling-field names
+  with its own hardcoded separator, and not even the same one — `', '` in
+  `LookupField`, `' / '` in the form renderer's `gatedHint` and in
+  `OptionsEmptyState`. A field gated on Account and Lead Source read
+  `Select Account, Lead Source first` from one side and
+  `Select Account / Lead Source first` from the other.
+  
+  A list separator is a property of the locale rather than of the code, so both
+  spellings were also wrong for the script under zh/ja (which enumerate with
+  U+3001) and under ar (U+060C). All three call sites now read
+  `validation.formInvalidJoiner` — the key already shipped in all ten packs for
+  the invalid-submit toast's field list, which is the same class of truncated-name
+  list. One key, every caller: a second, gate-specific key would have recreated
+  the divergence the shared sentence exists to prevent.
+  
+  No locale pack changes, and no change to what a provider-less render produces in
+  English: the `@object-ui/fields` defaults table declares the joiner as `', '`,
+  the `en` pack's value and the literal `LookupField` previously hardcoded.
+- dad51e5: fix(fields): deliver the host's a11y channels to `slider` and name `signature`
+  
+  `SliderField` and `SignatureField` forwarded nothing a form host handed them —
+  neither spread `toDomProps(props)` at all — so `<FormControl>`'s whole payload
+  landed on nothing. Measured on a real form, one required field per row, freshly
+  failed validation:
+  
+  ```
+  slider     ariaInvalidTrue=[]  labelFor=…-form-item -> DANGLING  descConsumers=0  ids=[]
+  signature  ariaInvalidTrue=[]  labelFor=…-form-item -> DANGLING  descConsumers=0  ids=[]
+  text       ariaInvalidTrue=[input]  labelFor -> input            descConsumers=1
+  ```
+  
+  `ids=[]` is the tell: no element in either row carried an id at all, so the
+  visible label pointed `for` at nothing, the rendered help text had zero
+  consumers, and a failed slider announced no error state.
+  
+  **`slider`** now delivers all three. Its focusable control is Radix's
+  `span[role="slider"]` thumb, which the synced `ui/slider.tsx` renders internally
+  and does not export, so the primitive grew a declared `thumbProps` — routed
+  through a new `lib/slider-thumb` and applied to the no-touch file as a declared
+  sync patch, so it survives regeneration. The split of which keys stay on Root
+  (`name`, `disabled`) is the one the `select` fix already settled.
+  
+  **`signature`** gets the name and the description on a `role="group"` container.
+  Its control state deliberately does not follow: the drawing surface is a
+  `<canvas>` with no keyboard path, and its only other element is disabled while
+  the pad is empty, so there is no element a control state could be read from.
+  
+  Both are now declared `labelling: 'group'` — a `<span>` and a `<canvas>` are not
+  labelable elements, so a host `for` could only dangle at them.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [5458414]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/providers@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

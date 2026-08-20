@@ -1,5 +1,115 @@
 # @object-ui/auth
 
+## 17.6.0
+
+### Minor Changes
+
+- 1b21b1a: `AuthInvitation.status` is the closed four-member union it always documented, enforced at the auth client's wire boundary.
+  
+  The field was declared `status: string` while its own doc comment enumerated
+  `'pending' | 'accepted' | 'rejected' | 'canceled'`, and `createAuthClient` cast
+  better-auth's `any` responses straight to `AuthInvitation[]` with no check. The
+  enumeration was therefore advisory: any value a backend stored reached the
+  console untouched, where the invitations screen coloured it through a
+  `default: 'secondary'` badge arm and printed it with
+  `defaultValue: inv.status` — the raw wire string rendered as interface copy, in
+  all ten packs (objectui#3879). Nobody could trigger it today, because the four
+  are what better-auth writes; it was the contract that was loose, and a loose
+  consumer is where an unexpected value would have hidden.
+  
+  `AuthInvitationStatus` now carries the union and **binds better-auth's own
+  `InvitationStatus`** rather than restating it, the way `org-roles.ts` binds the
+  spec's `BUILTIN_MEMBERSHIP_ROLES` — a member-for-member copy is the state one
+  upstream release away from drifting silently. The runtime list
+  (`AUTH_INVITATION_STATUSES`) is derived from a total map keyed by that union, so
+  a fifth status upstream is a build failure here rather than a gap in the guard.
+  `isAuthInvitationStatus` is exported alongside, and all four invitation-returning
+  client methods (`listInvitations`, `listUserInvitations`, `getInvitation`,
+  `inviteMember`) narrow their wire rows through it.
+  
+  Behaviour change, stated because it is one: an invitation whose `status` is
+  outside the set now **fails loudly** — the call rejects with a message naming the
+  value it refused and the four it expected — instead of resolving into a badge.
+  Both call paths already render a rejection with a retry, so the throw lands on a
+  designed surface. Degrading quietly was the alternative and was deliberately not
+  taken: a neutral label is how the raw value shipped in the first place, and
+  dropping the row would delete an invitation from an administrative ledger without
+  saying so. The console's badge switch is exhaustive over the union now and has no
+  `default:` arm, so if better-auth ever adds a member the type-check gate stops the
+  build at the one place a human has to choose a colour.
+  
+  Consumers assigning an arbitrary string to `AuthInvitation.status` (a hand-built
+  fixture, a mock) will need one of the four members.
+
+### Patch Changes
+
+- 5458414: Publish relative import specifiers with explicit `.js` extensions so these six packages load under plain Node ESM.
+  
+  Node's ESM resolver does not extension-search relative specifiers and `tsc` never rewrites them, so an extensionless `./Foo` in the source shipped as an extensionless `./Foo` in `dist` and importing the package entry outside a bundler failed with `ERR_MODULE_NOT_FOUND`. Bundled consumers were unaffected. Unbundled consumers — plain Node ESM, an SSR host importing the package directly, anyone running the published tarball without a build step — can now import these entries, and so can the downstream `@object-ui/plugin-*` packages that evaluate through `mobile`, `permissions` and `providers`.
+- 61b097c: Sign-out now drops the client-side caches that belonged to the session it ends,
+  and the metadata seed cache is keyed by session identity.
+  
+  `sessionStorage` is per-tab, not per-session, and no sign-out call site reloads
+  the page — so the `objectui:metadata:*` entries (the app list the server
+  permission-filters per session) and the active-organization id survived into
+  whatever happened next in that tab. A second person signing in on a shared,
+  kiosk or handover browser was seeded with the previous user's filtered app list.
+  Organization scoping did not close this: two users in the same organization
+  computed the same cache key.
+  
+  `AuthProvider.signOut()` now purges the `objectui:metadata:` entries and clears
+  `ActiveOrganizationStorage` (and the in-memory organization block) on both the
+  success and failure paths, and `MetadataProvider` keys each entry by a
+  fingerprint of the session token, so an entry that escapes the purge is
+  unreadable by the next principal rather than merely undeleted. Entries left by
+  another principal are deleted the first time a console mounts.
+- a9e17b4: `auth.forgotPassword.successDescription`'s address hole is now spelled with
+  single braces (`{email}`) instead of i18next's double braces (`{{email}}`),
+  in all ten locale packs.
+  
+  This is a spelling-only change — rendered output is byte-identical in every
+  language, because the hole was never filled by i18next in the first place:
+  `ForgotPasswordForm` substitutes the address itself once the user submits
+  the form (the label renders before the address exists, so `t()` cannot do
+  it). `{{email}}` and a genuinely unfilled i18next hole were indistinguishable
+  at the call site, and passing `email` as an interpolation argument — the
+  natural "fix" for what looks like a missing argument — would let i18next
+  consume the hole and cause the address to be appended a second time
+  (objectui#4135).
+  
+  Converging on `{x}` for every hole a component fills downstream of `t()`
+  (the convention `resendOtpCountdownText`'s `{seconds}` already used) puts
+  this hole outside i18next's `{{…}}` syntax entirely, so the ambiguity is
+  gone by construction rather than fenced by an exemption. Accordingly,
+  `scripts/check-i18n-call-site-keys.mjs`'s `EXTERNALLY_INTERPOLATED_HOLES`
+  registry entry for this key is retired — the gate needs no exemption for a
+  hole i18next was never going to touch.
+  
+  `ForgotPasswordForm.tsx`'s replacement marker and its own built-in default
+  label move to the same spelling in the same change, as does the inline
+  `defaultValue` at `apps/console/src/pages/auth/ForgotPasswordPage.tsx`'s
+  call site.
+- Updated dependencies [88085e3]
+- Updated dependencies [279fb13]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [f1d4748]
+- Updated dependencies [578e025]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

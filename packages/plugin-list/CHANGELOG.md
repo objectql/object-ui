@@ -1,5 +1,418 @@
 # @object-ui/plugin-list
 
+## 17.6.0
+
+### Minor Changes
+
+- 0a73b51: `ObjectView` and `ListView` now flatten a view's `map` block through a
+  whitelist instead of spreading the whole (untyped) block to the top level.
+  
+  Both `case 'map'` flatteners used to build the `object-map` schema with
+  `...(options.map || {})` — a raw spread of an untyped bag
+  (`NamedListView.options?: Record<string, any>`), so any key an author wrote in
+  the `map` block reached the top level unfiltered. `ObjectMap`'s own
+  `FlatMapConfigKeys = Omit<ObjectMapConfig, 'style'>` declares `style` OUT of
+  this flat form (`style` is also `BaseSchema.style`, inline CSS legal on every
+  node), so the two disagreed about the same shape. `style` was the live
+  specimen: `map: { style: '<url>' }` reached the top level as a CSS-shaped
+  `style` key it was never supposed to carry.
+  
+  Behavior narrowing, stated because it changes what reaches the flattened
+  schema: a `map` block key that is not one of `ObjectMapConfig`'s declared
+  flat keys (`latitudeField` / `longitudeField` / `locationField` / `titleField`
+  / `descriptionField` / `zoom` / `center`) — including `style` — no longer
+  reaches the top level of the flattened `object-map` schema. This closes a gap
+  rather than removing working behavior: the pinned strict spec view schemas
+  accept no `map` block at all today, so no author-facing surface could reach
+  this path, and `ObjectMap` already stopped reading a top-level `style` as a
+  map style (a dev warning names the correct spelling instead).
+  
+  The whitelist is DERIVED from `ObjectMapConfigSchema` (`@object-ui/types/zod`)
+  rather than hand-listed, so the flatteners and the declaration cannot drift
+  apart again — a key added to (or removed from) the schema reaches both
+  flatteners without a second edit. `ObjectMap`'s own `FLAT_MAP_CONFIG_KEYS` is
+  derived from the same schema for the same reason.
+- f1d4748: Remove the retired `striped` / `bordered` / `virtualScroll` list-view surface
+  
+  objectstack#7176 retired `list.striped`, `list.bordered` and `list.virtualScroll`
+  from the spec after measuring every objectui reader as pass-through: each one
+  copied the key onward and no renderer ever applied it. objectui stops declaring,
+  typing and forwarding them.
+  
+  Off the chain: the `@objectstack/spec` list-view bridge in `@object-ui/react`,
+  `ListView`'s child-view props in `@object-ui/plugin-list`, both `ObjectView`
+  relays (`@object-ui/plugin-view` and `@object-ui/app-shell`), the `ObjectGridSchema`
+  and `NamedListView` declarations in `@object-ui/types` (interface and zod),
+  `ObjectGrid.component.yml` in `@object-ui/components`, and the page-block
+  inspector's `striped` / `bordered` toggles in the metadata-admin designer.
+  
+  Behaviour is unchanged: nothing read these keys, so nothing rendered differently
+  for them. Stored view metadata that still carries one keeps validating — the keys
+  are simply no longer relayed. `ListViewSchema` continues to take the spec's
+  list-view fields by reference, so the protocol's own retirement tombstones
+  arrive with the next `@objectstack/spec` bump and reject the keys at the
+  authoring boundary. Restoring any of the three as live surface requires an
+  implementation card filed first, per the ruling.
+- b1119ec: Project every declared `recordIdField`, and refuse an action that names no record
+  
+  objectstack#8018. An `api` action declaring `recordIdParam` identifies the record
+  it acts on by a row field — `recordIdField`, default `id`. The grid built
+  `$select` from the listView columns, `id` and the predicate refs only, so an
+  action keyed on any other field asked the server for everything except the key
+  naming its own record. The row arrived without it, and the injection was skipped
+  silently: the request went out anyway, minus the parameter. A backend reading a
+  missing selector as "match nothing" then answers success for having changed
+  nothing, so a record-scoped mutation reports success and does nothing.
+  
+  Two independent repairs, both in this change:
+  
+  - **Projection.** `listViewPredicates` (`@object-ui/core`) now also harvests
+    `recordIdField` from `rowActionDefs`, `bulkActionDefs` and the object's
+    `actions`, spelled as a synthetic `record.<name>` so the one existing harvester
+    handles it. Both projection builders — `ObjectGrid` and `ListView` — read that
+    function, so both gain the key with no call-site change. The existing guards
+    still apply: a name the object does not declare, or one that is not a bare
+    identifier, is dropped rather than put in `$select`, because an unknown key
+    there is not ignored by every backend.
+  - **Loud failure.** New `resolveRecordIdParamSeed` (`@object-ui/core`) is the one
+    definition of "can this row identify the record?". `useConsoleActionRuntime`'s
+    api handler now refuses the dispatch — `{ success: false, error }`, before the
+    request — when the row lacks the key, or holds `null` for it. The two refusals
+    are worded differently because they point at different repairs: an absent key
+    is a projection or read-visibility problem, a null value is a data one. Falsy
+    real values (`0`, `''`, `false`) are values and still dispatch.
+  
+  The second half is what closes the class rather than the common case: a row can
+  lack the key for reasons projection cannot fix — a server-side read mask that
+  strips the field regardless of `$select`, a partial payload, a field the
+  principal cannot read.
+  
+  Behaviour change worth noting: an action that previously dispatched an
+  under-specified request now fails visibly instead. That is the point — the old
+  path could not report the failure it was causing.
+
+### Patch Changes
+
+- 516663d: RecordAttachmentsPanel no longer offers a Retry for an api-disabled `sys_attachment` read.
+  
+  `OBJECT_API_DISABLED` (404, `enable.apiEnabled: false`) and its sibling
+  `OBJECT_API_METHOD_NOT_ALLOWED` (405, the operation is absent from
+  `enable.apiMethods`) are pure functions of the object's metadata — no user, no
+  session, no request body — so every retry of every persona re-fetches the
+  identical refusal. Before this change both landed in `RecordAttachmentsPanel`'s
+  `unavailable` state and offered a Retry that was guaranteed to change nothing,
+  the same wrong advice `ListView`'s error panel already stops giving for list
+  reads.
+  
+  The panel gains a fifth status, `api-unavailable`: no Retry button, and honest
+  copy ("The attachments list is not available on this object.", new
+  `detail.attachmentsApiUnavailable` key in all ten locale packs) instead of
+  "We couldn't load the attachments for this record." The pre-existing `denied`
+  (authorization) and `unavailable` (network/5xx/expired-session) states and
+  their affordances are unchanged.
+  
+  `ListView.classifyLoadError` — the classifier that already separated this case
+  into its own `api-disabled` kind for list views — is lifted out of
+  `packages/plugin-list/src/ListView.tsx`'s module scope into
+  `@object-ui/react` (`classifyLoadError`, `LoadErrorKind`), so both surfaces
+  consume one classification instead of `RecordAttachmentsPanel` re-deriving it.
+  `ListView`'s own behavior is unchanged — it now imports the function it
+  previously defined locally. The classifier delegates its api-disabled check to
+  `isApiAccessDeniedError` (`@object-ui/data-objectstack`), removing a second,
+  independently-maintained copy of the same code list.
+- a1609a6: Console list filters: a `between` range is submitted only when both bounds are filled, and six operator labels stop rendering as raw i18n keys.
+  
+  Two defects in the list-view filter panel (objectstack#8815), both in the Console
+  render layer, with no workaround available downstream.
+  
+  **A half-filled range no longer refuses the whole view.** Picking a date column
+  and 「介于」 draws two inputs — that part landed in objectui#3958 — but typing
+  only one bound produced `["2024-01-01", ""]`, and both write paths read "is this
+  row filled in?" with one shape-blind predicate (`null` / `''` / empty array).
+  An array of length 2 passed it, so the empty bound went to the server, which
+  refuses the query outright (`400 INVALID_FILTER`): the list showed
+  「该视图的查询被拒绝」 and the filters the user had already applied stopped
+  applying too. The saved-view fold persisted the same half-range, so the refusal
+  came back on every later read of that view, for every user of it.
+  
+  The spec cannot intercept this — `ViewFilterRuleSchema` accepts
+  `["2024-01-01", ""]` because it counts the two slots rather than what is in
+  them, while refusing a scalar or a one-element array. Authoring validation is
+  therefore green on exactly the shape that fails at query time, which makes not
+  emitting it the producer's job. `@object-ui/components` now exports
+  `isFilterValueComplete(operator, value)` — arity-aware, so a `pair` row needs
+  both bounds — and the two consumers that had each kept a copy of the old
+  predicate (`plugin-list`'s `convertFilterGroupToAST`, `app-shell`'s
+  `foldFilterGroupToSpecRules`) read it instead. A half-filled range is now
+  dropped exactly as a half-typed `equals` row already was: no filter, rather than
+  a filter the server will reject. Bounds of `0` and `false` stay real bounds.
+  
+  **Six operator labels are translated in all ten locale packs.**
+  `startsWith`, `endsWith`, `isNull`, `isNotNull`, `exists` and `notExists` were
+  missing from every pack, so i18next resolved them to the raw key and the dropdown
+  showed `filterBuilder.operators.isNull` beside translated entries. The
+  component's own defaults table could not cover it: that table serves only the
+  no-provider path, and the Console mounts a provider. The report named four —
+  a `date` column's bucket offers the four nullness operators; a `text` column
+  showed all six.
+  
+  Because the label key is built dynamically (`t(\`filterBuilder.operators.${op}\`)`),
+  no existing gate could see the gap: the call-site checker classifies a template
+  key as `missing-prefix` and only asks whether the prefix resolves, and
+  cross-pack parity is satisfied when all ten packs are missing a key together.
+  A new parity test pins the packs against `FILTER_BUILDER_OPERATORS` in both
+  directions, so an operator added to the dropdown now fails loudly until every
+  pack labels it.
+- c1ef923: Grid and related-list column headers no longer offer a sort on a `formula` column.
+  
+  A `formula` value is computed on read: no driver materialises a column for it, so
+  a server `$orderby` naming one has nothing to order by. That sort never worked.
+  Until objectstack#6994 the platform did not say so — the response carried the very
+  values it had been asked to order by, out of order, under a `200`, with ascending
+  and descending byte-identical on a real SQL driver — and it now answers
+  `400 INVALID_SORT`. So the header was wrong before the platform's refusal and is
+  wrong after it, for the same reason: it offers a sort that cannot be performed.
+  
+  `ObjectGrid` withheld the affordance only from reference-bearing columns
+  (objectui#3096). Unmaterialized types are a SECOND reason a server sort is
+  impossible, not a different mechanism, so it now reads both — and so do the two
+  sort entry points of a related list (the embedded table's headers and the
+  sort-button row a `data-list` card keeps), which each derived that rule
+  separately.
+  
+  Client-side sorting is deliberately unchanged. There the rows are all in the
+  browser and the formula value is the one the server hydrated on read, so ordering
+  by what the cell shows is honest — the same split the relational carve-out makes.
+  A sort DECLARED in view metadata is also unchanged: it still goes out and is still
+  refused by name, because silently dropping an author's declaration would hide the
+  authoring error instead of surfacing it (the toolbar's sort picker keeps such a
+  field listed for exactly that reason — it is the only way to remove it).
+  
+  The membership — `formula` alone — moved out of a private set in `ListView` into
+  `@object-ui/core` (`UNMATERIALIZED_FIELD_TYPES` / `isUnmaterializedFieldType`),
+  bound to `@objectstack/spec`'s own storage predicate so the renderer cannot drift
+  from what the drivers actually store. It is deliberately narrower than the spec's
+  write contract `COMPUTED_VALUE_TYPES`: a `summary` and an `autonumber` each get a
+  real maintained column and sort correctly, and withholding their headers would
+  have broken two affordances that work.
+- 616a2a5: The list filter builder no longer offers `Is set` / `Is not set`, which its query dialects cannot express.
+  
+  **User-visible before/after.** The operator dropdown in the list toolbar's
+  filter popover — and in the Studio view/tab/page filter inspectors, the dataset
+  inspector and the generic `filter` config field — loses two rows: **"Is set"**
+  and **"Is not set"**. The sharing-rule criteria builder (`FilterConditionField`)
+  keeps both, unchanged. `Is null` / `Is not null` and `Is empty` / `Is not empty`
+  are untouched everywhere and remain the way to filter on a missing value from
+  the list.
+  
+  Nothing that worked stops working. Every save path behind those two rows was
+  already broken, in three different ways depending on the surface:
+  
+  - **Live grid** — `ListView.mapOperator` had no row for either id, so its
+    `default:` arm returned the id verbatim and the query went out as
+    `['name', 'exists', 'x']`. `exists` is not a member of the spec's
+    `VALID_AST_OPERATORS`, so `isFilterAST()` rejects the shape: an unfiltered
+    read or a 400, never the filter the user asked for.
+  - **Save as view** — `foldFilterGroupToSpecRules` normalizes through the spec's
+    `normalizeFilterOperator`, which does not know the pair, and
+    `ViewFilterRuleSchema`'s enum then refuses the rule.
+  - **Dataset inspector** — `groupToCondition` has no row either and drops the
+    condition silently, so the filter simply never applied.
+  
+  **Why withheld rather than mapped.** Measured on `@objectstack/spec`
+  17.0.0-rc.6: neither `VIEW_FILTER_OPERATORS` nor `VALID_AST_OPERATORS` contains
+  an existence operator, under any spelling — both sets have zero members matching
+  `/exist/`. Only the MongoDB-style `FieldOperatorsSchema` criteria carries
+  `$exists`, and that is precisely the dialect `FilterConditionField` writes, so
+  the pair moves behind the existing `OPT_IN_OPERATORS` gate and that widget opts
+  in. Collapsing them onto `isNotNull` / `isNull` was rejected: the builder
+  already draws those as their own rows, the round trip is lossy (a saved
+  `exists` reads back as `isNotNull`), and the spec's own note records `$exists` =
+  has-value as still unsettled across drivers — `driver-memory`'s live mingo path
+  and `driver-mongodb` read key-presence.
+  
+  **The class is now closed by an assertion, not by discipline.** objectui's three
+  existing operator-parity guards all sweep spec vocabulary → objectui; none asked
+  whether an id the dropdown draws is an id the consumer can persist, which is the
+  direction that broke. `plugin-list`'s new
+  `list-offered-operator-expressible-parity.test.ts` forces the set the list
+  toolbar offers to **equal** the set its two dialects can express, in both
+  directions — so an unexpressible operator cannot be offered, and an operator
+  that becomes expressible upstream cannot stay needlessly withheld.
+- dfc6975: Related-list "+ New" now honours `userActions.create` predicates, and the grid
+  toolbar's inline-edit affordance is gated on `update` permission (objectui#4646,
+  objectui#4647).
+  
+  Two declared-but-unenforced gaps on the same toolbar surface.
+  
+  **#4646 — `createPredicates` had a producer and no consumer.**
+  `@objectstack/spec@17.0.0` widened `userActions.create` to
+  `z.union([z.boolean(), RowCrudActionOverrideSchema])`, so `resolveCrudAffordances`
+  emits `createPredicates` — and nothing in objectui read them, against roughly
+  fifteen consumption sites apiece for `editPredicates` / `deletePredicates`. The
+  symptom: a parent record entering a frozen state correctly greyed its children's
+  row Edit/Delete while the related list's "+ New" stayed fully live, so the user
+  filled in the whole child form to earn a server 409. The related-list toolbar now
+  evaluates `visibleWhen` / `disabledWhen` **once against the host parent record**,
+  per the spec docblock's binding for this key, on top of the existing
+  `o.create ∧ can(child, 'create')` check. `visibleWhen` hides "+ New" and fails
+  CLOSED; `disabledWhen` greys it and fails SOFT — the same evaluator, fail
+  directions and hidden-vs-disabled split the record header already uses for
+  edit/delete (objectui#4419 / PR #4515). A bare-boolean `userActions.create` is
+  untouched: with no predicates there is nothing to evaluate.
+  
+  **#4647 — the inline-edit toggle was the one ungated affordance on its toolbar.**
+  It rendered on "grid view ∧ the host wired `onInlineEditChange` ∧ not the compact
+  toolbar", and every host wires that callback unconditionally. New and Import are
+  hidden for an account without the grant and the bulk-delete entry on the same
+  toolbar ANDs `can(obj, 'delete')`, but a read-only principal could flip inline
+  edit, modify cells and press "Save all" to earn a server 403. It is now gated on
+  the object's resolved edit affordance ∧ `can(object, 'update')`, mirroring that
+  bulk-delete gate. The gate is applied at all three sites that carry this
+  affordance — the wide toolbar's toggle, the compact toolbar's settings-popover
+  entry (which previously had no gate at all, not even the callback), and the
+  `editable` mode handed to the grid, so a stored view carrying `inlineEdit: true`
+  can no longer drop a read-only principal into editable cells with no toggle to
+  press.
+  
+  `ListViewSchema.userActions.editInline` is also consumed now: an explicit `false`
+  withholds the affordance wholesale, which authors previously could not do.
+  
+  **Behaviour change for read-only users, stated plainly.** Where the UI used to
+  offer inline editing and let the server refuse it, it now declines to offer the
+  entry point at all. No data access changes — the server gate was and remains the
+  enforcement boundary; this only stops the UI walking users into round-trips
+  guaranteed to fail. Accounts *with* the grant see no change, and hosts with no
+  `PermissionProvider` mounted (standalone embeds, the Studio designer) keep
+  today's behaviour, since `can()` answers `true` there by design.
+  
+  One deliberate non-change: the absent case of `userActions.editInline` defers to
+  the host's existing `inlineEdit` channel rather than enforcing the spec's
+  `.default(false)`. Enforcing that default would remove the toggle from every
+  stored console list view in one release, since nothing folds a legacy key into
+  `editInline` and no existing view declares it. This follows the rule the
+  surrounding toolbar-flag block already states for itself — defaults chosen to
+  match what the flags have always done. `InterfaceListPage`, the key's other
+  consumer, reads the absent case as OFF, because the ADR-0047 interface page has
+  no such host channel to defer to.
+- 138ab04: Fix a list filter that silently applied nothing when the first thing you picked was **Is null** or **Is not null**.
+  
+  Adding a filter seeds the row with no value, and changing the operator keeps it that way — which is correct for an operator that takes no value, since the panel draws no input for one. The live grid read that row as unfinished and dropped it: the filter appeared in the panel, the query went out without it, and every record came back with no error to explain it. Only `Is empty` / `Is not empty` were exempt; the builder renders six operators value-less.
+  
+  Which operators are complete without a value now has a single owner — `VALUELESS_FILTER_BUILDER_OPERATORS`, exported from `@object-ui/components` beside the code that decides it. The live grid and the saved-view fold both read it instead of keeping their own lists, so the two halves of one interaction can no longer disagree about whether a row is finished.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [d8b9259]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [61556dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/permissions@17.6.0
+  - @object-ui/mobile@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

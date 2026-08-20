@@ -1,5 +1,799 @@
 # @object-ui/core
 
+## 17.6.0
+
+### Minor Changes
+
+- 279fb13: `ComponentInput.type` can declare a UNION, so a block stops warning about legal
+  writes its own description recommends
+  
+  A registration's `type` was one coarse control kind, while a good number of spec
+  keys accept more than one shape. A declaration therefore had to pick an arm, and
+  the repo's own manifest gate then reported `type-mismatch` on the other arm's
+  legal values. Four of the five measured cases were the loud shape: the input's
+  `description` teaches the author to write an inline translation map
+  (`{ en, "zh-CN", … }`) while the same input's `type: 'string'` made
+  `sdui-parser`'s `checkType` warn about exactly that map — one platform authority
+  contradicting itself on the write it had just recommended. Because these land at
+  warning severity the page still compiled and rendered; the cost is that noise on
+  correct authoring trains authors, AI authors included, to dismiss the
+  `unknown-prop` and `type-mismatch` reports that are real.
+  
+  `type` now accepts an ARRAY of coarse kinds as well as a single one (maintainer
+  ruling on objectui#3832, direction (a)), and a value passes the coarse check when
+  ANY declared arm accepts it. Both declaration sites in `@object-ui/types` move
+  together with the registry's own copy in `@object-ui/core`, and
+  `ComponentInputSchema` enforces the same widening — a non-empty array of
+  DISTINCT kinds, so an empty arm list or a repeated arm is refused at authoring
+  time rather than normalized behind the author's back.
+  
+  Five declarations now spell their real contract, and the `type-mismatch` warning
+  on each of these legal writes is gone:
+  
+  - `page:header.title`, `page:header.subtitle`, `page:card.title` —
+    string **or** inline translation map (the spec's union, measured against
+    `ComponentPropsMap` at the pinned rc.6; the renderers resolve both through
+    `pickLocalized`);
+  - `record:alert.title`, `record:alert.body` — the same two shapes, justified
+    against the RENDERER since the pinned spec carries no `record:alert` props
+    schema;
+  - `element:text_input.defaultValue` — `string | number`, the spec's union,
+    which had been narrowed to `'string'` with the number arm named only in prose.
+  
+  **Backward compatible, and measured as such.** The single-kind form stays valid
+  and is still the canonical spelling for a one-arm key: it validates identically
+  (the diagnostics for one arm, `invalid-enum` and its `error` severity included,
+  are byte-identical), and `manifestFromConfigs` collapses a one-element array back
+  to the bare string, so every entry already in a published `sdui.manifest.json`
+  serializes unchanged and arrays appear only where a union was really declared.
+  The JSX authoring surface follows in the same step — `generateDts` emits a
+  TypeScript union for a union input, so the `.d.ts` an author type-checks against
+  accepts exactly what the gate accepts.
+  
+  A union widens what is legal; it does not switch the check off. A value matching
+  NO declared arm is still reported, a multi-arm mismatch reports at its strictest
+  arm's severity (`error` when an `enum` arm is present, so an enum's closed list
+  does not become dismissible by having a second arm added next to it), and arms
+  are meant to match the contract rather than relax the gate:
+  `element:text_input.defaultValue` deliberately gains no `object` arm because the
+  spec rejects a map there, and `element:record_picker.emptyText` keeps its single
+  `'string'` arm because that renderer drops the map form (objectui#4163) — an arm
+  the renderer never honours would advertise a shape that cannot reach the screen.
+- e1d4251: Action param `visible`: one dialect answer, and a fault that is fail-open and LOUD
+  
+  `ActionParamDialog`'s `filterVisibleParams` was the last predicate face never
+  converted to the canonical entry. It evaluated each param's `visible` on a bare
+  `ExpressionEvaluator` inside `try { … } catch { return true }`, and that produced
+  two defects at once (objectui#4640, measured on `main`):
+  
+  - **Silence.** Three of the four fault shapes emitted nothing at all — an
+    unparseable source, an unbound identifier and a faulting legacy predicate all
+    resolved without a word, so a broken `visible` was indistinguishable from an
+    absent one. The standing 2026-08-06 ruling on objectui#4051 /
+    objectstack#5149 names silence as the one option that is not available.
+  - **The fail DIRECTION was decided by the predicate's dialect, not by the
+    surface.** A bare string ran the legacy JS evaluator (lenient → falsy → param
+    silently DROPPED); a `{ dialect, source }` envelope ran CEL (fault → param
+    silently KEPT). One `visible` key, two opposite outcomes, chosen by whether
+    the authored text happened to contain `${…}` / `===` — the objectui#3314
+    shape. Both halves hurt: a dropped param means the dialog never collects a
+    value the server requires and the action fails at submit with nothing pointing
+    at the predicate; a kept one offers a field the backend rejects.
+  
+  `filterVisibleParams` now routes through `evalRowPredicate`. A param whose
+  `visible` cannot be evaluated is **shown**, and reported once, with the action
+  and the param named and the predicate quoted. Fail-open is the ruled direction
+  for this surface: an extra offered field is rejected by the server with a
+  message, while a silently hidden required param is undiagnosable. (Row surfaces
+  keep failing closed — there the harm runs the other way.) Boolean and blank
+  predicates are answered before the evaluator, so `visible: false` hides the
+  param and an empty predicate is not reported as broken.
+  
+  **Behaviour change worth knowing before you upgrade.** On the canonical CEL
+  engine an ABSENT key is a runtime fault, not a falsy read. A param gated on
+  `features.phoneNumber == true` in a deployment whose scope carries no
+  `phoneNumber` key at all now takes the fail-open branch: the param is SHOWN,
+  with a warning naming it, where it used to be hidden. The conservative outcome
+  is still available, in the spelling that is portable to the server's own engine:
+  
+  ```
+  has(features.phoneNumber) && features.phoneNumber == true
+  ```
+  
+  Deployments that DECLARE the flag (`features: { phoneNumber: false }`) are
+  unaffected — that is a genuine verdict on both engines, and it did not move.
+  
+  `@object-ui/core` gains the two evaluator changes this needed:
+  
+  - `evalRowPredicate` accepts **`rowless`** — "this surface has no row of its
+    own", so nothing is bound over the host scope and a `record` / `data` the
+    scope carries survives instead of being shadowed by an empty row. Row surfaces
+    are untouched: without the option the row is still the subject (objectui#3796).
+  - A faulting **`{ dialect, source }` envelope now reports its own source**.
+    It used to print the literal `"(expression)"`, and because the warn-once key
+    is (label, predicate), the first faulting envelope under a label silenced
+    every other one. The envelope is what `@objectstack/spec` normalizes every
+    authored predicate into, so this was the likeliest shape in served metadata
+    and the least diagnosable one.
+- 167ec42: `ComponentMeta.labelling` grows a third value: `'control' | 'group' | 'display'`
+  (objectui#4857, ruled jointly with objectui#4871 as the single repo-wide vocabulary for
+  "how does a host learn what a widget will render"). `'display'` declares a widget whose
+  whole surface is a pure display in EVERY state — no focusable control, nothing a
+  `<label for>` could ever reach.
+  
+  The form renderer answers the declaration with the objectui#4788 host container (field
+  id + `aria-labelledby` + `aria-describedby` + `role="group"`) in the editable state too;
+  the `readonly === true` arm keeps its exact #4788 semantics for undeclared widgets. The
+  display-only four (`formula` / `summary` / `auto_number` / `vector`) declare `'display'`
+  — on the real object-form path they arrive `disabled`, never `readonly` (a deliberate
+  distinction this change does not touch), so their visible labels pointed `for` at an id
+  no element carried and their help text had zero consumers in every editable form.
+  
+  `grid` was re-measured before being classified: its only bare-config focusable is the
+  auxiliary "Add line" button (routing `for` there would have label clicks insert rows),
+  and every realistic config is a table of per-cell inputs — a composite. It declares
+  `labelling: 'group'` and its root container now consumes the host id, name and
+  description, exactly like `address` / `checkboxes`.
+  
+  Companion registry gate: `FIELD_WIDGET_LABELLING` (exported) is a `Record` keyed by the
+  field-widget map's own literal key union, so registering a widget without deciding its
+  labelling is a compile error rather than a silent fall-through to the dangling-`for`
+  path, and the declaration test asserts the registered meta agrees with it key by key.
+- b1119ec: Project every declared `recordIdField`, and refuse an action that names no record
+  
+  objectstack#8018. An `api` action declaring `recordIdParam` identifies the record
+  it acts on by a row field — `recordIdField`, default `id`. The grid built
+  `$select` from the listView columns, `id` and the predicate refs only, so an
+  action keyed on any other field asked the server for everything except the key
+  naming its own record. The row arrived without it, and the injection was skipped
+  silently: the request went out anyway, minus the parameter. A backend reading a
+  missing selector as "match nothing" then answers success for having changed
+  nothing, so a record-scoped mutation reports success and does nothing.
+  
+  Two independent repairs, both in this change:
+  
+  - **Projection.** `listViewPredicates` (`@object-ui/core`) now also harvests
+    `recordIdField` from `rowActionDefs`, `bulkActionDefs` and the object's
+    `actions`, spelled as a synthetic `record.<name>` so the one existing harvester
+    handles it. Both projection builders — `ObjectGrid` and `ListView` — read that
+    function, so both gain the key with no call-site change. The existing guards
+    still apply: a name the object does not declare, or one that is not a bare
+    identifier, is dropped rather than put in `$select`, because an unknown key
+    there is not ignored by every backend.
+  - **Loud failure.** New `resolveRecordIdParamSeed` (`@object-ui/core`) is the one
+    definition of "can this row identify the record?". `useConsoleActionRuntime`'s
+    api handler now refuses the dispatch — `{ success: false, error }`, before the
+    request — when the row lacks the key, or holds `null` for it. The two refusals
+    are worded differently because they point at different repairs: an absent key
+    is a projection or read-visibility problem, a null value is a data one. Falsy
+    real values (`0`, `''`, `false`) are values and still dispatch.
+  
+  The second half is what closes the class rather than the common case: a row can
+  lack the key for reasons projection cannot fix — a server-side read mask that
+  strips the field regardless of `$select`, a partial payload, a field the
+  principal cannot read.
+  
+  Behaviour change worth noting: an action that previously dispatched an
+  under-specified request now fails visibly instead. That is the point — the old
+  path could not report the failure it was causing.
+- af025ee: Draw a null second-dimension group instead of carrying its measure invisibly
+  
+  objectui#4673. `buildChartSeries`' pivot branch kept the pre-objectui#4466
+  answer on the SECOND dimension: it bucketed groups by `String(row[groupKey] ??
+  '')` behind a `gId !== ''` gate, so a group whose second dimension is `null`,
+  `undefined` or `''` never joined the series list — while the line below the
+  gate still wrote its measure into the emitted row under the `''` key. The
+  number was in the data and bound to no mark, which is #4466's harm verbatim one
+  dimension over: the chart understated its own data without saying so.
+  
+  Measured on the card's repro — `GROUP BY status, priority` over a Backlog with
+  5 hours at High priority and 40 hours at no priority — the transform emitted
+  `{status: 'Backlog', High: 5, '': 40}` with a single `High` series, and the
+  renderer drew exactly ONE bar. The 40 hours were present in the row, scaled for
+  on the y-axis, and painted on nothing.
+  
+  Two such groups were worse than unbound: `null` and `''` both key `''`, so the
+  later group silently overwrote the earlier one's measure and one of the two
+  numbers did not survive the transform at all.
+  
+  **A known-empty group now draws; an unprojected key still refuses.** That split
+  is the doctrine the first dimension already used (objectui#4466 versus
+  `hasNoCategoryKey`, framework#4033), and it now answers the same way on both
+  dimensions. Concretely, a row that does not carry the group key at all gets no
+  bucket and contributes no column, where it previously wrote its measure under
+  `''`.
+  
+  `null` and `''` are two different groups with two series, following
+  objectui#4508's ruling on the first dimension.
+  
+  **The series key is collision-safe, not merely unlikely to collide.** Unlike an
+  axis bucket's private map key, a series key is a column of the emitted row and
+  the `dataKey` a renderer binds to, so it has to be unique within that row. A
+  group keys its column by its own display label — leaving an ordinary pivot's
+  rows, series, legend, tooltip and drill title exactly as they were — unless
+  that label cannot name it: shared with another group (a stored value spelling
+  the null bucket's label), reserved by the row itself (the x-axis column, the
+  identity carrier), or equal to some group's identity. Those key by identity
+  instead, which no other group has. Because no surviving label is any group's
+  identity, the two key spaces cannot meet.
+  
+  Drill-through follows the same assignment: a clicked series key resolves back
+  to the group IDENTITY it names, and rows are matched on that. The previous
+  `String(r[gDim] ?? '')` comparison was the display-string matching
+  objectui#4508 removed on the x-axis — it spelled a null group and an
+  empty-string group alike, so the empty-string group's segment resolved to the
+  null group's records rather than its own.
+  
+  No renderer change was needed: the null group's series carries the same
+  `nullCategoryLabel` the renderers already pass for the first dimension.
+- 9ce096f: Give a chart bucket an identity distinct from its display label
+  
+  objectui#4508. `buildChartSeries` used the bucket's DISPLAY string as the
+  bucket's own key, so two pairs of genuinely different groups were conflated —
+  and the segment click that drills a bar back to its records inherited both
+  conflations. The maintainer ruling (2026-08-14) approved the sentinel-identity
+  direction, aligning the chart branch with the distinct-bucket-id form the pivot
+  TABLE (`buildPivot`) already uses over the same dataset rows.
+  
+  Two collisions, one cause:
+  
+  - **A null group and an empty-string group drew ONE bar.** The pivot branch
+    keyed buckets by `String(xRaw ?? '')`, which spells `null` and `''`
+    identically. The bar took its label from whichever row created the bucket, and
+    the other group's segment then resolved to no row at all — a visible bar whose
+    click did nothing.
+  - **A record whose stored value spells the bucket label stole the null bucket's
+    drill.** A row storing the literal text `(None)` (or any localized
+    `chart.nullCategory` — `(未指定)` and the other nine packs) kept its own
+    bucket, so two bars carried the same axis text and BOTH resolved to the first.
+    That one is a wrong drill, not a dead one: clicking the null bucket's bar
+    opened the drawer on another group's records.
+  
+  What changed:
+  
+  - **`chartBucketId`** (`@object-ui/core`) is the bucket identity — the SAME
+    encoder `buildPivot` keys its buckets with (`pivotBucketId` over
+    `pivotDimensionValue`), so the two surfaces stop answering one question two
+    ways. The pivot branch now buckets by it, which is what makes null and `''`
+    two groups again.
+  - **`CHART_BUCKET_ID_KEY`** carries that identity on an emitted row, written
+    exactly where two DISTINCT buckets paint the same axis text — the complete set
+    of cases where the display string cannot name what was clicked. An ordinary
+    chart's rows are returned untouched (by identity), so no renderer-internal key
+    reaches an authoring surface.
+  - **`findChartSeriesRow`** takes that identity back as `options.bucketId` and
+    treats it as authoritative. The renderers forward it: the drill event gains
+    `categoryId` (`ChartSegmentClickEvent`, now declared once in
+    `@object-ui/core` instead of inline in three packages), `AdvancedChartImpl`
+    reads it off the clicked row on the cartesian, pie and funnel paths, and
+    `DatasetWidget.handleChartDrill` hands it to the lookup.
+  
+  Behaviour change worth noting: an empty-string category no longer resolves to a
+  null-valued row. That tolerance was justified as the drill layer's own spelling
+  of "no group value", but no producer of this lookup's `category` writes it,
+  while `''` IS the axis text a genuine empty-string group paints — so the
+  tolerance was giving that group's bar a different group's records. A host that
+  forwards no `categoryId` keeps its existing drill unchanged.
+- e05db88: A clicked cartesian mark names its own series, and the drill title reads its label
+  
+  objectui#4672, objectui#4682.
+  
+  **The dead pivoted drill.** objectui#4680 fixed what a cartesian click could
+  read out of recharts 3's `MouseHandlerDataParam`, and measured the wall it could
+  not get past: a chart-level click is an AXIS interaction, and recharts
+  dispatches those with `activeDataKey` hard-coded `undefined`, because the shared
+  cursor spans every series at that tick. A pivoted dataset chart — 2 dimensions,
+  1 measure, the shape ADR-0021 introduced — needs the series to resolve its drill
+  row, so every segment of every such dashboard chart stayed a dead click. The
+  series was left unresolved rather than guessed, and the card carried the rest.
+  
+  The answer is the mark itself. This renderer draws the `Bar` / `Line` / `Area`,
+  so an item-level `onClick` closes over the very `dataKey` it was rendered with —
+  the series is statically known, not inferred from tooltip state.
+  
+  Both handlers fire for one gesture (measured: item first, chart second, sharing
+  one `nativeEvent` object), so the item handler does not emit. It RECORDS its
+  series, stamped with that gesture, and the chart-level handler composes the one
+  event. That is the double-fire answer and the additive property together:
+  
+  - **one click, one drill event**, because there is one emit site — not a second
+    event suppressed after the fact;
+  - **a click that lands on no mark is untouched**: it records nothing and falls
+    through to the objectui#4680 axis answer exactly as shipped — category, bucket
+    identity, and the series only where one series is plotted. Empty plot area
+    stays category-only, and "drill the whole category" was rejected as a
+    different product question. Nothing that resolved before stops resolving; a
+    line's `dot={false}` stroke simply GAINS the exact series where it is hit;
+  - pairing on the shared DOM event rather than on a flag means a record left by
+    one gesture can never be adopted by a later click.
+  
+  The clicked key is forwarded exactly as rendered, `''` included: the
+  empty-string second-dimension group draws its own bar since objectui#4673, and
+  `''` is falsy, so a truthiness test on the way out would send no series at all
+  and leave that bar's drill standing on the reader's coercion instead of on what
+  was clicked.
+  
+  **The opaque drill title.** `ChartSegmentClickEvent` gains `seriesLabel`, and
+  `DatasetWidget`'s drill drawer titles itself from `seriesLabel ?? series`.
+  `ev.series` stays the LOOKUP key — `findChartSeriesRow` resolves it through the
+  same assignment `buildChartSeries` made — and only the title reads the label.
+  
+  The two strings are equal for every ordinary group, which is why reading the key
+  as a title went unnoticed. They part company when a group's label cannot name
+  it: the null bucket beside a record whose stored value literally spells
+  `(None)`, which is objectui#4508's collision on the series axis, reachable since
+  objectui#4673. Both groups then key by `chartBucketId`, and the drawer opened on
+  the right records under the title `Backlog / [null]`. An internal id where a
+  label belongs reads as broken DATA rather than as a broken title.
+  
+  Neither string can do the other's job, which is why this is a second field
+  rather than a change to the first: the label is not resolvable (it is exactly
+  what the colliding groups share) and the key is not showable. `seriesLabel` is
+  optional and absent wherever a renderer resolved no label, so every other
+  chart's title is byte-identical.
+- d2ce342: Retire the structured `confirm` object on actions (objectui#4314, maintainer ruling
+  2026-08-17, ADR-0049 enforce-or-remove). `confirmText` is now the one confirm
+  spelling — the only one the translation bundle can address
+  (`{ns}.objects.{obj}._actions.{name}.confirmText`), matching `@objectstack/spec`'s
+  action surface.
+  
+  Breaking semantics (flagged `minor` per this repo's version-alignment policy):
+  
+  - `@object-ui/types`: `ActionSchema.confirm` is a `?: never` tombstone — authoring
+    it is now a tsc error, and the Zod twin rejects any authored value at parse time
+    (it previously accepted the object). The backwards `@deprecated` note that
+    steered authors from `confirmText` INTO the structured arm is gone.
+  - `@object-ui/core`: `ActionRunner` no longer reads `confirm.message` (which used
+    to outrank `confirmText`, untranslated). `ActionDef.confirm` carries the same
+    `never` tombstone. The `ConfirmationHandler` signature is unchanged, but the
+    runner now invokes it without the `options` argument.
+  - `@object-ui/plugin-grid`: `resolveBulkActions` no longer falls back to
+    `confirm.message` when promoting an object action — spec metadata can never
+    deliver that key.
+  
+  Nothing in the repo, the example apps, or the schema catalog authored the
+  structured form (verified on the issue); a dialog authored that way silently lost
+  localization. Reopen condition recorded on objectui#4314: real demand returns the
+  arm WITH bundle keys designed in.
+
+### Patch Changes
+
+- 2533ec5: The bulk-action dialog's "this widget needs a DataSource" rule now derives from the shared reference-field family instead of a fourth private copy.
+  
+  `packages/plugin-grid/src/components/bulkParamToField.ts` held its own
+  `DATA_SOURCE_WIDGET_TYPES` — the fourth hand-maintained answer to one question
+  ("which widget has to query records, so it must be handed a DataSource and a
+  `reference_to`"), and the only one whose member set matched none of the other
+  three: `lookup` / `master_detail` / `user`, against `@object-ui/core`'s
+  `EXPANDABLE_FIELD_TYPES` (which also holds `tree`) and the object form's rule
+  (which adds three widget-hint pickers). Nothing anywhere could detect the drift;
+  the same shape objectui#4770 and objectui#4790 each closed on another surface.
+  
+  It now reads core's set through one predicate, so all three consumers of the rule
+  — the label prefetch / option source (`isLookupishParam`), the `dataSource` prop
+  the dialog threads into the widget (`fieldNeedsDataSource`), and the
+  `reference_to` / `display_field` branch of `bulkParamToField` — cannot drift apart
+  from each other or from the form again.
+  
+  No behaviour change on any reachable path, which is why this is a patch. The one
+  member the two tables differed on, `tree`, can never be a widget key on this
+  surface: it is absent from the fields widget map and `mapFieldTypeToFormType`
+  sends it to `field:lookup`, so a `tree` param arrives at the rule as `lookup`
+  (pinned). The divergence in the other direction is deliberately preserved: the
+  form additionally wires `object-ref` / `filter-condition` / `recipient-picker`,
+  widget hints no object schema can declare and no bulk param produces — absorbing
+  them would change which widgets receive a DataSource here, which is a behaviour
+  change and not a convergence.
+  
+  The pin is an identity pin, not a membership one: it spies on the `has` of the
+  Set object core exports, so a member-identical private copy fails it. A
+  value-equality assertion would have passed against exactly the defect this
+  change removes.
+- bbe8b86: The allow-list of option widgets that are fed the live record is now one exported constant, `CASCADE_OPTION_WIDGET_TYPES`, instead of three private copies.
+  
+  `select` / `multiselect` / `radio` / `checkboxes` are the widgets whose OFFERED
+  option set is re-resolved against a record (per-option `visibleWhen`, plus the
+  `dependsOn` gate), so they are the widgets a surface must thread its live record
+  to. Three surfaces feed that one evaluator — the object form, the single-record
+  action dialog and the bulk action dialog — and until now each carried its own
+  private `new Set([...])` of the same four keys, with a comment in each asking the
+  next person to change all three together. Nothing could have reported them
+  drifting: every copy passed its own behavioural tests, and a divergence would
+  have shown up only as one surface silently disagreeing with another about what
+  "the record" is.
+  
+  The set now lives in `@object-ui/core`, next to `resolveCascadingOptions` — the
+  evaluator that reads that record — because core is the one package all three
+  surfaces already depend on, and it is re-exported from `@object-ui/fields` next
+  to `resolveFormWidgetType`, whose output is the vocabulary the keys are written
+  in. Both are the same object, pinned by test; each consumer keeps its own
+  normalization (`normalizeFieldType` in the form, `resolveFormWidgetType` in the
+  dialogs), which agree on these four members.
+  
+  No behaviour changes: the members are identical on all three surfaces, and the
+  existing pins for each surface still assert the same records reaching the same
+  widgets. The rationale that was repeated in the three copies — including the
+  note that the widget-hint picker family (`filter-condition`, `recipient-picker`,
+  the lookup family) reads a different sibling key off the same channel and is
+  deliberately NOT in this set — is now stated once, in the constant's own
+  documentation. Whether the action and bulk dialogs should ever feed those
+  pickers stays an open question (objectui#4771), unchanged by this convergence.
+- 8477be5: `cloneAsOverride()` now returns `DeepMutable<T>`, so a Tenant/User override draft type-checks as the mutable value it has always been.
+  
+  `cloneAsOverride<T>(view: T): T` handed the input type straight back. Cloning a
+  `SystemView<S>` — which is `DeepReadonly<S>` plus the marker symbol — therefore
+  returned something still typed deep-readonly, even though the implementation has
+  always produced a plain mutable object (`structuredClone`, or a JSON round-trip
+  fallback) and deliberately drops the marker. The declaration was simply wrong
+  about its own value, and the documented override flow was the thing that broke:
+  
+  ```ts
+  const draft = cloneAsOverride(userListView)
+  draft.columns.push({ name: 'name' })   // TS2339 before this change
+  ```
+  
+  That is `packages/core/README.md`'s override example, and it failed to compile
+  against the built types — measured by the doc-snippet compile gate, which reads
+  `dist/*.d.ts` rather than source. The neighbouring line one block up,
+  `userListView.columns.push(...) // ❌ TypeError (strict mode)`, is the opposite
+  demonstration and correctly still fails; only the draft line changes colour.
+  
+  The fix adds `DeepMutable<T>`, the inverse of the `DeepReadonly<T>` that
+  `SystemView` is built from, and returns it. Per the maintainer's 2026-08-19
+  ruling (option A on objectui#5257), the alternatives were rejected by name:
+  teaching a cast in the README is the lenient-consumer pattern the contract rules
+  out, and declaring the block a documentation fragment hides a real signature
+  defect behind the fragment marker.
+  
+  Why this is a patch and not a break: the return type relaxes TOWARD what the
+  runtime already does, never away from it. A caller gains permission to mutate;
+  nobody loses one. `DeepMutable<S>` stays assignable everywhere `DeepReadonly<S>`
+  or `SystemView<S>` was expected, so a caller who fed a draft back into a
+  deep-readonly position still compiles — both directions are pinned as type-level
+  cases in `freeze-schema.types.test.ts`. A repo-wide sweep found no call site at
+  all outside the README, so nothing in this workspace needed changing.
+  
+  Two limits of `DeepMutable`, stated rather than discovered later. It is
+  symmetric with `DeepReadonly` arm for arm, which means it inherits the same
+  tuple behaviour: a tuple widens to an array, exactly as `DeepReadonly` widens it
+  in the other direction. And it does not remove the `SYSTEM_VIEW_MARKER` key —
+  the clone never carries the symbol at runtime, but the key is declared optional,
+  so keeping it states "may be absent", which is true. Excluding it would require
+  a non-homomorphic mapped type that drops the `?` modifier from every other
+  property and turns optional keys required — a strictly worse type traded for
+  removing a key that already reads as optional.
+- ad07b65: Four packages stop publishing tooling material in their `dist/`
+  
+  Each of these packages spelled its build exclusions as `*.test.*`, while this repo's tooling convention is a directory one — `__tests__` / `__mocks__` / `__benchmarks__`, exactly as `TOOLING_FILE` in `scripts/check-phantom-dependencies.mjs` spells it. Any tooling file whose *name* is not `*.test.*` therefore stayed in the emit program and shipped in the tarball. This is the same shape and the same cause as objectui#4006, which fixed `@object-ui/fields` and `@object-ui/plugin-editor` by the filename criterion and so did not reach these four.
+  
+  Measured by building each package from a cleared `dist/` on both sides of the change. Nine files disappear, none appears, and every surviving file is untouched — the totals move by exactly the count removed:
+  
+  | package | `dist/` files | removed |
+  | --- | --- | --- |
+  | `@object-ui/core` | 176 to 174 | `dist/__benchmarks__/core.bench.js`, `core.bench.d.ts` |
+  | `@object-ui/plugin-designer` | 70 to 66 | `dist/__tests__/__mocks__/plugin-form.d.ts`, `plugin-grid.d.ts`, and both `.d.ts.map` |
+  | `@object-ui/plugin-grid` | 62 to 60 | `dist/__tests__/explainDouble.d.ts` and its `.d.ts.map` |
+  | `@object-ui/plugin-view` | 13 to 12 | `dist/__tests__/explainDouble.d.ts` |
+  
+  Only `@object-ui/core`'s had runtime weight. The other eight are declarations nothing resolves, but `core.bench.js` is a real emitted module whose first import is `import { bench, describe } from 'vitest'` — a runtime import of a package a consumer never installs, since `vitest` is a devDependency of `@object-ui/core` and devDependencies are not installed transitively. Nothing resolves it today either (it is not in the `exports` map), so no consumer breaks in either direction; this is the tarball shedding files nothing reached.
+  
+  No type coverage leaves with the emit. The three plugins' helper and mock files are already program inputs of the `tsconfig.test.json` that each package's `type-check` chains, reached through the imports in the suites beside them — `tsc --listFiles` names all four files on both sides of the change. `core.bench.ts` had no such edge, since nothing imports a benchmark, so it is now named explicitly in `packages/core/tsconfig.test.json`. That move was deliberate rather than forced: `scripts/check-type-check-coverage.mjs` enumerates `*.test.ts(x)` only, so a benchmark that no program reads is invisible to it, and dropping the coverage silently would have been the "coverage that was right by accident" objectui#4006 recorded. Verified by appending a provably-false annotation to the benchmark, which turns `tsc -p packages/core/tsconfig.test.json` red at exit 2.
+- 41f498b: Fix `packages/core/README.md`'s Component Registry example, which taught
+  `new ComponentRegistry()` against an exported singleton **instance**, not a
+  class — the built `packages/core/dist/registry/Registry.d.ts` declares
+  `export declare const ComponentRegistry: Registry<any>`, so the snippet did
+  not compile (`TS2351: This expression is not constructable`, measured by the
+  objectui#5138 doc-snippet type gate). A reader who copied it got a compile
+  error; if `new ComponentRegistry()` had compiled it would have produced a
+  second, empty registry nothing renders from, the more expensive half of the
+  mistake.
+  
+  The snippet now calls `ComponentRegistry.register(...)` /
+  `ComponentRegistry.get(...)` directly on the singleton, with one line stating
+  it is the process-level shared instance `SchemaRenderer` resolves every
+  `type` against — the same wording `packages/components/README.md` was given
+  in objectui#5160, kept consistent across both READMEs. Readers who want their
+  own isolated registry still have `Registry` itself, separately exported as a
+  real class.
+  
+  `scripts/check-doc-snippet-types.mjs`'s `UNGATED_DOCS` entry for
+  `packages/core/README.md` is updated to match: `TS2351x1` is dropped from its
+  reason text now that the diagnostic is gone. The entry is not deleted — the
+  document's remaining `TS2339x2` pair (a different, pre-existing defect) is
+  out of scope for this change; it's tracked as objectui#5257.
+- ac600e5: A `user` field in a form now receives `dataSource` / `dependentValues` / `dependsOnLabels`, like every other reference field.
+  
+  The form renderer decided which registered widget gets those three props from a
+  module-private `DATA_SOURCE_FIELD_TYPES` set, while `@object-ui/core` kept
+  `EXPANDABLE_FIELD_TYPES` for the same underlying fact — a field whose stored
+  value is a foreign key into another object. The core side's TSDoc claimed to
+  mirror the form's set, and it did for 15 days: the form's copy then gained
+  `capability-multiselect` (objectui#2403) and the three widget-hint pickers
+  `object-ref` / `filter-condition` / `recipient-picker` (objectui#2421) on the
+  same day, after which the two sets were not in a subset relation in either
+  direction — `user` only in core, the picker names only in the form — with
+  nothing able to report it.
+  
+  The form now derives its rule instead of restating it: the reference half is
+  core's set, the form-specific half is the three picker names, which are widget
+  hints and can never be a declarable field `type`. Adding a member to
+  `EXPANDABLE_FIELD_TYPES` therefore also grants it the form's data-source wiring;
+  that coupling is intended and is now written down on both sides.
+  
+  The user-visible half is `user`. It previously received none of the three props.
+  `dataSource` and `dependentValues` each have a `SchemaRendererContext` fallback
+  inside the widget, so the person picker limped along wherever a provider
+  happened to supply one; `dependsOnLabels` has no fallback, so a
+  dependency-gated user picker interpolated the raw API name into its
+  "select ... first" hint in every locale — the leak objectstack#5407 closed for
+  lookups and left open here. The widget contract's own `dataSource` doc has
+  always named `user` among the types the form renderer injects for.
+  
+  No change to what is expanded, projected or rendered anywhere else: the core
+  set's members are untouched.
+- c1ef923: Grid and related-list column headers no longer offer a sort on a `formula` column.
+  
+  A `formula` value is computed on read: no driver materialises a column for it, so
+  a server `$orderby` naming one has nothing to order by. That sort never worked.
+  Until objectstack#6994 the platform did not say so — the response carried the very
+  values it had been asked to order by, out of order, under a `200`, with ascending
+  and descending byte-identical on a real SQL driver — and it now answers
+  `400 INVALID_SORT`. So the header was wrong before the platform's refusal and is
+  wrong after it, for the same reason: it offers a sort that cannot be performed.
+  
+  `ObjectGrid` withheld the affordance only from reference-bearing columns
+  (objectui#3096). Unmaterialized types are a SECOND reason a server sort is
+  impossible, not a different mechanism, so it now reads both — and so do the two
+  sort entry points of a related list (the embedded table's headers and the
+  sort-button row a `data-list` card keeps), which each derived that rule
+  separately.
+  
+  Client-side sorting is deliberately unchanged. There the rows are all in the
+  browser and the formula value is the one the server hydrated on read, so ordering
+  by what the cell shows is honest — the same split the relational carve-out makes.
+  A sort DECLARED in view metadata is also unchanged: it still goes out and is still
+  refused by name, because silently dropping an author's declaration would hide the
+  authoring error instead of surfacing it (the toolbar's sort picker keeps such a
+  field listed for exactly that reason — it is the only way to remove it).
+  
+  The membership — `formula` alone — moved out of a private set in `ListView` into
+  `@object-ui/core` (`UNMATERIALIZED_FIELD_TYPES` / `isUnmaterializedFieldType`),
+  bound to `@objectstack/spec`'s own storage predicate so the renderer cannot drift
+  from what the drivers actually store. It is deliberately narrower than the spec's
+  write contract `COMPUTED_VALUE_TYPES`: a `summary` and an `autonumber` each get a
+  real maintained column and sort correctly, and withholding their headers would
+  have broken two affordances that work.
+- af5e292: Emit explicit file extensions on relative import specifiers, so the published
+  entries can be imported by Node's own ESM resolver.
+  
+  `@object-ui/react`'s built entry re-exported through extensionless relative
+  specifiers (`export * from './SchemaRenderer'`). Node does not extension-search
+  relative specifiers, so `import('@object-ui/react')` under plain Node — an SSR
+  host, or any consumer without a bundler — failed with `ERR_MODULE_NOT_FOUND`.
+  Bundled consumers were never affected and are unchanged by this.
+  
+  `@object-ui/types`, `@object-ui/core` and `@object-ui/i18n` carried the same
+  emission; `@object-ui/react`'s entry stayed unloadable until they were fixed
+  too, because evaluation crosses into them. No exported API changed.
+- 9f23d2b: The object list's Import button now honours `userActions.import`'s CEL predicates.
+  
+  `@objectstack/spec@17.0.0` widened BOTH toolbar-scope keys, not just `create`:
+  `userActions.create` and `userActions.import` are typed identically
+  (`z.union([z.boolean(), RowCrudActionOverrideSchema])`) and
+  `resolveCrudAffordances` emits a predicate envelope for each, with the docblock
+  binding them in one breath ("`importPredicates` — same binding as
+  `createPredicates`"). objectui#4646 gave the `create` half a consumer and left
+  the `import` half declared-and-inert: `importPredicates` had zero readers in
+  objectui. An author could write `userActions.import.visibleWhen`, have the spec
+  accept it and the resolver parse it, and watch the object-list toolbar offer the
+  CSV import wizard unconditionally.
+  
+  The toolbar now evaluates them, mirroring the related list's create half:
+  `visibleWhen` fails CLOSED (an unevaluable predicate hides the entry and warns
+  once), `disabledWhen` fails SOFT (an unevaluable one leaves the button enabled),
+  and the declared-ness rules are the family's — `?? true` for `visibleWhen` so
+  `visibleWhen: false` hides rather than reading as "ungated", `!= null` for
+  `disabledWhen` so an empty predicate reads as "no condition". The layer sits on
+  TOP of the object-level verdict: a predicate can narrow what the `managedBy`
+  bucket, the server's effective API operations and the principal's grant already
+  allow, never re-open what they closed.
+  
+  Per the spec's binding, a toolbar predicate evaluates once per toolbar against
+  the record of the scope the toolbar sits in — and a standalone object list has
+  no record in scope. Predicates over the host scope (`os.user.*`, `features.*`)
+  are the meaningful shape there; one reading `record.*` has nothing to bind and
+  hides the entry, which is the fail-closed rule the spec spells out for exactly
+  this surface.
+  
+  `UserActionsOverride.import` widens from `boolean` to the same union as
+  `create`, deliberately in this same change: objectui#4646 kept it narrow on
+  purpose because widening a type ahead of its consumer re-declares the
+  inert-metadata defect one key over. Type and consumer travel together.
+- 31676be: `buildChartSeries`' pivot branch preserves key ABSENCE, so a never-projected first dimension still reaches the framework#4033 placeholder.
+  
+  `hasNoCategoryKey` (plugin-charts' `AdvancedChartImpl`) exists to catch one
+  shape: a dimension a dataset query GROUPED BY but never PROJECTED, so no row
+  carries the category key. Rather than draw an axis with no marks, the renderer
+  names the missing key. Its whole signal is `key in row`, asked of the rows it is
+  handed — which for a dataset-bound chart are `buildChartSeries`' output.
+  
+  The pivot branch wrote `[xKey]` onto every bucket it created, so `key in row`
+  was unconditionally true downstream and the guard could not fire for a
+  2-dimension/1-measure chart no matter what the query returned. Every row
+  collapsed into one unnamed bucket drawing a blank tick — the exact silent shape
+  the placeholder was introduced to eliminate. The defence was dead precisely
+  where the defect it guards against lands. The single-dimension branch was never
+  affected: it passes rows through, so key-absent rows stay key-absent.
+  
+  An emitted bucket now carries the axis key exactly when some row of it did.
+  That is `hasNoCategoryKey`'s own `rows.some(key in row)` lifted through the
+  pivot's aggregation, so the guard reads the same fact before and after.
+  
+  The route rests on a measurement of how a dataset query actually reports an
+  unprojected dimension in a 2-dimension grouping: it OMITS the key. The ObjectQL
+  strategy writes a dimension key only when the engine returned that column, the
+  native-SQL strategy returns driver rows carrying only the selected columns, JSON
+  cannot transport `undefined`, and `ObjectStackAdapter.queryDataset` passes rows
+  through by reference. An explicit `null` means the opposite — the column WAS
+  projected and its value is null — and that case is untouched: it still renders
+  under the `(None)` bucket label (objectui#4466 / objectui#4497). Where one
+  bucket collects both (an absent value and a stored `null` share the `[null]`
+  identity), the bucket keeps its label and draws, because refusing there would
+  tell an author their query never projected a dimension that it did.
+  
+  No change to any chart whose first dimension projected: ordinary, null-valued
+  and empty-string categories all emit byte-identical rows, key order included.
+- 5ffcc14: fix(plugin-report): forward the chart chrome and series presentation `ReportChartSchema` declares (objectui#4877)
+  
+  A report's embedded chart forwarded exactly six keys to the registered chart
+  component — `chartType`, `data`, `height`, `isAnimationActive`, `series`,
+  `xAxisKey`. Everything else `ReportChartSchema` declares as authorable never
+  left the report renderer, so it was inert metadata: the author writes it, the
+  schema accepts it, nothing reads it.
+  
+  `showLegend` was the sharpest case because dropping it does not merely ignore
+  the author, it INVERTS them: `AdvancedChartImpl` computes
+  `legendVisible = showLegend !== false`, so an absent value means the legend is
+  on and an explicit `showLegend: false` still drew one.
+  
+  Now lowered, under objectui#4229's ruled data/presentation split:
+  
+  - chrome — `showLegend`, `showDataLabels`, `colors` (both the positional-palette
+    array and the per-category record), `subtitle`, `description`, `annotations`,
+    `interaction`, `height`;
+  - per-series presentation — `color`, `stack`, `type`, `yAxis`, `dashArray`,
+    `opacity`, `variant`, matched by `series[].name` so series MEMBERSHIP stays
+    with the dataset.
+  
+  `title` is deliberately not forwarded: the report renderer paints it as its own
+  heading above the plot, and forwarding it would draw a second one inside the
+  chart's frame. `aria` is not lowered either — nothing on this path reads it
+  (`AdvancedChartImpl` has no `aria` prop, and this renderer hands the component a
+  schema directly rather than through `SchemaRenderer`'s flat ARIA injection), so
+  forwarding it would move declared-but-unread one layer down.
+  
+  The two helpers (`chartConfigPresentation`, `mergeAuthoredPresentation`) moved
+  from `plugin-dashboard`'s `DatasetWidget` to `@object-ui/core` beside
+  `buildChartSeries`, the derivation they merge onto, so both surfaces lower one
+  vocabulary once instead of keeping a second copy (the duplication objectui#4389
+  filed as a defect). `@object-ui/core` additionally exports `mergeAuthoredSeries`
+  — the series merge alone — for a surface whose axes are bare dimension/measure
+  NAME strings rather than spec `ChartAxis` objects, which is what a report chart
+  declares. `DatasetWidget` re-exports both names, so its public surface and its
+  rendering are unchanged.
+- d971e51: A create form no longer deadlocks on a `requiredWhen` field that also declares a runtime `defaultValue`.
+  
+  `#4069` ruled that in **create** mode a field whose `defaultValue` is a runtime
+  instruction the server resolves per insert (`NOW()` / `current_user`, or a CEL
+  Expression envelope) is producer-owned: the control is deliberately left empty
+  and the key is omitted from the payload, because `ObjectQL.applyFieldDefaults`
+  resolves the declaration only for a field that arrives absent or null. That was
+  implemented on the STATIC `required` flag.
+  
+  The conditional spelling was not covered. `requiredWhen` is resolved one layer
+  downstream, in the form renderer, against the live record — so a predicate
+  resolving TRUE on a create form put the requirement straight back: the control
+  was still empty by design, the submit was refused, and the user had nothing
+  sensible to type.
+  
+  Both spellings now behave identically on a producer-owned field. A
+  `requiredWhen` predicate is a claim about the value at rest in a given state,
+  and `NOW()` / `current_user` resolve at insert regardless of state, so the
+  producer's guarantee covers the conditional claim by the same argument that
+  covers the unconditional one. An author who really means "the user must supply
+  this in this state" has a natural spelling for it: do not declare the default.
+  
+  The suppression lands in the single evaluator both layers read,
+  `resolveFieldRuleState` — the same verdict that draws the required marker and
+  the one the submit-time check consults — so a field can never lose its asterisk
+  while still refusing the write. The classifier that answers "is this value the
+  producer's to supply" moved down to `@object-ui/core`
+  (`isRuntimeDefault` / `isServerOwnedValue`, re-exported from
+  `@object-ui/plugin-form`) so the renderer, the wizard's cross-step gate and the
+  create-form field builders all read one implementation rather than three.
+  
+  **Edit mode is unchanged.** Defaults do not re-apply to an existing record, so
+  on a persisted row the token was already resolved at insert and blanking the
+  column is a real removal: `requiredWhen` enforces there exactly as authored.
+  Fields with no declared default, and fields whose default is a static literal
+  (which IS seeded into the control), are also unaffected in both modes.
+- dfc6975: Related-list "+ New" now honours `userActions.create` predicates, and the grid
+  toolbar's inline-edit affordance is gated on `update` permission (objectui#4646,
+  objectui#4647).
+  
+  Two declared-but-unenforced gaps on the same toolbar surface.
+  
+  **#4646 — `createPredicates` had a producer and no consumer.**
+  `@objectstack/spec@17.0.0` widened `userActions.create` to
+  `z.union([z.boolean(), RowCrudActionOverrideSchema])`, so `resolveCrudAffordances`
+  emits `createPredicates` — and nothing in objectui read them, against roughly
+  fifteen consumption sites apiece for `editPredicates` / `deletePredicates`. The
+  symptom: a parent record entering a frozen state correctly greyed its children's
+  row Edit/Delete while the related list's "+ New" stayed fully live, so the user
+  filled in the whole child form to earn a server 409. The related-list toolbar now
+  evaluates `visibleWhen` / `disabledWhen` **once against the host parent record**,
+  per the spec docblock's binding for this key, on top of the existing
+  `o.create ∧ can(child, 'create')` check. `visibleWhen` hides "+ New" and fails
+  CLOSED; `disabledWhen` greys it and fails SOFT — the same evaluator, fail
+  directions and hidden-vs-disabled split the record header already uses for
+  edit/delete (objectui#4419 / PR #4515). A bare-boolean `userActions.create` is
+  untouched: with no predicates there is nothing to evaluate.
+  
+  **#4647 — the inline-edit toggle was the one ungated affordance on its toolbar.**
+  It rendered on "grid view ∧ the host wired `onInlineEditChange` ∧ not the compact
+  toolbar", and every host wires that callback unconditionally. New and Import are
+  hidden for an account without the grant and the bulk-delete entry on the same
+  toolbar ANDs `can(obj, 'delete')`, but a read-only principal could flip inline
+  edit, modify cells and press "Save all" to earn a server 403. It is now gated on
+  the object's resolved edit affordance ∧ `can(object, 'update')`, mirroring that
+  bulk-delete gate. The gate is applied at all three sites that carry this
+  affordance — the wide toolbar's toggle, the compact toolbar's settings-popover
+  entry (which previously had no gate at all, not even the callback), and the
+  `editable` mode handed to the grid, so a stored view carrying `inlineEdit: true`
+  can no longer drop a read-only principal into editable cells with no toggle to
+  press.
+  
+  `ListViewSchema.userActions.editInline` is also consumed now: an explicit `false`
+  withholds the affordance wholesale, which authors previously could not do.
+  
+  **Behaviour change for read-only users, stated plainly.** Where the UI used to
+  offer inline editing and let the server refuse it, it now declines to offer the
+  entry point at all. No data access changes — the server gate was and remains the
+  enforcement boundary; this only stops the UI walking users into round-trips
+  guaranteed to fail. Accounts *with* the grant see no change, and hosts with no
+  `PermissionProvider` mounted (standalone embeds, the Studio designer) keep
+  today's behaviour, since `can()` answers `true` there by design.
+  
+  One deliberate non-change: the absent case of `userActions.editInline` defers to
+  the host's existing `inlineEdit` channel rather than enforcing the spec's
+  `.default(false)`. Enforcing that default would remove the toggle from every
+  stored console list view in one release, since nothing folds a legacy key into
+  `editInline` and no existing view declares it. This follows the rule the
+  surrounding toolbar-flag block already states for itself — defaults chosen to
+  match what the flags have always done. `InterfaceListPage`, the key's other
+  consumer, reads the absent case as OFF, because the ADR-0047 interface page has
+  no such host channel to defer to.
+- Updated dependencies [88085e3]
+- Updated dependencies [279fb13]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [f1d4748]
+- Updated dependencies [578e025]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

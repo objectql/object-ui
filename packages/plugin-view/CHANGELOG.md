@@ -1,5 +1,431 @@
 # @object-ui/plugin-view
 
+## 17.6.0
+
+### Minor Changes
+
+- 0a73b51: `ObjectView` and `ListView` now flatten a view's `map` block through a
+  whitelist instead of spreading the whole (untyped) block to the top level.
+  
+  Both `case 'map'` flatteners used to build the `object-map` schema with
+  `...(options.map || {})` — a raw spread of an untyped bag
+  (`NamedListView.options?: Record<string, any>`), so any key an author wrote in
+  the `map` block reached the top level unfiltered. `ObjectMap`'s own
+  `FlatMapConfigKeys = Omit<ObjectMapConfig, 'style'>` declares `style` OUT of
+  this flat form (`style` is also `BaseSchema.style`, inline CSS legal on every
+  node), so the two disagreed about the same shape. `style` was the live
+  specimen: `map: { style: '<url>' }` reached the top level as a CSS-shaped
+  `style` key it was never supposed to carry.
+  
+  Behavior narrowing, stated because it changes what reaches the flattened
+  schema: a `map` block key that is not one of `ObjectMapConfig`'s declared
+  flat keys (`latitudeField` / `longitudeField` / `locationField` / `titleField`
+  / `descriptionField` / `zoom` / `center`) — including `style` — no longer
+  reaches the top level of the flattened `object-map` schema. This closes a gap
+  rather than removing working behavior: the pinned strict spec view schemas
+  accept no `map` block at all today, so no author-facing surface could reach
+  this path, and `ObjectMap` already stopped reading a top-level `style` as a
+  map style (a dev warning names the correct spelling instead).
+  
+  The whitelist is DERIVED from `ObjectMapConfigSchema` (`@object-ui/types/zod`)
+  rather than hand-listed, so the flatteners and the declaration cannot drift
+  apart again — a key added to (or removed from) the schema reaches both
+  flatteners without a second edit. `ObjectMap`'s own `FLAT_MAP_CONFIG_KEYS` is
+  derived from the same schema for the same reason.
+- f1d4748: Remove the retired `striped` / `bordered` / `virtualScroll` list-view surface
+  
+  objectstack#7176 retired `list.striped`, `list.bordered` and `list.virtualScroll`
+  from the spec after measuring every objectui reader as pass-through: each one
+  copied the key onward and no renderer ever applied it. objectui stops declaring,
+  typing and forwarding them.
+  
+  Off the chain: the `@objectstack/spec` list-view bridge in `@object-ui/react`,
+  `ListView`'s child-view props in `@object-ui/plugin-list`, both `ObjectView`
+  relays (`@object-ui/plugin-view` and `@object-ui/app-shell`), the `ObjectGridSchema`
+  and `NamedListView` declarations in `@object-ui/types` (interface and zod),
+  `ObjectGrid.component.yml` in `@object-ui/components`, and the page-block
+  inspector's `striped` / `bordered` toggles in the metadata-admin designer.
+  
+  Behaviour is unchanged: nothing read these keys, so nothing rendered differently
+  for them. Stored view metadata that still carries one keeps validating — the keys
+  are simply no longer relayed. `ListViewSchema` continues to take the spec's
+  list-view fields by reference, so the protocol's own retirement tombstones
+  arrive with the next `@objectstack/spec` bump and reject the keys at the
+  authoring boundary. Restoring any of the three as live surface requires an
+  implementation card filed first, per the ruling.
+- d006ce1: `object-view`: a top-level `conditionalFormatting` no longer reaches the kanban view.
+  
+  `ObjectView.generateViewSchema`'s kanban branch resolved its rule list from a
+  three-link chain: `options.kanban.conditionalFormatting`, then the active view's
+  own rule, then `(schema as any).conditionalFormatting` read straight off the
+  `object-view` node. The first two links are declared surface. The third was not:
+  `ObjectViewSchema` has no such member, the `object-view` registry registration
+  does not publish it in `inputs`, and `BaseSchema`'s index signature keeps tsc
+  silent — yet it was honoured, because that branch runs exactly when no host
+  supplies `renderListView`, which is the path the registered renderer takes.
+  
+  That one key was the sole counter-example to the objectui#5097 exemption, whose
+  stated basis is that its 27 keys are reachable only through the host-supplied
+  delegation. Maintainer ruling of 2026-08-19 on objectui#5248 (verbatim
+  「全部接受」): Option 2, gated on a liveness check, with Option 1 (declare the key
+  on `ObjectViewSchema` and in the registry `inputs`) pre-ruled for the case where
+  the check found real authored usage. The check came back empty — no authored
+  document in either repo puts `conditionalFormatting` on an `object-view` node
+  (objectui docs carry it only on `object-grid`, the authoring skill only on
+  `list-view`; objectstack authors no `object-view` node at all) — so the read was
+  dropped rather than the key declared.
+  
+  Behavior change, stated because it is one: an `object-view` node that carried a
+  top-level `conditionalFormatting` and rendered a kanban view now renders that
+  kanban unformatted. Author the rules where they are declared — under
+  `options.kanban.conditionalFormatting`, or on the view — and both keep working
+  with the same precedence as before.
+  
+  Not narrowed: the host `renderListView` delegation still reads the key off the
+  `object-view` node and forwards it to the host's list renderer. It remains
+  host-composition surface under objectui#5097; only the author-reachable path
+  closed. Both halves are pinned in
+  `packages/plugin-view/src/__tests__/ObjectView.kanbanConditionalFormatting.test.tsx`,
+  and `objectViewHostSurface.test.tsx` now asserts that ZERO exempt keys are read
+  outside the host-composition fence.
+
+### Patch Changes
+
+- ad07b65: Four packages stop publishing tooling material in their `dist/`
+  
+  Each of these packages spelled its build exclusions as `*.test.*`, while this repo's tooling convention is a directory one — `__tests__` / `__mocks__` / `__benchmarks__`, exactly as `TOOLING_FILE` in `scripts/check-phantom-dependencies.mjs` spells it. Any tooling file whose *name* is not `*.test.*` therefore stayed in the emit program and shipped in the tarball. This is the same shape and the same cause as objectui#4006, which fixed `@object-ui/fields` and `@object-ui/plugin-editor` by the filename criterion and so did not reach these four.
+  
+  Measured by building each package from a cleared `dist/` on both sides of the change. Nine files disappear, none appears, and every surviving file is untouched — the totals move by exactly the count removed:
+  
+  | package | `dist/` files | removed |
+  | --- | --- | --- |
+  | `@object-ui/core` | 176 to 174 | `dist/__benchmarks__/core.bench.js`, `core.bench.d.ts` |
+  | `@object-ui/plugin-designer` | 70 to 66 | `dist/__tests__/__mocks__/plugin-form.d.ts`, `plugin-grid.d.ts`, and both `.d.ts.map` |
+  | `@object-ui/plugin-grid` | 62 to 60 | `dist/__tests__/explainDouble.d.ts` and its `.d.ts.map` |
+  | `@object-ui/plugin-view` | 13 to 12 | `dist/__tests__/explainDouble.d.ts` |
+  
+  Only `@object-ui/core`'s had runtime weight. The other eight are declarations nothing resolves, but `core.bench.js` is a real emitted module whose first import is `import { bench, describe } from 'vitest'` — a runtime import of a package a consumer never installs, since `vitest` is a devDependency of `@object-ui/core` and devDependencies are not installed transitively. Nothing resolves it today either (it is not in the `exports` map), so no consumer breaks in either direction; this is the tarball shedding files nothing reached.
+  
+  No type coverage leaves with the emit. The three plugins' helper and mock files are already program inputs of the `tsconfig.test.json` that each package's `type-check` chains, reached through the imports in the suites beside them — `tsc --listFiles` names all four files on both sides of the change. `core.bench.ts` had no such edge, since nothing imports a benchmark, so it is now named explicitly in `packages/core/tsconfig.test.json`. That move was deliberate rather than forced: `scripts/check-type-check-coverage.mjs` enumerates `*.test.ts(x)` only, so a benchmark that no program reads is invisible to it, and dropping the coverage silently would have been the "coverage that was right by accident" objectui#4006 recorded. Verified by appending a provably-false annotation to the benchmark, which turns `tsc -p packages/core/tsconfig.test.json` red at exit 2.
+- 20bc99f: `ObjectView` forwards the canonical `table` keys — `pagination` / `selection` / `filter` / `sort` now take effect, and the deprecated spellings keep working as aliases.
+  
+  `ObjectViewSchema.table` is documented as inheriting from `ObjectGridSchema`,
+  but `ObjectView` does not spread it: it forwards a hand-written whitelist of
+  keys, and that whitelist carried only the **deprecated** half of four pairs.
+  `pageSize`, `selectable`, `defaultFilters` and `defaultSort` were forwarded;
+  their canonical successors `pagination`, `selection`, `filter` and `sort` had
+  **no read point at all** in the file.
+  
+  So an author who wrote the shape the type recommends — `table: { pagination:
+  { pageSize: 25 } }`, having read `@deprecated Use pagination.pageSize instead`
+  on the key they were avoiding — got a view that compiled, read correctly, and
+  did nothing. There was no failure signal at any layer: the key is declared on
+  `ObjectGridSchema`, `ObjectGrid` already reads it, and only this forwarding hop
+  dropped it. That silent success is the defect being closed.
+  
+  All four canonical keys are now forwarded at every site that forwarded their
+  deprecated counterpart: the grid schema, the non-grid data fetch
+  (kanban / gallery / calendar / timeline / gantt / map), and the delegated
+  `renderListView` schema. When an author writes both spellings the **canonical
+  key wins** — it is read first in the chains `ObjectView` resolves itself, and on
+  the grid path both slots are forwarded so `ObjectGrid`'s existing canonical-first
+  resolution decides, keeping the two layers in agreement.
+  
+  Nothing that worked before changes. The deprecated spellings are still read and
+  are still the value used when they are the only one written; no canonical value
+  is synthesised from a deprecated one, so `ObjectGrid`'s `pagination`-keyed
+  behaviour is untouched for views that only ever wrote `pageSize`. The two
+  precedence segments ahead of `table` — a named `listViews` entry, then the
+  active view — are untouched, and a named view still outranks a `table` default.
+  
+  Declaration-surface note: `table` remains `Partial< Omit< ObjectGridSchema, … > >`,
+  which the `BaseSchema` index signature collapses to zero declared members, so
+  editor completion still offers no keys and a misspelling is still accepted
+  silently. That half is deferred to the structural track and is not addressed
+  here.
+- e22b9d7: `ObjectView` sends a named view's `sort` to the grid slot that can hold it — the declared sort now reaches both the header indicator and `$orderby`.
+  
+  A named view's sort is an **array**: `NamedListView.sort` is
+  `Array< { field, order } >`, and the `views` prop declares an array too.
+  `ObjectView` forwarded the resolved view sort into `gridSchema.defaultSort`,
+  which `ObjectGridSchema` declares as a **single** `{ field, order }`. The
+  arity mismatch had no compile-time witness — `ObjectViewSchema.table`
+  collapses to a bare index signature — and both of `ObjectGrid`'s readers then
+  failed, in different ways:
+  
+  - **The header drew nothing.** `parseSchemaSort(schemaSort ?? (schema.defaultSort
+    ? [schema.defaultSort] : undefined))` re-wraps an already-array `defaultSort`
+    into `[[{ field, order }]]`. Each entry must be a string or an object with a
+    string `field`; a nested array is neither, so the entry was skipped and the
+    parse returned `[]`. A view that arrived sorted `name desc` looked unsorted,
+    and the first click on that column asked for `asc` on a list already `desc`.
+  - **The fetch sent nonsense.** `` `${(schema.defaultSort as any).field} ${(schema
+    .defaultSort as any).order}` `` reads two absent keys off an array, so the
+    request carried the literal string `"undefined undefined"` as `$orderby`.
+    `serializeOrderBy` passes a non-empty string through untouched, so that
+    reached the server verbatim.
+  
+  The two view precedence segments (`listViews` entry, then the active `views`
+  entry) now ride the **canonical** `sort` slot, declared `string | SortConfig[]`
+  — the arity a view actually carries, and the only one of the pair that can
+  express a multi-key sort at all. The legacy `defaultSort` slot keeps carrying
+  the `table` segment alone and is read exactly as before.
+  
+  **Precedence is unchanged.** `ObjectGrid` resolves `sort ?? defaultSort`, so a
+  view sort still outranks both `table.sort` and `table.defaultSort`, and a
+  `table.sort` still outranks a `table.defaultSort` — the same order the non-grid
+  fetch and the delegated `renderListView` schema already express. A view that
+  supplies no sort forwards exactly what it forwarded before.
+  
+  This is also the shape the shared sort sink accepts (`convertSortToQueryParams`
+  takes `string | SortConfig[]`), so the fix converges on the normalized dialect
+  rather than adding another spelling for the sort-sink convergence work to fold
+  in later.
+- 2426608: `ObjectView` now forwards the canonical `table.columns` on the non-grid paths, not only on the grid one.
+  
+  `ObjectViewSchema.table` inherits from `ObjectGridSchema`, where `columns` is the
+  canonical spelling and `fields` carries `@deprecated Use columns instead`. Only
+  one of the file's three field-list read points consulted `table.columns` — the
+  grid one. `generateViewSchema`'s shared `baseProps` and the delegated
+  `renderListView` schema both read `table.fields` alone, so an author who wrote
+  `table: { columns: [...] }` on a non-grid view got an empty field list from a
+  schema that compiled and read correctly. Same silent-success shape as
+  objectui#5102, different mechanism: not a whitelist that knows only legacy
+  spellings, but one that disagreed with itself between two rendering paths.
+  
+  Both sites now read the canonical key first and keep the deprecated one as a
+  working alias, exactly as objectui#5102 settled it for its four pairs. Nothing
+  is translated or reshaped on the way through, and precedence is unchanged: a
+  named view's `columns`, then the active view's, then the `table` segment.
+  
+  Where this is observable, measured rather than assumed: `object-kanban` (the
+  card fields) and `object-tree` (its flat columns) consume the shared
+  `baseProps` field list, and the delegated `list-view` consumes `columns`.
+  `object-gallery`, `object-calendar`, `object-timeline`, `object-gantt` and
+  `object-map` read no field list off their schema at all, so the forwarded value
+  is inert there — before this change and after it.
+  
+  One shape question the forwarding raised, answered at the boundary:
+  `table.columns` is `string[] | ListColumn[]`, and the non-grid slot is a
+  names slot (`ObjectKanban` indexes the record by each entry). The object form
+  is therefore resolved to field names there with `columnIdentity` — the same
+  fold `ObjectGrid` applies to this very value — so one authored `table.columns`
+  resolves identically on both paths, and a `ListColumn[]` cannot arrive as a
+  non-empty card field list naming nothing (which would suppress ObjectKanban's
+  `highlightFields` fallback and render emptier than the bug being fixed). The
+  delegated `list-view` slot declares the same union and keeps the value raw, so
+  an author's per-column `label` / `width` still reach the list renderer.
+- 99d5659: The plugin-view documentation-site page now teaches the keys `ObjectView`
+  actually reads, so a copied example renders instead of coming up empty.
+  
+  `content/docs/plugins/plugin-view.mdx` carried the same fictional key surface
+  the README did before it was rewritten: the object name was spelled `object`
+  (the real key is `objectName`, the only required one besides `type`), the page
+  was organised around a `viewMode` trichotomy that does not exist, and
+  `fields` / `mode` / `recordId` / `fieldConfig` / `nestedFields` / `tabs` /
+  `filters` / `searchable` / `enableDelete` went with it. None of those is a
+  declared member of `ObjectViewSchema`, and none is read anywhere in
+  `packages/plugin-view/src`. Because `type: 'object-view'` is genuinely
+  registered, a copied example still resolved to a renderer — it just never
+  received an `objectName`, and the component's data effects are all guarded on
+  it, so the reader got a silent empty view rather than an error.
+  
+  The Schema API section and every example after it were rewritten against the
+  declared surface, with each key measured against the renderer's read points
+  before being written: `defaultViewType` (plus `listViews` / `defaultListView`)
+  for the list type, `layout` and its drawer/modal/page record surface in place of
+  the separate "form view" and "detail view" narratives, `table` and `form` for
+  grid and form configuration, `operations` booleans and `onNavigate` in place of
+  the `onCreate` / `onUpdate` / `onDelete` callbacks that were never part of this
+  contract, and the `show*` toolbar toggles. The examples are now typed
+  `ObjectViewSchema` blocks rather than untyped JSON, which makes a missing
+  `objectName` a compile error in all fourteen of them — the page previously had
+  no assertion at all, since `ObjectViewSchema` inherits an index signature from
+  `BaseSchema` that accepts any undeclared key.
+  
+  Three structural facts are stated outright: `dataSource` is a required prop of
+  `ObjectViewProps` and not a schema key; create, edit and read are internal
+  states of one record surface rather than authored modes; and `ObjectView`
+  forwards a fixed list of keys out of `table` and `form` rather than passing
+  those objects through, so the page names exactly which ones — including that
+  page size on this path is `table.pageSize`, not `table.pagination`.
+  
+  The TypeScript Support snippet's `import type { ObjectViewSchema }` also moves
+  from `@object-ui/plugin-view`, which does not export it, to `@object-ui/types`,
+  where it is declared. Copying the old line produced a TS2305.
+- 405d54e: The plugin-view README now documents the keys `ObjectView` actually reads, so a
+  copied example renders instead of coming up empty.
+  
+  Every untyped schema literal in the README was written against a key vocabulary
+  `ObjectViewSchema` does not declare and `ObjectView` does not read. The object
+  name was spelled `object` — the real key is `objectName`, and it is the only
+  required key besides `type` — so a copied example left the component with no
+  object to query. Three "view modes" were organized around a `viewMode` key that
+  exists nowhere, and `fields`, `mode`, `recordId`, `fieldConfig`, `nestedFields`,
+  `tabs`, `searchable`, `sortable`, `filters` and `enableDelete` were documented
+  the same way. None of it failed loudly: `ObjectViewSchema` extends a base schema
+  carrying a `[key: string]: any` index signature, so excess-property checking is
+  defeated on this type, and the blocks carried no type annotation to trip even
+  the one assertion that does bite.
+  
+  The thirteen affected blocks are rewritten against the declared surface, each
+  one measured against the renderer before being written: `defaultViewType` (plus
+  `listViews` / `defaultListView`) for the list type, `layout` with its
+  drawer/modal/page record surface for what the README called form and detail
+  views, `table` and `form` for grid and form configuration, `operations`
+  booleans and `onNavigate` in place of the `onCreate` / `onUpdate` / `onDelete` /
+  `onSubmit` callbacks that were never part of this contract, and the `show*`
+  toolbar toggles. Examples now carry `ObjectViewSchema` annotations, which makes
+  a missing `objectName` a compile error in all fifteen of them.
+  
+  Three structural facts are stated outright rather than left to be inferred:
+  `dataSource` is a required prop of `ObjectViewProps` and not a schema key, so
+  putting it in the schema does nothing; create/edit/read are internal states of
+  one record surface rather than authored modes, which is why `ObjectViewSchema`
+  omits `mode` from its `form` block; and `ObjectView` forwards a fixed list of
+  keys out of `table` and `form` rather than passing those objects through, so the
+  README now names exactly which ones — including that page size is `table.pageSize`
+  on this path, the spelling the component forwards.
+  
+  The `ViewSwitcher`, `FilterUI` and `SortUI` sections are untouched: their keys
+  were checked against the registered `inputs` and already matched.
+- d2cf8fd: docs: README 按真实导出面重写虚构的 `viewComponents` 手动注册,并把 `ObjectViewSchema` 的导入路径改到 `@object-ui/types`
+  
+  `### Manual Registration` 教的 `viewComponents` 在本包(以至全仓)零命中,照抄第一行就是
+  `Object.entries(undefined)` 抛 TypeError;替换为三节真话:七个 `ComponentRegistry.register`
+  调用认领的 schema 类型键表、本包 39 个真实导出名、以及把导出组件挂到自定义键的写法。
+  
+  `ObjectViewSchema` 是真类型,但声明在 `@object-ui/types`,本包只 import 不 re-export,按
+  README 原路径导入是 TS2305;改导入路径(未新增任何导出或 re-export),示例键面随之对齐真身
+  (`objectName` 必填、`defaultViewType`、`table.columns`)。
+  
+  无代码/类型/运行时改动。声明 patch 是因为 `README.md` 在包的 `files` 里,随下次发布到 npm。
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [feb6b16]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [9aecabe]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [9b20dea]
+- Updated dependencies [469b604]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [d7be3bd]
+- Updated dependencies [a954b48]
+- Updated dependencies [bda9b12]
+- Updated dependencies [e354dd0]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [f68018d]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [375efb4]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [3e0214c]
+- Updated dependencies [800f455]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [27c9cbd]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [0046d8f]
+- Updated dependencies [3b03704]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [b4089be]
+- Updated dependencies [578e025]
+- Updated dependencies [b4bccc7]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [958d757]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [bfb64ee]
+- Updated dependencies [e09f9e8]
+- Updated dependencies [03e5f97]
+- Updated dependencies [ae804ec]
+- Updated dependencies [b29488f]
+- Updated dependencies [9fbb9b5]
+- Updated dependencies [90517e1]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [2165d88]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/plugin-grid@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/plugin-form@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes
