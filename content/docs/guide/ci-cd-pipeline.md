@@ -38,7 +38,6 @@ one has its own section below.
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
 | `changeset-release.yml` | Changeset Release | Push to `main` | n/a |
-| `release.yml` | Release | Push of a `v*` tag | n/a |
 | `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
@@ -706,16 +705,6 @@ Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `ly
   route-to-file mapping here would only create a second copy free to drift.
 
 ## Release Workflows
-
-### Tag Release (`release.yml`)
-
-**Trigger:** Push of version tags matching `v*`.
-
-1. Runs the full test suite.
-2. Builds all packages.
-3. Creates a GitHub Release with auto-generated release notes.
-
-> Note: npm publish is currently handled by `changeset-release.yml` instead.
 
 ### Changeset Release (`changeset-release.yml`)
 
