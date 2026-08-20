@@ -78,6 +78,25 @@ export interface SpecDistInjection {
   fsAllow: string[];
   /** `advancedChunks` test that keeps the injected spec in the vendor chunk. */
   vendorChunkTest: RegExp;
+  /**
+   * Module-id test that still RECOGNISES the injected spec as the spec.
+   *
+   * Distinct from `vendorChunkTest` on purpose. That one answers "which modules
+   * belong in the `vendor-objectstack` group" — the whole scope minus the
+   * linter — and an eager `@objectstack/client` satisfies it. This one answers
+   * "which modules ARE `@objectstack/spec`", which is what the console's
+   * build-time counter-probe (`assertLazyLinterStaysLazy`) has to be able to
+   * find before it trusts its own graph walk.
+   *
+   * Publishing it here rather than letting that consumer hardcode its own is the
+   * whole lesson of objectui#5388: the injection rewrites all 18 spec specifiers
+   * to absolute paths in the overriding tree — ids with no `@objectstack`
+   * segment anywhere — so a private `/@objectstack[\\/+]spec/` matched zero
+   * modules, the counter-probe correctly refused a verdict, and every build made
+   * with the override set died in `generateBundle` (measured from the consumer
+   * side in objectstack#10136). Both consumers now read one producer.
+   */
+  specModuleTest: RegExp;
 }
 
 /** Escapes a literal string for embedding in a `RegExp` source. */
@@ -213,10 +232,12 @@ export function readSpecExportTargets(packageDir: string): Map<string, string> {
  * @param raw            the `OBJECTSTACK_SPEC_DIST` value, unset or empty for none
  * @param vendorChunkTest the config's baseline `vendor-objectstack` group test,
  *                        widened (never replaced) with the override's location
+ * @param specModuleTest  the config's baseline "this module id is the spec" test,
+ *                        widened the same way — see `SpecDistInjection`
  */
 export function resolveSpecDistInjection(
   raw: string | undefined,
-  { vendorChunkTest }: { vendorChunkTest: RegExp }
+  { vendorChunkTest, specModuleTest }: { vendorChunkTest: RegExp; specModuleTest: RegExp }
 ): SpecDistInjection | null {
   if (!raw || !raw.trim()) return null;
 
@@ -231,10 +252,22 @@ export function resolveSpecDistInjection(
   aliases[SPEC_PACKAGE_NAME] = targets.get(SPEC_PACKAGE_NAME)!;
 
   const posixDir = packageDir.split(path.sep).join('/');
+
+  // One widening rule, applied to every module-id test the caller hands in: the
+  // baseline stays whole and the override's location joins it as an extra
+  // alternative. Widened, never replaced — an injected build still resolves
+  // plenty of installed `@objectstack/*` through node_modules, and a test that
+  // only knew the override would stop seeing those. Keeping it a single local
+  // function is deliberate too: two tests widened by two hand-written copies of
+  // this expression is how the consumers drift apart in the first place.
+  const widen = (baseline: RegExp): RegExp =>
+    new RegExp(`${baseline.source}|${escapeRegExp(posixDir)}${SEPARATOR_CLASS}`);
+
   return {
     packageDir,
     aliases,
     fsAllow: [packageDir],
-    vendorChunkTest: new RegExp(`${vendorChunkTest.source}|${escapeRegExp(posixDir)}${SEPARATOR_CLASS}`),
+    vendorChunkTest: widen(vendorChunkTest),
+    specModuleTest: widen(specModuleTest),
   };
 }

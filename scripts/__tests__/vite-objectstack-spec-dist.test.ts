@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'vite';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -81,11 +81,27 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const BASE_VENDOR_TEST =
   /([\\/]node_modules[\\/]@objectstack[\\/](?!lint[\\/])|[\\/]@objectstack\+(?!lint@))/;
 
+/**
+ * The baseline "this module id is the spec" test, as the console config spells it.
+ *
+ * Mirror of `SPEC_MODULE_TEST` in `apps/console/vite.config.ts`. Deliberately
+ * NOT the same regex as `BASE_VENDOR_TEST`: that one is the whole vendor scope
+ * minus the linter, and the counter-probe it feeds has to be able to distinguish
+ * "an eager chunk holds the spec" from "an eager chunk holds some
+ * `@objectstack` package". objectui#5388 is what happens when the two are
+ * conflated in the other direction — one consumer reading the injection, the
+ * other not.
+ */
+const BASE_SPEC_TEST = /@objectstack[\\/+]spec/;
+
 /** The installed spec package — a real, fully built override target. */
 const installedSpecDir = path.dirname(require_.resolve('@objectstack/spec/package.json'));
 
 const inject = (raw: string | undefined) =>
-  resolveSpecDistInjection(raw, { vendorChunkTest: BASE_VENDOR_TEST });
+  resolveSpecDistInjection(raw, {
+    vendorChunkTest: BASE_VENDOR_TEST,
+    specModuleTest: BASE_SPEC_TEST,
+  });
 
 /**
  * A fresh evaluation of the console's Vite config, keyed by `query`.
@@ -213,6 +229,7 @@ describe('objectui#4854: OBJECTSTACK_SPEC_DIST is subpath-aware', () => {
     const outOfTree = '/framework/packages/spec';
     const outOfTreeInjection = resolveSpecDistInjection(installedSpecDir, {
       vendorChunkTest: BASE_VENDOR_TEST,
+      specModuleTest: BASE_SPEC_TEST,
     })!;
 
     // The baseline test cannot see an injected package: that is the whole
@@ -230,6 +247,34 @@ describe('objectui#4854: OBJECTSTACK_SPEC_DIST is subpath-aware', () => {
         '/repo/node_modules/.pnpm/@objectstack+lint@17.0.0/node_modules/@objectstack/lint/dist/index.js'
       )
     ).toBe(false);
+  });
+
+  it('keeps the injected spec RECOGNISABLE AS THE SPEC, for the counter-probe', () => {
+    // objectui#5388. The chunk grouping was not the only consumer of "where
+    // does the spec live" — `assertLazyLinterStaysLazy` asks the same question
+    // of the emitted module ids, and answering it from an un-widened private
+    // regex failed every build made with the override set.
+    const injection = inject(installedSpecDir)!;
+    const injectedId = `${injection.packageDir}/dist/ui/index.mjs`;
+
+    // Anti-vacuity: the baseline genuinely cannot see an injected package. If
+    // this ever went true the assertion below would pass without the widening
+    // doing anything, and the bug would be back with a green test over it.
+    expect(BASE_SPEC_TEST.test('/framework/packages/spec/dist/ui/index.mjs')).toBe(false);
+    expect(injection.specModuleTest.test(injectedId)).toBe(true);
+
+    // Widened, never replaced — an injected build still resolves plenty of
+    // installed packages through node_modules, in both spellings.
+    expect(injection.specModuleTest.test('/repo/node_modules/@objectstack/spec/dist/index.js')).toBe(true);
+    expect(injection.specModuleTest.test('/repo/node_modules/.pnpm/@objectstack+spec@17.0.0/x.js')).toBe(true);
+
+    // And it stays a SPEC test, not the vendor group's. The counter-probe's job
+    // is to prove the walk can see the spec chunk specifically; a test that also
+    // matched `@objectstack/client` would keep the build green by lowering the
+    // bar rather than by seeing the spec.
+    expect(injection.specModuleTest.test('/repo/node_modules/@objectstack/client/dist/index.js')).toBe(false);
+    expect(injection.vendorChunkTest.test('/repo/node_modules/@objectstack/client/dist/index.js')).toBe(true);
+    expect(injection.specModuleTest.test('/repo/packages/core/src/index.ts')).toBe(false);
   });
 
   it('accepts a `dist/` or entry-file spelling of the same package', () => {
@@ -415,6 +460,257 @@ describe('objectui#4854: the four flagged surfaces in the console config', () =>
     // caller believed it had injected a spec.
     expect(turbo.tasks.build.env).toContain('OBJECTSTACK_SPEC_DIST');
     expect(turbo.tasks.build.env).toContain('OBJECTSTACK_CLIENT_DIST');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* objectui#5388 — the counter-probe is the FIFTH surface the override moves.  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `apps/console/vite.config.ts` registers `assert-lazy-linter-stays-lazy`, whose
+ * counter-probe demands a known-eager `@objectstack/spec` chunk before it will
+ * read its own linter verdict (objectui#5323). Under the override every spec
+ * module id becomes an absolute path in the overriding tree, with no
+ * `@objectstack` segment — so the plugin's private regex matched nothing, the
+ * probe refused a verdict, and `scripts/build-console.sh` in the framework could
+ * not build ANY objectui pin at or after that commit (objectstack#10136).
+ *
+ * These cases drive the REAL plugin off the REAL config over a synthetic bundle,
+ * rather than asserting on the regex the config hands it. That is the difference
+ * between pinning the wiring and pinning a value: the bug was never a wrong
+ * regex, it was a correct regex reaching one consumer and not the other.
+ *
+ * Reverse verification, direction predicted before running: plain RED, and the
+ * mutation is the bug itself. Reverting `assertLazyLinterStaysLazy(specModuleTest)`
+ * to the no-argument form with its private `SPEC` → the two injected cases below
+ * fail on the counter-probe message, and the two baseline cases stay green —
+ * which is exactly the asymmetry that let this ship.
+ */
+interface ProbeChunk {
+  type: 'chunk';
+  fileName: string;
+  isEntry: boolean;
+  imports: string[];
+  modules: Record<string, unknown>;
+}
+
+/** A pnpm-store module id for the linter, the spelling a real bundle carries. */
+const LINT_MODULE_ID =
+  '/repo/node_modules/.pnpm/@objectstack+lint@17.0.0/node_modules/@objectstack/lint/dist/index.js';
+/** The installed spec, i.e. what an un-injected build emits. */
+const INSTALLED_SPEC_MODULE_ID = '/repo/node_modules/@objectstack/spec/dist/index.mjs';
+
+const probeChunk = (
+  fileName: string,
+  modules: string[],
+  extra: Partial<ProbeChunk> = {}
+): ProbeChunk => ({
+  type: 'chunk',
+  fileName,
+  isEntry: false,
+  imports: [],
+  modules: Object.fromEntries(modules.map((id) => [id, {}])),
+  ...extra,
+});
+
+/**
+ * A bundle shaped like the console's: one entry, one statically imported vendor
+ * chunk holding the spec, and the linter parked behind a dynamic import — which
+ * the plugin's walk deliberately does not follow.
+ *
+ * @param specModuleId  the spec id the vendor chunk carries (installed or injected)
+ * @param lintFileName  which chunk holds the linter, or `null` for none at all
+ */
+function consoleShapedBundle(
+  specModuleId: string,
+  lintFileName: 'assets/vendor-objectstack.js' | 'assets/lint-lazy.js' | null
+): Record<string, ProbeChunk> {
+  const vendorModules = [specModuleId];
+  if (lintFileName === 'assets/vendor-objectstack.js') vendorModules.push(LINT_MODULE_ID);
+  const bundle: Record<string, ProbeChunk> = {
+    'assets/index.js': probeChunk('assets/index.js', ['/repo/apps/console/src/main.tsx'], {
+      isEntry: true,
+      imports: ['assets/vendor-objectstack.js'],
+    }),
+    'assets/vendor-objectstack.js': probeChunk('assets/vendor-objectstack.js', vendorModules),
+  };
+  if (lintFileName === 'assets/lint-lazy.js') {
+    bundle['assets/lint-lazy.js'] = probeChunk('assets/lint-lazy.js', [LINT_MODULE_ID]);
+  }
+  return bundle;
+}
+
+/**
+ * A minimal but REAL `@objectstack/spec` package living outside `node_modules`.
+ *
+ * `installedSpecDir` cannot stand in for an injected package here, and finding
+ * that out is worth writing down: its own path is
+ * `…/node_modules/.pnpm/@objectstack+spec@17…/node_modules/@objectstack/spec`,
+ * which the BASELINE test already matches. A case built on it goes green under
+ * the un-injected config too — measured, before this fixture existed — so it
+ * would have pinned nothing at all.
+ *
+ * The framework tree the override actually points at
+ * (`/…/objectstack/packages/spec`, or `/home/runner/work/objectstack/objectstack/
+ * packages/spec` on CI) has no `@objectstack` segment anywhere, and that is the
+ * one property this fixture has to reproduce. It stays minimal on purpose: the
+ * exports-map derivation is covered above against the real 18-entry map, and
+ * what these cases need is a legal package at a path of the wrong SHAPE.
+ */
+function makeOutOfTreeSpecPackage(): string {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'framework-spec-5388-')));
+  fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'dist/index.mjs'), 'export const __probe5388 = true;\n');
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify(
+      {
+        name: SPEC_PACKAGE_NAME,
+        version: '0.0.0-probe5388',
+        type: 'module',
+        exports: { '.': { import: './dist/index.mjs' } },
+      },
+      null,
+      2
+    )
+  );
+  return dir;
+}
+
+/** Runs the console's own guard over one bundle; returns its error, or `null`. */
+function runLazyLinterProbe(config: any, bundle: Record<string, ProbeChunk>): string | null {
+  const plugins = (config.plugins as unknown[]).flat(Infinity) as {
+    name?: string;
+    generateBundle?: (this: unknown, options: unknown, bundle: unknown) => void;
+  }[];
+  const plugin = plugins.find((p) => p && p.name === 'assert-lazy-linter-stays-lazy');
+  expect(plugin, 'the console config registers assert-lazy-linter-stays-lazy').toBeDefined();
+  const context = {
+    error(message: string): never {
+      throw new Error(message);
+    },
+  };
+  try {
+    plugin!.generateBundle!.call(context, {}, bundle);
+    return null;
+  } catch (error) {
+    return (error as Error).message;
+  }
+}
+
+describe('objectui#5388: the lazy-linter counter-probe reads the injection', () => {
+  let outOfTreeSpecDir: string;
+  /** The module id an injected build emits for the spec. */
+  let injectedSpecModuleId: string;
+
+  beforeAll(() => {
+    outOfTreeSpecDir = makeOutOfTreeSpecPackage();
+    injectedSpecModuleId = `${outOfTreeSpecDir}/dist/index.mjs`;
+  });
+  afterAll(() => {
+    fs.rmSync(outOfTreeSpecDir, { recursive: true, force: true });
+  });
+
+  /** Loads the console config with the override pointed at the fixture. */
+  async function loadInjectedConsoleConfig(query: string): Promise<any> {
+    process.env.OBJECTSTACK_SPEC_DIST = outOfTreeSpecDir;
+    try {
+      return await loadConsoleConfig(query);
+    } finally {
+      delete process.env.OBJECTSTACK_SPEC_DIST;
+    }
+  }
+
+  it('gives the fixture the one shape that matters: no `@objectstack` segment', () => {
+    // Anti-vacuity for every case below. If the fixture ever lands somewhere
+    // the baseline test already matches, the "blind" case goes green for the
+    // wrong reason and the "sees it" case stops proving the widening did
+    // anything — which is exactly what happened with `installedSpecDir`.
+    expect(injectedSpecModuleId).not.toContain('@objectstack');
+    expect(BASE_SPEC_TEST.test(injectedSpecModuleId)).toBe(false);
+  });
+
+  it('sees the INSTALLED spec when no override is set', async () => {
+    expect(process.env.OBJECTSTACK_SPEC_DIST ?? '').toBe('');
+    const config = await loadConsoleConfig();
+    expect(
+      runLazyLinterProbe(config, consoleShapedBundle(INSTALLED_SPEC_MODULE_ID, 'assets/lint-lazy.js'))
+    ).toBeNull();
+  });
+
+  it('is BLIND to an injected spec while the config stays un-injected', async () => {
+    // The bug's mechanism, isolated: same plugin, same bundle shape, only the
+    // spec's module id moved out of node_modules. Without the override the
+    // config has no business recognising that path — so this failing is CORRECT
+    // here, and it is the control that makes the passing case below mean
+    // something rather than being a probe that stopped looking.
+    const config = await loadConsoleConfig();
+    const message = runLazyLinterProbe(
+      config,
+      consoleShapedBundle(injectedSpecModuleId, 'assets/lint-lazy.js')
+    );
+    expect(message).toContain('counter-probe failed');
+    expect(message).toContain('no eagerly loaded chunk');
+  });
+
+  it('finds the injected spec once the override IS set — the probe, not skipped', async () => {
+    const config = await loadInjectedConsoleConfig('?objectstack-spec-dist=5388');
+
+    // It PASSES on the injected id…
+    expect(
+      runLazyLinterProbe(config, consoleShapedBundle(injectedSpecModuleId, 'assets/lint-lazy.js'))
+    ).toBeNull();
+    // …and still refuses a verdict when the eager closure really holds no spec,
+    // so the fix widened the probe's reach rather than defanging it.
+    const noSpec: Record<string, ProbeChunk> = {
+      'assets/index.js': probeChunk('assets/index.js', ['/repo/apps/console/src/main.tsx'], {
+        isEntry: true,
+      }),
+      'assets/lint-lazy.js': probeChunk('assets/lint-lazy.js', [LINT_MODULE_ID]),
+    };
+    expect(runLazyLinterProbe(config, noSpec)).toContain('counter-probe failed');
+    // Nor did widening turn the SPEC test into the vendor group's: an eager
+    // `@objectstack/client` is not evidence that the walk can see the spec.
+    const clientOnly: Record<string, ProbeChunk> = {
+      'assets/index.js': probeChunk('assets/index.js', ['/repo/apps/console/src/main.tsx'], {
+        isEntry: true,
+        imports: ['assets/vendor-objectstack.js'],
+      }),
+      'assets/vendor-objectstack.js': probeChunk('assets/vendor-objectstack.js', [
+        '/repo/node_modules/@objectstack/client/dist/index.mjs',
+      ]),
+      'assets/lint-lazy.js': probeChunk('assets/lint-lazy.js', [LINT_MODULE_ID]),
+    };
+    expect(runLazyLinterProbe(config, clientOnly)).toContain('counter-probe failed');
+  });
+
+  it('still catches an EAGER linter under the override', async () => {
+    // The guard's actual job, asserted in the mode that used to never reach it:
+    // before this fix the counter-probe threw first and the linter verdict was
+    // never read at all under the override.
+    const config = await loadInjectedConsoleConfig('?objectstack-spec-dist=5388-eager');
+    const message = runLazyLinterProbe(
+      config,
+      consoleShapedBundle(injectedSpecModuleId, 'assets/vendor-objectstack.js')
+    );
+    expect(message).toContain('`@objectstack/lint` is in the EAGER closure');
+    expect(message).toContain('assets/vendor-objectstack.js');
+  });
+
+  it('refuses a verdict when the LINT test itself has gone blind', async () => {
+    // The linter half's failure mode is the silent one: the assertion on it is
+    // negative, so a regex that stopped matching the emitted ids is
+    // indistinguishable from a clean bundle. objectstack#9659 proposes injecting
+    // four more `@objectstack/*` packages the same way; if lint joins them this
+    // must fail loudly rather than go permanently green.
+    const config = await loadConsoleConfig();
+    const message = runLazyLinterProbe(
+      config,
+      consoleShapedBundle(INSTALLED_SPEC_MODULE_ID, null)
+    );
+    expect(message).toContain('counter-probe failed');
+    expect(message).toContain('no chunk at all');
   });
 });
 

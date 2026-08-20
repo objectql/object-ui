@@ -72,10 +72,31 @@ function preloadCriticalChunks(): Plugin {
  * check with no subject. The counter-probe runs first and demands a KNOWN
  * eager `@objectstack/spec`, so the linter verdict is only ever read after the
  * closure walk has proven it can see the very chunk the linter used to hide in.
+ *
+ * That makes both module-id tests SUBJECTS of the check, not decoration, and
+ * neither may be hardcoded here. `OBJECTSTACK_SPEC_DIST` rewrites all 18
+ * `@objectstack/spec` specifiers to absolute paths in the overriding tree —
+ * `/…/objectstack/packages/spec/dist/…/index.mjs`, ids with no
+ * `@objectstack` segment at all — so a private `/@objectstack[\\/+]spec/`
+ * matched zero modules, this counter-probe correctly refused a verdict, and it
+ * took every injected build down with it (objectui#5388; measured from the
+ * consumer side in objectstack#10136, where it blocked the framework's Console
+ * Pin Gate). The spec test is therefore a PARAMETER, fed from the same
+ * `resolveSpecDistInjection` output the `vendor-objectstack` group already
+ * reads: one producer, both consumers, no second opinion about where the spec
+ * lives.
+ *
+ * `LINT` stays literal — nothing injects `@objectstack/lint` today — but it gets
+ * its own counter-probe for the same reason, because its failure mode is the
+ * worse one. The spec test going blind fails LOUD (this build stops). The lint
+ * test going blind fails SILENT: the assertion below is negative, so zero
+ * matches reads exactly like a clean bundle and the guard is green forever.
+ * objectstack#9659 proposes injecting four more `@objectstack/*` packages the
+ * same way and lint is a plausible member; if it ever joins, this build says so
+ * instead of quietly ceasing to guard anything.
  */
-function assertLazyLinterStaysLazy(): Plugin {
+function assertLazyLinterStaysLazy(specTest: RegExp): Plugin {
   const LINT = /@objectstack[\\/+]lint/;
-  const SPEC = /@objectstack[\\/+]spec/;
 
   return {
     name: 'assert-lazy-linter-stays-lazy',
@@ -104,7 +125,7 @@ function assertLazyLinterStaysLazy(): Plugin {
           .filter((chunk) => Object.keys(chunk.modules).some((id) => test.test(id)))
           .map((chunk) => chunk.fileName);
 
-      const eagerSpec = chunksHolding(SPEC).filter((fileName) => eager.has(fileName));
+      const eagerSpec = chunksHolding(specTest).filter((fileName) => eager.has(fileName));
       if (eagerSpec.length === 0) {
         this.error(
           `[assert-lazy-linter-stays-lazy] counter-probe failed: no eagerly loaded chunk ` +
@@ -112,12 +133,39 @@ function assertLazyLinterStaysLazy(): Plugin {
             `from the app entry, so it must be in the eager closure — its absence means ` +
             `this walk is reading the graph wrongly, not that the bundle improved. ` +
             `Fix the walk before trusting the linter assertion below. ` +
-            `(entry chunks: ${[...chunks.values()].filter((c) => c.isEntry).map((c) => c.fileName).join(', ') || 'NONE'}; ` +
+            `If \`OBJECTSTACK_SPEC_DIST\` is set, check that this test carries the ` +
+            `override's location: an injected spec resolves outside node_modules and the ` +
+            `baseline test cannot see it (objectui#5388). ` +
+            `(spec test: ${specTest}; ` +
+            `entry chunks: ${[...chunks.values()].filter((c) => c.isEntry).map((c) => c.fileName).join(', ') || 'NONE'}; ` +
             `eager chunks: ${eager.size}/${chunks.size})`,
         );
       }
 
-      const eagerLint = chunksHolding(LINT).filter((fileName) => eager.has(fileName));
+      // The same refusal-to-guess, for the linter half — and it is needed MORE
+      // here, not less. The assertion below is a NEGATIVE one, so a `LINT` that
+      // has stopped matching the emitted ids is indistinguishable from a bundle
+      // that keeps the linter properly lazy: the guard just goes green and stays
+      // green. The linter is always in this bundle somewhere (app-shell's
+      // `capabilityLint.ts` `await import`s it), so zero matches ANYWHERE —
+      // eager or lazy — is a statement about this regex, never about the graph.
+      const lintChunks = chunksHolding(LINT);
+      if (lintChunks.length === 0) {
+        this.error(
+          `[assert-lazy-linter-stays-lazy] counter-probe failed: no chunk at all — eager or ` +
+            `lazy — contains an \`@objectstack/lint\` module, so \`${LINT}\` matches nothing in ` +
+            `this bundle and the assertion below can no longer fail. Two ways to get here. ` +
+            `Either the lazy import in app-shell's \`capabilityLint.ts\` is gone, in which case ` +
+            `retire this plugin deliberately rather than leaving a guard with no subject; or ` +
+            `the linter's module ids changed shape — e.g. \`@objectstack/lint\` joined the ` +
+            `\`OBJECTSTACK_SPEC_DIST\`-style injection proposed in objectstack#9659, which ` +
+            `rewrites specifiers to absolute paths with no \`@objectstack\` segment. In that ` +
+            `case give this test the injection's location, exactly as the spec test above is ` +
+            `already parameterised (objectui#5388). (chunks: ${chunks.size})`,
+        );
+      }
+
+      const eagerLint = lintChunks.filter((fileName) => eager.has(fileName));
       if (eagerLint.length > 0) {
         this.error(
           `[assert-lazy-linter-stays-lazy] \`@objectstack/lint\` is in the EAGER closure ` +
@@ -304,6 +352,16 @@ const OPTIMIZE_DEPS_INCLUDE = [
 const VENDOR_OBJECTSTACK_TEST =
   /([\\/]node_modules[\\/]@objectstack[\\/](?!lint[\\/])|[\\/]@objectstack\+(?!lint@))/;
 
+// "This module id IS `@objectstack/spec`" — the subject of the counter-probe in
+// `assertLazyLinterStaysLazy` above, kept separate from the group test on
+// purpose. `VENDOR_OBJECTSTACK_TEST` is the whole vendor scope minus the linter,
+// so an eager `@objectstack/client` would satisfy it without proving the walk
+// can see the SPEC chunk the counter-probe exists to find — reusing it there
+// would keep the build green by lowering the bar, which is the one outcome
+// objectui#5388 must not produce. Both spellings are covered: a plain install
+// (`/node_modules/@objectstack/spec/…`) and pnpm's store (`/@objectstack+spec@…`).
+const SPEC_MODULE_TEST = /@objectstack[\\/+]spec/;
+
 // Opt-in override of the installed `@objectstack/spec` — the spec twin of
 // OBJECTSTACK_CLIENT_DIST above, so a framework build can bundle the console
 // against its OWN spec instead of the last published one (objectui#4854, ruled
@@ -320,6 +378,7 @@ const VENDOR_OBJECTSTACK_TEST =
 // vendor chunk test and the dev server's fs allow-list at their baseline values.
 const specDistInjection = resolveSpecDistInjection(process.env.OBJECTSTACK_SPEC_DIST, {
   vendorChunkTest: VENDOR_OBJECTSTACK_TEST,
+  specModuleTest: SPEC_MODULE_TEST,
 });
 if (specDistInjection) Object.assign(workspaceAliases, specDistInjection.aliases);
 
@@ -346,6 +405,16 @@ const vendorObjectstackTest = specDistInjection
   ? specDistInjection.vendorChunkTest
   : VENDOR_OBJECTSTACK_TEST;
 
+// The chunk grouping is not the only consumer of "where does the spec live".
+// `assertLazyLinterStaysLazy`'s counter-probe asks the same question about the
+// emitted module ids, and it used to answer it from a private regex that the
+// injection made unmatchable — so every build with the override set died on a
+// counter-probe that was right about what it saw (objectui#5388). It reads the
+// override's location here, from the same producer, for the same reason.
+const specModuleTest = specDistInjection
+  ? specDistInjection.specModuleTest
+  : SPEC_MODULE_TEST;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: basePath,
@@ -363,7 +432,7 @@ export default defineConfig({
     // Fails the build if the lazily-imported linter is folded back into an
     // eagerly-loaded chunk. Runs on CI/Vercel too — it costs microseconds and
     // the regression it catches is invisible in every other signal.
-    assertLazyLinterStaysLazy(),
+    assertLazyLinterStaysLazy(specModuleTest),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s
