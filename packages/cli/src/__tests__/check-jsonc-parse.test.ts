@@ -31,7 +31,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { check, OBJECTUI_SCHEMA_URL } from '../commands/check.js';
+import { check } from '../commands/check.js';
 
 let cwd: string;
 let lines: string[];
@@ -195,17 +195,23 @@ describe('objectui check — genuinely malformed JSON still fails the run', () =
 });
 
 /**
- * These fixtures declare `$schema` because objectui#5127 gated the warning arm
- * behind a positive ObjectUI marker: a bare `{"type": ...}` file is no longer
- * judged at all, so without the declaration every assertion below would pass
- * for the wrong reason — including the two that assert SILENCE, which would
- * then be measuring nothing. The gate itself is pinned in
+ * These fixtures carry `className` — a STRUCTURAL marker key — because
+ * objectui#5127 gated the warning arm behind a positive ObjectUI marker: a
+ * bare `{"type": ...}` file is no longer judged at all, so without a marker
+ * every assertion below would pass for the wrong reason — including the two
+ * that assert SILENCE, which would then be measuring nothing.
+ *
+ * An earlier revision declared a `$schema` URL here instead. The maintainer's
+ * 2026-08-20 ruling removed that arm, so those fixtures would have been
+ * admitted by nothing at all while every assertion in this section stayed
+ * green. Each silence assertion below is now paired with a counter-probe that
+ * proves judgement actually ran. The gate itself is pinned in
  * `check-schema-marker.test.ts`; this section is about the warning arm the gate
  * admits files to.
  */
 describe('objectui check — the unknown-type warning arm is untouched (objectui#5127)', () => {
   it('still warns for an unrecognised root type, and still does not fail the run', async () => {
-    writeFile('bogus.json', `{"$schema":"${OBJECTUI_SCHEMA_URL}","type":"totally-made-up-xyz"}`);
+    writeFile('bogus.json', '{"className":"p-0","type":"totally-made-up-xyz"}');
 
     await check(cwd);
 
@@ -221,7 +227,7 @@ describe('objectui check — the unknown-type warning arm is untouched (objectui
     // neutrality are unchanged.
     writeFile(
       'commented.json',
-      `{\n  // a comment\n  "$schema": "${OBJECTUI_SCHEMA_URL}",\n  "type": "totally-made-up-xyz",\n}\n`
+      '{\n  // a comment\n  "className": "p-0",\n  "type": "totally-made-up-xyz",\n}\n'
     );
 
     await check(cwd);
@@ -233,27 +239,38 @@ describe('objectui check — the unknown-type warning arm is untouched (objectui
   it('stays silent for a registered type', async () => {
     writeFile(
       'grid.json',
-      `{"$schema":"${OBJECTUI_SCHEMA_URL}","type":"object-grid","objectApiName":"account"}`
+      '{"className":"p-0","type":"object-grid","objectApiName":"account"}'
     );
+    // Counter-probe: same marker, same admission path, a type nothing
+    // registers. Its warning is what makes `grid.json`'s silence a verdict
+    // instead of a file the gate never let through.
+    writeFile('probe.json', '{"className":"p-0","type":"totally-made-up-xyz"}');
 
     await check(cwd);
 
-    expect(unknownTypeWarnings()).toEqual([]);
+    expect(unknownTypeWarnings()).toEqual([
+      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in probe.json'),
+    ]);
     expect(exitCodes).toEqual([]);
   });
 
   it('does not run the type check on a file that failed to parse', async () => {
     // A parse failure short-circuits before the schema arm, exactly as the
     // thrown `JSON.parse` used to.
-    writeFile(
-      'broken-typed.json',
-      `{ "$schema": "${OBJECTUI_SCHEMA_URL}", "type": "totally-made-up-xyz", }}`
-    );
+    writeFile('broken-typed.json', '{ "className": "p-0", "type": "totally-made-up-xyz", }}');
+    // Counter-probe: byte-for-byte the same document minus the stray brace.
+    // It warns, so the silence about `broken-typed.json` is attributable to
+    // the parse short-circuit — the only difference between the two files —
+    // and not to a marker the gate declined.
+    writeFile('parsed-typed.json', '{ "className": "p-0", "type": "totally-made-up-xyz" }');
 
     await check(cwd);
 
     expect(parseErrorLines()).toHaveLength(1);
-    expect(unknownTypeWarnings()).toEqual([]);
+    expect(parseErrorLines()[0]).toContain('broken-typed.json');
+    expect(unknownTypeWarnings()).toEqual([
+      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in parsed-typed.json'),
+    ]);
     expect(exitCodes).toEqual([1]);
   });
 });

@@ -25,23 +25,35 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { check, OBJECTUI_SCHEMA_URL } from '../commands/check.js';
+import { check } from '../commands/check.js';
 
 let cwd: string;
 let lines: string[];
 let restoreLog: () => void;
 
 /**
- * Every fixture declares the ObjectUI `$schema` URL, because objectui#5127
- * gated type judgement behind a positive marker: a bare `{"type": ...}` file is
- * not judged at all now. Without the declaration the three warning assertions
- * below would fail and — worse — the two SILENCE assertions would keep passing
- * while measuring nothing, which is the shape of a test that survives the
- * deletion of the feature it covers. The gate is pinned separately, in
+ * Every fixture carries `className` — a STRUCTURAL marker key — because
+ * objectui#5127 gated type judgement behind a positive ObjectUI marker: a bare
+ * `{"type": ...}` file is not judged at all now. Without a marker the warning
+ * assertions below would fail and — worse — the SILENCE assertion would keep
+ * passing while measuring nothing, which is the shape of a test that survives
+ * the deletion of the feature it covers.
+ *
+ * That is not assumed here, it is measured: dropping the injection from this
+ * helper turns the warning tests red and leaves the silence test GREEN, which
+ * is precisely why that test carries its own counter-probe below rather than
+ * trusting this comment.
+ *
+ * `className` is the least semantically loaded key in the marker set — it says
+ * nothing about a node's children, visibility or interaction state — so it
+ * perturbs no fixture's meaning. An earlier revision declared a `$schema` URL
+ * instead; the maintainer's 2026-08-20 ruling removed that arm, and a marker
+ * that names a way in the build no longer honours is a fixture that admits
+ * nothing. The gate itself is pinned separately, in
  * `check-schema-marker.test.ts`; this file is about the derived key set.
  */
 function writeSchema(name: string, body: Record<string, unknown>): void {
-  writeFileSync(join(cwd, name), JSON.stringify({ $schema: OBJECTUI_SCHEMA_URL, ...body }));
+  writeFileSync(join(cwd, name), JSON.stringify({ className: 'p-0', ...body }));
 }
 
 /** Warnings only, with the ANSI colouring chalk may add stripped off. */
@@ -92,8 +104,16 @@ describe('objectui check — unknown schema types', () => {
     writeSchema('grid.json', { type: 'object-grid', objectApiName: 'account' });
     writeSchema('ns-grid.json', { type: 'view:grid', objectApiName: 'account' });
     writeSchema('gallery-ok.json', { type: 'object-gallery' });
+    // Counter-probe. Written by the same helper, so it carries the same marker
+    // and travels the same admission path; its warning is what makes the three
+    // silences above VERDICTS rather than a judgement that never ran. Without
+    // it this assertion holds equally well when nothing is judged at all —
+    // measured, and the reason it is here (objectui#5127).
+    writeSchema('probe.json', { type: 'totally-made-up-xyz' });
     await check(cwd);
-    expect(unknownTypeWarnings()).toEqual([]);
+    expect(unknownTypeWarnings()).toEqual([
+      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in probe.json'),
+    ]);
   });
 
   it('still warns for a type nothing registers', async () => {
@@ -108,6 +128,10 @@ describe('objectui check — unknown schema types', () => {
     // list would otherwise be free to become a breaking change by accident.
     writeSchema('bogus.json', { type: 'totally-made-up-xyz' });
     await check(cwd);
+    // Both halves of this test's own sentence. Asserting only the exit
+    // neutrality would keep passing if the type were never REPORTED either,
+    // which is the state a lost marker puts this fixture in.
+    expect(unknownTypeWarnings()).toHaveLength(1);
     expect(lines.some((l) => l.includes('All checks passed'))).toBe(true);
   });
 });

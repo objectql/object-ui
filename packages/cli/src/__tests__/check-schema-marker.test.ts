@@ -32,7 +32,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { check, OBJECTUI_SCHEMA_URL } from '../commands/check.js';
+import { check } from '../commands/check.js';
 
 let cwd: string;
 let lines: string[];
@@ -62,6 +62,24 @@ function plainLines(): string[] {
 
 function unknownTypeWarnings(): string[] {
   return plainLines().filter((l) => l.includes('Unknown schema type'));
+}
+
+/** The advisory line `check` prints under the skipped-file count. */
+function hintLine(): string {
+  const line = plainLines().find((l) => l.includes('A file is checked when'));
+  if (line === undefined) throw new Error('no hint line was printed');
+  return line;
+}
+
+/**
+ * The marker keys the hint advertises to the reader, read back out of the
+ * printed sentence rather than restated here — so a test can check that what
+ * the command SAYS and what it DOES are the same set.
+ */
+function advertisedKeys(): string[] {
+  const match = /structural key: (.+)\.$/.exec(hintLine());
+  if (!match) throw new Error(`hint present but unparseable: ${hintLine()}`);
+  return match[1].split(', ');
 }
 
 /** The count `check` reports for files it declined to judge, or 0 if silent. */
@@ -194,20 +212,7 @@ describe('objectui check — foreign root-`type` vocabularies are never judged',
   });
 });
 
-describe('objectui check — a real schema is still judged, by either marker arm', () => {
-  it('judges a file that declares the ObjectUI `$schema` URL', async () => {
-    writeSchema('leaf.json', {
-      $schema: OBJECTUI_SCHEMA_URL,
-      type: 'totally-made-up-xyz',
-      label: 'Send Email',
-    });
-    await check(cwd);
-    expect(unknownTypeWarnings()).toEqual([
-      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in leaf.json'),
-    ]);
-    expect(skippedCount()).toBe(0);
-  });
-
+describe('objectui check — a real schema is still judged by the structural arm', () => {
   it('judges a file carrying a structural key, with no `$schema` at all', async () => {
     writeSchema('page.json', {
       type: 'totally-made-up-xyz',
@@ -220,37 +225,36 @@ describe('objectui check — a real schema is still judged, by either marker arm
 
   it('stays silent for a REGISTERED type on a judged file — the marker admits, it does not warn', async () => {
     writeSchema('grid.json', { type: 'object-grid', className: 'h-full' });
-    writeSchema('ns-grid.json', { $schema: OBJECTUI_SCHEMA_URL, type: 'view:grid' });
+    writeSchema('ns-grid.json', { type: 'view:grid', body: [] });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([]);
     expect(skippedCount()).toBe(0);
   });
 
-  it('accepts the `$schema` URL on any objectui.org host, and rejects a lookalike origin', async () => {
-    // The matcher compares the URL's HOST, not a string prefix: the canonical
-    // spelling is still awaiting the maintainer's confirmation, and
-    // `https://objectui.org.example.com/...` is a different origin that a
-    // `startsWith` test would have answered YES for.
-    writeSchema('www.json', {
-      $schema: 'https://www.objectui.org/schema/v1/objectui.schema.json',
+  it('does not admit a file on `$schema` alone — no URL is a marker', async () => {
+    // ⛔ NEGATIVE fixtures. ObjectUI publishes NO `$schema` URL, and none is
+    // being minted: the maintainer ruled against it (2026-08-20, verbatim
+    // 「C」), superseding the `$schema` half of the 2026-08-19 ruling. An
+    // earlier revision of this command admitted any file whose `$schema` host
+    // was `objectui.org`; these two files pin that that arm is GONE, so
+    // re-adding it turns this test red rather than passing unnoticed.
+    //
+    // The paths below are arbitrary on purpose — no spelling of an ObjectUI
+    // schema URL means anything to this command, which is the whole point.
+    writeSchema('declared.json', {
+      $schema: 'https://objectui.org/some/path.json',
       type: 'totally-made-up-xyz',
     });
-    writeSchema('lookalike.json', {
-      $schema: 'https://objectui.org.example.com/schema.json',
-      type: 'totally-made-up-xyz',
-    });
+    writeSchema('relative.json', { $schema: './objectui-schema.json', type: 'totally-made-up-xyz' });
+    // Counter-probe: the same unregistered type, admitted structurally. Its
+    // warning proves the two silences above are the gate declining these
+    // files, not a run that judged nothing.
+    writeSchema('probe.json', { type: 'totally-made-up-xyz', children: [] });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([
-      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in www.json'),
+      expect.stringContaining('Unknown schema type "totally-made-up-xyz" in probe.json'),
     ]);
-    expect(skippedCount()).toBe(1);
-  });
-
-  it('does not treat a non-URL `$schema` value as an ObjectUI declaration', async () => {
-    writeSchema('relative.json', { $schema: './objectui-schema.json', type: 'totally-made-up-xyz' });
-    await check(cwd);
-    expect(unknownTypeWarnings()).toEqual([]);
-    expect(skippedCount()).toBe(1);
+    expect(skippedCount()).toBe(2);
   });
 });
 
@@ -266,9 +270,43 @@ describe('objectui check — the narrowed judgement surface is never silent (opt
     // Two leaves plus the manifest: three files had a root `type` string and
     // no marker.
     expect(skippedCount()).toBe(3);
-    const hint = plainLines().find((l) => l.includes('A file is checked when it declares'));
-    expect(hint).toBeDefined();
-    expect(hint).toContain(OBJECTUI_SCHEMA_URL);
+    const hint = hintLine();
+    expect(hint).toContain('children');
+    expect(hint).toContain('className');
+    // ⛔ The hint must not advise declaring a `$schema` URL: no such URL exists
+    // and no arm reads one (maintainer ruling 2026-08-20, verbatim 「C」). A
+    // hint naming a way in the build does not honour is worse than no hint —
+    // the reader follows it, nothing changes, and the command reads as broken
+    // rather than narrow. This is the "comment claims != code enforces" shape,
+    // pinned so the sentence cannot outlive the code it describes.
+    expect(hint).not.toContain('$schema');
+    expect(hint).not.toContain('http');
+  });
+
+  it('names only markers the gate actually honours — every key in the hint admits a file', async () => {
+    // The mechanical version of the assertion above. The hint is READ back and
+    // each key it advertises is fed to the command on its own file: if the
+    // sentence ever names a key the gate does not honour, that file is skipped
+    // and this test goes red. Nothing here restates the key set by hand, so it
+    // cannot drift from the gate the way a duplicated list would.
+    writeSchema('package.json', { name: 'x', type: 'module' });
+    await check(cwd);
+    const keys = advertisedKeys();
+    // Sanity: the hint advertises a real set, not an empty one.
+    expect(keys.length).toBeGreaterThan(0);
+
+    // The manifest has served its purpose (it made the hint print); leave it in
+    // place and it would keep counting as a skipped file in the second run.
+    rmSync(join(cwd, 'package.json'));
+    lines = [];
+    for (const [i, key] of keys.entries()) {
+      writeSchema(`node-${i}.json`, { type: 'totally-made-up-xyz', [key]: 'x' });
+    }
+    await check(cwd);
+    // Every advertised key admitted its file, so every file was judged and
+    // warned; none was skipped.
+    expect(unknownTypeWarnings()).toHaveLength(keys.length);
+    expect(skippedCount()).toBe(0);
   });
 
   it('says nothing when every eligible file carried a marker', async () => {

@@ -15,21 +15,6 @@ import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc
 import { isKnownSchemaType } from '../utils/known-schema-types.js';
 
 /**
- * The canonical, permanent public identifier for the ObjectUI schema protocol.
- *
- * ⚠️ PROPOSED — confirmed by the maintainer at merge (objectui#5127). A
- * `$schema` URL is a permanent public identifier: files in user projects will
- * carry it forever, so it is a maintainer decision, not a dev one. The
- * reasoning behind this spelling is in the PR body.
- *
- * The matcher below deliberately does NOT compare against this string. It
- * recognises the ObjectUI ORIGIN, so every file that already declares an
- * `objectui.org` schema URL keeps working whichever exact path the maintainer
- * confirms.
- */
-export const OBJECTUI_SCHEMA_URL = 'https://objectui.org/schema/v1/objectui.schema.json';
-
-/**
  * Root keys that positively identify a file as an ObjectUI schema node.
  *
  * Every entry is a property DECLARED on `BaseSchema`
@@ -68,28 +53,34 @@ const OBJECTUI_STRUCTURAL_KEYS: readonly string[] = [
 ];
 
 /**
- * Does this `$schema` value point at ObjectUI?
+ * ⛔ There is deliberately NO `$schema` arm, and no ObjectUI `$schema` URL
+ * exists to declare.
  *
- * Matches on the URL's HOST, not on a literal string, for two reasons. The
- * canonical URL above is still awaiting the maintainer's confirmation, and a
- * literal comparison would silently stop recognising every migrated file the
- * moment the confirmed path differs by one character. And a `startsWith` test
- * against a prefix answers YES for `https://objectui.org.example.com/…`, which
- * is a different origin entirely — so the value is parsed as a URL and the
- * hostname compared, rather than the string matched.
+ * An earlier revision of this file admitted a file whose root `$schema` had an
+ * `objectui.org` host, completed by a canonical URL proposed for the
+ * maintainer to confirm. The maintainer ruled against minting that identifier
+ * (2026-08-20, objectui#5127, verbatim 「C」), superseding the `$schema` half of
+ * the 2026-08-19 ruling. The structural arm below is unaffected and stands.
+ *
+ * - A `$schema` URL is a permanent public identifier that lives in USERS'
+ *   files, which no sweep can ever reach. Minting the address before the
+ *   document it names exists is backwards.
+ * - The only consumer that needs a URL rather than any agreed marker is an
+ *   editor resolving `$schema` over HTTP. An agent authoring schemas instead
+ *   needs a contract it can read BEFORE writing — a file, and `node_modules`
+ *   is right there — and a good error AFTER writing, which is this command,
+ *   already version-correct from the installed packages.
+ * - The value would be untyped, unchecked and host-matched, so an agent that
+ *   mis-remembered the path would be silently accepted: a version-fossil
+ *   generator, in files we cannot fix.
+ * - Zero files declared it, in this repository or anywhere else, so the arm
+ *   matched nothing. Dropping it gives up no coverage that was being
+ *   delivered.
+ *
+ * Because that matching was host-based rather than literal, the arm can be
+ * added later without invalidating a single file — most soundly once
+ * `@object-ui/types` ships a generated JSON Schema, which is filed separately.
  */
-function pointsAtObjectUi(value: unknown): boolean {
-  if (typeof value !== 'string') return false;
-  let hostname: string;
-  try {
-    ({ hostname } = new URL(value));
-  } catch {
-    // Not a URL — `$schema` is present but says nothing about ObjectUI.
-    return false;
-  }
-  const host = hostname.toLowerCase();
-  return host === 'objectui.org' || host.endsWith('.objectui.org');
-}
 
 /**
  * Does this parsed file positively read as an ObjectUI schema (objectui#5127)?
@@ -102,9 +93,9 @@ function pointsAtObjectUi(value: unknown): boolean {
  * about their own `package.json`: 45 of the 46 warnings this repository
  * produced were exactly that.
  *
- * The fix is producer-side declaration, not a consumer-side skip list: a file
- * is judged when it SAYS it is an ObjectUI schema (`$schema`) or when it is
- * structurally recognisable as one. A list of filenames to exclude was
+ * The fix is a positive marker, not a consumer-side skip list: a file is
+ * judged when it is structurally recognisable as an ObjectUI node. A list of
+ * filenames to exclude was
  * considered and rejected — it is a second hand-maintained list of the shape
  * objectui#5115 had just finished deleting, and it can only ever enumerate the
  * foreign vocabularies someone already thought of.
@@ -116,7 +107,6 @@ function pointsAtObjectUi(value: unknown): boolean {
  * the skipped-file count below keeps visible in the meantime.
  */
 function isObjectUiSchemaFile(content: Record<string, unknown>): boolean {
-  if (pointsAtObjectUi(content.$schema)) return true;
   return OBJECTUI_STRUCTURAL_KEYS.some((key) => key in content);
 }
 
@@ -227,9 +217,16 @@ export async function check(cwd: string = process.cwd()) {
         `Skipped ${skipped} file${skipped === 1 ? '' : 's'} with a root "type" and no ObjectUI schema marker.`
       )
     );
+    // The hint names the marker keys by rendering the gate's OWN array, never
+    // a sentence written alongside it. A hint that describes a way in that the
+    // build does not honour is worse than no hint: the reader follows it,
+    // nothing changes, and the command looks broken rather than narrow. The
+    // previous revision of this line advised declaring a `$schema` URL — an
+    // arm the 2026-08-20 ruling removed — which is exactly that failure had it
+    // outlived the code it described.
     console.log(
       chalk.dim(
-        `  A file is checked when it declares "$schema": "${OBJECTUI_SCHEMA_URL}" or carries a structural key (children/body/className/...).`
+        `  A file is checked when its root carries an ObjectUI structural key: ${OBJECTUI_STRUCTURAL_KEYS.join(', ')}.`
       )
     );
   }
