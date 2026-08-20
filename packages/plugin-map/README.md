@@ -21,6 +21,30 @@ both resolving to the same renderer:
 pnpm add @object-ui/plugin-map
 ```
 
+## Requires a bundler — plain Node cannot import this package
+
+`ObjectMap` imports MapLibre's stylesheet at module scope
+(`import 'maplibre-gl/dist/maplibre-gl.css'`), and Node has no loader for `.css` at all.
+Importing the published entry from plain Node ESM — no bundler, no loader hooks — therefore
+resolves and then fails during evaluation:
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+  for .../maplibre-gl/dist/maplibre-gl.css
+```
+
+**This is a supported-configuration statement, not a bug to report.** Unbundled Node
+consumption is not supported for style-carrying plugin packages. It was ruled that way on
+[objectui#5384](https://github.com/objectstack-ai/objectui/issues/5384) — deliberately, over
+the alternative of moving the stylesheet out of module scope — because a MapLibre canvas
+without its stylesheet is not a map, and no unbundled-Node consumer exists to serve.
+
+Consume it through a host that handles CSS imports, which every supported host does: Vite,
+webpack, or Next with the package listed in `transpilePackages`. If you have a real need to
+import it under plain Node — SSR with no bundler, a Node-side script — please open an issue.
+That reopens the question as a design decision rather than a defect, and the shape of your
+consumer is the missing input.
+
 ## Usage
 
 Registration is a side effect of the import. There is no manual-registration

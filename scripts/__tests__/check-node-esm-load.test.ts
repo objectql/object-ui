@@ -5,11 +5,11 @@ import path from 'node:path';
 
 import {
   EXPLICIT_EXTENSION,
-  LOAD_DEBT,
   MIN_LOADED,
   MIN_PACKAGES,
   RELATIVE_SPECIFIER,
   SPECIFIER_DEBT,
+  UNBUNDLED_NODE_UNSUPPORTED,
   attributeMissingModule,
   buildPreservesSpecifiers,
   effectiveNoEmit,
@@ -282,17 +282,43 @@ describe('the ledger is a ratchet', () => {
       expect(name).toMatch(/^@object-ui\//);
       expect(reason.length).toBeGreaterThan(10);
     }
-    for (const [name, reason] of LOAD_DEBT) {
+    for (const [name, reason] of UNBUNDLED_NODE_UNSUPPORTED) {
       expect(name).toMatch(/^@object-ui\//);
       expect(reason.length).toBeGreaterThan(10);
     }
   });
 
+  it('cites a ruling on every boundary entry, so no exemption is a bare name', () => {
+    // objectui#5384 turned these three from debt into a permanent statement:
+    // unbundled Node consumption is not supported for style-carrying plugin
+    // packages. A permanent exemption a reader cannot trace is how it becomes a
+    // mystery three months later — the reason and the ruling have to come from
+    // the ENTRY, not from the fact that a name sits in a map. This is the pin
+    // that makes adding a bare name fail.
+    for (const reason of UNBUNDLED_NODE_UNSUPPORTED.values()) {
+      expect(reason).toMatch(/objectui#\d+/);
+      expect(reason).toMatch(/unbundled Node is not supported/);
+    }
+  });
+
+  it('holds exactly the group the ruling covered, so it cannot widen quietly', () => {
+    // The ruling was taken over the style-carrying packages as a GROUP rather
+    // than one at a time, which is also what keeps the boundary describable in
+    // one sentence. A fourth name is a new product decision, not a spelling
+    // change, so it has to come here and say so.
+    expect([...UNBUNDLED_NODE_UNSUPPORTED.keys()].sort()).toEqual([
+      '@object-ui/app-shell',
+      '@object-ui/plugin-dashboard',
+      '@object-ui/plugin-map',
+    ]);
+  });
+
   it('keeps the two ledgers disjoint — they answer different questions', () => {
-    // SPECIFIER_DEBT is this defect class. LOAD_DEBT is "can an unbundled
-    // consumer load this at all", which is a product question. Merging them
-    // would let the defect stop being visible inside a grab-bag.
-    for (const name of LOAD_DEBT.keys()) expect(SPECIFIER_DEBT.has(name)).toBe(false);
+    // SPECIFIER_DEBT is this defect class. UNBUNDLED_NODE_UNSUPPORTED is "can an
+    // unbundled consumer load this at all", which is a product question that has
+    // been answered and closed. Merging them would let the defect stop being
+    // visible inside a grab-bag.
+    for (const name of UNBUNDLED_NODE_UNSUPPORTED.keys()) expect(SPECIFIER_DEBT.has(name)).toBe(false);
   });
 
   it('does not ledger the packages objectui#4538 fixed', () => {
@@ -303,7 +329,7 @@ describe('the ledger is a ratchet', () => {
       '@object-ui/i18n',
     ]) {
       expect(SPECIFIER_DEBT.has(fixed)).toBe(false);
-      expect(LOAD_DEBT.has(fixed)).toBe(false);
+      expect(UNBUNDLED_NODE_UNSUPPORTED.has(fixed)).toBe(false);
     }
   });
 });

@@ -5,7 +5,8 @@
  * Run:  node scripts/check-node-esm-load.mjs --specifiers-only  (`pnpm check:esm-specifiers`)
  *       node scripts/check-node-esm-load.mjs                    (`pnpm check:node-esm-load`)
  * Exit: 0 = no un-ledgered package emits an unresolvable relative specifier,
- *           and (full mode) every entry the gate imported evaluated,
+ *           and (full mode) every entry the gate imported either evaluated or
+ *           is named as a stated boundary (UNBUNDLED_NODE_UNSUPPORTED),
  *       1 = a finding, OR the gate could not build, OR it inspected too little
  *           to be asserting anything.
  *
@@ -58,6 +59,12 @@
  * defect that reaches a package through a dependency; leg 2 cannot see a
  * defect on a code path evaluation does not take. Leg 1 is the ratchet; leg 2
  * is the proof that the ratchet guards the right property.
+ *
+ * Leg 2 also carries this repository's one PRODUCT boundary: three
+ * style-carrying plugin packages that plain Node is not expected to load, ruled
+ * permanent rather than owed. It is stated at length on
+ * UNBUNDLED_NODE_UNSUPPORTED below — including what the boundary costs this
+ * gate, and which leg guards those packages instead.
  *
  * ## The vacuous forms this gate must never take
  *
@@ -218,33 +225,111 @@ export function buildPreservesSpecifiers(buildScript, pkgDir) {
 export const SPECIFIER_DEBT = new Map();
 
 /**
- * Packages whose published entry cannot evaluate under plain Node for a reason
- * that is NOT this defect class, with the reason each one shows.
+ * Packages whose published entry cannot evaluate under plain Node, and for which
+ * that is a STATED PRODUCT BOUNDARY rather than a debt anyone intends to pay.
  *
- * Kept separate from SPECIFIER_DEBT on purpose: an entry here is a statement
- * about a DIFFERENT question (is an unbundled consumer supported at all?),
- * and merging the two would let this gate become a grab-bag in which the
- * defect it exists for stops being visible.
+ * Kept separate from SPECIFIER_DEBT on purpose: an entry here answers a
+ * DIFFERENT question (is an unbundled consumer supported at all?), and merging
+ * the two would let this gate become a grab-bag in which the defect it exists
+ * for stops being visible.
+ *
+ * Formerly `LOAD_DEBT`, renamed by the ruling below. A map whose name says
+ * "debt" reads as a promise to fix, and these three entries are not one — the
+ * old name is what made the ledger aspirational rather than honest. The
+ * previous spelling survives in `packages/app-shell/CHANGELOG.md`, which
+ * records the day that entry was added; this is the map it names.
+ *
+ * ## The boundary, and who ruled it
+ *
+ * **Unbundled Node consumption is NOT supported for style-carrying plugin
+ * packages.** Ruled on objectui#5384 (2026-08-20), taken over the three
+ * packages as a group rather than one at a time, exactly as the card asked.
+ * The maintainer accepted the triage batch verbatim: 「其他接受你的建议。」
+ *
+ * The card put three directions on the table — move the stylesheet import off
+ * module scope so the entry loads, declare the boundary, or something
+ * upstream-shaped for `react-grid-layout` / `maplibre-gl` — and the ruling took
+ * the second, with its reason recorded: *"No known unbundled-Node consumer
+ * exists; converting a zero-pull capability gap into permanent maintained
+ * machinery is the shape the startup rule rejects."*
+ *
+ * That premise was re-measured when this ledger was reworded, not inherited.
+ * Every consumer of these three packages in this repository reaches them
+ * through a bundler: `vite` in `apps/console`, `examples/console-starter` and
+ * `examples/byo-backend-console`, and Next's `transpilePackages` in `apps/site`
+ * — which is the key that makes the stylesheet work there. Nothing declares
+ * them under `serverExternalPackages`, so Next's Node side never loads these
+ * entries itself either, and the sibling `objectstack` repository names them
+ * only in comments and changeset fixtures. Zero unbundled-Node consumers, and
+ * the searches that returned zero were counter-probed with terms known to be
+ * present.
+ *
+ * Revisit ONLY on a real consumer request, which reopens objectui#5384 as a
+ * DESIGN card rather than a debt payment: the question to re-answer is whether
+ * these packages should carry their stylesheet at module scope at all, and it
+ * needs the consumer's shape to answer.
+ *
+ * ## What each entry excuses, measured rather than assumed
+ *
+ * All three die on the same code, and it is not this gate's defect class:
+ * `ERR_UNKNOWN_FILE_EXTENSION`. Resolution SUCCEEDS — both stylesheets are
+ * exported by their own packages — and evaluation fails, because Node has no
+ * loader for `.css` at all. Measured directly under Node 22.22.2:
+ *
+ *     TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+ *       for …/react-grid-layout/css/styles.css
+ *     TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+ *       for …/maplibre-gl/dist/maplibre-gl.css
+ *
+ * ## What the boundary costs, stated here rather than discovered later
+ *
+ * This map matches by PACKAGE NAME, not by error code, so the load leg cannot
+ * speak for these three AT ALL: a genuine extensionless-specifier regression in
+ * any of them would print as a boundary line here instead of failing the run.
+ * That was true while they were debt and it is true now — permanence just makes
+ * it permanent, so it is written down instead of remembered.
+ *
+ * What carries the guard instead is the SPECIFIER leg, which became a hard
+ * requirement the moment SPECIFIER_DEBT emptied, and the ruling keeps it there
+ * deliberately. It is measured, not hoped: objectui#5357's ablation reverted
+ * app-shell's specifiers and watched the specifier leg redden while the load
+ * leg went on printing a ledger line.
+ *
+ * An entry here is therefore never a way to turn a red run green. It owes what
+ * these three pay: the boundary in words, the ruling that made it permanent,
+ * and the consumer question it answers — a bare name would be a mystery to
+ * whoever reads it next. `check-node-esm-load.test.ts` pins that every entry
+ * cites a ruling, so an unexplained one fails the suite.
+ *
+ * The ratchet in the other direction is kept exactly as it was: a package named
+ * here whose entry DOES load is a finding, because from that moment the
+ * exemption costs coverage and buys nothing.
+ *
+ * @type {Map<string, string>}
  */
-export const LOAD_DEBT = new Map([
+export const UNBUNDLED_NODE_UNSUPPORTED = new Map([
   [
     '@object-ui/app-shell',
-    "reaches react-grid-layout's stylesheet through the STATIC `@object-ui/plugin-dashboard` imports in " +
-      'DashboardView and ReportView, so it fails for the same reason that package does. Uncovered by ' +
-      'objectui#5357: while app-shell emitted extensionless specifiers its first error was ' +
-      'ERR_MODULE_NOT_FOUND on its own file, which masked this one entirely — the first-failure shape ' +
-      'objectui#5214 measured (5 predicted red, 10 observed). Its specifier debt is paid and its own ' +
-      'artifact is clean; what is left is the `.css` question, and it clears the moment ' +
-      '@object-ui/plugin-dashboard does',
+    'unbundled Node is not supported for this package, by ruling objectui#5384 — a stated boundary, ' +
+      "not debt. It reaches react-grid-layout's stylesheet through the STATIC " +
+      '`@object-ui/plugin-dashboard` imports in DashboardView and ReportView, so Node stops on the same ' +
+      'ERR_UNKNOWN_FILE_EXTENSION that package does. Its own specifier debt is paid and its own artifact ' +
+      'is clean — uncovered by objectui#5357, because while app-shell emitted extensionless specifiers ' +
+      'its first error was ERR_MODULE_NOT_FOUND on its own file, which masked the stylesheet entirely ' +
+      '(the first-failure shape objectui#5214 measured: 5 predicted red, 10 observed)',
   ],
   [
     '@object-ui/plugin-dashboard',
-    "imports react-grid-layout's stylesheet; Node cannot load `.css` at all, which is a question " +
-      'about whether unbundled consumers are supported, not about this defect',
+    'unbundled Node is not supported for this package, by ruling objectui#5384 — a stated boundary, ' +
+      "not debt. DashboardGridLayout imports react-grid-layout's stylesheet " +
+      '(`react-grid-layout/css/styles.css`) at module scope, and Node has no loader for `.css`, so the ' +
+      'entry resolves and then dies with ERR_UNKNOWN_FILE_EXTENSION. Every supported consumer bundles it',
   ],
   [
     '@object-ui/plugin-map',
-    "imports maplibre-gl's stylesheet; same question as @object-ui/plugin-dashboard",
+    'unbundled Node is not supported for this package, by ruling objectui#5384 — a stated boundary, ' +
+      "not debt. ObjectMap imports maplibre-gl's stylesheet (`maplibre-gl/dist/maplibre-gl.css`) at " +
+      'module scope; same ERR_UNKNOWN_FILE_EXTENSION and same ruling as @object-ui/plugin-dashboard',
   ],
 ]);
 
@@ -514,9 +599,13 @@ function main(argv) {
     const outcome = importEntry(entryPath);
     if (outcome.ok) {
       loaded++;
-      if (LOAD_DEBT.has(pkg.name)) {
+      if (UNBUNDLED_NODE_UNSUPPORTED.has(pkg.name)) {
         failed = true;
-        console.error(`\n✗ ${pkg.name} is in LOAD_DEBT but now loads. Delete its entry.`);
+        console.error(
+          `\n✗ ${pkg.name} is named as unsupported under unbundled Node, but its entry now loads.\n` +
+            '  Delete its entry in the commit that made it loadable: the boundary no longer describes ' +
+            'this package, and while the name sits here the load leg cannot speak for it at all.',
+        );
       }
       continue;
     }
@@ -531,6 +620,17 @@ function main(argv) {
   if (notImportable.length > 0) {
     console.log(`  not importable by design: ${notImportable.join(', ')}`);
   }
+  // Named on every run for the same reason the line above is: the packages this
+  // gate is not allowed to speak for are the ones a reader most needs to see. A
+  // count that never reaches the total is honest only while the shortfall is
+  // legible from the run itself.
+  const boundary = esmPackages.filter((p) => UNBUNDLED_NODE_UNSUPPORTED.has(p.name)).map((p) => p.name);
+  if (boundary.length > 0) {
+    console.log(
+      '  unbundled Node unsupported, by ruling rather than by debt (each entry names its ruling in ' +
+        `UNBUNDLED_NODE_UNSUPPORTED): ${boundary.join(', ')}`,
+    );
+  }
   if (loaded < MIN_LOADED) {
     console.error(
       `✗ only ${loaded} entries evaluated (expected at least ${MIN_LOADED}). This run proved nothing — ` +
@@ -540,12 +640,17 @@ function main(argv) {
   }
 
   for (const f of loadFindings) {
-    const ledgered =
-      LOAD_DEBT.has(f.name) || (f.code === 'ERR_MODULE_NOT_FOUND' && SPECIFIER_DEBT.has(f.owner));
+    // Two different verdicts, printed as two different words. `ledgered` means
+    // a debt someone still owes; `by design` means a boundary that was ruled,
+    // and reading the second as the first is how a permanent statement gets
+    // mistaken for a worklist item.
+    const byDesign = UNBUNDLED_NODE_UNSUPPORTED.has(f.name);
+    const ledgered = byDesign || (f.code === 'ERR_MODULE_NOT_FOUND' && SPECIFIER_DEBT.has(f.owner));
     const via = f.owner !== f.name ? ` (via ${f.owner})` : '';
     if (!ledgered) failed = true;
     const line = `${f.name}${via}: ${f.code} — ${f.message}`;
-    if (ledgered) console.log(`  ledgered ${line}`);
+    if (byDesign) console.log(`  by design ${line}`);
+    else if (ledgered) console.log(`  ledgered ${line}`);
     else console.error(`✗ ${line}`);
   }
 

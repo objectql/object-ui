@@ -5,6 +5,14 @@ name: Node ESM Load Gate
 # gate, and why a resolution-only criterion was measured and rejected, are
 # documented at length in scripts/check-node-esm-load.mjs.
 #
+# "Every" has one ruled exception, and it is a product boundary rather than a
+# backlog item: the three style-carrying plugin packages named in
+# UNBUNDLED_NODE_UNSUPPORTED import a `.css` file at module scope, which Node
+# cannot load at all, and objectui#5384 ruled unbundled Node consumption
+# unsupported for them permanently. They are printed on every run, never
+# silently subtracted, and the specifier leg — not this one — is what guards
+# them against a real regression.
+#
 # ── Why this is a scheduled workflow and NOT a pull-request job ──────────────
 #
 # The load leg has to EVALUATE each entry, so it has to build all 39 published

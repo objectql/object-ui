@@ -19,6 +19,31 @@ This package provides the essential building blocks for rendering ObjectUI schem
 pnpm add @object-ui/app-shell
 ```
 
+## Requires a bundler — plain Node cannot import this package
+
+This package's own artifact is clean, but `DashboardView` and `ReportView` import
+`@object-ui/plugin-dashboard` **statically**, and that package imports `react-grid-layout`'s
+stylesheet at module scope. Node has no loader for `.css`, so importing the published entry
+from plain Node ESM — no bundler, no loader hooks — resolves and then fails during evaluation:
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+  for .../react-grid-layout/css/styles.css
+```
+
+**This is a supported-configuration statement, not a bug to report.** Unbundled Node
+consumption is not supported for style-carrying plugin packages, and app-shell inherits the
+boundary through the import above. It was ruled that way on
+[objectui#5384](https://github.com/objectstack-ai/objectui/issues/5384), over the alternative
+of moving those stylesheet imports out of module scope, because no unbundled-Node consumer
+exists to serve.
+
+Consume it through a host that handles CSS imports, which every supported host does: Vite,
+webpack, or Next with the package listed in `transpilePackages`. If you have a real need to
+import it under plain Node — SSR with no bundler, a Node-side script — please open an issue.
+That reopens the question as a design decision rather than a defect, and the shape of your
+consumer is the missing input.
+
 ## Usage
 
 ### Basic Setup

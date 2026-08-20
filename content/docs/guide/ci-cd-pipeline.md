@@ -788,6 +788,30 @@ is itself a failure, so it cannot outlive the debt it records. Packages that are
 by design — a `bin`-only CLI, or a built web app whose `dist` is `index.html` — are printed on
 every run rather than skipped silently.
 
+A separate list, `UNBUNDLED_NODE_UNSUPPORTED`, names the packages plain Node is **not expected
+to load at all**. Three style-carrying plugin packages sit there: `@object-ui/plugin-dashboard`
+and `@object-ui/plugin-map` import `react-grid-layout`'s and `maplibre-gl`'s stylesheets at
+module scope, and `@object-ui/app-shell` reaches the first of those through static imports. All
+three resolve fine and then die on `ERR_UNKNOWN_FILE_EXTENSION`, because Node has no loader for
+`.css`. That is **a stated product boundary, not debt** — unbundled Node consumption is not
+supported for style-carrying plugin packages, ruled on
+[#5384](https://github.com/objectstack-ai/objectui/issues/5384) after measuring that no
+unbundled-Node consumer exists: every consumer reaches these packages through a bundler (`vite`
+in the console and the examples, Next's `transpilePackages` in `apps/site`). The load leg's count
+therefore stops short of the total on purpose, and the run prints those three names on every run
+rather than quietly subtracting them. Each package says the same thing in its own README, so a
+consumer meets the boundary before a red import rather than after one.
+
+The boundary has a price, and the list states it rather than leaving it to be found later: it
+matches by **package name**, not by error code, so the load leg cannot speak for those three at
+all — a genuine extensionless-specifier regression in one of them would print as a boundary line
+instead of failing the run. What guards them instead is the specifier leg, which is a hard
+requirement now that `SPECIFIER_DEBT` is empty; [#5357](https://github.com/objectstack-ai/objectui/issues/5357)'s
+ablation reverted app-shell's specifiers and watched the specifier leg redden while the load leg
+went on printing its ledger line. The ratchet is kept in the other direction too: a named package
+whose entry starts loading is itself a failure, because from that moment the exemption costs
+coverage and buys nothing.
+
 ### Changeset Guard (`changeset-guard.yml`)
 
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.changeset/**` changes** — the

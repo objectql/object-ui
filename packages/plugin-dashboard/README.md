@@ -16,6 +16,30 @@ Dashboard plugin for Object UI - Create beautiful dashboards with metrics, chart
 pnpm add @object-ui/plugin-dashboard
 ```
 
+## Requires a bundler — plain Node cannot import this package
+
+`DashboardGridLayout` imports `react-grid-layout`'s stylesheet at module scope
+(`import 'react-grid-layout/css/styles.css'`), and Node has no loader for `.css` at all.
+Importing the published entry from plain Node ESM — no bundler, no loader hooks — therefore
+resolves and then fails during evaluation:
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+  for .../react-grid-layout/css/styles.css
+```
+
+**This is a supported-configuration statement, not a bug to report.** Unbundled Node
+consumption is not supported for style-carrying plugin packages. It was ruled that way on
+[objectui#5384](https://github.com/objectstack-ai/objectui/issues/5384) — deliberately, over
+the alternative of moving the stylesheet out of module scope — because the grid's layout rules
+are not optional and no unbundled-Node consumer exists to serve.
+
+Consume it through a host that handles CSS imports, which every supported host does: Vite,
+webpack, or Next with the package listed in `transpilePackages`. If you have a real need to
+import it under plain Node — SSR with no bundler, a Node-side script — please open an issue.
+That reopens the question as a design decision rather than a defect, and the shape of your
+consumer is the missing input.
+
 ## Usage
 
 ### Automatic Registration (Side-Effect Import)
