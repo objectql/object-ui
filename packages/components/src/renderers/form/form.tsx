@@ -2817,15 +2817,49 @@ const NATIVE_PICKER_INPUT_TYPES = new Set(['date', 'datetime-local', 'time', 'mo
  * produced, while the leak, the duplicate `<label>` and the dead `max_length`
  * go away. An explicitly authored `inputType` still wins over it.
  *
- * Deliberately just these two. Every other declared field type with a native
- * HTML equivalent (`url`, `phone`, `number`, `color`, `date` …) ALREADY takes
- * this branch as `type="text"` on the built-in path and is untouched by
- * objectui#5254 — widening the table here would change fields this card
- * neither moved nor measured.
+ * Deliberately narrow. Every other declared field type with a native HTML
+ * equivalent (`url`, `phone`, `number`, `color`, `date` …) ALREADY takes this
+ * branch as `type="text"` on the built-in path and is untouched by
+ * objectui#5254 — widening the table beyond a SECRET would change fields no
+ * card has moved or measured.
+ *
+ * ## The two secret spellings added by objectui#5375 (maintainer ruling of
+ * 2026-08-20, half A — defense in depth)
+ *
+ * Measured on `main` at f2e11ae6f, on the built-in path, all three of these
+ * put the value on screen as `type="text"`:
+ *
+ *   ui:password    registry hit = TRUE    rendered type="text"
+ *   secret         registry hit = false   rendered type="text"
+ *   field:secret   registry hit = false   rendered type="text"
+ *
+ *  - **`secret`** is the ObjectQL field type. `mapFieldTypeToFormType` maps it
+ *    to `field:password`, so an OBJECT-derived secret field is already safe —
+ *    it arrives here as `password`. What was not safe is a hand-authored
+ *    `{ name, type: 'secret' }` in a standalone `FormSchema`, which reaches
+ *    this table under its own name and missed it.
+ *  - **`ui:password`** is keyed RAW, not as a declared type, and that is
+ *    deliberate: {@link normalizeFieldType} strips only `field:` (the one
+ *    namespace that means "field widget", objectui#5254), so a `ui:`-qualified
+ *    id arrives here unstripped. It is NOT given a namespace-stripping rule of
+ *    its own — that would re-open the cross-namespace resolution #5254
+ *    deliberately removed, and would silently move `ui:email`, `ui:date` and
+ *    every other `ui:*` id this card never measured.
+ *
+ * `ui:password` is ALSO refused at authoring time as of the same card (half C,
+ * `validateFormSchema` in `@object-ui/core`): a namespaced id that is not
+ * `field:` resolves no field widget and is an authoring error. This entry is
+ * the defense-in-depth half — validation is advisory at render time, so a host
+ * that never validates still must not leak, and an existing author who wrote
+ * the spelling needs no migration to keep a working (masked) field.
  */
 const NATIVE_INPUT_FIELD_TYPES: Record<string, string> = {
   email: 'email',
   password: 'password',
+  // objectui#5375 — see the two paragraphs above. `secret` is a DECLARED type
+  // key (so `field:secret` normalizes into it too); `ui:password` is a RAW key.
+  secret: 'password',
+  'ui:password': 'password',
 };
 
 /**
@@ -2838,11 +2872,26 @@ const NATIVE_INPUT_FIELD_TYPES: Record<string, string> = {
  * least likely to notice (an input, in the right slot, with the right label).
  *
  * Membership is the declared type — the `field:` prefix already stripped by
- * {@link normalizeFieldType} — so the one entry answers both spellings.
- * `secret` (the ObjectQL type `mapFieldTypeToFormType` maps to
- * `field:password`) reaches this set through that mapping, as `password`.
+ * {@link normalizeFieldType} — so each entry answers both its spellings.
+ * An OBJECT-derived secret field reaches this set as `password`, because
+ * `mapFieldTypeToFormType` maps the ObjectQL `secret` type to `field:password`.
+ *
+ * `secret` itself joined the set with objectui#5375 (half A), for the spelling
+ * that mapping never sees: a hand-authored `{ name, type: 'field:secret' }` in
+ * a standalone `FormSchema`. It is a registry key naming a widget nothing
+ * registers, so — exactly like `field:password` — reaching the default branch
+ * with it proves the declared widget is absent, and the value is refused rather
+ * than rendered. The BARE `secret` spelling is not refused: it claims no
+ * registered widget at all, so this branch is its intended home and
+ * `NATIVE_INPUT_FIELD_TYPES` above renders it as the native masked input, the
+ * same answer a bare `password` gets.
+ *
+ * Only members reached with a `field:` prefix are refused — see the gate in
+ * `renderFieldComponent`'s `default` arm — so adding a non-`field:` spelling
+ * here would be a dead entry. `ui:password` is therefore handled by
+ * `NATIVE_INPUT_FIELD_TYPES` alone, and not listed here.
  */
-const SECRET_FIELD_TYPES = new Set(['password']);
+const SECRET_FIELD_TYPES = new Set(['password', 'secret']);
 
 /**
  * `field:<type>` ids already reported missing, keyed by widget id + field name.
@@ -3402,9 +3451,11 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       //
       // The declared type — the prefix stripped — is what the two halves below
       // read. Only `field:` is stripped (`normalizeFieldType`): it is the one
-      // namespace that means "field widget", the one the producer emits, and
-      // the one this card measured. A `ui:`-qualified id keeps rendering
-      // exactly as it does today.
+      // namespace that means "field widget" and the one the producer emits.
+      // A `ui:`-qualified id therefore arrives here UNSTRIPPED and is matched
+      // raw where it is matched at all (`ui:password`, objectui#5375) — no
+      // second namespace gets a stripping rule, because that would re-open the
+      // cross-namespace resolution objectui#5254 deliberately removed.
       const declaredType = normalizeFieldType(type);
 
       // ── Half 1: REFUSE, for a secret ────────────────────────────────────
@@ -3416,11 +3467,14 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // handling) is absent, and would look like it worked. So the value is
       // not rendered at all, in any form, and the refusal says why.
       //
-      // Deliberately narrow — `password` only, and only under `field:`. Every
-      // other unregistered `field:*` id (`field:currency`, `field:qrcode` …)
-      // still renders the text box it renders today: turning the whole class
-      // into refusals would change fields this card neither moved nor
+      // Deliberately narrow — the SECRET types only, and only under `field:`.
+      // Every other unregistered `field:*` id (`field:currency`,
+      // `field:qrcode` …) still renders the text box it renders today: turning
+      // the whole class into refusals would change fields no card has moved or
       // measured, the same restraint `NATIVE_INPUT_FIELD_TYPES` above states.
+      // `field:secret` joined `SECRET_FIELD_TYPES` with objectui#5375 and so
+      // is refused here too; the BARE `secret` spelling is not — it names no
+      // registry key, so it takes the native masked input below.
       if (type.startsWith('field:') && SECRET_FIELD_TYPES.has(declaredType)) {
         return (
           <MissingSecretFieldWidget
@@ -3483,9 +3537,10 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           // `@object-ui/types`), and `field:email` declares `email` just as
           // plainly as a bare `email` does. Before this the prefixed spelling
           // missed the table and lost the native keyboard and validation.
-          // `field:password` never reaches here — half 1 above refuses it —
-          // so this line answers `field:email`, and the two bare spellings
-          // exactly as before.
+          // `field:password` / `field:secret` never reach here — half 1 above
+          // refuses them — so this line answers `field:email`, the bare
+          // spellings, and (objectui#5375) the two raw secret spellings
+          // `secret` and `ui:password`, which the table now carries.
           type={inputType || NATIVE_INPUT_FIELD_TYPES[declaredType] || 'text'}
           placeholder={placeholder}
           className={cn(readonlyInputClass)}

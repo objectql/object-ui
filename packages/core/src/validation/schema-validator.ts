@@ -185,6 +185,124 @@ function validateCRUDSchema(schema: any, path: string = 'schema'): SchemaNodeVal
 }
 
 /**
+ * The ONE namespace a form field's widget id may name — objectui#5254,
+ * maintainer ruling of 2026-08-19.
+ *
+ * A form field's `type` either names a `field:`-namespaced widget or takes the
+ * renderer's declared `default` input branch. It never resolves a plain SDUI
+ * node renderer: `renderFieldComponent` (`@object-ui/components`) resolves a
+ * colon-qualified id ONLY under this prefix, and `resolveFieldLabelling` /
+ * `resolvesToRegisteredFieldWidget` there mirror it exactly.
+ */
+const FIELD_WIDGET_NAMESPACE = 'field:';
+
+/**
+ * The two keys of an AUTHORED form field that can carry a widget id.
+ *
+ * Both are `unknown` rather than `string`: this validator's whole job is to be
+ * handed metadata that may be any shape at all, so the narrowing has to happen
+ * here and not be assumed by the type. (The rest of this file predates that
+ * discipline and reads its input as `any`; new code does not add to it.)
+ */
+interface AuthoredFormField {
+  type?: unknown;
+  widget?: unknown;
+}
+
+/**
+ * The widget id a form field will actually be RENDERED as.
+ *
+ * Mirrors the renderer's own precedence (`resolvedType` in
+ * `packages/components/src/renderers/form/form.tsx`: explicit form-config
+ * `widget`, then the resolved field metadata's widget hint, then the bare
+ * `type`). Only the two keys an AUTHORED schema carries are read here —
+ * `field.field?.widget` is a resolved metadata OBJECT that a hand-authored
+ * standalone `FormSchema` does not have.
+ *
+ * The mirroring is the point, not a convenience: validator and renderer must
+ * not be able to disagree about which component will actually render, which is
+ * the same discipline `resolveFieldLabelling` states on the renderer side.
+ */
+function resolveAuthoredFieldWidgetId(field: AuthoredFormField): string | undefined {
+  const id = field.widget ?? field.type;
+  return typeof id === 'string' ? id : undefined;
+}
+
+/**
+ * A form field's widget id names a namespace that resolves NO field widget —
+ * objectui#5375, maintainer ruling of 2026-08-20 (option C, the primary).
+ *
+ * ## What this refuses, and why it is an error rather than a warning
+ *
+ * Measured on `main` at f2e11ae6f, the real `form` renderer on the built-in
+ * path (no `registerAllFields()`):
+ *
+ *   type            registry hit   rendered type
+ *   ui:password     TRUE           text
+ *   secret          false          text
+ *   field:secret    false          text
+ *
+ * `ui:password` **is** registered — as an SDUI node renderer for a top-level
+ * `{ type: 'email' }`-style node — so an author who checks whether it resolves
+ * gets a YES, and still gets a clear-text box on the field path. That is the
+ * shape where verifying does not protect you, and it is why the class, not
+ * another entry in a renderer-side table, is what gets closed here: the table
+ * fix answers today's spellings and leaves the next invented id to find the
+ * same silent degrade. AI-authored metadata invents plausible-looking widget
+ * ids constantly; this makes inventing one an ERROR at authoring time instead
+ * of a text box that looks like it worked.
+ *
+ * A warning was explicitly ruled out — a warning IS the silent degrade this
+ * check exists to kill, in a new spelling.
+ *
+ * ## Why only the NAMESPACED spelling
+ *
+ * `field:` is allowed whether or not the widget is registered: registration is
+ * a RUNTIME fact (`registerAllFields()`, a lazily loaded plugin) that an
+ * authoring-time validator cannot see, and the renderer already answers an
+ * unregistered `field:` secret with a visible refusal (objectui#5322). A BARE
+ * name is likewise allowed: it is an open set — every registered `field:<name>`
+ * widget, third-party ones included, is reachable by its short name.
+ *
+ * What is decidable statically is the namespace, and it is a CLOSED set of one.
+ * Any other `<ns>:<name>` resolves nothing on the field path by the #5254
+ * ruling and falls to the renderer's plain-text `default` arm.
+ *
+ * ## Census (the ruling made arming this conditional on one)
+ *
+ * 4,397 authored files in this repo, 649 form-field `type`/`widget` literals,
+ * 98 structurally parsed form-field entries in `examples/schema-catalog`:
+ * SEVEN colon-qualified ids on the form-field path, five of them `field:*`.
+ * The two remaining occurrences are one source line naming `ref:component`,
+ * which is a metadata-admin designer `SchemaForm` widget resolved by its own
+ * `WIDGETS` table — a different shape (`{ field, widget }` under
+ * `sections[].fields[]`, node type `simple`) that this function, gated on
+ * `type === 'form'`, never reaches. Zero occurrences of `ui:password`,
+ * `secret` or `field:secret` anywhere on the field path.
+ */
+function validateFieldWidgetNamespace(
+  field: AuthoredFormField,
+  path: string,
+): SchemaNodeValidationError | undefined {
+  const id = resolveAuthoredFieldWidgetId(field);
+  if (!id || !id.includes(':') || id.startsWith(FIELD_WIDGET_NAMESPACE)) return undefined;
+  const key = typeof field.widget === 'string' ? 'widget' : 'type';
+  return {
+    path: `${path}.${key}`,
+    message:
+      `'${id}' is not a form field widget: a namespaced field widget id must name the ` +
+      `\`field:\` namespace (objectui#5254), so this id resolves NOTHING on the field path ` +
+      `and the renderer would fall through to a plain text box — putting a secret on screen ` +
+      `in clear text when the field holds one (objectui#5375). Write the built-in spelling ` +
+      `(e.g. \`password\`), or the field widget id \`field:${id.slice(id.indexOf(':') + 1)}\`. ` +
+      `Resolving in the registry is not proof it resolves HERE — \`ui:password\` is a ` +
+      `registered SDUI node renderer and still renders clear text as a field.`,
+    type: 'error',
+    code: 'UNRESOLVABLE_FIELD_WIDGET_NAMESPACE',
+  };
+}
+
+/**
  * Validate form schema specific properties
  */
 function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
@@ -200,6 +318,16 @@ function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeVal
             type: 'error',
             code: 'MISSING_FIELD_NAME'
           });
+        }
+
+        // objectui#5375 — an invented namespaced widget id is an ERROR here,
+        // not a silent clear-text box at render time. See the helper's doc.
+        const namespaceError = validateFieldWidgetNamespace(
+          field,
+          `${path}.fields[${index}]`,
+        );
+        if (namespaceError) {
+          errors.push(namespaceError);
         }
 
         // Check for duplicate field names
