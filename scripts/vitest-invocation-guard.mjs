@@ -2,12 +2,57 @@
 /**
  * Rejects the two Vitest invocations that silently produce a FALSE GREEN.
  *
- * Called from the top of `vitest.config.mts`, so it covers EVERY entry point
- * into this repo's Vitest: `pnpm test`, `pnpm --filter <pkg> test`,
- * `turbo run test`, and a bare `pnpm exec vitest` typed in any directory.
- * (Every per-package `vitest.config.ts` re-exports the root config, and a
- * package without one — e.g. `packages/app-shell` — resolves upward to it, so
- * no package-level path skips this file.)
+ * Called from the top of `vitest.config.mts` AND from the top of every
+ * per-package `vitest.config.ts` that does not lead back to it, so it covers
+ * EVERY entry point into this repo's Vitest: `pnpm test`,
+ * `pnpm --filter <pkg> test`, `turbo run test`, and a bare `pnpm exec vitest`
+ * typed in any directory.
+ *
+ * ## How a config reaches this file — and the 11 that did not (objectui#5406)
+ *
+ * Vitest loads the config it finds in the directory it was launched from, so
+ * "the root config calls the guard" only covers a package-cwd run when that
+ * package's own config leads back to the root file. Three routes exist; this
+ * docstring used to claim the first two covered everything, and was wrong
+ * about 11 of the 18 non-root configs:
+ *
+ *   1. NO `vitest.config.*` in the package (`packages/app-shell`,
+ *      `packages/mobile`, ~30 others). The lookup walks up and lands on the
+ *      root config, whose module scope runs the guard. Always covered.
+ *   2. A package config that IMPORTS the root config — re-exporting it
+ *      (`packages/core`, `react`, `types`), merging a Vite config into it
+ *      (`components`, `fields`, `plugin-dashboard`, `apps/console`), or
+ *      stripping one key off it (`examples/schema-catalog`). Importing it
+ *      executes its module scope, so the guard runs as a side effect. 8
+ *      configs, all measured refusing a package-cwd run.
+ *   3. A STANDALONE package config that never mentions the root file. Nothing
+ *      imports this module, so the guard never ran: 11 configs
+ *      (`plugin-calendar`, `-charts`, `-detail`, `-form`, `-gantt`, `-grid`,
+ *      `-kanban`, `-list`, `-map`, `-timeline`, `-view`), each declaring its
+ *      own `happy-dom` + `globals` + local setup and NO alias table at all.
+ *      That is not a harmless difference: the root config maps every
+ *      `@object-ui/*` specifier to a sibling package's `src/`, and without it
+ *      the same import resolves through `node_modules` — a genuinely different
+ *      config from the one CI runs. Measured before the fix, from
+ *      `packages/plugin-grid`:
+ *
+ *          pnpm exec vitest run src/__tests__/ObjectGrid.exportOptionsKeys.test.ts
+ *          => RUN v4.1.10 /…/packages/plugin-grid   <- root is the PACKAGE
+ *             Test Files  1 passed (1)
+ *                  Tests  5 passed (5)              <- exit 0, guard silent
+ *
+ *      Route 3 now calls this module directly — same effect as route 2,
+ *      without the import:
+ *
+ *          import { assertCanonicalVitestInvocation, repoRootFrom }
+ *            from '../../scripts/vitest-invocation-guard.mjs';
+ *          assertCanonicalVitestInvocation({ repoRoot: repoRootFrom(import.meta.url) });
+ *
+ * Because a docstring is exactly what failed here, the claim above is now
+ * ENFORCED rather than written down: `scripts/__tests__/vitest-invocation-guard
+ * .test.ts` walks the repo for every `vitest.config.*` and fails on any that
+ * takes none of the three routes. A new standalone config cannot reopen the
+ * hole silently.
  *
  * ## Trap 1 — Vitest launched with the cwd inside a package (objectui#3378)
  *
@@ -58,10 +103,14 @@
  * ## Deliberately strict
  *
  * Any run whose Vitest root is not the repo root is refused, rather than
- * refused only when it collects zero of its own files. Under the current root
- * config the two are the same set — no package-cwd run can match its own files
- * — and "root == repo root" is one comparison an agent can hold in its head,
- * unlike a heuristic that fires only sometimes. Whether the 39 package-level
+ * refused only when it collects zero of its own files. "Collects zero of its
+ * own files" would have been the WEAKER trigger, and objectui#5406 shows why:
+ * under the 11 standalone configs a package-cwd run does collect the package's
+ * own files and can go green — that green just says nothing about CI, which
+ * runs those same files under the root config's aliases, project split and
+ * setup files. The defect is the divergent config, not the empty collection.
+ * "root == repo root" is also one comparison an agent can hold in its head,
+ * unlike a heuristic that fires only sometimes. Whether the package-level
  * `test` scripts should exist at all is objectui#3240 and not this guard's
  * call; until that is decided they fail loudly instead of lying.
  *
@@ -70,6 +119,46 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/** The file whose directory IS the repo root, by definition of this guard. */
+const ROOT_CONFIG = 'vitest.config.mts';
+
+/**
+ * Locate the repo root from a config file's own `import.meta.url`, by walking
+ * up to the directory that holds `vitest.config.mts`.
+ *
+ * Why the standalone package configs call this instead of spelling
+ * `path.resolve(__dirname, '../..')` eleven times: that literal is a silent
+ * failure waiting to happen. A wrong number of `..` yields a directory that
+ * exists, `evaluateVitestInvocation` compares the cwd against it, and the
+ * guard goes on reporting a verdict computed from the wrong root — no error,
+ * no signal. Searching for a landmark either finds the real root or throws.
+ *
+ * Why `import.meta.url` of the CONFIG rather than of this module: Vite may
+ * hand the config to Node's own ESM loader (`configLoader: 'native'`, the mode
+ * objectui#3384 documents) or bundle it to a `…timestamp-*.mjs` written
+ * ALONGSIDE the config. Both leave the config's own directory correct, while
+ * only the first leaves this module's path meaningful.
+ *
+ * @param {string} metaUrl the caller's `import.meta.url`
+ * @returns {string} absolute path of the directory holding `vitest.config.mts`
+ */
+export function repoRootFrom(metaUrl) {
+  let dir = path.dirname(fileURLToPath(metaUrl));
+  for (;;) {
+    if (fs.existsSync(path.join(dir, ROOT_CONFIG))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      throw new Error(
+        `vitest-invocation-guard: walked up from ${fileURLToPath(metaUrl)} without finding ` +
+          `${ROOT_CONFIG}. That file's directory is what defines this repo's root, so the ` +
+          'guard cannot judge an invocation without it.'
+      );
+    }
+    dir = parent;
+  }
+}
 
 /**
  * Vitest's positional subcommands. The first bare word is the subcommand, not a

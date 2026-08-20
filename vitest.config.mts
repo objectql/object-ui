@@ -9,11 +9,21 @@ const __dirname = path.dirname(__filename);
 
 // Refuse the two invocations that pass while running none of the tests the
 // caller asked for — a package-cwd run (objectui#3378) and a path filter that
-// never reaches Vitest (objectui#3288). Every per-package `vitest.config.ts`
-// re-exports this file, and a package without one resolves upward to it, so
-// this is the single choke point for both. Mechanism, message and the one
-// canonical invocation: scripts/vitest-invocation-guard.mjs (and AGENTS.md
-// §测试纪律, which spells the same three commands out).
+// never reaches Vitest (objectui#3288).
+//
+// This call covers every run whose config resolution ends up here: `pnpm test`,
+// and any package-cwd run in a package that either has no `vitest.config.*` of
+// its own (the lookup walks up to this file) or has one that imports this file.
+// It is NOT the single choke point — that claim used to be written both here
+// and in the guard's docstring, and was wrong for the 11 packages carrying a
+// STANDALONE `vitest.config.ts` (objectui#5406): nothing imported this module
+// from there, so the guard never ran. Those 11 now call the guard themselves,
+// and `scripts/__tests__/vitest-invocation-guard.test.ts` fails if any
+// `vitest.config.*` in the repo takes neither route.
+//
+// Mechanism, message and the one canonical invocation:
+// scripts/vitest-invocation-guard.mjs (and AGENTS.md §测试纪律, which spells the
+// same three commands out).
 assertCanonicalVitestInvocation({ repoRoot: __dirname });
 
 // Shared exclude list for the root-level projects below. (Project-level
