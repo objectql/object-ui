@@ -5,9 +5,33 @@ on:
     branches:
       - main
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# One concurrency group per COMMIT — never one shared by every push to `main`.
+#
+# A shared group does not queue. GitHub keeps at most ONE pending run per group and
+# cancels the previous pending run whenever a newer one arrives, so on a branch that
+# takes ~18 merges a day a long-running release job discards most of what follows it.
+# Measured over runs #3712-#3911 (2026-08-17 .. 2026-08-20, 200 runs): 93 were
+# `conclusion: cancelled` with an EMPTY jobs array — not one step ever ran — while the
+# 106 that did execute held the group for a median of 33m22s. Median wait for a run
+# that survived: 5m16s (objectui#5404, method and figures from objectui#5395).
+#
+# The last step of this workflow publishes to npm, so a discarded run is a discarded
+# publish. `cancel-in-progress: true` is NOT the fix: it keeps one pending slot by
+# killing the run that may be mid-`changeset publish`, which is strictly worse than
+# any wait.
+#
+# Keyed by `github.sha` the group holds exactly one run, so nothing is ever discarded.
+# Serialisation is not given up — it moves into the "Wait for older release runs" step
+# below, which queues runs for real and in order, and which can only ever delay a run,
+# never drop one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 permissions:
+  # `actions: read` lets the queue step below list this workflow's own runs. Declaring
+  # any `permissions:` block sets every unlisted scope to `none`, so it has to be named.
+  actions: read
   contents: write
   pull-requests: write
   id-token: write
@@ -17,6 +41,59 @@ jobs:
     name: Changeset Release
     runs-on: ubuntu-latest
     steps:
+      # The queue the `concurrency:` key above cannot provide. GitHub offers exactly two
+      # behaviours for a contended group — cancel the running one, or discard the pending
+      # ones — and neither is acceptable on a workflow that publishes. So the ordering is
+      # done here: a run waits until every release run older than itself has finished, then
+      # proceeds. Ordering is by `run_number`, a total order, so the oldest run is always
+      # free to proceed and this cannot deadlock.
+      #
+      # It is deliberately FAIL-OPEN. Every exit path is `exit 0`, and the step additionally
+      # carries `continue-on-error: true`: if the API cannot be read, or an older run is
+      # wedged past the cap, this step gives up waiting and lets the release proceed. A run
+      # that never runs is the defect this queue exists to remove — degrading to today's
+      # unserialised behaviour is the acceptable failure, blocking a publish is not.
+      - name: Wait for older release runs to finish
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NUMBER: ${{ github.run_number }}
+          # A release job is ~90s of work; this cap is a wedged-run escape hatch, not a
+          # normal wait.
+          MAX_WAIT_SECONDS: '900'
+          POLL_SECONDS: '20'
+        run: |
+          set -uo pipefail
+
+          # A rename of this file makes the path 404, `gh` exits non-zero, and the step
+          # fails open below — it does not silently stop serialising while looking green.
+          runs_path="repos/${GITHUB_REPOSITORY}/actions/workflows/changeset-release.yml/runs?per_page=100"
+          older_jq='[.workflow_runs[] | select(.status != "completed" and .run_number < '"${RUN_NUMBER}"')]
+                    | .[] | "  waiting on run #\(.run_number) (\(.status)) \(.html_url)"'
+
+          deadline=$(( $(date +%s) + MAX_WAIT_SECONDS ))
+          while : ; do
+            if ! older=$(gh api "${runs_path}" --jq "${older_jq}"); then
+              echo "::warning::Could not list this workflow's runs, so the release lane is not serialised for this run. Proceeding — this step may delay a release, never block one (objectui#5404)."
+              exit 0
+            fi
+
+            count=$(printf '%s\n' "${older}" | grep -c 'waiting on run' || true)
+            if [ "${count}" -eq 0 ]; then
+              echo "No older release run is still in flight. Proceeding."
+              exit 0
+            fi
+
+            if [ "$(date +%s)" -ge "${deadline}" ]; then
+              echo "::warning::${count} older release run(s) still unfinished after ${MAX_WAIT_SECONDS}s. Proceeding without waiting further — a release run that never executes is the defect this queue exists to prevent (objectui#5404)."
+              exit 0
+            fi
+
+            echo "${count} older release run(s) still in flight:"
+            printf '%s\n' "${older}"
+            sleep "${POLL_SECONDS}"
+          done
+
       - name: Checkout Repo
         uses: actions/checkout@v7
         with:
@@ -54,8 +131,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm test
+      # ⛔ Do not add a `pnpm test` step back here.
+      #
+      # There used to be one, and it was 31m19s of a 33m22s job (medians over the 106 runs
+      # of #3712-#3911 that executed; everything else combined is ~90s — install 6s, build
+      # 35s, the changesets action 24s). It re-tested a commit that is ALREADY on `main`, so
+      # it could not keep anything out; the only thing it could do was stop the release
+      # afterwards, and it did: 2 of the last 27 release-PR merges (runs #3606 and #3901)
+      # failed here and skipped the changesets step entirely. #3606 was the run that would
+      # have published @object-ui/*@17.5.0, which reached npm 6h50m late, on a later push
+      # that happened to still find `.changeset/` empty.
+      #
+      # The backstop for `main` is `ci.yml`'s push lane, which runs the whole suite under
+      # coverage across four shards on every push and enforces the thresholds on the merged
+      # report (objectui#5403). That is the copy that tests this commit; this one only ever
+      # duplicated it, ~34 minutes later.
 
       - name: Build packages
         run: pnpm build
