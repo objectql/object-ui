@@ -3430,6 +3430,13 @@ const de = {
   wizard: {
     missingRequired: "Bitte füllen Sie die Pflichtfelder aus: {{fields}}",
   },
+  flowRunner: {
+    title: 'Eingabe',
+    submitting: 'Wird gesendet…',
+    saveAndContinue: 'Speichern und fortfahren',
+    nextStep: 'Gespeichert — nächster Schritt',
+    completed: 'Flow „{{flow}}“ abgeschlossen',
+  },
   appManagement: {
     title: "Anwendungen",
     subtitle: "Alle konfigurierten Anwendungen verwalten",

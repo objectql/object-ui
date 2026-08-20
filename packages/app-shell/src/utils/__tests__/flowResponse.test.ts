@@ -100,8 +100,10 @@ describe('interpretFlowResponse — a 400 FLOW_FAILED on resume is TERMINAL (obj
     // objectstack#8684 moves this exact event off `200 {data:{success:false}}`
     // onto a real status code. It must land in the same class as the inner
     // envelope failure, NOT in the transport class: the engine consumed the
-    // suspension (resume-once), so the wizard must close rather than offer a
-    // retry that can only reach "No suspended run".
+    // suspension (resume-once), so the wizard must not offer a retry that can
+    // only reach "No suspended run". (How the runner withholds it is the
+    // runner's business — since objectui#5417 it withdraws Submit and keeps the
+    // dialog up, rather than closing and taking the user's input with it.)
     it('classifies it NON-retryable — keyed on the code, not on the status alone', () => {
         const out = interpretFlowResponse(
             { ok: false, status: 400 },

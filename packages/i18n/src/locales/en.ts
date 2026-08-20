@@ -3722,6 +3722,30 @@ const en = {
   wizard: {
     missingRequired: 'Please complete the required fields: {{fields}}',
   },
+  // The screen-flow runner dialog (`app-shell/views/FlowRunner`) — the modal a
+  // `type: 'flow'` action opens when its run pauses at a `screen` node.
+  //
+  // What is deliberately NOT here: the sentence a refused resume shows. That is
+  // the ADR-0112 envelope's own `error.message`, prose the automation engine
+  // composed for a human ("Node 'create_quote' failed: … at most 2 decimal
+  // places"), so it has no fixed catalogue to key against and is passed through
+  // untranslated — the same division `appManagement` states above. The runner
+  // borrows `common.{loading,cancel,close,submit}` for its chrome and
+  // `wizard.missingRequired` for the pre-submit check, which is the same
+  // sentence `plugin-form`'s WizardForm raises.
+  flowRunner: {
+    // Fallback dialog title, used only when the `screen` node declares none.
+    title: 'Input',
+    submitting: 'Submitting…',
+    // The submit label of an `object-form` step: it saves a record AND advances
+    // the run, so it is not the plain `common.submit`.
+    saveAndContinue: 'Save & Continue',
+    // A multi-screen wizard advanced to the next step (not the end of the run).
+    nextStep: 'Saved — next step',
+    // Terminal success, used only when the flow declares no `successMessage`
+    // of its own.
+    completed: 'Flow "{{flow}}" completed',
+  },
   // Console › System › Applications (objectui#4307). The page's OWN chrome —
   // headings, controls, badges and the frames of its toasts.
   //

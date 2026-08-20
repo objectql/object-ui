@@ -3434,6 +3434,13 @@ const es = {
   wizard: {
     missingRequired: "Complete los campos obligatorios: {{fields}}",
   },
+  flowRunner: {
+    title: 'Entrada',
+    submitting: 'Enviando…',
+    saveAndContinue: 'Guardar y continuar',
+    nextStep: 'Guardado — paso siguiente',
+    completed: 'Flujo «{{flow}}» completado',
+  },
   appManagement: {
     title: "Aplicaciones",
     subtitle: "Gestione todas las aplicaciones configuradas",

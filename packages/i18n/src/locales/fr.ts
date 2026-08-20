@@ -3432,6 +3432,13 @@ const fr = {
   wizard: {
     missingRequired: "Veuillez renseigner les champs obligatoires : {{fields}}",
   },
+  flowRunner: {
+    title: 'Saisie',
+    submitting: 'Envoi…',
+    saveAndContinue: 'Enregistrer et continuer',
+    nextStep: 'Enregistré — étape suivante',
+    completed: 'Flux « {{flow}} » terminé',
+  },
   appManagement: {
     title: "Applications",
     subtitle: "Gérer toutes les applications configurées",

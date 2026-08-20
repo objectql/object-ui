@@ -3429,6 +3429,13 @@ const pt = {
   wizard: {
     missingRequired: "Preencha os campos obrigatórios: {{fields}}",
   },
+  flowRunner: {
+    title: 'Entrada',
+    submitting: 'Enviando…',
+    saveAndContinue: 'Salvar e continuar',
+    nextStep: 'Salvo — próxima etapa',
+    completed: 'Fluxo "{{flow}}" concluído',
+  },
   appManagement: {
     title: "Aplicativos",
     subtitle: "Gerencie todos os aplicativos configurados",

@@ -39,13 +39,27 @@ async function fillAndSubmit() {
 beforeEach(() => vi.restoreAllMocks());
 
 describe('FlowRunner resume outcomes', () => {
-  it('closes the runner on a TERMINAL flow failure (suspension already consumed)', async () => {
+  it('withdraws Submit on a TERMINAL flow failure (suspension already consumed)', async () => {
+    // The runner used to call `onClose` here. It no longer does (objectui#5417):
+    // closing threw away the input the user had just typed AND the screen the
+    // engine's sentence refers to. The reason it closed — never offer a retry
+    // that can only reach "No suspended run" — is unchanged and is now expressed
+    // by withdrawing Submit instead of by unmounting. See FlowRunner's header.
     const authFetch = vi.fn(async () =>
       jsonResponse({ success: true, data: { success: false, error: "Node 'apply' failed: Update requires an ID" } }),
     );
     const { onClose, onComplete } = setup(authFetch);
     await fillAndSubmit();
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByText("Node 'apply' failed: Update requires an ID")).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
+    // Radix's own dismiss `X` shares the accessible name "Close"; the footer's
+    // is the one with a visible label.
+    expect(
+      screen.getAllByRole('button', { name: 'Close' }).filter((b) => b.querySelector('.sr-only') === null),
+    ).toHaveLength(1);
+    expect(onClose).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
   });
 

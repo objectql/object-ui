@@ -3441,6 +3441,13 @@ const ru = {
   wizard: {
     missingRequired: "Заполните обязательные поля: {{fields}}",
   },
+  flowRunner: {
+    title: 'Ввод',
+    submitting: 'Отправка…',
+    saveAndContinue: 'Сохранить и продолжить',
+    nextStep: 'Сохранено — следующий шаг',
+    completed: 'Поток «{{flow}}» завершён',
+  },
   appManagement: {
     title: "Приложения",
     subtitle: "Управление всеми настроенными приложениями",

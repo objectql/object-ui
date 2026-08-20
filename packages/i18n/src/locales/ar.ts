@@ -3437,6 +3437,13 @@ const ar = {
   wizard: {
     missingRequired: "يرجى إكمال الحقول المطلوبة: {{fields}}",
   },
+  flowRunner: {
+    title: 'إدخال',
+    submitting: 'جارٍ الإرسال…',
+    saveAndContinue: 'حفظ ومتابعة',
+    nextStep: 'تم الحفظ — الخطوة التالية',
+    completed: 'اكتمل التدفق «{{flow}}»',
+  },
   appManagement: {
     title: "التطبيقات",
     subtitle: "إدارة جميع التطبيقات المُعدّة",

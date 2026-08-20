@@ -3430,6 +3430,13 @@ const ja = {
   wizard: {
     missingRequired: "必須項目を入力してください: {{fields}}",
   },
+  flowRunner: {
+    title: '入力',
+    submitting: '送信中…',
+    saveAndContinue: '保存して続行',
+    nextStep: '保存しました — 次のステップ',
+    completed: 'フロー「{{flow}}」が完了しました',
+  },
   appManagement: {
     title: "アプリケーション",
     subtitle: "設定済みのアプリケーションをすべて管理します",

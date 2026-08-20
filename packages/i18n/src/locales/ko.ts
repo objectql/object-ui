@@ -3429,6 +3429,13 @@ const ko = {
   wizard: {
     missingRequired: "필수 항목을 입력하세요: {{fields}}",
   },
+  flowRunner: {
+    title: '입력',
+    submitting: '제출 중…',
+    saveAndContinue: '저장 후 계속',
+    nextStep: '저장됨 — 다음 단계',
+    completed: '플로우 「{{flow}}」이(가) 완료되었습니다',
+  },
   appManagement: {
     title: "애플리케이션",
     subtitle: "구성된 모든 애플리케이션을 관리합니다",

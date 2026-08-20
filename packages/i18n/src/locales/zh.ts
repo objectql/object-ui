@@ -3488,6 +3488,13 @@ const zh = {
   wizard: {
     missingRequired: '请填写以下必填字段：{{fields}}',
   },
+  flowRunner: {
+    title: '输入',
+    submitting: '提交中…',
+    saveAndContinue: '保存并继续',
+    nextStep: '已保存 — 下一步',
+    completed: '流程「{{flow}}」已完成',
+  },
   appManagement: {
     title: '应用',
     subtitle: '管理所有已配置的应用',
