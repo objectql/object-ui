@@ -138,6 +138,13 @@ describe('objectui#5424 — approver identities come from `positions`, the publi
 
     // The quantity the defect zeroed out. On the broken read this is `[]`.
     expect(sentRoleIdentities()).toEqual(['role:manager', 'role:platform_admin']);
+    // …and this is the whole `approverId` the server receives, in order.
+    expect(sentIdentities()).toEqual([
+      'u_1',
+      'admin@example.com',
+      'role:manager',
+      'role:platform_admin',
+    ]);
   });
 
   it('still sends the person-addressed identities alongside them', async () => {
@@ -149,7 +156,12 @@ describe('objectui#5424 — approver identities come from `positions`, the publi
 
     await mount();
 
-    expect(sentIdentities()).toEqual(['u_1', 'admin@example.com', 'role:manager']);
+    // Deliberately blind to the role-addressed subset: this case must be green
+    // on the broken read too, or it is not a control.
+    expect(sentIdentities().filter((i) => !i.startsWith('role:'))).toEqual([
+      'u_1',
+      'admin@example.com',
+    ]);
   });
 
   it('does not resurrect the retired `roles` key as a fallback', async () => {

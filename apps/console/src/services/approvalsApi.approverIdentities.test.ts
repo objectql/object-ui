@@ -65,10 +65,11 @@ describe('objectui#5424 — `buildApproverIdentities` reads `positions`, the pub
   it('derives an identity from every position, not just the scalar role', () => {
     // The pin. On `origin/main` this is exactly `['role:user']` — the scalar
     // survived and both business positions were gone.
+    // Order follows `roleList`: positions first, then the scalar's split.
     expect(roleIdentities(PROTOCOL_17_USER)).toEqual([
-      'role:user',
       'role:manager',
       'role:finance_approver',
+      'role:user',
     ]);
   });
 
@@ -102,13 +103,11 @@ describe('objectui#5424 — `buildApproverIdentities` reads `positions`, the pub
 
   it('still sends the person-addressed identities', () => {
     // Control for the first case: id and email never came from the retired key.
-    expect(buildApproverIdentities(PROTOCOL_17_USER)).toEqual([
-      'u_1',
-      'admin@example.com',
-      'role:user',
-      'role:manager',
-      'role:finance_approver',
-    ]);
+    // Deliberately blind to the role-addressed subset: this case must be green
+    // on the broken read too, or it is not a control.
+    expect(buildApproverIdentities(PROTOCOL_17_USER).filter((i) => !i.startsWith('role:'))).toEqual(
+      ['u_1', 'admin@example.com'],
+    );
   });
 
   it('de-duplicates a position that repeats the scalar role', () => {

@@ -33,9 +33,9 @@
  * ## Reverse verification (direction predicted BEFORE running, measured in this PR)
  *
  * Put `roles: u.roles,` back into `buildExpressionUser`:
- *   - "never advertises the retired `roles` key" goes RED for the signed-in
- *     case (`'roles' in` → `true`), and the strict-shape case goes RED with the
- *     extra `roles: undefined` property;
+ *   - BOTH "never advertises" cases go RED (`'roles' in` → `true`; the second
+ *     also finds `['ghost_position']` among the forwarded values), and the
+ *     strict-shape case goes RED with an extra `roles: undefined` property;
  *   - the `positions` / `isPlatformAdmin` forwarding cases stay GREEN — they
  *     never read the retired key, so they cannot stand in for the pin above;
  *   - the signed-out case stays GREEN — that branch never carried `roles`,
