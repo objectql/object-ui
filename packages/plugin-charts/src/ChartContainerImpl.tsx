@@ -90,12 +90,20 @@ const ChartContext = React.createContext<ChartContextProps | null>(null)
  *
  * `cn` in this file is a plain join, NOT `tailwind-merge`, so a consumer
  * `className` carrying a height utility does not REPLACE `h-[350px]` — both
- * land in the class attribute and the winner is decided by stylesheet order.
- * `DashboardGridLayout` passes `className: "h-full"` on its chart schemas, and
- * `h-full` is `height: 100%`, which is itself `auto` unless the chart's parent
- * has a definite height. Fixing the collision belongs upstream in the
- * consumers; this floor is what makes the collision cost a shorter chart
- * instead of an invisible one.
+ * land in the class attribute and the winner is decided by stylesheet order,
+ * not by intent. Measured on the same rig: a dashboard chart carrying
+ * `DashboardRenderer`'s `"h-[200px] sm:h-[250px] md:h-[300px]"` renders at
+ * 300px, i.e. the CONSUMER's height wins over this file's `h-[350px]`.
+ *
+ * So whether the wrapper ends up with a definite height is decided by whichever
+ * height utility a consumer happens to pass. `DashboardGridLayout` passes
+ * `className: "h-full"`, and `h-full` is `height: 100%` — definite only while
+ * some ancestor supplies a definite height. Whether that particular chain
+ * collapses in production is NOT measured here; what is measured is that when
+ * any such chain does resolve to `auto`, the result is the invisible chart
+ * above. Untangling the className collision belongs upstream in the consumers;
+ * this floor is what makes a collision cost a shorter chart rather than an
+ * invisible one.
  */
 const CHART_MIN_HEIGHT = 280
 
