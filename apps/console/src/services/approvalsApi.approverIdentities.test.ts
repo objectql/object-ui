@@ -40,6 +40,23 @@
  *     depended on the retired key, which is what makes the case above evidence
  *     about positions rather than about the builder working at all;
  *   - the de-duplication and negative-control cases stay GREEN both ways.
+ *
+ * MEASURED: the first two held, the first one verbatim — `expected
+ * [ 'role:user' ] to deeply equal [ 'role:manager', 'role:finance_approver',
+ * 'role:user' ]`, which is the card's description of this site ("yields
+ * `role:user` and loses every business position name") reproduced exactly.
+ *
+ * The de-duplication prediction was WRONG: that case goes RED too (`expected
+ * [ 'role:user' ] to deeply equal [ 'role:user', 'role:manager' ]`). Its
+ * fixture supplies `manager` only through `positions`, so the retired read
+ * drops it and the overlap it means to exercise never forms — it measures the
+ * rename as well as the de-duplication. Left as it is, and recorded rather than
+ * re-predicted: it is a real assertion about the fixed behaviour, it simply is
+ * not the independent control the prediction claimed. "Does not resurrect the
+ * retired `roles` key as a fallback" also goes red, for the same reason as its
+ * `sharedUserFeeds` twin — the ablation is what makes the ghost key legible.
+ * The genuinely independent controls are the two scalar-`role` cases and the
+ * negative controls, and those did stay green.
  */
 import { describe, it, expect } from 'vitest';
 

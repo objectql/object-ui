@@ -43,9 +43,17 @@
  *     never depended on the retired key, which is what makes the case above
  *     evidence about positions specifically rather than about the request
  *     existing at all;
- *   - the negative-control case stays GREEN both ways — it carries neither key,
- *     so it cannot distinguish them; it is here to catch `role:undefined`, not
- *     to catch the rename.
+ *   - the negative-control cases stay GREEN both ways — they carry neither key,
+ *     so they cannot distinguish them; they are here to catch `role:undefined`,
+ *     not to catch the rename.
+ *
+ * MEASURED: all three above held, the first one verbatim — `expected [] to
+ * deeply equal [ 'role:manager', 'role:platform_admin' ]`. One case went red
+ * that the prediction did NOT name: "does not resurrect the retired `roles` key
+ * as a fallback". That is correct and welcome — restoring the old read is
+ * exactly what makes the ghost key legible again, so the anti-alias pin is
+ * load-bearing rather than decorative — but it was an unforeseen direction, and
+ * is recorded here rather than quietly folded into the prediction.
  *
  * The fixture user is the exact payload objectui#5424 measured off the running
  * server, so a green here is a claim about a real session and not about a shape

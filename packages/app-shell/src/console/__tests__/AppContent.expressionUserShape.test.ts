@@ -41,6 +41,10 @@
  *   - the signed-out case stays GREEN — that branch never carried `roles`,
  *     which is exactly the inconsistency between the two branches that the
  *     removal closes.
+ *
+ * MEASURED: every prediction above held, with no unforeseen movement — three
+ * red, three green, exactly the split named. The first red reads `expected true
+ * to be false`, i.e. the key IS there on the mutated tree.
  */
 import { describe, it, expect } from 'vitest';
 
