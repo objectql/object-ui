@@ -83,7 +83,10 @@ export function MarketplacePage() {
   // not "unknown" — see `AppShellRuntimeConfig.cloudUrl`.
   const cloudBase = getCloudBase();
   const [items, setItems] = useState<MarketplacePackageSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the flag rather than settled by the effect: a runtime with
+  // no catalog is not "loading", it is done. Writing that from inside the
+  // effect would be a second `react-hooks/set-state-in-effect` site.
+  const [loading, setLoading] = useState(marketplaceEnabled);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -130,7 +133,7 @@ export function MarketplacePage() {
     // No catalog on this runtime → no request. Firing it anyway would put
     // a guaranteed 404 in the network log and leave the page spinning
     // before it settled on the disabled state.
-    if (!marketplaceEnabled) { setLoading(false); return; }
+    if (!marketplaceEnabled) return;
     void load();
   }, [marketplaceEnabled]);
 
