@@ -147,3 +147,48 @@ describe('ObjectStackAdapter.probeAppAccess — over the wire', () => {
     await expect(adapter.probeAppAccess('finance')).resolves.toBe('denied');
   });
 });
+
+/**
+ * objectui#4940 — `getApp` and `getPage` used to address the SAME metadata
+ * types this file already pins (`probeAppAccess` above asserts `app`,
+ * singular, at line 96) but through the plural collection spelling
+ * (`'apps'` / `'pages'`). Both resolved today only because the server folds
+ * plural → singular (`RestServer.metaTypeSingular`, `PLURAL_TO_SINGULAR` from
+ * `@objectstack/spec/shared`) — so the drift was unexercised, not
+ * latent-broken, but nothing asserted either spelling for these two sites.
+ * Extending THIS file's pin (rather than opening a new one) keeps the
+ * app-type spelling guard in one place: `probeAppAccess` and `getApp`
+ * address the same type sixty lines apart in `index.ts`, and a reader should
+ * find both assertions together.
+ *
+ * Unlike `probeAppAccess`, both methods call `connect()` first, which issues
+ * its own `/api/v1/discovery` fetch — so asserting on the raw `fetch` mock's
+ * first call (the line-96 shape) would race against that unrelated request.
+ * These stub `client.meta.getItem` directly instead (the pattern already
+ * used by `updateView.draft.test.ts`) and assert the type argument the
+ * adapter actually passed, which is a strictly stronger pin than a URL
+ * substring: it fails on ANY non-singular spelling, not just `'apps'`.
+ */
+describe('ObjectStackAdapter.getApp / getPage — meta type spelling (objectui#4940)', () => {
+  it('getApp requests the metadata type in the singular', async () => {
+    const { adapter } = makeAdapter(() => json(200, {}));
+    (adapter as any).connected = true;
+    const getItem = vi.fn(async () => ({ item: { name: 'finance', label: 'Finance' } }));
+    (adapter as any).client = { meta: { getItem } };
+
+    await adapter.getApp('finance');
+
+    expect(getItem).toHaveBeenCalledWith('app', 'finance');
+  });
+
+  it('getPage requests the metadata type in the singular', async () => {
+    const { adapter } = makeAdapter(() => json(200, {}));
+    (adapter as any).connected = true;
+    const getItem = vi.fn(async () => ({ item: { name: 'home', label: 'Home' } }));
+    (adapter as any).client = { meta: { getItem } };
+
+    await adapter.getPage('home');
+
+    expect(getItem).toHaveBeenCalledWith('page', 'home');
+  });
+});
