@@ -373,6 +373,142 @@ function decisionAmountEntry(
   return null;
 }
 
+/** The page's scoped translator, as the row cells receive it. */
+type Translate = (key: string, defaultValue: string, opts?: Record<string, unknown>) => string;
+
+/*
+ * ── Shared row fragments ──────────────────────────────────────────────────
+ *
+ * Module scope on purpose, for the same reason `StatusBadge` above sits here
+ * (objectui#5348). Declared inside `ApprovalsInboxPage` these were a brand-new
+ * component *type* on every render, so React unmounted and remounted every
+ * row's cells instead of updating them — on a page that re-renders on a 60s
+ * clock whether or not anyone is touching it. Two consequences were measured:
+ * transient subtree state (focus, hover) was discarded on each tick, and a
+ * click whose pointer sequence spanned a re-render was delivered to a
+ * detached node and silently swallowed (objectui#5211 hit this and worked
+ * around it at the call site).
+ *
+ * Everything they used to close over is passed in. Do not move them back, and
+ * do not add a fourth cell inside the page body:
+ * `ApprovalsInboxPage.cellIdentity.test.tsx` pins the DOM-node identity of all
+ * three across a clock tick, so a reintroduction fails there. It will NOT fail
+ * lint — `react-hooks/static-components` is `error` in this repo but its
+ * analysis bails out on this component (measured: an arrow-form inner
+ * component injected here and used in JSX produces zero reports).
+ */
+
+function RequestCell({ r, tr }: { r: ApprovalRequestRow; tr: Translate }) {
+  return (
+    <div className="min-w-0">
+      <div className="font-medium truncate">{processLabel(r)}</div>
+      <div className="text-xs text-muted-foreground truncate">
+        {stepLabel(r) || '—'}
+        {(r.round ?? 1) > 1 && (
+          <span className="ml-1.5 text-violet-600 dark:text-violet-400">
+            {tr('roundChip', 'Round {{n}}', { n: r.round })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `href` is `null` for a record this viewer cannot open (objectui#5211) — the
+ * readable/unreadable decision and the URL are ONE prop so the two cannot be
+ * handed in disagreeing with each other.
+ */
+function RecordCell({ r, href }: { r: ApprovalRequestRow; href: string | null }) {
+  // Surface the decision-relevant amount inline so a reviewer can triage the
+  // queue without opening each request (#2762 P1-3).
+  const amount = decisionAmountEntry(r);
+  // objectui#5211: no link into a record this viewer cannot open. The title
+  // still shows — it comes from the request's own payload snapshot, which the
+  // approver was already given — it just stops being an anchor.
+  const title = r.record_title || formatIdentity(r.record_id);
+  return (
+    <div className="min-w-0">
+      {href === null ? (
+        <div className="text-sm truncate max-w-full" title={r.record_id}>{title}</div>
+      ) : (
+      <Link
+        to={href}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1 text-sm hover:underline truncate max-w-full"
+        title={r.record_id}
+      >
+        <span className="truncate">{title}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+      </Link>
+      )}
+      <div className="text-xs text-muted-foreground truncate">
+        {objectDisplay(r)}
+        {amount && (
+          <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
+            · {amount.display}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InlineActions({
+  r,
+  actionable,
+  busy,
+  needsInputs,
+  tr,
+  onApprove,
+  onReject,
+}: {
+  r: ApprovalRequestRow;
+  actionable: boolean;
+  busy: boolean;
+  needsInputs: boolean;
+  tr: Translate;
+  onApprove: (r: ApprovalRequestRow) => void;
+  onReject: (r: ApprovalRequestRow) => void;
+}) {
+  if (!actionable) return null;
+  // #2829: a request whose node declares decision outputs must go through
+  // the drawer's dialog (the only place those fields are collected) — render
+  // the quick buttons disabled with an explanation instead of hiding them.
+  const needsInputsHint = tr(
+    'needsDecisionInputs',
+    'This approval collects decision outputs — open it to decide.',
+  );
+  return (
+    <div
+      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+      onClick={(e) => e.stopPropagation()}
+      title={needsInputs ? needsInputsHint : undefined}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
+        disabled={busy || needsInputs}
+        onClick={() => onApprove(r)}
+        aria-label={needsInputs ? needsInputsHint : tr('approve', 'Approve')}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400"
+        disabled={busy || needsInputs}
+        onClick={() => onReject(r)}
+        aria-label={needsInputs ? needsInputsHint : tr('reject', 'Reject')}
+      >
+        <XCircle className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export function ApprovalsInboxPage() {
   const { t, language } = useObjectTranslation();
   const { user } = useAuth();
@@ -1078,100 +1214,6 @@ export function ApprovalsInboxPage() {
     setFocusIndex(-1);
   };
 
-  // ── Shared row fragments ─────────────────────────────────────────
-
-  function RequestCell({ r }: { r: ApprovalRequestRow }) {
-    return (
-      <div className="min-w-0">
-        <div className="font-medium truncate">{processLabel(r)}</div>
-        <div className="text-xs text-muted-foreground truncate">
-          {stepLabel(r) || '—'}
-          {(r.round ?? 1) > 1 && (
-            <span className="ml-1.5 text-violet-600 dark:text-violet-400">
-              {tr('roundChip', 'Round {{n}}', { n: r.round })}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function RecordCell({ r }: { r: ApprovalRequestRow }) {
-    // Surface the decision-relevant amount inline so a reviewer can triage the
-    // queue without opening each request (#2762 P1-3).
-    const amount = decisionAmountEntry(r);
-    // objectui#5211: no link into a record this viewer cannot open. The title
-    // still shows — it comes from the request's own payload snapshot, which the
-    // approver was already given — it just stops being an anchor.
-    const title = r.record_title || formatIdentity(r.record_id);
-    return (
-      <div className="min-w-0">
-        {readability.isUnreadable(r) ? (
-          <div className="text-sm truncate max-w-full" title={r.record_id}>{title}</div>
-        ) : (
-        <Link
-          to={recordHref(r)}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-sm hover:underline truncate max-w-full"
-          title={r.record_id}
-        >
-          <span className="truncate">{title}</span>
-          <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-        </Link>
-        )}
-        <div className="text-xs text-muted-foreground truncate">
-          {objectDisplay(r)}
-          {amount && (
-            <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
-              · {amount.display}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function InlineActions({ r }: { r: ApprovalRequestRow }) {
-    if (!isActionable(r)) return null;
-    const busy = inlineActing === r.id;
-    // #2829: a request whose node declares decision outputs must go through
-    // the drawer's dialog (the only place those fields are collected) — render
-    // the quick buttons disabled with an explanation instead of hiding them.
-    const needsInputs = needsDecisionInputs(r);
-    const needsInputsHint = tr(
-      'needsDecisionInputs',
-      'This approval collects decision outputs — open it to decide.',
-    );
-    return (
-      <div
-        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-        onClick={(e) => e.stopPropagation()}
-        title={needsInputs ? needsInputsHint : undefined}
-      >
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
-          disabled={busy || needsInputs}
-          onClick={() => setApproveTarget(r)}
-          aria-label={needsInputs ? needsInputsHint : tr('approve', 'Approve')}
-        >
-          <CheckCircle2 className="h-4 w-4" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400"
-          disabled={busy || needsInputs}
-          onClick={() => setRejectTarget(r)}
-          aria-label={needsInputs ? needsInputsHint : tr('reject', 'Reject')}
-        >
-          <XCircle className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 max-w-6xl">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1452,8 +1494,8 @@ export function ApprovalsInboxPage() {
                               />
                             </TableCell>
                           )}
-                          <TableCell><RequestCell r={r} /></TableCell>
-                          <TableCell><RecordCell r={r} /></TableCell>
+                          <TableCell><RequestCell r={r} tr={tr} /></TableCell>
+                          <TableCell><RecordCell r={r} href={readability.isUnreadable(r) ? null : recordHref(r)} /></TableCell>
                           <TableCell>
                             {isSystemSubmitter(r) ? (
                               // Flow-/system-initiated: name the origin instead of a
@@ -1488,7 +1530,17 @@ export function ApprovalsInboxPage() {
                               ) : null;
                             })()}
                           </TableCell>
-                          <TableCell className="w-20"><InlineActions r={r} /></TableCell>
+                          <TableCell className="w-20">
+                            <InlineActions
+                              r={r}
+                              actionable={isActionable(r)}
+                              busy={inlineActing === r.id}
+                              needsInputs={needsDecisionInputs(r)}
+                              tr={tr}
+                              onApprove={setApproveTarget}
+                              onReject={setRejectTarget}
+                            />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
