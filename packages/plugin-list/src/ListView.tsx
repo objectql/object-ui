@@ -181,6 +181,13 @@ export function mapOperator(op: string) {
     case 'equals': case 'eq': return '=';
     case 'notequals': case 'ne': case 'neq': return '!=';
     case 'contains': return 'contains';
+    // Canonical in `VIEW_FILTER_OPERATORS` as of @objectstack/spec 17.1.0
+    // (objectui#5328), and an explicit arm rather than a `default` fall-through
+    // even though the emitted spelling is identical: `icontains` is its own
+    // member of `VALID_AST_OPERATORS`, so the raw passthrough happens to be
+    // accepted today, and relying on that is the exact slack this file's own
+    // header records as how it stopped discriminating in #3641.
+    case 'icontains': return 'icontains';
     case 'notcontains': return 'notcontains';
     case 'startswith': return 'startswith';
     case 'endswith': return 'endswith';

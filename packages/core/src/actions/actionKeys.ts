@@ -238,6 +238,14 @@ export const SPEC_ACTION_KEYS = [
   'name',
   'newTabUrl',
   'objectName',
+  // Declared by `ActionSchema` as of @objectstack/spec 17.1.0 (objectui#5328).
+  // Listing it here is a DIAGNOSTIC statement only — `KNOWN_ACTION_KEYS` feeds
+  // `warnOnUnknownActionKeys`, so without this row an author writing the key the
+  // spec now accepts would be warned it is unknown. It says nothing about the
+  // key being forwarded: the four declared action surfaces still drop it before
+  // the runner, tracked as KNOWN_GAPS in check-action-forward-parity.mjs and
+  // filed as objectui#5493.
+  'onSuccess',
   'openIn',
   'opensInNewTab',
   'order',

@@ -81,6 +81,7 @@ const EXPECTED_AST_TARGET: Record<string, string> = {
   equals: '=', //                 case 'equals'
   not_equals: '!=', //            case 'notequals'
   contains: 'contains', //        case 'contains'
+  icontains: 'icontains', //      case 'icontains'
   not_contains: 'notcontains', // case 'notcontains'
   starts_with: 'startswith', //   case 'startswith'
   ends_with: 'endswith', //       case 'endswith'

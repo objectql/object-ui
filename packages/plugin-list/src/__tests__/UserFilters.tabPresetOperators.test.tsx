@@ -122,7 +122,9 @@ describe('UserFilters tab presets — the reported defect (#3470)', () => {
 describe('UserFilters tab presets — lowering is structural, not translated', () => {
   it('reads both vocabularies from the spec', () => {
     // Guards every it.each below against silently passing on an empty list.
-    expect(VIEW_FILTER_OPERATORS.length).toBe(19);
+    // 19 through @objectstack/spec 17.0.0; 20 as of 17.1.0, which adds the
+    // canonical `icontains` (objectui#5328).
+    expect(VIEW_FILTER_OPERATORS.length).toBe(20);
     expect(VALID_AST_OPERATORS.size).toBeGreaterThan(0);
   });
 
