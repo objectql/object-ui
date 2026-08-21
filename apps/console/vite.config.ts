@@ -7,6 +7,7 @@ import type { Plugin, Rollup } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
+import zlib from 'node:zlib';
 // Relative specifiers carry their real file extension, and `__dirname` is
 // spelled `import.meta.dirname` throughout this file, so the config stays
 // loadable by Vite's `configLoader: 'native'` — which imports this file with
@@ -183,6 +184,138 @@ function assertLazyLinterStaysLazy(specTest: RegExp): Plugin {
             `and does not export \`validateCapabilityReferences\` at all (objectstack#9772).`,
         );
       }
+    },
+  };
+}
+
+/**
+ * Emits the eager-closure size report the console performance budget weighs.
+ *
+ * The budget in `.github/workflows/performance-budget.yml` used to gzip one
+ * file — the `index-*.js` entry chunk — and call the result "the console
+ * performance budget". Measured on `77f846a8b` that chunk is 25.3 KB gzipped
+ * against a 350 KB line, while the closure the browser must fetch and parse
+ * before the app renders is 3,791 KB across 58 chunks. The gate therefore
+ * passed on 0.67% of the payload it claimed to govern, and the 89 KiB
+ * regression of objectui#5266 landed in `vendor-objectstack-*.js` where it was
+ * structurally invisible (objectui#5324).
+ *
+ * What the page pays for is the EAGER CLOSURE: every chunk reachable from an
+ * entry chunk through STATIC imports only. `dynamicImports` is deliberately not
+ * followed — that edge is the lazy boundary, and following it would turn this
+ * number into "the whole bundle", which no page load pays.
+ *
+ * This plugin only MEASURES. The ceiling and the verdict live in
+ * `scripts/check-eager-closure-budget.mjs`, which the workflow runs against the
+ * report written here. The split is deliberate: a size ceiling that fails
+ * `vite build` would also fail every Vercel preview deploy and every local
+ * build, which is how a budget gets switched off. The graph knowledge stays
+ * here, where rolldown's own `chunk.imports` is authoritative; the policy stays
+ * in a file with unit tests.
+ *
+ * The report is written INTO `dist` on purpose. A report that outlives its
+ * build is worse than no report — `rm -rf dist` followed by a stale read is a
+ * verdict about a bundle that no longer exists. Living in the output directory
+ * makes the report and the bundle the same artifact. It carries only chunk file
+ * names and byte counts, all of which are already observable in the deployed
+ * bundle itself.
+ *
+ * Both counter-probes below refuse a verdict rather than report a number that
+ * happens to be small, in the spirit of `assertLazyLinterStaysLazy` above:
+ * an under-counting walk is the dangerous direction, because the budget's
+ * failure mode is silent — a closure walk that finds nothing reads exactly like
+ * a bundle that got smaller.
+ */
+function emitEagerClosureReport(reportFileName = 'eager-closure.json'): Plugin {
+  // React is reached synchronously from the entry — nothing in the console
+  // renders without it — and `advancedChunks` routes it to its own
+  // `vendor-react` chunk, so it is a KNOWN member of the eager closure that is
+  // NOT the entry chunk. If the walk cannot see it, the walk is wrong.
+  const EAGER_COUNTER_PROBE = /[\\/]node_modules[\\/]react-dom[\\/]/;
+
+  return {
+    name: 'emit-eager-closure-report',
+    writeBundle(options, bundle) {
+      const outDir = options.dir ?? path.resolve(import.meta.dirname, 'dist');
+
+      const chunks = new Map<string, Rollup.OutputChunk>();
+      for (const [fileName, output] of Object.entries(bundle)) {
+        if (output.type === 'chunk') chunks.set(fileName, output);
+      }
+
+      const entries = [...chunks.values()].filter((c) => c.isEntry).map((c) => c.fileName);
+      const eager = new Set<string>();
+      const queue = [...entries];
+      while (queue.length > 0) {
+        const fileName = queue.pop() as string;
+        if (eager.has(fileName)) continue;
+        eager.add(fileName);
+        for (const imported of chunks.get(fileName)?.imports ?? []) {
+          if (!eager.has(imported)) queue.push(imported);
+        }
+      }
+
+      // Counter-probe 1 — the walk must SEE something known to be eager.
+      // Asserting only "the total is under the ceiling" would also pass on a
+      // walk that returned the entry chunk alone, which is the very gauge this
+      // report replaces.
+      const probeChunks = [...chunks.values()]
+        .filter((chunk) => Object.keys(chunk.modules).some((id) => EAGER_COUNTER_PROBE.test(id)))
+        .map((chunk) => chunk.fileName);
+      const eagerProbe = probeChunks.filter((fileName) => eager.has(fileName));
+      if (eagerProbe.length === 0) {
+        this.error(
+          `[emit-eager-closure-report] counter-probe failed: no eagerly loaded chunk contains ` +
+            `a \`react-dom\` module. React is reached synchronously from the app entry, so it ` +
+            `must be in the eager closure — its absence means this walk is reading the graph ` +
+            `wrongly, not that the bundle improved. Fix the walk before trusting the size ` +
+            `below; a walk that finds too little produces a SMALL number, and a budget check ` +
+            `reads a small number as good news. ` +
+            `(probe: ${EAGER_COUNTER_PROBE}; chunks holding it: ${probeChunks.join(', ') || 'NONE'}; ` +
+            `entry chunks: ${entries.join(', ') || 'NONE'}; eager: ${eager.size}/${chunks.size})`,
+        );
+      }
+
+      // Counter-probe 2 — the other direction. If EVERY chunk is eager then
+      // either this bundle has no lazy boundary at all or the walk is following
+      // dynamic edges; in both cases the number is not "what a page load costs"
+      // and must not be published under that name.
+      if (eager.size === chunks.size) {
+        this.error(
+          `[emit-eager-closure-report] counter-probe failed: every one of the ${chunks.size} ` +
+            `chunks is in the eager closure, so this walk is not distinguishing static from ` +
+            `dynamic imports. Either \`imports\` has stopped excluding \`dynamicImports\`, or ` +
+            `the console genuinely has no lazy boundary left — check which before reading the ` +
+            `size as a page-load cost. (entry chunks: ${entries.join(', ') || 'NONE'})`,
+        );
+      }
+
+      const files = [...eager].sort().map((fileName) => {
+        const raw = fs.readFileSync(path.join(outDir, fileName));
+        // Level 6 — zlib's default, and the level `gzip -c` uses in the
+        // workflow's entry-chunk check, so the two numbers in one PR comment
+        // are measured the same way.
+        return { fileName, bytes: raw.length, gzipBytes: zlib.gzipSync(raw).length };
+      });
+
+      const report = {
+        // Bumped when the shape below changes; the checker refuses a report it
+        // does not understand rather than reading absent fields as zero.
+        reportVersion: 1,
+        entryChunks: entries.sort(),
+        eagerChunkCount: files.length,
+        totalChunkCount: chunks.size,
+        eagerGzipBytes: files.reduce((n, f) => n + f.gzipBytes, 0),
+        eagerRawBytes: files.reduce((n, f) => n + f.bytes, 0),
+        files,
+      };
+
+      fs.writeFileSync(path.join(outDir, reportFileName), `${JSON.stringify(report, null, 2)}\n`);
+      const kb = (report.eagerGzipBytes / 1024).toFixed(1);
+      this.info(
+        `eager closure: ${report.eagerChunkCount}/${report.totalChunkCount} chunks, ` +
+          `${report.eagerGzipBytes} bytes gzipped (${kb} KB) → ${reportFileName}`,
+      );
     },
   };
 }
@@ -433,6 +566,12 @@ export default defineConfig({
     // eagerly-loaded chunk. Runs on CI/Vercel too — it costs microseconds and
     // the regression it catches is invisible in every other signal.
     assertLazyLinterStaysLazy(specModuleTest),
+    // Writes `dist/eager-closure.json` — the size of everything a page load
+    // pays for before the app renders. `.github/workflows/performance-budget.yml`
+    // weighs THAT against the budget; weighing the entry chunk alone measured
+    // 0.67% of it (objectui#5324). Measurement only: the verdict is the
+    // workflow's, so a size regression never blocks a preview deploy.
+    emitEagerClosureReport(),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s

@@ -44,6 +44,10 @@ const text = (value) => (typeof value === 'string' ? value.trim() : '');
  * @param {string} [input.gzipKb]        measured gzip size of the main entry, in KB
  * @param {string} [input.budgetKb]      the budget the measurement was compared against
  * @param {string} [input.entryFile]     basename of the measured entry chunk
+ * @param {string} [input.closureStatus]   `closure_status` written by the closure checker
+ * @param {string} [input.closureGzipKb]  measured gzip size of the eager closure, in KB
+ * @param {string} [input.closureBudgetKb] the closure ceiling it was compared against
+ * @param {string} [input.closureChunks]  how many chunks the eager closure spans
  * @param {string} [input.message]       human-readable reason when `status` is `error`
  * @param {string} [input.budgetOutcome] `steps.budget.outcome`
  * @param {string} [input.buildOutcome]  `steps.build_packages.outcome`
@@ -57,6 +61,12 @@ export function renderBudgetComment(input = {}) {
   const budgetKb = text(input.budgetKb);
   const entryFile = text(input.entryFile);
   const sizeReport = text(input.sizeReport);
+  const closure = {
+    status: text(input.closureStatus),
+    gzipKb: text(input.closureGzipKb),
+    budgetKb: text(input.closureBudgetKb),
+    chunks: text(input.closureChunks),
+  };
 
   // A verdict needs an affirmative status AND the numbers that status was
   // derived from. A real over-budget failure always arrives with a
@@ -65,7 +75,7 @@ export function renderBudgetComment(input = {}) {
     MEASURED_STATUSES.has(status) && gzipKb !== '' && budgetKb !== '' && entryFile !== '';
 
   const body = measured
-    ? verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport })
+    ? verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport, closure })
     : notMeasuredBody({
         message: text(input.message),
         budgetOutcome: text(input.budgetOutcome),
@@ -77,18 +87,36 @@ export function renderBudgetComment(input = {}) {
   return { kind: measured ? status : 'not-measured', body };
 }
 
-function verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport }) {
+function verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport, closure }) {
   const pass = status === 'pass';
+  const closureMeasured = closure.gzipKb !== '' && closure.budgetKb !== '';
   const lines = [
     `## ${pass ? '✅' : '❌'} Console Performance Budget`,
     '',
     '| Metric | Value | Budget |',
     '|--------|-------|--------|',
-    `| Main entry (gzip) | **${gzipKb} KB** | ${budgetKb} KB |`,
+    closureMeasured
+      ? `| **Eager closure** (gzip${closure.chunks ? `, ${closure.chunks} chunks` : ''}) | **${closure.gzipKb} KB** | ${closure.budgetKb} KB |`
+      : '| **Eager closure** (gzip) | _not measured_ | — |',
+    `| Main entry chunk (gzip) | ${gzipKb} KB | ${budgetKb} KB |`,
     `| Entry file | \`${entryFile}\` | — |`,
     `| Status | **${pass ? 'PASS' : 'FAIL'}** | — |`,
     '',
+    // The closure is the number that governs a page load; the entry chunk is
+    // ~1% of it. Saying so in the comment is what stops the entry figure from
+    // being read as "the bundle" the way it was for the whole life of this
+    // gate (objectui#5324).
+    'The **eager closure** is every chunk the entry reaches through static imports — what the browser fetches and parses before the app renders. The entry chunk on its own is a small fraction of it.',
+    '',
   ];
+  if (!closureMeasured) {
+    // Never let an absent closure figure render as a quiet table with one row.
+    // A comment that shows only the entry number, silently, IS the old gauge.
+    lines.push(
+      '> ⚠️ The eager closure was **not measured** in this run, so this verdict covers the entry chunk only — roughly 1% of what a page load costs. Check the `Check console performance budget` step log: the report is written by `emitEagerClosureReport` in `apps/console/vite.config.ts` during the console build.',
+      '',
+    );
+  }
   return withSizeReport(lines.join('\n'), sizeReport);
 }
 
@@ -151,6 +179,10 @@ export function renderFromEnv(env = process.env, sizeReportPath = 'size-report.m
     gzipKb: env.BUDGET_GZIP_KB,
     budgetKb: env.BUDGET_LIMIT_KB,
     entryFile: env.BUDGET_ENTRY_FILE,
+    closureStatus: env.BUDGET_CLOSURE_STATUS,
+    closureGzipKb: env.BUDGET_CLOSURE_GZIP_KB,
+    closureBudgetKb: env.BUDGET_CLOSURE_BUDGET_KB,
+    closureChunks: env.BUDGET_CLOSURE_CHUNKS,
     budgetOutcome: env.BUDGET_STEP_OUTCOME,
     buildOutcome: env.BUILD_PACKAGES_OUTCOME,
     sizeReport: readSizeReport(sizeReportPath),

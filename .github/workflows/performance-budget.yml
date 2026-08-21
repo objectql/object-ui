@@ -65,9 +65,36 @@ jobs:
       - name: Check console performance budget
         id: budget
         run: |
-          # Performance budget: main entry must be < 350 KB gzip
-          # This is a realistic threshold for a full-featured enterprise app
-          # with React, routing, UI components, and core business logic.
+          # TWO measurements, one verdict.
+          #
+          #  1. The `index-*.js` entry chunk against a 350 KB line. This is the
+          #     original budget and it stays: a fat entry chunk is still worth
+          #     its own signal, and replacing a gauge is not licence to weaken
+          #     the one already here.
+          #  2. The EAGER CLOSURE — every chunk the entry reaches through STATIC
+          #     imports, i.e. everything the browser must fetch and parse before
+          #     the app renders.
+          #
+          # Measurement 1 alone was the whole budget until objectui#5324. On
+          # `77f846a8b` the entry chunk gzips to 25.9 KB against the 350 KB line
+          # while the closure it pulls in is 3,881,609 bytes across 58 of 507
+          # chunks — so the gate passed on 0.67% of the payload it claimed to
+          # govern, and the 89 KiB regression of objectui#5266 landed in
+          # `vendor-objectstack-*.js` where nothing here could see it.
+          # `advancedChunks` routes vendor and workspace code into named chunks
+          # on purpose, so MOST regressions land outside `index-*.js`.
+          #
+          # The closure ceiling is NOT set here. It lives in
+          # `scripts/check-eager-closure-budget.mjs` next to the reasoning that
+          # produced it, so a re-baseline is one edit against a documented
+          # argument rather than a number in YAML: today's measured payload plus
+          # ~2% of headroom, chosen to pass on today's `main` while staying
+          # NARROWER than the 89 KiB regression the gate exists to catch. It is a
+          # truthful current-state ceiling, not a statement that 3.79 MB is fine.
+          #
+          # Both measurements run before either may fail the step: a run that
+          # reports one number and hides the other teaches readers to distrust
+          # the comment, which is how objectui#3152 nearly took this gate down.
           MAX_ENTRY_GZIP_KB=350
 
           DIST_DIR="apps/console/dist/assets"
@@ -110,18 +137,42 @@ jobs:
           echo "budget_kb=$MAX_ENTRY_GZIP_KB" >> "$GITHUB_OUTPUT"
           echo "entry_file=$(basename $ENTRY_FILE)" >> "$GITHUB_OUTPUT"
 
-          # Check budget
-          OVER=$(awk "BEGIN {print ($GZIP_KB > $MAX_ENTRY_GZIP_KB) ? 1 : 0}")
-          if [ "$OVER" -eq 1 ]; then
+          ENTRY_OVER=$(awk "BEGIN {print ($GZIP_KB > $MAX_ENTRY_GZIP_KB) ? 1 : 0}")
+          if [ "$ENTRY_OVER" -eq 1 ]; then
+            echo "❌ ENTRY BUDGET EXCEEDED: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+          else
+            echo "✅ Entry budget OK: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+          fi
+
+          echo ""
+          echo "📦 Eager closure (what a page load actually pays for):"
+          # Writes closure_status / closure_gzip_kb / closure_budget_kb /
+          # closure_chunks to $GITHUB_OUTPUT itself. Exit codes are distinct on
+          # purpose: 1 = over budget (a verdict about the bundle), 2 = no
+          # trustworthy measurement (a verdict about the gauge). Reporting one as
+          # the other is how a broken gauge gets read as a size regression, and a
+          # size regression as a broken gauge.
+          set +e
+          node scripts/check-eager-closure-budget.mjs
+          CLOSURE_CODE=$?
+          set -e
+
+          if [ "$CLOSURE_CODE" -eq 2 ]; then
+            echo "budget_status=error" >> "$GITHUB_OUTPUT"
+            echo "budget_message=The entry chunk measured ${GZIP_KB} KB, but the eager-closure gauge produced no trustworthy measurement — see the step log. This is a broken gauge, not a passing budget." >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if [ "$ENTRY_OVER" -eq 1 ] || [ "$CLOSURE_CODE" -ne 0 ]; then
             echo ""
-            echo "❌ BUDGET EXCEEDED: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+            echo "❌ BUDGET EXCEEDED"
             echo "budget_status=fail" >> "$GITHUB_OUTPUT"
             exit 1
-          else
-            echo ""
-            echo "✅ Budget OK: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
-            echo "budget_status=pass" >> "$GITHUB_OUTPUT"
           fi
+
+          echo ""
+          echo "✅ Budget OK: entry chunk and eager closure are both within budget"
+          echo "budget_status=pass" >> "$GITHUB_OUTPUT"
 
       - name: Generate package size report
         id: size-report
@@ -183,6 +234,10 @@ jobs:
           BUDGET_GZIP_KB: ${{ steps.budget.outputs.gzip_kb }}
           BUDGET_LIMIT_KB: ${{ steps.budget.outputs.budget_kb }}
           BUDGET_ENTRY_FILE: ${{ steps.budget.outputs.entry_file }}
+          BUDGET_CLOSURE_STATUS: ${{ steps.budget.outputs.closure_status }}
+          BUDGET_CLOSURE_GZIP_KB: ${{ steps.budget.outputs.closure_gzip_kb }}
+          BUDGET_CLOSURE_BUDGET_KB: ${{ steps.budget.outputs.closure_budget_kb }}
+          BUDGET_CLOSURE_CHUNKS: ${{ steps.budget.outputs.closure_chunks }}
           BUDGET_STEP_OUTCOME: ${{ steps.budget.outcome }}
           BUILD_PACKAGES_OUTCOME: ${{ steps.build_packages.outcome }}
         run: node scripts/render-budget-comment.mjs > budget-comment.md

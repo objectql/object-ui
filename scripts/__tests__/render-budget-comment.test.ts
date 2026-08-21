@@ -29,6 +29,12 @@ describe('renderBudgetComment', () => {
     gzipKb: '28.1',
     budgetKb: '350',
     entryFile: 'index-BRKCVm_4.js',
+    // The eager closure — the metric that actually governs a page load
+    // (objectui#5324). A measured run now always carries both.
+    closureStatus: 'pass',
+    closureGzipKb: '3790.6',
+    closureBudgetKb: '3867.2',
+    closureChunks: '58',
   };
 
   it('renders PASS with the measurement when the bundle is within budget', () => {
@@ -36,7 +42,8 @@ describe('renderBudgetComment', () => {
 
     expect(kind).toBe('pass');
     expect(body).toContain('## ✅ Console Performance Budget');
-    expect(body).toContain('| Main entry (gzip) | **28.1 KB** | 350 KB |');
+    expect(body).toContain('| **Eager closure** (gzip, 58 chunks) | **3790.6 KB** | 3867.2 KB |');
+    expect(body).toContain('| Main entry chunk (gzip) | 28.1 KB | 350 KB |');
     expect(body).toContain('| Entry file | `index-BRKCVm_4.js` | — |');
     expect(body).toContain('| Status | **PASS** | — |');
     expect(body).not.toContain('FAIL');
@@ -44,15 +51,14 @@ describe('renderBudgetComment', () => {
 
   it('still renders a full FAIL verdict when the bundle IS over budget', () => {
     const { kind, body } = renderBudgetComment({
+      ...measured,
       status: 'fail',
       gzipKb: '412.7',
-      budgetKb: '350',
-      entryFile: 'index-BRKCVm_4.js',
     });
 
     expect(kind).toBe('fail');
     expect(body).toContain('## ❌ Console Performance Budget');
-    expect(body).toContain('| Main entry (gzip) | **412.7 KB** | 350 KB |');
+    expect(body).toContain('| Main entry chunk (gzip) | 412.7 KB | 350 KB |');
     expect(body).toContain('| Status | **FAIL** | — |');
     // The real signal must stay unambiguous — no hedging language on a
     // genuine violation.
@@ -77,7 +83,8 @@ describe('renderBudgetComment', () => {
     expect(body).toContain('## ℹ️ Console Performance Budget — not measured');
     expect(body).toContain('**This is not a budget violation.**');
     // The empty-metric table that made the fake alarm look like a report.
-    expect(body).not.toContain('| Main entry (gzip) | ** KB** |');
+    expect(body).not.toContain('| Main entry chunk (gzip) |  KB |');
+    expect(body).not.toContain('| **Eager closure** (gzip) | ** KB** |');
   });
 
   it.each([
@@ -112,6 +119,59 @@ describe('renderBudgetComment', () => {
     }
   });
 
+  /**
+   * objectui#5324: this comment reported the `index-*.js` entry chunk and
+   * called it "the performance budget". On `77f846a8b` that chunk is 25.9 KB
+   * gzipped while the closure it statically pulls in is 3,790.6 KB — 0.67% of
+   * the payload — and the 89 KiB regression of objectui#5266 landed outside it.
+   *
+   * The invariant these pin: the closure is the number the comment leads with,
+   * and an ABSENT closure figure is stated, never silently dropped. A one-row
+   * table showing only the entry chunk IS the old gauge, and it reads as a
+   * complete report.
+   */
+  it('leads with the eager closure and de-emphasises the entry chunk', () => {
+    const { body } = renderBudgetComment({ status: 'pass', ...measured });
+
+    const closureRow = body.indexOf('| **Eager closure**');
+    const entryRow = body.indexOf('| Main entry chunk (gzip)');
+    expect(closureRow).toBeGreaterThan(-1);
+    expect(entryRow).toBeGreaterThan(closureRow);
+    // The entry chunk keeps its row and its 350 KB line — replacing the gauge
+    // is not licence to drop the check that was already there.
+    expect(body).toContain('| Main entry chunk (gzip) | 28.1 KB | 350 KB |');
+    expect(body).toContain('what the browser fetches and parses before the app renders');
+  });
+
+  it('says so loudly when the closure was not measured, instead of showing the entry chunk alone', () => {
+    const { kind, body } = renderBudgetComment({
+      status: 'pass',
+      gzipKb: '28.1',
+      budgetKb: '350',
+      entryFile: 'index-BRKCVm_4.js',
+    });
+
+    expect(kind).toBe('pass');
+    expect(body).toContain('| **Eager closure** (gzip) | _not measured_ | — |');
+    expect(body).toContain('was **not measured** in this run');
+    expect(body).toContain('emitEagerClosureReport');
+  });
+
+  it('carries no hedging language when both metrics are present on a real violation', () => {
+    const { body } = renderBudgetComment({ ...measured, status: 'fail', gzipKb: '412.7' });
+    expect(body).not.toContain('not measured');
+  });
+
+  it('omits the chunk count from the closure row rather than printing an empty one', () => {
+    const { body } = renderBudgetComment({
+      status: 'pass',
+      ...measured,
+      closureChunks: '',
+    });
+    expect(body).toContain('| **Eager closure** (gzip) | **3790.6 KB** | 3867.2 KB |');
+    expect(body).not.toContain(', chunks)');
+  });
+
   it('appends the package size report when one was generated', () => {
     const sizeReport = '## 📦 Bundle Size Report\n\n| Package | Size | Gzipped |';
     const { body } = renderBudgetComment({ status: 'pass', ...measured, sizeReport });
@@ -138,6 +198,10 @@ describe('renderFromEnv', () => {
         BUDGET_GZIP_KB: '28.1',
         BUDGET_LIMIT_KB: '350',
         BUDGET_ENTRY_FILE: 'index-BRKCVm_4.js',
+        BUDGET_CLOSURE_STATUS: 'pass',
+        BUDGET_CLOSURE_GZIP_KB: '3790.6',
+        BUDGET_CLOSURE_BUDGET_KB: '3867.2',
+        BUDGET_CLOSURE_CHUNKS: '58',
         BUDGET_STEP_OUTCOME: 'success',
         BUILD_PACKAGES_OUTCOME: 'success',
         GITHUB_SERVER_URL: 'https://github.com',
@@ -148,7 +212,8 @@ describe('renderFromEnv', () => {
     );
 
     expect(kind).toBe('pass');
-    expect(body).toContain('| Main entry (gzip) | **28.1 KB** | 350 KB |');
+    expect(body).toContain('| Main entry chunk (gzip) | 28.1 KB | 350 KB |');
+    expect(body).toContain('| **Eager closure** (gzip, 58 chunks) | **3790.6 KB** | 3867.2 KB |');
   });
 
   it('links the run so a "not measured" note can be checked against the log', () => {
