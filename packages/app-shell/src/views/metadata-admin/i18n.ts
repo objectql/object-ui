@@ -1663,13 +1663,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.settings.sharing': 'Record sharing (OWD)',
   'engine.studio.settings.sharingHint': 'Baseline record visibility applied before positions and sharing rules (ADR-0056/0090)',
   'engine.studio.settings.sharingModel': 'Sharing model (sharingModel) — who can see and edit records another user owns',
-  'engine.studio.settings.sharingUnset': '(not set — defaults to Private)',
+  'engine.studio.settings.sharingUnset': '(not set — publishing is refused)',
   'engine.studio.settings.sharingPrivate': 'Private — owner only',
   'engine.studio.settings.sharingPublicRead': 'Public read — everyone reads, only the owner writes',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write — everyone reads and writes',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent — inherited from the master record',
   'engine.studio.settings.sharingDescUnset':
-    'Not set — the platform defaults to Private (ADR-0090): only the owner can access records. Pick an explicit model to widen visibility.',
+    'Not set — publishing this object is REFUSED (security-owd-unset). The runtime does fall back to Private (ADR-0090 D1), but the baseline has to be an authored decision, not an accident. Pick a model — Private is the same behaviour, chosen on purpose.',
   'engine.studio.settings.sharingDescPrivate':
     'Only the owner (plus users granted via positions or sharing rules) can access a record. Read / Edit permissions then apply to owned records only.',
   'engine.studio.settings.sharingDescPublicRead':
@@ -1757,6 +1757,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.noObjects': 'No objects yet — create one below to start',
   'engine.studio.data.labelPlaceholder': 'Display name (e.g. Repair Ticket)',
   'engine.studio.data.idPlaceholder': 'Identifier (e.g. repair_ticket)',
+  // [objectui#5418] The create dialog's third field. `新建对象` used to ask for
+  // exactly two things and produce an object the publish door refuses.
+  'engine.studio.data.owdLabel': 'Record sharing (OWD) — who can see records another user owns',
+  'engine.studio.data.owdHint':
+    'Required to publish, and changeable later under Settings → Record sharing. Private matches what the runtime already does when no model is set.',
   'engine.studio.data.newObject': 'New object',
   'engine.studio.data.readOnlyPackage': 'This package is read-only — switch to or create a writable package to add objects',
   'engine.studio.data.firstObjectTitle': 'Start with your first object',
@@ -3462,13 +3467,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.settings.sharing': '记录共享模型(OWD)',
   'engine.studio.settings.sharingHint': '在岗位与共享规则之前生效的记录可见性基线(ADR-0056/0090)',
   'engine.studio.settings.sharingModel': '共享模型(sharingModel)—— 谁能查看和编辑他人拥有的记录',
-  'engine.studio.settings.sharingUnset': '(未设置 —— 默认 Private)',
+  'engine.studio.settings.sharingUnset': '(未设置 —— 发布会被拒绝)',
   'engine.studio.settings.sharingPrivate': 'Private 私有 —— 仅记录所有者',
   'engine.studio.settings.sharingPublicRead': 'Public read 公共只读 —— 所有人可读,仅所有者可写',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write 公共读写 —— 所有人可读可写',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent 受父级控制 —— 继承自主记录',
   'engine.studio.settings.sharingDescUnset':
-    '未设置 —— 平台默认 Private(ADR-0090):仅所有者能访问记录。如需放宽可见性请显式选择模型。',
+    '未设置 —— 该对象无法发布(security-owd-unset)。运行时确实会回落为 Private(ADR-0090 D1),但这条基线必须是显式作出的决定,而不是疏漏。请选择一个模型 —— 选 Private 的行为完全相同,区别在于它是有意选定的。',
   'engine.studio.settings.sharingDescPrivate':
     '只有所有者(以及经岗位或共享规则授予的用户)能访问记录。此时读取 / 编辑权限仅作用于自己拥有的记录。',
   'engine.studio.settings.sharingDescPublicRead':
@@ -3556,6 +3561,10 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.noObjects': '还没有对象 — 在下方新建一个开始',
   'engine.studio.data.labelPlaceholder': '显示名(如:报修工单)',
   'engine.studio.data.idPlaceholder': '标识符(如:repair_ticket)',
+  // [objectui#5418] 新建对象对话框的第三项。此前只问两项,产出的对象会被发布门拒绝。
+  'engine.studio.data.owdLabel': '记录共享模型(OWD)—— 谁能看到他人拥有的记录',
+  'engine.studio.data.owdHint':
+    '发布必填,之后可在“设置 → 记录共享模型”中修改。Private 与未设置时运行时的实际行为一致。',
   'engine.studio.data.newObject': '新建对象',
   'engine.studio.data.readOnlyPackage': '此包为只读——请切换到或新建一个可写的包后再添加对象',
   'engine.studio.data.firstObjectTitle': '从第一个对象开始',

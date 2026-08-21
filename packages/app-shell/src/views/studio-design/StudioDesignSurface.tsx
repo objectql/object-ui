@@ -90,6 +90,7 @@ import { loadPackageSurfaces } from './packageSurfaces.js';
 import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
 import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink.js';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
+import { OWD_CREATE_MODELS, OWD_DEFAULT, type OwdCreateModel } from './owd-sharing.js';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
 import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel.js';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas.js';
@@ -122,6 +123,25 @@ import { toast } from 'sonner';
 // threshold (`xl`, not `2xl`) and its matchMedia hook live in ./wideViewport so
 // the rule is testable without mounting this surface; see that module for why
 // 1280 is the right line and what the canvas measures there.
+
+/**
+ * The create dialog's OWD options reuse the SETTINGS tab's own label and gloss
+ * strings verbatim (objectui#5418). The card's complaint was that the Settings
+ * page "is excellent — four options, each with a plain-language gloss" and that
+ * nothing routes the author there; copying the wording rather than writing a
+ * second, shorter one is what keeps the two surfaces from drifting into two
+ * descriptions of one security baseline.
+ */
+const OWD_OPTION_LABEL_KEY: Record<OwdCreateModel, string> = {
+  private: 'engine.studio.settings.sharingPrivate',
+  public_read: 'engine.studio.settings.sharingPublicRead',
+  public_read_write: 'engine.studio.settings.sharingPublicReadWrite',
+};
+const OWD_OPTION_DESC_KEY: Record<OwdCreateModel, string> = {
+  private: 'engine.studio.settings.sharingDescPrivate',
+  public_read: 'engine.studio.settings.sharingDescPublicRead',
+  public_read_write: 'engine.studio.settings.sharingDescPublicReadWrite',
+};
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
@@ -1988,6 +2008,14 @@ export function DataPillar({
   // Left-rail search + inline "new object" creator (design §4: rail = search + New).
   const [query, setQuery] = React.useState('');
   const [creating, setCreating] = React.useState(false);
+  // The OWD the create dialog will author (objectui#5418). Pre-selected to the
+  // platform's own recommended baseline; the author sees it and can change it
+  // before the object exists. Reset with each open, mirroring the way
+  // CreateItemDialog resets its own two inputs.
+  const [createOwd, setCreateOwd] = React.useState<OwdCreateModel>(OWD_DEFAULT);
+  React.useEffect(() => {
+    if (creating) setCreateOwd(OWD_DEFAULT);
+  }, [creating]);
   const [createBusy, setCreateBusy] = React.useState(false);
   // Whether the selected object exists beyond the draft (published/code baseline).
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
@@ -2193,7 +2221,7 @@ export function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(
-    async (label: string, rawName: string) => {
+    async (label: string, rawName: string, sharingModel: OwdCreateModel) => {
       if (readOnly) return;
       // Auto-prefix with the package namespace (framework#2694) so a prefix-less
       // object can't be authored; the rule lives in packages-io/spec.
@@ -2205,7 +2233,7 @@ export function DataPillar({
       setCreateBusy(true);
       setError(null);
       try {
-        const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale));
+        const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale), sharingModel);
         await client.save('object', name, body, { mode: 'draft', packageId });
         const surface: Surface = { type: 'object', name, label };
         setObjects((prev) => [...prev, surface]);
@@ -2821,7 +2849,42 @@ export function DataPillar({
         busy={createBusy}
         error={error}
         locale={locale}
-        onSubmit={({ label, name }) => void doCreateObject(label, name)}
+        extra={
+          /* Record sharing (OWD) — the third thing `新建对象` must ask for
+             (objectui#5418). Without it the object saves as a draft happily and
+             is then REFUSED at 发布 → 全部发布 by `security-owd-unset`, a wall
+             the author meets only after building the whole object. The gloss is
+             the SAME string the Settings tab shows for each model, so the two
+             surfaces cannot describe one baseline two ways.
+
+             `controlled_by_parent` is absent on purpose — see OWD_CREATE_MODELS:
+             a just-created object has no master-detail field for it to derive
+             access from. */
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-muted-foreground">
+              {t('engine.studio.data.owdLabel', locale)}
+            </span>
+            <select
+              value={createOwd}
+              data-testid="create-object-owd"
+              onChange={(e) => setCreateOwd(e.target.value as OwdCreateModel)}
+              className="w-full rounded border bg-background px-2 py-1 text-[12px]"
+            >
+              {OWD_CREATE_MODELS.map((m) => (
+                <option key={m} value={m}>
+                  {t(OWD_OPTION_LABEL_KEY[m], locale)}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {t(OWD_OPTION_DESC_KEY[createOwd], locale)}
+            </span>
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {t('engine.studio.data.owdHint', locale)}
+            </span>
+          </label>
+        }
+        onSubmit={({ label, name }) => void doCreateObject(label, name, createOwd)}
       />
     </div>
   );

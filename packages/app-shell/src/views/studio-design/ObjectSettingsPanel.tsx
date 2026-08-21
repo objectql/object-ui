@@ -18,8 +18,13 @@
  *     `sharingModel` (private | public_read | public_read_write |
  *     controlled_by_parent). This is the baseline record-level visibility the
  *     runtime applies BEFORE positions and sharing rules. Since ADR-0090 D1
- *     an unset value defaults to `private` (secure default) — the old
- *     fully-public cliff is gone, so leaving it unset is safe.
+ *     an unset value RESOLVES to `private` at runtime (secure default) — the
+ *     old fully-public cliff is gone — but leaving it unset is NOT safe to
+ *     ship: the publish door refuses an object that declares no OWD
+ *     (`security-owd-unset`), because the baseline must be an authored
+ *     decision rather than an accident. Runtime fallback and publishability
+ *     are two different questions, and this comment used to answer only the
+ *     first (objectui#5418).
  *  3. Semantic roles (ADR-0085) — the cross-surface presentation roles:
  *     `nameField`, `stageField` (string | false | unset), `highlightFields`.
  *     These are the ONLY presentation knobs the protocol carries, so the
@@ -180,7 +185,20 @@ export function ObjectSettingsPanel({
               </option>
             </select>
           </label>
-          <p className="text-[11px] text-muted-foreground">
+          {/* An UNSET internal OWD is not a neutral state — the publish door
+              refuses it (`security-owd-unset`). Styled as the problem it is,
+              exactly the way the D11 external-wider violation next to it is
+              (objectui#5418); the two are the same class of "this authoring
+              choice will be rejected at publish" and reading them differently
+              is what let the unset case pass for a safe default. */}
+          <p
+            data-testid="owd-internal-desc"
+            className={
+              sharingModel === ''
+                ? 'text-[11px] text-amber-600 dark:text-amber-500'
+                : 'text-[11px] text-muted-foreground'
+            }
+          >
             {t(sharingDescKey, locale)}
           </p>
           <label className="block">

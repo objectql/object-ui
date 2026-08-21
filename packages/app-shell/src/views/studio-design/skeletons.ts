@@ -18,10 +18,30 @@
 // Label strings are parameters (the pillars pass localized `t(...)` values); the
 // gate passes any placeholder — the labels don't affect spec validity.
 
-export function buildObjectSkeleton(name: string, label: string, nameFieldLabel: string): Record<string, unknown> {
+import type { OwdCreateModel } from './owd-sharing.js';
+
+/**
+ * A new object's draft body.
+ *
+ * `sharingModel` is a REQUIRED parameter, not an optional one with a default
+ * baked in here. An object with no OWD is refused at the publish door
+ * (`security-owd-unset`, ADR-0090 D1) — the refusal the author used to meet
+ * only after building the whole object — and the spec's own minimal create
+ * body carries the key for exactly that reason. Making it a required
+ * parameter means the value has to come from a create surface that ASKED for
+ * it: a future second create path cannot quietly omit the baseline, because
+ * omitting it does not type-check.
+ */
+export function buildObjectSkeleton(
+  name: string,
+  label: string,
+  nameFieldLabel: string,
+  sharingModel: OwdCreateModel,
+): Record<string, unknown> {
   return {
     name,
     label,
+    sharingModel,
     fields: { name: { type: 'text', label: nameFieldLabel } },
   };
 }
