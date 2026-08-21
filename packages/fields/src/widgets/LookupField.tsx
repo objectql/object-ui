@@ -22,6 +22,16 @@ import { getRecordDisplayName, mergeFilterNodes } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups.js';
 import { getPersonInitials } from './personDisplay.js';
 import { getCellRendererResolver } from './_cell-renderer-bridge.js';
+// The one place a lookup column's display value is decided — shared with the
+// "browse all records" picker (RecordPickerDialog) so a single `lookup_columns`
+// declaration cannot render two different ways (objectui#5492).
+import {
+  normalizeColumn,
+  fieldToLabel,
+  buildLookupColumnDescriptors,
+  renderLookupColumnValue,
+} from './lookupColumnDisplay.js';
+import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
 import { SchemaRendererContext as ImportedSchemaRendererContext, useAction, useHasActionProvider } from '@object-ui/react';
 import { useFieldTranslation } from './useFieldTranslation.js';
 
@@ -195,6 +205,11 @@ function mapFieldTypeToFilterType(
 export function LookupField({ value, onChange, field, readonly, error: fieldError, ...props }: FieldWidgetComponentProps<any>) {
   const [isOpen, setIsOpen] = useState(false);
   const { t } = useFieldTranslation();
+  // Same two i18n channels RecordPickerDialog reads, so the inline dropdown
+  // resolves option labels and formats dates exactly as the picker does
+  // (objectui#5492). Both are provider-safe.
+  const { translateOptions } = useSafeFieldLabel();
+  const displayLocale = useDisplayLocale();
   const listboxId = React.useId();
 
   // Create-new error is local; the popover's fetch state (search/loading/error/
@@ -387,6 +402,49 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
     if (!extra) return undefined;
     return typeof extra === 'string' ? extra : extra.field;
   }, [descriptionField, pickerColumns, displayField]);
+
+  /**
+   * Columns previewed under each quick-select option (objectui#5492).
+   *
+   * This is the inline dropdown's half of the one-declaration/two-surfaces
+   * contract. It used to be two separate ad-hoc reads of the raw record — the
+   * subtitle printed `record[descriptionField]` verbatim and the row's `title`
+   * attribute concatenated `label: String(rawValue)` for every other column —
+   * so the same `lookup_columns` that the picker rendered as resolved names,
+   * formatted dates and option labels came out here as bare foreign-key ids,
+   * ISO timestamps and enum codes.
+   *
+   * Now one list feeds one renderer: an explicitly authored `description_field`
+   * still leads (the author picked that column to be the subtitle), followed by
+   * every non-display picker column. Both halves render through
+   * `renderLookupColumnValue`, the picker's own renderer.
+   */
+  const previewColumns = useMemo<LookupColumnDef[]>(() => {
+    const cols: LookupColumnDef[] = [];
+    const seen = new Set<string>([displayField]);
+    if (descriptionField) {
+      cols.push({ field: descriptionField });
+      seen.add(descriptionField);
+    }
+    for (const c of pickerColumns ?? []) {
+      const col = normalizeColumn(c);
+      if (seen.has(col.field)) continue;
+      seen.add(col.field);
+      cols.push(col);
+    }
+    return cols;
+  }, [descriptionField, pickerColumns, displayField]);
+
+  /**
+   * Field descriptors for the previewed columns — the SAME builder the picker
+   * calls, fed the same referenced-object schema, so a `select` column resolves
+   * its authored option label and a `lookup` column carries its `reference`
+   * through to the cell renderer that resolves the id to a name.
+   */
+  const previewDescriptors = useMemo(
+    () => buildLookupColumnDescriptors(previewColumns, refObjectSchema?.fields, referenceTo ?? '', translateOptions),
+    [previewColumns, refObjectSchema, referenceTo, translateOptions],
+  );
 
   // Derive filter-bar columns from any typed picker columns.
   const filterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
@@ -904,24 +962,44 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
     [onCreateNew, allowCreate, referenceTo, hasActionProvider, execute, dataSource, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema, handleSelect],
   );
 
-  // Compact one-line preview of an option's extra (non-display) columns —
-  // shown as a native tooltip so users can disambiguate without opening it.
+  /**
+   * Compact one-line preview of an option's extra (non-display) columns.
+   *
+   * Every value goes through `renderLookupColumnValue` — the picker's renderer
+   * — so this line and the picker's table agree on one `lookup_columns`
+   * declaration (objectui#5492). It replaces a `label: String(rawValue)`
+   * concatenation that produced bare ids, raw ISO timestamps and enum codes.
+   *
+   * A column is previewed when the record HOLDS a value for it, decided on the
+   * raw value, never on what the renderer makes of it. An unresolved foreign
+   * key is a held value, so it keeps its column and shows whatever the lookup
+   * cell renderer shows for it — never a silently empty slot, which the field
+   * report behind this issue calls out as worse than showing the bare id.
+   */
   const previewOf = useCallback(
-    (option: LookupOption): string | undefined => {
-      if (!pickerColumns || pickerColumns.length === 0) return undefined;
-      const parts: string[] = [];
-      for (const c of pickerColumns) {
-        const f = typeof c === 'string' ? c : c.field;
-        if (f === displayField) continue;
-        const v = (option as any)[f];
-        if (v === null || v === undefined || v === '') continue;
-        const lbl = typeof c === 'string' ? f : (c.label || f);
-        const text = typeof v === 'object' ? (v.name ?? v.label ?? JSON.stringify(v)) : v;
-        parts.push(`${lbl}: ${text}`);
-      }
-      return parts.length ? parts.join(' · ') : undefined;
+    (option: LookupOption): React.ReactNode => {
+      const cols = previewColumns.filter((c) => {
+        const v = (option as any)[c.field];
+        return v !== null && v !== undefined && v !== '';
+      });
+      if (cols.length === 0) return null;
+      return cols.map((col, i) => (
+        <React.Fragment key={col.field}>
+          {i > 0 && <span aria-hidden="true" className="shrink-0 opacity-60">·</span>}
+          <span className="flex min-w-0 items-center gap-1 truncate">
+            <span className="shrink-0 opacity-70">{`${col.label || fieldToLabel(col.field)}:`}</span>
+            <span className="min-w-0 truncate" data-lookup-preview={col.field}>
+              {renderLookupColumnValue(option, col, {
+                descriptors: previewDescriptors,
+                cellRenderer: getCellRendererResolver(),
+                displayLocale,
+              })}
+            </span>
+          </span>
+        </React.Fragment>
+      ));
     },
-    [pickerColumns, displayField],
+    [previewColumns, previewDescriptors, displayLocale],
   );
 
   // Keyboard handler for the search input — arrow keys + Enter
@@ -1239,7 +1317,11 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
                           data-lookup-index={idx}
                           role="option"
                           aria-selected={isSelected}
-                          title={previewOf(option)}
+                          // The full label stays reachable on hover now that the
+                          // extra columns are rendered into the row itself
+                          // instead of concatenated raw into this attribute
+                          // (objectui#5492).
+                          title={String(option.label ?? '')}
                           onClick={() => handleSelect(option)}
                           className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent flex items-center justify-between ${
                             isActive
@@ -1252,11 +1334,18 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
                         >
                           <div className="min-w-0 flex-1">
                             <span className="block truncate">{option.label}</span>
-                            {option.description && (
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {option.description}
-                              </span>
-                            )}
+                            {(() => {
+                              const preview = previewOf(option);
+                              if (!preview) return null;
+                              return (
+                                <span
+                                  className="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-muted-foreground"
+                                  data-testid="lookup-option-preview"
+                                >
+                                  {preview}
+                                </span>
+                              );
+                            })()}
                           </div>
                           {isSelected && (
                             <Badge variant="default" className="ml-2 shrink-0">{t('lookup.selectedBadge')}</Badge>
