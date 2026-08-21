@@ -9,7 +9,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { I18nProvider, createI18n } from '@object-ui/i18n';
-import { ObjectFormDesigner, toFormFieldType } from './ObjectFormDesigner';
+import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { toFormFieldType } from './formFieldType';
 
 /** Build an array-shape `draft.fields` with `n` plain text fields. */
 function textFields(n: number): Array<Record<string, unknown>> {
