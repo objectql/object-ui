@@ -65,7 +65,13 @@ export interface ObjectMapProps {
   onDelete?: (record: any) => void;
   /** Enable marker clustering for dense data */
   enableClustering?: boolean;
-  /** Cluster radius in pixels (default: 50) */
+  /**
+   * Clustering grid granularity (default: 50). NOT screen pixels — the grid
+   * cell edge is `clusterRadius / 2 ** zoom`, in coordinate DEGREES (the
+   * marker's `[lng, lat]`), so a larger value groups more aggressively and
+   * the effective granularity shrinks exponentially as zoom increases. See
+   * `clusterMarkers` below.
+   */
   clusterRadius?: number;
 }
 
