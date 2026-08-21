@@ -200,7 +200,12 @@ completely — no error, no warning, nothing in the console.
 `data-table` is not among them, which is the trap worth knowing by name: it
 takes its rows from an inline `data` array on the node, so a bound `data-table`
 renders a correct-looking header over an empty body, with nothing thrown and
-nothing logged.
+nothing logged. Pointing the node's own `data` key at an expression
+(`"data": "${data.customers}"`) fails the same silent way — node keys are not
+expression-evaluated — so **the host resolves the array and puts it on the
+node**, as below. The one spelling that does carry a provider expression
+through is measured, with its open-question caveat, in
+[`../rules/protocol.md`](../rules/protocol.md).
 
 ```json
 {
@@ -247,7 +252,9 @@ A `statistic`'s `label` / `value` / `description` are read off the node but are
 
 Do not reach for a `props` envelope to get an expression evaluated — values
 inside it are evaluated and then handed over as React props, which these
-renderers never read, so the component paints an empty frame.
+renderers never read, so the component paints an empty frame. (`properties` is a
+different envelope and behaves differently; see
+[`../rules/protocol.md`](../rules/protocol.md).)
 
 ### Via DataSource methods (in plugin code)
 

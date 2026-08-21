@@ -135,7 +135,7 @@ See `rules/no-touch-zones.md` for the full list and rationale.
 - Introducing package coupling (e.g. a UI package depending on business logic).
 - Registering components without a namespace in plugin-heavy projects.
 - Skipping docs updates for newly introduced schema patterns.
-- Putting expression values in top-level `value` / `label` fields instead of `props.*`.
+- Expecting a `${...}` on a top-level `value` / `label` to evaluate, or "fixing" it by moving it under `props` — the first renders the literal, the second renders nothing at all. Resolve the value in the host, or carry it on a `text` node's `content` ([`rules/protocol.md`](./rules/protocol.md)).
 - Missing the published stylesheet imports — `@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that order — components render but look completely unstyled. The components sheet carries the theme tokens and the `:root` / `.dark` defaults; the fields sheet is a subtracted supplement that resolves against them.
 - Pointing Tailwind at the installed ObjectUI packages instead of importing those two sheets: the published tarballs carry `dist` only, so the theme block the themed utilities are built on is not there to scan. Inside the ObjectUI workspace the reverse holds — packages are linked to their sources, an app scans them and declares the theme itself. See [`rules/styling.md`](./rules/styling.md) for both cases; do not keep a second copy of the answer here.
 

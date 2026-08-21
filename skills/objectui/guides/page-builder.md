@@ -89,9 +89,16 @@ renderers read `schema.title` / `schema.content` / `schema.columns` directly;
 `SchemaRenderer` spreads `schema.props` as React props instead of merging it
 into the node, so a key parked under `props` is never read and the component
 paints an empty frame (the envelope itself also lands in the DOM as
-`props="[object Object]"`). Namespaced `element:*` components are the one
-deliberate exception — they read their config out of `properties` / `props`
-by design (`readProps` in `packages/components/src/renderers/basic/elements.tsx`).
+`props="[object Object]"`). Namespaced `element:*` components are where `props`
+is read by design (`readProps` in
+`packages/components/src/renderers/basic/elements.tsx`).
+
+`properties` is a different envelope with a different fate: `SchemaRenderer`
+evaluates it and then **hoists its keys onto the node**, so unlike `props` it
+does reach every renderer. That is why it is the only spelling that gets a
+provider expression into a `data-table` today — measured, with the failing legs
+and the reason it is recorded rather than recommended, in
+[`rules/protocol.md`](../rules/protocol.md).
 
 Prefer expression-based behavior (`hidden`, `disabled`) over imperative
 branching in component code.
@@ -180,6 +187,7 @@ clear the first gate; only the short list below clears the second.
 | `visible` / `visibleOn` | Boolean expression. `visible` takes priority over `hidden`. |
 | `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
 | `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
+| `properties.*` | Template-evaluated **and hoisted onto the node**, so unlike `props` the result is read — by every namespace. Its status as an authoring channel is open (objectui#4795); see [`rules/protocol.md`](../rules/protocol.md) before reaching for it. |
 
 **NOT evaluated (raw strings passed through):**
 
@@ -478,7 +486,7 @@ It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer` and matching pr
 - Introducing package coupling (for example, UI package depending on business logic package).
 - Registering components without namespace in plugin-heavy projects.
 - Skipping docs updates for newly introduced schema patterns.
-- Putting expression values in top-level `value`/`label` fields instead of `props.*`.
+- Expecting a `${...}` on top-level `value` / `label` to evaluate — it does not, and moving it under `props` renders nothing at all. Resolve it in the host, or carry it on a `text` node's `content`.
 - Missing Shadcn CSS variables — components render but look completely unstyled.
 - Forgetting the `@object-ui/components/style.css` and `@object-ui/fields/style.css` imports, or importing them in the wrong order — ObjectUI's utilities never reach the page.
 
