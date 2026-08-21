@@ -34,9 +34,12 @@
  * reader believed the builder was deferred, and that one more permanent build
  * warning trains everyone to skim past build warnings.
  *
- * This is a TRUTHFULNESS fix and it moves ZERO bytes — measured before/after
- * on `apps/console/dist/eager-closure.json`, the eager closure is byte-for-byte
- * unchanged. Do not describe it as a bundle win.
+ * This is a TRUTHFULNESS fix, not a bundle fix. Measured before/after on
+ * `apps/console/dist/eager-closure.json` with both builds exiting 0: the eager
+ * closure holds the same 52 chunks under the same names, so NO module moved.
+ * The only delta is 130 B gzipped off the entry chunk — the deleted `lazy()`,
+ * `Suspense` and fallback text themselves, 0.003% of a 3,875 KB closure. Do
+ * not describe it as a bundle win.
  *
  * The `lazy()` SHAPE is not the mistake — naming a barrel you already import
  * statically is. Contrast the sibling `registerAccountComponents.tsx`, whose
