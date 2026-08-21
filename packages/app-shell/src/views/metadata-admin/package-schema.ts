@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { ManifestSchema } from '@objectstack/spec/kernel';
 import type { FormViewSpec } from './SchemaForm.js';
-import { t } from './i18n.js';
+import { t, tOptional } from './i18n.js';
 
 type JsonSchema = Record<string, any>;
 
@@ -75,6 +75,21 @@ export function getPackageSchema(): JsonSchema | undefined {
  * but locked once the package exists, because the REST `PATCH /packages/:id`
  * only persists `name` / `description` / `version`. `name` / `version` /
  * `description` stay editable in every non-view mode.
+ *
+ * ## Help text (objectui#5416)
+ *
+ * Each field's `helpText` comes from the SAME i18n bundle as its `label`, via
+ * {@link tOptional} — which returns `undefined` when the locale has no entry.
+ * That asymmetry is the point:
+ *
+ *   - zh-CN has an entry, so the console renders 显示名称 over 软件包的可读名称。
+ *     instead of 显示名称 over "Human-readable package name" — the mixed-language
+ *     line this card reported.
+ *   - en-US deliberately has NO entry, so `helpText` stays `undefined`,
+ *     SchemaForm's `f.helpText ? … : {}` spread drops out, and the row falls
+ *     back to the schema's own `description` — i.e. `ManifestSchema`'s
+ *     `.describe()` in `@objectstack/spec`. The English text keeps exactly one
+ *     producer, in the framework repo, and this file never copies it.
  */
 export function getPackageForm(locale: string): FormViewSpec {
   return {
@@ -84,10 +99,16 @@ export function getPackageForm(locale: string): FormViewSpec {
         label: t('engine.packages.form.basics', locale),
         columns: 1,
         fields: [
-          { field: 'name', label: t('engine.packages.create.name', locale), placeholder: 'Acme CRM' },
+          {
+            field: 'name',
+            label: t('engine.packages.create.name', locale),
+            helpText: tOptional('engine.packages.form.help.name', locale),
+            placeholder: 'Acme CRM',
+          },
           {
             field: 'id',
             label: t('engine.packages.create.id', locale),
+            helpText: tOptional('engine.packages.form.help.id', locale),
             placeholder: 'com.acme.crm',
             immutable: true,
           },
@@ -97,12 +118,27 @@ export function getPackageForm(locale: string): FormViewSpec {
           {
             field: 'namespace',
             label: t('engine.packages.create.namespace', locale),
+            helpText: tOptional('engine.packages.form.help.namespace', locale),
             placeholder: 'crm',
             immutable: true,
           },
-          { field: 'version', label: t('engine.packages.create.version', locale), placeholder: '0.1.0' },
-          { field: 'type', label: t('engine.packages.detail.type', locale), immutable: true },
-          { field: 'description', label: t('engine.packages.detail.description', locale) },
+          {
+            field: 'version',
+            label: t('engine.packages.create.version', locale),
+            helpText: tOptional('engine.packages.form.help.version', locale),
+            placeholder: '0.1.0',
+          },
+          {
+            field: 'type',
+            label: t('engine.packages.detail.type', locale),
+            helpText: tOptional('engine.packages.form.help.type', locale),
+            immutable: true,
+          },
+          {
+            field: 'description',
+            label: t('engine.packages.detail.description', locale),
+            helpText: tOptional('engine.packages.form.help.description', locale),
+          },
         ],
       },
       {
@@ -114,10 +150,21 @@ export function getPackageForm(locale: string): FormViewSpec {
           {
             field: 'defaultDatasource',
             label: t('engine.packages.form.defaultDatasource', locale),
+            helpText: tOptional('engine.packages.form.help.defaultDatasource', locale),
             immutable: true,
           },
-          { field: 'scope', label: t('engine.packages.form.scope', locale), immutable: true },
-          { field: 'dependencies', label: t('engine.packages.form.dependencies', locale), immutable: true },
+          {
+            field: 'scope',
+            label: t('engine.packages.form.scope', locale),
+            helpText: tOptional('engine.packages.form.help.scope', locale),
+            immutable: true,
+          },
+          {
+            field: 'dependencies',
+            label: t('engine.packages.form.dependencies', locale),
+            helpText: tOptional('engine.packages.form.help.dependencies', locale),
+            immutable: true,
+          },
         ],
       },
     ],

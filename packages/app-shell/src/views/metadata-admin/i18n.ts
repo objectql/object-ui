@@ -2890,6 +2890,32 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.packages.form.defaultDatasource': '默认数据源',
   'engine.packages.form.scope': '范围',
   'engine.packages.form.dependencies': '依赖',
+
+  // objectui#5416 — help text for the package manifest form.
+  //
+  // The LABELS above have always been translated while the help line under
+  // each one stayed English, so `新建软件包` rendered 显示名称 over
+  // "Human-readable package name" — a translated label and an untranslated
+  // sentence on consecutive lines of the same field.
+  //
+  // These are zh-ONLY on purpose, and the EN table deliberately has no
+  // counterpart. The English help text is `@objectstack/spec`'s own
+  // `ManifestSchema` `.describe()` (framework repo), which the form already
+  // reads through the spec-derived JSONSchema; `getPackageForm` looks these up
+  // with `tOptional`, so en-US finds nothing here and keeps falling through to
+  // the spec's sentence. Copying the English into this table instead would
+  // create a SECOND English source of truth that silently diverges the next
+  // time the spec is edited — the exact producer-side hazard the ObjectUI
+  // contract-first rule exists to stop. Only the zh rendering belongs here.
+  'engine.packages.form.help.name': '软件包的可读名称。',
+  'engine.packages.form.help.id': '软件包的唯一标识，采用反向域名格式。',
+  'engine.packages.form.help.namespace': '简短的命名空间标识；同时是本软件包内每个对象名称的强制前缀（例如 “todo” → 对象名 “todo_task”、“todo_project”）。',
+  'engine.packages.form.help.version': '软件包版本（语义化版本号）。',
+  'engine.packages.form.help.type': '软件包类型。',
+  'engine.packages.form.help.description': '软件包描述。',
+  'engine.packages.form.help.defaultDatasource': '本软件包内所有对象的默认数据源。',
+  'engine.packages.form.help.scope': '部署范围：cloud（云端）、system（系统）、project（项目）。',
+  'engine.packages.form.help.dependencies': '软件包依赖。',
   'engine.packages.view.title': '软件包信息',
   'engine.packages.detail.viewInfo': '查看信息',
   'engine.packages.detail.type': '类型',
@@ -4371,6 +4397,30 @@ export function translateSchemaFieldHelp(
 
 export function t(key: string, locale?: SupportedLocale | string): string {
   return pickTable(locale).strings[key] ?? key;
+}
+
+/**
+ * Like {@link t}, but returns `undefined` when the active locale's table has
+ * no entry — instead of echoing the key back as if it were a translation.
+ *
+ * For strings this console does not OWN (objectui#5416). The package form's
+ * help text is `@objectstack/spec`'s `ManifestSchema` `.describe()`, produced
+ * in the framework repo and already reaching the form through the
+ * spec-derived JSONSchema; only the zh rendering lives here. A caller uses
+ * this so an en-US console finds nothing and falls through to the producer's
+ * own sentence, rather than reading a copy of it that this repo would then
+ * have to keep in step with the spec by hand.
+ *
+ * ⚠️ Never reach for this to paper over a MISSING key in a string this
+ * console does own — a missing key must stay loud (`t` echoing `engine.…`
+ * back is what makes it visible). Use it only where a producer-owned fallback
+ * is the deliberate other half.
+ */
+export function tOptional(
+  key: string,
+  locale?: SupportedLocale | string,
+): string | undefined {
+  return pickTable(locale).strings[key];
 }
 
 /**
