@@ -40,6 +40,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Rows3, Settings2 } from 'lucide-react';
 import { inferColumns, containerGridColsFor, isWideFieldType } from '@object-ui/plugin-form';
+import { mapFieldTypeToFormType } from '@object-ui/fields';
 import {
   readFields,
   writeFields,
@@ -87,6 +88,39 @@ export interface ObjectFormDesignerProps {
   onSelectGroup?: (key: string) => void;
   /** Courtesy gate: layout stays viewable, but add/rename/reorder/delete are off. */
   readOnly?: boolean;
+}
+
+/**
+ * Normalize an object-def field type into the ONE legal `FormField.type`
+ * spelling — the namespaced widget id.
+ *
+ * Maintainer ruling 2026-08-19 (objectui#4838): a BARE spec-type name
+ * (`markdown`, `html`, `richtext`) is **not** a legal `FormField.type`. This
+ * canvas mirrors the real form, so the string it hands to FORM-vocabulary
+ * helpers must be the one `ObjectForm` resolves for the same field, produced
+ * by the one place that decision is made — `mapFieldTypeToFormType`. The
+ * ruling fixes the PRODUCER: the tolerant `field:`-prefix fallback in
+ * `renderFieldComponent` and the dual-spelling `WIDE_FIELD_TYPES` set are both
+ * left exactly as they are, each retired under its own follow-up.
+ *
+ * Not merely hygiene — the two vocabularies had already drifted apart here.
+ * `WIDE_FIELD_TYPES` carries the five bare names that happen to double as
+ * widget ids, so a `repeater` (a spec `FieldType` that resolves to the WIDE
+ * `field:grid` widget) matched nothing: the canvas laid a repeater out at
+ * normal width while the runtime form spanned it full-row. Any future wide
+ * widget whose spec name differs from its widget id falls in the same hole.
+ *
+ * Idempotent by explicit guard, never by luck: `mapFieldTypeToFormType` holds
+ * no entry for an already-namespaced key, so its `|| 'field:text'` tail would
+ * turn `field:markdown` into `field:text` — a silent downgrade to a plain text
+ * input, a worse failure than the missing stamp this normalization fixes. An
+ * already-namespaced spelling therefore passes through UNCHANGED; it is never
+ * prefixed a second time into `field:field:markdown`.
+ */
+export function toFormFieldType(objectFieldType: string): string {
+  return objectFieldType.startsWith('field:')
+    ? objectFieldType
+    : mapFieldTypeToFormType(objectFieldType);
 }
 
 /** A faithful, non-interactive preview of a field's control (by type). */
@@ -155,7 +189,11 @@ function SortableField({
   // Mirror the real form: wide widgets (textarea/markdown/html/…) take the whole
   // row. `col-span-full` (grid-column: 1/-1) spans every column at ANY container
   // width, so it stays correct as the responsive grid collapses to one column.
-  const spanFull = columns > 1 && isWideFieldType(type);
+  // `isWideFieldType` reads FORM vocabulary, so the raw object type is
+  // normalized to its widget id first (see `toFormFieldType`). `type` itself
+  // stays the spec spelling — that is what the type hint shows the admin and
+  // what `FieldControlPreview` switches on.
+  const spanFull = columns > 1 && isWideFieldType(toFormFieldType(type));
   return (
     <div
       ref={setNodeRef}

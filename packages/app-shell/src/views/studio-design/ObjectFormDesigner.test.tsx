@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { I18nProvider, createI18n } from '@object-ui/i18n';
-import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { ObjectFormDesigner, toFormFieldType } from './ObjectFormDesigner';
 
 /** Build an array-shape `draft.fields` with `n` plain text fields. */
 function textFields(n: number): Array<Record<string, unknown>> {
@@ -238,5 +238,80 @@ describe('ObjectFormDesigner — object translations (objectui#3134)', () => {
     expect(screen.getByText('商机名称')).toBeTruthy();
     const heading = container.querySelector<HTMLInputElement>('input[type="text"], input:not([type])');
     expect(heading?.value ?? '').toBe('基本信息');
+  });
+});
+
+describe('ObjectFormDesigner — emits the one legal `FormField.type` spelling (objectui#4838)', () => {
+  // Maintainer ruling 2026-08-19: a bare spec-type name is NOT a legal
+  // `FormField.type`. The canvas is a PRODUCER of that vocabulary (it hands a
+  // type to `isWideFieldType`), so it is the producer that was fixed — the
+  // tolerant `field:`-prefix fallback in `renderFieldComponent` and the
+  // dual-spelling `WIDE_FIELD_TYPES` set are deliberately untouched.
+
+  it('emits the namespaced widget id for the three bare spellings the card measured', () => {
+    // The same string `mapFieldTypeToFormType` gives `ObjectForm` for these
+    // fields — one widget, one spelling.
+    expect(toFormFieldType('markdown')).toBe('field:markdown');
+    expect(toFormFieldType('html')).toBe('field:html');
+    expect(toFormFieldType('richtext')).toBe('field:richtext');
+  });
+
+  it('names the SAME widget the tolerant fallback resolved the bare spelling to', () => {
+    // `renderFieldComponent`'s namespaced fallback resolves a bare spelling by
+    // computing `field:${type}` and looking THAT key up in the registry. Our
+    // emitted spelling is pinned against the identical expression, which is
+    // what makes this a spelling change and not a widget change: the author
+    // keeps getting RichTextField, reached by one legal name instead of two.
+    for (const bare of ['markdown', 'html', 'richtext']) {
+      expect(toFormFieldType(bare)).toBe(`field:${bare}`);
+    }
+  });
+
+  it('NEGATIVE CONTROL — an already-namespaced type is emitted unchanged', () => {
+    // Never double-prefixed…
+    expect(toFormFieldType('field:markdown')).toBe('field:markdown');
+    expect(toFormFieldType('field:markdown')).not.toBe('field:field:markdown');
+    expect(toFormFieldType('field:grid')).toBe('field:grid');
+    // …and never dropped onto `mapFieldTypeToFormType`'s `|| 'field:text'`
+    // tail, which is what an unguarded call would do to it — a silent
+    // downgrade to a plain text input, worse than the bug being fixed.
+    expect(toFormFieldType('field:markdown')).not.toBe('field:text');
+  });
+
+  it('spans a `repeater` field full-row — the drift the raw pass hid', () => {
+    // `repeater` is a spec `FieldType` that resolves to the WIDE `field:grid`
+    // widget, but bare `repeater` is not one of `WIDE_FIELD_TYPES`' bare
+    // members. Passing the raw object type in therefore matched nothing: the
+    // canvas laid a repeater out at normal width while the runtime form —
+    // which reaches the set through `mapFieldTypeToFormType` — spanned it.
+    render(
+      <ObjectFormDesigner
+        draft={{ fields: [...textFields(15), { name: 'line_items', type: 'repeater', label: 'Line Items' }] }}
+        systemFieldNames={new Set()}
+        onChange={noop}
+        onSelectField={noop}
+      />,
+    );
+    const card = screen.getByText('Line Items').closest('.cursor-grab') as HTMLElement;
+    expect(card).toBeTruthy();
+    expect(card.className).toContain('col-span-full');
+  });
+
+  it('keeps a bare rich-text field wide, and still shows the admin the SPEC spelling', () => {
+    render(
+      <ObjectFormDesigner
+        draft={{ fields: [...textFields(15), { name: 'body', type: 'markdown', label: 'Body' }] }}
+        systemFieldNames={new Set()}
+        onChange={noop}
+        onSelectField={noop}
+      />,
+    );
+    const card = screen.getByText('Body').closest('.cursor-grab') as HTMLElement;
+    expect(card.className).toContain('col-span-full');
+    // The normalization is for FORM vocabulary only. The visible type hint and
+    // the control preview still speak the object-metadata vocabulary, so the
+    // admin reads `markdown` — what they declared — not `field:markdown`.
+    expect(card.textContent).toContain('markdown');
+    expect(card.textContent).not.toContain('field:markdown');
   });
 });
