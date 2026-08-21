@@ -92,6 +92,10 @@ import { RecordAlertRenderer } from '../record-alert';
 // the ambient predicate scope pinned at the bottom of this file is the shipped
 // one, not a stand-in for it.
 import { PredicateScopeProvider } from '@object-ui/react';
+// Real I18nProvider (not mocked) — pins the active language so the locale-map
+// case below (objectui#4998) resolves deterministically instead of riding
+// whatever language another test file left on the global i18next singleton.
+import { I18nProvider } from '@object-ui/i18n';
 
 const RECORD_DEFAULTS = {
   recordCtx: {
@@ -189,6 +193,35 @@ describe('RecordAlertRenderer', () => {
           },
         }}
       />,
+    );
+    expect(screen.getByTestId('alert-cta').textContent).toBe('Send again');
+  });
+
+  // objectui#4998 — `action.label` accepts the inline locale map, not just a
+  // plain string. The renderer already resolved one before this pin existed
+  // (`const ctaLabel = pickLocalized(props.action?.label, language)`), so a
+  // plain-string CTA label is green whether or not the local `RecordAlertProps`
+  // type admits a map — that's the `label: 'Send again'` case just above, and
+  // it cannot tell the widened declaration apart from the narrow one it
+  // replaced. This case can: a bare `label?: string` refused a locale-map
+  // value at the TYPE level even though `pickLocalized` (an `unknown` input)
+  // already resolved it correctly at runtime, exactly the `title` / `body`
+  // contradiction objectui#4970 fixed one level up in the same interface.
+  it('resolves an inline locale-map action.label to the active-language string (objectui#4998)', () => {
+    render(
+      <I18nProvider config={{ defaultLanguage: 'en', detectBrowserLanguage: false }}>
+        <RecordAlertRenderer
+          schema={{
+            properties: {
+              title: 'X',
+              action: {
+                actionName: 'resend_verification_email',
+                label: { en: 'Send again', 'zh-CN': '再次发送' },
+              },
+            },
+          }}
+        />
+      </I18nProvider>,
     );
     expect(screen.getByTestId('alert-cta').textContent).toBe('Send again');
   });
