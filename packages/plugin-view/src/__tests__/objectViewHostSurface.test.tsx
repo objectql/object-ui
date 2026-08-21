@@ -5,8 +5,21 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * `object-view` — the 27 keys ruled HOST-COMPOSITION SURFACE stay undeclared,
- * and stay read (objectui#5097).
+ * `object-view` — the HOST-COMPOSITION SURFACE ledger.
+ *
+ * TWO records live here, in the same shape and for the same reason: a
+ * maintainer ruled that something this component reads or renders stays HOST
+ * surface rather than becoming authored surface, and a census has to be able
+ * to read that ruling somewhere other than a closed issue.
+ *
+ *   1. objectui#5097 — the 27 `renderListView` keys stay undeclared, and stay
+ *      read. Sections 1-3 below.
+ *   2. objectui#5321 — the `tree` and `chart` view-type branches stay
+ *      unauthored, and stay reachable from a host `views` prop. Section 4.
+ *
+ * =========================================================================
+ * RECORD 1 — the 27 keys ruled HOST-COMPOSITION SURFACE (objectui#5097)
+ * =========================================================================
  *
  * ## The card, and the ruling
  *
@@ -66,12 +79,13 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { ComponentPropsMap } from '@objectstack/spec/ui';
-import type { ObjectViewSchema } from '@object-ui/types';
+import type { NamedListView, ObjectViewSchema, ViewType } from '@object-ui/types';
 
 import {
   ObjectView,
   OBJECT_VIEW_HOST_COMPOSITION_KEYS,
   OBJECT_VIEW_DECLARED_FORWARDED_KEYS,
+  OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES,
 } from '../ObjectView';
 // Module scope, not a hook: this import IS the registration.
 import '../index';
@@ -351,5 +365,149 @@ describe('every forwarded key still reaches the host renderer (objectui#5097)', 
         + 'licence to stop reading it. A dropped read silently blanks that setting in every stored\n'
         + 'app-shell document that carries it.',
     ).toEqual(want);
+  });
+});
+
+// ===========================================================================
+// RECORD 2 — the `tree` and `chart` view-type branches (objectui#5321)
+// ===========================================================================
+//
+// ## The card, and the ruling
+//
+// `generateViewSchema` switches on eight view types and returns a renderer
+// schema for each. The type an AUTHOR uses to select one admits six of them:
+// `ObjectViewSchema.defaultViewType` and `NamedListView.type` are the same
+// seven-value union and neither spells `tree` or `chart`. The one segment that
+// can is the `views` PROP, typed `ViewType`, which carries both. So those two
+// branches — the tree branch's `viewOptions.tree.*` config surface and the
+// ADR-0021 dataset-bound chart shape included — are reachable only when a HOST
+// composes this component.
+//
+// Maintainer ruling, 2026-08-20, verbatim 「其他接受你的建议。」: option B —
+// RECORD the host-only exemption, following record 1's precedent, rather than
+// declare two more authored members. Two more members is a permanent
+// authoring-surface obligation with no measured pull; the exemption gets
+// revisited the day a real metadata-authoring need arrives.
+//
+// ## Where each half of the claim is pinned, and why it splits
+//
+// The exemption asserts two things, and they fail in different tools:
+//
+//   - "an author cannot select these" is a COMPILE-TIME claim. It is pinned by
+//     the type-level assertions below, which fail `pnpm type-check` (the
+//     package's script runs `tsc -p tsconfig.test.json` over this file). It
+//     cannot be pinned at runtime: types are erased before vitest runs, so a
+//     force-cast `defaultViewType: 'tree'` WOULD reach the branch, and a
+//     runtime test claiming otherwise could only pass by testing something
+//     else.
+//   - "a host still can" is a RUNTIME claim, and it is the basis the ruling
+//     rests on, so it is measured rather than asserted in prose:
+//     `ObjectView.hostOnlyViewTypes.test.tsx` drives both branches through a
+//     `views` prop.
+//
+// What is pinned HERE is the record itself: that the branch set is what this
+// record says it is, and that the two names still describe real branches.
+
+const VIEW_TYPE_REGION_OPEN = '// #region object-view VIEW-TYPE BRANCHES (objectui#5321)';
+const VIEW_TYPE_REGION_CLOSE = '// #endregion object-view VIEW-TYPE BRANCHES (objectui#5321)';
+
+/** The `generateViewSchema` switch, sliced out of the source by its fence. */
+const branchSlice = (): string => {
+  const start = SOURCE.indexOf(VIEW_TYPE_REGION_OPEN);
+  const end = SOURCE.indexOf(VIEW_TYPE_REGION_CLOSE);
+  expect(
+    start >= 0 && end > start,
+    'The `#region object-view VIEW-TYPE BRANCHES` fence in ObjectView.tsx is gone or reordered.\n'
+      + 'It is load-bearing, not decoration: it is how this record knows which view-type branches\n'
+      + 'exist. Restore it rather than deleting this test.',
+  ).toBe(true);
+  return SOURCE.slice(start, end);
+};
+
+/** Every `case '…':` label in a slice of CODE, distinct, sorted. */
+const caseLabelsIn = (slice: string): string[] =>
+  [...new Set([...stripComments(slice).matchAll(/case '([a-z-]+)':/g)].map((m) => m[1]))].sort();
+
+/** The eight branches the card was measured on. */
+const MEASURED_BRANCHES = [
+  'calendar', 'chart', 'gallery', 'gantt', 'kanban', 'map', 'timeline', 'tree',
+];
+
+// ---------------------------------------------------------------------------
+// 4. The record is what the source says it is.
+// ---------------------------------------------------------------------------
+
+describe('the host-only view-type record matches the branches (objectui#5321)', () => {
+  const recorded: string[] = [...OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES].sort();
+
+  it('the fenced switch carries exactly the eight branches the card measured', () => {
+    expect(
+      caseLabelsIn(branchSlice()),
+      'A view-type branch was added to or removed from `generateViewSchema`. That is a contract\n'
+        + 'question, not a refactor: a NEW branch is authorable only if an author can spell it, so\n'
+        + 'check it against `ObjectViewSchema.defaultViewType` / `NamedListView.type` and either\n'
+        + 'declare it there or add it to OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES with a ruling.\n'
+        + 'objectui#5321 is the precedent for the second route.',
+    ).toEqual(MEASURED_BRANCHES);
+  });
+
+  it('every recorded host-only type is a real branch — no stale name', () => {
+    expect(recorded.filter((t) => !caseLabelsIn(branchSlice()).includes(t))).toEqual([]);
+  });
+
+  it('the record names the two the ruling was made on', () => {
+    // Hand-written on purpose: this is the RECORD, and the ruling is what puts
+    // a name on it. A name appearing here without one is how an exemption stops
+    // describing anything — the failure this expectation exists to cause.
+    expect(
+      recorded,
+      'OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES changed. The maintainer ruled on exactly two names\n'
+        + '(2026-08-20, objectui#5321). Adding a third — or dropping one — is a new ruling, not an\n'
+        + 'edit to this list.',
+    ).toEqual(['chart', 'tree']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. The compile-time half: the authored unions still exclude both.
+// ---------------------------------------------------------------------------
+//
+// These fail `tsc`, not vitest, and that is the point — the claim they carry
+// ("no authored document can select these") is a claim about what the compiler
+// accepts. If one of them stops compiling, the exemption is STALE: someone
+// widened an authored union, which is exactly the option the 2026-08-20 ruling
+// rejected. Re-open objectui#5321 rather than deleting the assertion; the two
+// branches and their config surfaces become authoring surface the moment the
+// union admits them, with docs and migration owed.
+
+/** The view-type union an AUTHOR writes on an object-view node. */
+type AuthoredViewType = NonNullable<ObjectViewSchema['defaultViewType']>;
+/** The same union on a named list view. */
+type NamedViewType = NonNullable<NamedListView['type']>;
+
+type Assert<T extends true> = T;
+/** `true` only when member `M` is NOT part of union `U`. */
+type NotIn<M extends string, U extends string> = M extends U ? false : true;
+/** `true` only when member `M` IS part of union `U`. */
+type IsIn<M extends string, U extends string> = M extends U ? true : false;
+
+// The exemption: neither authored union admits either name.
+type _TreeIsNotAuthored = Assert<NotIn<'tree', AuthoredViewType>>;
+type _ChartIsNotAuthored = Assert<NotIn<'chart', AuthoredViewType>>;
+type _TreeIsNotANamedView = Assert<NotIn<'tree', NamedViewType>>;
+type _ChartIsNotANamedView = Assert<NotIn<'chart', NamedViewType>>;
+
+// The other side of it: the HOST union must still carry both, or the exemption
+// describes a path that no longer exists and the branches really are dead.
+type _TreeIsHostSelectable = Assert<IsIn<'tree', ViewType>>;
+type _ChartIsHostSelectable = Assert<IsIn<'chart', ViewType>>;
+
+describe('the type-level half of the record (objectui#5321)', () => {
+  it('is carried by the compiler, not by this suite', () => {
+    // A placeholder with a purpose: the assertions above are type aliases, so
+    // this file would otherwise report nothing about them and a reader could
+    // reasonably think the vitest run had checked the unions. It has not —
+    // `pnpm --filter @object-ui/plugin-view type-check` has.
+    expect([...OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES]).toHaveLength(2);
   });
 });
