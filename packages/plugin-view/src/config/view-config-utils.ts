@@ -45,6 +45,14 @@ const CANONICAL_TO_BUILDER: Record<ViewFilterOperator, string | null> = {
     'equals': 'equals',
     'not_equals': 'notEquals',
     'contains': 'contains',
+    // Case-insensitive contains, canonical in `VIEW_FILTER_OPERATORS` as of
+    // `@objectstack/spec` 17.1.0 (objectui#5328). The builder HAS an equivalent
+    // — `containsCaseInsensitive`, which authors the spec's `$icontains`
+    // (filter-builder.tsx:160, objectui#4023) — so this is a real row and not a
+    // `null`: mapping it to `contains` would quietly rewrite a case-insensitive
+    // filter into a case-sensitive one the next time the view was saved, the
+    // same folding the `is_null` note below refuses.
+    'icontains': 'containsCaseInsensitive',
     'not_contains': 'notContains',
     'starts_with': 'startsWith',
     'ends_with': 'endsWith',

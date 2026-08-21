@@ -285,6 +285,37 @@ const GA_ONLY_BLOCKS = [
 ];
 
 /**
+ * The five `record:*` blocks `@objectstack/spec` 17.1.0 adds to
+ * `ComponentPropsMap` and `17.0.0` does not carry at all (objectui#5328;
+ * the map goes from 37 entries to 42, and these are the five).
+ *
+ * Exactly the same shape as `GA_ONLY_BLOCKS` above, and for the same reason:
+ * this repo has registered all five with `inputs` for far longer than the spec
+ * has described them — `plugin-detail/src/index.tsx` registers `alert` (:686),
+ * `history` (:662) and `reference_rail` (:675), and `quick_actions` /
+ * `discussion` alongside them — so what moved at the pin bump is the SPEC's
+ * side, not this repo's. They enter `covered` the moment the installed spec
+ * carries them, and the reverse direction then asks each for the keys it does
+ * not publish. Only `record:reference_rail` had one: `entries`, exempted below.
+ */
+const MINOR_17_1_BLOCKS = [
+  'record:alert',
+  'record:discussion',
+  'record:history',
+  'record:quick_actions',
+  'record:reference_rail',
+];
+
+/**
+ * Does the installed `@objectstack/spec` carry the 17.1.0 record set?
+ *
+ * Same observable-fact reasoning as `specCarriesGaBlocks` below, including the
+ * `every` rather than `some`: the five arrived in one release, so a
+ * half-carried state is a broken premise rather than an in-between pin.
+ */
+const specCarries171Blocks = MINOR_17_1_BLOCKS.every((type) => type in ComponentPropsMap);
+
+/**
  * Does the installed `@objectstack/spec` carry the GA element set?
  *
  * The spec ships no version constant, so the observable fact is used instead —
@@ -335,6 +366,7 @@ const PINNED_EXPECTED_COVERED = [
 const EXPECTED_COVERED = [
   ...PINNED_EXPECTED_COVERED,
   ...(specCarriesGaBlocks ? GA_ONLY_BLOCKS : []),
+  ...(specCarries171Blocks ? MINOR_17_1_BLOCKS : []),
 ].sort();
 
 /**
@@ -522,14 +554,17 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
    * regression: the mechanism is now self-clearing. A key upstream retires after
    * this change enters the shape as a tombstone, leaves the accepted set on
    * arrival, and any exemption covering it goes dangling-and-stale in the same
-   * run — no issue needed, no filter to remember. Two of the entries still below
-   * are already queued for it: objectstack `origin/main` tombstones
+   * run — no issue needed, no filter to remember.
+   *
+   * THAT PREDICTION HAS NOW RUN ONCE, AND IT HELD. The paragraph used to say two
+   * entries below were queued for it: objectstack `origin/main` tombstoned
    * `targetVariable` on BOTH `element:text_input` and `element:record_picker`
-   * (measured on `main` @ `23abe2782`; both keys are still LIVE in the installed
-   * 17.0.0, whose tombstone set is the same eight rc.6 carried), so the pin that
-   * carries those retirements will name both entries here. Deleting them is
-   * the fix — objectui#3834's "should we publish an intent-only key" question is
-   * answered upstream by then, in the negative.
+   * while the installed 17.0.0 still carried both as live. The 17.1.0 pin
+   * (objectui#5328) delivered those retirements, all three directions named the
+   * two entries in the same run, and deleting them was the entire fix —
+   * objectui#3834's "should we publish an intent-only key" question having been
+   * answered upstream, in the negative. The mechanism needed no maintenance to
+   * do that, which is the property worth keeping.
    *
    * DO NOT resolve a tombstone red by declaring the input. That publishes a key
    * the contract rejects by name and fails the forward direction immediately;
@@ -544,19 +579,22 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // exemption` demanded its deletion. It is now pinned as DECLARED, by name,
   // alongside #3808's four at the bottom of this file.
 
-  // ── targetVariable — the spec's own "declarative hint" (2 keys) ────────────
-  // Zero read points repo-wide (`grep -rn targetVariable packages/ apps/` is
-  // empty), and that is by design, not drift: the spec's describe says the live
-  // binding resolves via the variable whose `source` equals the component id,
-  // which is exactly what `usePageVariableBinding(schema?.id)` does
-  // (`text-input.tsx:60`). So publishing it is neither a fix nor a defect — it
-  // is a judgement about whether to publish an intent-only key, with a concrete
-  // risk on the publish side (an author who writes only `targetVariable` and no
-  // variable `source` gets an input that writes nowhere, silently).
-  'element:text_input.targetVariable':
-    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup in usePageVariableBinding(schema.id) (text-input.tsx:60). Whether to publish an intent-only key is an open judgement: objectui#3834.",
-  'element:record_picker.targetVariable':
-    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup by component id, as on element:text_input. Whether to publish an intent-only key is an open judgement: objectui#3834.",
+  // TWO targetVariable ENTRIES DELETED HERE — objectui#5328, and they died
+  // exactly the way the docblock above said they would.
+  //
+  // `element:text_input.targetVariable` and `element:record_picker.targetVariable`
+  // were exempted as the spec's own intent-only "declarative hint" with zero read
+  // points repo-wide, pending objectui#3834's question of whether to publish such
+  // a key at all. The `@objectstack/spec` 17.1.0 pin answered it upstream, in the
+  // negative: both keys arrived as ADR-0087 D2 tombstones, so they left the
+  // accepted set and the exemptions covering them went dangling-and-stale in the
+  // same run — named by `every unpublished-key exemption names a key the spec
+  // really declares`, `carries no stale unpublished-key exemption` and `the
+  // tombstoned keys are recognised, not exempted`, all three at once.
+  //
+  // Deleting them is the whole fix. The tombstone judge recognises both keys now,
+  // which is a stronger statement than an exemption ever was: the contract itself
+  // rejects them by name.
 
   // FIVE GA-PENDING ENTRIES DELETED HERE — objectui#4668, and they too were
   // designed to die exactly this way.
@@ -655,6 +693,34 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     '@deprecated in ObjectGridSchema ("Moved to top-level resizable"); GA describes it as the "Alternate spelling of `resizable`". Read as back-compat, deliberately not published — the canonical `resizable` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.title':
     '@deprecated in ObjectGridSchema ("Use label instead"); GA describes it as the "Fallback for `label` (the renderer reads `label || title`)". Read as back-compat, deliberately not published — the canonical `label` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+
+  // ── record:reference_rail.entries — a nested collection, newly JUDGED ──────
+  //                                                                   (1 key)
+  // The gap is not new; being GATED is. `@objectstack/spec` 17.1.0 added
+  // `record:reference_rail` to `ComponentPropsMap` (37 entries to 42), so this
+  // file began judging a block it had never covered — the registration in
+  // `plugin-detail/src/index.tsx:675` has always published `hideEmpty` and only
+  // `hideEmpty`. Nothing about the renderer or its inputs changed on the pin
+  // (objectui#5328).
+  //
+  // `entries` is an ARRAY OF OBJECTS — `{objectName, relationshipField, title,
+  // limit, displayField}` per item — and `inputs` is a flat carrier of scalar
+  // fields (`type: 'string' | 'number' | 'boolean' | 'enum'`). The same
+  // "unpublishable in a flat carrier" reading `page:tabs.type` carried, except
+  // here the carrier cannot express the SHAPE rather than colliding on a name.
+  //
+  // DO NOT resolve this by declaring a scalar input for it: a string field
+  // standing in for a list of related-object bindings recommends a write the
+  // renderer cannot honour, which is this gate's own failure mode one layer in
+  // (the `page:tabs.alwaysShowStrip` note above).
+  //
+  // Also blocked on a real contract question, so it is not merely unbuilt: the
+  // item shape is `ReferenceRailEntrySchema`, whose `$strict` object REFUSES the
+  // `icon` key this repo's own local `ReferenceRailEntry` declares and the
+  // renderer reads. Publishing an entries editor means first deciding whether
+  // `icon` survives — objectui#5494.
+  'record:reference_rail.entries':
+    'An array of {objectName, relationshipField, title, limit, displayField} objects; `inputs` is a flat scalar carrier and cannot express it. Newly judged rather than newly missing — @objectstack/spec 17.1.0 added record:reference_rail to ComponentPropsMap, and the registration (plugin-detail/src/index.tsx:675) has always published only `hideEmpty`. An entries editor also needs the `icon` divergence settled first: objectui#5494.',
 };
 
 /**

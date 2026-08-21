@@ -36,7 +36,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { ComponentPropsMap } from '@objectstack/spec/ui';
+import { ComponentPropsMap, PageComponentType } from '@objectstack/spec/ui';
 
 import {
   RETIRED_DESCRIPTION_PREFIX,
@@ -234,11 +234,27 @@ describe('spec-tombstone judge — against the installed @objectstack/spec', () 
     // EVERY key would satisfy the loop above while proving nothing. An
     // authorable key of the same schema, carrying a value it accepts, must come
     // back clean at its own path.
-    const [controlType] = found[0];
-    const controlKey = authorableShapeKeys(
-      ComponentPropsMap[controlType as keyof typeof ComponentPropsMap],
-    ).find((key) => shapeMemberTypeName(ComponentPropsMap[controlType as keyof typeof ComponentPropsMap], key) === 'string');
-    expect(controlKey, `${controlType} has no authorable string key to use as a control`).toBeTruthy();
+    //
+    // The control type is SEARCHED for rather than taken as `found[0]`: a
+    // WHOLLY retired block (see the narrowing test below) has no authorable key
+    // to offer, so pinning the control to whichever type sorts first made this
+    // assertion depend on alphabetical order. `@objectstack/spec` 17.1.0 made
+    // that concrete — `element:filter` retired entirely and sorts first
+    // (objectui#5328). Any type carrying both a tombstone and an authorable
+    // string key serves the control equally well.
+    const control = found
+      .map(([type]) => type)
+      .map((type) => {
+        const schema = ComponentPropsMap[type as keyof typeof ComponentPropsMap];
+        return [type, authorableShapeKeys(schema).find((key) => shapeMemberTypeName(schema, key) === 'string')] as const;
+      })
+      .find(([, key]) => key !== undefined);
+    expect(
+      control,
+      'no tombstoned block has an authorable string key to use as a control — every candidate ' +
+        'is wholly retired, so the cross-check below would prove nothing',
+    ).toBeTruthy();
+    const [controlType, controlKey] = control as readonly [string, string];
     expect(
       issuePaths(controlType, { [controlKey as string]: 'a string' }),
       `${controlType}.${controlKey} is authorable and string-typed, yet the contract rejected it`,
@@ -252,9 +268,26 @@ describe('spec-tombstone judge — against the installed @objectstack/spec', () 
         authorableShapeKeys(schema).length,
         `${type} authorable set did not narrow below its listed set`,
       ).toBeLessThan(listedShapeKeys(schema).length);
-      // Not narrowed to nothing, either: a block whose every key read as
-      // retired would be a broken probe, not a retired block.
-      expect(authorableShapeKeys(schema).length, `${type} has no authorable key left`).toBeGreaterThan(0);
+      // Not narrowed to nothing — but only for a block the spec still OFFERS.
+      // The reasoning was "a block whose every key read as retired would be a
+      // broken probe, not a retired block", and `@objectstack/spec` 17.1.0
+      // supplied the case that separates the two: `element:filter` left
+      // `PageComponentType` altogether while its props schema stayed in
+      // `ComponentPropsMap` with every key tombstoned (objectui#5328). That is a
+      // retired BLOCK, and reading zero authorable keys off it is the correct
+      // answer rather than a broken probe — the tombstones are how a consumer
+      // pinned to the old enum still gets told the block is gone.
+      //
+      // So the floor is asserted where it still discriminates: a type the enum
+      // continues to offer must keep at least one authorable key, because THAT
+      // is the shape a broken probe would produce.
+      const stillOffered = (PageComponentType.options as readonly string[]).includes(type);
+      if (stillOffered) {
+        expect(
+          authorableShapeKeys(schema).length,
+          `${type} is still offered by PageComponentType yet has no authorable key left`,
+        ).toBeGreaterThan(0);
+      }
     }
   });
 });
