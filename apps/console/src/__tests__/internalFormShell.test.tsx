@@ -56,6 +56,10 @@ const { passthrough, stub } = vi.hoisted(() => ({
 vi.mock('@object-ui/app-shell', () => ({
   ConsoleShell: passthrough,
   ConsoleToaster: () => null,
+  // Suspense fallback for App.tsx's lazy /docs routes (objectui#5467).
+  // The route elements are built when App renders, so this export is
+  // read even by a test that never visits /docs.
+  LoadingScreen: stub('loading-screen'),
   RequireAiSurface: passthrough,
   SystemRedirect: () => null,
   DefaultHomeLayout: ({ children }: { children?: ReactNode }) => (
