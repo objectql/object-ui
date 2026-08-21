@@ -47,6 +47,29 @@ interface NormalizedColumn {
 }
 
 /**
+ * Shared empty fallback for the resolved row list (objectui#4629).
+ *
+ * `Array.isArray(rawData) ? rawData : []` evaluates a FRESH array on every
+ * render, and that value is a dependency of the `derivedColumns` memo below.
+ * So for as long as `rawData` is a non-array — a provider-config `data`, or a
+ * `bind` path that resolves to an object — the memo's key changes on every
+ * render and every column is re-derived (`buildFieldMeta`, a fresh `cell`
+ * closure per column, the `isSystemField` pass, the `fieldLabel` lookups) only
+ * to be discarded: `finalData.length === 0` is exactly the case in which the
+ * component returns its empty state without ever rendering the table.
+ * Hoisting the empty to module scope makes "no rows yet" a stable value, so
+ * the memo sees what is actually true — nothing changed.
+ *
+ * The same move `data-table.tsx` made for its own `EMPTY_ROWS` (objectui#4618,
+ * PR #4623). This file is the `provider: 'object'` sibling of that one, so it
+ * takes the same shape rather than a second remedy for one defect class.
+ *
+ * Frozen so a consumer that mutates the array it was handed cannot corrupt the
+ * shared instance for every other table on the page.
+ */
+const EMPTY_ROWS = Object.freeze([]) as unknown as any[];
+
+/**
  * Normalize columns to support both string[] shorthand and object[] formats.
  *
  * - `string[]` entries are converted to `{ header, accessorKey }` objects,
@@ -307,7 +330,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
 
   // Resolve data: bound data > static schema data > fetched data
   const rawData = boundData || schema.data || fetchedData;
-  const finalData = Array.isArray(rawData) ? rawData : [];
+  const finalData = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
   // Auto-derive columns from data keys when none are provided. When `objectName`
   // is set, prefer translated field labels via the convention-based hook so that

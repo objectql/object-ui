@@ -16,6 +16,28 @@ import { DrillDownDrawer } from './DrillDownDrawer';
 import { resolveFilterPlaceholders } from './utils';
 import type { PivotTableSchema } from '@object-ui/types';
 
+/**
+ * Shared empty fallback for the resolved row list (objectui#4629).
+ *
+ * `Array.isArray(rawData) ? rawData : []` evaluates a FRESH array on every
+ * render, and this component hands the result straight to `PivotTable` as
+ * `finalSchema.data`, where it is the identity key of the cross-tabulation
+ * memo (`PivotTable.tsx`, `[data, rowField, columnField, valueField,
+ * aggregation]`). So while `rawData` is a non-array — a provider-config
+ * `data`, or a `bind` path that resolves to an object — that memo rebuilds its
+ * row/column sets, bucket map and totals on every render over nothing at all.
+ * A module-scope empty makes "no rows yet" a stable value, and the
+ * `Array.isArray` arm downstream passes it through unchanged, so the memo
+ * holds.
+ *
+ * The same move `data-table.tsx` made for its own `EMPTY_ROWS` (objectui#4618,
+ * PR #4623) and `ObjectDataTable.tsx` makes for the identical expression.
+ *
+ * Frozen so a consumer that mutates the array it was handed cannot corrupt the
+ * shared instance for every other pivot on the page.
+ */
+const EMPTY_ROWS = Object.freeze([]) as unknown as any[];
+
 export interface ObjectPivotTableProps {
   schema: PivotTableSchema & {
     objectName?: string;
@@ -151,7 +173,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
 
   // Resolve data: bound data > static schema data > fetched data
   const rawData = boundData || schema.data || fetchedData;
-  const finalData = Array.isArray(rawData) ? rawData : [];
+  const finalData = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
   // Loading skeleton
   if (loading && finalData.length === 0) {
