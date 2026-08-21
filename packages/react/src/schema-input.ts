@@ -36,9 +36,10 @@ import type { SchemaRendererProps } from './SchemaRenderer.js';
  * and it stays. ⛔ Do not "tidy" a call site back into a direct forward: the
  * five `apps/site` sites that were forwarding directly when PR #4608 landed are
  * what kept `Build Docs` red on `main` for ~5 hours — each one a TS2322 naming
- * `number` against this function's return type — until PR #4621 routed all five
- * through here (objectui#4617). An earlier revision of this paragraph said the
- * reconciliation was still pending and invited exactly that edit.
+ * `number` against this function's return type, spelled
+ * `string | BaseSchema | null | undefined` in objectui#4617's logs — until
+ * PR #4621 routed all five through here. An earlier revision of this paragraph
+ * said the reconciliation was still pending and invited exactly that edit.
  */
 export function toRenderableSchema(
   node: BaseSchema | string | number | boolean | null | undefined,

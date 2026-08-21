@@ -12,8 +12,8 @@ is emitted into `dist/schema-input.js` as well as `dist/schema-input.d.ts` — i
 what an editor shows on hover at every call site and bytes that ship.
 
 Measured by building the package the way the repo builds it, at both revisions:
-`dist/schema-input.js` grows from 1,486 to 2,316 bytes (1.45 KB to 2.26 KB), and from 850
-to 1,246 bytes gzipped (0.83 KB to 1.22 KB) — **+830 bytes raw, +396 gzipped**. All 18
+`dist/schema-input.js` grows from 1,486 to 2,377 bytes (1.45 KB to 2.32 KB), and from 850
+to 1,266 bytes gzipped (0.83 KB to 1.24 KB) — **+891 bytes raw, +416 gzipped**. All 19
 differing lines in the emitted file are JSDoc continuations and the three executable lines
 are byte-identical, so the growth is the paragraph and nothing else. The trade is
 deliberate: roughly 0.4 KB gzipped, against the five-hour `Build Docs` outage the old
