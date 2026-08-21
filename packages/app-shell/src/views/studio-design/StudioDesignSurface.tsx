@@ -871,8 +871,11 @@ function NavTree({
  * editing an app's navigation. The Studio adds flat top-level items
  * (`navigation[i]`), so binding is a business-friendly object picker rather
  * than the raw path field of the generic AppNavInspector: picking an object
- * writes `{ object }` (which the runtime resolves to that object's record
- * list) and, if the label is still the placeholder, adopts the object's label.
+ * writes `{ type: 'object', objectName }` (which the runtime resolves to that
+ * object's record list) and, if the label is still the placeholder, adopts the
+ * object's label. The comment used to say it writes `{ object }` — the bare
+ * spelling `AppSchema` answers with `unrecognized_keys`; the code has always
+ * written the canonical key and cleared `object` (objectui#4881).
  */
 function StudioNavItemInspector({
   navId,
@@ -905,7 +908,11 @@ function StudioNavItemInspector({
   const patch = (updates: Record<string, unknown>) => {
     onNavPatch({ navigation: nav.map((n, i) => (i === idx ? { ...n, ...updates } : n)) });
   };
-  const boundObject = String(node.object ?? node.objectName ?? '');
+  // Canonical key FIRST (objectui#4881). `object` is a spelling `AppSchema`
+  // rejects with `unrecognized_keys`, so it can only ever appear on a draft
+  // that cannot be saved; when a draft carries both, the picker must show the
+  // key the schema accepts, never the one it refuses.
+  const boundObject = String(node.objectName ?? node.object ?? '');
   const curLabel = String(node.label ?? node.title ?? node.name ?? '');
   // A nav card is a placeholder until its label is edited or a target adopts a
   // real label. Match both the legacy English sentinel and the locale-specific

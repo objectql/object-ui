@@ -33,16 +33,23 @@ export interface NavNode {
   type?: string;
   icon?: string;
   children?: NavNode[];
+  /**
+   * The surface-binding target keys — CANONICAL SPELLINGS ONLY (objectui#4881).
+   *
+   * Every `NavigationItemSchema` member is a
+   * `strictObject(navItemSurface(variant), ...)`, and the bare spellings
+   * `page` / `object` / `dashboard` / `report` / `view` sit in neither any
+   * variant's shape nor `NAV_ITEM_ALIASES`. Measured on `@objectstack/spec`
+   * 17.0.0: each of them comes back `unrecognized_keys` from
+   * `NavigationItemSchema` and from `AppSchema` — so a node carrying one
+   * cannot be saved, and reading it here would only ever accept a dialect the
+   * schema refuses (Commandment #0.1). Same reading, same reason, as
+   * `AppNavCanvas`'s `navKind` (objectui#3275).
+   */
   pageName?: string;
-  page?: string;
   objectName?: string;
-  object?: string;
   dashboardName?: string;
-  dashboard?: string;
   reportName?: string;
-  report?: string;
-  viewName?: string;
-  view?: string;
   /**
    * `ActionNavItemSchema.actionDef` — a `.strict()` object of exactly
    * `{ actionName, params? }`. The spec answers `action` / `name` / `args` /
@@ -54,26 +61,29 @@ export interface NavNode {
   [k: string]: unknown;
 }
 
-/** Resolve a leaf nav node → the surface {type,name} it binds to. */
+/**
+ * Resolve a leaf nav node → the surface {type,name} it binds to.
+ *
+ * Each case reads its variant's CANONICAL target key and nothing else. There
+ * is deliberately no `view` case either: `NavigationItemSchema` is a
+ * nine-member discriminated union (object / dashboard / page / url / report /
+ * action / component / separator / group) with no `view` member, and
+ * `viewName` is an optional key ON `ObjectNavItemSchema` ("which list view to
+ * open"), not a navigation type. Measured on spec 17.0.0, `type: 'view'` fails
+ * the discriminator outright (`invalid_union` at `type`), so such a leaf can
+ * never reach a saved app and had no reachable branch to resolve.
+ */
 export function resolveSurface(node: NavNode): Surface | null {
   const label = String(node.label ?? '');
   switch (node.type) {
     case 'page':
-      return node.pageName || node.page ? { type: 'page', name: String(node.pageName || node.page), label } : null;
+      return node.pageName ? { type: 'page', name: String(node.pageName), label } : null;
     case 'object':
-      return node.objectName || node.object
-        ? { type: 'object', name: String(node.objectName || node.object), label }
-        : null;
+      return node.objectName ? { type: 'object', name: String(node.objectName), label } : null;
     case 'dashboard':
-      return node.dashboardName || node.dashboard
-        ? { type: 'dashboard', name: String(node.dashboardName || node.dashboard), label }
-        : null;
+      return node.dashboardName ? { type: 'dashboard', name: String(node.dashboardName), label } : null;
     case 'report':
-      return node.reportName || node.report
-        ? { type: 'report', name: String(node.reportName || node.report), label }
-        : null;
-    case 'view':
-      return node.viewName || node.view ? { type: 'view', name: String(node.viewName || node.view), label } : null;
+      return node.reportName ? { type: 'report', name: String(node.reportName), label } : null;
     // A nav action is a GLOBAL action by construction: `ActionNavItemSchema` is
     // `.strict()` with exactly `{ actionName, params? }` and carries no
     // `objectName`, so an object-scoped action is not addressable from the nav
