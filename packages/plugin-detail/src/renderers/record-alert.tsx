@@ -77,10 +77,15 @@ type Severity = 'info' | 'warning' | 'error' | 'success';
  * the renderer and this block's own published surface — the
  * declaration-narrower-than-the-renderer family of objectui#4581.
  *
- * The CTA's `action.label` below is the same slot one level down and is
- * deliberately NOT widened here (objectui#4998): its published surface declares
- * `action` as a bare `object` with the member shape in prose only, so the arms it
- * would be aligned against do not exist yet.
+ * The CTA's `action.label` below is the same slot one level down, widened here
+ * (objectui#4998) to match: it is read through the same `pickLocalized` call as
+ * `title` / `body` (`const ctaLabel = pickLocalized(props.action?.label, language)`
+ * further down), so a declaration of bare `string` was narrower than the
+ * renderer's own runtime behaviour, exactly as `title` / `body` were before
+ * objectui#4970. This widening is TYPE-only: the block's published surface still
+ * declares `action` as a bare `object` with the member shape in prose
+ * (`plugin-detail/src/index.tsx`), so there is no manifest arm to align — that
+ * half stays parked on the `ComponentInput` member-shape question (PR #3795).
  */
 interface RecordAlertProps {
   schema?: {
@@ -90,7 +95,7 @@ interface RecordAlertProps {
       body?: string | I18nLabel;
       visible?: any;
       icon?: string;
-      action?: { actionName: string; label?: string; variant?: string };
+      action?: { actionName: string; label?: string | I18nLabel; variant?: string };
       dismissible?: boolean;
       dismissKey?: string;
     };
@@ -100,7 +105,7 @@ interface RecordAlertProps {
     body?: string | I18nLabel;
     visible?: any;
     icon?: string;
-    action?: { actionName: string; label?: string; variant?: string };
+    action?: { actionName: string; label?: string | I18nLabel; variant?: string };
     dismissible?: boolean;
     dismissKey?: string;
     className?: string;

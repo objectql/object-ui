@@ -29,6 +29,17 @@
  *    UI language — and `pickLocalized` answers `''` on a miss, which is what a
  *    text node wants, where the spec's answers `undefined`.
  *
+ * That split is by DESTINATION, not by package — as of objectui#5134
+ * `plugin-list` holds one of each. `ListView`'s nested `aria.ariaLabel` is an
+ * ATTRIBUTE, not a text node: a miss there must omit the attribute rather than
+ * name the region something, so that one read site calls the spec's
+ * `resolveI18nLabel` and takes its `undefined` directly
+ * (`ListView.ariaLabelInlineLocale.test.tsx`), while `TabBar`'s tab text keeps
+ * `pickLocalized` and its `''`. Which makes the parity below load-bearing for
+ * this package in particular: both spellings now render inside ONE component
+ * tree, so a limb that diverged would show up as a tab and the region that
+ * contains it disagreeing about the same authored map.
+ *
  * Two functions over ONE vocabulary is exactly the drift the ruling names. The
  * harm is not a crash: it is the same authored map rendering one locale on the
  * runtime dashboard and a different one in the designer's preview of that same

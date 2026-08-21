@@ -13,7 +13,7 @@
  */
 
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
@@ -36,8 +36,6 @@ import {
   DefaultSettingsPage,
   DefaultAcceptInvitationPage,
   DefaultAiChatPage,
-  StudioDesignSurface,
-  BuilderLanding,
   getProductName,
   getFaviconUrl,
 } from '@object-ui/app-shell';
@@ -45,6 +43,7 @@ import {
 import { AppContent } from './AppContent';
 import { RootLandingRedirect } from './components/RootLandingRedirect';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { studioRoutes } from './components/StudioRoute';
 import { SetupRoute } from './components/SetupRoute';
 import { FormPage } from './components/FormPage';
 import { InternalFormRoute } from './components/InternalFormRoute';
@@ -208,35 +207,20 @@ export function App() {
               * REST API and renders a read-only view.
               */}
             <Route path="/s/:token" element={<SharedRecordPage />} />
-            {/* Application builder (ADR-0080/0084). `/studio` is the front door
-              * (pick/create a writable package); a package lands on its Data
-              * pillar. Also reachable from the Studio app's 「应用构建」 nav. */}
-            <Route path="/studio" element={
-              <ProtectedRoute>
-                <div className="flex min-h-screen flex-col bg-background text-foreground">
-                  {/* Standalone frame — the landing must never be a navigation
-                    * dead end: the wordmark walks back to the platform Home. */}
-                  <header className="flex shrink-0 items-center border-b px-3 py-2">
-                    <Link
-                      to="/home"
-                      title="返回主页"
-                      className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] font-semibold hover:bg-muted"
-                    >
-                      {getProductName()}
-                    </Link>
-                  </header>
-                  <div className="min-h-0 flex-1 overflow-auto">
-                    <BuilderLanding />
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
-            <Route path="/studio/:packageId" element={<Navigate to="data" replace />} />
-            <Route path="/studio/:packageId/:tab" element={
-              <ProtectedRoute>
-                <StudioDesignSurface />
-              </ProtectedRoute>
-            } />
+            {/* Application builder (ADR-0080/0084) — the whole `/studio`
+              * subtree, declared in `components/StudioRoute` so its ENTRY gate
+              * and the routes it guards cannot be separated by an edit to
+              * either one.
+              *
+              * Before objectui#5519 these were three sibling routes here, two
+              * of them wrapped in `ProtectedRoute` (auth only) and one wrapped
+              * in nothing: `/_console/studio/` rendered the full pillar builder
+              * to any authenticated principal on deployments where the nav tile
+              * is deliberately absent and every metadata write is refused. The
+              * only gate in the path was the backend's write refusal — one
+              * layer too late for a capability whose declared meaning is
+              * "Enter the Studio metadata-design surfaces". */}
+            {studioRoutes}
             {/* Internal authed form — same renderer as `/f/:slug`, different
               * submit path, and (objectui#4109) rendered INSIDE the console
               * shell instead of as a bare page. The route stays exactly where

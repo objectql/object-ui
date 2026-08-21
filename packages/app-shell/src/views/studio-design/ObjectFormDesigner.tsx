@@ -40,6 +40,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Rows3, Settings2 } from 'lucide-react';
 import { inferColumns, containerGridColsFor, isWideFieldType } from '@object-ui/plugin-form';
+import { toFormFieldType } from './formFieldType.js';
 import {
   readFields,
   writeFields,
@@ -155,7 +156,11 @@ function SortableField({
   // Mirror the real form: wide widgets (textarea/markdown/html/…) take the whole
   // row. `col-span-full` (grid-column: 1/-1) spans every column at ANY container
   // width, so it stays correct as the responsive grid collapses to one column.
-  const spanFull = columns > 1 && isWideFieldType(type);
+  // `isWideFieldType` reads FORM vocabulary, so the raw object type is
+  // normalized to its widget id first (see `toFormFieldType`). `type` itself
+  // stays the spec spelling — that is what the type hint shows the admin and
+  // what `FieldControlPreview` switches on.
+  const spanFull = columns > 1 && isWideFieldType(toFormFieldType(type));
   return (
     <div
       ref={setNodeRef}

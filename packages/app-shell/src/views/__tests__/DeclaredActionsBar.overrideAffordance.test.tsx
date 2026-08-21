@@ -37,6 +37,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+// objectui#5622 — the REAL record, deliberately not the mocked resolver below.
+import { icons as lucideIcons } from 'lucide-react';
 
 const executeSpy = vi.fn().mockResolvedValue({ success: true });
 
@@ -126,11 +128,18 @@ import { resetApproverDirectoryCache } from '../../hooks/useApproverDirectory';
 const DECISION_VISIBLE = 'record.viewer.can_act || record.viewer.can_override';
 const SUBMITTER_VISIBLE = 'record.viewer.is_submitter';
 
+// objectui#5622 — `circle-check-big` / `circle-x`, not the retired
+// `check-circle` / `x-circle`. This suite mocks `getIcon` outright, so these
+// names never reach a resolver and nothing here was broken by the old
+// spellings; they were still names lucide has dropped from the runtime `icons`
+// record that a real resolver reads, and a fixture is where a dead spelling
+// gets copied from. Corrected with the live sites rather than left to be
+// harvested. Membership is pinned below.
 const ACTIONS = [
   {
     name: 'approval_approve',
     label: 'Approve',
-    icon: 'check-circle',
+    icon: 'circle-check-big',
     variant: 'primary',
     type: 'api',
     method: 'POST',
@@ -143,7 +152,7 @@ const ACTIONS = [
   {
     name: 'approval_reject',
     label: 'Reject',
-    icon: 'x-circle',
+    icon: 'circle-x',
     variant: 'danger',
     description: 'Reject this request? A rejection is final for every approver.',
     type: 'api',
@@ -263,7 +272,7 @@ describe('DeclaredActionsBar — override-only viewer (objectui#5178)', () => {
     expect(approve.getAttribute('variant')).toBe('outline');
     expect(approve.className).toContain('amber');
     // The declared icon describes the ordinary decision; an override replaces it.
-    expect(screen.queryByTestId('declared-icon-check-circle')).toBeNull();
+    expect(screen.queryByTestId('declared-icon-circle-check-big')).toBeNull();
   });
 
   it('gives reject the SAME override treatment rather than its declared danger styling', () => {
@@ -337,7 +346,7 @@ describe('DeclaredActionsBar — the ordinary path is untouched (objectui#5178)'
     expect(approve.textContent).toContain('Approve');
     expect(approve.textContent).not.toContain('Override');
     expect(approve.getAttribute('variant')).toBe('default');
-    expect(screen.getByTestId('declared-icon-check-circle')).toBeTruthy();
+    expect(screen.getByTestId('declared-icon-circle-check-big')).toBeTruthy();
     expect(screen.getByTestId('declared-action-approval_reject').getAttribute('variant')).toBe('destructive');
 
     fireEvent.click(approve);
@@ -431,5 +440,65 @@ describe('DeclaredActionsBar — the bypassed party is NAMED, not referenced (ob
     await waitFor(() =>
       expect(screen.getByTestId('declared-action-approval_approve')).toBeTruthy());
     expect(adapter.find).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// objectui#5622 — the fixtures above name lucide icons, so they are pinned to
+// live `icons`-record keys like every other icon name in the repo.
+//
+// This suite mocks `getIcon` outright, so these names never reach a resolver
+// and no assertion here depends on them resolving — which is exactly why they
+// drifted. lucide retires a spelling by dropping it from its runtime `icons`
+// record while keeping it as a deprecated named export; `check-circle` and
+// `x-circle` were both retired, and a fixture is where a dead spelling gets
+// copied from into a live site.
+//
+// MEMBERSHIP is the assertion, not resolvability: `CheckCircle ===
+// CircleCheckBig` and `XCircle === CircleX` are both TRUE on the installed
+// lucide, so the retired name is the same glyph object and nothing that renders
+// or imports it can tell the difference.
+// ---------------------------------------------------------------------------
+
+/** The transform the record-reading resolvers apply before their lookup. */
+function iconRecordKey(name: string): string {
+  const pascal = name
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+  return ({ Home: 'House' } as Record<string, string>)[pascal] ?? pascal;
+}
+
+describe('the declared-action fixtures name live lucide icons (objectui#5622)', () => {
+  const FIXTURE_ICONS = ACTIONS
+    .map(action => [action.name, action.icon] as const)
+    .filter(([, icon]) => typeof icon === 'string');
+
+  it('the fixtures actually declare icons — the precondition', () => {
+    // Without this, "no fixture names a retired icon" stays green if the
+    // fixtures stop declaring icons at all.
+    expect(FIXTURE_ICONS.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('names only live `icons` keys', () => {
+    const retired = FIXTURE_ICONS.filter(
+      ([, icon]) => !Object.prototype.hasOwnProperty.call(lucideIcons, iconRecordKey(icon)),
+    );
+
+    expect(
+      retired,
+      'These fixture icons are NOT keys of lucide\'s runtime `icons` record — deprecated aliases.\n'
+        + 'Harmless here because this suite mocks the resolver, and that is the point: correct them\n'
+        + 'where they sit, so they are not copied to a site where a real resolver returns `null`\n'
+        + '(objectui#5622).',
+    ).toEqual([]);
+  });
+
+  it('rejects the two spellings these fixtures used to carry — the control', () => {
+    // Same record, same predicate. Both still import and type-check, and both
+    // ARE their replacement object under a dead name; membership is the only
+    // thing that separates them.
+    expect(Object.prototype.hasOwnProperty.call(lucideIcons, 'CheckCircle')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(lucideIcons, 'XCircle')).toBe(false);
   });
 });

@@ -349,7 +349,44 @@ export class ExpressionEvaluator {
   }
 
   /**
-   * Register a custom formula function
+   * Register a custom formula function.
+   *
+   * **The name is case-folded: it is stored — and must be called — in UPPER
+   * CASE.** `registerFunction('formatCurrency', fn)` registers
+   * `FORMATCURRENCY`, and an expression has to spell it that way:
+   * `${FORMATCURRENCY(price)}` resolves, `${formatCurrency(price)}` does not.
+   * The fold is deliberate — formula names are spreadsheet-style vocabulary
+   * (`SUM`, `IF`, `UPPER`) and the built-ins go through the very same
+   * {@link FormulaFunctions.register} — but two things keep it from being
+   * self-evident at the call site:
+   *
+   * 1. The registry API stays case-insensitive, so it never surfaces the fold:
+   *    `getFormulas().has('formatCurrency')` is `true` and `.get()` returns the
+   *    function. Only expressions see the stored spelling, because the
+   *    evaluation scope is built from `FormulaFunctions.toObject()` — a plain
+   *    object, whose identifiers expressions match case-sensitively.
+   * 2. A wrong-case call site does not raise. {@link evaluate} catches, warns,
+   *    and returns `defaultValue ?? expression`, so the template renders its own
+   *    `${...}` source as literal text. {@link evaluateExpression} is the
+   *    throwing sibling, and reports `'formatCurrency' is not a function`.
+   *
+   * To keep a name's exact spelling, supply the function as evaluation context
+   * data instead: context entries are merged over the formulas and stay verbatim.
+   *
+   * @param name Function name; folded to upper case for both storage and lookup.
+   * @param fn Implementation, invoked with the evaluated call arguments.
+   *
+   * @example
+   * ```ts
+   * const evaluator = new ExpressionEvaluator({ price: 1234.5 });
+   * evaluator.registerFunction('formatCurrency', fmt);
+   *
+   * evaluator.evaluate('${FORMATCURRENCY(price)}'); // '$1,234.50'
+   * evaluator.evaluate('${formatCurrency(price)}'); // '${formatCurrency(price)}' — the source, verbatim
+   *
+   * // Case-sensitive alternative — the function travels as context data:
+   * evaluateExpression('${formatCurrency(price)}', { formatCurrency: fmt, price: 1234.5 }); // '$1,234.50'
+   * ```
    */
   registerFunction(name: string, fn: (...args: any[]) => any): void {
     this.formulas.register(name, fn);

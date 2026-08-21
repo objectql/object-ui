@@ -124,7 +124,12 @@ describe('RichTextField mobile fullscreen — the metadata flag is the only sour
       <RichTextField
         value=""
         onChange={() => {}}
-        field={fieldMeta({ mobile_fullscreen: true, format: 'html', placeholder: 'Write HTML' })}
+        // `type: 'html'` rather than `format: 'html'` since objectui#5498: the
+        // header is derived from the field TYPE's display pipeline, and no
+        // rich-content type declares `format` (see the note in
+        // `RichTextField.fullscreenDisabled.test.tsx`). Same non-default label,
+        // same assertions — only the key that produces it moved.
+        field={fieldMeta({ mobile_fullscreen: true, type: 'html', placeholder: 'Write HTML' })}
       />,
     );
 

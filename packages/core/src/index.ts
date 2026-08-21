@@ -87,3 +87,9 @@ export * from './utils/predicate-record.js';
 // which the column-derived `$select` never asked the server for.
 export * from './utils/predicate-fields.js';
 export * from './utils/normalize-list-view.js';
+// The single home for the VALUE fallback prettifier (a stored value becomes a
+// display string when nothing resolves it). `@object-ui/fields` and
+// `@object-ui/plugin-charts` each carried a byte-identical private copy;
+// both now re-export this one (objectui#5444). Its docstring also records why
+// it stays distinct from `humanizeFieldKey`, the KEY fallback.
+export * from './utils/humanize-label.js';

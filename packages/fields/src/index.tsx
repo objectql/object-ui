@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, type ComponentMeta } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, type ComponentMeta } from '@object-ui/core';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -547,17 +547,21 @@ export function formatPercent(value: number, precision: number = 0, locale?: str
 }
 
 /**
- * Humanize a snake_case or kebab-case string into Title Case.
- * Used as fallback label when no explicit option.label exists.
- * 
- * Examples:
- *   "in_progress" → "In Progress"
- *   "high-priority" → "High Priority"
- *   "active" → "Active"
+ * Humanize a snake_case or kebab-case string into Title Case — the fallback
+ * label when no explicit `option.label` exists.
+ *
+ * Defined in `@object-ui/core` (`utils/humanize-label.ts`) and re-exported here
+ * because this package is one of its two doorways: `plugin-grid`,
+ * `plugin-gantt` and `plugin-detail` read it from `@object-ui/fields`, while
+ * `plugin-charts` reads the same function straight from core. Until
+ * objectui#5444 this file and `plugin-charts`' `ObjectChart.tsx` each held a
+ * byte-identical private copy; core is the shared ancestor both packages
+ * already depend on, so the convention has one home and no new dependency edge
+ * (objectui#4389: core-canonical logic, plugins consume). The core docstring
+ * carries the convention itself, and the reason it stays distinct from
+ * `humanizeFieldKey`'s camelCase-splitting KEY convention.
  */
-export function humanizeLabel(value: string): string {
-  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
+export { humanizeLabel };
 
 /** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
 export interface DateDisplayOptions {
@@ -2266,65 +2270,17 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
   );
 }
 
-const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent.js'));
-
 /**
- * Renders `markdown` values as formatted GFM markdown (lazy-loaded, sanitized)
- * instead of the raw markup string.
- *
- * Markdown ONLY. `MarkdownContent` runs react-markdown with no `rehype-raw`, so
- * raw HTML in the string is not parsed and never reaches the DOM — that is this
- * renderer's trust boundary, not an oversight, and it must stay that way
- * (objectui#5452). `richtext` used to be routed here too and rendered as a
- * COMPLETELY EMPTY cell, because a richtext value is entirely HTML and this
- * pipeline drops all of it; see {@link HtmlCellRenderer}, which is where that
- * type belongs. Loosening this pipeline to pass raw HTML through would have
- * "fixed" one type by moving every `markdown` cell's trust boundary.
+ * The rich-content display pipelines — `markdown` through the GFM renderer,
+ * `html`/`richtext` through the sanitizing HTML renderer — live in
+ * `./widgets/richTextDisplay.js` rather than here, so `RichTextField` can
+ * import them without importing this barrel back (objectui#5498). Re-exported
+ * unchanged: they are part of this package's published surface, and
+ * `RICH_TEXT_CELL_RENDERERS` below is the one table both the cell resolver and
+ * the widget's readonly branch read.
  */
-export function MarkdownCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
-  return (
-    <React.Suspense fallback={<span className="text-sm text-muted-foreground">{String(value).slice(0, 80)}</span>}>
-      <LazyMarkdownContent value={String(value)} />
-    </React.Suspense>
-  );
-}
-
-/**
- * Minimal HTML sanitizer for display: drops <script>/<style>/<iframe> blocks,
- * inline event handlers, and javascript: URLs. Defense-in-depth — stored HTML
- * is authored by users with write access, but is never trusted blindly.
- */
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
-}
-
-/**
- * Renders an `html` value as sanitized, formatted HTML instead of raw markup.
- *
- * Also the renderer for `richtext` (objectui#5452). Both types store an HTML
- * string: the spec's `Field.richtext` is documented as "Formatted content with
- * HTML/WYSIWYG", the showcase seed's own specimen is
- * `<p>Rich <strong>text</strong></p>`, and this repo's designer bridge already
- * maps `richtext` onto its `html` type. {@link sanitizeHtml} above removes
- * script/style/iframe/object/embed blocks, inline event handlers and
- * `javascript:` URLs, and touches nothing a rich-text editor legitimately
- * emits — headings, paragraphs, emphasis, lists, links, quotes all survive, so
- * routing `richtext` here restores the content rather than trading a blank cell
- * for a mangled one.
- */
-export function HtmlCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
-  return (
-    <div
-      className="prose prose-sm max-w-none dark:prose-invert break-words"
-      dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
-    />
-  );
-}
+export { MarkdownCellRenderer, HtmlCellRenderer } from './widgets/richTextDisplay.js';
+import { RICH_TEXT_CELL_RENDERERS } from './widgets/richTextDisplay.js';
 
 /**
  * Renders a `location`/`geolocation` value as readable coordinates with a pin.
@@ -2425,12 +2381,13 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
   const standardMap: Record<string, React.FC<CellRendererProps>> = {
     text: TextCellRenderer,
     textarea: TextCellRenderer,
-    markdown: MarkdownCellRenderer,
-    html: HtmlCellRenderer,
-    // `richtext` stores HTML, so it reads through the HTML renderer — NOT the
-    // markdown one, which drops raw HTML and therefore rendered every populated
-    // richtext value as a blank cell (objectui#5452).
-    richtext: HtmlCellRenderer,
+    // `markdown` / `html` / `richtext` — spread from THE table rather than
+    // written out here, so this resolver and `RichTextField`'s readonly branch
+    // cannot drift apart on which pipeline a rich-content type reads through
+    // (objectui#5498). `richtext` maps to the HTML renderer, NOT the markdown
+    // one, which drops raw HTML and therefore rendered every populated richtext
+    // value as a blank cell (objectui#5452).
+    ...RICH_TEXT_CELL_RENDERERS,
     code: TextCellRenderer,
     qrcode: TextCellRenderer,
     number: NumberCellRenderer,

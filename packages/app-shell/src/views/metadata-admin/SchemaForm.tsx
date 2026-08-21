@@ -56,6 +56,7 @@ import {
   CollapsibleContent,
 } from '@object-ui/components';
 import { evaluatePredicate } from './predicate.js';
+import type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
 import {
   WIDGETS,
   widgetLabelling,
@@ -66,6 +67,15 @@ import {
   type WidgetRenderer,
 } from './widgets.js';
 import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnumOption, translateSchemaFieldLabel, translateSchemaFieldHelp } from './i18n.js';
+
+/**
+ * The form authoring surface — `FormFieldSpec` and the `VisibilityPredicate`
+ * it is written in — is declared in `./form-spec.js`, a leaf that `./widgets.js`
+ * imports too, so the two halves of that contract cannot drift apart again
+ * (objectui#5040). Re-exported here because this is the module every importer
+ * already reaches for.
+ */
+export type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
 
 type JsonSchema = Record<string, any>;
 
@@ -622,9 +632,6 @@ export interface FormViewSpec {
   sections?: FormSectionSpec[];
 }
 
-/** Wire shapes a visibility predicate arrives in: bare CEL, or `{dialect, source}`. */
-export type VisibilityPredicate = string | { dialect?: string; source: string };
-
 /**
  * Read a visibility predicate off a spec node — **canonical key first**.
  *
@@ -661,53 +668,6 @@ export interface FormSectionSpec {
   /** @deprecated ADR-0089 alias of `visibleWhen`; still read for legacy layouts. */
   visibleOn?: VisibilityPredicate;
   fields: Array<string | FormFieldSpec>;
-}
-
-export interface FormFieldSpec {
-  field: string;
-  
-  // 🆕 Field type from Data.FieldType (auto-infers widget)
-  type?: string;
-  
-  // 🆕 Field config from Data.Field
-  options?: Array<{ label: string; value: string; color?: string }>;
-  reference?: string;
-  maxLength?: number;
-  minLength?: number;
-  min?: number;
-  max?: number;
-  precision?: number;
-  scale?: number;
-  multiple?: boolean;
-  
-  // UI overrides
-  label?: string;
-  placeholder?: string;
-  helpText?: string;
-  readonly?: boolean;
-  /**
-   * When true, the field is editable on create but locked once the
-   * record exists (e.g. immutable `name` machine identifiers). Combined
-   * with `SchemaFormProps.createMode` at render time.
-   */
-  immutable?: boolean;
-  required?: boolean;
-  hidden?: boolean;
-  colSpan?: 1 | 2 | 3 | 4;
-  widget?: string;
-  /** Composite rendering: 'inline' (default, bordered box) or 'popover'
-   * (summary line + gear that opens the sub-fields in a popover — Airtable
-   * progressive disclosure, keeps the panel lean). */
-  disclosure?: 'inline' | 'popover';
-  /** For `type: 'code'` — syntax highlighting language (e.g. 'javascript', 'sql', 'json'). */
-  language?: string;
-  /** Canonical field visibility predicate (ADR-0089). */
-  visibleWhen?: VisibilityPredicate;
-  /** @deprecated ADR-0089 alias of `visibleWhen`; still read for legacy layouts. */
-  visibleOn?: VisibilityPredicate;
-  /** Sub-fields for `composite` (single embedded object) and `repeater`
-   * (array of embedded objects) types. Recursive. */
-  fields?: Array<string | FormFieldSpec>;
 }
 
 export interface SchemaFormIssue {

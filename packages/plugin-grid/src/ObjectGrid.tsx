@@ -1195,9 +1195,34 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           // went missing and the grid answered with every record.
           if (schemaFilter !== undefined) {
             params.$filter = schemaFilter;
-          } else if (schema.defaultFilters) {
-            // Legacy support
-            params.$filter = schema.defaultFilters;
+          } else {
+            // The deprecated `defaultFilters`, through the SAME sink as the
+            // canonical key above (objectui#4082). It used to be assigned
+            // byte-for-byte, which made this the one leg on the chain that
+            // reached the wire unlowered — `plugin-list`'s
+            // `buildEffectiveFilter` and `plugin-view`'s non-grid fetch both
+            // already go through `toFilterNode`/`mergeFilterNodes`.
+            //
+            // Byte-copying is refused on the wire for BOTH shapes this slot
+            // carries. `defaultFilters` is declared `Record<string, any>`
+            // (the MongoDB-style shape) and `isFilterAST` is false for a plain
+            // object; `plugin-view` also forwards an active named view's
+            // `ViewFilterRule[]` into this slot (`ObjectView.tsx`, the
+            // `gridSchema` memo), and `isFilterAST` is false for an array of
+            // rule objects too. Either one answers `400 INVALID_FILTER`
+            // (measured against a real backend in objectui#3431).
+            //
+            // `toFilterNode` handles both without new logic: objects route
+            // through `convertFiltersToAST`, rule arrays lower element-wise,
+            // and an AST already in this slot passes through untouched so
+            // nothing is lowered twice. It also folds an absent/empty source to
+            // `undefined`, which is why the truthiness guard this replaces is
+            // gone — `defaultFilters: {}` used to send `$filter: {}`, asking
+            // the server a question with no content in a shape it refuses.
+            const legacyFilter = toFilterNode(schema.defaultFilters);
+            if (legacyFilter !== undefined) {
+              params.$filter = legacyFilter;
+            }
           }
 
           // Sort. A column-header click (objectui#3106) replaces the view's

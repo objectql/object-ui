@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
+import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -10,11 +10,18 @@ import type { DrillDownConfig } from '@object-ui/types';
 
 /**
  * Humanize a snake_case or kebab-case string into Title Case.
- * Local implementation to avoid a dependency on @object-ui/fields.
+ *
+ * Was a local implementation here "to avoid a dependency on
+ * `@object-ui/fields`" — byte-identical to that package's export, which
+ * `plugin-grid` / `plugin-gantt` / `plugin-detail` read, so the two could drift
+ * into a live disagreement (one dashboard can hold a chart and a grid over the
+ * same stored value). objectui#5444 moved the single implementation to
+ * `@object-ui/core`, which this package already depends on: the dependency the
+ * copy existed to avoid is still avoided, and there is now one function rather
+ * than two. Re-exported at module scope because that is the surface this file
+ * has always offered.
  */
-export function humanizeLabel(value: string): string {
-  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
+export { humanizeLabel };
 
 /**
  * The result column an object-bound `aggregate` projects its value under
@@ -259,14 +266,7 @@ export const ObjectChart = (props: any) => {
   const apiFetch = context?.apiFetch;
   const boundData = useDataScope(schema.bind);
   const { fieldOptionLabel } = useSafeFieldLabel();
-  // Keep a stable ref to fieldOptionLabel — the i18n hook returns a fresh
-  // function reference on every render, which would otherwise invalidate
-  // fetchData's useCallback identity and trigger an infinite refetch loop.
-  const fieldOptionLabelRef = useRef(fieldOptionLabel);
-  useEffect(() => {
-    fieldOptionLabelRef.current = fieldOptionLabel;
-  }, [fieldOptionLabel]);
-  
+
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   // Measure/dimension label metadata from a dataset-bound queryDataset()
   // response (e.g. { name: 'task_count', label: 'Tasks' }) — captured so
@@ -640,7 +640,7 @@ export const ObjectChart = (props: any) => {
                     groupByField,
                     objectSchema,
                     ds,
-                    (value, fallback) => fieldOptionLabelRef.current(schema.objectName, groupByField, value, fallback),
+                    (value, fallback) => fieldOptionLabel(schema.objectName, groupByField, value, fallback),
                   );
               } catch {
                   // Schema fetch failed — continue with raw values
@@ -658,8 +658,20 @@ export const ObjectChart = (props: any) => {
       } finally {
           if (mounted.current) setLoading(false);
       }
+      // `fieldOptionLabel` is a REAL dependency, not a lint concession: the
+      // groupBy label resolution above calls it, so a fetch that ran with a
+      // stale resolver would render stale option labels. It used to be hidden
+      // behind a ref because `useSafeFieldLabel()` returned a fresh object on
+      // every render outside an i18next provider, which made this callback --
+      // and therefore the effect below that depends on it -- fresh every
+      // render too, i.e. an unbounded refetch loop. `useObjectLabel`'s memo now
+      // holds on both paths (objectui#5564), so the identity changes only when
+      // the resolver genuinely changes: once, when a provider mounts or the
+      // language switches. The disable below stays for the OTHER omissions on
+      // this list (`schema.aggregate`, `schema.dataset`, ...), which predate
+      // this change.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, datasetKey, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate, filterScope]);
+  }, [schema.objectName, datasetKey, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate, filterScope, fieldOptionLabel]);
 
   useEffect(() => {
     const mounted = { current: true };

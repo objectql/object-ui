@@ -514,8 +514,11 @@ export interface WidgetConfigPanelProps {
 //   WRITE `setLocalized(stored, language, edited)` — replace ONLY the active
 //         locale's entry and carry every other locale across untouched.
 //
-// A full multi-locale editor (authoring every locale in the panel) is
-// objectui#4163's territory, not this one.
+// A full multi-locale editor — authoring every locale from this panel — is NOT
+// what this panel offers; it edits the active locale only. That remains an OPEN
+// product question and is deliberately not deferred to a tracker here: the
+// deferral this replaced named objectui#4163, which closed as completed on
+// 2026-08-15 with the question still unanswered.
 // ---------------------------------------------------------------------------
 
 /**

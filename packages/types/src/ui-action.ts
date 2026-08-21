@@ -24,7 +24,6 @@ import type {
   ActionLocation,
   ActionParamSchema as SpecActionParamSchema,
   ActionType as SpecActionType,
-  I18nLabel,
 } from '@objectstack/spec/ui';
 import { FieldType as SpecFieldTypeEnum } from '@objectstack/spec/data';
 import type { FieldType as SpecFieldType } from '@objectstack/spec/data';
@@ -312,15 +311,44 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * regex?) and adding it to `@objectstack/spec`, which is where such a capability
  * would have to start.
  *
- * `label` and `options[].label` are NOT pinned, though the comment above used
- * to justify them as a widening: "labels take the spec's `I18nLabel` (a string
- * or a per-locale record)". In spec 17 `I18nLabelSchema` is `z.ZodString` —
- * inline per-locale objects were dropped in favour of translation files — so
- * the local override had become an exact restatement of the spec's own type
- * while still claiming to be wider than it. Both keys are now inherited.
- * (`__tests__/page-nav-misc-spec-parity.test.ts` pins that reading, so the day
- * the spec re-widens `I18nLabel` this decision gets re-made rather than
- * inherited.)
+ * `label` and `options[].label` are NOT pinned: both flow in by reference with
+ * the rest of the spec's keys. The comment here used to justify a local
+ * override as a widening — "labels take the spec's `I18nLabel` (a string or a
+ * per-locale record)" — and then justified deleting that override with a claim
+ * about the spec that was never true: "in spec 17 `I18nLabelSchema` is
+ * `z.ZodString`, inline per-locale objects were dropped in favour of
+ * translation files". The spec never narrowed that way (objectui#4611).
+ *
+ * What `I18nLabel` admits, stated in as many words by its own doc block in
+ * `@objectstack/spec/ui` (objectstack#5728, maintainer ruling 2026-08-06): a
+ * display label in one of TWO authorized forms — a plain default-language
+ * string, whose translations live in a translation bundle addressed by
+ * convention, or an inline locale map keyed by locale tag (`en`, `zh-CN`, ...)
+ * picked at render time — closing with "Both are real; neither is deprecated
+ * by this schema." The map form is live here, not theoretical: this repo's
+ * renderers resolve it through `pickLocalized` (e.g. `schema.title` in
+ * `packages/components/src/renderers/layout/containers.tsx`), and the spec
+ * ships `resolveI18nLabel` as the matching resolver on its own side.
+ *
+ * Deleting the override was still right, for a reason that does not depend on
+ * which forms the union holds: a plain string is one of the forms `I18nLabel`
+ * admits, so a local `string | I18nLabel` collapses to `I18nLabel` — an exact
+ * restatement of the inherited type while claiming to be wider than it.
+ * Inheriting by reference is what keeps these keys correct as the spec's set of
+ * authorized forms moves; an override is what cannot.
+ *
+ * If you need today's spelling rather than the authorized forms, measure it:
+ * against `@objectstack/spec@17.0.0` it is `z.ZodUnion([z.ZodString,
+ * z.ZodRecord(z.ZodString, z.ZodString)])` (`dist/ui/index.d.ts:614`). That is
+ * a reading of one version, not a standing fact about the schema — which is
+ * the distinction the sentence this replaces failed to make.
+ *
+ * Guarded since objectui#5612, and it was not before: the `it(...)` case in
+ * `__tests__/page-nav-misc-spec-parity.test.ts` that calls itself an inverted
+ * pin on this decision used to assert only that a plain string is assignable to
+ * `I18nLabel` — which holds under either form, so the widening above went
+ * through it green. It now asserts BOTH authorized forms are assignable, here
+ * and on `options[].label`, and so fails when either is withdrawn.
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */

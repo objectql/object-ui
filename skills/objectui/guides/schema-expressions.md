@@ -83,8 +83,17 @@ literal `${...}` on screen for nothing on screen. Put keys on the node.
 ] }
 ```
 
-The `element:*` namespace is the deliberate exception: those components read
-their config out of `properties` / `props`, so the envelope is required there.
+The `element:*` namespace is where `props` is read: those components take their
+config out of `properties` / `props`, so the envelope is required there.
+
+`properties` is not the same envelope as `props`. `SchemaRenderer` evaluates it
+and then **hoists its keys onto the node**, so it is read by every namespace —
+measured, `{ "type": "card", "properties": { "title": "${data.customer.name}" } }`
+does render the evaluated name. Whether that is an authoring channel for
+`ui:*` / `page:*` is an open contract question (objectui#4795); the measurement
+and the failing legs beside it are in
+[`rules/protocol.md`](../rules/protocol.md). Until it is ruled, the route this
+guide teaches is unchanged: `content`, or resolve the value in the host.
 
 ## Template expression syntax (`${}`)
 
@@ -604,7 +613,7 @@ Expressions don't throw on missing variables — they return `undefined`. Use fa
 
 When an expression isn't working:
 
-1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded.
+1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded. (A `properties` envelope is the one that is evaluated *and* hoisted onto the node — see [`rules/protocol.md`](../rules/protocol.md) for why that is recorded, not recommended.)
 2. Is the `${}` syntax correct? Check for unmatched braces.
 3. Is the data actually available in scope? Check `SchemaRendererProvider dataSource`.
 4. For conditions: are you using `On` suffix correctly? (`hiddenOn` takes raw expression, `hidden` needs `${}` if it's a string).

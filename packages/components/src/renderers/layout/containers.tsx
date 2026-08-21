@@ -973,18 +973,24 @@ export function cleanupTitleSeparators(s: string): string {
  * warn-once machinery reports a faulting predicate under the label this file
  * passes (`page:header action "…" visible`) — one report per broken predicate,
  * identical in wording to the row kebab and the selection bar. What stays local
- * is the missing-field diagnostic below, which explains a *cause* the engine
- * cannot see (fields stripped from the payload server-side).
+ * is the missing-field diagnostic below, which names a *fact* the engine cannot
+ * see (the payload this page bound does not carry the key at all).
  */
 const _warnedHeaderPredicates = new Set<string>();
 
 /**
  * Warn when a predicate references `record.<field>` keys that are absent from
- * the loaded record payload (#2358 trap 3): the server strips `hidden: true`
- * fields from detail payloads, so such a predicate silently resolves to
+ * the loaded record payload (#2358 trap 3): a projected or partial read binds a
+ * record without those keys, so such a predicate silently resolves to
  * `undefined` and fail-closed hides the action with no error to catch. A key
  * that is present-but-null does NOT trigger this (legitimately empty field).
  * Skipped while the record is empty/loading to avoid false positives.
+ *
+ * ⛔ Do NOT re-attribute this to `hidden: true` (objectui#5399). `hidden` is a
+ * UI concern ("Hidden from default UI"), not a projection rule: the framework's
+ * read path drops `internal: true` columns and the `__search` companion, and
+ * nothing else. This surface knows only WHICH keys the bound payload lacks; it
+ * does not own the read that produced it, so it must not name a cause.
  */
 function warnMissingRecordFields(name: unknown, source: string, record: unknown): void {
   if (!record || typeof record !== 'object' || Object.keys(record as object).length === 0) return;
@@ -1000,8 +1006,10 @@ function warnMissingRecordFields(name: unknown, source: string, record: unknown)
   console.warn(
     `[page:header] action "${String(name)}" predicate references record field(s) ` +
     `not present in the record payload: ${missing.join(', ')}. Predicate: ${source}. ` +
-    `Hidden (hidden: true) fields are stripped from detail payloads server-side, ` +
-    `so a predicate gating on one may evaluate to a hide-by-default verdict.`,
+    `This page bound a record payload that does not carry those key(s) — a projected ` +
+    `or partial read ($select, an embedded card, a custom page passing a projected ` +
+    `record) will not include them — so the predicate fails closed and the action ` +
+    `stays hidden.`,
   );
 }
 

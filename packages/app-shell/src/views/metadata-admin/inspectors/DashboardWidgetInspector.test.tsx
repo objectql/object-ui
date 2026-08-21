@@ -274,3 +274,118 @@ describe('DashboardWidgetInspector — dashboard filter bindings (framework#2501
     });
   });
 });
+
+/**
+ * The Title field's `I18nLabel` write-back (objectui#5428, under objectui#5301's
+ * maintainer ruling of 2026-08-20).
+ *
+ * `@objectstack/spec` widened `I18nLabel` to `string | Record< string, string >`
+ * at 17.0.0-rc.6, and this inspector edits a widget title in ONE single-line
+ * input. Writing `e.target.value` back as the whole value collapses every other
+ * locale on the first keystroke, so PR #4169 made a map-valued title read-only
+ * on the premise that "nothing in any corpus can hit this path yet". The pinned
+ * spec is 17.0.0; the premise is expired, and what the branch actually did was
+ * deny an author an edit in their own locale.
+ *
+ * The replacement rule: a save replaces ONLY the active locale's entry and
+ * carries every other locale across untouched (`setLocalized`).
+ *
+ * ⚠️ The load-bearing assertions here are the PRESERVATION ones. "The input is
+ * no longer read-only" is equally green against a fix that flattens the map —
+ * which is precisely the data loss the read-only branch was protecting against
+ * — so every case below asserts the shape of what was written, not merely that
+ * something was.
+ *
+ * ⚠️ Not a multi-locale editor: the author reaches only the entry for the
+ * locale they are in. `locale` is a prop here, which is why the active-locale
+ * half of the rule is pinned at THIS surface (the designer's sibling panel
+ * takes its language from the i18n provider).
+ */
+describe('DashboardWidgetInspector — map-valued title write-back (#5428)', () => {
+  const MAP_TITLE = { en: 'Pipeline', 'zh-CN': '销售漏斗' } as const;
+
+  /** The `title` of the single patched widget from the last `onPatch` call. */
+  function patchedTitle(onPatch: ReturnType<typeof vi.fn>): unknown {
+    const calls = onPatch.mock.calls;
+    const last = calls[calls.length - 1][0] as { widgets: Array<{ title?: unknown }> };
+    return last.widgets[0].title;
+  }
+
+  /**
+   * The title input, by id rather than by label text: these cases vary the
+   * ACTIVE LOCALE, and the field's label is itself translated ('Title' /
+   * '标题'). The label association is asserted once, in English, below.
+   */
+  function titleInput(): HTMLInputElement {
+    return document.getElementById('widget-title') as HTMLInputElement;
+  }
+
+  function typeTitle(value: string, extra: Record<string, unknown>, props: Record<string, unknown> = {}) {
+    const onPatch = vi.fn();
+    renderWidget(extra, { ...props, onPatch });
+    fireEvent.change(titleInput(), { target: { value } });
+    return onPatch;
+  }
+
+  it('shows a map-valued title resolved, and EDITABLE', () => {
+    // Necessary, NOT sufficient — see the preservation pins below.
+    renderWidget({ title: MAP_TITLE });
+    const input = screen.getByLabelText('Title') as HTMLInputElement;
+    expect(input.value).toBe('Pipeline');
+    expect(input.readOnly).toBe(false);
+  });
+
+  it('⛔ writes ONLY the active locale entry — every other locale survives byte-identical', () => {
+    const onPatch = typeTitle('Pipelinex', { title: MAP_TITLE });
+    const title = patchedTitle(onPatch);
+    // Still a map. The flattening write emits the bare string 'Pipelinex'.
+    expect(typeof title).toBe('object');
+    const map = title as Record<string, string>;
+    expect(map.en).toBe('Pipelinex');
+    // The locale the author never saw, character for character.
+    expect(map['zh-CN']).toBe('销售漏斗');
+    expect(map['zh-CN']).toBe(MAP_TITLE['zh-CN']);
+    expect(Object.keys(map).sort()).toEqual(['en', 'zh-CN']);
+    // The stored object is not mutated in place.
+    expect(MAP_TITLE).toEqual({ en: 'Pipeline', 'zh-CN': '销售漏斗' });
+  });
+
+  it('⛔ the ACTIVE locale is the one written — editing under zh-CN leaves `en` alone', () => {
+    // Non-vacuity for the pin above, which would also pass a fix hard-wired to
+    // `en`: same fixture, different active locale, opposite entry edited.
+    const onPatch = typeTitle('销售管道', { title: MAP_TITLE }, { locale: 'zh-CN' });
+    const map = patchedTitle(onPatch) as Record<string, string>;
+    expect(map['zh-CN']).toBe('销售管道');
+    expect(map.en).toBe('Pipeline');
+    expect(Object.keys(map).sort()).toEqual(['en', 'zh-CN']);
+  });
+
+  it('a locale the map does not carry ADDS an entry rather than overwriting the displayed one', () => {
+    // The author sees English (the display fallback) while editing in French.
+    // Writing what they see back into `en` would overwrite a locale they never
+    // opened — so the write key stops at the first three resolution limbs.
+    const onPatch = typeTitle('Pipeline commercial', { title: MAP_TITLE }, { locale: 'fr' });
+    const map = patchedTitle(onPatch) as Record<string, string>;
+    expect(map.fr).toBe('Pipeline commercial');
+    expect(map.en).toBe('Pipeline');
+    expect(map['zh-CN']).toBe('销售漏斗');
+    expect(Object.keys(map).sort()).toEqual(['en', 'fr', 'zh-CN']);
+  });
+
+  it('a plain-string title still saves as a plain string — the common path is unchanged', () => {
+    // Non-vacuity in the other direction: a fix that wrapped every edit into a
+    // map would satisfy every assertion above and fail here, changing the
+    // stored shape of titles that were never localized.
+    const onPatch = typeTitle('Revenue (net)', {});
+    expect(patchedTitle(onPatch)).toBe('Revenue (net)');
+  });
+
+  it('an unrelated edit leaves a map-valued title byte-identical', () => {
+    // The round trip the ruling requires: touching another field must not
+    // rewrite the title at all — not even into an equal-but-rebuilt object.
+    const onPatch = vi.fn();
+    renderWidget({ title: MAP_TITLE, dataset: 'sales_pipeline' }, { onPatch });
+    fireEvent.change(screen.getByLabelText('Height'), { target: { value: '4' } });
+    expect(patchedTitle(onPatch)).toBe(MAP_TITLE);
+  });
+});

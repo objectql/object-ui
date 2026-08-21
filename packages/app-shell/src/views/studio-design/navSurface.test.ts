@@ -99,3 +99,108 @@ describe('resolveSurface — the variants around the new one are unchanged', () 
     ).toBeNull();
   });
 });
+
+/**
+ * objectui#4881 — the binding reads the CANONICAL target key only.
+ *
+ * This card is subtraction, and subtraction has a trap: a pin that only says
+ * `resolveSurface(x) === null` is green because NOTHING WAS PRODUCED, not
+ * because the logic is right — it would have passed before the deleted legs
+ * as well as after, so it proves nothing either way. Each spelling is
+ * therefore pinned as a PAIR on the SAME `type`, and the pair is what carries
+ * the proof:
+ *
+ *   a) the canonical fixture PARSES against `NavigationItemSchema` and
+ *      RESOLVES to a surface — green only if the surviving branch really
+ *      reads that key; and
+ *   b) the bare fixture is REJECTED by the spec, with an `unrecognized_keys`
+ *      issue naming that exact key (so the shape cannot reach a saved app),
+ *      AND stays unresolved here.
+ *
+ * The null in (b) is only meaningful because (a) is non-null on the same
+ * variant with only the key spelling changed: the leaf is unresolvable
+ * because of the SPELLING, not because the variant has no surface.
+ *
+ * Measured against the installed `@objectstack/spec` 17.0.0 (the card was
+ * written against 17.0.0-rc.6): all four bare spellings are still unknown
+ * keys, and the union still has no `view` member.
+ */
+interface Variant {
+  type: string;
+  canonicalKey: 'pageName' | 'objectName' | 'dashboardName' | 'reportName';
+  /** The spelling `AppSchema` answers with `unrecognized_keys`. */
+  bareKey: string;
+  name: string;
+  label: string;
+}
+
+const VARIANTS: Variant[] = [
+  { type: 'page', canonicalKey: 'pageName', bareKey: 'page', name: 'home', label: 'Home' },
+  { type: 'object', canonicalKey: 'objectName', bareKey: 'object', name: 'crm_lead', label: 'Leads' },
+  { type: 'dashboard', canonicalKey: 'dashboardName', bareKey: 'dashboard', name: 'sales', label: 'Sales' },
+  { type: 'report', canonicalKey: 'reportName', bareKey: 'report', name: 'pipeline', label: 'Pipeline' },
+];
+
+/** Every `unrecognized_keys` key the spec named, flattened. */
+function unrecognizedKeys(value: unknown): string[] {
+  const parsed = NavigationItemSchema.safeParse(value);
+  if (parsed.success) return [];
+  return parsed.error.issues.flatMap((i) => (i.code === 'unrecognized_keys' ? i.keys : []));
+}
+
+describe.each(VARIANTS)(
+  'resolveSurface — $type binds `$canonicalKey`, never the bare `$bareKey` (objectui#4881)',
+  ({ type, canonicalKey, bareKey, name, label }) => {
+    it('the canonical fixture is spec-VALID and resolves to its surface', () => {
+      const node = { id: `nav_${name}`, type, label, [canonicalKey]: name } as NavNode;
+      expect(NavigationItemSchema.safeParse(node).success).toBe(true);
+      expect(resolveSurface(node)).toEqual({ type, name, label });
+    });
+
+    it('the bare spelling is `unrecognized_keys` in the spec AND unresolved here', () => {
+      const node = { id: `nav_${name}`, type, label, [bareKey]: name } as NavNode;
+      // Half one: the shape cannot reach production — the schema refuses it by
+      // name, so no saved app can carry it.
+      expect(NavigationItemSchema.safeParse(node).success).toBe(false);
+      expect(unrecognizedKeys(node)).toContain(bareKey);
+      // Half two: the consumer does not parse it either. Non-trivial because
+      // the sibling test above resolves the SAME type with only the key
+      // spelling changed — this null is about the spelling, not the variant.
+      expect(resolveSurface(node)).toBeNull();
+    });
+
+    it('a draft carrying BOTH keys binds to the canonical one', () => {
+      const node = { id: `nav_${name}`, type, label, [canonicalKey]: name, [bareKey]: 'rejected_spelling' } as NavNode;
+      // Such a draft is unsaveable — the bare key alone is enough to fail.
+      expect(unrecognizedKeys(node)).toContain(bareKey);
+      expect(resolveSurface(node)?.name).toBe(name);
+    });
+  },
+);
+
+describe('resolveSurface — there is no `view` nav variant (objectui#4881)', () => {
+  const VIEW_LEAF = { id: 'nav_all', type: 'view', label: 'All Leads', viewName: 'all' } as NavNode;
+
+  it('`type: "view"` fails the discriminator — the union has nine members and none is `view`', () => {
+    const parsed = NavigationItemSchema.safeParse(VIEW_LEAF);
+    expect(parsed.success).toBe(false);
+    const issue = parsed.success ? undefined : parsed.error.issues[0];
+    expect(issue?.code).toBe('invalid_union');
+    expect(issue?.path).toEqual(['type']);
+    // The deleted branch could only ever have run on this — i.e. never.
+    expect(resolveSurface(VIEW_LEAF)).toBeNull();
+  });
+
+  it('`viewName` is an OPTIONAL key ON the object item, so that leaf still binds as `object`', () => {
+    // The reason there is no `view` TYPE: "which list view to open" is a
+    // property of an object nav item, not a navigation variant of its own.
+    const node = { id: 'nav_lead', type: 'object', label: 'Leads', objectName: 'crm_lead', viewName: 'all' } as NavNode;
+    expect(NavigationItemSchema.safeParse(node).success).toBe(true);
+    expect(resolveSurface(node)).toEqual({ type: 'object', name: 'crm_lead', label: 'Leads' });
+  });
+
+  it('the bare `view` key is `unrecognized_keys` even on an otherwise valid object item', () => {
+    const node = { id: 'nav_lead', type: 'object', label: 'Leads', objectName: 'crm_lead', view: 'all' } as NavNode;
+    expect(unrecognizedKeys(node)).toContain('view');
+  });
+});

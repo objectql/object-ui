@@ -535,8 +535,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       setParamState({
         open: true,
         params: localized,
-        // Title the dialog as the action rather than the generic "Action parameters".
-        title: action?.label || action?.title,
+        // Title the dialog as the action rather than the generic "Action
+        // parameters" — from `label` alone, the one spelling an action carries
+        // for this. The `|| action?.title` fallback that used to sit here read
+        // a key declared on no action surface at all — not `@objectstack/spec`'s
+        // `ActionSchema` (44 keys walked at spec 17.0.0), not `ActionDef` or its
+        // pinned `ACTION_DEF_KEYS` / `SPEC_ACTION_KEYS`, not `@object-ui/types`'
+        // renderer view (`ui-action.ts`) or `crud.ts` — and forwarded by none of
+        // the four action renderers, so it could not fire from authored
+        // metadata. This was the SECOND copy of the limb objectui#4282 removed
+        // from `useConsoleActionRuntime`: this view builds its own runtime
+        // rather than routing through that hook, so the two param-collection
+        // handlers drift as a pair (objectui#5610). Reads exactly one key, like
+        // `description` below.
+        title: action?.label,
         description: actionDescription(objForI18n, action?.name, action?.description),
         resolve,
       });

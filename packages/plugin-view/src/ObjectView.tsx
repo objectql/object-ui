@@ -458,6 +458,68 @@ export const OBJECT_VIEW_DECLARED_FORWARDED_KEYS = [
 ] as const;
 
 /**
+ * HOST-COMPOSITION VIEW TYPES on the `object-view` node — the two
+ * `generateViewSchema` branches an author cannot select, deliberately NOT
+ * added to the authored view-type unions, and ⛔ not to be taught as
+ * authorable `defaultViewType` / `NamedListView.type` values anywhere in the
+ * docs (objectui#5321).
+ *
+ * ## The verdict
+ *
+ * `generateViewSchema` below switches on eight view types. The type an AUTHOR
+ * uses to select one admits six of them: `ObjectViewSchema.defaultViewType`
+ * and `NamedListView.type` (both `@object-ui/types`) are the same seven-value
+ * union `'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' |
+ * 'map'`, and neither spells `tree` or `chart`. The one segment that can is
+ * the `views` PROP on this component, which is typed `ViewType` — and
+ * `ViewType` carries both. So `currentViewType` is `tree` or `chart` only when
+ * a HOST composes `ObjectView` with a `views` prop; from authored metadata
+ * those two branches are unreachable, including the tree branch's own
+ * `viewOptions.tree.*` config surface and the ADR-0021 dataset-bound chart
+ * shape.
+ *
+ * ## The ruling that made it deliberate
+ *
+ * Maintainer, 2026-08-20, on objectui#5321, verbatim 「其他接受你的建议。」:
+ * option B — `tree` and `chart` are RECORDED as host-composition-only
+ * surfaces, following the objectui#5097 precedent above, rather than added to
+ * the authored unions. Declaring two more authored members is a permanent
+ * authoring-surface obligation with no measured pull; the exemption gets
+ * revisited the day a real metadata-authoring need for tree or chart views
+ * arrives.
+ *
+ * ## Host-only is not dead — the path is live
+ *
+ * Measured, not assumed: `@object-ui/app-shell`'s console passes stored view
+ * records to this component as `views`, and its `CreateViewDialog` offers
+ * `tree` and `chart` among the nine types a console user can create. That is
+ * the path these branches serve, and it is why the icon map beside them is
+ * total over `ViewType` rather than over the authored union.
+ *
+ * ## What holds the record honest
+ *
+ * The exemption is a claim about REACHABILITY, so both halves are pinned:
+ *
+ *   - `src/__tests__/objectViewHostSurface.test.tsx` — the record. The branch
+ *     set is re-derived from the `#region` fence around the switch below, so a
+ *     ninth branch (or a deleted one) fails BY NAME instead of quietly
+ *     changing what this list describes; and type-level pins fail
+ *     `pnpm type-check` the day either authored union grows a `tree` or
+ *     `chart` member, because that is the day this record goes stale.
+ *   - `src/__tests__/ObjectView.hostOnlyViewTypes.test.tsx` — the basis,
+ *     measured: a host `views` prop still reaches both branches. An exemption
+ *     whose reachability stops being proved is a record about nothing.
+ *
+ * ⛔ Do not "finish" this by deleting the branches as unreachable code. They
+ * are unreachable from AUTHORED metadata only; host composition is a supported
+ * path with a live consumer.
+ */
+export const OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES = [
+  'chart',
+  'tree',
+] as const;
+
+/**
  * ObjectView Component
  *
  * Renders a complete object management interface with multi-view rendering
@@ -836,11 +898,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     setSelectedRecord(null);
   }, []);
 
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
-  }, []);
-
   // --- ViewSwitcher schema (for multi-view prop views) ---
   const viewSwitcherSchema: ViewSwitcherSchema | null = useMemo(() => {
     if (!hasMultiView || !viewsPropResolved || viewsPropResolved.length <= 1) return null;
@@ -853,17 +910,44 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       defaultView: (activeView?.type || 'grid') as ViewType,
       activeView: (activeView?.type || 'grid') as ViewType,
       views: viewsPropResolved.map(v => {
-        const iconMap: Record<string, string> = {
+        // objectui#5321 — TOTAL over `ViewType`, so no member can land without
+        // an icon. This was `Record<string, string>`, and a member with no key
+        // falls through to the `'table'` fallback below: a host-supplied
+        // `tree` view was labelled with the GRID icon. objectui#2916 fixed
+        // exactly that for `chart` by adding one key, and nothing recorded
+        // that the set has to be COMPLETE, so `tree` stayed missing. The
+        // annotation is the guard for the whole class: `ViewSwitcher`'s own
+        // `DEFAULT_VIEW_ICONS` — the consumer of these strings — is already
+        // `Record<ViewType, LucideIcon>`, and only this producer was partial.
+        //
+        // The values are the spellings `ViewSwitcher.resolveIcon` PascalCases
+        // back into lucide icons, so `tree: 'list-tree'` resolves to the same
+        // `ListTree` that file's `DEFAULT_VIEW_ICONS.tree` already names for
+        // this view type. The `|| 'table'` fallback stays: `v.type` arrives
+        // from a host prop and nothing validates it at runtime.
+        //
+        // objectui#5586 — the VALUES have to be names lucide still carries in
+        // its runtime `icons` record, which is what `ViewSwitcher.resolveIcon`
+        // reads. `chart: 'bar-chart-3'` and `gantt: 'gantt-chart'` were dropped
+        // from that record while surviving as deprecated NAMED EXPORTS, so both
+        // types rendered with NO icon at all while every sibling had one. The
+        // compiler sees none of it: nothing in this map is a lucide symbol.
+        // Measured on lucide-react 1.31.0, `chart-column` → `ChartColumn` and
+        // `chart-gantt` → `ChartGantt` both resolve, and both agree with the
+        // components `ViewSwitcher.DEFAULT_VIEW_ICONS` names for the same view
+        // types. Every value here is pinned by `ViewSwitcher.test.tsx`.
+        const iconMap: Record<ViewType, string> = {
           kanban: 'kanban',
           calendar: 'calendar',
           map: 'map',
           gallery: 'layout-grid',
           timeline: 'activity',
-          gantt: 'gantt-chart',
+          gantt: 'chart-gantt',
           grid: 'table',
           list: 'list',
           detail: 'file-text',
-          chart: 'bar-chart-3',
+          chart: 'chart-column',
+          tree: 'list-tree',
         };
         return {
           type: v.type as ViewType,
@@ -954,6 +1038,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         }
     }
 
+    // #region object-view VIEW-TYPE BRANCHES (objectui#5321)
+    //
+    // Every view type this component can render, and the two of them
+    // (`chart`, `tree`) that no authored document can select — see
+    // {@link OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES} at the top of this file.
+    // The fence is load-bearing, not decoration: `objectViewHostSurface.test`
+    // re-derives the branch set from it, so a ninth branch fails BY NAME
+    // rather than quietly changing what that record describes.
     switch (viewType) {
       case 'kanban': {
         // Per @objectstack/spec, kanban-specific config lives under view.kanban.*
@@ -1069,6 +1161,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...pickFlatMapConfig(viewOptions.map),
         };
       case 'tree':
+        // ⛔ HOST-COMPOSITION ONLY (objectui#5321) — see
+        // {@link OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES}. `tree` is a member
+        // of neither `ObjectViewSchema.defaultViewType` nor
+        // `NamedListView.type`, so no authored document reaches this branch;
+        // it runs only when a host passes a `views` prop. Ruled RECORDED, not
+        // declared, 2026-08-20. The `viewOptions.tree.*` surface below is
+        // therefore HOST config — maintained, read, and ⛔ not authoring
+        // surface to teach in the docs.
         return {
           type: 'object-tree',
           ...baseProps,
@@ -1082,6 +1182,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.tree || {}),
         };
       case 'chart': {
+        // ⛔ HOST-COMPOSITION ONLY (objectui#5321) — the same record as
+        // `tree` above: `chart` is in neither authored union, so the ADR-0021
+        // shape below is reachable only through a host `views` prop. Ruled
+        // RECORDED, not declared, 2026-08-20.
+        //
         // Aggregated chart of the object's records, delegating to the same
         // object-chart component the dashboard uses.
         const chartCfg = viewOptions.chart || {};
@@ -1121,6 +1226,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       default:
         return null;
     }
+    // #endregion object-view VIEW-TYPE BRANCHES (objectui#5321)
     // `schema.table?.columns` joins the list with the read added for
     // objectui#5269: a memo that reads a key but does not depend on it keeps
     // serving the field list the author has already replaced.

@@ -563,9 +563,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
 
         // ADR-0021 — a widget bound to a semantic-layer dataset renders through
         // the governed queryDataset path (DatasetWidget) instead of the inline
-        // object-aggregate schema. `as any` because the bundled DashboardWidget
-        // type gains `dataset` only after objectui bumps @objectstack/spec.
-        const datasetBound = !!(widget as any).dataset;
+        // object-aggregate schema. No cast needed: `dataset` flows onto
+        // `DashboardWidgetSchema` from `@objectstack/spec`'s `DashboardWidget`
+        // (`packages/types/src/complex.ts`), so `widget.dataset` type-checks
+        // directly.
+        const datasetBound = !!widget.dataset;
 
         const getComponentSchema = () => {
             if (widget.component) return widget.component;
@@ -883,9 +885,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 style={innerGridSpanStyle}
                 {...designModeProps}
             >
-                 {datasetBound
-                   ? <div className={cn("h-full w-full", designMode && "pointer-events-none")}><DatasetWidget widget={effectiveWidget} dataSource={dataSource} /></div>
-                   : <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />}
+                 {/* `isSelfContained` implies `!datasetBound` (see its definition above), so a
+                     dataset-bound widget can never render here — it always takes the Card branch
+                     below for its title + border chrome. Do not re-add a `datasetBound` fork
+                     here: the arm is unreachable by construction (objectui#4620). */}
+                 <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />
                  {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
             </div>
         ) : (

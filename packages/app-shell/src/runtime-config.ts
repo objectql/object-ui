@@ -287,6 +287,34 @@ export function getCloudBase(): string {
   return current.cloudUrl ?? '';
 }
 
+/**
+ * Is a marketplace catalog reachable from this runtime? (objectui#5504)
+ *
+ * Reads the server's OWN answer — `features.marketplace`, which
+ * `RuntimeConfigPlugin` derives per request from the serving app's route
+ * table (objectstack#8356), i.e. "is a `/api/v1/marketplace/*` browse surface
+ * actually mounted here". On a runtime deployed with `OS_CLOUD_URL=off`
+ * (`none` / `local` / `disabled` alike) the host mounts no marketplace proxy,
+ * so the flag arrives `false` while `/api/v1/runtime/config` itself is still
+ * served — the EE image wires runtime-config unconditionally and the
+ * cloud-dependent surfaces only when `resolveCloudUrl()` is truthy.
+ *
+ * ⛔ Never infer this from the SHAPE OF A FAILURE. A 404/503 from the
+ * marketplace route is equally what a control plane that is merely DOWN
+ * produces, and a page that concludes "disabled by configuration" from it
+ * tells an operator their config is the problem while their control plane
+ * burns. The flag is a property of the runtime's own routing table; a broken
+ * upstream leaves it `true` and the load failure stays a load failure.
+ *
+ * Fails OPEN (`!== false`): a runtime predating `/api/v1/runtime/config`, or
+ * one whose config fetch failed, keeps the default `true` and the marketplace
+ * stays exactly as visible as it was before this gate existed. Withholding a
+ * working capability on an unanswered question is the worse direction.
+ */
+export function isMarketplaceEnabled(): boolean {
+  return current.features?.marketplace !== false;
+}
+
 /** Test/dev helper. */
 export function resetRuntimeConfigForTesting(): void {
   current = {

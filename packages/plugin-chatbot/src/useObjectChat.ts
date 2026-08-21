@@ -441,6 +441,26 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     if (parentConversationId && !prev) parentConvRef.current = parentConversationId;
   }, [parentConversationId]);
 
+  // objectui#4187 - the caller's `body`/`headers` are read through refs at SEND
+  // time instead of being closed over by the transport, so they are NOT memo
+  // deps below. Every caller passes a fresh object literal each render (the AI
+  // page's chat pane rebuilds `body.context` inline), so listing them rebuilt
+  // `DefaultChatTransport` on every render of every chat surface - once per
+  // token batch during a streaming turn. Same idiom as `modelRef` above, and
+  // the only one of the two candidate fixes a future caller cannot silently
+  // undo by forgetting its own `useMemo`.
+  //
+  // SAMPLING CONTRACT (the one real behavioural change): a send serializes
+  // whatever these refs hold when `prepareSendMessagesRequest` runs, i.e. the
+  // values from the most recent render, spread at SEND time. Before, the values
+  // were spread into the transport at CONSTRUCTION time, so a send observed the
+  // last render that happened to rebuild it. The ref read is never staler than
+  // that and is now unconditional - see `useObjectChat.transportIdentity.test`.
+  const bodyRef = useRef(body);
+  bodyRef.current = body;
+  const headersRef = useRef(headers);
+  headersRef.current = headers;
+
   // Build a transport for API mode that posts to the configured endpoint and
   // forwards conversation/system/model metadata in the request body.
   // Note: conversationId is sent in the body (not a header) to avoid CORS
@@ -453,9 +473,13 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       // `notSent` so the composer can restore the input and show a clear error
       // instead of silently dropping the message (see sendAwareFetch).
       fetch: sendAwareFetch,
-      headers: { ...headers },
+      // No `headers` here (objectui#4187): the caller's headers are applied
+      // per-send in prepareSendMessagesRequest below. `reconnectToStream` does
+      // NOT run that hook — it reads this constructor's `headers` — so the first
+      // consumer to wire up stream resumption must merge `headersRef.current`
+      // into `prepareReconnectToStreamRequest` too, or it will resume without
+      // them. Nothing in this repo resumes a stream today.
       body: {
-        ...body,
         ...(conversationId ? { conversationId } : {}),
         ...(model ? { model } : {}),
         ...(systemPrompt ? { systemPrompt } : {}),
@@ -463,8 +487,25 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       },
       // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId —
       // it reconstructs the full default body (incl. messages) + adds turnId.
-      prepareSendMessagesRequest: ({ id, body: reqBody, messages, trigger, messageId }) => {
-        const req = withTurnId({ id, body: reqBody, messages, trigger, messageId });
+      prepareSendMessagesRequest: ({
+        id,
+        body: reqBody,
+        messages,
+        trigger,
+        messageId,
+        headers: reqHeaders,
+      }) => {
+        // #4187: the caller's live `body` goes in FIRST, so the fixed keys above
+        // (conversationId/model/systemPrompt/stream) and any per-send body still
+        // win - the same precedence as when it was spread into the transport's
+        // own `body` option.
+        const req = withTurnId({
+          id,
+          body: { ...bodyRef.current, ...reqBody },
+          messages,
+          trigger,
+          messageId,
+        });
         // ADR-0028: always send the CURRENTLY selected model (see modelRef above)
         // so a mid-session picker switch routes, despite the cached transport.
         if (modelRef.current) (req.body as Record<string, unknown>).model = modelRef.current;
@@ -476,10 +517,16 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
           req.body = withHandoffContext(req.body as Record<string, unknown>, parentConvRef.current);
           parentConvRef.current = undefined;
         }
-        return req;
+        // #4187: the SDK hands us its merged base headers and REPLACES them with
+        // whatever we return here, so re-merge instead of replacing. The caller's
+        // live headers go in first so a per-send header still overrides them,
+        // exactly as the transport's own `headers` option behaved.
+        const sendHeaders = new Headers(headersRef.current ?? {});
+        new Headers(reqHeaders ?? {}).forEach((value, key) => sendHeaders.set(key, value));
+        return { ...req, headers: sendHeaders };
       },
     });
-  }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
+  }, [isApiMode, api, model, systemPrompt, streamingEnabled, conversationId]);
 
   // --- @ai-sdk/react useChat (always called to satisfy Rules of Hooks, but only active in API mode) ---
   // Ref so `onError` (fired later, async) can reach the live setMessages/messages

@@ -10,7 +10,9 @@
  * MEASUREMENT GATE: the objectui#3291 DOM-leak canary sweep, generalized beyond
  * `packages/fields` to the registry-reachable SDUI widgets of the four packages
  * objectui#4425 named (plugin-charts, plugin-calendar, plugin-chatbot,
- * plugin-dashboard).
+ * plugin-dashboard) — and, since objectui#5574, to the renderer family in
+ * `packages/components/src/renderers/**`, which is the bulk of what this gate
+ * now covers.
  *
  * ## What this is, and what it deliberately is NOT
  *
@@ -35,8 +37,11 @@
  *   | plugin-calendar  |       3 |               0 |                 0 |
  *   | plugin-chatbot   |       3 |               0 |                 0 |
  *   | plugin-dashboard |       8 |               2 |             7 / 9 |
+ *   | components       |     158 |             119 |          12 .. 15 |
  *
- * **2 of 23 targets leak**, and both are in {@link LEAK_LEDGER} below:
+ * **121 of 181 targets leak.** The `components` row is objectui#5574 and is
+ * covered in its own section below; the two `plugin-dashboard` rows are the
+ * older tail. Both are in {@link LEAK_LEDGER}:
  * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
  * objectui#4425 owns directly. Two migration steps have closed their rows since
  * the phase-1 measurement:
@@ -93,6 +98,87 @@
  * the two KPI components still run the deny-list, and the two surviving rows are
  * precisely that difference, measured.
  *
+ * ## objectui#5574 — the family this sweep could not see, and what it found
+ *
+ * Until objectui#5574 this gate's discovery was four namespace prefixes wide.
+ * `packages/components/src/renderers/**` registers **158 types across five**
+ * (`ui:`, `element:`, `page:`, `action:`, `protocol-placeholder:`) and not one
+ * of them was reachable, so the whole family sat outside the ratchet. That is
+ * not a theoretical hole: it is why `ui:grid`'s leak had to be found BY HAND
+ * during objectui#4011 / PR #4785 rather than by this file.
+ *
+ * The widening was measured both ways before it was written, at one scope:
+ *
+ *   - PROBE — register one extra widget under `ui:`, a prefix this family owns,
+ *     and run the gate as it stood: **green**. The completeness case never saw
+ *     it.
+ *   - CONTROL — the same perturbation, same assertion, one namespace over:
+ *     register one extra widget under `plugin-dashboard:`, a prefix the gate
+ *     DID cover: **red**, naming the unswept type. So the mechanism works and
+ *     the four-prefix input was the whole of the gap.
+ *
+ * A control at some other scope would have proved nothing here — it could not
+ * have failed. These two differ in exactly one thing: which namespace the extra
+ * widget went into.
+ *
+ * ### The reading — 119 of 158, in eight shapes
+ *
+ * The card named four candidates (`flex`, `stack`, `container`, `text`) and was
+ * careful to call them candidates. All four leak. So do 115 others, and the
+ * measurement is in {@link COMPONENTS_LEAK_GROUPS}, grouped by the MECHANISM
+ * that produces each shape rather than one hand-written sentence per renderer.
+ * `ui:grid` reads clean, which is objectui#4787 / PR #5573's fix now pinned by
+ * a gate instead of by hand.
+ *
+ * ### Four phantom cleans, which are the finding behind the finding
+ *
+ * A first pass over this family reported 46 clean targets. Sixteen of those
+ * were not clean — they had rendered NOTHING, or rendered an error boundary,
+ * and an empty scan reports no leaks:
+ *
+ *   - 12 rendered no element at all: the overlays are closed until
+ *     `defaultOpen`, `action:*` return `null` with no actions, and `ui:icon`
+ *     returns `null` because the canary node's `name` is not a lucide icon.
+ *   - 4 threw `useSidebar must be used within a SidebarProvider` and were
+ *     caught by `SchemaErrorBoundary`, whose markup is attribute-clean.
+ *
+ * That is traps 1, 3 and 4 of the list below, at scale, and it is the reason
+ * this family's readiness is an AUTHORED `className` ({@link COMPONENTS_READY})
+ * rather than 158 transcribed selectors: it proves the widget rendered its own
+ * host element on every target, uniformly, and it caught all sixteen. The six
+ * targets it cannot cover carry their reason in
+ * {@link READY_OVERRIDE_REASONS}, pinned two-way so that list cannot grow
+ * quietly.
+ *
+ * Three of those six are swept in a PLACEHOLDER branch — `element:repeater`,
+ * `element:definition-list` and `element:metadata_viewer` render an empty state
+ * because the sweep's adapter answers with no records by design. Their clean
+ * reading covers that branch only, which is recorded rather than implied.
+ *
+ * ### Why the ledger, and why the renderer fixes are NOT in this change
+ *
+ * Widening the gate and fixing what it catches are separable, and folding 119
+ * renderer fixes into the change that first measures them would destroy the
+ * measurement: the ledger IS the record of what the tree looked like when the
+ * gate arrived, and a PR that both widens and fixes leaves no reading anyone
+ * can check the fixes against. `packages/components` is also the most-shared
+ * package in the repo, so 119 renderer edits in one PR is the worst possible
+ * shape for a merge queue several agents are landing into. The convergence runs
+ * as per-package cards that each delete their own rows — the objectui#4425
+ * phase-2 pattern this file already grades, now with rows to delete.
+ *
+ * ### Why a warning-as-error pin is not the answer here either
+ *
+ * objectui#4787 asked whether React's unknown-attribute warning could close
+ * this class instead. PR #5573 answers that in full and the answer is no —
+ * React does not warn for all-lowercase attributes at all, its suggested remedy
+ * silences the warning while keeping the leak, Vitest discards console output
+ * from passing tests, and the warning latches per prop name so a shared canary
+ * consumes it. This family makes the point concrete: of the 14 attributes in
+ * the commonest shape, the ones React would warn about are a minority, and
+ * {@link BARE_SPREAD_ON_SVG} is a group React reports differently again. The
+ * technique that closes the class reads the DOM, which is what this file does.
+ *
  * ## Why this file lives in `packages/app-shell`
  *
  * The objectui#4409 dependency-direction method, applied to this sweep. A gate
@@ -112,6 +198,9 @@
  *   - `packages/app-shell` declares all four (`devDependencies`, which is the
  *     correct field for a test-only import and is what
  *     `scripts/check-phantom-dependencies.mjs` honours for a `__tests__/` file),
+ *     and it declares `@object-ui/components` as a runtime `dependency` — so
+ *     objectui#5574's widening needed no manifest change at all, and the
+ *     direction argument holds a fortiori for it,
  *     and it is already the home of this repo's cross-package gates —
  *     `__tests__/spec-symbol-parity.test.ts` and #4409's own
  *     `__tests__/defaults-maps-mirror-en-pack.test.tsx`.
@@ -181,6 +270,14 @@ import { ComponentRegistry } from '@object-ui/core';
 // deliberately generous 10s `waitFor` rather than outside it (AGENTS.md
 // 测试纪律 / objectui#3010).
 import '@object-ui/components';
+// The one HOST this sweep needs beyond `SchemaRendererProvider` (trap 4). Four
+// `packages/components` targets read `useSidebar()` and throw
+// `useSidebar must be used within a SidebarProvider` without it — measured, and
+// a throw renders attribute-clean error-boundary markup that reads as a clean
+// pass. It is a REACT host, deliberately not a `ui:sidebar-provider` SCHEMA
+// node: that node is itself a swept target carrying the full canary set, so
+// wrapping in it would attribute the wrapper's own leaks to the target inside.
+import { SidebarProvider } from '@object-ui/components';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import '@object-ui/plugin-charts';
 import '@object-ui/plugin-calendar';
@@ -267,6 +364,12 @@ interface Target {
    * withheld canary is a recorded defect, not a quiet exemption.
    */
   readonly omitCanaries?: readonly string[];
+  /**
+   * A React host this target must render inside, beyond `SchemaRendererProvider`.
+   * Trap 4 again: a host-less render is a different component, and for these
+   * four it is a caught throw — which renders CLEAN markup.
+   */
+  readonly host?: 'sidebar';
 }
 
 const CHART_DATA = [
@@ -285,6 +388,176 @@ const CALENDAR_OBJECT_EXTRAS = {
   startDateField: 'start_at',
   titleField: 'name',
 };
+
+/* ── `packages/components`: the renderer family objectui#5574 widened this to ──
+ *
+ * The four plugin packages above were the whole target set until objectui#5574.
+ * The gap that card measured: `packages/components/src/renderers/**` registers
+ * 158 types across five namespaces and NOT ONE of them was swept, which is why
+ * `ui:grid`'s leak had to be found by hand (objectui#4787 / PR #5573) instead of
+ * by this gate. `ui:grid` reading CLEAN below is that fix, now pinned.
+ *
+ * This family is authored differently from the plugin widgets, so three of its
+ * pieces are shared rather than per-target.
+ */
+
+/**
+ * The readiness selector for this family, authored rather than discovered.
+ *
+ * The plugin targets above each name a selector out of their own markup. Doing
+ * that 158 times would be 158 hand-transcribed strings, each able to rot into a
+ * selector that matches something else — and a readiness selector that matches
+ * the WRONG element is precisely the trap-1 failure this file exists to refuse.
+ * So the node authors a `className` and the selector is derived from it: one
+ * string, and it proves the widget rendered its own host element AND honoured
+ * an ordinary authored prop while doing it.
+ *
+ * Measured on the tree this landed on: 152 of 158 targets match it. The other
+ * six are in {@link READY_OVERRIDE_REASONS}, each with the reason it cannot —
+ * a recorded limitation with its own two-way assertion below, never a quiet
+ * exemption (the `omitCanaries` discipline, applied to readiness).
+ */
+const COMPONENTS_READY_CLASS = 'zzready-canary';
+const COMPONENTS_READY = `.${COMPONENTS_READY_CLASS}`;
+
+/**
+ * The slot child the overlay targets need — and the reason it is `ui:grid`
+ * specifically.
+ *
+ * This sweep scans `document.body`, so ANY node rendered inside a target
+ * contributes its own attributes to that target's reading. An overlay authored
+ * with a leaky child would be recorded as leaking keys it never touched.
+ * `ui:grid` is the one renderer in this family already converged on
+ * `toDomProps` (objectui#4787 / PR #5573), so it is the only child that adds
+ * nothing. Measured, with `ui:span` as the child instead: seven overlay targets
+ * reported `content` and `type` — both the CHILD's keys.
+ */
+const CLEAN_SLOT = { type: 'ui:grid' };
+
+/**
+ * The overlays render NOTHING until they are open — measured: `document.body`
+ * held only RTL's own container div, and every one of them read clean. That is
+ * trap 3 in a new dress: not an error boundary this time, just a closed
+ * component, and it passes just as quietly.
+ */
+const OPEN_OVERLAY = {
+  defaultOpen: true,
+  title: 'Canary title',
+  description: 'Canary description',
+  trigger: CLEAN_SLOT,
+  content: CLEAN_SLOT,
+};
+
+/** `action:*` renderers return `null` when no action survives filtering. */
+const CANARY_ACTIONS = [
+  { name: 'act_a', label: 'Act A', action: { type: 'navigate', url: '/x' } },
+];
+
+/**
+ * Why each of the six targets below cannot use {@link COMPONENTS_READY}, and
+ * what its selector proves instead. Every entry is measured, and the assertion
+ * in section 3 makes this map and the overrides EXACTLY each other: an override
+ * without a reason fails, and a reason whose target no longer needs one fails
+ * too. So this cannot become a place to park an inconvenient target.
+ */
+const READY_OVERRIDE_REASONS: Readonly<Record<string, string>> = {
+  'ui:header-bar':
+    'it renders inside the sidebar wrapper and forwards the authored `className` to neither its own `header` nor that wrapper, so the selector names its own `header` element instead.',
+  'ui:toaster':
+    'Sonner owns the root it renders and takes no `className` from the node; the selector names the live-region `section` Sonner emits.',
+  'ui:tooltip':
+    'the authored `className` goes to `TooltipContent`, which is not rendered while the tooltip is closed. `[data-state="closed"]` is the state Radix merges onto the TRIGGER, so it proves the `Tooltip` root mounted. Its clean reading is therefore clean-by-no-DOM, not clean-by-filtering — the `{...props}` spread lands on a Radix root that renders no element (see the reading table).',
+  'element:definition-list':
+    'no `items` were authored, so the renderer returns its empty-state `p` BEFORE reaching the element it spreads onto. It is swept in that placeholder state, so its clean reading covers the empty branch only.',
+  'element:repeater':
+    'the same placeholder branch: the sweep`s adapter answers with no records by design (FAKE_ADAPTER), so the repeated list — the markup that spreads — never renders. Swept in the empty state only.',
+  'element:metadata_viewer':
+    'the canary node names no resolvable metadata, so it renders its amber not-found placeholder rather than the viewer. Swept in that state only.',
+};
+
+function componentsTarget(
+  type: string,
+  schemaExtras: Record<string, unknown> = {},
+  ready: string = COMPONENTS_READY,
+  host?: Target['host'],
+): Target {
+  return {
+    type,
+    ready,
+    ...(host ? { host } : {}),
+    schemaExtras: { className: COMPONENTS_READY_CLASS, ...schemaExtras },
+  };
+}
+
+/**
+ * The components-owned types that need nothing but the shared readiness class.
+ * Enumerated, not prefix-globbed: the parity case in section 3 proves this list
+ * plus the specials below is EXACTLY what the registry holds under the five
+ * prefixes, so a renderer added to this package cannot slip past unswept.
+ */
+const COMPONENTS_PLAIN_TYPES: readonly string[] = [
+  'action:button', 'action:icon', 'element:button', 'element:divider', 'element:image',
+  'element:number', 'element:record_picker', 'element:text', 'element:text_input',
+  'page:accordion', 'page:card', 'page:footer', 'page:header', 'page:section',
+  'page:sidebar', 'page:tabs', 'protocol-placeholder:ai:suggestion',
+  'protocol-placeholder:global:search', 'protocol-placeholder:nav:breadcrumb',
+  'protocol-placeholder:nav:menu', 'ui:a', 'ui:abbr', 'ui:accordion', 'ui:address',
+  'ui:alert', 'ui:app', 'ui:article', 'ui:aside', 'ui:aspect-ratio', 'ui:avatar', 'ui:b',
+  'ui:badge', 'ui:blockquote', 'ui:br', 'ui:breadcrumb', 'ui:button', 'ui:button-group',
+  'ui:calendar', 'ui:card', 'ui:carousel', 'ui:checkbox', 'ui:cite', 'ui:collapsible',
+  'ui:combobox', 'ui:command', 'ui:container', 'ui:context-menu', 'ui:data-table',
+  'ui:date-picker', 'ui:dd', 'ui:del', 'ui:div', 'ui:dl', 'ui:dt', 'ui:em', 'ui:email',
+  'ui:empty', 'ui:figcaption', 'ui:figure', 'ui:file-upload', 'ui:filter-builder', 'ui:flex',
+  'ui:footer', 'ui:form', 'ui:grid', 'ui:h1', 'ui:h2', 'ui:h3', 'ui:h4', 'ui:h5', 'ui:h6',
+  'ui:header', 'ui:home', 'ui:hr', 'ui:html', 'ui:i', 'ui:image', 'ui:img', 'ui:input',
+  'ui:input-otp', 'ui:ins', 'ui:kbd', 'ui:label', 'ui:li', 'ui:list', 'ui:loading',
+  'ui:main', 'ui:mark', 'ui:menubar', 'ui:nav', 'ui:navigation-menu', 'ui:ol', 'ui:p',
+  'ui:page', 'ui:pagination', 'ui:password', 'ui:pre', 'ui:progress', 'ui:q',
+  'ui:radio-group', 'ui:record', 'ui:resizable', 'ui:scroll-area', 'ui:section', 'ui:select',
+  'ui:separator', 'ui:sidebar-content', 'ui:sidebar-footer', 'ui:sidebar-group',
+  'ui:sidebar-header', 'ui:sidebar-inset', 'ui:sidebar-menu', 'ui:sidebar-menu-item',
+  'ui:sidebar-provider', 'ui:skeleton', 'ui:slider', 'ui:small', 'ui:sonner', 'ui:span',
+  'ui:spinner', 'ui:stack', 'ui:statistic', 'ui:strong', 'ui:sub', 'ui:sup', 'ui:switch',
+  'ui:table', 'ui:tabs', 'ui:text', 'ui:textarea', 'ui:time', 'ui:toast', 'ui:toggle',
+  'ui:toggle-group', 'ui:tree-view', 'ui:u', 'ui:ul', 'ui:utility',
+];
+
+/** The targets that need more than the readiness class, each with its reason. */
+const COMPONENTS_SPECIAL_TARGETS: readonly Target[] = [
+  // Closed overlays render nothing at all (see OPEN_OVERLAY).
+  componentsTarget('ui:dialog', OPEN_OVERLAY),
+  componentsTarget('ui:alert-dialog', { ...OPEN_OVERLAY, actionText: 'OK', cancelText: 'Cancel' }),
+  componentsTarget('ui:sheet', OPEN_OVERLAY),
+  componentsTarget('ui:drawer', OPEN_OVERLAY),
+  componentsTarget('ui:popover', OPEN_OVERLAY),
+  componentsTarget('ui:dropdown-menu', { ...OPEN_OVERLAY, items: [{ label: 'a', value: 'a' }] }),
+  componentsTarget('ui:hover-card', OPEN_OVERLAY),
+  componentsTarget('ui:tooltip', { trigger: CLEAN_SLOT, content: 'tip' }, '[data-state="closed"]'),
+  // `IconRenderer` returns `null` when `schema.name` is not a lucide icon, and
+  // the canary node's `name` is `canary_node` — so the default node rendered
+  // NOTHING and read clean. (That collision is itself worth knowing: this
+  // renderer reads the SDUI identity key `name` as an icon name.)
+  componentsTarget('ui:icon', { name: 'check' }),
+  // `action:*` return `null` with no actions (see CANARY_ACTIONS).
+  componentsTarget('action:bar', { actions: CANARY_ACTIONS }),
+  componentsTarget('action:group', { actions: CANARY_ACTIONS }),
+  componentsTarget('action:menu', { actions: CANARY_ACTIONS }),
+  // `useSidebar()` throws without the host — trap 4, and a caught throw is
+  // attribute-clean markup that passes.
+  componentsTarget('ui:sidebar', {}, COMPONENTS_READY, 'sidebar'),
+  componentsTarget('ui:sidebar-trigger', {}, COMPONENTS_READY, 'sidebar'),
+  componentsTarget('ui:sidebar-menu-button', {}, COMPONENTS_READY, 'sidebar'),
+  componentsTarget('ui:header-bar', {}, 'header.border-b', 'sidebar'),
+  componentsTarget('ui:toaster', {}, 'section[aria-label="Notifications alt+T"]'),
+  componentsTarget('element:definition-list', {}, 'p.text-sm.text-muted-foreground'),
+  componentsTarget('element:repeater', {}, 'p.py-2.text-muted-foreground'),
+  componentsTarget('element:metadata_viewer', {}, 'div.border-amber-300'),
+];
+
+const COMPONENTS_TARGETS: readonly Target[] = [
+  ...COMPONENTS_PLAIN_TYPES.map((type) => componentsTarget(type)),
+  ...COMPONENTS_SPECIAL_TARGETS,
+];
 
 const TARGETS: Readonly<Record<string, readonly Target[]>> = {
   'plugin-charts': [
@@ -322,6 +595,9 @@ const TARGETS: Readonly<Record<string, readonly Target[]>> = {
     // `DashboardRenderer`'s widget grid — the element its `{...props}` lands on.
     { type: 'view:dashboard', ready: '.grid.auto-rows-min' },
   ],
+  // objectui#5574 — 158 targets, built above rather than spelled here because
+  // 138 of them need nothing but the shared readiness class.
+  components: COMPONENTS_TARGETS,
 };
 
 const ALL_TARGETS: readonly Target[] = Object.values(TARGETS).flat();
@@ -332,11 +608,20 @@ const ALL_TARGETS: readonly Target[] = Object.values(TARGETS).flat();
  * to a plugin without a line here fails loudly instead of quietly going
  * unscanned (the guarantee the fields gate gets from `FORM_FIELD_TYPES`).
  */
-const OWNED_NAMESPACES: Readonly<Record<string, string>> = {
-  'plugin-charts': 'plugin-charts:',
-  'plugin-calendar': 'plugin-calendar:',
-  'plugin-chatbot': 'plugin-chatbot:',
-  'plugin-dashboard': 'plugin-dashboard:',
+const OWNED_NAMESPACES: Readonly<Record<string, readonly string[]>> = {
+  'plugin-charts': ['plugin-charts:'],
+  'plugin-calendar': ['plugin-calendar:'],
+  'plugin-chatbot': ['plugin-chatbot:'],
+  'plugin-dashboard': ['plugin-dashboard:'],
+  // `packages/components` owns FIVE registry prefixes, which is why this map
+  // holds a LIST per package rather than one string. Measured on this tree:
+  // every `ui:` / `element:` / `page:` / `action:` / `protocol-placeholder:`
+  // registration in the workspace comes from `packages/components/src/renderers/**`
+  // — `packages/core` and `packages/sdui-parser` mention `namespace: 'ui'` only
+  // in a docstring and in a standalone `verify.ts` script, neither of which
+  // registers into this registry at import time. So the prefix scan below is
+  // exactly the card's file surface, with nothing else swept into its counts.
+  components: ['ui:', 'element:', 'page:', 'action:', 'protocol-placeholder:'],
 };
 
 /**
@@ -392,6 +677,162 @@ interface LedgerEntry {
   readonly issue: string;
 }
 
+/* ── objectui#5574: the `packages/components` reading, as a LEDGER ─────────── */
+
+/**
+ * 119 of the 158 `packages/components` targets leak, and they do it in exactly
+ * EIGHT shapes. Writing 119 near-identical rows longhand would have buried that
+ * — so the rows are GROUPED BY MEASURED SHAPE, and every group names its
+ * renderers one by one. Nothing here is a wildcard and nothing here is a
+ * prefix: {@link LEAK_LEDGER} below is still a per-target map with exact set
+ * equality, so the two-way expiry is unchanged. Fixing one renderer means
+ * deleting one name from one list, and the gate stays red until that happens.
+ *
+ * ## This is a ledger, not an allowlist — the difference, stated once
+ *
+ * An allowlist says "do not look here". Every row below says "we looked, this
+ * is what we saw, and here is who owns it". Concretely, and this is the whole
+ * distinction: a row cannot get looser on its own. If a listed renderer starts
+ * leaking a NINTH attribute the gate fails, because the measured set no longer
+ * equals the recorded one; if it stops leaking, the gate ALSO fails until the
+ * row goes. An allowlist has neither property. Nothing below is skipped,
+ * `it.skip`-ed, quarantined or excluded from the sweep — all 158 targets render
+ * and all 158 are scanned on every run.
+ */
+
+/**
+ * The shape the card named: destructure `data-obj-id` / `data-obj-type` /
+ * `style` (or nothing at all) and spread the rest onto the host element. Every
+ * canary family arrives — the injected node metadata, the authored SDUI keys,
+ * the authored `props` container and the injected adapter.
+ */
+const BARE_SPREAD: readonly string[] = [
+  'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'datasource', 'events', 'name',
+  'props', 'reference_to', 'zzcanary', 'zzcanarycamel', 'zzcanarynum', 'zzcanaryobj',
+  'zzcanaryprop',
+];
+
+/**
+ * The same bare spread on a host element that DEFINES `name` — form controls,
+ * mostly. `name` is absent from these rows not because the renderer stripped
+ * it but because HTML makes it legitimate there, so the judge does not report
+ * it. The authored identity key still reaches the DOM; on this host it is
+ * simply not a leak. Worth keeping straight: converging these renderers on
+ * `toDomProps` will not change that attribute, only the thirteen around it.
+ */
+const BARE_SPREAD_MINUS_NAME: readonly string[] = [
+  'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'datasource', 'events', 'props',
+  'reference_to', 'zzcanary', 'zzcanarycamel', 'zzcanarynum', 'zzcanaryobj', 'zzcanaryprop',
+];
+
+/**
+ * The same bare spread onto an SVG host — and the one group whose attribute
+ * names are NOT lowercased. SVG attribute names are case-sensitive, so the
+ * camelCase canaries survive exactly as authored (`ariaLabel`, not
+ * `arialabel`). A ledger keyed on the lowercased spelling would have silently
+ * failed to match these two.
+ */
+const BARE_SPREAD_ON_SVG: readonly string[] = [
+  'ariaDescribedBy', 'ariaLabel', 'bind', 'colorVariant', 'dataSource', 'events', 'name',
+  'props', 'reference_to', 'zzcanary', 'zzcanaryCamel', 'zzcanarynum', 'zzcanaryobj',
+  'zzcanaryprop',
+];
+
+interface LedgerGroup {
+  readonly attributes: readonly string[];
+  readonly reason: string;
+  readonly issue: string;
+  /** Every renderer in this shape, named. */
+  readonly targets: readonly string[];
+}
+
+const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
+  {
+    attributes: BARE_SPREAD,
+    reason:
+      'the bare spread objectui#5574 names: the renderer forwards its whole ' +
+      'prop bag to the host element, so every canary family becomes an ' +
+      'attribute. These renderers declare no `name` prop and their host does ' +
+      'not define one, so the authored identity key leaks too.',
+    issue: 'objectui#5574',
+    targets: [
+      'action:bar', 'ui:a', 'ui:abbr', 'ui:accordion', 'ui:address', 'ui:alert', 'ui:app',
+      'ui:article', 'ui:aside', 'ui:aspect-ratio', 'ui:avatar', 'ui:b', 'ui:badge',
+      'ui:blockquote', 'ui:br', 'ui:breadcrumb', 'ui:button-group', 'ui:card', 'ui:carousel',
+      'ui:cite', 'ui:collapsible', 'ui:command', 'ui:container', 'ui:dd', 'ui:del', 'ui:div',
+      'ui:dl', 'ui:dt', 'ui:em', 'ui:empty', 'ui:figcaption', 'ui:figure', 'ui:flex',
+      'ui:footer', 'ui:h1', 'ui:h2', 'ui:h3', 'ui:h4', 'ui:h5', 'ui:h6', 'ui:header',
+      'ui:home', 'ui:hr', 'ui:html', 'ui:i', 'ui:image', 'ui:img', 'ui:ins', 'ui:kbd',
+      'ui:label', 'ui:li', 'ui:list', 'ui:loading', 'ui:main', 'ui:mark', 'ui:menubar',
+      'ui:nav', 'ui:navigation-menu', 'ui:ol', 'ui:p', 'ui:page', 'ui:pagination', 'ui:pre',
+      'ui:progress', 'ui:q', 'ui:record', 'ui:resizable', 'ui:scroll-area', 'ui:section',
+      'ui:separator', 'ui:sidebar', 'ui:sidebar-content', 'ui:sidebar-footer',
+      'ui:sidebar-group', 'ui:sidebar-header', 'ui:sidebar-inset', 'ui:sidebar-menu',
+      'ui:sidebar-menu-item', 'ui:sidebar-provider', 'ui:skeleton', 'ui:small', 'ui:span',
+      'ui:stack', 'ui:strong', 'ui:sub', 'ui:sup', 'ui:table', 'ui:tabs', 'ui:text',
+      'ui:time', 'ui:toggle-group', 'ui:tree-view', 'ui:u', 'ui:ul', 'ui:utility',
+    ],
+  },
+  {
+    attributes: BARE_SPREAD_MINUS_NAME,
+    reason:
+      'the same bare spread onto a host element that DEFINES `name` (form ' +
+      'controls and their siblings), so `name` is legitimate there and the ' +
+      'other thirteen leak.',
+    issue: 'objectui#5574',
+    targets: [
+      'action:button', 'action:icon', 'ui:button', 'ui:checkbox', 'ui:combobox',
+      'ui:date-picker', 'ui:email', 'ui:file-upload', 'ui:input', 'ui:input-otp',
+      'ui:password', 'ui:radio-group', 'ui:sidebar-menu-button', 'ui:slider', 'ui:sonner',
+      'ui:switch', 'ui:textarea', 'ui:toggle',
+    ],
+  },
+  {
+    attributes: BARE_SPREAD_ON_SVG,
+    reason:
+      'the same bare spread onto an SVG host, where attribute names are ' +
+      'case-sensitive — so the camelCase canaries survive as authored.',
+    issue: 'objectui#5574',
+    targets: [
+      'ui:icon', 'ui:spinner',
+    ],
+  },
+  {
+    attributes: [...BARE_SPREAD, 'actions'].sort(),
+    reason:
+      'the bare spread plus `actions` — the authored action LIST itself, ' +
+      'stringified onto the element by the same forward.',
+    issue: 'objectui#5574',
+    targets: ['action:group'],
+  },
+  {
+    attributes: [...BARE_SPREAD_MINUS_NAME, 'actions'].sort(),
+    reason:
+      'the `name`-defining variant of the row above: the trigger button ' +
+      'defines `name`, and `actions` leaks alongside the other thirteen.',
+    issue: 'objectui#5574',
+    targets: ['action:menu'],
+  },
+  {
+    attributes: BARE_SPREAD_MINUS_NAME.filter((attribute) => attribute !== 'datasource'),
+    reason:
+      '`FormRenderer` consumes the injected `dataSource` adapter and renders ' +
+      'onto a `form` element, which defines `name` — so those two are absent ' +
+      'and the remaining twelve spread.',
+    issue: 'objectui#5574',
+    targets: ['ui:form'],
+  },
+  {
+    attributes: [...BARE_SPREAD_MINUS_NAME, 'schema'].sort(),
+    reason:
+      'the only target in this family that leaks `schema` ITSELF — the node ' +
+      '`SchemaRenderer` injects on every render — because the renderer ' +
+      'forwards its prop bag, `schema` included, to the underlying button.',
+    issue: 'objectui#5574',
+    targets: ['ui:sidebar-trigger'],
+  },
+];
+
 const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
   /* ── plugin-dashboard: the OPEN TAIL a deny-list cannot close ───────────── */
   //
@@ -427,6 +868,16 @@ const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
       'the DOM as an attribute instead of rendering it.',
     issue: 'objectui#4425',
   },
+
+  /* ── packages/components: 119 of 158 targets, in eight measured shapes ──── */
+  ...Object.fromEntries(
+    COMPONENTS_LEAK_GROUPS.flatMap((group) =>
+      group.targets.map((type) => [
+        type,
+        { attributes: group.attributes, reason: group.reason, issue: group.issue },
+      ]),
+    ),
+  ),
 };
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -460,11 +911,12 @@ function schemaFor(target: Target): Record<string, unknown> {
  * portal and is invisible to a container-scoped scan (trap 2).
  */
 async function renderTarget(target: Target): Promise<Element> {
-  render(
+  const tree = (
     <SchemaRendererProvider dataSource={FAKE_ADAPTER as never}>
       <SchemaRenderer schema={schemaFor(target) as never} dataSource={FAKE_ADAPTER as never} />
-    </SchemaRendererProvider>,
+    </SchemaRendererProvider>
   );
+  render(target.host === 'sidebar' ? <SidebarProvider>{tree}</SidebarProvider> : tree);
 
   // Non-vacuity, per target: the REAL markup must exist before anything is
   // scanned. Without this every trap in the docblock reads as a clean sweep.
@@ -661,11 +1113,13 @@ describe('the sweep covers a real, non-empty target set (objectui#4425)', () => 
     (pkg) => {
       // The guarantee `FORM_FIELD_TYPES` gives the fields gate, derived here
       // from the registry itself rather than from a hand-kept list.
+      const prefixes = OWNED_NAMESPACES[pkg];
       const swept = TARGETS[pkg]
         .map((target) => target.type)
-        .filter((type) => type.startsWith(OWNED_NAMESPACES[pkg]))
+        .filter((type) => prefixes.some((prefix) => type.startsWith(prefix)))
         .sort();
-      expect(swept).toEqual(registeredTypesUnder(OWNED_NAMESPACES[pkg]));
+      const registered = [...new Set(prefixes.flatMap(registeredTypesUnder))].sort();
+      expect(swept).toEqual(registered);
     },
   );
 
@@ -674,6 +1128,41 @@ describe('the sweep covers a real, non-empty target set (objectui#4425)', () => 
     expect(declared.filter((type) => !ComponentRegistry.has(type))).toEqual([]);
     const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
     expect(declared.filter((type) => !sweptTypes.has(type))).toEqual([]);
+  });
+
+  it('no renderer is ledgered twice — one shape per target, or the map silently keeps one', () => {
+    const seen = new Map<string, number>();
+    for (const group of COMPONENTS_LEAK_GROUPS) {
+      for (const type of group.targets) seen.set(type, (seen.get(type) ?? 0) + 1);
+    }
+    expect([...seen.entries()].filter(([, count]) => count > 1).map(([type]) => type)).toEqual([]);
+  });
+
+  it('every readiness override has a recorded reason, and every reason an override', () => {
+    // Two-way, so this cannot become a parking space. An override with no
+    // reason fails; a reason whose target no longer needs one fails too.
+    const overridden = COMPONENTS_TARGETS.filter((target) => target.ready !== COMPONENTS_READY)
+      .map((target) => target.type)
+      .sort();
+    expect(overridden).toEqual(Object.keys(READY_OVERRIDE_REASONS).sort());
+    expect(
+      Object.entries(READY_OVERRIDE_REASONS)
+        .filter(([, reason]) => !reason.trim())
+        .map(([type]) => type),
+    ).toEqual([]);
+  });
+
+  it('the four renderers objectui#5574 named are all ledgered, and `ui:grid` is NOT', () => {
+    // The card listed `flex` / `stack` / `container` / `text` as CANDIDATES —
+    // same source shape as `grid`, unverified. This is the verification, and it
+    // is a two-sided pin: the three siblings and `text` carry the leak, while
+    // `ui:grid` — the one already converged by objectui#4787 / PR #5573 — is
+    // absent from the ledger because it is measured CLEAN. If a later change
+    // regresses `grid`, this case names it directly instead of leaving the
+    // reading to be re-derived.
+    const named = ['ui:flex', 'ui:stack', 'ui:container', 'ui:text'];
+    expect(named.filter((type) => !LEAK_LEDGER[type])).toEqual([]);
+    expect(LEAK_LEDGER['ui:grid']).toBeUndefined();
   });
 
   it('the ledger is well formed — every row names a swept target, a reason and an issue', () => {

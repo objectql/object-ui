@@ -2324,6 +2324,7 @@ const es = {
     template: {
       title: "Empezar con una plantilla",
       subtitle: "Instale una aplicación de plantilla desde el mercado y personalícela.",
+      marketplaceDisabled: "Este runtime no tiene un marketplace de aplicaciones configurado, por lo que no hay plantillas que instalar aquí.",
     },
     welcomeAdminDescription: "Describa su negocio en una frase — la IA genera los objetos, las pantallas, las API y las herramientas del agente. O configúrelo usted mismo desde el menú de la izquierda.",
     welcomeAdminDescriptionNoBuild: "Configure su primera aplicación desde el menú de Administración de la izquierda. Cuando tenga datos, el asistente de IA podrá ayudarle a explorarlos.",
@@ -2971,9 +2972,15 @@ const es = {
     installedBadge: "Instalado v{{version}}",
     load: {
       failed: "No se pudo cargar el marketplace",
-      failedHint: "Por defecto, este runtime apunta a la nube pública de ObjectStack. Asegúrese de que el runtime esté en línea.",
+      failedHintConfigured: "Este runtime accede al marketplace a través del plano de control en {{url}}. Compruebe que esté en línea y sea accesible desde aquí.",
+      failedHintSameOrigin: "Este runtime sirve el catálogo del marketplace por sí mismo. Compruebe que el runtime esté en línea.",
       packageFailed: "No se pudo cargar el paquete",
       notFound: "No encontrado.",
+    },
+    disabled: {
+      title: "El marketplace de aplicaciones está desactivado",
+      description: "Este runtime no tiene ningún marketplace configurado, por lo que no hay nada que explorar ni instalar desde aquí.",
+      hint: "Ese es el estado esperado cuando el runtime se inicia con <code>OS_CLOUD_URL=off</code> (o <code>none</code>, <code>local</code>, <code>disabled</code>). Para activar el marketplace, apunte <code>OS_CLOUD_URL</code> a un plano de control y reinicie el runtime.",
     },
     detail: {
       homepage: "Página de inicio",

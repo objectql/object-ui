@@ -22,7 +22,16 @@ import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
+// Two resolvers, two vocabularies — the repo spells the distinction into the
+// NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
+// `resolveI18nLabel`: it resolves the INLINE per-locale map
+// (`{ en: …, 'zh-CN': … }`) that `@objectstack/spec` 17.0.0-rc.6 folded into
+// `I18nLabel`, which is what the nested `aria` bag carries. It does NOT accept
+// objectui's keyed `{ key, defaultValue, params }` ref — that vocabulary lives
+// on the FLAT `schema.ariaLabel` and is resolved by `SchemaRenderer` instead
+// (objectui#5134).
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { usePermissions } from '@object-ui/permissions';
 
 /**
@@ -274,10 +283,6 @@ export function normalizeFilterCondition(condition: any[]): any[] {
 }
 
 /**
- * Format an action identifier string into a human-readable label.
- * e.g., 'send_email' → 'Send Email'
- */
-/**
  * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
  * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
  * value may be a bare string ("name desc"); array entries may be strings
@@ -308,6 +313,10 @@ export function parseSortConfig(sort: unknown): SortItem[] {
   return items;
 }
 
+/**
+ * Format an action identifier string into a human-readable label.
+ * e.g., 'send_email' → 'Send Email'
+ */
 function formatActionLabel(action: string): string {
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -725,6 +734,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const { t } = useListViewTranslation();
   const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel, objectLabel: resolveObjectLabel } = useListFieldLabel();
   const { translateOptions } = useSafeFieldLabel();
+  // The audience's BCP-47 tag (tenant locale → UI language → `en`), used below
+  // to resolve the inline locale map the nested `aria` bag admits.
+  const displayLocale = useDisplayLocale();
 
   // Canonicalize the view vocabulary ONCE, here, before anything reads it
   // (#2890): the legacy `fields` folds into the spec's `columns`, and `viewType`
@@ -2301,8 +2313,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // server cannot sort by the related record's name without a join
   // (objectstack#4256 settled that it won't), so the honest move is to stop
   // offering the illusion: relational fields leave the picker, and the hint
-  // below points at the supported alternative (a formula field that
-  // denormalizes the name onto this object, which sorts like any text column).
+  // below points at the supported alternative (a stored field that
+  // denormalizes the name onto this object, written when the source changes).
   //
   // Second rule — `UNMATERIALIZED_FIELD_TYPES` (`@object-ui/core`, bound to the
   // spec's own storage fact): a `formula` field has no materialised column, so
@@ -2557,11 +2569,38 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     });
   }, [schema.columns, tFieldLabel]);
 
+  /**
+   * The accessible name for the list region, resolved — not cast.
+   *
+   * The NESTED bag is the spec's `AriaPropsSchema`, whose `ariaLabel` is
+   * `I18nLabel`: a plain string **or** an inline locale map
+   * (`{ en: 'Accounts', 'zh-CN': '客户' }`). This read site used to spread it
+   * with `as string` — a cast, not a conversion — so a map-valued label
+   * reached the DOM as `aria-label="[object Object]"` and a screen reader
+   * announced that as the view's accessible name, in every locale
+   * (objectui#5134). `as string` is invisible to the compiler by
+   * construction, which is why the sweep that fixed the compile-visible sites
+   * (objectui#4163 part 1) could not see this one.
+   *
+   * A miss resolves to `undefined` and the attribute is omitted, which is what
+   * an attribute wants — no accessible name beats a garbage one. That is also
+   * why this uses the spec's resolver rather than objectui's `pickLocalized`
+   * (`''` on a miss, the spelling a TEXT NODE wants — see `TabBar.tsx`); the
+   * two agree limb for limb, pinned by `i18nLabel-resolver-parity.test.ts` in
+   * this package.
+   *
+   * ⚠️ The FLAT `schema.ariaLabel` is a different vocabulary — objectui's
+   * keyed `{ key, defaultValue?, params? }` ref, resolved by `SchemaRenderer`'s
+   * `resolveKeyedI18nLabel` — and is deliberately NOT touched here. Neither
+   * resolver accepts the other's shape.
+   */
+  const ariaLabel = resolveInlineI18nLabel(schema.aria?.ariaLabel, displayLocale);
+
   return (
     <div
       ref={pullRef}
       className={cn('flex flex-col h-full bg-background relative min-w-0 overflow-hidden', className)}
-      {...(schema.aria?.ariaLabel ? { 'aria-label': schema.aria.ariaLabel as string } : {})}
+      {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}
       {...(schema.aria?.ariaDescribedBy ? { 'aria-describedby': schema.aria.ariaDescribedBy } : {})}
       {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
       role={schema.aria?.role ?? 'region'}

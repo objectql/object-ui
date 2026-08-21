@@ -781,7 +781,15 @@ export const DetailView: React.FC<DetailViewProps> = ({
       items.push({
         name: 'sys_edit_mobile',
         label: t('detail.edit'),
-        icon: 'edit',
+        // objectui#5622 — `square-pen`, NOT `edit`. These items become an
+        // `action:bar` schema, and the action renderers resolve `icon` through
+        // lucide's runtime `icons` record (`resolve-icon.ts`). lucide retires a
+        // spelling by dropping it from that record while KEEPING it as a
+        // deprecated named export, so `edit` type-checks everywhere it is
+        // imported and resolves to NOTHING here — this entry drew a label with
+        // no icon. `Edit === SquarePen` is true on the installed lucide, so the
+        // glyph is unchanged; only the spelling was dead.
+        icon: 'square-pen',
         type: 'script',
         className: 'sm:hidden',
         // `edit.disabledWhen` greys this entry exactly as it greys the desktop

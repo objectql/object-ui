@@ -44,6 +44,7 @@ import { Settings2, ShieldCheck, Sparkles, ToggleRight, X } from 'lucide-react';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
 import { readFields } from '../metadata-admin/previews/object-fields-io.js';
 import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n.js';
+import { isExternalWider } from './owd-sharing.js';
 
 export function ObjectSettingsPanel({
   name,
@@ -121,13 +122,18 @@ export function ObjectSettingsPanel({
   // Defaults to private when unset; must never be WIDER than the internal
   // model (ordering: private < public_read < public_read_write — the D7
   // security-posture linter rejects the wider shape at publish).
+  //
+  // The width comparison itself comes from `owd-sharing.ts`, which exists to be
+  // the SINGLE home for the pieces this tab and the package-level OWD overview
+  // (`PackageOwdOverviewPanel`) must agree on. This used to re-declare
+  // `OWD_WIDTH` and the comparison inline; the two were equivalent but nothing
+  // held them together, so a D11 refinement landing in the module would have
+  // left this tab — the surface an author actually sets the dial on — silently
+  // enforcing the old rule (objectui#5477). Note the argument order: the module
+  // takes (internal, external), the reverse of how the violation reads.
   const externalSharingModel =
     typeof draft.externalSharingModel === 'string' ? draft.externalSharingModel : '';
-  const OWD_WIDTH: Record<string, number> = { private: 0, public_read: 1, public_read_write: 2 };
-  const externalWider =
-    externalSharingModel in OWD_WIDTH &&
-    sharingModel in OWD_WIDTH &&
-    OWD_WIDTH[externalSharingModel] > OWD_WIDTH[sharingModel];
+  const externalWider = isExternalWider(sharingModel, externalSharingModel);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">

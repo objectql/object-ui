@@ -154,12 +154,16 @@ function rowFor(title: string): HTMLElement {
 /**
  * Approve the row holding `title`, through the row button and its confirmation.
  *
- * Query and click in ONE synchronous step, with `fireEvent`: the page declares
- * `RecordCell` / `InlineActions` INSIDE its component body, so every re-render
- * is a fresh component type and React replaces those DOM nodes. A multi-tick
- * `userEvent` interaction lets a re-render land between its pointerdown and its
- * click, and the rest of the sequence goes to a detached node — the click then
- * silently does nothing and the confirmation never opens.
+ * Query and click in ONE synchronous step, with `fireEvent`. That form is a
+ * leftover from when the page declared `RecordCell` / `InlineActions` INSIDE its
+ * component body: every re-render was a fresh component type, React replaced
+ * those DOM nodes, and a multi-tick `userEvent` interaction lost the rest of its
+ * pointer sequence to a detached node — the click silently did nothing and the
+ * confirmation never opened. objectui#5348 hoisted those cells to module scope
+ * and `ApprovalsInboxPage.cellIdentity.test.tsx` pins that a pointer sequence
+ * spanning a re-render now lands. The `fireEvent` form stays here on purpose:
+ * these cases are objectui#5211's pins, not the place to re-measure #5348's
+ * symptom.
  */
 async function approveFromRow(title: string): Promise<void> {
   fireEvent.click(within(rowFor(title)).getByRole('button', { name: 'Approve' }));

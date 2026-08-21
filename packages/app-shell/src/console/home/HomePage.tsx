@@ -39,6 +39,7 @@ import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, Layou
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
 import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
+import { getRuntimeConfig, isMarketplaceEnabled } from '../../runtime-config.js';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -373,12 +374,40 @@ export function HomePage() {
   // `org_owner` is an admin (`isAdmin === true`) yet deliberately holds no
   // `manage_metadata`, so role alone offered a front door the backend refuses.
   const canAuthorMetadata = useCanAuthorMetadata();
+  // objectui#5504 — a runtime deployed with `OS_CLOUD_URL=off` (the EE
+  // deploy template's shipped default) mounts no marketplace at all. Home
+  // used to recommend it first and error afterwards; that ORDERING was the
+  // injury, so the recommendation goes when the capability does.
+  const marketplaceEnabled = isMarketplaceEnabled();
+  // objectui#5521 — the DEPLOYMENT's own answer to "is metadata authoring
+  // offered here at all", distinct from the per-principal `canAuthorMetadata`
+  // above. `features.aiStudio` is derived server-side from the same resolution
+  // that decides whether the authoring agent is mounted, so on the composed
+  // hosted-SaaS shape it arrives `false` while the ToolRegistry holds zero
+  // authoring handlers and `/api/v1/meta/*` answers 403.
+  //
+  // Read inline rather than through a new accessor, so this card adds no
+  // export; lifting this and `ChatDock`'s identical read onto an
+  // `isAiStudioEnabled()` sibling of `isMarketplaceEnabled()` is filed as a
+  // follow-up rather than done here, where it would mean editing four
+  // neighbouring suites' module mocks.
+  //
+  // `features?.` and `!== false` are both load-bearing and are copied from
+  // `isMarketplaceEnabled()`'s body rather than invented: hosts (and four
+  // sibling suites) supply a runtime-config snapshot carrying only `branding`,
+  // so `features` is genuinely absent on real code paths — and an absent flag
+  // must fail OPEN. Withholding the product's front door over an unanswered
+  // question is the worse direction; the server refuses the write regardless.
+  const aiStudioEnabled = getRuntimeConfig().features?.aiStudio !== false;
   // Shown wherever an authoring entry point is withheld, so the posture is
   // explained on screen instead of surfacing as a refusal after a filled-in
   // dialog. Localized in all ten packs.
   const authoringGateReason = t('home.build.noCapability', {
     defaultValue:
       "Building apps isn't available in this workspace — it requires the “Manage Metadata” permission, which your account doesn't have.",
+  });
+  const marketplaceGateReason = t('home.template.marketplaceDisabled', {
+    defaultValue: 'This runtime has no app marketplace configured, so there are no templates to install here.',
   });
 
   const activeApps = filterActiveApps(apps);
@@ -543,17 +572,42 @@ export function HomePage() {
           {isAdmin && (
             <div className="mb-6">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <BuilderCoverCard
-                  icon={Hammer}
-                  title={t('home.build.title', { defaultValue: 'Build an app' })}
-                  subtitle={t('home.build.subtitle', {
-                    defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
-                  })}
-                  onClick={() => navigate('/studio')}
-                  disabled={!canAuthorMetadata}
-                  disabledReason={authoringGateReason}
-                  testId="home-build-app"
-                />
+                {/* objectui#5521 — HIDDEN, not dimmed, when the runtime reports
+                  * `features.aiStudio: false`. The distinction is the flag's own
+                  * declared meaning, not a presentation preference: `RuntimeFeatures`
+                  * documents it as "when false, the SPA HIDES the AI authoring
+                  * affordances", and the serving plugin as "set false to force-hide
+                  * the authoring UI". Honouring a producer's declared semantics is
+                  * the whole point of reading its flag.
+                  *
+                  * It is also the honest answer here. `!canAuthorMetadata` is a fact
+                  * about THIS PRINCIPAL — a dimmed card plus a reason line tells an
+                  * admin something actionable about their own account, which is why
+                  * that case stays disabled-with-reason. `aiStudio: false` is a fact
+                  * about the DEPLOYMENT: authoring exists for nobody here, there is no
+                  * permission to acquire and no admin to ask, so a permanently greyed
+                  * front door would advertise a room that was never built. That is the
+                  * misdirection class objectui#5557 names — reporting the wrong KIND
+                  * of answer — applied to a card instead of a page.
+                  *
+                  * Deliberately NOT extended to "Start with a template": installing a
+                  * marketplace package is not AI metadata authoring, it has its own
+                  * flags (`features.marketplace` / `installLocal`), and objectui#5504
+                  * already ruled disable-and-explain for it. Its flag means
+                  * reachability; this one means force-hide. */}
+                {aiStudioEnabled && (
+                  <BuilderCoverCard
+                    icon={Hammer}
+                    title={t('home.build.title', { defaultValue: 'Build an app' })}
+                    subtitle={t('home.build.subtitle', {
+                      defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
+                    })}
+                    onClick={() => navigate('/studio')}
+                    disabled={!canAuthorMetadata}
+                    disabledReason={authoringGateReason}
+                    testId="home-build-app"
+                  />
+                )}
                 <BuilderCoverCard
                   icon={LayoutTemplate}
                   title={t('home.template.title', { defaultValue: 'Start with a template' })}
@@ -561,8 +615,8 @@ export function HomePage() {
                     defaultValue: 'Install a template app from the marketplace and customize it.',
                   })}
                   onClick={() => navigate('/apps/setup/system/marketplace')}
-                  disabled={!canAuthorMetadata}
-                  disabledReason={authoringGateReason}
+                  disabled={!canAuthorMetadata || !marketplaceEnabled}
+                  disabledReason={canAuthorMetadata ? marketplaceGateReason : authoringGateReason}
                   testId="home-start-template"
                 />
               </div>
@@ -575,6 +629,19 @@ export function HomePage() {
                   data-testid="home-authoring-gate-reason"
                 >
                   {authoringGateReason}
+                </p>
+              )}
+              {/* Same shape, different cause: the capability is present but
+                  this runtime has no marketplace to spend it on. Rendered only
+                  when the authoring reason is NOT already on screen, so a
+                  deployment missing both never stacks two explanations for one
+                  greyed-out card. */}
+              {canAuthorMetadata && !marketplaceEnabled && (
+                <p
+                  className="mt-2 text-xs text-muted-foreground"
+                  data-testid="home-marketplace-disabled-reason"
+                >
+                  {marketplaceGateReason}
                 </p>
               )}
             </div>
@@ -598,6 +665,11 @@ export function HomePage() {
                strip-header link, with the cover's reason line already on
                screen). */
             canAuthorMetadata={canAuthorMetadata}
+            /* objectui#5504 — same reason as the gate above: this button
+               targets the very route that 404s on a marketplace-less runtime,
+               so it goes with the capability rather than leading into the
+               error card. */
+            marketplaceEnabled={marketplaceEnabled}
           />
 
           {/* Action center — what needs the user; leads the dashboard */}

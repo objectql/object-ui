@@ -18,10 +18,17 @@
  *
  * `label` and `description` are the measured instance. The console's param
  * collection handler titles its dialog from exactly those two —
- * `title: action?.label || action?.title` and
- * `description: actionDescription(…, action?.description)`
- * (useConsoleActionRuntime.tsx:205-207) — so an overflow action opened an
- * untitled dialog while the SAME declaration, rendered inline, named itself.
+ * `title: action?.label` and `description: actionDescription(…,
+ * action?.description)`, in the `setParamState` call of
+ * `useConsoleActionRuntime`'s `paramCollectionHandler` (and of the second copy
+ * that `RecordDetailView` carries) — so an overflow action opened an untitled
+ * dialog while the SAME declaration, rendered inline, named itself.
+ *
+ * The title line used to read `action?.label || action?.title`. That fallback
+ * named a key declared on no action surface and forwarded by no renderer, and
+ * was removed by objectui#4282 and objectui#5610; `label` is now the only key
+ * that titles the dialog, which is what makes this file's `label` assertion the
+ * whole of the title contract rather than half of it.
  *
  * ## Why this file exists alongside `scripts/check-action-forward-parity.mjs`
  *

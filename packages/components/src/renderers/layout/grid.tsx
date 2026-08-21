@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { GridSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '../../lib/utils';
@@ -102,21 +102,36 @@ ComponentRegistry.register('grid',
       className
     );
 
-    // Extract designer-related props
-    const { 
-        'data-obj-id': dataObjId, 
-        'data-obj-type': dataObjType,
-        style, 
-        ...gridProps 
-    } = props;
+    // DOM pass-through is a WHITELIST, never a list of keys to strip — objectui#3291's
+    // discipline, promoted out of `packages/fields` to `@object-ui/core` by
+    // objectui#4425 phase 2 and executed here by {@link toDomProps}.
+    //
+    // `SchemaRenderer` hands this renderer the authored node's own keys, the contents
+    // of its `props` container, and any extra key the author wrote. The bare
+    // `{...gridProps}` spread this replaces put all of it on the div as invalid HTML
+    // attributes — measured on a canary node: `columns="4"`, `gap="4"`, `mdcolumns="2"`,
+    // `smcolumns="2"`, `name="grid_node"`, `props="[object Object]"`,
+    // `colorvariant="x"` and an unknown authored `zzcanary="leak"`, eight in all
+    // (objectui#4787). Only `data-obj-*`/`style` were ever removed.
+    //
+    // Enumerating today's GridSchema keys instead would re-rot the moment the schema
+    // grows one, and could never name the OPEN TAIL — `zzcanary` and the flattened
+    // `props` container are author-supplied, so no finite list reaches them. The
+    // whitelist keeps what is DECLARED DOM-safe (`id`, `className`, `role`, `tabIndex`,
+    // … plus the open `data-*` / `aria-*` families, which is how `data-obj-id` and
+    // `data-obj-type` still arrive) and drops everything else by construction.
+    //
+    // `style` is forwarded BY NAME rather than reopened in the shared whitelist (the
+    // objectui#4435 route): it is this container's designer sizing channel, but the
+    // shared set is deliberately element-agnostic and nothing element-specific belongs
+    // in it. Grid's own keys (`columns`, `gap`, `smColumns`…) are CONSUMED off `schema`
+    // above and must never be forwarded.
+    const { style, ...hostProps } = props;
 
     return (
-      <div 
-        className={gridClass} 
-        {...gridProps}
-        // Apply designer props
-        data-obj-id={dataObjId}
-        data-obj-type={dataObjType}
+      <div
+        {...toDomProps(hostProps)}
+        className={gridClass}
         style={style}
       >
         {schema.children && renderChildren(schema.children)}

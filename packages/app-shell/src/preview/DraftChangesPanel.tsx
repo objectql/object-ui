@@ -51,6 +51,11 @@ import { useObjectTranslation } from '@object-ui/i18n';
 // refuses, and a faithful copy is exactly the fork that guard exists to prevent.
 import { canonicalMetaUrlType } from '@objectstack/spec/shared';
 import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
+// The live `?surface=` channel, and NOT `useSurfaceDeepLink` beside it: this
+// import must stay React-only, because that module reaches `nav-selection.js`
+// and through it the App-nav inspector, and this panel sits in the console's
+// EAGER graph (see the `@objectstack/spec` note above for what that costs).
+import { useSurfaceNavigator } from '../views/studio-design/surfaceDeepLinkChannel.js';
 import { lintDraftSecurityPosture, type DraftSecurityProblem } from './securityPostureLint.js';
 
 export interface DraftChangeEntry {
@@ -330,6 +335,12 @@ export function DraftChangesPanel({
    * arrives after the batch has already rolled back.
    */
   const [problems, setProblems] = useState<DraftSecurityProblem[]>([]);
+  /**
+   * Null wherever no host listens for a surface request — the degradation this
+   * panel owes its second home (Home / the draft-preview bar). Never a route
+   * string test: reachability is answered by the tree that mounted us.
+   */
+  const openSurface = useSurfaceNavigator();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpanded = useCallback((key: string) => {
@@ -541,10 +552,28 @@ export function DraftChangesPanel({
                   {/* `type/name`, the way the server's own publish refusal names
                       the item (`object/crmext_visit: …`) — and, unlike a bare
                       name, text that cannot collide with the same draft's row in
-                      the list above. */}
-                  <span className="font-mono">
-                    {p.type}/{p.name}
-                  </span>{' '}
+                      the list above.
+
+                      Clickable ONLY where a host publishes the surface channel,
+                      i.e. inside Studio. This sheet is shared with the Home /
+                      draft-preview bar, where the designer is not a reachable
+                      destination at all: there `openSurface` is null and the
+                      name stays the plain prose it has always been, because a
+                      link that goes nowhere is worse than the sentence below
+                      telling you where to go. */}
+                  {openSurface ? (
+                    <button
+                      type="button"
+                      onClick={() => openSurface({ type: p.type, name: p.name })}
+                      className="font-mono underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-100"
+                    >
+                      {p.type}/{p.name}
+                    </button>
+                  ) : (
+                    <span className="font-mono">
+                      {p.type}/{p.name}
+                    </span>
+                  )}{' '}
                   — {p.hint || p.message}
                 </li>
               ))}
