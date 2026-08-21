@@ -168,7 +168,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // Uses live editSchema when available to respond to objectName changes
   const availableFields = useMemo(() => {
     const liveReport = editSchema || reportData;
-    const objName = liveReport?.objectName || liveReport?.dataSource?.object || liveReport?.dataSource?.resource;
+    const objName = liveReport?.objectName || liveReport?.dataSource?.object;
     return getFieldsForObject(objName) ?? FALLBACK_FIELDS;
   }, [editSchema, reportData, getFieldsForObject]);
 
@@ -269,15 +269,18 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     if (dataFetchSource.dataSource) {
       const fetchDataFromSource = async () => {
         try {
-          // Use the dataSource configuration to fetch data
-          const resource = dataFetchSource.dataSource.object || dataFetchSource.dataSource.resource;
-          if (!resource) {
-            console.warn('ReportView: dataSource missing object/resource property');
+          // Use the dataSource configuration to fetch data. `object` is the
+          // ONLY spelling this binding declares (ElementDataSourceConfig /
+          // the spec's strict ElementDataSourceSchema); the adapter just
+          // happens to call its first parameter `resource` (objectui#5116).
+          const objectName = dataFetchSource.dataSource.object;
+          if (!objectName) {
+            console.warn('ReportView: dataSource missing object property');
             setReportRuntimeData([]);
             return;
           }
 
-          const result = await dataSource.find(resource, {
+          const result = await dataSource.find(objectName, {
             $filter: dataFetchSource.dataSource.filter,
             $orderby: dataFetchSource.dataSource.sort,
             $top: dataFetchSource.dataSource.limit,
