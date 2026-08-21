@@ -41,12 +41,19 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 }));
 
 // The partial snapshot under test — `features` genuinely absent, exactly as the
-// four Home suites' stand-in supplies it. Everything else stays REAL, so
-// `isAiStudioEnabled()` here is the shipped accessor, not a stub of it.
-vi.mock('../runtime-config', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../runtime-config')>()),
-  getRuntimeConfig: () => ({ branding: { productName: 'ObjectStack' } }),
-}));
+// four Home suites' stand-in supplies it. Everything else stays REAL: the spy
+// below DELEGATES to the shipped `isAiStudioEnabled()`, so the value these cases
+// assert is the accessor's own answer and only the call is observed.
+const aiStudioSpy = vi.hoisted(() => vi.fn<() => boolean>());
+vi.mock('../../runtime-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../runtime-config')>();
+  aiStudioSpy.mockImplementation(actual.isAiStudioEnabled);
+  return {
+    ...actual,
+    getRuntimeConfig: () => ({ branding: { productName: 'ObjectStack' } }),
+    isAiStudioEnabled: aiStudioSpy,
+  };
+});
 
 // Spy on the resolver so the flag's VALUE at the seam is observable. The dock
 // computes it in a render-phase `useMemo`, which runs before the empty-catalog
@@ -88,6 +95,7 @@ function dockState(overrides: Partial<ChatDockState> = {}): ChatDockState {
 
 beforeEach(() => {
   resolverMock.mockClear();
+  aiStudioSpy.mockClear(); // keeps the delegating implementation
 });
 
 describe('ChatDock default body on a partial runtime-config snapshot (objectui#5577)', () => {
@@ -112,5 +120,17 @@ describe('ChatDock default body on a partial runtime-config snapshot (objectui#5
     render(<ChatDockPanel dock={dockState()} />);
 
     expect(resolverMock.mock.calls[0][0]).toBe('default');
+  });
+
+  it('asks the ACCESSOR rather than re-spelling the read inline', () => {
+    // Scoped deliberately tighter than the two cases above. Those pin the
+    // crash-closure and stay green for ANY optional-chained inline read
+    // (measured: reverting this call site to `features?.aiStudio !== false`
+    // leaves them passing) — so on their own they say nothing about where the
+    // doctrine lives. This one fails for every inline spelling, chained or not,
+    // which is the actual subject of objectui#5577: ONE doctrine, ONE spelling.
+    render(<ChatDockPanel dock={dockState()} />);
+
+    expect(aiStudioSpy).toHaveBeenCalled();
   });
 });
