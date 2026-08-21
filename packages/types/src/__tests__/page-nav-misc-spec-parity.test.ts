@@ -71,6 +71,11 @@ const shapeOf = (s: unknown) => (s as { shape: Record<string, unknown> }).shape;
 /** `true` when `T` is exactly `any` — the case-1/2 probe from the guard header. */
 type IsAny<T> = 0 extends 1 & T ? true : false;
 
+/** Compile-time assertion: `Assert<false>` is a `tsc` error, not a runtime one. */
+type Assert<T extends true> = T;
+/** `true` when a value of type `V` may be written where `T` is expected. */
+type Assignable<V, T> = V extends T ? true : false;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // NavigationAreaSchema — derived (zod)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -347,22 +352,65 @@ describe('ActionParam derives from the spec ActionParamSchema input', () => {
     expect(legacySpelling.type).toBe('datetime-local');
   });
 
-  it('inherits `label` — spec 17 made `I18nLabel` a plain string', () => {
-    // INVERTED PIN. The local override on `label`/`options[].label` was
-    // justified as a widening to "a string or a per-locale record"; spec 17
-    // dropped inline i18n objects, so `I18nLabelSchema` is `z.ZodString` and
-    // the override had become a restatement claiming to be wider than it was.
-    // If the spec re-widens `I18nLabel`, this stops compiling — which is the
-    // signal to re-decide, rather than inherit the old justification.
-    const label: SpecI18nLabel = 'Priority';
-    expect(label).toBe('Priority');
+  it('inherits `label` — and pins BOTH authorized forms of the spec `I18nLabel`', () => {
+    // INVERTED PIN, retargeted at the premise that actually holds the decision
+    // up — the objectui#3177 lesson applied a second time (objectui#5612).
+    //
+    // What this case used to be: `const label: SpecI18nLabel = 'Priority'`,
+    // under a comment claiming spec 17 had narrowed `I18nLabel` to
+    // `z.ZodString`, and that a re-widening "stops this compiling". Both halves
+    // were wrong. A plain string is assignable under the narrow shape AND under
+    // the wide one, so that assignment could only ever fail if the plain-string
+    // form were REMOVED — the opposite of the event it was written to catch. It
+    // therefore observed nothing when the union arrived, and reported
+    // protection it did not provide while asserting a false premise in its own
+    // name. Measured 2x2 against `@objectstack/spec@17.0.0`: the old assignment
+    // compiles clean under both shapes; the assertions below compile clean
+    // under the union and fail under a locally-constructed `type I18nLabel =
+    // string` with `error TS2322: Type '{ en: string; 'zh-CN': string; }' is
+    // not assignable to type 'string'`.
+    //
+    // What holds the decision up is not which single form the spec has, but
+    // that BOTH forms stay authorized. `label` / `options[].label` flow in by
+    // reference precisely because a local `string | I18nLabel` would collapse
+    // to `I18nLabel` — restating the inherited type while claiming to be wider
+    // than it. The spec says so itself, in its own doc block over
+    // `I18nLabelSchema` (objectstack#5728, maintainer ruling 2026-08-06): a
+    // display label in one of two authorized forms — a plain default-language
+    // string whose translations live in a bundle, or an inline locale map
+    // picked at render time — closing "Both are real; neither is deprecated by
+    // this schema."
+    //
+    // So this pin fails when EITHER form is withdrawn, which is the event that
+    // should send a reader back to the derivation note in `ui-action.ts`. A
+    // further widening (a third authorized form) does NOT fail here, and must
+    // not: inheriting by reference is exactly what stays correct as the
+    // authorized set moves, which is the whole argument for not overriding.
+    type _MapForm = Assert<Assignable<{ en: string; 'zh-CN': string }, SpecI18nLabel>>;
+    type _StringForm = Assert<Assignable<string, SpecI18nLabel>>;
+
+    const plain: SpecI18nLabel = 'Priority';
+    const inline: SpecI18nLabel = { en: 'Priority', 'zh-CN': '优先级' };
+    expect(plain).toBe('Priority');
+    expect(inline).toEqual({ en: 'Priority', 'zh-CN': '优先级' });
+
+    // …and the inheritance really delivers both forms to an author, on the key
+    // and on `options[].label` — the two sites the removed override covered.
+    type ParamOption = NonNullable<ActionParam['options']>[number];
+    type _ParamLabelMap = Assert<Assignable<{ en: string }, NonNullable<ActionParam['label']>>>;
+    type _OptionLabelMap = Assert<Assignable<{ en: string }, ParamOption['label']>>;
 
     const param: ActionParam = {
       name: 'p',
-      label: 'Priority',
-      options: [{ label: 'High', value: 'high' }],
+      label: { en: 'Priority', 'zh-CN': '优先级' },
+      options: [
+        { label: 'High', value: 'high' },
+        { label: { en: 'Low', 'zh-CN': '低' }, value: 'low' },
+      ],
     };
+    expect(param.label).toEqual({ en: 'Priority', 'zh-CN': '优先级' });
     expect(param.options?.[0]?.label).toBe('High');
+    expect(param.options?.[1]?.label).toEqual({ en: 'Low', 'zh-CN': '低' });
   });
 
   it('still expresses the field-backed form (framework#4074)', () => {

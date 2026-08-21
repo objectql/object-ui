@@ -24,7 +24,6 @@ import type {
   ActionLocation,
   ActionParamSchema as SpecActionParamSchema,
   ActionType as SpecActionType,
-  I18nLabel,
 } from '@objectstack/spec/ui';
 import { FieldType as SpecFieldTypeEnum } from '@objectstack/spec/data';
 import type { FieldType as SpecFieldType } from '@objectstack/spec/data';
@@ -344,12 +343,12 @@ export type ResolvableParamFieldType = ActionParamFieldType | ObjectUiLocalParam
  * a reading of one version, not a standing fact about the schema — which is
  * the distinction the sentence this replaces failed to make.
  *
- * NOT guarded: the `it(...)` case in
+ * Guarded since objectui#5612, and it was not before: the `it(...)` case in
  * `__tests__/page-nav-misc-spec-parity.test.ts` that calls itself an inverted
- * pin on this decision asserts only that a plain string is assignable to
- * `I18nLabel`, which holds under either form — so the widening above went
- * through it green. Filed as objectui#5612; do not read that case as coverage
- * for this paragraph.
+ * pin on this decision used to assert only that a plain string is assignable to
+ * `I18nLabel` — which holds under either form, so the widening above went
+ * through it green. It now asserts BOTH authorized forms are assignable, here
+ * and on `options[].label`, and so fails when either is withdrawn.
  *
  * Drift guard: `__tests__/page-nav-misc-spec-parity.test.ts`.
  */
