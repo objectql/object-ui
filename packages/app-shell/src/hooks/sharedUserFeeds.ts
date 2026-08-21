@@ -479,15 +479,31 @@ const approvalsFeed = new SharedFeed<number>(0, APPROVALS_POLL_MS);
 
 /**
  * The identities the endpoint matches a pending approver against: the user id,
- * their email, and `role:<r>` for each role. Sent as one comma-separated
- * `approverId` so this is ONE request rather than one per identity.
+ * their email, and `role:<p>` for each POSITION the session carries. Sent as
+ * one comma-separated `approverId` so this is ONE request rather than one per
+ * identity.
+ *
+ * The `role:` prefix is the SERVER's addressing scheme for `pending_approvers`
+ * and stays as it is; what changed is which client key supplies the names.
+ * This read was `user.roles` until objectui#5424, and the protocol-17 session
+ * face emits no `roles` key at all (framework ADR-0090 D3 renamed it to
+ * `positions` with no deprecation window; measured on a live 17.1.0 server in
+ * objectui#5389). So the loop ran over an always-empty array and NO `role:`
+ * identity was ever sent: approvals addressed to a position rather than to a
+ * person vanished from the bell badge, the Approvals tab and Home's To-do card,
+ * with no error anywhere. Business position names (`manager`, and every other
+ * name an approval can be addressed to) survive only in `positions`.
+ *
+ * Deliberately NOT paired with `roles` as a fallback — reviving the retired
+ * spelling as an alias is what ADR-0090 D3 forbids, and `packages/auth/src/
+ * types.ts` says so on the declaration itself.
  */
 function approverIdentities(user: unknown): string[] {
-  const u = user as { id?: string; email?: string; roles?: string[] } | null | undefined;
+  const u = user as { id?: string; email?: string; positions?: string[] } | null | undefined;
   const identities: string[] = [];
   if (u?.id) identities.push(u.id);
   if (u?.email) identities.push(u.email);
-  for (const role of u?.roles ?? []) if (role) identities.push(`role:${role}`);
+  for (const position of u?.positions ?? []) if (position) identities.push(`role:${position}`);
   return identities;
 }
 
