@@ -18,6 +18,11 @@
  * aggregation]`). So the churn ESCAPED the component here and rebuilt the
  * row/column sets, the bucket map and the totals on every render over nothing.
  *
+ * This closes the OBJECT-BOUND path only: the stable empty passes through
+ * `PivotTable`'s own `Array.isArray` arm unchanged. `PivotTable` still spells
+ * two per-render literals of its own for callers that reach it directly — out
+ * of this card's file surface, filed as objectui#5562.
+ *
  * This is the direct identity assertion: the same array object must reach
  * `PivotTable` on every render. An `eslint-disable` suppression would not move
  * it, and it is not satisfiable by "the pivot renders correctly" (which is

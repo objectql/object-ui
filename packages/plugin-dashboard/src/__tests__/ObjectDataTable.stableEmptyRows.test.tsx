@@ -103,8 +103,9 @@ const I18N_CONFIG = { defaultLanguage: 'en', detectBrowserLanguage: false } as c
  * `finalData` is the only churning dependency and this test measures exactly
  * it. OUTSIDE any provider react-i18next has no instance to bind to and hands
  * back a fresh `t` every render, so the memo re-keys regardless of this fix —
- * measured on this branch (8 calls, unchanged by the fix) and filed separately;
- * it is a defect in a different package and is not what #4629 is about.
+ * measured on this branch (8 calls, unchanged by the fix) and filed as
+ * objectui#5564; it is a defect in a different package and is not what #4629
+ * is about.
  */
 function renderUnderHostChurn(schema: any) {
   let bump: (() => void) | null = null;
