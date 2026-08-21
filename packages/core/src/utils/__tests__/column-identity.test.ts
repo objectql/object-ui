@@ -11,6 +11,9 @@ import {
   CANONICAL_COLUMN_IDENTITY_KEY,
   LEGACY_COLUMN_IDENTITY_KEYS,
   TABLE_ADAPTER_COLUMN_KEY,
+  CANONICAL_COLUMN_LABEL_KEY,
+  TABLE_ADAPTER_HEADER_KEY,
+  columnHeader,
   columnIdentity,
   hasConflictingColumnIdentity,
   normalizeColumnIdentity,
@@ -294,5 +297,73 @@ describe('conflicting-identity warning (#3104 PR3)', () => {
     } finally {
       process.env.NODE_ENV = prev;
     }
+  });
+});
+
+/**
+ * The display half of the same boundary `TABLE_ADAPTER_COLUMN_KEY` draws for
+ * identity (objectui#5351). `data-table` declares `header` and stopped reading
+ * `label`; the spec declares `label` and never had `header`. This reader is
+ * what each producer calls to cross between them, once, before delivery.
+ */
+describe('columnHeader (#5351)', () => {
+  it('names the two keys it bridges', () => {
+    expect(CANONICAL_COLUMN_LABEL_KEY).toBe('label');
+    expect(TABLE_ADAPTER_HEADER_KEY).toBe('header');
+    // The identity boundary is a separate pair, and stays separate.
+    expect(TABLE_ADAPTER_COLUMN_KEY).toBe('accessorKey');
+  });
+
+  it('reads the spec-canonical `label`', () => {
+    expect(columnHeader({ field: 'stage', label: 'Stage' })).toBe('Stage');
+  });
+
+  it('prefers an author-supplied `header` — ADAPTER-FIRST, the opposite of columnIdentity', () => {
+    // Deliberate asymmetry. `columnIdentity` folds several METADATA spellings
+    // of one metadata concept, so the canonical metadata key wins. This reader
+    // crosses BETWEEN vocabularies: an author who wrote the adapter's own key
+    // addressed the table directly, and a producer must not overwrite that.
+    expect(columnHeader({ header: 'Stage', label: 'ignored' })).toBe('Stage');
+    // ...where identity resolution goes the other way for its own pair.
+    expect(columnIdentity({ field: 'stage', name: 'ignored' })).toBe('stage');
+  });
+
+  it('returns undefined — not the empty string — when nothing is authored', () => {
+    // So a caller can tell "no header authored" from "the header is
+    // deliberately blank" and stamp nothing rather than stamping `''`.
+    expect(columnHeader({ field: 'stage' })).toBeUndefined();
+    expect(columnHeader({ header: '', label: '' })).toBeUndefined();
+  });
+
+  it('falls through an empty `header` to a real `label`', () => {
+    expect(columnHeader({ header: '', label: 'Stage' })).toBe('Stage');
+  });
+
+  it('ignores non-string text rather than stamping an object into a header', () => {
+    expect(columnHeader({ label: { en: 'Stage' } })).toBeUndefined();
+    expect(columnHeader({ label: 42 })).toBeUndefined();
+  });
+
+  it('returns undefined for a bare-string entry — a producer derives that title', () => {
+    // A bare `'stage'` has no display text of its own. Deriving one
+    // (`humanizeFieldKey`, or the object schema's label) is the producer's job
+    // and stays there, so this reader does not invent a second convention.
+    expect(columnHeader('stage')).toBeUndefined();
+  });
+
+  it('returns undefined for non-records', () => {
+    expect(columnHeader(null)).toBeUndefined();
+    expect(columnHeader(undefined)).toBeUndefined();
+    expect(columnHeader(['stage'])).toBeUndefined();
+  });
+
+  it('leaves the identity fold untouched — the two readers never cross', () => {
+    // `normalizeColumnIdentity` writes identity keys only; it must not start
+    // manufacturing headers now that a header reader exists next to it.
+    expect(normalizeColumnIdentity({ name: 'stage', label: 'Stage' })).toEqual({
+      field: 'stage',
+      name: 'stage',
+      label: 'Stage',
+    });
   });
 });

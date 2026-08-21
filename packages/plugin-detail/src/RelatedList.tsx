@@ -43,6 +43,7 @@ import type { ViewFilterRule } from '@objectstack/spec/ui';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog, deriveLookupColumns } from '@object-ui/fields';
 import {
   columnIdentity,
+  columnHeader,
   compareSortValues,
   getRecordDisplayName,
   getSortValue,
@@ -971,6 +972,19 @@ export const RelatedList: React.FC<RelatedListProps> = ({
          if (!c || !key) return c;
          const patch: Record<string, unknown> = {};
          if (!c.accessorKey) patch.accessorKey = key;
+         // The display half of the SAME boundary (objectui#5351). The spec
+         // spells a column's text `ListColumnSchema.label`; the adapter spells
+         // it `TableColumn.header` and, since objectui#5120, reads only that.
+         // The alias it used to carry (`header: col.header || col.label`) is
+         // gone, so this producer translates instead — otherwise every
+         // `record_related_list` block whose columns are authored the spec way
+         // arrives headerless. An author-supplied `header` is never overwritten,
+         // for the same reason `accessorKey` isn't: it addresses the table
+         // directly.
+         if (!c.header) {
+           const text = columnHeader(c);
+           if (text) patch.header = text;
+         }
          // Attach a cell renderer when it lacks one and we can resolve the
          // field def — preserves any author-supplied cell/render.
          if (!c.cell && !c.render) {

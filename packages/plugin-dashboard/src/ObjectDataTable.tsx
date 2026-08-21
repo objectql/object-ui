@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
-import { extractRecords, isDrillEnabled, columnIdentity } from '@object-ui/core';
+import { extractRecords, isDrillEnabled, columnIdentity, columnHeader } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
@@ -51,8 +51,10 @@ interface NormalizedColumn {
  *
  * - `string[]` entries are converted to `{ header, accessorKey }` objects,
  *   handling both snake_case and camelCase for header generation.
- * - Object entries have their field identity RESOLVED here, at the producer,
- *   and stamped onto the data-table adapter's own key.
+ * - Object entries have their field identity AND their display text RESOLVED
+ *   here, at the producer, and stamped onto the data-table adapter's own keys
+ *   (`accessorKey` / `header`). The adapter reads only those two, and no longer
+ *   falls back to `name` / `label` (objectui#5120, objectui#5351).
  *
  * Object entries used to be returned raw (objectui#5120). `accessorKey` is the
  * table LIBRARY's column key — `column-identity.ts` names it
@@ -74,9 +76,9 @@ interface NormalizedColumn {
  *    author;
  *  - the authored spelling is left in place, so a host reading `field` / `name`
  *    back off these columns keeps working;
- *  - an entry with no resolvable identity is returned UNTOUCHED — nothing is
- *    invented for it. It behaves exactly as it does today: a header (from
- *    `header` / `label`) over empty cells, silently. Whether that silence
+ *  - an entry with neither a resolvable identity nor any display text is
+ *    returned UNTOUCHED — nothing is invented for it. It behaves exactly as it
+ *    does today: a header over empty cells, silently. Whether that silence
  *    deserves a dev-time diagnostic is objectui#5349's question, and is
  *    deliberately NOT answered here.
  *
@@ -91,10 +93,32 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
       // widget family spell a header the same way (objectui#4618).
       return { header: humanizeFieldKey(col), accessorKey: col };
     }
-    if (!col || col.accessorKey) return col as NormalizedColumn;
-    const key = columnIdentity(col);
-    if (!key) return col as NormalizedColumn;
-    return { ...col, accessorKey: key } as NormalizedColumn;
+    if (!col) return col as NormalizedColumn;
+    const patch: Record<string, unknown> = {};
+    // Identity: `accessorKey` is the adapter's key, so an author who supplied
+    // it addressed the table directly and is never second-guessed.
+    if (!col.accessorKey) {
+      const key = columnIdentity(col);
+      if (key) patch.accessorKey = key;
+    }
+    // Display text: the same boundary, seen from the label side
+    // (objectui#5351). The spec spells it `label`, the adapter spells it
+    // `header`, and the adapter no longer reads `label` — so the translation
+    // happens HERE, before delivery, or the column arrives headerless.
+    //
+    // This is a FIX as well as a move: `enrich` below spreads `buildFieldMeta`'s
+    // result over the column, and that result carries its own `label` (built
+    // from `col.header`), so an authored `label` was overwritten before it ever
+    // reached the adapter's alias. A `{ field, label }` column rendered a BLANK
+    // header here even while the alias still existed — measured, not assumed.
+    if (!col.header) {
+      const text = columnHeader(col);
+      if (text) patch.header = text;
+    }
+    // Nothing to add: return the INPUT entry by reference, so data-table's
+    // column-state re-seed stays quiet on the common path (objectui#4618).
+    if (Object.keys(patch).length === 0) return col as NormalizedColumn;
+    return { ...col, ...patch } as NormalizedColumn;
   });
 }
 

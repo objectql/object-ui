@@ -769,21 +769,43 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // every downstream memo on each render (objectui#4618).
   const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
-  // Normalize columns to support legacy keys (label/name) from existing JSONs
+  // The adapter is MONOLINGUAL: it reads the two keys `TableColumn` declares,
+  // `header` and `accessorKey`, and no others (objectui#5120, objectui#5351).
+  //
+  // These two lines used to normalize each column as
+  // `header: col.header || col.label` and
+  // `accessorKey: col.accessorKey || col.name` — two undeclared aliases for two
+  // declared keys. `TableColumn` (`packages/types/src/data-display.ts`) declares
+  // `header: string` and `accessorKey: string`; it declares neither `label` nor
+  // `name`. So the declared surface admitted one spelling while the runtime
+  // admitted two, which is the second de-facto contract AGENTS.md #0.1 forbids
+  // and the shape objectui#3951 already settled: unify at the PRODUCER, keep no
+  // consumer-side tolerance alias.
+  //
+  // Where the translation went instead — `columnIdentity` / `columnHeader` in
+  // `@object-ui/core`, called by each producer before delivery:
+  //   `ObjectDataTable.normalizeColumns`  (`@object-ui/plugin-dashboard`)
+  //   `RelatedList.normalizeColumn`       (`@object-ui/plugin-detail`)
+  //   `ObjectGrid.generateColumns`        (`@object-ui/plugin-grid`, since #5068)
+  // Metadata vocabulary in, adapter vocabulary out; one translation, one place.
+  //
+  // The shallow copy stays even though nothing is added to it any more: the
+  // list seeded into `columns` state below must not be the caller's own column
+  // objects, and `columnsAreEquivalent` compares by value, so a fresh array per
+  // render costs nothing (objectui#4618).
   const initialColumns = useMemo(() => {
-    return rawColumns.map((col: any) => ({
-      ...col,
-      header: col.header || col.label,
-      accessorKey: col.accessorKey || col.name
-    }));
+    return rawColumns.map((col: any) => ({ ...col }));
   }, [rawColumns]);
 
   // Auto-size columns: estimate width from header and data content for columns without explicit widths
   const autoSizedWidths = useMemo(() => {
     const widths: Record<string, number> = {};
+    // Same two declared keys as `initialColumns` above — the auto-width pass
+    // must measure the SAME columns the table renders, so the two reads stay
+    // spelled identically (objectui#5120, objectui#5351).
     const cols = rawColumns.map((col: any) => ({
-      header: col.header || col.label,
-      accessorKey: col.accessorKey || col.name,
+      header: col.header,
+      accessorKey: col.accessorKey,
       width: col.width,
       fitContent: col.fitContent,
     }));

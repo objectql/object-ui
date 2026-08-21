@@ -219,3 +219,54 @@ export function normalizeColumnIdentities<T>(columns: T): T {
   });
   return (changed ? next : columns) as T;
 }
+
+/**
+ * The spec's canonical key for "what this column is CALLED on screen".
+ *
+ * `ListColumnSchema` (`@objectstack/spec/view`) spells a column's display text
+ * `label`, next to its `field`. It is metadata vocabulary, exactly like
+ * {@link CANONICAL_COLUMN_IDENTITY_KEY} — not an objectui legacy spelling, and
+ * not something to amputate.
+ */
+export const CANONICAL_COLUMN_LABEL_KEY = 'label';
+
+/**
+ * NOT metadata — the display half of the same boundary
+ * {@link TABLE_ADAPTER_COLUMN_KEY} draws for identity.
+ *
+ * `header` is `TableColumn.header` (`packages/types/src/data-display.ts`), the
+ * data-table ADAPTER's own key for a column's rendered title. The adapter
+ * declares `header` and does not declare `label`; the spec declares `label` and
+ * does not declare `header`. Those are two vocabularies, and the translation
+ * between them belongs at the producer — one translation, one place
+ * (objectui#5068) — never as a tolerated `col.header || col.label` alias inside
+ * the adapter (objectui#5351).
+ */
+export const TABLE_ADAPTER_HEADER_KEY = 'header';
+
+/**
+ * Read a column entry's display text on its way INTO the data-table adapter —
+ * the header counterpart of {@link columnIdentity} (objectui#5351).
+ *
+ * Adapter-first, which is the opposite order from {@link columnIdentity} and is
+ * deliberate. `columnIdentity` folds several METADATA spellings of one metadata
+ * concept, so the canonical metadata key wins. This reader crosses a boundary
+ * between two vocabularies instead: an author who wrote the adapter's own
+ * `header` addressed the table directly, and a producer must not overwrite that
+ * — the same rule `RelatedList` and `ObjectDataTable` already state for an
+ * author-supplied `accessorKey` (objectui#5022).
+ *
+ * Returns `undefined` — not `''` — when neither key carries text, so a caller
+ * can tell "no header authored" from "the header is deliberately blank" and
+ * stamp nothing rather than stamping an empty string.
+ *
+ * A bare-string column entry has no display text of its own; producers derive
+ * one from the field key (`humanizeFieldKey`) or the object schema's label, and
+ * that derivation is theirs, not this reader's.
+ */
+export function columnHeader(entry: unknown): string | undefined {
+  if (!isRecord(entry)) return undefined;
+  return (
+    asIdentity(entry[TABLE_ADAPTER_HEADER_KEY]) ?? asIdentity(entry[CANONICAL_COLUMN_LABEL_KEY])
+  );
+}
