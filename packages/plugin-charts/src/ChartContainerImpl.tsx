@@ -49,6 +49,56 @@ type ChartContextProps = {
 
 const ChartContext = React.createContext<ChartContextProps | null>(null)
 
+/**
+ * The height floor a chart falls back to when its consumer declares none.
+ *
+ * ## Why it is set on the ResponsiveContainer and not only on the wrapper
+ *
+ * Recharts measures ITS OWN div — `SizeDetectorContainer` renders
+ * `<div class="recharts-responsive-container" style="width:100%;height:100%">`,
+ * observes THAT element, and renders no children at all while the box it reads
+ * is non-positive (`ResponsiveContainerContextProvider` returns `null` for a
+ * non-positive size). A percentage height resolves against the containing
+ * block's `height`; `min-height` never makes that height definite (CSS 2.1
+ * §10.5 — a percentage height against a containing block whose height is not
+ * specified explicitly computes to `auto`). So a floor on the WRAPPER cannot
+ * reach the element that is measured: the wrapper obediently grows to 280, and
+ * the div inside it stays at its content height, which is 0 because Recharts'
+ * inner sizing div is deliberately zero-size + overflow-visible.
+ *
+ * Measured in Chromium 141 on the dashboard chart path, with the wrapper's
+ * `h-[350px]` neutralised so the fallback is the only thing holding the box up:
+ *
+ *   wrapper `[data-slot="chart"]`      638 x 280   ← floor applied, looks fine
+ *   `.recharts-responsive-container`   638 x   0   ← the measured element
+ *   → 0 `.recharts-surface`, 0 marks, and NO refusal, NO empty state, NO
+ *     loading state: a widget card with its title over a blank 280px area.
+ *
+ * That is the whole failure mode, and it is PERMANENT rather than a race: the
+ * box never changes, so no ResizeObserver notification ever arrives to heal it.
+ * (Recharts 3 does heal a genuinely late measurement — a chart mounted inside a
+ * `display:none` subtree paints every mark the moment the subtree is revealed,
+ * measured on the same rig. Which is why "mounts unmeasured and never redraws"
+ * is NOT what blanks these charts; being measured at a real, permanent zero is.)
+ *
+ * The rule this encodes: **the floor belongs on the element that is measured.**
+ * Both call sites below are gated on the same `hasDeclaredHeight`, so a
+ * consumer's explicit height still wins in both places and nothing an author
+ * sized deliberately is floored.
+ *
+ * ## How a chart loses its height in the first place
+ *
+ * `cn` in this file is a plain join, NOT `tailwind-merge`, so a consumer
+ * `className` carrying a height utility does not REPLACE `h-[350px]` — both
+ * land in the class attribute and the winner is decided by stylesheet order.
+ * `DashboardGridLayout` passes `className: "h-full"` on its chart schemas, and
+ * `h-full` is `height: 100%`, which is itself `auto` unless the chart's parent
+ * has a definite height. Fixing the collision belongs upstream in the
+ * consumers; this floor is what makes the collision cost a shorter chart
+ * instead of an invisible one.
+ */
+const CHART_MIN_HEIGHT = 280
+
 function useChart() {
   const context = React.useContext(ChartContext)
 
@@ -147,6 +197,9 @@ function ChartContainer({
   // child height) would otherwise leave the container at 0, Recharts would
   // measure width/height = -1, and the chart would render invisibly.
   //
+  // It is applied in TWO places, and both are load-bearing — see
+  // CHART_MIN_HEIGHT for the measurement that says why one is not enough.
+  //
   // The merge is written out explicitly and `style` is destructured out of the
   // rest props above, so which side wins is no longer decided by JSX attribute
   // order. It used to be: `style={{ minHeight: 280, ... }}` was written BEFORE
@@ -163,7 +216,7 @@ function ChartContainer({
   const hasDeclaredHeight = style?.height != null || style?.minHeight != null
   const hasDeclaredWidth = style?.width != null || style?.minWidth != null
   const containerStyle: React.CSSProperties = {
-    ...(hasDeclaredHeight ? {} : { minHeight: 280 }),
+    ...(hasDeclaredHeight ? {} : { minHeight: CHART_MIN_HEIGHT }),
     ...(hasDeclaredWidth ? {} : { minWidth: 0 }),
     ...style,
   }
@@ -189,7 +242,15 @@ function ChartContainer({
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <ResponsiveContainer key={settleNonce} width="100%" height="100%">
+        <ResponsiveContainer
+          key={settleNonce}
+          width="100%"
+          height="100%"
+          // The SAME floor, on the element that is actually measured. See
+          // CHART_MIN_HEIGHT: a floor on the wrapper above cannot reach this
+          // div, because this div sizes itself from `height: 100%`.
+          {...(hasDeclaredHeight ? {} : { minHeight: CHART_MIN_HEIGHT })}
+        >
           {children}
         </ResponsiveContainer>
       </div>
