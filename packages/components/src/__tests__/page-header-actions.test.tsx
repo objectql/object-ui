@@ -824,8 +824,8 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
               },
             ],
           },
-          // Non-empty payload WITHOUT the referenced field — mirrors the
-          // server stripping `hidden: true` fields from detail payloads.
+          // Non-empty payload WITHOUT the referenced field — mirrors a
+          // projected/partial read binding a record that lacks the key.
           { record: { id: '1', status: 'new' } },
         );
         expect(screen.queryByRole('button', { name: /Hidden Field Gate/i })).toBeNull();
@@ -833,8 +833,8 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
           String(c[0]).includes('hidden_field_gate_2358'),
         );
         // TWO diagnostics, one per fact, each once (objectui#3521): this local
-        // one names the missing field — a CAUSE only this surface can see, since
-        // the server strips `hidden: true` fields from detail payloads — and the
+        // one names the missing field — a FACT only this surface can see, since
+        // only the page knows which payload it bound (objectui#5399) — and the
         // shared `evalRowPredicate` report states the VERDICT (a CEL fault on an
         // absent key, resolved to the fail-closed default). Before #3521 the
         // legacy JS evaluator returned `undefined` for the absent key without
