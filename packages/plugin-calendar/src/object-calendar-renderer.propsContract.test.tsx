@@ -52,15 +52,69 @@
  * real function on a real node key. It survives as a DECLARED, function-typed
  * hatch. The declared `data` / `loading` pre-fetch path (`ObjectView`) and a
  * well-formed `locale` survive the same way.
+ *
+ * ## The record-level explain probe (objectui#5438)
+ *
+ * The DEFAULT-navigation `onEventClick` case below opens `ObjectCalendar`'s
+ * overlay drawer (`navIsOverlay` true for the default `drawer` mode), which
+ * renders `@object-ui/plugin-detail`'s `RecordDetailDrawer` → `DetailView`.
+ * `DetailView` gates its Edit/Delete CTAs on a per-record write verdict
+ * (`useRecordEditable`, objectstack#3821): `POST /api/v1/security/explain`,
+ * ridden on the host's `apiFetch` when one is injected and on the bare global
+ * `fetch` otherwise (by design, for standalone embeds — see that hook's own
+ * docstring). This file's `renderCalendar()` wraps every case in
+ * `SchemaRendererProvider dataSource={null}` with no `apiFetch`, so that
+ * fallback used to reach the real network: happy-dom's default document
+ * origin is `http://localhost:3000/`, so the relative URL resolved and left
+ * the process for real — `4× ECONNREFUSED 127.0.0.1:3000`, invisible to every
+ * assertion here because the hook fails open on a failed request (the same
+ * defect class as objectui#3339, closed by PR #4105 for `plugin-detail`'s own
+ * suites, and objectui#5225 / #5280 for `plugin-report` / `plugin-dashboard`
+ * — this file is a new CONSUMER of the same hook, not a new root cause).
+ *
+ * Fixed the same way #4105 settled: {@link installExplainDouble} answers the
+ * probe from a recording double instead of the network. `visible: true`
+ * reproduces the pre-fix observable behaviour exactly (the hook already
+ * failed open), so no existing assertion changes meaning — the double is
+ * pinned by its own dedicated test below the DEFAULT-navigation case, the
+ * only path in this file that reaches it.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import { __clearRecordEditableCache } from '@object-ui/plugin-detail';
 // Module scope: the registration side effect this file renders through
 // (AGENTS.md 测试纪律 — never inside a hook).
 import './index';
+
+/**
+ * A stand-in for the record-level explain probe (`useRecordEditable`,
+ * `POST /api/v1/security/explain`) — see the file-header note above for why
+ * this file needs one. Same shape as `plugin-detail`'s own
+ * `DetailView.test.tsx` (PR #4105): a recording double, never a
+ * swallow-everything stub, so an escape to some OTHER endpoint stays a
+ * recorded call this file's counter-probe can fail on instead of vanishing
+ * into the hook's fail-open `catch`.
+ *
+ * `visible: true` for every call — the pre-fix network failure also failed
+ * open, so this keeps every existing assertion's meaning unchanged.
+ */
+function installExplainDouble(): { url: string; body: Record<string, unknown> | undefined }[] {
+  const calls: { url: string; body: Record<string, unknown> | undefined }[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown, init?: { body?: unknown }) => {
+      calls.push({
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return { ok: true, json: async () => ({ record: { visible: true } }) };
+    }),
+  );
+  return calls;
+}
 
 /** The text `SchemaErrorBoundary` renders when a widget throws during RENDER. */
 const ERROR_BOUNDARY_MARKER = 'failed to render';
@@ -184,6 +238,23 @@ function dayCells(): NodeListOf<Element> {
 }
 
 describe('object-calendar: an authored handler key can no longer crash a gesture (objectui#4492)', () => {
+  // objectui#5438 — installed for every case, not only the one that reaches
+  // it: the record-level explain probe is DetailView's own wiring, invisible
+  // from this file's schema authoring, so scoping the double to a single
+  // `it` would silently stop covering it the moment a future case takes the
+  // same drawer-opening path. `__clearRecordEditableCache` matters because the
+  // hook memoises verdicts by `object:recordId:operation` in MODULE scope —
+  // without clearing it, whichever case runs first primes the cache for
+  // every case after it, and the double stops being asked at all.
+  let explainCalls: ReturnType<typeof installExplainDouble>;
+  beforeEach(() => {
+    __clearRecordEditableCache();
+    explainCalls = installExplainDouble();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('drops an authored `onDateClick` string written on the NODE — the day-cell click is a no-op', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -320,6 +391,45 @@ describe('object-calendar: an authored handler key can no longer crash a gesture
       const event = await screen.findByRole('button', { name: 'Computed Standup' });
 
       expect(clickErrors(() => fireEvent.click(event))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  /**
+   * objectui#5438 — opening the DEFAULT-navigation drawer is the one path in
+   * this file that mounts `DetailView`'s record-level explain gate
+   * (`useRecordEditable`, update + delete). Pinned as this file's
+   * COUNTER-PROBE: it proves `installExplainDouble()` is actually reached
+   * (not merely installed and never asked), and — because
+   * `RecordDetailDrawer` hands `DetailView` `data: record` rather than a bare
+   * `resourceId`, taking `DetailView`'s inline-data path — that the object
+   * name it asks about is the one `ObjectCalendar` resolves from
+   * `schema.objectName` ('accounts'), not from `dataConfig`'s 'object'
+   * provider shape (this file's nodes carry a literal `data` array, so
+   * `getDataConfig` never reaches that branch).
+   */
+  it('probes the record-level explain endpoint (update + delete) when the DEFAULT-navigation drawer opens, from the double — not the network', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      renderCalendar(calendarNode('plugin-calendar:object-calendar'));
+
+      await expectCalendarRendered();
+      const event = await screen.findByRole('button', { name: 'Computed Standup' });
+      fireEvent.click(event);
+
+      await waitFor(() => expect(explainCalls).toHaveLength(2));
+
+      expect(explainCalls.map((c) => c.url)).toEqual([
+        '/api/v1/security/explain',
+        '/api/v1/security/explain',
+      ]);
+      expect(explainCalls.map((c) => c.body)).toEqual(
+        expect.arrayContaining([
+          { object: 'accounts', operation: 'update', recordId: 'r1' },
+          { object: 'accounts', operation: 'delete', recordId: 'r1' },
+        ]),
+      );
     } finally {
       errors.mockRestore();
     }
