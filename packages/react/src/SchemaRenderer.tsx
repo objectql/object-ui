@@ -584,20 +584,24 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * re-evaluated on every render, and the point is one line, not a wall.
      */
     const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
+      // PRODUCTION IS THE UNTOUCHED CALL. `throwOnError` is how the fault is
+      // detected, and on the CEL branch `evaluateCelCondition` implements it by
+      // evaluating TWICE (once with each fallback — a value that tracks the
+      // fallback both times is a fault). Spec-parsed metadata normalizes
+      // `visibleWhen` into a `{ dialect: 'cel' }` envelope, so that branch is
+      // the common one in production: paying for the probe unconditionally
+      // would double the engine calls for every predicate of every node, to
+      // build a message no production build ever prints.
+      if (!__DEV__) return evaluator.evaluateCondition(raw);
       try {
         return evaluator.evaluateCondition(raw, { throwOnError: true });
       } catch (err) {
-        if (__DEV__) {
-          reportUnresolvableVisibilityPredicate(
-            newSchema.type,
-            newSchema.id,
-            key,
-            raw,
-            err,
-          );
-        }
-        // The historical fail-soft answer, unchanged. See the docblock: this is
-        // the value every path of `evaluateCondition` already returned here.
+        reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
+        // The historical fail-soft answer, unchanged — and identical to what
+        // the production branch above returns for the same input, which is what
+        // keeps the two branches one behaviour rather than two. See the
+        // docblock: `true` is the value EVERY path of `evaluateCondition`
+        // already returned for an unevaluable predicate.
         return true;
       }
     };

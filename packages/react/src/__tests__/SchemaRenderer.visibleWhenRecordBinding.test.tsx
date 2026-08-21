@@ -304,6 +304,75 @@ describe('#5454 leg 3 — an unresolvable predicate is loud, and its verdict is 
     expect(warn.mock.calls.map(c => String(c[0])).some(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX))).toBe(true);
   });
 
+  it('a PRODUCTION build takes the single-evaluation branch and reaches the SAME verdicts', async () => {
+    // Leg 3 detects a fault via `throwOnError`, and on the CEL branch
+    // `evaluateCelCondition` implements that by evaluating TWICE. Spec-parsed
+    // metadata normalizes `visibleWhen` into a CEL envelope, so paying for the
+    // probe unconditionally would double the engine calls for every predicate
+    // of every node in production, to build a message production never prints.
+    //
+    // The branch is therefore `__DEV__`-gated — and a gate that changes the
+    // ANSWER would be a fork, not an optimisation. This case is what makes that
+    // claim checkable: the same three inputs, re-imported under
+    // NODE_ENV=production, reach the verdicts the dev branch reached above.
+    //
+    // The dynamic import lives in the test BODY, not a hook: it has to read
+    // module state that only exists after `resetModules` + `stubEnv`, which is
+    // the case `object-ui/no-dynamic-import-in-test-hook` exempts.
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const [core, prod, ctx, rec, expr] = await Promise.all([
+        import('@object-ui/core'),
+        import('../SchemaRenderer'),
+        import('../context/SchemaRendererContext'),
+        import('../context/RecordContext'),
+        import('../hooks/useExpression'),
+      ]);
+      core.ComponentRegistry.register(NAME, Probe as never, { namespace: 'element', skipFallback: true } as never);
+      const mountProd = (schema: Record<string, unknown>, record?: Record<string, unknown>) => {
+        const tree = (
+          <expr.PredicateScopeProvider scope={APP_SCOPE}>
+            <ctx.SchemaRendererContext.Provider value={{ dataSource: ADAPTER } as never}>
+              <prod.SchemaRenderer schema={{ type: TYPE, ...schema } as never} />
+            </ctx.SchemaRendererContext.Provider>
+          </expr.PredicateScopeProvider>
+        );
+        return render(
+          record === undefined
+            ? tree
+            : (
+              <rec.RecordContextProvider objectName="showcase_task" recordId="r1" data={record}>
+                {tree}
+              </rec.RecordContextProvider>
+            ),
+        );
+      };
+
+      // Resolvable, both polarities — the record binding still works.
+      mountProd({ visibleWhen: cel("record.status == 'in_review'") }, IN_REVIEW);
+      expect(shown()).toBe(true);
+      cleanup();
+      mountProd({ visibleWhen: cel("record.status == 'in_review'") }, DONE);
+      expect(shown()).toBe(false);
+      cleanup();
+      // Unresolvable — the same fail-soft SHOWN the dev branch returns...
+      mountProd({ visibleWhen: cel("record.status == 'in_review'") }, undefined);
+      expect(shown()).toBe(true);
+      // ...and the non-negated leg keeps its inverted fail-soft answer too.
+      cleanup();
+      mountProd({ hidden: cel('record.nope.deeper == 1') }, undefined);
+      expect(shown()).toBe(false);
+      // ...but with none of this module's diagnostic, which is dev-only.
+      expect(warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX))).toHaveLength(0);
+      core.ComponentRegistry.unregister?.(NAME, 'element');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it('deduped: one line per (node type, key, predicate), not one per render', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mount({ visibleWhen: cel("record.status == 'in_review'") }, undefined);
