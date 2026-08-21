@@ -256,7 +256,14 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       setParamState({
         open: true,
         params: localized,
-        title: action?.label || action?.title,
+        // Titled from `label` alone — the one spelling an action carries for
+        // this. The `|| action?.title` fallback that used to sit here read a
+        // key declared on no action surface at all — not `@objectstack/spec`'s
+        // `ActionSchema`, not `ActionDef`, not `@object-ui/types`' renderer
+        // view (`ui-action.ts`) or `crud.ts` — and forwarded by none of the
+        // four action renderers, so it could not fire from authored metadata
+        // (objectui#4282). Reads exactly one key, like `description` below.
+        title: action?.label,
         description: overrideNotice
           ? [overrideNotice, declaredDescription].filter(Boolean).join('\n\n')
           : declaredDescription,
