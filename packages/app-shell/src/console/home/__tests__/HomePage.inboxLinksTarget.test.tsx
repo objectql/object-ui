@@ -109,6 +109,14 @@ vi.mock('../../../runtime-config', () => ({
   // the gate itself is covered by `HomePage.marketplaceDisabled.test.tsx`,
   // which drives the REAL module instead of this stand-in.
   isMarketplaceEnabled: () => true,
+  // objectui#5577 — same treatment for the AI-authoring gate, which Home now
+  // reads through `isAiStudioEnabled()` rather than inline. An explicit factory
+  // replaces the WHOLE module, so an export it does not list is `undefined` at
+  // the call site — i.e. omitting this line is a TypeError here, not a default.
+  // `true` keeps every case in this file on the pre-existing behaviour; the gate
+  // itself is covered by `HomePage.aiStudioDisabled.test.tsx`, which drives the
+  // REAL module instead of this stand-in.
+  isAiStudioEnabled: () => true,
 }));
 
 import { HomePage } from '../HomePage';

@@ -34,7 +34,7 @@ import { AiUsageIndicator } from './AiUsageIndicator.js';
 import { useChatConversation } from '../hooks/index.js';
 import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope.js';
 import { resolveSurfaceAgent } from '../hooks/surfaceAgent.js';
-import { getRuntimeConfig } from '../runtime-config.js';
+import { isAiStudioEnabled } from '../runtime-config.js';
 import {
   clampDockWidth,
   maximizedDockWidth,
@@ -260,7 +260,7 @@ function ChatDockConversation({
       resolveSurfaceAgent('default', {
         agents,
         appDefaultAgent: defaultAgent,
-        aiStudioEnabled: getRuntimeConfig().features.aiStudio !== false,
+        aiStudioEnabled: isAiStudioEnabled(),
       }),
     [agents, defaultAgent],
   );

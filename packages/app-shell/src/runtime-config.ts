@@ -315,6 +315,48 @@ export function isMarketplaceEnabled(): boolean {
   return current.features?.marketplace !== false;
 }
 
+/**
+ * Is AI-driven metadata authoring ("online development") offered by this
+ * runtime? (objectui#5521 / objectui#5577)
+ *
+ * Reads the server's OWN answer — `features.aiStudio`, which the runtime
+ * derives per request from the same resolution that decides whether the
+ * metadata-authoring agent is mounted at all. On the composed hosted-SaaS shape
+ * it arrives `false` while the ToolRegistry holds zero authoring handlers and
+ * `/api/v1/meta/*` answers 403, so the SPA withholds the authoring entry points
+ * instead of offering a front door the backend refuses.
+ *
+ * Distinct from the PER-PRINCIPAL authoring capability (`useCanAuthorMetadata`):
+ * this is the DEPLOYMENT's answer ("is authoring offered here at all"), that one
+ * is the caller's ("may THIS principal author"). Both gates are real and neither
+ * substitutes for the other.
+ *
+ * ⛔ Never infer this from the SHAPE OF A FAILURE. A 403/404 from `/api/v1/meta/*`
+ * is equally what a permission denial — or a control plane that is merely DOWN —
+ * produces, and a page that concludes "authoring is disabled on this runtime"
+ * from it tells an operator their deployment is the problem while the real one is
+ * their credentials or their upstream. The flag is a property of the runtime's
+ * own capability set; a broken upstream leaves it `true` and the failure stays a
+ * failure.
+ *
+ * Fails OPEN (`!== false`): a runtime predating `/api/v1/runtime/config`, or one
+ * whose config fetch failed, keeps the default `true` and the AI authoring
+ * affordances stay exactly as visible as they were before this gate existed.
+ * Withholding a working capability on an unanswered question is the worse
+ * direction — the server refuses the write regardless.
+ *
+ * `features?.` is load-bearing, not decoration. It is why this doctrine belongs
+ * in ONE place instead of being retyped per call site: a caller reached through a
+ * PARTIAL runtime-config snapshot (a host, or a sibling suite standing the module
+ * in as `getRuntimeConfig: () => ({ branding })`) sees `features` genuinely
+ * absent, and reading `.aiStudio` off `undefined` is a TypeError — a crash, not a
+ * fail-open. PR #5575 measured that exact un-chained shape crashing 29 tests
+ * across 4 suites before it was corrected.
+ */
+export function isAiStudioEnabled(): boolean {
+  return current.features?.aiStudio !== false;
+}
+
 /** Test/dev helper. */
 export function resetRuntimeConfigForTesting(): void {
   current = {

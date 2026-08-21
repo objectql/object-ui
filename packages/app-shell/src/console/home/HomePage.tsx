@@ -39,7 +39,7 @@ import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, Layou
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
 import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
-import { getRuntimeConfig, isMarketplaceEnabled } from '../../runtime-config.js';
+import { isAiStudioEnabled, isMarketplaceEnabled } from '../../runtime-config.js';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -386,19 +386,12 @@ export function HomePage() {
   // hosted-SaaS shape it arrives `false` while the ToolRegistry holds zero
   // authoring handlers and `/api/v1/meta/*` answers 403.
   //
-  // Read inline rather than through a new accessor, so this card adds no
-  // export; lifting this and `ChatDock`'s identical read onto an
-  // `isAiStudioEnabled()` sibling of `isMarketplaceEnabled()` is filed as a
-  // follow-up rather than done here, where it would mean editing four
-  // neighbouring suites' module mocks.
-  //
-  // `features?.` and `!== false` are both load-bearing and are copied from
-  // `isMarketplaceEnabled()`'s body rather than invented: hosts (and four
-  // sibling suites) supply a runtime-config snapshot carrying only `branding`,
-  // so `features` is genuinely absent on real code paths — and an absent flag
-  // must fail OPEN. Withholding the product's front door over an unanswered
-  // question is the worse direction; the server refuses the write regardless.
-  const aiStudioEnabled = getRuntimeConfig().features?.aiStudio !== false;
+  // objectui#5577 — read through the accessor, not inline. `features?.` and
+  // `!== false` are both load-bearing, and the reasoning for each now lives in
+  // exactly one place (`isAiStudioEnabled()`'s docblock) instead of being
+  // retyped per call site: that is what the accessor buys. `ChatDock`'s read
+  // was the same doctrine spelled a second, un-chained way.
+  const aiStudioEnabled = isAiStudioEnabled();
   // Shown wherever an authoring entry point is withheld, so the posture is
   // explained on screen instead of surfacing as a refusal after a filled-in
   // dialog. Localized in all ten packs.
