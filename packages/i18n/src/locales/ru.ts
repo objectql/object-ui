@@ -3320,6 +3320,11 @@ const ru = {
       detailChangedKeys: 'Также изменено:',
       confirmNote: 'Публикация атомарно выпускает все {{count}} ожидающих черновиков этого пакета.',
       publishConfirm: 'Опубликовать всё',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: 'Публикация будет отклонена — {{count}} элемент(ов) требуют решения',
+      securityBlockWhere: 'Исправьте это в объекте в разделе «Настройки → Общий доступ к записям» и опубликуйте снова.',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.

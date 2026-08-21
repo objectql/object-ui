@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, FilePlus2, FilePen, Loader2, Rocket } from 'lucide-react';
+import { ChevronDown, ChevronRight, FilePlus2, FilePen, Loader2, Rocket, ShieldAlert } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -50,6 +50,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 // refuses, and a faithful copy is exactly the fork that guard exists to prevent.
 import { canonicalMetaUrlType } from '@objectstack/spec/shared';
 import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
+import { lintDraftSecurityPosture, type DraftSecurityProblem } from './securityPostureLint.js';
 
 export interface DraftChangeEntry {
   /**
@@ -321,6 +322,13 @@ export function DraftChangesPanel({
   const { t } = useObjectTranslation();
   const [entries, setEntries] = useState<DraftChangeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Author-time security findings that the publish door would REFUSE
+   * (objectui#5418). Surfaced here, next to the button, so the refusal is
+   * something the author reads before committing rather than a toast that
+   * arrives after the batch has already rolled back.
+   */
+  const [problems, setProblems] = useState<DraftSecurityProblem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpanded = useCallback((key: string) => {
@@ -335,9 +343,24 @@ export function DraftChangesPanel({
   const load = useCallback(async () => {
     setEntries(null);
     setError(null);
+    setProblems([]);
     try {
       const drafts = await listPendingDrafts(packageId);
       setEntries(drafts);
+      // Mirror the publish door's own security-posture rule over these drafts.
+      // Deliberately not awaited with the classification below: a finding is
+      // advisory and must never gate the sheet's ability to render, so its
+      // failure mode is "no findings", exactly like an unavailable lint.
+      void lintDraftSecurityPosture(
+        {
+          getDraft: (type, name, opts) =>
+            fetchItemBody(type, name, {
+              draft: true,
+              packageId: (opts?.packageId as string | undefined) ?? packageId ?? null,
+            }),
+        },
+        drafts,
+      ).then(setProblems, () => setProblems([]));
       // Classify new-vs-update per TYPE: one published-list read covers every
       // draft of that type. A type whose read fails stays unclassified
       // (rendered neutrally) rather than failing the whole panel.
@@ -394,7 +417,10 @@ export function DraftChangesPanel({
             })}
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6">
+        <div
+          data-testid="draft-changes-list"
+          className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6"
+        >
           {error ? (
             <p className="text-sm text-destructive">
               {t('preview.changes.loadFailed', { defaultValue: 'Could not load pending changes:' })}{' '}
@@ -469,6 +495,32 @@ export function DraftChangesPanel({
             ))
           )}
         </div>
+        {problems.length > 0 && !error && (
+          <div
+            data-testid="draft-security-problems"
+            className="mt-auto border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/60 dark:bg-amber-950/30"
+          >
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              {t('preview.changes.securityBlockTitle', {
+                count: problems.length,
+                defaultValue: 'Publishing will be refused — {{count}} item(s) need a decision first',
+              })}
+            </p>
+            <ul className="mt-1.5 flex flex-col gap-1.5">
+              {problems.map((p) => (
+                <li key={`${p.type}:${p.name}:${p.rule}`} className="text-[11px] leading-5 text-amber-900 dark:text-amber-200">
+                  <span className="font-mono">{p.name}</span> — {p.hint || p.message}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] text-amber-800/80 dark:text-amber-300/80">
+              {t('preview.changes.securityBlockWhere', {
+                defaultValue: 'Fix it on the object under Settings → Record sharing, then publish again.',
+              })}
+            </p>
+          </div>
+        )}
         {onPublish && (entries?.length ?? 0) > 0 && !error && (
           <div className="mt-auto flex flex-col gap-2 border-t px-4 py-3">
             <p className="text-xs text-muted-foreground">

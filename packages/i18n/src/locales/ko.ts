@@ -3308,6 +3308,11 @@ const ko = {
       detailChangedKeys: '기타 변경:',
       confirmNote: '게시하면 이 패키지의 대기 중인 초안 {{count}}개가 한 번에(원자적으로) 게시됩니다.',
       publishConfirm: '모두 게시',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: '게시가 거부됩니다 — {{count}}개 항목에 먼저 결정이 필요합니다',
+      securityBlockWhere: '객체의 설정 → 레코드 공유에서 수정한 후 다시 게시하세요.',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.

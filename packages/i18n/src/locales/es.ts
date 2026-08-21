@@ -3313,6 +3313,11 @@ const es = {
       detailChangedKeys: 'También cambió:',
       confirmNote: 'Publicar libera atómicamente los {{count}} borradores pendientes de este paquete.',
       publishConfirm: 'Publicar todo',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: 'La publicación será rechazada: {{count}} elemento(s) necesitan una decisión primero',
+      securityBlockWhere: 'Corríjalo en el objeto en Configuración → Uso compartido de registros y vuelva a publicar.',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.

@@ -3309,6 +3309,11 @@ const de = {
       detailChangedKeys: 'Ebenfalls geändert:',
       confirmNote: 'Beim Veröffentlichen werden alle {{count}} ausstehenden Entwürfe dieses Pakets atomar freigegeben.',
       publishConfirm: 'Alle veröffentlichen',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: 'Veröffentlichen wird abgelehnt — {{count}} Element(e) benötigen zuerst eine Entscheidung',
+      securityBlockWhere: 'Korrigieren Sie es am Objekt unter Einstellungen → Datensatzfreigabe und veröffentlichen Sie erneut.',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.

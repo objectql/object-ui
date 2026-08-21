@@ -102,8 +102,13 @@ export function deriveMasterObject(fields: unknown): string | undefined {
  * stays available in the object's Settings tab, where the object may since
  * have gained the master-detail field that makes the fourth value authorable.
  */
-export const OWD_DEFAULT: OwdModel = 'private';
-
-/** The OWD values authorable on a just-created object (see `OWD_DEFAULT`). */
 export const OWD_CREATE_MODELS = ['private', 'public_read', 'public_read_write'] as const;
 export type OwdCreateModel = (typeof OWD_CREATE_MODELS)[number];
+
+/**
+ * Typed as `OwdCreateModel`, not `OwdModel`: the default has to be a value the
+ * create surface can actually offer. Widening it to the full four-value set
+ * would let a future edit default new objects to `controlled_by_parent`, which
+ * a just-created object has no master relation to derive from.
+ */
+export const OWD_DEFAULT: OwdCreateModel = 'private';

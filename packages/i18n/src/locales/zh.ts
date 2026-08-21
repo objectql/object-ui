@@ -2615,6 +2615,11 @@ const zh = {
       detailChangedKeys: '其他变更：',
       confirmNote: '发布将一次性（原子地）发布此包全部 {{count}} 个待发布草稿。',
       publishConfirm: '全部发布',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: '发布会被拒绝 —— 有 {{count}} 项需要先做出决定',
+      securityBlockWhere: '请在对象的“设置 → 记录共享模型”中修改后重新发布。',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.
