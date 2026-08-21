@@ -197,10 +197,21 @@ export function MarketplacePage() {
     });
   }, [items, query, category, language]);
 
-  if (!isAdmin) return <MarketplaceAccessDenied />;
-  // Ordered after the access guard on purpose: a non-admin has no business
-  // reading this runtime's marketplace posture either way.
+  // Ahead of the `!isAdmin` guard below deliberately (objectui#5557): on a
+  // runtime that mounts no marketplace, "there is no marketplace here" is true
+  // of every viewer, and `features.marketplace` is public runtime config every
+  // client already reads -- so the retired ordering withheld nothing, it only
+  // misdirected. Telling an unprivileged member they lack PERMISSION for a
+  // surface that exists for nobody sends them to ask an administrator for a
+  // grant that would not help them. This is the ordering
+  // `MarketplacePackagePage` landed under objectui#5533; the sibling pages now
+  // answer one runtime the same way.
   if (!marketplaceEnabled) return <MarketplaceDisabled />;
+
+  // On a runtime that DOES have a marketplace, admin-first stays correct: the
+  // catalog is an install surface, and a member who cannot install has nothing
+  // to do with it. objectui#5557 did not claim otherwise.
+  if (!isAdmin) return <MarketplaceAccessDenied />;
 
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6">
