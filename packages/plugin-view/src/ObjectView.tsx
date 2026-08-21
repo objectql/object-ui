@@ -925,17 +925,28 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // `ListTree` that file's `DEFAULT_VIEW_ICONS.tree` already names for
         // this view type. The `|| 'table'` fallback stays: `v.type` arrives
         // from a host prop and nothing validates it at runtime.
+        //
+        // objectui#5586 — the VALUES have to be names lucide still carries in
+        // its runtime `icons` record, which is what `ViewSwitcher.resolveIcon`
+        // reads. `chart: 'bar-chart-3'` and `gantt: 'gantt-chart'` were dropped
+        // from that record while surviving as deprecated NAMED EXPORTS, so both
+        // types rendered with NO icon at all while every sibling had one. The
+        // compiler sees none of it: nothing in this map is a lucide symbol.
+        // Measured on lucide-react 1.31.0, `chart-column` → `ChartColumn` and
+        // `chart-gantt` → `ChartGantt` both resolve, and both agree with the
+        // components `ViewSwitcher.DEFAULT_VIEW_ICONS` names for the same view
+        // types. Every value here is pinned by `ViewSwitcher.test.tsx`.
         const iconMap: Record<ViewType, string> = {
           kanban: 'kanban',
           calendar: 'calendar',
           map: 'map',
           gallery: 'layout-grid',
           timeline: 'activity',
-          gantt: 'gantt-chart',
+          gantt: 'chart-gantt',
           grid: 'table',
           list: 'list',
           detail: 'file-text',
-          chart: 'bar-chart-3',
+          chart: 'chart-column',
           tree: 'list-tree',
         };
         return {

@@ -196,14 +196,15 @@ describe('the view switcher labels every composed view type (objectui#5321)', ()
     // produce no icon at all. Measured on lucide-react 1.31: `list-tree` is
     // `ListTree` and resolves.
     //
-    // Asserted for `tree` only, deliberately. Two SIBLING entries in the same
-    // map — `chart: 'bar-chart-3'` and `gantt: 'gantt-chart'` — do NOT resolve
-    // on this version (lucide dropped both from its `icons` record while
-    // keeping them as deprecated named exports), so they render icon-less
-    // today. That is a different defect from the missing key this card fixes,
-    // it needs new icon names chosen rather than a key added, and it is filed
-    // as objectui#5586. ⛔ Do not widen this assertion over the whole map
-    // expecting green — that widening belongs to objectui#5586, with the fix.
+    // Scoped to `tree` here because this file is about the objectui#5321
+    // exemption. The widening this comment used to forbid HAS LANDED: the two
+    // sibling entries that did not resolve — `chart: 'bar-chart-3'` and
+    // `gantt: 'gantt-chart'`, dropped from lucide's `icons` record while
+    // surviving as deprecated named exports — are fixed by objectui#5586,
+    // which pins EVERY name both maps supply in `ViewSwitcher.test.tsx`. The
+    // pin lives there because the real component renders the names there, so
+    // no hand-copied PascalCase mirror of `resolveIcon` can drift out from
+    // under it (this file mocks `../ViewSwitcher` away).
     expect(icons.ListTree, '`list-tree` no longer resolves in lucide-react.').toBeTruthy();
   });
 
