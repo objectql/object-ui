@@ -253,6 +253,29 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
     if (!Display) {
       return <div className="text-sm whitespace-pre-wrap break-words">{value || <EmptyValue />}</div>;
     }
+    // The `react-hooks/static-components` disable at the bottom of this block is
+    // MEASURED, not waved through. `Display` is one of two MODULE-SCOPE function
+    // declarations,
+    // looked up out of the module-scope `RICH_TEXT_CELL_RENDERERS` table by field
+    // type; `richTextCellRenderer` is a pure index with no allocation, so the
+    // reference is `===` across renders and nothing is created during render.
+    // Identity moves only when `fieldType` moves, and remounting THEN is correct:
+    // a different type is a different pipeline. The rule cannot see through the
+    // table lookup — the same dispatch lints clean in `DetailSection` only
+    // because it sits inside an IIFE there — and this repo already carries the
+    // same scoped disable for the same shape (`NotificationAlerts`/
+    // `NotificationSnackbar`'s module-cached icon lookup, `page.tsx`'s template
+    // registry).
+    //
+    // What would INVALIDATE this and make the rule right: constructing the
+    // component on the way to this JSX — a `(props) => <X …/>` wrapper, a
+    // `React.memo(…)`/`useMemo` computed here, anything closing over render
+    // state. That is objectui#5348's remount class, which shipped three times
+    // because this rule family bails out silently on large components. So the
+    // claim is not left to this comment: `readonly-richtext-display-5498.test
+    // .tsx` pins both halves of it — the lookup's reference identity, and the
+    // rendered DOM node surviving a re-render.
+    // eslint-disable-next-line react-hooks/static-components -- see above
     return <Display value={value} field={field} />;
   }
 

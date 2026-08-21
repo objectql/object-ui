@@ -172,7 +172,41 @@ describe('RichTextField fullscreen — the states the fix must not have moved (o
     expect(onChange).toHaveBeenCalledWith('# hello from fullscreen');
   });
 
-  it('keeps the dialog holding the REAL editor, disabled and not', () => {
+  /**
+   * The indicator's VEHICLE changed with objectui#5498; what this case pins did
+   * not.
+   *
+   * It was written with `fieldMeta({ format: 'html' })` on a `markdown`-typed
+   * fixture, and the `'html'` string was doing real work: the widget derived the
+   * header from `field.format || 'markdown'`, so an authored `format` was the
+   * only way to make the RESOLVED label differ from the default a second,
+   * independently-computing surface would have produced. That is what gave
+   * `toHaveLength(2)` its teeth — a dialog computing its own label would have
+   * shown "Format: markdown" and the count would have been 1.
+   *
+   * objectui#5498 removed that read, deliberately. `format` is a spec-declared
+   * optional string on every `FieldSchema`, but its meaning in this renderer is
+   * type-scoped and it is honoured by exactly two readers, both on types that
+   * DECLARE it: `resolveCellRendererType` promotes a GENERIC textual base type
+   * to a richer renderer (`text` + `format: 'phone'`) and explicitly does not
+   * apply to explicit types, and the date renderer reads `DateFieldMetadata
+   * .format`. No rich-content metadata type declares `format`, nothing else in
+   * the platform reads it for one, and `getCellRenderer` keys on `type` alone —
+   * so honouring it here made this widget the one place where the header could
+   * name a syntax the whole platform does not render the value through.
+   *
+   * So the fixture moves from `format` to `type`, and the case is parameterised
+   * over all three registry keys rather than losing the teeth: each type's OWN
+   * label must appear exactly twice. A dialog that computed its own label from a
+   * hardcoded default now fails on at least two of the three, which is strictly
+   * more than the single fixture caught. The `disabled` half — #3402's actual
+   * subject — is untouched.
+   */
+  it.each([
+    ['markdown', 'Format: markdown'],
+    ['html', 'Format: html'],
+    ['richtext', 'Format: html'],
+  ])('keeps the dialog holding the REAL editor, disabled and not (%s)', (type, label) => {
     // #3301's acceptance criterion, re-pinned under `disabled`: the dialog
     // shows the same surface as the inline one (same format indicator), and now
     // the same interactivity too — the very thing that had drifted.
@@ -181,24 +215,24 @@ describe('RichTextField fullscreen — the states the fix must not have moved (o
       <RichTextField
         value=""
         onChange={onChange}
-        field={fieldMeta({ format: 'html' })}
+        field={fieldMeta({ type })}
       />,
     );
 
     fireEvent.click(toggle()!);
-    expect(screen.getAllByText('Format: html')).toHaveLength(2);
+    expect(screen.getAllByText(label)).toHaveLength(2);
 
     rerender(
       <RichTextField
         value=""
         onChange={onChange}
-        field={fieldMeta({ format: 'html' })}
+        field={fieldMeta({ type })}
         disabled
       />,
     );
 
     // Both surfaces present, both inert.
-    expect(screen.getAllByText('Format: html')).toHaveLength(2);
+    expect(screen.getAllByText(label)).toHaveLength(2);
     // Queried off the document rather than by role: the dialog is modal, so
     // Radix marks the background `aria-hidden` and a role query sees only the
     // dialog's own control — which is precisely the textarea NOT at issue here.

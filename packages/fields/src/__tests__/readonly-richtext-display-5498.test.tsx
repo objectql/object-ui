@@ -68,7 +68,8 @@ import '../widgets/MarkdownContent.js';
 
 import { RichTextField } from '../widgets/RichTextField';
 import { TextField } from '../widgets/TextField';
-import { getCellRenderer, resolveCellRendererType } from '../index';
+import { getCellRenderer, resolveCellRendererType, MarkdownCellRenderer, HtmlCellRenderer } from '../index';
+import { richTextCellRenderer } from '../widgets/richTextDisplay';
 
 /** The showcase seed's own richtext specimen, byte for byte (objectui#5452). */
 const SEED_RICHTEXT = '<p>Rich <strong>text</strong></p>';
@@ -260,5 +261,75 @@ describe('the discriminator: the editor header names the syntax the value is in 
     renderForm(type, '', { readonly: false });
 
     expect(item(type).textContent).toContain(expected);
+  });
+});
+
+describe('the readonly display is looked up, never created during render (objectui#5498)', () => {
+  /**
+   * The claim `RichTextField`'s scoped `react-hooks/static-components` disable
+   * makes, pinned rather than asserted in a comment.
+   *
+   * The rule fires on `<Display …/>` because it cannot see through the table
+   * lookup — the same dispatch lints clean in `DetailSection` only because it
+   * sits inside an IIFE there. Whether that is a rule limitation or a real
+   * remount is a measurement, and objectui#5348 is why it has to be MEASURED:
+   * three inline components shipped to `main` because this rule family bails
+   * out silently on large components, remounting every row on a timer and
+   * swallowing clicks. So both halves are checked here — the reference the
+   * widget renders, and the DOM node that comes out of it.
+   */
+  it.each([['markdown'], ['html'], ['richtext']])(
+    '%s: the lookup returns one stable module-scope component, not a fresh one per call',
+    (type) => {
+      const first = richTextCellRenderer(type);
+      const second = richTextCellRenderer(type);
+
+      expect(first).toBeDefined();
+      // Reference identity across calls — what "not created during render" means.
+      expect(second).toBe(first);
+      // …and the reference IS the module-scope renderer the package exports,
+      // not a wrapper around it.
+      expect(first === MarkdownCellRenderer || first === HtmlCellRenderer).toBe(true);
+      // …and it is the same component `getCellRenderer` resolves, which is the
+      // one-table claim: the readonly form branch and every other read surface
+      // index the same entry.
+      expect(first).toBe(getCellRenderer(type));
+    },
+  );
+
+  it('a non rich-content type resolves to no pipeline at all', () => {
+    // The fallback is a real branch, not a theoretical one: it is what a host
+    // passing no metadata, or a `widget:` override on a foreign type, lands on.
+    expect(richTextCellRenderer('text')).toBeUndefined();
+    expect(richTextCellRenderer('')).toBeUndefined();
+  });
+
+  it('the rendered node survives a re-render — nothing remounts', async () => {
+    const Form = ComponentRegistry.get('form')!;
+    const schema = (label: string) => ({
+      type: 'form',
+      mode: 'create',
+      showSubmit: false,
+      showCancel: false,
+      defaultValues: { [fieldName('html')]: SEED_RICHTEXT },
+      fields: [{ name: fieldName('html'), label, type: 'html', readonly: true }],
+    });
+
+    const { rerender } = render(<Form schema={schema('Label html') as any} />);
+    const before = await waitFor(() => {
+      const el = item('html').querySelector<HTMLElement>('div.prose');
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+
+    // A real re-render: new schema object, changed label.
+    rerender(<Form schema={schema('Label html renamed') as any} />);
+    const after = item('html').querySelector<HTMLElement>('div.prose');
+
+    // The SAME DOM node instance. A component constructed during render would
+    // be a new element type each pass, so React would unmount and remount the
+    // subtree — "reset their state each time they are created", the exact words
+    // of the rule this pins.
+    expect(after).toBe(before);
   });
 });
