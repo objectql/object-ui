@@ -140,10 +140,12 @@ export type FormPageMode = 'public' | 'internal';
  *
  * So this is the registry's name, used as the registry defines it. It is a
  * literal here rather than an import only because `@object-ui/app-shell`
- * exports its package root alone and that root does not re-export
- * `./urlParams` — the same unreachability `createdRecordPath.ts` documents for
- * `resolveHostAppSegment`. `FormPage.test.ts` pins the two spellings equal so
- * they cannot drift apart in silence.
+ * exports its package root alone — its `exports` map publishes `.` and
+ * `./styles.css`, nothing else — and that root does not re-export
+ * `./urlParams`, so `RECORD_DRAWER_PARAM` has no spelling a consumer can
+ * import. Retiring this literal means publishing the registry from that root,
+ * the way objectui#4280 collected `resolveHostAppSegment`. `FormPage.test.ts`
+ * pins the two spellings equal so they cannot drift apart in silence.
  */
 export const FORM_RECORD_ID_PARAM = 'recordId';
 
