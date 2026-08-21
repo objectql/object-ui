@@ -72,7 +72,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { evalFieldPredicate } from '@object-ui/core';
-import type { FormFieldSpec } from '@object-ui/app-shell';
+import type { FormFieldSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
@@ -82,7 +82,7 @@ interface PublicFormPayload {
   slug: string;
   object: string;
   label?: string;
-  form: FormViewSpec;
+  form: FormViewBody;
   objectSchema: ObjectSchemaPayload | null;
 }
 
@@ -106,30 +106,51 @@ interface ObjectFieldDef {
 /** Visualization types the form renderer understands (FormViewSpec.type). */
 const FORM_SPEC_TYPES = new Set(['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal']);
 
-interface FormViewSpec {
-  type?: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal';
-  label?: string;
-  sections?: FormSectionSpec[];
-  groups?: FormSectionSpec[];
-  sharing?: { allowAnonymous?: boolean; publicLink?: string };
-  /** Behaviour after a successful submit. */
-  submitBehavior?: SubmitBehavior;
-}
+/**
+ * The form CONFIG plus the view identity that travels beside it (objectui#5596).
+ *
+ * {@link FormViewSpec} is the converged form contract and carries no `label`:
+ * `@objectstack/spec`'s `FormViewSchema` REJECTS that key outright
+ * (`unrecognized_keys`, measured against the installed 17.0.0) — a form config
+ * says `title`, not `label`. Until #5596 this file's hand copy declared `label`
+ * on the form type, which read as "a FormView may be labelled" and is not true.
+ *
+ * The value those reads actually find is the VIEW's identity label, and both
+ * bodies this renderer accepts carry it one way or another:
+ *
+ *  - the `ExpandedViewItem` envelope (#2208) puts it beside `config`, and
+ *    {@link resolveInternalForm} already reads it from there;
+ *  - a FLATTENED runtime overlay has no envelope at all — the config and the
+ *    identity share one object, which is exactly what the spec publishes as
+ *    `VIEW_METADATA_MEMBERS.formOverlay` (`FormViewSchema` extended with
+ *    `label` / `object` / `viewKind` / ...). On that branch `form === body`, so
+ *    the label is reachable through the form variable.
+ *
+ * So the key is declared HERE, on the body this renderer unwraps, and not on the
+ * form contract shared with `packages/app-shell`. Narrowed to `string` because
+ * every read below assigns it into a `string` slot; the spec's own overlay types
+ * it `I18nLabel`, whose inline locale-map arm no form renderer in this repo
+ * resolves.
+ */
+type FormViewBody = FormViewSpec & { label?: string };
 
 /**
- * Mirrors the spec FormView.submitBehavior union (added in Step 4).
+ * Post-submit behaviour — DERIVED from the converged form contract, not
+ * restated (objectui#5596).
  *
- * `redirect.url` stays a plain string here because that is what the contract
+ * This was a hand-written four-member union carrying the comment "Mirrors the
+ * spec FormView.submitBehavior union", which is the claim shape
+ * `scripts/check-spec-symbol-derivation.mjs` exists to catch: a mirror that
+ * nothing checks is one spec release from being a fork. Reading it back off
+ * {@link FormViewSpec} makes the mirror structural.
+ *
+ * `redirect.url` is still a plain string, because that is what the contract
  * ships: the ruled shape (objectstack#7496) is a refinement ON a string, so the
  * key arrives as the author wrote it. What it is ALLOWED to say is not restated
- * in this type — `resolveSubmitRedirect` asks the spec's own schema at the
+ * here either — `resolveSubmitRedirect` asks the spec's own schema at the
  * moment of use (`submitRedirect.ts`).
  */
-type SubmitBehavior =
-  | { kind: 'thank-you'; title?: string; message?: string }
-  | { kind: 'redirect'; url: string; delayMs?: number }
-  | { kind: 'continue' }
-  | { kind: 'next-record' };
+type SubmitBehavior = NonNullable<FormViewSpec['submitBehavior']>;
 
 /** Which surface is rendering the form — see {@link FormPageProps.mode}. */
 export type FormPageMode = 'public' | 'internal';
@@ -289,35 +310,6 @@ export function readFormRecordTarget(
  */
 type EffectiveSubmitBehavior = SubmitBehavior | { kind: 'created-record' };
 
-interface FormSectionSpec {
-  label?: string;
-  collapsible?: boolean;
-  collapsed?: boolean;
-  columns?: 1 | 2 | 3 | 4 | '1' | '2' | '3' | '4';
-  /**
-   * `FormFieldSpec` here is the app-shell declaration, imported — NOT a local
-   * copy of it (objectui#5542).
-   *
-   * This position describes what an AUTHOR wrote: `sec.fields` is read straight
-   * off the `/meta/view/:name` payload, the same `FormView` document
-   * metadata-admin authors and renders. Until #5542 this file declared its own
-   * nine-key `interface FormFieldSpec` in that position — a second description
-   * of one contract, and the description was wrong about the document: the
-   * shared surface has 26 keys, so legal metadata (`visibleWhen`, `dependsOn`,
-   * `type`, `options`, `immutable`, the recursive `fields`, …) was undeclared
-   * here. That is the exact failure mode objectui#5040 recorded — "the type
-   * rejects the configuration the runtime accepts" — and nothing could notice,
-   * because each copy was only ever checked against itself.
-   *
-   * The narrow shape this renderer actually honours is a DIFFERENT type and
-   * already exists: {@link RenderableField}, what {@link buildSections} emits.
-   * Keeping the incoming-document type wide and the honoured-row type narrow is
-   * the distinction the old declaration collapsed. `FormFieldSpec.contract.test.ts`
-   * pins this element type to the app-shell one, so re-inlining a local copy
-   * fails `type-check` even if it agrees on every key on the day it is written.
-   */
-  fields: Array<string | FormFieldSpec>;
-}
 
 /** Normalized field row used by the renderer. */
 interface RenderableField {
@@ -722,7 +714,7 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 interface LoadedForm {
   label: string;
   object: string;
-  form: FormViewSpec;
+  form: FormViewBody;
   objectSchema: ObjectSchemaPayload | null;
   /**
    * The stored record this form is editing, or null in create mode
@@ -751,7 +743,7 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
 }
 
 /**
- * Unwrap a `/meta/view/:name` response into the FormViewSpec the renderer
+ * Unwrap a `/meta/view/:name` response into the {@link FormViewBody} the renderer
  * consumes. Since the ADR-0017 registrar the server returns the flattened
  * ExpandedViewItem envelope — `{ name, object, viewKind, label, config:
  * { type, sections, … } }` — with the actual form spec nested under
@@ -768,7 +760,7 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
 export function resolveInternalForm(
   name: string,
   viewBody: unknown,
-): { label: string; object?: string; form: FormViewSpec } {
+): { label: string; object?: string; form: FormViewBody } {
   const body = viewBody as Record<string, any> | null;
   const item = body?.item ?? body;
   const spec = item?.spec ?? item;
@@ -786,7 +778,7 @@ export function resolveInternalForm(
       `View "${name}" is a ${viewKind} view, not a form view — check the action or link that targets it.`,
     );
   }
-  const form: FormViewSpec = isEnvelope ? spec.config : spec;
+  const form: FormViewBody = isEnvelope ? spec.config : spec;
   // A flattened list config carries no viewKind at all but declares a grid/
   // kanban/… visualization type no form renderer understands — same false
   // positive, same loud failure.
@@ -798,7 +790,13 @@ export function resolveInternalForm(
   }
   return {
     label: (isEnvelope ? spec.label : undefined) ?? form?.label ?? name,
-    object: (isEnvelope ? spec.object : undefined) ?? (form as any)?.data?.object ?? spec?.object,
+    // `data.object` is a declared FormView key since objectui#5596, so this no
+    // longer needs `as any` — only a narrowing to the one arm that carries an
+    // object name (`ViewDataSchema`'s `provider: 'object'`), read defensively
+    // because the body itself is untrusted.
+    object: (isEnvelope ? spec.object : undefined)
+      ?? (form?.data as { object?: string } | undefined)?.object
+      ?? spec?.object,
     form,
   };
 }

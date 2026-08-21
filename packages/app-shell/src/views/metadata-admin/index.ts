@@ -28,18 +28,20 @@ export { MetadataQuickFind } from './QuickFind.js';
 export { PageShell as MetadataPageShell } from './PageShell.js';
 export { SchemaForm } from './SchemaForm.js';
 /**
- * The ONE declaration of the metadata-admin form-field authoring surface
- * (objectui#5040, converged by PR #5537 into the `./form-spec.js` leaf).
+ * The ONE declaration of the metadata-admin form authoring surface -- the
+ * field (objectui#5040, converged by PR #5537 into the `./form-spec.js` leaf)
+ * and, since objectui#5596, the two containers above it.
  *
- * Re-exported through the package root because it has an out-of-package
+ * Re-exported through the package root because they have an out-of-package
  * consumer: `apps/console`'s `FormPage.tsx` reads the same authored `FormView`
- * documents and, until objectui#5542, held a THIRD hand-written description of
- * this shape under the same name. A type that cannot be imported is a type
+ * documents and, until objectui#5542 for the field and objectui#5596 for the
+ * two containers, held its own hand-written descriptions of these shapes under
+ * the same names. A type that cannot be imported is a type
  * that gets retyped, and retyped copies drift — which is the defect #5040
  * recorded. Reachability is what makes the convergence hold outside this
  * directory. Type-only: erased at build, so nothing is added to the bundle.
  */
-export type { FormFieldSpec } from './form-spec.js';
+export type { FormFieldSpec, FormSectionSpec, FormViewSpec } from './form-spec.js';
 export { LayeredDiff } from './LayeredDiff.js';
 export { PermissionMatrixEditPage } from './PermissionMatrixEditor.js';
 export {

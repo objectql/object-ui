@@ -56,7 +56,7 @@ import {
   CollapsibleContent,
 } from '@object-ui/components';
 import { evaluatePredicate } from './predicate.js';
-import type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
+import type { FormFieldSpec, FormSectionSpec, FormViewSpec, VisibilityPredicate } from './form-spec.js';
 import {
   WIDGETS,
   widgetLabelling,
@@ -75,7 +75,7 @@ import { useMetadataLocale, t, tFormat, translateValidationMessage, translateEnu
  * (objectui#5040). Re-exported here because this is the module every importer
  * already reaches for.
  */
-export type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
+export type { FormFieldSpec, FormSectionSpec, FormViewSpec, VisibilityPredicate } from './form-spec.js';
 
 type JsonSchema = Record<string, any>;
 
@@ -618,20 +618,6 @@ function detectSecretWidget(name: string, schema: JsonSchema | undefined): strin
   return undefined;
 }
 
-/* -------------------------------------------------------------------------- */
-/* FormView spec (subset)                                                     */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Lightweight shape of the spec `FormView` we consume. We deliberately
- * accept `any` for forward compatibility — the spec evolves faster than
- * we want this admin engine to break.
- */
-export interface FormViewSpec {
-  type?: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal';
-  sections?: FormSectionSpec[];
-}
-
 /**
  * Read a visibility predicate off a spec node — **canonical key first**.
  *
@@ -655,19 +641,6 @@ function readVisibility(
   node: { visibleWhen?: VisibilityPredicate; visibleOn?: VisibilityPredicate } | undefined | null,
 ): VisibilityPredicate | undefined {
   return node?.visibleWhen ?? node?.visibleOn;
-}
-
-export interface FormSectionSpec {
-  label?: string;
-  description?: string;
-  collapsible?: boolean;
-  collapsed?: boolean;
-  columns?: 1 | 2 | 3 | 4;
-  /** Canonical section visibility predicate (ADR-0089). */
-  visibleWhen?: VisibilityPredicate;
-  /** @deprecated ADR-0089 alias of `visibleWhen`; still read for legacy layouts. */
-  visibleOn?: VisibilityPredicate;
-  fields: Array<string | FormFieldSpec>;
 }
 
 export interface SchemaFormIssue {

@@ -308,12 +308,15 @@ export type {
   MetadataSelection,
   MetadataInspector,
   MetadataInspectorProps,
-  // The form-field authoring surface, in ONE declaration (objectui#5040 /
-  // #5542). `apps/console` renders the same authored `FormView` documents this
-  // package's metadata-admin does; before it could import this name it kept a
-  // third hand-written copy of the shape. See the note on the re-export in
-  // `views/metadata-admin/index.ts`.
+  // The form authoring surface, in ONE declaration per layer: the field
+  // (objectui#5040 / #5542) and the two containers above it (objectui#5596).
+  // `apps/console` renders the same authored `FormView` documents this
+  // package's metadata-admin does; before it could import these names it kept
+  // its own hand-written copies of all three shapes. See the note on the
+  // re-export in `views/metadata-admin/index.ts`.
   FormFieldSpec,
+  FormSectionSpec,
+  FormViewSpec,
 } from './views/metadata-admin/index.js';
 
 // Studio WYSIWYG design surface (ADR-0080) — the open-source design surface.
