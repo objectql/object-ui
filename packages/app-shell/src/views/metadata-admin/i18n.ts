@@ -2601,6 +2601,22 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.flowNode.try_catch.hint': '用错误处理与重试保护步骤',
   'engine.flowNode.approval.label': '审批',
   'engine.flowNode.approval.hint': '暂停等待人工决策',
+  // objectui#5416 — `approval_revise` was the ONE palette entry with no zh
+  // row, so it alone rendered the server descriptor: an English name and the
+  // descriptor's three-line English paragraph in a list where every other node
+  // is a Chinese name and a short Chinese phrase.
+  //
+  // This is a translation, not an override. The English stays exactly where
+  // the other 21 node types keep theirs — `defineActionDescriptor` in the
+  // framework's plugin-approvals — and `translateNodeLabel`/`translateNodeHint`
+  // fall back to it whenever this table has no row, which is the whole reason
+  // the en table carries no `engine.flowNode.*` entry at all. Wording follows
+  // the 修订 vocabulary this console already uses for the same loop
+  // (`engine.flowCanvas.addReviseLoop`, `engine.flowCanvas.awaitingRevision`),
+  // and the hint is a one-line phrase like its siblings rather than a
+  // translation of the descriptor's paragraph.
+  'engine.flowNode.approval_revise.label': '修订窗口',
+  'engine.flowNode.approval_revise.hint': '审批退回后暂停,等待提交人重新提交',
   'engine.flowNode.screen.label': '交互页面',
   'engine.flowNode.screen.hint': '收集用户输入',
   'engine.flowNode.http.label': 'HTTP 请求',
