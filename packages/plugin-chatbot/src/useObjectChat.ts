@@ -473,6 +473,12 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       // `notSent` so the composer can restore the input and show a clear error
       // instead of silently dropping the message (see sendAwareFetch).
       fetch: sendAwareFetch,
+      // No `headers` here (objectui#4187): the caller's headers are applied
+      // per-send in prepareSendMessagesRequest below. `reconnectToStream` does
+      // NOT run that hook — it reads this constructor's `headers` — so the first
+      // consumer to wire up stream resumption must merge `headersRef.current`
+      // into `prepareReconnectToStreamRequest` too, or it will resume without
+      // them. Nothing in this repo resumes a stream today.
       body: {
         ...(conversationId ? { conversationId } : {}),
         ...(model ? { model } : {}),
