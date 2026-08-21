@@ -383,29 +383,49 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
 
       <div className="px-4 py-3 space-y-3">
         {/* Flow-level step strip — where in the multi-level flow this record
-            sits; present on the enriched pending row only (single reads). */}
+            sits; present on the enriched pending row only (single reads).
+
+            objectui#5554 — VERTICAL, at every step count. This panel's strip
+            used to scroll itself horizontally, which is better than the
+            console drawer's (that one dragged its whole container), but it
+            still parked the tail steps behind a scroll gesture with no
+            affordance, and readers took the clipped strip for "no more data".
+            A column caps width at the container at any step count and any
+            label length, so there is no flow length or viewport at which it
+            regresses — which is what a count- or measurement-triggered switch
+            back to a row would reintroduce. Kept identical to the console
+            drawer's stepper on purpose: same family, same treatment. Nothing
+            here may pin intrinsic width — no `shrink-0` on the rows, no
+            `whitespace-nowrap` on the labels, no horizontal scroller. */}
         {(pendingRequest?.flow_steps?.length ?? 0) > 1 && (
-          <div className="flex items-center overflow-x-auto" aria-label={tr('stepProgress', 'Approval steps')}>
-            {pendingRequest!.flow_steps!.map((s, i) => (
-              <React.Fragment key={s.id}>
-                {i > 0 && <div className={cn('h-px flex-1 min-w-4 mx-2', s.state === 'done' || s.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />}
-                <div className="flex items-center gap-1.5 shrink-0">
+          <ol className="flex flex-col" aria-label={tr('stepProgress', 'Approval steps')}>
+            {pendingRequest!.flow_steps!.map((s, i, steps) => {
+              const next = steps[i + 1];
+              return (
+                <li key={s.id} className="flex items-start gap-2">
+                  <div className="flex flex-col items-center self-stretch">
+                    <span className={cn(
+                      'flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] font-semibold',
+                      s.state === 'done' && 'bg-emerald-500 text-white',
+                      s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
+                      s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
+                    )}>
+                      {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    {next && (
+                      // Tinted by the step it leads INTO — the same rule the
+                      // horizontal connector used, now running down the rail.
+                      <div className={cn('w-px flex-1 min-h-3 my-1', next.state === 'done' || next.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />
+                    )}
+                  </div>
                   <span className={cn(
-                    'flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold',
-                    s.state === 'done' && 'bg-emerald-500 text-white',
-                    s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
-                    s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
-                  )}>
-                    {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
-                  </span>
-                  <span className={cn(
-                    'text-xs whitespace-nowrap',
+                    'min-w-0 flex-1 pt-0.5 text-xs break-words',
                     s.state === 'current' ? 'font-medium' : 'text-muted-foreground',
                   )}>{s.label}</span>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
+                </li>
+              );
+            })}
+          </ol>
         )}
 
         {/* Aggregation progress — server-computed tally (quorum/unanimous

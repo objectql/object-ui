@@ -22,7 +22,7 @@
  * an input is focused.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DeclaredActionsBar, isViaOverrideRow } from '@object-ui/app-shell';
 import { createAuthenticatedFetch } from '@object-ui/auth';
@@ -1974,27 +1974,48 @@ export function ApprovalsInboxPage() {
               })()}
 
               {(selected.flow_steps?.length ?? 0) > 1 && (
-                <div className="flex items-center px-1" aria-label={tr('stepProgress', 'Approval steps')}>
-                  {selected.flow_steps!.map((s, i) => (
-                    <Fragment key={s.id}>
-                      {i > 0 && <div className={cn('h-px flex-1 mx-2', s.state === 'done' || s.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                // objectui#5554 — the step strip is a VERTICAL stepper, at
+                // every step count. A horizontal row's intrinsic width grows
+                // without bound with step count and label length, so a real
+                // 6-step flow with ordinary CJK labels measured 1070px inside
+                // a 527px drawer: steps 4-6 were reachable only by dragging
+                // the drawer's own scrollbar, which pushed the rest of the
+                // drawer off-screen. A column caps width at the container at
+                // any step count and any label length, so there is no flow
+                // length or viewport at which it silently regresses — which
+                // is exactly what a count- or measurement-triggered switch
+                // would reintroduce. Nothing here may pin intrinsic width:
+                // no `shrink-0` on the rows, no `whitespace-nowrap` on the
+                // labels, and no horizontal scroller.
+                <ol className="flex flex-col px-1" aria-label={tr('stepProgress', 'Approval steps')}>
+                  {selected.flow_steps!.map((s, i, steps) => {
+                    const next = steps[i + 1];
+                    return (
+                      <li key={s.id} className="flex items-start gap-2">
+                        <div className="flex flex-col items-center self-stretch">
+                          <span className={cn(
+                            'flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] font-semibold',
+                            s.state === 'done' && 'bg-emerald-500 text-white',
+                            s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
+                            s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
+                          )}>
+                            {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
+                          </span>
+                          {next && (
+                            // Tinted by the step it leads INTO — the same rule
+                            // the horizontal connector used, now running down
+                            // the rail instead of across it.
+                            <div className={cn('w-px flex-1 min-h-3 my-1', next.state === 'done' || next.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />
+                          )}
+                        </div>
                         <span className={cn(
-                          'flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold',
-                          s.state === 'done' && 'bg-emerald-500 text-white',
-                          s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
-                          s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
-                        )}>
-                          {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
-                        </span>
-                        <span className={cn(
-                          'text-xs',
+                          'min-w-0 flex-1 pt-0.5 text-xs break-words',
                           s.state === 'current' ? 'font-medium' : 'text-muted-foreground',
                         )}>{s.label}</span>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
 
               <div>
