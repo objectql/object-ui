@@ -276,10 +276,6 @@ export function normalizeFilterCondition(condition: any[]): any[] {
 }
 
 /**
- * Format an action identifier string into a human-readable label.
- * e.g., 'send_email' → 'Send Email'
- */
-/**
  * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
  * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
  * value may be a bare string ("name desc"); array entries may be strings
@@ -310,6 +306,10 @@ export function parseSortConfig(sort: unknown): SortItem[] {
   return items;
 }
 
+/**
+ * Format an action identifier string into a human-readable label.
+ * e.g., 'send_email' → 'Send Email'
+ */
 function formatActionLabel(action: string): string {
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -2306,8 +2306,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // server cannot sort by the related record's name without a join
   // (objectstack#4256 settled that it won't), so the honest move is to stop
   // offering the illusion: relational fields leave the picker, and the hint
-  // below points at the supported alternative (a formula field that
-  // denormalizes the name onto this object, which sorts like any text column).
+  // below points at the supported alternative (a stored field that
+  // denormalizes the name onto this object, written when the source changes).
   //
   // Second rule — `UNMATERIALIZED_FIELD_TYPES` (`@object-ui/core`, bound to the
   // spec's own storage fact): a `formula` field has no materialised column, so
