@@ -30,6 +30,7 @@ import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
+import { reportUnresolvableVisibilityPredicate } from './utils/visibilityDiagnostic.js';
 
 /**
  * Dev-mode schema validation.
@@ -97,86 +98,10 @@ function validateSchemaOnce(schema: any): _ValidationCacheEntry {
 }
 
 /**
- * Prefix every unresolvable-visibility line starts with. Exported so tests can
- * match on it and so an app can filter it out of its console transport.
+ * What `evaluateCondition` accepts, read off the evaluator rather than
+ * re-spelled here — a hand-copied union is the shape that drifts.
  */
-export const UNRESOLVABLE_VISIBILITY_PREFIX =
-  '[ObjectUI] A visibility predicate could not be evaluated';
-
-/** The raw predicate as an author would recognise it, envelope or not. */
-function predicateSourceText(raw: unknown): string {
-  if (raw && typeof raw === 'object' && typeof (raw as any).source === 'string') {
-    return (raw as any).source;
-  }
-  return typeof raw === 'string' ? raw : String(raw);
-}
-
-/**
- * Build the unresolvable-visibility message.
- *
- * Split from the emit deliberately: a diagnostic whose only assertion is "a spy
- * was called" goes green the moment someone no-ops it, so the words a developer
- * will actually read are what the pins assert.
- */
-export function formatUnresolvableVisibilityMessage(
-  type: unknown,
-  id: unknown,
-  key: string,
-  raw: unknown,
-  reason: string,
-): string {
-  const node = typeof type === 'string' && type ? '"' + type + '"' : '(untyped node)';
-  const where = typeof id === 'string' && id ? ' (id: "' + id + '")' : '';
-  return (
-    UNRESOLVABLE_VISIBILITY_PREFIX + ' - node ' + node + where + '\n' +
-    '  ' + key + ': ' + JSON.stringify(predicateSourceText(raw)) + '\n' +
-    '  Reason: ' + reason + '\n' +
-    'The node was treated as its safe default, which on this surface means the\n' +
-    'gate did NOT bite — a predicate that cannot be evaluated reads on screen\n' +
-    'exactly like one that said yes.\n' +
-    'Page-component predicates bind `record` (the row on a record page),\n' +
-    '`current_user`, and page state as `page.<var>`. Check those roots and the\n' +
-    'CEL syntax.'
-  );
-}
-
-/**
- * Reported (node type, key, predicate source) triples, so a re-render — or the
- * post-mount `forceUpdate` that picks up lazy plugin registrations — does not
- * repeat the line. Keyed on the predicate TEXT rather than the schema object:
- * the same broken predicate authored once and rendered on many rows is one
- * authoring bug, and every row would otherwise report it.
- */
-const _warnedVisibilityPredicates = new Set<string>();
-
-/**
- * Dev-build only; the caller applies the gate. `console.warn`, not `error`:
- * the verdict is unchanged and the page still renders, so this is a diagnostic
- * about a predicate, not the refusal `reportUnevaluatedExpressions` emits when
- * raw source has already reached the DOM.
- */
-function reportUnresolvableVisibilityPredicate(
-  type: unknown,
-  id: unknown,
-  key: string,
-  raw: unknown,
-  err: unknown,
-): void {
-  const reason = err instanceof Error ? err.message : String(err);
-  const dedupeKey = JSON.stringify([type, key, predicateSourceText(raw)]);
-  if (_warnedVisibilityPredicates.has(dedupeKey)) return;
-  _warnedVisibilityPredicates.add(dedupeKey);
-  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason));
-}
-
-/**
- * Test-only reset for the dedupe above. A `Set` keyed on predicate text is
- * module state: without this, the second test to assert the same warning reads
- * the first test's dedupe entry and sees silence.
- */
-export function __resetVisibilityPredicateWarnings(): void {
-  _warnedVisibilityPredicates.clear();
-}
+type VisibilityPredicate = Parameters<ExpressionEvaluator['evaluateCondition']>[0];
 
 /**
  * Extract AriaPropsSchema properties from a schema node and convert
@@ -658,7 +583,7 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * Deduped per (node type, key, predicate source): a broken predicate is
      * re-evaluated on every render, and the point is one line, not a wall.
      */
-    const evaluateVisibilityPredicate = (raw: any, key: string): boolean => {
+    const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
       try {
         return evaluator.evaluateCondition(raw, { throwOnError: true });
       } catch (err) {
