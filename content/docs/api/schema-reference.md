@@ -400,10 +400,10 @@ A data table with columns, optional striping, and hover effects.
   "hoverable": true,
   "striped": true,
   "columns": [
-    { "name": "id", "label": "#", "width": 60 },
-    { "name": "customer", "label": "Customer" },
-    { "name": "amount", "label": "Amount", "align": "right" },
-    { "name": "status", "label": "Status" }
+    { "accessorKey": "id", "header": "#", "width": 60 },
+    { "accessorKey": "customer", "header": "Customer" },
+    { "accessorKey": "amount", "header": "Amount" },
+    { "accessorKey": "status", "header": "Status" }
   ],
   "data": [
     { "id": 1, "customer": "Acme Corp", "amount": "$1,200", "status": "Paid" },
@@ -416,7 +416,7 @@ A data table with columns, optional striping, and hover effects.
 | Property | Type | Description |
 |----------|------|-------------|
 | `caption` | `string` | Table caption / title text. |
-| `columns` | `TableColumn[]` | Column definitions with `name`, `label`, `width`, `align`, `sortable`, `render`. |
+| `columns` | `TableColumn[]` | Column definitions. `accessorKey` (the row key to read) and `header` (heading text) are required; `width`, `className`, and `cellClassName` are honoured by this renderer. |
 | `data` | `any[]` | Array of row data objects. |
 | `footer` | `SchemaNode \| string` | Footer content below the table. |
 | `hoverable` | `boolean` | Highlight rows on hover. |

@@ -8,7 +8,7 @@
 
 // table.tsx implementation
 import { ComponentRegistry } from '@object-ui/core';
-import type { TableSchema } from '@object-ui/types';
+import type { TableColumn, TableSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { 
   Table, 
@@ -28,9 +28,9 @@ ComponentRegistry.register('table',
       {schema.caption && <TableCaption>{schema.caption}</TableCaption>}
       <TableHeader>
         <TableRow>
-          {schema.columns?.map((col: any, index: number) => (
+          {schema.columns?.map((col: TableColumn, index: number) => (
             <TableHead key={index} className={col.className} style={{ width: col.width }}>
-                {col.header || col.label}
+                {col.header}
             </TableHead>
           ))}
         </TableRow>
@@ -38,9 +38,9 @@ ComponentRegistry.register('table',
       <TableBody>
         {schema.data?.map((row: any, rowIndex: number) => (
           <TableRow key={rowIndex}>
-            {schema.columns?.map((col: any, colIndex: number) => (
+            {schema.columns?.map((col: TableColumn, colIndex: number) => (
                 <TableCell key={colIndex} className={col.cellClassName}>
-                    {row[col.accessorKey || col.name]}
+                    {row[col.accessorKey]}
                 </TableCell>
             ))}
           </TableRow>
