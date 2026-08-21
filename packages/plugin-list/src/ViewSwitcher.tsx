@@ -10,14 +10,14 @@ import * as React from 'react';
 import { cn, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import {
-  Grid,
+  Grid3x3,
   LayoutGrid,
   Calendar,
   Images,    // gallery
   Activity,  // timeline
-  GanttChartSquare, // gantt
+  ChartGantt, // gantt
   Map,        // map
-  BarChart3,  // chart
+  ChartColumn,  // chart
   ListTree,   // tree
   Check,
   ChevronDown,
@@ -43,15 +43,33 @@ export interface ViewSwitcherProps {
   animated?: boolean;
 }
 
+// objectui#5622 — every identifier here is a name lucide still carries in its
+// runtime `icons` record, deliberately NOT one of the deprecated ALIASES it
+// keeps only as a named export. These are imported COMPONENTS, so a retired
+// alias goes on rendering and nothing goes red: `Grid`, `GanttChartSquare` and
+// `BarChart3` all imported, all type-checked, and all three were absent from
+// `icons` on the installed lucide. The reason to move them anyway is that a
+// spelling that is dead for the LOOKUP must not get to look alive in a map and
+// be copied into a string map next to it — which is exactly how `bar-chart-3`
+// reached `plugin-view`'s producer map (objectui#5586, same three aliases in
+// the sibling switcher's `DEFAULT_VIEW_ICONS`). Pinned by
+// `__tests__/ViewSwitcher.iconNames.test.ts`.
+//
+// `gantt` is the one real glyph change of the three: `GanttChartSquare` and
+// `ChartGantt` are DIFFERENT objects (the identity-preserving live spelling is
+// `SquareChartGantt`). `ChartGantt` is chosen over it so the two switchers draw
+// the same glyph for the same `ViewType` — #5586 landed `ChartGantt` for
+// `gantt` in `plugin-view`, and one view type showing two different icons
+// depending on which switcher is on screen is the drift worth avoiding.
 const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
-  grid: <Grid className="h-4 w-4" />,
+  grid: <Grid3x3 className="h-4 w-4" />,
   kanban: <LayoutGrid className="h-4 w-4" />,
   gallery: <Images className="h-4 w-4" />,
   calendar: <Calendar className="h-4 w-4" />,
   timeline: <Activity className="h-4 w-4" />,
-  gantt: <GanttChartSquare className="h-4 w-4" />,
+  gantt: <ChartGantt className="h-4 w-4" />,
   map: <Map className="h-4 w-4" />,
-  chart: <BarChart3 className="h-4 w-4" />,
+  chart: <ChartColumn className="h-4 w-4" />,
   tree: <ListTree className="h-4 w-4" />,
 };
 

@@ -80,10 +80,24 @@ ComponentRegistry.register('icon',
   {
     namespace: 'ui',
     label: 'Icon',
-    icon: 'smile',
+    // objectui#5622 — `face-slightly-smiling`, NOT `smile`, in BOTH places
+    // below. Every lookup in this file goes through lucide's runtime `icons`
+    // record, and lucide retires a spelling by dropping it from that record
+    // while keeping it as a deprecated named export. `Smile` is gone from the
+    // record, so this component's own declared default resolved to nothing:
+    // the palette entry's glyph was blank and an `icon` dropped in from the
+    // palette rendered nothing plus the `console.warn` below. The two spots
+    // must move together — repairing one alone leaves either the default
+    // rendering nothing or the palette glyph blank.
+    //
+    // `face-slightly-smiling` is the record's own spelling of the SAME glyph
+    // object (`Smile === FaceSlightlySmiling` is true on the installed
+    // lucide), so the palette looks exactly as it did — this is a spelling
+    // repair, not a redesign of the default.
+    icon: 'face-slightly-smiling',
     category: 'basic',
     inputs: [
-      { name: 'name', type: 'string', label: 'Icon Name', defaultValue: 'smile' },
+      { name: 'name', type: 'string', label: 'Icon Name', defaultValue: 'face-slightly-smiling' },
       { name: 'size', type: 'number', label: 'Size (px)' },
       { name: 'color', type: 'string', label: 'Color Class' },
       { name: 'className', type: 'string', label: 'CSS Class' }
