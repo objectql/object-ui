@@ -1,0 +1,316 @@
+// Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
+
+/**
+ * `/studio/*` is an ENTRY gate, and this file pins the entry decision BOTH ways.
+ *
+ * ## The measured defect
+ *
+ * On a composed hosted-SaaS shape the Studio nav tile is deliberately absent and
+ * every metadata write is refused, yet typing `/_console/studio/` rendered the
+ * full pillar builder — Data / Automations / Interfaces / Access, Publish and
+ * Save draft visible — to a plain tenant principal, who was walked through the
+ * entire "new package" form and only refused at submit (`POST /api/v1/packages`
+ * → 403). The lockdown criterion is two-part (UI entry hidden AND API refused);
+ * the backend half is green, and what stood on this side was a WRITE-level gate
+ * where an ENTRY-level one belongs.
+ *
+ * ## What is asserted, and why in this shape
+ *
+ * The REAL subtree. `studioRoutes` is the element `App.tsx` drops into its
+ * `<Routes>`, so nothing here is a transcription of the route tree — a
+ * transcription would be free to agree with itself while `App.tsx` quietly
+ * mounted the builder ungated.
+ *
+ * The two builder components are the only stubs, and they are SPIES: the
+ * assertion for a non-holder is that `BuilderLanding` / `StudioDesignSurface`
+ * were never CALLED, which is strictly stronger than "their DOM is absent" —
+ * a component that never mounts cannot render an authoring affordance, a
+ * Publish button, or fire the metadata reads behind them. `AuthGuard`,
+ * `ProtectedRoute`, the router and the gate itself are all real.
+ *
+ * Both directions are pinned on purpose: a gate that refused EVERYONE would
+ * pass the non-holder assertion, so the holder case is a control, not a
+ * courtesy. So is the loading window — that is where a fail-open bug hides,
+ * because "not yet loaded" is the state a route gate is most tempted to read
+ * as permission.
+ */
+
+import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+
+/** Auth facts, swapped per test. `AuthGuard` itself stays real. */
+let auth = { isAuthenticated: true, isLoading: false, user: { id: 'u1' } as unknown };
+
+/** What `GET /auth/me/permissions` answers, swapped per test. */
+let permissionsFetch: (input: unknown, init?: unknown) => Promise<Response> = async () =>
+  jsonResponse({ authenticated: true, systemPermissions: [] });
+
+/** Every call the gate makes to the endpoint, so "fetched once per subtree" is checkable. */
+let fetchCalls: string[] = [];
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => null },
+    json: async () => body,
+  } as unknown as Response;
+}
+
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => auth,
+  // `studioEntry` builds its fetcher from this on mount. Returning a thin
+  // forwarder (rather than `permissionsFetch` itself) keeps the per-test swap
+  // live even though the hook memoises the fetcher for the mount's lifetime.
+  createAuthenticatedFetch: () => (input: unknown, init?: unknown) => {
+    fetchCalls.push(String(input));
+    return permissionsFetch(input, init);
+  },
+}));
+
+// `AuthGuard` reaches `useAuth` through the auth package's OWN module graph
+// (`./useAuth`), not through its entry point — so overriding the entry alone
+// leaves the REAL guard reading the REAL context and every authenticated case
+// silently falls to the login branch. Mock the module id the guard actually
+// imports; `@object-ui/auth` is aliased to `packages/auth/src` by
+// `apps/console/vite.config.ts`, which is what makes these the same module.
+vi.mock('../../../../packages/auth/src/useAuth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => auth,
+}));
+
+/**
+ * Spies on the authoring surface being MOUNTED. The real components need a live
+ * metadata backend; what this file measures is whether the router ever reaches
+ * them at all.
+ */
+const builderLanding = vi.fn();
+const designSurface = vi.fn();
+
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  // Pass-through: the provider stack is not what decides this question.
+  ConnectedShell: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  RequireOrganization: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  LoadingFallback: () => <div data-testid="loading" />,
+  LoadingScreen: ({ error, onRetry }: { error?: string; onRetry?: () => void }) => (
+    <div data-testid="error-screen" onClick={onRetry}>
+      {error}
+    </div>
+  ),
+  getProductName: () => 'ObjectOS',
+  BuilderLanding: () => {
+    builderLanding();
+    return <div data-testid="studio-front-door">pick a package</div>;
+  },
+  StudioDesignSurface: () => {
+    designSurface();
+    return <div data-testid="studio-pillar-builder">Data / Automations / Interfaces / Access</div>;
+  },
+}));
+
+import { holdsStudioAccess, STUDIO_ENTRY_CAPABILITY } from './studioEntry';
+import { studioRoutes } from './StudioRoute';
+
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return <div data-testid="pathname">{`${pathname}${search}`}</div>;
+}
+
+const pathname = () => screen.getByTestId('pathname').textContent;
+
+/**
+ * The reference host's tree, reduced to the legs this question travels: the REAL
+ * `/studio` subtree, the home a non-holder is sent to, and the login surface an
+ * unauthenticated visitor bounces to.
+ */
+function renderStudioDeepLink(url: string) {
+  return render(
+    <MemoryRouter initialEntries={[url]}>
+      <LocationProbe />
+      <Routes>
+        {studioRoutes}
+        <Route path="/home" element={<div data-testid="home-launcher">home</div>} />
+        <Route path="/login" element={<div data-testid="login-page">login</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** A plain tenant org owner's real set on the measured shape — no `studio.access`. */
+const TENANT_OWNER_CAPS = ['manage_org_users', 'setup.access', 'setup.write'];
+/** A platform operator: the same set plus the platform-exclusive entry capability. */
+const OPERATOR_CAPS = [...TENANT_OWNER_CAPS, STUDIO_ENTRY_CAPABILITY];
+
+function answerWith(systemPermissions: unknown) {
+  permissionsFetch = async () =>
+    jsonResponse(
+      systemPermissions === undefined
+        ? { authenticated: true, userId: 'u1', objects: {}, fields: {} }
+        : { authenticated: true, userId: 'u1', systemPermissions, objects: {}, fields: {} },
+    );
+}
+
+beforeEach(() => {
+  auth = { isAuthenticated: true, isLoading: false, user: { id: 'u1' } };
+  fetchCalls = [];
+  builderLanding.mockClear();
+  designSurface.mockClear();
+  answerWith(TENANT_OWNER_CAPS);
+});
+
+/**
+ * The policy on its own. Every row is a state the endpoint can actually produce,
+ * and the last two are the ones whose verdict differs from this app's other
+ * capability gates.
+ */
+describe('holdsStudioAccess — the entry policy', () => {
+  it('admits a principal whose reported set carries the capability', () => {
+    expect(holdsStudioAccess(OPERATOR_CAPS)).toBe(true);
+  });
+
+  it('refuses the tenant org owner — the measured principal', () => {
+    // Not a missing grant: `studio.access` is one of the framework's
+    // PLATFORM_ADMIN_ONLY_CAPABILITIES, and `organization_admin` is granted
+    // exactly these three. Holding a platform-exclusive capability is what
+    // separates a platform operator from a tenant admin.
+    expect(holdsStudioAccess(TENANT_OWNER_CAPS)).toBe(false);
+  });
+
+  it('refuses a REPORTED EMPTY set — "holds nothing" is a real answer', () => {
+    expect(holdsStudioAccess([])).toBe(false);
+  });
+
+  it('refuses an ABSENT answer — this is where it diverges from `hasCapabilities`', () => {
+    // `hasCapabilities` / `useCapabilityGate` both fail OPEN here, correctly:
+    // their bad outcome is a holder losing a button. A ROUTE gate's bad outcome
+    // is a non-holder seeing the builder. And "absent" is live, not archaeology:
+    // the framework's endpoint answers 200 with no `systemPermissions` both for
+    // an anonymous session and — the load-bearing one — when permission
+    // resolution THREW (`current-user-endpoints.ts:866`). Failing open there
+    // hands the builder over on the exact deployment whose permission layer
+    // just failed.
+    expect(holdsStudioAccess(undefined)).toBe(false);
+  });
+});
+
+describe('/studio/* — the entry decision, both ways', () => {
+  it('a principal WITHOUT studio.access never reaches the authoring surface', async () => {
+    renderStudioDeepLink('/studio/');
+
+    await waitFor(() => expect(pathname()).toBe('/home'));
+    // The load-bearing half: not "a redirect was requested" but "the builder was
+    // never mounted", so nothing inside it could render or fetch.
+    expect(builderLanding).not.toHaveBeenCalled();
+    expect(designSurface).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('studio-front-door')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('studio-pillar-builder')).not.toBeInTheDocument();
+  });
+
+  it('the deep link straight at a package pillar is refused the same way', async () => {
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(pathname()).toBe('/home'));
+    expect(designSurface).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('studio-pillar-builder')).not.toBeInTheDocument();
+  });
+
+  it('the bare-package leg is covered too — the gate sits above the whole subtree', async () => {
+    // `/studio/:packageId` used to carry no wrapper at all; it only redirects to
+    // the Data pillar, so gating it matters for what the hop leads to.
+    renderStudioDeepLink('/studio/hotcrm');
+
+    await waitFor(() => expect(pathname()).toBe('/home'));
+    expect(designSurface).not.toHaveBeenCalled();
+  });
+
+  it('NEGATIVE CONTROL: a holder still gets the front door, unchanged', async () => {
+    // A gate that refused everyone would pass every assertion above.
+    answerWith(OPERATOR_CAPS);
+    renderStudioDeepLink('/studio/');
+
+    await waitFor(() => expect(screen.getByTestId('studio-front-door')).toBeInTheDocument());
+    expect(builderLanding).toHaveBeenCalled();
+    expect(pathname()).toBe('/studio/');
+  });
+
+  it('NEGATIVE CONTROL: a holder still gets the pillar builder, unchanged', async () => {
+    answerWith(OPERATOR_CAPS);
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(screen.getByTestId('studio-pillar-builder')).toBeInTheDocument());
+    expect(designSurface).toHaveBeenCalled();
+    expect(pathname()).toBe('/studio/hotcrm/data');
+  });
+
+  it('NEGATIVE CONTROL: the holder is answered ONCE for the whole subtree', async () => {
+    answerWith(OPERATOR_CAPS);
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(screen.getByTestId('studio-pillar-builder')).toBeInTheDocument());
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]).toContain('/api/v1/auth/me/permissions');
+  });
+});
+
+describe('/studio/* — the states that are not an answer', () => {
+  it('THE FAIL-OPEN GUARD: the loading window renders the splash, never the builder', async () => {
+    // The whole card in one assertion. `useCapabilityGate`'s doctrine — unknown
+    // fails OPEN — applied here would mount the builder for this frame and
+    // unmount it once the answer landed, which is precisely a non-holder seeing
+    // the pillar builder.
+    let release: (() => void) | undefined;
+    permissionsFetch = () =>
+      new Promise<Response>((resolve) => {
+        release = () => resolve(jsonResponse({ authenticated: true, systemPermissions: OPERATOR_CAPS }));
+      });
+
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    expect(screen.getByTestId('loading')).toBeInTheDocument();
+    expect(designSurface).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('studio-pillar-builder')).not.toBeInTheDocument();
+    // Still the requested URL — the gate holds, it does not bounce on `pending`.
+    expect(pathname()).toBe('/studio/hotcrm/data');
+
+    // …and the same window resolves into the builder for a holder, so the
+    // splash above is a WINDOW and not a dead end.
+    release?.();
+    await waitFor(() => expect(screen.getByTestId('studio-pillar-builder')).toBeInTheDocument());
+  });
+
+  it('an outright fetch failure shows the retryable error splash, never the builder', async () => {
+    // 500 is deliberately NOT in TRANSIENT_STATUS — a genuine server fault is a
+    // real answer, so this is one attempt, not four.
+    permissionsFetch = async () => jsonResponse({ error: 'boom' }, 500);
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(screen.getByTestId('error-screen')).toBeInTheDocument());
+    expect(screen.getByTestId('error-screen')).toHaveTextContent('500');
+    expect(designSurface).not.toHaveBeenCalled();
+    expect(pathname()).toBe('/studio/hotcrm/data');
+  });
+
+  it('a 200 that carries no systemPermissions is refused, not waved through', async () => {
+    // The framework's resolver `catch` answers exactly this shape.
+    answerWith(undefined);
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(pathname()).toBe('/home'));
+    expect(designSurface).not.toHaveBeenCalled();
+  });
+
+  it('an unauthenticated visitor gets the auth contract, not the capability bounce', async () => {
+    // Ordering check: `ProtectedRoute` is above the gate, so the deep link is
+    // preserved as `?redirect=` and comes back after sign-in.
+    auth = { isAuthenticated: false, isLoading: false, user: null };
+    renderStudioDeepLink('/studio/hotcrm/data');
+
+    await waitFor(() => expect(screen.getByTestId('login-page')).toBeInTheDocument());
+    expect(pathname()).toBe('/login?redirect=%2Fstudio%2Fhotcrm%2Fdata');
+    expect(designSurface).not.toHaveBeenCalled();
+  });
+});

@@ -35,8 +35,14 @@
  */
 
 import type { ReactNode } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { LoadingFallback, LoadingScreen } from '@object-ui/app-shell';
+import { Link, Navigate, Outlet, Route } from 'react-router-dom';
+import {
+  BuilderLanding,
+  LoadingFallback,
+  LoadingScreen,
+  StudioDesignSurface,
+  getProductName,
+} from '@object-ui/app-shell';
 
 import { ProtectedRoute } from './ProtectedRoute';
 import { holdsStudioAccess, useStudioEntry } from './studioEntry';
@@ -86,3 +92,49 @@ export function StudioRoute() {
     </ProtectedRoute>
   );
 }
+
+/**
+ * The `/studio` front door: pick or create a writable package.
+ *
+ * Standalone frame — the landing must never be a navigation dead end, so the
+ * wordmark walks back to the platform Home.
+ */
+function StudioLanding() {
+  return (
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="flex shrink-0 items-center border-b px-3 py-2">
+        <Link
+          to="/home"
+          title="返回主页"
+          className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] font-semibold hover:bg-muted"
+        >
+          {getProductName()}
+        </Link>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <BuilderLanding />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The whole `/studio` subtree (ADR-0080/0084), as ONE element `App.tsx` drops
+ * into its `<Routes>` — the same shape `AppContent`'s `systemRoutes` uses.
+ *
+ * Declared here rather than in `App.tsx` so the gate and the routes it guards
+ * cannot be separated by an edit to either one, and so a test can drive the
+ * REAL tree instead of a transcription of it — a transcription would be free to
+ * agree with itself while `App.tsx` quietly mounted the builder ungated.
+ *
+ *   `/studio`                    front door (pick / create a writable package)
+ *   `/studio/:packageId`         a package lands on its Data pillar
+ *   `/studio/:packageId/:tab`    the pillar builder
+ */
+export const studioRoutes = (
+  <Route path="/studio" element={<StudioRoute />}>
+    <Route index element={<StudioLanding />} />
+    <Route path=":packageId" element={<Navigate to="data" replace />} />
+    <Route path=":packageId/:tab" element={<StudioDesignSurface />} />
+  </Route>
+);
