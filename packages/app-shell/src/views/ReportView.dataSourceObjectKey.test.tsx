@@ -117,7 +117,9 @@ const OTHER_OBJECT = {
  * which field list the config panel was handed.
  */
 async function mountReport(ds: Record<string, unknown>) {
-  const find = vi.fn(async () => ({ data: [{ id: '1' }] }));
+  const find = vi.fn(
+    async (_objectName: string, _params?: Record<string, unknown>) => ({ data: [{ id: '1' }] }),
+  );
   meta.value = {
     apps: [],
     objects: [ACCT_OBJECT, OTHER_OBJECT],
@@ -142,7 +144,7 @@ async function mountReport(ds: Record<string, unknown>) {
 
   return {
     /** First argument of the adapter query, or null when never queried. */
-    queried: find.mock.calls.length ? (find.mock.calls[0][0] as string) : null,
+    queried: find.mock.calls.length ? find.mock.calls[0][0] : null,
     /** Field values the config panel got, e.g. ['industry'] or the fallbacks. */
     fieldValues: (cap.panel.availableFields as any[]).map((f) => f.value),
   };
@@ -161,7 +163,8 @@ afterEach(() => {
 });
 
 /** Every `console.warn` argument the view emitted, flattened to one string. */
-const warnText = () => warn.mock.calls.map((c) => c.join(' ')).join('\n');
+const warnText = () =>
+  warn.mock.calls.map((c: unknown[]) => c.join(' ')).join('\n');
 
 describe('ReportView — `dataSource.object` is the only spelling (objectui#5116)', () => {
   it('object only: queries that object, and derives the field list from it', async () => {
