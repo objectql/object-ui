@@ -45,6 +45,7 @@ import {
 import { AppContent } from './AppContent';
 import { RootLandingRedirect } from './components/RootLandingRedirect';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { StudioRoute } from './components/StudioRoute';
 import { SetupRoute } from './components/SetupRoute';
 import { FormPage } from './components/FormPage';
 import { InternalFormRoute } from './components/InternalFormRoute';
@@ -210,9 +211,23 @@ export function App() {
             <Route path="/s/:token" element={<SharedRecordPage />} />
             {/* Application builder (ADR-0080/0084). `/studio` is the front door
               * (pick/create a writable package); a package lands on its Data
-              * pillar. Also reachable from the Studio app's 「应用构建」 nav. */}
-            <Route path="/studio" element={
-              <ProtectedRoute>
+              * pillar. Also reachable from the Studio app's 「应用构建」 nav.
+              *
+              * The subtree hangs off ONE `StudioRoute` element (objectui#5519):
+              * it carries the auth wrapper these legs each used to carry, and
+              * above it the `studio.access` ENTRY gate — the capability whose
+              * declared meaning is "Enter the Studio metadata-design surfaces".
+              * Before that, `/_console/studio/` rendered the full pillar builder
+              * to any authenticated principal on deployments where the nav tile
+              * is deliberately absent and every metadata write is refused; the
+              * only gate in the path was the backend's write refusal, one layer
+              * too late. See `components/studioEntry.ts` for the policy —
+              * including why its fail direction is inverted from this app's
+              * other capability gates. Nesting the legs (rather than repeating
+              * the gate on each) is what keeps a future `/studio/…` route from
+              * being added ungated. */}
+            <Route path="/studio" element={<StudioRoute />}>
+              <Route index element={
                 <div className="flex min-h-screen flex-col bg-background text-foreground">
                   {/* Standalone frame — the landing must never be a navigation
                     * dead end: the wordmark walks back to the platform Home. */}
@@ -229,14 +244,10 @@ export function App() {
                     <BuilderLanding />
                   </div>
                 </div>
-              </ProtectedRoute>
-            } />
-            <Route path="/studio/:packageId" element={<Navigate to="data" replace />} />
-            <Route path="/studio/:packageId/:tab" element={
-              <ProtectedRoute>
-                <StudioDesignSurface />
-              </ProtectedRoute>
-            } />
+              } />
+              <Route path=":packageId" element={<Navigate to="data" replace />} />
+              <Route path=":packageId/:tab" element={<StudioDesignSurface />} />
+            </Route>
             {/* Internal authed form — same renderer as `/f/:slug`, different
               * submit path, and (objectui#4109) rendered INSIDE the console
               * shell instead of as a bare page. The route stays exactly where
