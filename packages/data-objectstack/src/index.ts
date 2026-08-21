@@ -3894,7 +3894,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const cacheKey = `app:${appId}`;
       return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItem('apps', appId);
+        const result: any = await this.client.meta.getItem('app', appId);
         if (result && result.item) return result.item;
         return result ?? null;
       });
@@ -3972,7 +3972,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const cacheKey = `page:${pageId}`;
       return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItem('pages', pageId);
+        const result: any = await this.client.meta.getItem('page', pageId);
         if (result && result.item) return result.item;
         return result ?? null;
       });

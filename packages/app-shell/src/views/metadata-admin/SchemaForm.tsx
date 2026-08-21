@@ -952,6 +952,29 @@ export const DRAWER_EMBEDDED_ITEM_ID_SCOPE = 'drawer-embedded-item';
  */
 const SchemaFormNestingContext = React.createContext(false);
 
+/**
+ * Defer validation DISPLAY until the author has touched the field
+ * (objectui#5416).
+ *
+ * A CREATE form opens on an empty draft, so every required field already
+ * fails `safeParse` before a single keystroke: `新建软件包` used to open with
+ * two red `输入无效` lines the author did not cause, and then jumped a line
+ * height per field as each one cleared — enough to make a click land on the
+ * wrong control while filling the form top to bottom.
+ *
+ * What is deferred is the RED LINE, never the rule: `issues` still flows to
+ * the host unchanged, so the submit button stays gated on exactly the same
+ * validation it was gated on before. This is the mount→blur move the card
+ * asks for, not a relaxation.
+ *
+ * Off for edit/view forms on purpose: there the issues describe values that
+ * came out of storage, not something the author is mid-way through typing, so
+ * hiding them until touched would hide a real diagnostic. Carried in context
+ * rather than as a prop so a nested sub-form inside a create form inherits it
+ * without `createMode` (which also drives `immutable` locking) leaking down.
+ */
+const DeferIssueDisplayContext = React.createContext(false);
+
 const isDevBuild = (): boolean =>
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
     ?.NODE_ENV !== 'production';
@@ -1004,10 +1027,16 @@ function useDuplicateFieldHostIdCheck(enabled: boolean): void {
  */
 export function SchemaForm(props: SchemaFormProps) {
   const nested = React.useContext(SchemaFormNestingContext);
+  const inheritedDefer = React.useContext(DeferIssueDisplayContext);
   useDuplicateFieldHostIdCheck(!nested);
+  // objectui#5416 — a create form defers issue DISPLAY to first touch; a
+  // nested form inherits whatever the form hosting it decided.
+  const deferIssues = props.createMode === true || inheritedDefer;
   return (
     <SchemaFormNestingContext.Provider value={true}>
-      <SchemaFormBody {...props} />
+      <DeferIssueDisplayContext.Provider value={deferIssues}>
+        <SchemaFormBody {...props} />
+      </DeferIssueDisplayContext.Provider>
     </SchemaFormNestingContext.Provider>
   );
 }
@@ -1282,6 +1311,23 @@ function FieldRow({
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
+  // objectui#5416 — validation-display timing. `touched` flips on the first
+  // focusout anywhere in this row (React's onBlur IS focusout, so it bubbles
+  // out of every widget, including the composite ones that never emit a DOM
+  // change event) and on this field's own first edit. While a create form is
+  // still untouched here, the row renders no error line — see
+  // {@link DeferIssueDisplayContext} for why edit forms opt out.
+  const deferIssues = React.useContext(DeferIssueDisplayContext);
+  const [touched, setTouched] = React.useState(false);
+  const markTouched = React.useCallback(() => setTouched(true), []);
+  const visibleIssues = !deferIssues || touched ? issues : undefined;
+  const handleChange = React.useCallback(
+    (v: unknown) => {
+      setTouched(true);
+      onChange(v);
+    },
+    [onChange],
+  );
   // A curated client `fieldSpec.label` always wins; otherwise localize the raw
   // schema title/description for known generic field names (e.g. the flow
   // edge/node sub-forms), falling back to the schema's own English text.
@@ -1375,7 +1421,7 @@ function FieldRow({
   // save vertical space and feel like a real settings panel.
   if (isBoolean) {
     return (
-      <div className="flex items-start justify-between gap-3 py-1.5">
+      <div className="flex items-start justify-between gap-3 py-1.5" onBlur={markTouched}>
         <div className="min-w-0 flex-1">
           <Label {...labelAssociation} className="text-sm font-medium cursor-pointer">
             {label}
@@ -1384,8 +1430,8 @@ function FieldRow({
           {description && (
             <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
           )}
-          {issues?.map((m, i) => (
-            <div key={i} className="text-xs text-destructive mt-0.5">{m}</div>
+          {visibleIssues?.map((m, i) => (
+            <div key={i} data-testid="schema-form-issue" className="text-xs text-destructive mt-0.5">{m}</div>
           ))}
         </div>
         <FieldControl
@@ -1395,7 +1441,7 @@ function FieldRow({
           idPath={path}
           schema={schema}
           value={value}
-          onChange={onChange}
+          onChange={handleChange}
           readOnly={readOnly}
           widget={widget}
           fieldSpec={fieldSpec}
@@ -1407,7 +1453,7 @@ function FieldRow({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" onBlur={markTouched}>
       <div className="flex items-center justify-between gap-2">
         <Label {...labelAssociation} className="text-sm font-medium">
           {label}
@@ -1429,7 +1475,7 @@ function FieldRow({
         idPath={path}
         schema={schema}
         value={value}
-        onChange={onChange}
+        onChange={handleChange}
         readOnly={readOnly}
         widget={widget}
         fieldSpec={fieldSpec}
@@ -1439,8 +1485,8 @@ function FieldRow({
       {description && (
         <div className="text-xs text-muted-foreground">{description}</div>
       )}
-      {issues?.map((m, i) => (
-        <div key={i} className="text-xs text-destructive">
+      {visibleIssues?.map((m, i) => (
+        <div key={i} data-testid="schema-form-issue" className="text-xs text-destructive">
           {m}
         </div>
       ))}

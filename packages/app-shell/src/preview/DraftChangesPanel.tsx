@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, FilePlus2, FilePen, Loader2, Rocket, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Badge,
   Button,
@@ -392,6 +393,33 @@ export function DraftChangesPanel({
   useEffect(() => {
     if (open) void load();
   }, [open, load]);
+
+  /**
+   * Clear the toast stack when this panel opens (objectui#5416).
+   *
+   * The console mounts its toaster bottom-right (`apps/console/src/App.tsx`)
+   * and this sheet is `side="right"` with a `mt-auto` footer, so the stack
+   * lands exactly on top of the confirm button: a save toast raised moments
+   * earlier on the way here (`对象「…」已存为草稿`, 4s default duration)
+   * covered `全部发布` until it timed out, on the author's first trip through
+   * Studio.
+   *
+   * Moving the toaster is NOT the fix, which is why this sits here and not in
+   * `ConsoleToaster`: every corner of this console is already occupied — the
+   * draft preview bar is `sticky top-0` and carries its own publish actions,
+   * `NotificationSnackbar` anchors bottom-centre, the nav rail owns the left
+   * edge — so a reposition only moves the same collision onto a different
+   * primary control. What is genuinely wrong is the toast's lifetime, not its
+   * corner: the author has left the surface that raised it and is now reading
+   * a review screen about the very drafts it announced.
+   *
+   * Keyed on `open` alone (not on `load`, which changes identity with
+   * `packageId`) so this fires on the open transition and never mid-session —
+   * a toast this panel's OWN publish raises is untouched.
+   */
+  useEffect(() => {
+    if (open) toast.dismiss();
+  }, [open]);
 
   const byType = new Map<string, DraftChangeEntry[]>();
   for (const entry of entries ?? []) {
