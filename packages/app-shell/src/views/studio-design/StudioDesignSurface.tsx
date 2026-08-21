@@ -2010,12 +2010,15 @@ export function DataPillar({
   const [creating, setCreating] = React.useState(false);
   // The OWD the create dialog will author (objectui#5418). Pre-selected to the
   // platform's own recommended baseline; the author sees it and can change it
-  // before the object exists. Reset with each open, mirroring the way
-  // CreateItemDialog resets its own two inputs.
+  // before the object exists. Reset by `openCreateDialog` below rather than by
+  // an effect on `creating` — the effect spelling re-renders the dialog a
+  // second time on every open purely to undo a previous session's pick.
   const [createOwd, setCreateOwd] = React.useState<OwdCreateModel>(OWD_DEFAULT);
-  React.useEffect(() => {
-    if (creating) setCreateOwd(OWD_DEFAULT);
-  }, [creating]);
+  const openCreateDialog = React.useCallback(() => {
+    setError(null);
+    setCreateOwd(OWD_DEFAULT);
+    setCreating(true);
+  }, []);
   const [createBusy, setCreateBusy] = React.useState(false);
   // Whether the selected object exists beyond the draft (published/code baseline).
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
@@ -2451,10 +2454,7 @@ export function DataPillar({
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  setError(null);
-                  setCreating(true);
-                }}
+                onClick={openCreateDialog}
                 className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
@@ -2477,10 +2477,7 @@ export function DataPillar({
                   <button
                     type="button"
                     data-testid="empty-state-new-object"
-                    onClick={() => {
-                      setError(null);
-                      setCreating(true);
-                    }}
+                    onClick={openCreateDialog}
                     className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                   >
                     <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
