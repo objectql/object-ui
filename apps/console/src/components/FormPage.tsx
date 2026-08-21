@@ -422,7 +422,14 @@ export function buildSections(
         helpText: override.helpText ?? def.helpText,
         defaultValue: def.defaultValue,
         options: normalizeOptions(def.options),
-        maxLength: def.maxLength,
+        // The FORM's ceiling wins over the object's, exactly like every
+        // sibling key above. This one key read `def` alone, so a tighter
+        // per-form limit — a short public intake form over a generously
+        // sized column — was discarded with no diagnostic, and the docstring
+        // promising overrides win was false for it (objectui#5595). The
+        // override can only NARROW what the author sees at the input; the
+        // object's storage ceiling still decides at submit time.
+        maxLength: override.maxLength ?? def.maxLength,
         colSpan: override.colSpan ?? 1,
       });
     }

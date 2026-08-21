@@ -123,6 +123,66 @@ describe('buildSections', () => {
     expect(section.fields[0].placeholder).toBe('Ada');
   });
 
+  // objectui#5595 — `maxLength` was the ONE key in the merge that read the
+  // object definition unconditionally, while the docstring above
+  // `buildSections` promises field-level overrides win. The three cases below
+  // pin both sides of the `??` plus the both-absent floor, because "the
+  // override wins" and "the object default still reaches the row" are
+  // separately breakable and a single case is satisfied by a merge that
+  // dropped either side entirely.
+  it('lets a tighter per-form maxLength beat the object ceiling', () => {
+    const [section] = buildSections(
+      {
+        type: 'simple',
+        sections: [{ fields: [{ field: 'email', maxLength: 40 }] }],
+      },
+      objectSchema,
+    );
+    // The object column allows 200; this form asks for 40. Before #5595 the
+    // author silently got 200 at the input, with no diagnostic.
+    expect(section.fields[0].maxLength).toBe(40);
+  });
+
+  it('falls back to the object ceiling when the form declares no maxLength', () => {
+    const [section] = buildSections(
+      {
+        type: 'simple',
+        sections: [{ fields: [{ field: 'email', label: 'Work email' }] }],
+      },
+      objectSchema,
+    );
+    // The control on the case above, scoped to the same merge branch and able
+    // to fail: `maxLength: override.maxLength` alone (no `?? def`) turns this
+    // red while leaving the case above green.
+    expect(section.fields[0].label).toBe('Work email');
+    expect(section.fields[0].maxLength).toBe(200);
+  });
+
+  it('keeps an explicit 0 rather than falling through to the object ceiling', () => {
+    const [section] = buildSections(
+      {
+        type: 'simple',
+        sections: [{ fields: [{ field: 'email', maxLength: 0 }] }],
+      },
+      objectSchema,
+    );
+    // `??`, not `||` — the distinction the sibling keys already rely on. A
+    // declared 0 is a value the author wrote; `||` would silently restore the
+    // exact defect #5595 fixed, for the one input that admits no characters.
+    expect(section.fields[0].maxLength).toBe(0);
+  });
+
+  it('leaves maxLength undefined when neither side declares one', () => {
+    const [section] = buildSections(
+      { type: 'simple', sections: [{ fields: ['first_name'] }] },
+      objectSchema,
+    );
+    // `first_name` carries no ceiling on either side, so the row must carry
+    // none — the DOM sites spread `maxLength={field.maxLength}` straight onto
+    // the input, and a fabricated number there would cap a field nobody capped.
+    expect(section.fields[0].maxLength).toBeUndefined();
+  });
+
   it('normalizes object schema options through onto the renderable field', () => {
     const [section] = buildSections(
       {

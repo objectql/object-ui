@@ -38,8 +38,11 @@
  *     really differs, so PIN A can never pass vacuously.
  *   • **vitest** — the `buildSections` block. It proves the widening is inert
  *     at runtime: a field spec carrying the previously-undeclarable keys builds
- *     the same rows, and the keys this renderer does not honour are recorded as
- *     not honoured rather than assumed.
+ *     the same rows. Whether each key is HONOURED is recorded rather than
+ *     assumed — and that is not bookkeeping: `maxLength` was pinned here as
+ *     NOT honoured, which is how objectui#5595 found that the merge dropped
+ *     the override while the docstring promised it won. That assertion now
+ *     names the honoured answer instead.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -186,13 +189,18 @@ describe('objectui#5542 — the console renders the shared field spec', () => {
     expect(row.colSpan).toBe(2);
     expect(row.required).toBe(true);
 
-    // Recorded rather than assumed: `RenderableField` is the narrow honoured
-    // shape, and it takes `maxLength` from the OBJECT schema, never from the
-    // field override — so authoring it on the field is declarable-but-inert in
-    // this renderer. That was true before #5542 too; the only thing that
-    // changed is that the type now tells the truth about the document instead
-    // of pretending the key cannot be written at all.
-    expect(row.maxLength).toBeUndefined();
+    // objectui#5595's pre-registered evidence — INVERTED here, not deleted.
+    //
+    // When #5542 landed this read `toBeUndefined()`, recording rather than
+    // assuming that `buildSections` took `maxLength` from the OBJECT schema
+    // alone and discarded the field override. Recording it is what made the
+    // gap findable: #5595 ruled it a declared≠enforced defect, because the
+    // function's own docstring promises overrides win and every sibling key
+    // implements that. So the same assertion now names the honoured answer.
+    //
+    // `objectSchema` is `null` in this call, so there is no object ceiling to
+    // inherit — the 40 can ONLY have come from the field override above.
+    expect(row.maxLength).toBe(40);
   });
 
   it('still accepts the bare string arm, which is most of what authors write', () => {
