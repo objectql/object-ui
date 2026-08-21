@@ -62,6 +62,59 @@ type SentryModule = typeof import('@sentry/react');
 let sentryModule: SentryModule | null = null;
 let initPromise: Promise<boolean> | null = null;
 
+/** The outcome of {@link resolveSentryGate}. */
+export interface SentryGateDecision {
+  /** Whether reporting may start at all. */
+  enabled: boolean;
+  /** Why — useful in tests and when explaining a silent deployment. */
+  reason: 'no-dsn' | 'forced-off' | 'opted-in';
+  /** The trimmed DSN, or `''` when there is none. */
+  dsn: string;
+  /** Whether IP address + User-Agent may be attached to events. */
+  sendDefaultPii: boolean;
+}
+
+/**
+ * The whole telemetry decision, as a pure function of the build-time env.
+ *
+ * Split out from {@link initSentry} deliberately. The decision is the part
+ * with the security consequence, and leaving it inline made it unreachable
+ * from tests: this repo's Vitest setup exposes only `BASE_URL`/`DEV`/`MODE`/
+ * `PROD`/`SSR` on `import.meta.env`, and `vi.stubEnv` writes to `process.env`
+ * WITHOUT reaching `import.meta.env` (measured — a suite that stubbed a DSN
+ * and asserted "enabled" failed, because the module never saw it). An
+ * untestable gate is how the previous one stayed broken; this one is pinned
+ * case by case in `sentry.test.ts`.
+ *
+ * Fails CLOSED in every branch that is not an affirmative opt-in.
+ */
+export function resolveSentryGate(env: Record<string, unknown> | null | undefined): SentryGateDecision {
+  const rawDsn = env?.VITE_SENTRY_DSN;
+  const dsn = typeof rawDsn === 'string' ? rawDsn.trim() : '';
+
+  // No deliberately-injected DSN ⇒ nothing to opt in to. This is the state a
+  // build inherits when nobody asked for telemetry, and it must mean silence:
+  // an unreported error is recoverable, PII leaving an air-gapped deployment
+  // is not.
+  if (!dsn) return { enabled: false, reason: 'no-dsn', dsn: '', sendDefaultPii: false };
+
+  // The additional force-off, for a pipeline that keeps a DSN in its
+  // environment but wants reporting stopped. Build-time like everything here,
+  // so it cannot rescue an artifact that was already built.
+  if (env?.VITE_SENTRY_ENABLED === 'false') {
+    return { enabled: false, reason: 'forced-off', dsn, sendDefaultPii: false };
+  }
+
+  return {
+    enabled: true,
+    reason: 'opted-in',
+    dsn,
+    // OPT-IN, not opt-out: one artifact ships to every posture, so the build
+    // that wants IP + User-Agent has to say so.
+    sendDefaultPii: env?.VITE_SENTRY_SEND_DEFAULT_PII === 'true',
+  };
+}
+
 /**
  * Returns the loaded Sentry module, or `null` if Sentry was never initialized
  * (e.g. DSN missing). Callers must handle the null case.
@@ -81,17 +134,13 @@ export function initSentry(): Promise<boolean> {
 
   initPromise = (async () => {
     const env = (import.meta as any).env ?? {};
-    // Fail CLOSED. Both reads below come off Vite's inlined literal, so a key
-    // the build did not define is `undefined` here forever — which is exactly
-    // the state that must mean "do not send", not "send by default".
-    const rawDsn = env.VITE_SENTRY_DSN;
-    const dsn = typeof rawDsn === 'string' ? rawDsn.trim() : '';
-    // No deliberately-injected DSN ⇒ nothing to opt in to. Returning before
-    // the dynamic import is load-bearing: it keeps the vendor-sentry chunk
-    // unfetched, so a deployment that never opted in makes no third-party
-    // request at all, not even to load the SDK.
-    if (!dsn) return false;
-    if (env.VITE_SENTRY_ENABLED === 'false') return false;
+    const gate = resolveSentryGate(env);
+    // Returning BEFORE the dynamic import is load-bearing, not an early-exit
+    // micro-optimisation: it keeps the vendor-sentry chunk unfetched, so a
+    // deployment that never opted in issues no third-party request at all —
+    // not even one to load the SDK.
+    if (!gate.enabled) return false;
+    const dsn = gate.dsn;
 
     try {
       const Sentry = (await import('@sentry/react')) as SentryModule;
@@ -102,11 +151,10 @@ export function initSentry(): Promise<boolean> {
         environment: env.VITE_SENTRY_ENVIRONMENT || env.MODE || 'production',
         release: env.VITE_SENTRY_RELEASE || env.VITE_APP_VERSION || 'unknown',
         tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0.1,
-        // IP address + User-Agent. OPT-IN (`=== 'true'`), not opt-out: this
-        // same bundle ships to on-premises and air-gapped deployments, so the
-        // build that wants PII has to say so. Defaulting it on is how PII left
-        // an air-gapped network in the first place (objectui#5522).
-        sendDefaultPii: env.VITE_SENTRY_SEND_DEFAULT_PII === 'true',
+        // IP address + User-Agent — decided by `resolveSentryGate` above, and
+        // OPT-IN there. Defaulting it on is how PII left an air-gapped network
+        // in the first place (objectui#5522).
+        sendDefaultPii: gate.sendDefaultPii,
         // Replay is opt-in via VITE_SENTRY_REPLAY=true to keep payload small.
         // When enabled, only 10% of error sessions are recorded.
         replaysSessionSampleRate: 0,
