@@ -170,11 +170,17 @@ describe('objectui#5040 — a spec typed as `FormFieldSpec` configures its widge
       dependsOn: 'targetObject',
       multiple: true,
     };
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ fields: [{ name: 'amount', label: 'Amount' }] }),
-    }) as unknown as Response);
+    // Typed with the URL parameter on purpose: the assertion below reads the
+    // ARGUMENT, and a zero-arg mock would type its call tuple as `[]` and make
+    // `calls[0][0]` unreachable rather than merely unasserted.
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      void input;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ fields: [{ name: 'amount', label: 'Amount' }] }),
+      } as unknown as Response;
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     renderWidget(FieldSelector, {
