@@ -563,9 +563,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
 
         // ADR-0021 — a widget bound to a semantic-layer dataset renders through
         // the governed queryDataset path (DatasetWidget) instead of the inline
-        // object-aggregate schema. `as any` because the bundled DashboardWidget
-        // type gains `dataset` only after objectui bumps @objectstack/spec.
-        const datasetBound = !!(widget as any).dataset;
+        // object-aggregate schema. No cast needed: `dataset` flows onto
+        // `DashboardWidgetSchema` from `@objectstack/spec`'s `DashboardWidget`
+        // (`packages/types/src/complex.ts`), so `widget.dataset` type-checks
+        // directly.
+        const datasetBound = !!widget.dataset;
 
         const getComponentSchema = () => {
             if (widget.component) return widget.component;
