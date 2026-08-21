@@ -510,7 +510,14 @@ export function DraftChangesPanel({
             <ul className="mt-1.5 flex flex-col gap-1.5">
               {problems.map((p) => (
                 <li key={`${p.type}:${p.name}:${p.rule}`} className="text-[11px] leading-5 text-amber-900 dark:text-amber-200">
-                  <span className="font-mono">{p.name}</span> — {p.hint || p.message}
+                  {/* `type/name`, the way the server's own publish refusal names
+                      the item (`object/crmext_visit: …`) — and, unlike a bare
+                      name, text that cannot collide with the same draft's row in
+                      the list above. */}
+                  <span className="font-mono">
+                    {p.type}/{p.name}
+                  </span>{' '}
+                  — {p.hint || p.message}
                 </li>
               ))}
             </ul>

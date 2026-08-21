@@ -9,7 +9,7 @@
 import '@testing-library/jest-dom/vitest';
 import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({
@@ -199,10 +199,7 @@ describe('DraftChangesPanel — /meta routes are addressed in the singular', () 
   it('reads the published list of a PLURAL stored type at its singular route', async () => {
     const urls = mockRoutesRecording([{ type: 'objects', name: 'ticket' }]);
     renderPanel();
-    // Scoped to the LIST — see the grouping case below for why.
-    await waitFor(() =>
-      expect(within(screen.getByTestId('draft-changes-list')).getByText('ticket')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('ticket')).toBeInTheDocument());
     await waitFor(() => expect(metaRoutes(urls)).toContain('/api/v1/meta/object'));
     expect(metaRoutes(urls).filter((u) => /\/meta\/objects\b/.test(u))).toEqual([]);
   });
@@ -243,11 +240,7 @@ describe('DraftChangesPanel — /meta routes are addressed in the singular', () 
   it('groups and labels the drafts under the canonical singular type', async () => {
     mockRoutesRecording([{ type: 'objects', name: 'ticket' }]);
     renderPanel();
-    // Scoped to the LIST: the sheet's pre-publish problem block (objectui#5418)
-    // names the offending draft too, and this case is about the grouping.
-    await waitFor(() =>
-      expect(within(screen.getByTestId('draft-changes-list')).getByText('ticket')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('ticket')).toBeInTheDocument());
     expect(screen.getByRole('heading', { level: 4 }).textContent).toBe('object · 1');
   });
 });
