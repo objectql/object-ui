@@ -78,6 +78,17 @@
  *   - "Import it and count the successes." A run where every package failed for
  *     an unrelated reason would report no findings of the gated class. So both
  *     legs assert their own SIZE — see MIN_PACKAGES / MIN_LOADED.
+ *   - "Scan a text the gate MUTATED first." Leg 1 used to blank comments out of
+ *     each source with two ordered regexes before matching specifiers in it,
+ *     and the block-comment pass had no notion of already being inside a `//`
+ *     line: a slash-star sequence in ordinary line-comment prose opened a
+ *     comment that ran to the next star-slash anywhere in the file and blanked
+ *     the live code between them. Measured on `main` at 478ec54ce — 2132
+ *     specifiers seen by the mask, 2133 by the parser, the missing one a real
+ *     `import`. Leg 1 now reads the file as written and asks the shared
+ *     TypeScript scanner what the module edges are (objectui#5382); see
+ *     `relativeSpecifiers`. `readTsconfig` below is the same class, still open
+ *     as objectui#5367.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -85,7 +96,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { SKIP_DIRS, TOOLING_FILE, discoverPackages } from './check-phantom-dependencies.mjs';
+import { SKIP_DIRS, TOOLING_FILE, discoverPackages, moduleSpecifiers } from './check-phantom-dependencies.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -336,12 +347,6 @@ export const UNBUNDLED_NODE_UNSUPPORTED = new Map([
 // ── leg 1: the specifiers ────────────────────────────────────────────────────
 
 /**
- * Relative import/export specifiers, in every form this repository writes them:
- * `from '...'`, a bare side-effect `import '...'`, and dynamic `import('...')`.
- */
-export const RELATIVE_SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])(\.\.?(?:\/[^'"]*)?)\2/g;
-
-/**
  * Extensions Node's ESM resolver accepts as written, so the specifier is done.
  *
  * `.json` needs an import attribute to actually load and `.css` never loads at
@@ -351,21 +356,120 @@ export const RELATIVE_SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"]
 export const EXPLICIT_EXTENSION = /\.(js|jsx|mjs|cjs|json|css|svg|png|woff2?)$/;
 
 /**
- * Blank out comments that could carry a retired `import` line, PRESERVING every
- * newline so reported line numbers still address the real file.
+ * The `moduleSpecifiers()` kinds Node's ESM resolver actually has to resolve.
  *
- * The newline preservation is not tidiness. Stripping a block comment outright
- * moved every finding in `packages/react/src/index.ts` up by six lines — the
- * license header — so the gate pointed at line 3 for a defect `tsc` reported at
- * line 9. A gate whose line numbers do not match the compiler's teaches the
- * reader to stop trusting them.
+ * The shared scanner reads all five forms that make a module edge. Two of them
+ * are CommonJS — `require('…')` and `import x = require('…')` — and the ESM
+ * resolver never sees either, so grading them here would answer a different
+ * question with this gate's error message. Measured on this repository before
+ * excluding them: ZERO relative edges of either kind exist in any
+ * specifier-preserving package, so the exclusion narrows nothing today and is
+ * written down rather than left to be discovered if one ever appears.
+ *
+ * The four kept forms are exactly what the retired regex matched, so the scope
+ * of the leg is unchanged by the parser swap. `import()-type` is erased from the
+ * JavaScript emit and survives only in the `.d.ts`, which is graded for the same
+ * conservative reason `buildPreservesSpecifiers` grades a tsc-plus-bundler
+ * pipeline: a false positive lands in a ledger with a reason, a false negative
+ * ships.
  */
-export function withoutCommentedCode(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
-    // Only a line whose first non-space character opens a comment. A `//` in
-    // the middle of a line is far more likely to be inside a URL string.
-    .replace(/^([ \t]*)\/\/.*$/gm, '$1');
+export const ESM_MODULE_EDGE = new Set(['import', 'export', 'dynamic import()', 'import()-type']);
+
+/**
+ * Every relative module specifier a source file names, read from the PARSER.
+ *
+ * ## Why this is not a regex any more (objectui#5382)
+ *
+ * It used to be one, over a source that a `withoutCommentedCode()` helper had
+ * blanked comments out of. That helper blanked BLOCK comments first, with a
+ * pattern that had no notion of already being inside a `//` line, so any slash-
+ * star sequence occurring in ordinary line-comment prose opened a comment that
+ * ran to the next star-slash anywhere in the file — blanking every line in
+ * between, live code included.
+ *
+ * That is not exotic prose. A line comment naming a package glob, a path
+ * pattern or a wildcard import is ordinary here, and one such comment in
+ * `packages/app-shell/src/preview/DraftChangesPanel.tsx` hid the real `import`
+ * eight lines below it. Re-measured on `main` at 478ec54ce, over the 805 files
+ * of the 13 specifier-preserving packages: the regex found 2132 relative
+ * specifiers and the TypeScript parser found 2133 — one live import invisible
+ * to a leg that has been a HARD REQUIREMENT since SPECIFIER_DEBT emptied, which
+ * is the direction that ships a broken artifact behind a green run.
+ *
+ * The fix is not a cleverer pattern. A pattern cannot answer "am I inside a
+ * comment", and the two `replace` calls whose ORDER decided the answer were the
+ * defect. Asking the parser removes the whole class at once: comments, strings,
+ * template literals and regex literals stop being questions this gate has an
+ * opinion about. `readTsconfig()` above still strips comments with regexes and
+ * is a SEPARATE live instance of the same class — objectui#5367, deliberately
+ * not touched here.
+ *
+ * ## Why the sibling gate's scanner rather than a second parser
+ *
+ * `moduleSpecifiers()` is `check-phantom-dependencies.mjs`'s TypeScript-backed
+ * scanner, already shared with `check-package-self-import.mjs` for the reason
+ * that applies here too: three gates that each decide for themselves what a
+ * module edge IS will eventually disagree, and the one that drifts stops
+ * covering a form without anybody noticing.
+ *
+ * ## The line number is the SPECIFIER's, not the statement's
+ *
+ * `moduleSpecifiers()` reports where the STATEMENT starts, which is the right
+ * answer for a gate asking "which package does this file name". This one prints
+ * a line a reader is expected to jump to and check against `tsc`, and `tsc`
+ * reports the error at the specifier — measured, for an import whose statement
+ * opens on line 6 and whose specifier sits on line 8:
+ *
+ *     src/index.ts(8,8): error TS2835: Relative import paths need explicit file
+ *       extensions in ECMAScript imports when '--moduleResolution' is 'node16'
+ *       or 'nodenext'. Did you mean './a.js'?
+ *
+ * The two disagree for 255 of this repository's 2066 relative import/export
+ * specifiers — 12.3%, by up to 7 lines. The retired regex matched at `from`,
+ * which shares the specifier's line, so it was accurate and this must not
+ * regress: a gate whose line numbers do not match the compiler's teaches the
+ * reader to stop trusting them. (That lesson was paid for once already, by a
+ * block-comment strip that moved every finding in `packages/react/src/index.ts`
+ * six lines up — the license header.) Verified by construction: over all 2132
+ * specifiers the old method could see, the new one reports the identical
+ * specifier-and-line pair for every single entry.
+ *
+ * The literal is LOCATED, never re-parsed. The AST has already decided that
+ * this statement carries this specifier, and an import or export declaration
+ * holds no other string literal, so the first occurrence of the quoted text at
+ * or after the statement's own start IS that literal. Nothing here decides what
+ * is code — the parser did. If the text cannot be found (a specifier written
+ * with an escape), the statement's own line is used rather than a guess.
+ *
+ * @param {string} source the file's text, unmodified
+ * @param {string} fileName only for the parser's diagnostics
+ * @returns {{ specifier: string, kind: string, line: number }[]} in source order
+ */
+export function relativeSpecifiers(source, fileName) {
+  const lineStarts = [0];
+  for (let i = 0; i < source.length; i += 1) {
+    if (source[i] === '\n') lineStarts.push(i + 1);
+  }
+
+  const found = [];
+  for (const use of moduleSpecifiers(source, fileName)) {
+    if (!ESM_MODULE_EDGE.has(use.kind)) continue;
+    if (!/^\.\.?(?:\/|$)/.test(use.specifier)) continue;
+
+    const statementStart = lineStarts[use.line - 1] + (use.column - 1);
+    let literalAt = -1;
+    for (const quote of ['"', "'"]) {
+      const at = source.indexOf(quote + use.specifier + quote, statementStart);
+      if (at !== -1 && (literalAt === -1 || at < literalAt)) literalAt = at;
+    }
+    const line =
+      literalAt === -1
+        ? use.line
+        : use.line + source.slice(statementStart, literalAt).split('\n').length - 1;
+
+    found.push({ specifier: use.specifier, kind: use.kind, line });
+  }
+  return found;
 }
 
 /** Every source file a specifier-preserving build emits from `srcDir`. */
@@ -407,18 +511,22 @@ export function resolvesToModule(fromFile, spec) {
   return false;
 }
 
-/** Findings for one package's sources. */
+/**
+ * Findings for one package's sources.
+ *
+ * The file's text is handed to the parser UNMODIFIED. Nothing masks, strips or
+ * blanks it first — that step is what objectui#5382 was: a comment mask hid a
+ * live import from a leg that is a hard requirement.
+ */
 export function scanSpecifiers(pkg) {
   const findings = [];
   if (!existsSync(pkg.srcDir)) return findings;
   for (const file of emittedSources(pkg.srcDir)) {
-    const source = withoutCommentedCode(readFileSync(file, 'utf8'));
-    for (const match of source.matchAll(RELATIVE_SPECIFIER)) {
-      const spec = match[3];
-      if (EXPLICIT_EXTENSION.test(spec)) continue;
-      if (!resolvesToModule(file, spec)) continue;
-      const line = source.slice(0, match.index).split('\n').length;
-      findings.push({ file, line, spec });
+    const source = readFileSync(file, 'utf8');
+    for (const { specifier, line } of relativeSpecifiers(source, file)) {
+      if (EXPLICIT_EXTENSION.test(specifier)) continue;
+      if (!resolvesToModule(file, specifier)) continue;
+      findings.push({ file, line, spec: specifier });
     }
   }
   return findings;
