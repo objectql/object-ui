@@ -227,7 +227,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ 20 of these entries are `.md` pages under `content/docs` that objectui#5174
+ * ⚠️ 19 of these entries are `.md` pages under `content/docs` that objectui#5174
  * made visible: the collector now reads `.md`, and an entry with a measured reason
  * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
  * debt — every one of them was equally unverified before, just unnamed. Their
@@ -239,9 +239,16 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * pages: no entry for `content/docs/guide/**` or for
  * `content/docs/api/schema-reference.md` names a missing export any more. Every
  * symbol those pages documented now exists on the built `dist/index.d.ts`, so
- * their reasons record what each fabricated name BECAME instead. Exactly one
- * entry still names a missing export — `content/docs/utilities/index.md`
- * (`ObjectStackProvider`), a different directory and a different card.
+ * their reasons record what each fabricated name BECAME instead. objectui#5360
+ * then closed out the last one. `content/docs/utilities/index.md` named
+ * `ObjectStackProvider` (@object-ui/data-objectstack) — a React context provider
+ * on a package that is headless — and that page LEFT this ledger rather than
+ * getting a re-measured reason: it holds exactly ONE ts/tsx block, so rewriting
+ * that block against the real surface (`createObjectStackAdapter` injected
+ * through `@object-ui/react`'s `SchemaRendererProvider`, the shape PR #4129 had
+ * already established on the sibling `content/docs/utilities/data-objectstack.mdx`)
+ * retired the two undefined-name diagnostics in the same stroke and took the page
+ * to zero. No entry on this list names a missing export any more.
  *
  * The reasons are deliberately concrete about WHAT would have to change, because
  * "does not compile" is three different jobs: a page whose snippets reference
@@ -402,11 +409,6 @@ const UNGATED_DOCS = {
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/utilities/data-objectstack.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2391x1 — candidate real defects, un-triaged',
-  'content/docs/utilities/index.md':
-    '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS2724x1 — candidate real defects, un-triaged. The missing-export ' +
-    'diagnostics name `ObjectStackProvider` (@object-ui/data-objectstack) — the reader-visible ' +
-    'half of this entry',
   'content/docs/utilities/runner.mdx':
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
