@@ -23,7 +23,10 @@ import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
-const dismiss = vi.fn();
+// `vi.mock` is hoisted above every top-level statement, so the spy the factory
+// closes over has to be hoisted with it — a plain `const dismiss = vi.fn()`
+// here is still in its temporal dead zone when the factory runs.
+const { dismiss } = vi.hoisted(() => ({ dismiss: vi.fn() }));
 vi.mock('sonner', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   toast: Object.assign(vi.fn(), { dismiss, success: vi.fn(), error: vi.fn() }),
