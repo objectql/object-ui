@@ -417,6 +417,24 @@ const DEBT = {
     "NavigationItem",
     "NavigationItemSchema",
   ],
+  // Entered by the `@objectstack/spec` 17.1.0 pin bump (objectui#5328), and it is
+  // worth naming how this collision differs from the three above: objectui did
+  // not fork a spec name here. The local `ReferenceRailEntry` predates the
+  // release and did not move — 17.1.0 started EXPORTING the name (absent from
+  // 17.0.0's `dist/` entirely), so the collision arrived from upstream. The
+  // gate's own framing, "a fresh fork fails on the PR that writes it", does not
+  // fit a PR that wrote no fork.
+  //
+  // Not burnable in that PR either, because the two shapes disagree on one key:
+  // spec's `ReferenceRailEntrySchema` is `$strict` over
+  // {objectName, relationshipField, title, limit, displayField}, while the local
+  // interface adds `icon` — which the renderer reads and the strict schema
+  // REFUSES at save. Importing/deriving retires `icon`; renaming to a dialect
+  // keeps it unsaveable. Either is a contract call, so it is filed rather than
+  // guessed: objectui#5494.
+  "@object-ui/plugin-detail": [
+    "ReferenceRailEntry",
+  ],
 };
 
 // Files under these paths are not objectui's own authored surface.

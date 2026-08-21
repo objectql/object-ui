@@ -36,7 +36,7 @@ importers:
         version: 10.0.1(eslint@10.8.1(jiti@2.7.0))
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -274,10 +274,10 @@ importers:
         version: link:../../packages/types
       '@objectstack/client':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -412,7 +412,7 @@ importers:
         version: link:../../packages/types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       fumadocs-core:
         specifier: 16.14.4
         version: 16.14.4(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.18)(lucide-react@1.31.0(react@19.2.8))(next@16.3.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.2.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(zod@4.4.3)
@@ -761,13 +761,13 @@ importers:
         version: link:../types
       '@objectstack/formula':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/lint':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.70.0
         version: 10.70.0(react@19.2.8)
@@ -861,7 +861,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       better-auth:
         specifier: ^1.6.28
         version: 1.6.28(@opentelemetry/api@1.9.1)(better-sqlite3@12.9.0)(mongodb@7.2.0(socks@2.8.9))(next@16.3.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.2.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
@@ -957,7 +957,7 @@ importers:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -993,7 +993,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@radix-ui/react-accordion':
         specifier: ^1.2.20
         version: 1.2.20(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1177,10 +1177,10 @@ importers:
         version: link:../types
       '@objectstack/formula':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1239,10 +1239,10 @@ importers:
         version: link:../types
       '@objectstack/client':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -1276,7 +1276,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1383,7 +1383,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1430,7 +1430,7 @@ importers:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1605,7 +1605,7 @@ importers:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -1647,7 +1647,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@radix-ui/react-slot':
         specifier: ^1.3.3
         version: 1.3.3(@types/react@19.2.18)(react@19.2.8)
@@ -1766,7 +1766,7 @@ importers:
         version: link:../plugin-charts
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/react-grid-layout':
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1875,7 +1875,7 @@ importers:
         version: link:../i18n
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -1997,7 +1997,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -2052,7 +2052,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -2113,7 +2113,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@tanstack/react-virtual':
         specifier: ^3.14.9
         version: 3.14.9(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2257,7 +2257,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18
@@ -2296,7 +2296,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -2446,7 +2446,7 @@ importers:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@types/node':
         specifier: ^26.2.0
         version: 26.2.0
@@ -2491,7 +2491,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2546,7 +2546,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       lucide-react:
         specifier: ^1.31.0
         version: 1.31.0(react@19.2.8)
@@ -2610,7 +2610,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2644,7 +2644,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2678,7 +2678,7 @@ importers:
         version: link:../types
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2752,7 +2752,7 @@ importers:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -2791,13 +2791,13 @@ importers:
         version: link:../react
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
 
   packages/test-support:
     devDependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -2809,7 +2809,7 @@ importers:
     dependencies:
       '@objectstack/spec':
         specifier: ^17.0.0
-        version: 17.0.0(ai@7.0.65(zod@4.4.3))
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -4084,8 +4084,8 @@ packages:
       react: 19.2.8
       react-dom: 19.2.8
 
-  '@mongodb-js/saslprep@1.4.13':
-    resolution: {integrity: sha512-E3Sv4eCYAlKYUTx8S3ioQcDUscOif+8zZ5OnW1IzJ+Tt+EO+ke8mn+Y3FX6N1H79picwbdOavVOb1jPi2EOyrg==}
+  '@mongodb-js/saslprep@1.5.0':
+    resolution: {integrity: sha512-Hk1SKJCMcCos38+vqDnZzlIo4XRj9yCGzYkjB4LcqpeXRIYfia1UWTz+VrueLxoU+uSRJzgkufxoRZg8gi52YA==}
 
   '@mswjs/interceptors@0.41.9':
     resolution: {integrity: sha512-VVPPgHyQ6ShqnrmDWuxjmUIsO9gWyOZFmuOfLd9LfBGQJwZfy0gvv9pbHSJuoFNIYC7ZDX9aoFwowjcdSC4E8w==}
@@ -4166,26 +4166,26 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.0.0':
-    resolution: {integrity: sha512-pfapHGMXA0/nKohGNg6tXTZ9AuKa3lN7ZRrvb6N8h0+PEZsJLsGP13C2nb3Hc6T9NzCl4uO1nDMMSRYcLe++Ug==}
+  '@objectstack/client@17.1.0':
+    resolution: {integrity: sha512-pgd7JTIxN0TBDKs0bYuYWCJrPS8+H1sDby7vdvdYPBr4uaNBcwXQD3BWvSpaNyU11S8EtwWK5RQnqVYZARZEpA==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.0.0':
-    resolution: {integrity: sha512-byJCvD92jvepzzcvydmQfSyjb5Qiu+r+RJEKn/qlRwYXFpMG9CbJovglBHyyCFRzbpWKc70z88FGrj5vlr25gQ==}
+  '@objectstack/core@17.1.0':
+    resolution: {integrity: sha512-4R+rmaNWNmW6K2hMK2GihCAYwLPJr9csqpq0Rmegs79ElXPRy93JNoVy5LG3WotVnIvUdPlGCWogdRhc4lRhqw==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/formula@17.0.0':
-    resolution: {integrity: sha512-PhJcfhZBMZTmerGeFJfVuhntvhvPrZhXd8MxmBl8wJjOr0CpTsr25WsNxq86lwKlTkq9PRscSbIW8fxCiTRV9g==}
+  '@objectstack/formula@17.1.0':
+    resolution: {integrity: sha512-u54fhrTxkUySKHuRwA4XjFi8i4SEYemMI9dlA+GGubguwtoE27gTvH5J4CTWcrVb3oN9Cf+3Aymw3yrfFWirkA==}
 
-  '@objectstack/lint@17.0.0':
-    resolution: {integrity: sha512-U34gEiEK7VFF/By5RXRrbU69hhX0uekhfp9H5nhz+thr2zOcRjpL8FoAH+mwAZvv3bz/mWeVw0t40KiR5PIlww==}
+  '@objectstack/lint@17.1.0':
+    resolution: {integrity: sha512-qHh6oRHsjUGSzd8X3hiKQeV0jqFg2J98YxAArdaWV14AzJkYXnmQNv7bzLAdVyV1VWbnp/nPWprUVc3FTzjzBg==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/sdui-parser@17.0.0':
-    resolution: {integrity: sha512-hHcjBsHH9B+WFHoqwBF5qV75Su9W0LXVFeWoTMJ+1mkdNyD5pKSQH7cWx81pTAkJ8yFTKlKUk74sLBHZIIHwPg==}
+  '@objectstack/sdui-parser@17.1.0':
+    resolution: {integrity: sha512-D6LuWbi6MlHrrQSX+4/MXx+n4M79PZtgOa9uOgyMVd/JoTVR/waWrIu2qrhkKP7TX/P9KNGql2ahR3fOPJ2txQ==}
 
-  '@objectstack/spec@17.0.0':
-    resolution: {integrity: sha512-65rmDnj6WKnIATvEg9/coDYSVUgBTtym/FysEApaK2W/k4ub0DP7dQ9VUmLB4HEbJxo0ahzD1tFObkXYEIT7Fw==}
+  '@objectstack/spec@17.1.0':
+    resolution: {integrity: sha512-gyF7knX3mqTEZSYeFIW/HBP0yFcjEzyXCS/p5pwH4yuJ4R2uw7mE3ItJs187CxZIFhFC2PTluRri3C/1Yaa9Og==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -7152,6 +7152,9 @@ packages:
   dompurify@3.4.13:
     resolution: {integrity: sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ==}
 
+  dompurify@3.4.14:
+    resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==}
+
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
 
@@ -9396,6 +9399,9 @@ packages:
 
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
+  pg-connection-string@2.14.0:
+    resolution: {integrity: sha512-XwWDGcLRGCXAR8F/AM5bG7Q+A3Wm2s6QeEjlOKZLlH3UYcguiqCWKyWXVag5TLTIjR7oOJUY8kcADaZgWPyLeg==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -12399,7 +12405,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@mongodb-js/saslprep@1.4.13':
+  '@mongodb-js/saslprep@1.5.0':
     dependencies:
       sparse-bitfield: 3.0.3
     optional: true
@@ -12455,32 +12461,32 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.0.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/client@17.1.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.0.0(ai@7.0.65(zod@4.4.3))
-      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/core': 17.1.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.1.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.0.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/core@17.1.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.1.0(ai@7.0.65(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@17.0.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/formula@17.1.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.1.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@17.0.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/lint@17.1.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 17.0.0(ai@7.0.65(zod@4.4.3))
-      '@objectstack/sdui-parser': 17.0.0
-      '@objectstack/spec': 17.0.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/formula': 17.1.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/sdui-parser': 17.1.0
+      '@objectstack/spec': 17.1.0(ai@7.0.65(zod@4.4.3))
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       sucrase: 3.35.1
@@ -12488,10 +12494,11 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@17.0.0': {}
+  '@objectstack/sdui-parser@17.1.0': {}
 
-  '@objectstack/spec@17.0.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/spec@17.1.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
+      pg-connection-string: 2.14.0
       zod: 4.4.3
     optionalDependencies:
       ai: 7.0.65(zod@4.4.3)
@@ -15456,6 +15463,10 @@ snapshots:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
+  dompurify@3.4.14:
+    optionalDependencies:
+      '@types/trusted-types': 2.0.7
+
   domutils@3.2.2:
     dependencies:
       dom-serializer: 2.0.0
@@ -17732,7 +17743,7 @@ snapshots:
 
   monaco-editor@0.55.1:
     dependencies:
-      dompurify: 3.4.13
+      dompurify: 3.4.14
       marked: 14.0.0
 
   mongodb-connection-string-url@7.0.2:
@@ -17743,7 +17754,7 @@ snapshots:
 
   mongodb@7.2.0(socks@2.8.9):
     dependencies:
-      '@mongodb-js/saslprep': 1.4.13
+      '@mongodb-js/saslprep': 1.5.0
       bson: 7.3.2
       mongodb-connection-string-url: 7.0.2
     optionalDependencies:
@@ -18104,6 +18115,8 @@ snapshots:
       resolve-protobuf-schema: 2.1.0
 
   pend@1.2.0: {}
+
+  pg-connection-string@2.14.0: {}
 
   picocolors@1.1.1: {}
 

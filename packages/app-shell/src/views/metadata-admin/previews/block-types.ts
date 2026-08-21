@@ -153,10 +153,24 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   'user:profile': 'shell singleton — lives in the app shell header',
   // No renderer, by decision.
   'ai:chat_window': 'no inline renderer — the floating chat overlay (plugin-chatbot) is canonical',
-  'element:filter': 'no renderer — list surfaces own filtering (userFilters / filter builder)',
   'element:form': 'no renderer — use the object-bound `object-form` block',
   'element:record_picker': 'no renderer — record picking is a field widget, not a page block',
   'element:text_input': 'no renderer — bare inputs belong to a form, not a page block',
+  // Renders fine — excluded to keep ONE palette entry per renderer, not because
+  // it is unauthorable. `record:chatter` and `record:discussion` are the same
+  // renderer under two names (plugin-detail/src/index.tsx:589), and the palette
+  // already offers it above as 'Chatter feed'. Entered when `@objectstack/spec`
+  // 17.1.0 added `record:discussion` to `PageComponentType` (objectui#5328);
+  // objectui itself has emitted the type all along
+  // (synth/buildDefaultPageSchema.ts:731), so nothing new became authorable —
+  // only the spec's enum caught up.
+  //
+  // ⚠️ The pair is offered under the LEGACY name: `public-blocks.ts` records
+  // `record:chatter` as "`record:discussion` under a Salesforce-familiar name",
+  // i.e. this exclusion hides the canonical spelling and offers the alias.
+  // Flipping which one the palette offers changes what authors drag, so it is a
+  // decision rather than a pin-bump edit — filed as objectui#5495.
+  'record:discussion': 'same renderer as the offered `record:chatter` — one palette entry per renderer',
 };
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {

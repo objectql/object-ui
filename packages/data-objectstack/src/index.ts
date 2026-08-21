@@ -99,6 +99,15 @@ export const FILTER_OPERATOR_ALIASES: Record<string, string> = {
   notin: 'nin',
   nin: 'nin',
   contains: 'contains',
+  // Case-insensitive contains. A canonical `VIEW_FILTER_OPERATORS` member that
+  // arrived with `@objectstack/spec` 17.1.0 (objectui#5328), and an IDENTITY row
+  // like `contains` above: `icontains` is itself a member of
+  // `VALID_AST_OPERATORS`, so the spelling the author writes is the spelling the
+  // AST takes — nothing is translated and no case-sensitivity is lost.
+  // Declared rather than left to the `?? op` fall-through on the rule this
+  // table's test states: the AST gate accepting a spelling is not the driver
+  // compiling it into a WHERE clause.
+  icontains: 'icontains',
   not_contains: 'notcontains',
   notcontains: 'notcontains',
   starts_with: 'startswith',
