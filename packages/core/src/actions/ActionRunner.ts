@@ -143,6 +143,38 @@ export interface ActionDef {
    */
   description?: UIActionSchema['description'];
   /**
+   * A notice that must reach the user AHEAD of the declared description, shown
+   * at the top of the param-collection dialog's subtitle.
+   *
+   * objectui dialect with NO spec counterpart, and dialect in a stronger sense
+   * than {@link ActionDef.description}: that one at least derives from
+   * `@object-ui/types`' renderer view of an action, while this key is not
+   * authorable metadata at all. A HOST composes it in code — `DeclaredActionsBar`
+   * sets it when the viewer takes the privileged admin-override branch
+   * (`can_act:false && can_override:true`), naming the approvers about to be
+   * bypassed. Hand-typed `string` rather than derived precisely because there is
+   * no spec field to derive FROM. The notice arrives already localized (bar
+   * chrome resolved through the normal locale bundle), so its reader
+   * concatenates it verbatim.
+   *
+   * Deliberately NOT folded into `description` (objectui#5178): the reader
+   * resolves `description` through `_actions.<name>.description` and PREFERS a
+   * bundle hit over the passed literal, and `plugin-approvals` ships exactly
+   * such an entry for `approval_reject` — so a warning routed through
+   * `description` would be silently replaced by the ordinary "Reject this
+   * request?" copy in every locale that has the bundle. A safety notice a
+   * translation can delete is not a safety notice.
+   *
+   * Promoted for the same reason step 3 (objectstack#4075) promoted
+   * `description`: produced, read, and declared nowhere. Its producer composes
+   * the dispatch as `any` and hands it over through a `dispatch as ActionDef`
+   * cast, and its reader took `action?: any` — so the key crossed the whole
+   * seam without one declaration, and `warnOnUnknownActionKeys` told the author
+   * in dev that a key "no reader recognizes" was present, on every
+   * privileged-override dispatch, about a key two files read.
+   */
+  overrideNotice?: string;
+  /**
    * Confirmation text — shows a confirm dialog before executing. The ONE
    * confirm spelling: `@objectstack/spec`'s action surface and the
    * TranslationBundle key (`{ns}.objects.{obj}._actions.{name}.confirmText`)
