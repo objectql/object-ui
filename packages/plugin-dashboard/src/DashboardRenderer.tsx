@@ -885,9 +885,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 style={innerGridSpanStyle}
                 {...designModeProps}
             >
-                 {datasetBound
-                   ? <div className={cn("h-full w-full", designMode && "pointer-events-none")}><DatasetWidget widget={effectiveWidget} dataSource={dataSource} /></div>
-                   : <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />}
+                 {/* `isSelfContained` implies `!datasetBound` (see its definition above), so a
+                     dataset-bound widget can never render here — it always takes the Card branch
+                     below for its title + border chrome. Do not re-add a `datasetBound` fork
+                     here: the arm is unreachable by construction (objectui#4620). */}
+                 <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />
                  {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
             </div>
         ) : (
