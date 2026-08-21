@@ -220,9 +220,13 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             type: action.type,
             name: action.name,
             // See action-button.tsx — the param-collection dialog titles itself
-            // from these two (`title: action?.label || action?.title`,
-            // `description: …action?.description` in
-            // useConsoleActionRuntime.tsx:205-207). Dropped here, an overflow
+            // from these two (`title: action?.label` and
+            // `description: …action?.description`, in the `setParamState` call
+            // of `useConsoleActionRuntime`'s `paramCollectionHandler` and of the
+            // second copy in `RecordDetailView`). The title used to read
+            // `action?.label || action?.title`; that fallback named a key no
+            // action surface declares and no renderer forwards, and was removed
+            // by objectui#4282 and objectui#5610. Dropped here, an overflow
             // action opened an untitled dialog while the SAME declaration
             // rendered inline named itself, so the split that decides which
             // renderer an action gets — `action:bar`'s `maxVisible`, 3 desktop
