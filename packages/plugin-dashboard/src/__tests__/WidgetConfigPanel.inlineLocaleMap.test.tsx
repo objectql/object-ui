@@ -40,8 +40,11 @@
  *   a different guarantee (a rebuild would add an entry for the active locale
  *   to a map that never carried one).
  *
- * A full multi-locale editor is objectui#4163's territory and is deliberately
- * NOT asserted here.
+ * A full multi-locale editor is deliberately NOT asserted here — this suite pins
+ * the single-locale write rule above and nothing wider. Authoring every locale
+ * from one panel remains an OPEN product question, not deferred to a tracker
+ * here: the deferral this replaced named objectui#4163, which closed as
+ * completed on 2026-08-15 with the question still unanswered.
  */
 
 import * as React from 'react';

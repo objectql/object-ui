@@ -129,8 +129,15 @@ function localeWriteKey(
  * the "saved" string vanishes — which is why they live in one file.
  *
  * ⚠️ This is the minimal non-destructive write for a SINGLE-locale editor. It
- * is not a multi-locale authoring UI (objectui#4163) and does not pretend to
- * be: an author can only ever reach the entry for the locale they are in.
+ * is not a multi-locale authoring UI and does not pretend to be: an author can
+ * only ever reach the entry for the locale they are in.
+ *
+ * Authoring every locale from one surface remains an OPEN product question, and
+ * is deliberately not deferred to a tracker here: the deferral this replaced
+ * named objectui#4163, which closed as completed on 2026-08-15 with the question
+ * still unanswered. A comment pointing at a closed card reads as though the
+ * question were settled somewhere, which is how the previous stale premise in
+ * this area survived unread.
  */
 export function setLocalized(
   value: unknown,
