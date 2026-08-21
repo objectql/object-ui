@@ -4,6 +4,7 @@ import { useObjectTranslation } from '@object-ui/react';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps, type DomProps } from './toDomProps.js';
+import { richTextCellRenderer, richTextSyntax } from './richTextDisplay.js';
 
 /**
  * The rich-text editing surface, rendered by `RichTextField` in BOTH positions:
@@ -140,6 +141,43 @@ function RichTextEditorSurface({
 }
 
 /**
+ * THE discriminator for the three registry keys this ONE widget serves —
+ * `markdown`, `html` and `richtext` (objectui#5498).
+ *
+ * It is `field.type`, and establishing that was the load-bearing half of the
+ * card, because the obvious candidate is wrong in a way that fails silently:
+ *
+ *  - `field.format` is NOT a discriminator. It is declared on `date`,
+ *    `datetime`, `time`, `phone` and `auto_number` and on no rich-content
+ *    type, so `richField?.format` read `undefined` for every real field and
+ *    the old `|| 'markdown'` tail answered `markdown` for all three. Branching
+ *    on it would have routed `html` and `richtext` — whose values are entirely
+ *    HTML — through the markdown pipeline, which drops raw HTML and renders a
+ *    populated value as NOTHING (the objectui#5452 failure, reintroduced on the
+ *    form). The editor header showing "Format: markdown" for an `html` field is
+ *    the same phantom read, visible; it is derived from the type now.
+ *  - the RESOLVED WIDGET KEY (`widget || field.widget || type`, the form
+ *    renderer's `resolveWidgetType`) is not visible from inside a widget, and
+ *    keying off it would be wrong anyway: every other read surface dispatches
+ *    `getCellRenderer` on the field TYPE, so `type` is what keeps this form
+ *    branch agreeing with the grid, the detail page and the rest.
+ *
+ * The `field:` prefix is stripped for the same reason the form renderer's own
+ * `normalizeFieldType` strips it: the object-schema path emits the prefixed id
+ * and hand-written form schemas the bare one, and they name the same kind.
+ *
+ * A type with no entry in {@link richTextCellRenderer} — a foreign type
+ * force-routed here by a `widget:` override, or a host that passed no metadata
+ * at all — is answered by the caller as PLAIN TEXT, which is what
+ * `getCellRenderer` answers for it too. Not by a guessed rich-content default.
+ */
+function resolveRichTextFieldType(field: unknown): string {
+  const raw = (field as { type?: unknown } | null | undefined)?.type;
+  const type = typeof raw === 'string' ? raw : '';
+  return type.startsWith('field:') ? type.slice('field:'.length) : type;
+}
+
+/**
  * Rich text field with markdown/HTML support
  * For now, this is a simple textarea. A full implementation would use
  * a rich text editor like TipTap, Lexical, or Slate.
@@ -162,6 +200,25 @@ function RichTextEditorSurface({
  * from the shared `FullscreenFieldEditor`, so one form-level setting keeps
  * producing one behaviour across both widgets.
  *
+ * ## Readonly display (objectui#5498)
+ *
+ * The readonly early return used to render `{value}` as a React TEXT CHILD,
+ * so a readonly field of any of the three types showed the user the markup
+ * SOURCE of their own content — a `markdown` field's asterisks and hashes, a
+ * `richtext` field's tags. The `prose` classes on that wrapper were the tell:
+ * they exist to style RENDERED rich content and there was none to style. Every
+ * other read surface — grid, kanban card, gallery, related list, dashboard
+ * record panel, record detail read mode — dispatches through `getCellRenderer`
+ * and renders the same stored bytes FORMATTED, so one field disagreed with
+ * itself depending on which surface it was read on, and this branch was the
+ * one disagreeing with the platform.
+ *
+ * It now renders through {@link richTextCellRenderer} — literally the same
+ * components `getCellRenderer` resolves, one table shared by both (see
+ * `./richTextDisplay.tsx`), so the html/richtext path carries that renderer's
+ * `sanitizeHtml` trust boundary rather than a second hand-rolled escape, and a
+ * future change to either pipeline moves both surfaces at once.
+ *
  * ## Host plumbing (objectui#4810)
  *
  * The editable branch had no `toDomProps` at all, so everything
@@ -181,19 +238,31 @@ function RichTextEditorSurface({
  */
 export function RichTextField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<string>) {
   const { t } = useObjectTranslation();
+  // Resolved BEFORE anything branches on it, and once — the readonly display
+  // and the editor's format header are two readings of the same fact, which is
+  // how they stopped being able to disagree (objectui#5498).
+  const fieldType = resolveRichTextFieldType(field);
+  const syntax = richTextSyntax(fieldType);
+
   if (readonly) {
-    return (
-      <div
-        className="text-sm prose prose-sm max-w-none"
-      >
-        {value || <EmptyValue />}
-      </div>
-    );
+    const Display = richTextCellRenderer(fieldType);
+    // Not a rich-content type: nothing to render as markup, and `prose` would
+    // be styling content that does not exist. Plain text is also what every
+    // other read surface shows for it, which is the invariant this branch is
+    // being aligned to.
+    if (!Display) {
+      return <div className="text-sm whitespace-pre-wrap break-words">{value || <EmptyValue />}</div>;
+    }
+    return <Display value={value} field={field} />;
   }
 
   const richField = field as any;
   const rows = richField?.rows || 8;
-  const format = richField?.format || 'markdown'; // 'markdown' or 'html'
+  // The stored syntax, DERIVED from the type's display pipeline rather than
+  // read off a `format` key no rich-content type declares. Empty for a type
+  // with no pipeline: the header names a syntax or it names nothing, it does
+  // not guess `markdown` for a field whose value is HTML.
+  const format = syntax ?? '';
   // Same single read as `TextAreaField`: the field metadata is the only
   // carrier, and this widget is the second consumer the flag always had.
   const showFullscreenButton = Boolean(richField?.mobile_fullscreen);
