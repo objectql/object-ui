@@ -100,6 +100,11 @@ vi.mock('../../../preview/usePublishAllDrafts', () => ({
 }));
 vi.mock('../../../runtime-config', () => ({
   getRuntimeConfig: () => ({ branding: { productName: 'ObjectStack' } }),
+  // objectui#5504 — Home now asks the runtime whether it has a marketplace at
+  // all. `true` keeps every case in this file on the pre-existing behaviour;
+  // the gate itself is covered by `HomePage.marketplaceDisabled.test.tsx`,
+  // which drives the REAL module instead of this stand-in.
+  isMarketplaceEnabled: () => true,
 }));
 
 import { HomePage } from '../HomePage';
