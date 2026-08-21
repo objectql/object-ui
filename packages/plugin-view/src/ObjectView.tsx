@@ -836,11 +836,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     setSelectedRecord(null);
   }, []);
 
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
-  }, []);
-
   // --- ViewSwitcher schema (for multi-view prop views) ---
   const viewSwitcherSchema: ViewSwitcherSchema | null = useMemo(() => {
     if (!hasMultiView || !viewsPropResolved || viewsPropResolved.length <= 1) return null;
