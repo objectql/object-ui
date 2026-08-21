@@ -4,6 +4,7 @@ import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
 import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
+import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
 
 export default defineConfig({
   plugins: [
@@ -27,6 +28,13 @@ export default defineConfig({
       // verdict about specifier-preserving `.js` builds — correctly never
       // scanned this package. See the module header for the full argument.
       ...createDtsExplicitExtensions({ packageDir: __dirname }),
+      // A type error the declaration program already found and printed used to
+      // leave `vite build` exiting 0 — objectui#5370. This makes it fatal.
+      // Disjoint hooks from the factory above (`afterDiagnostic` vs
+      // `beforeWriteFile`/`afterBuild`), so the two spreads cannot overwrite
+      // each other; a future factory that overlaps must be composed, not
+      // spread, because a duplicate key silently keeps the last one.
+      ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
     }),
   ],
   build: {
