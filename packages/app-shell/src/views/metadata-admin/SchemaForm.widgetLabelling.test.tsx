@@ -82,18 +82,21 @@ type Case = {
   variant?: string;
   schema: Record<string, unknown>;
   /**
-   * Extra `FormFieldSpec` keys. Loosely typed because two of these widgets read
-   * `fieldSpec.dependsOn`, which `FormFieldSpec` does not declare — a real
-   * producer/consumer gap, filed separately rather than papered over here.
+   * Extra `FormFieldSpec` keys — typed as the authoring surface itself since
+   * objectui#5040 closed the gap this comment used to record. `dependsOn`, which
+   * two of the cases below set and two widgets read, was declared ONLY on
+   * `widgets.tsx`'s inline copy of the contract, so these specs could not be
+   * typed at all and were loosened here instead. There is one declaration now,
+   * and a case that sets a key no author may write fails at this line.
    */
-  spec?: Record<string, unknown>;
+  spec?: Partial<FormFieldSpec>;
   ctx?: WidgetContext;
   value?: unknown;
   formData?: Record<string, unknown>;
 };
 
 function renderCase(c: Case, readOnly: boolean) {
-  const spec = { field: NAME, widget: c.key, ...c.spec } as FormFieldSpec;
+  const spec: FormFieldSpec = { field: NAME, widget: c.key, ...c.spec };
   const properties: Record<string, unknown> = { [NAME]: c.schema };
   for (const k of Object.keys(c.formData ?? {})) properties[k] = { type: 'string' };
   return render(

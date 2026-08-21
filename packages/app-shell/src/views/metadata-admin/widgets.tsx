@@ -47,6 +47,7 @@ import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadataLocale, t, tFormat } from './i18n.js';
+import type { FormFieldSpec } from './form-spec.js';
 import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold.js';
 import { ColorVariantPicker } from './color-variant-field.js';
 import { ConditionBuilder } from './inspectors/ConditionBuilder.js';
@@ -201,32 +202,14 @@ export interface WidgetProps {
   onChange: (v: unknown) => void;
   readOnly?: boolean;
   context?: WidgetContext;
-  /** Optional FormFieldSpec with type/options/reference/constraints */
-  fieldSpec?: {
-    field: string;
-    type?: string;
-    options?: Array<{ label: string; value: string; color?: string }>;
-    reference?: string;
-    maxLength?: number;
-    minLength?: number;
-    min?: number;
-    max?: number;
-    multiple?: boolean;
-    dependsOn?: string | string[];  // NEW: field name(s) this widget depends on
-    /** Sub-fields for `composite` / `repeater` types */
-    fields?: Array<any>;
-    /** Code editor language (for type=code) */
-    language?: string;
-    /** Form-level helpers passed through from FormField */
-    label?: string;
-    placeholder?: string;
-    helpText?: string;
-    widget?: string;
-    colSpan?: number;
-    immutable?: boolean;
-    readonly?: boolean;
-    required?: boolean;
-  };
+  /**
+   * The authored field spec — the SAME declaration the form layout is written
+   * against (`./form-spec.js`), not a second description of it. This was an
+   * inline copy until objectui#5040, and the copies disagreed: only this one
+   * declared `dependsOn`, which {@link FieldSelectorWidget} and
+   * {@link DynamicConfigWidget} both read below.
+   */
+  fieldSpec?: FormFieldSpec;
   /** All form data (for reading dependency values) */
   formData?: Record<string, unknown>;
 }
