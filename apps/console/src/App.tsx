@@ -12,7 +12,7 @@
  * with extra `<Route>` children.
  */
 
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
@@ -25,6 +25,7 @@ import {
   RequireAiSurface,
   SystemRedirect,
   ConsoleToaster,
+  LoadingScreen,
   DefaultHomeLayout,
   DefaultHomePage,
   DefaultOrganizationsLayout,
@@ -49,10 +50,6 @@ import { FormPage } from './components/FormPage';
 import { InternalFormRoute } from './components/InternalFormRoute';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
-import DocPage from './pages/DocPage';
-import DocsIndex from './pages/DocsIndex';
-import DocsSlug from './pages/DocsSlug';
-import DocsLayout from './pages/DocsLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -62,6 +59,32 @@ import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { VerifyEmailPromptPage } from './pages/auth/VerifyEmailPromptPage';
 import { OAuthConsentPage } from './pages/auth/OAuthConsentPage';
 import { DeviceAuthPage } from './pages/auth/DeviceAuthPage';
+
+/*
+ * Package documentation portal (ADR-0046 section 6), lazy on purpose.
+ *
+ * Nothing on a normal console page load visits /docs, and `DocPage` is the
+ * only console-owned module that reaches `@object-ui/plugin-markdown`. These
+ * four therefore belong behind a lazy boundary.
+ *
+ * `AppContent.tsx` already lazy-imports `DocsLayout` / `DocsSlug` / `DocPage`
+ * for the app-scoped `/apps/:packageId/docs` tree (ADR-0048). Importing the
+ * same three STATICALLY here put them in the eager graph anyway, so that
+ * `import()` moved nothing -- three `INEFFECTIVE_DYNAMIC_IMPORT` warnings on
+ * every build (objectui#5467). Both sides must stay lazy: a static import on
+ * either one silently re-defeats the split for BOTH, and the only signal is a
+ * build warning that fails nothing.
+ *
+ * `DocsIndex` is lazy here for the same reason even though it carried no
+ * warning (`AppContent` renders `AppDocsIndex` at that slot, so nothing
+ * imported it dynamically). Left static it would keep `DocShell`,
+ * `use-book-data` and `book-nav` eager on its own and the portal would only
+ * half-leave the closure.
+ */
+const DocsLayout = lazy(() => import('./pages/DocsLayout'));
+const DocsIndex = lazy(() => import('./pages/DocsIndex'));
+const DocsSlug = lazy(() => import('./pages/DocsSlug'));
+const DocPage = lazy(() => import('./pages/DocPage'));
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
@@ -240,12 +263,12 @@ export function App() {
               *                  coordinate; the book segment is derived nav). */}
             <Route path="/docs" element={
               <ProtectedRoute>
-                <DocsLayout />
+                <Suspense fallback={<LoadingScreen />}><DocsLayout /></Suspense>
               </ProtectedRoute>
             }>
-              <Route index element={<DocsIndex />} />
-              <Route path=":slug" element={<DocsSlug />} />
-              <Route path=":slug/:name" element={<DocPage />} />
+              <Route index element={<Suspense fallback={<LoadingScreen />}><DocsIndex /></Suspense>} />
+              <Route path=":slug" element={<Suspense fallback={<LoadingScreen />}><DocsSlug /></Suspense>} />
+              <Route path=":slug/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
             </Route>
             <Route path="/home" element={
               <ProtectedRoute>
