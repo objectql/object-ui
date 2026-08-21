@@ -25,6 +25,7 @@ import {
   compileScopedStyles,
 } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext.js';
+import { useRecordContext } from './context/RecordContext.js';
 import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
@@ -93,6 +94,88 @@ function validateSchemaOnce(schema: any): _ValidationCacheEntry {
   }
   _validationCache.set(schema, entry);
   return entry;
+}
+
+/**
+ * Prefix every unresolvable-visibility line starts with. Exported so tests can
+ * match on it and so an app can filter it out of its console transport.
+ */
+export const UNRESOLVABLE_VISIBILITY_PREFIX =
+  '[ObjectUI] A visibility predicate could not be evaluated';
+
+/** The raw predicate as an author would recognise it, envelope or not. */
+function predicateSourceText(raw: unknown): string {
+  if (raw && typeof raw === 'object' && typeof (raw as any).source === 'string') {
+    return (raw as any).source;
+  }
+  return typeof raw === 'string' ? raw : String(raw);
+}
+
+/**
+ * Build the unresolvable-visibility message.
+ *
+ * Split from the emit deliberately: a diagnostic whose only assertion is "a spy
+ * was called" goes green the moment someone no-ops it, so the words a developer
+ * will actually read are what the pins assert.
+ */
+export function formatUnresolvableVisibilityMessage(
+  type: unknown,
+  id: unknown,
+  key: string,
+  raw: unknown,
+  reason: string,
+): string {
+  const node = typeof type === 'string' && type ? '"' + type + '"' : '(untyped node)';
+  const where = typeof id === 'string' && id ? ' (id: "' + id + '")' : '';
+  return (
+    UNRESOLVABLE_VISIBILITY_PREFIX + ' - node ' + node + where + '\n' +
+    '  ' + key + ': ' + JSON.stringify(predicateSourceText(raw)) + '\n' +
+    '  Reason: ' + reason + '\n' +
+    'The node was treated as its safe default, which on this surface means the\n' +
+    'gate did NOT bite — a predicate that cannot be evaluated reads on screen\n' +
+    'exactly like one that said yes.\n' +
+    'Page-component predicates bind `record` (the row on a record page),\n' +
+    '`current_user`, and page state as `page.<var>`. Check those roots and the\n' +
+    'CEL syntax.'
+  );
+}
+
+/**
+ * Reported (node type, key, predicate source) triples, so a re-render — or the
+ * post-mount `forceUpdate` that picks up lazy plugin registrations — does not
+ * repeat the line. Keyed on the predicate TEXT rather than the schema object:
+ * the same broken predicate authored once and rendered on many rows is one
+ * authoring bug, and every row would otherwise report it.
+ */
+const _warnedVisibilityPredicates = new Set<string>();
+
+/**
+ * Dev-build only; the caller applies the gate. `console.warn`, not `error`:
+ * the verdict is unchanged and the page still renders, so this is a diagnostic
+ * about a predicate, not the refusal `reportUnevaluatedExpressions` emits when
+ * raw source has already reached the DOM.
+ */
+function reportUnresolvableVisibilityPredicate(
+  type: unknown,
+  id: unknown,
+  key: string,
+  raw: unknown,
+  err: unknown,
+): void {
+  const reason = err instanceof Error ? err.message : String(err);
+  const dedupeKey = JSON.stringify([type, key, predicateSourceText(raw)]);
+  if (_warnedVisibilityPredicates.has(dedupeKey)) return;
+  _warnedVisibilityPredicates.add(dedupeKey);
+  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason));
+}
+
+/**
+ * Test-only reset for the dedupe above. A `Set` keyed on predicate text is
+ * module state: without this, the second test to assert the same warning reads
+ * the first test's dedupe entry and sees silence.
+ */
+export function __resetVisibilityPredicateWarnings(): void {
+  _warnedVisibilityPredicates.clear();
 }
 
 /**
@@ -373,6 +456,31 @@ export const SchemaRenderer: ForwardRefExoticComponent<
   // ExpressionProvider. Threaded into `visible`/expression evaluation so
   // component predicates can gate on the signed-in user & deployment flags.
   const predicateScope = usePredicateScope();
+  // The row the page is about, from `RecordContextProvider` (objectui#5454).
+  //
+  // `@objectstack/spec` has always DECLARED that a component node's
+  // `visibleWhen` binds it — `page.zod.ts`: *"Binds `record`, `current_user`,
+  // `page.<var>`"* — and until this change the evaluator below bound no
+  // `record` at all, on any block, on any record page. A `record.*` predicate
+  // therefore could not resolve; this surface is fail-soft, so it resolved to
+  // SHOWN. That is not a gate that misfires, it is a gate that never gates:
+  // both polarities of the same predicate returned the same verdict, measured
+  // on `record:alert`, `record:path`, `page:card` and `element:text`.
+  //
+  // Bound as the `record` ROOT ONLY — the exact three roots the describe
+  // promises, and nothing else:
+  //
+  //   * NOT as bare fields. `page:tabs`' item-level predicate spreads the row
+  //     flat as well (`containers.tsx`), but that breadth is undeclared on
+  //     both surfaces, and contract-first (AGENTS.md #0.1) says bind what the
+  //     spec states rather than accrete a second de-facto spelling here.
+  //   * NOT over `data`. `data` on this evaluator is the data-source ADAPTER
+  //     from `SchemaRendererContext`, which is what `${data.total}` in a
+  //     `properties` / `props` / `content` value resolves against — a
+  //     documented, pinned binding. Overwriting it with the row would be a
+  //     silent interpolation change nobody asked for.
+  const recordContext = useRecordContext();
+  const boundRecord = recordContext?.data;
   // Page-local state (PageSchema.variables), provided by PageVariablesProvider.
   // Exposed to predicates/bindings under `page.<var>` so an interactive element
   // (e.g. element:record_picker) writing a variable can drive another
@@ -417,9 +525,22 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // resolve in component `visible`/`visibleOn` expressions. `page` exposes
     // page-local state so predicates can gate on `page.<var>` (e.g. a record
     // picker's selection toggling another component's visibility).
+    //
+    // `record` is written AFTER the ambient spread so a page's own row wins
+    // over anything a host put in the scope — the same precedence
+    // `usePredicateRecordContext` states for the `useCondition` tier. And it is
+    // written CONDITIONALLY, for the other half of that same rule: no row binds
+    // NOTHING rather than an empty object. `{ record: undefined }` would SHADOW
+    // a `record` a host had legitimately supplied through the ambient scope
+    // (how `action:group`'s dropdown leaf is driven), turning "this surface has
+    // no row of its own" into "this surface's row is empty" — only the latter
+    // is entitled to shadow.
     const evaluator = new ExpressionEvaluator({
       ...predicateScope,
       current_user: (predicateScope as any)?.user,
+      ...(boundRecord && typeof boundRecord === 'object' && !Array.isArray(boundRecord)
+        ? { record: boundRecord }
+        : null),
       data: dataSource,
       page: pageVariables,
     });
@@ -506,27 +627,97 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       newSchema.props = newProps;
     }
 
-    // Evaluate visibility: visible / visibleWhen / visibleOn / visibility / hidden / hiddenOn
+    /**
+     * Evaluate ONE visibility predicate, and make an unresolvable one LOUD
+     * (objectui#5454, leg 3 of the 2026-08-21 ruling).
+     *
+     * ## The verdict is byte-for-byte what it was — only the silence moved
+     *
+     * `evaluateCondition` answers an unresolvable predicate with `true`, on
+     * every one of its three internal paths: the CEL envelope fails soft to its
+     * `true` fallback, a bare expression that throws is caught and returns
+     * `true`, and a `${…}` template that throws returns its own SOURCE TEXT,
+     * which is a non-empty string and therefore truthy. Passing
+     * `throwOnError: true` changes none of those verdicts — it only converts
+     * "could not evaluate" from a value into a throw — so this helper returns
+     * `true` from the catch and reproduces the old answer exactly. That is why
+     * it is safe on the two NON-negated legs (`hidden` / `hiddenOn`) as well,
+     * where the same `true` means HIDE rather than SHOW.
+     *
+     * ## Why it needed saying at all
+     *
+     * A fail-soft surface answers "this predicate is broken" and "this
+     * predicate said yes" with the same word. On the negated legs that word is
+     * SHOWN, so a `record.*` gate written before objectui#5454 bound the row
+     * rendered its block unconditionally and looked exactly like a gate the
+     * author had got right. One of the three paths was already loud — the CEL
+     * envelope's `evalFieldPredicate` warns (objectstack#5149) — and the other
+     * two were mute, so whether an author heard about their own typo depended
+     * on which dialect they happened to write it in.
+     *
+     * Deduped per (node type, key, predicate source): a broken predicate is
+     * re-evaluated on every render, and the point is one line, not a wall.
+     */
+    const evaluateVisibilityPredicate = (raw: any, key: string): boolean => {
+      try {
+        return evaluator.evaluateCondition(raw, { throwOnError: true });
+      } catch (err) {
+        if (__DEV__) {
+          reportUnresolvableVisibilityPredicate(
+            newSchema.type,
+            newSchema.id,
+            key,
+            raw,
+            err,
+          );
+        }
+        // The historical fail-soft answer, unchanged. See the docblock: this is
+        // the value every path of `evaluateCondition` already returned here.
+        return true;
+      }
+    };
+
+    // Evaluate visibility: visibleWhen / visible / visibleOn / visibility / hidden / hiddenOn
     const shouldHide = (() => {
-      if (newSchema.visible !== undefined) {
-        return !evaluator.evaluateCondition(newSchema.visible);
-      }
       // `visibleWhen` is the single canonical conditional-visibility predicate
-      // across every layer since ADR-0089 (show-when-truthy). The spec folds the
-      // deprecated `visibleOn` (view) / `visibility` (page) aliases into it at
-      // parse, so it is checked FIRST; the aliases below remain as a defensive
-      // read for any raw / un-normalized metadata reaching the renderer.
+      // across every layer since ADR-0089 (show-when-truthy), and it is the one
+      // this shape DECLARES: `PageComponentSchema` is a closed object that
+      // declares `visibleWhen` (+ the deprecated `visibility`) and REFUSES a
+      // node-level `visible` outright, with the prescription "move it up one
+      // level to the component node's own `visibleWhen` … inside `properties`
+      // it is hoisted onto the node by the renderer but evaluated by nothing"
+      // (`component.zod.ts`, COMPONENT_NODE_VISIBILITY_KEYS).
+      //
+      // It is tested FIRST — ahead of `visible` — since objectui#5454. The
+      // hoist block above copies every `properties.*` value onto the node, so a
+      // node carrying `properties.visible` arrived here with `schema.visible`
+      // set, and the `visible` leg used to short-circuit before the DECLARED
+      // node predicate was ever consulted. Measured on `record:alert`,
+      // `record:path`, `page:card` and `element:text`: `properties.visible`
+      // present and truthy made a co-declared `visibleWhen: false` a no-op, so
+      // the one key the spec tells authors to write was the one key that could
+      // be silently ignored. A declared node predicate now outranks a hoisted
+      // renderer prop; when both resolve to "show", both still have to.
       if (newSchema.visibleWhen !== undefined) {
-        return !evaluator.evaluateCondition(newSchema.visibleWhen);
+        return !evaluateVisibilityPredicate(newSchema.visibleWhen, 'visibleWhen');
       }
-      // @deprecated ADR-0089 → `visibleWhen`.
+      // `visible` — objectui's own `BaseSchema` tier (`@object-ui/types`), and
+      // the landing spot of a hoisted `properties.visible`. Kept ABOVE the two
+      // deprecated aliases: they normalize into `visibleWhen` at parse, so a
+      // spec-parsed page never reaches them, and re-ranking them would move
+      // verdicts for raw metadata that objectui#5454 did not rule on.
+      if (newSchema.visible !== undefined) {
+        return !evaluateVisibilityPredicate(newSchema.visible, 'visible');
+      }
+      // @deprecated ADR-0089 → `visibleWhen`. Defensive read for raw /
+      // un-normalized metadata reaching the renderer.
       if (newSchema.visibleOn !== undefined) {
-        return !evaluator.evaluateCondition(newSchema.visibleOn);
+        return !evaluateVisibilityPredicate(newSchema.visibleOn, 'visibleOn');
       }
       // @deprecated ADR-0089 → `visibleWhen` (was PageNodeSchema.visibility,
       // an ExpressionInput) — show-when-truthy, same semantics as `visibleOn`.
       if (newSchema.visibility !== undefined) {
-        return !evaluator.evaluateCondition(newSchema.visibility);
+        return !evaluateVisibilityPredicate(newSchema.visibility, 'visibility');
       }
       // Ask "is a `hidden` gate DECLARED?" — not "is the key present?"
       // (objectui#3955). These two legs are the only ones in this chain whose
@@ -547,10 +738,10 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       // equivalence, and pinned as a behaviour change: an UNDECLARED `hidden` no
       // longer short-circuits, so a declared `hiddenOn` is finally consulted.
       if (hasDeclaredPredicate(newSchema.hidden)) {
-        return evaluator.evaluateCondition(newSchema.hidden);
+        return evaluateVisibilityPredicate(newSchema.hidden, 'hidden');
       }
       if (hasDeclaredPredicate(newSchema.hiddenOn)) {
-        return evaluator.evaluateCondition(newSchema.hiddenOn);
+        return evaluateVisibilityPredicate(newSchema.hiddenOn, 'hiddenOn');
       }
       return false;
     })();
@@ -605,7 +796,7 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     }
 
     return newSchema;
-  }, [schema, dataSource, predicateScope, pageVariables]);
+  }, [schema, dataSource, predicateScope, pageVariables, boundRecord]);
 
   if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
