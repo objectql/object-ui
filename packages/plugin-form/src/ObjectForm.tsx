@@ -25,9 +25,10 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
+import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
-import { WizardForm } from './WizardForm';
+import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
 import { SplitForm } from './SplitForm';
 import { DrawerForm } from './DrawerForm';
 import { ModalForm } from './ModalForm';
@@ -907,10 +908,71 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
         if (nav) {
-          window.location.assign(nav);
+          // WHO travels to an ACCEPTED `navigateOnSuccess` destination —
+          // objectui#5034 point 1, the same mount-blindness class as
+          // objectui#4989 defect 4 and objectui#5112.
+          //
+          // A rooted path such as `/apps/x/o/record/r1` handed to
+          // `window.location.assign` resolves against the ORIGIN root, so under a
+          // host mounted at a sub-path (the framework CLI configures one for
+          // every embedded deployment; the console runs at basename `/_console`)
+          // an authored in-app destination left the application. Only the host
+          // knows its mount, and the seam that landed with PR #5111 is already
+          // wired into this component — the state below and the effect that owns
+          // it are 440 lines up. This arm was the one call site still bypassing
+          // it. `delayMs: 0` reuses that one mechanism rather than minting a
+          // second: this key declares no delay, and an unset delay was already a
+          // zero timer, i.e. "go now". Reuse also hands this arm the property
+          // objectui#5033 bought for the other one — unmounting cancels the wait,
+          // so a navigation cannot fire into a form the submitter has left.
+          //
+          // WHICH destinations are accepted is deliberately UNTOUCHED here:
+          // `resolveSuccessNavigate` is the authority and objectui#5548 is open on
+          // its contract (same-origin absolutes, the single-brace `{id}` dialect,
+          // the unescaped interpolation). This edit changes only who travels.
+          //
+          // The split is not a conservatism — it is the seam's own declared input
+          // contract. `HostNavigationValue.navigate` documents `to` as "an
+          // already-resolved, application-relative path, never an absolute URL …
+          // It is the CALLER's job to have judged the destination", and this key,
+          // unlike `submitBehavior.url`, is NOT relative-only: its same-origin
+          // guard admits an absolute `https://own-host/record/1` too. So the
+          // shared hook — written for a relative-only key, and correct to hand
+          // over everything it holds — must not be handed a value its contract
+          // says it never receives. Routing an absolute through a router would
+          // also rewrite the author's full address into a path the host then
+          // places somewhere else; an author who spelled the whole address asked
+          // for that address. Same judgement, same predicate, as objectui#5112
+          // made on `thankYouPage.redirectUrl`, whose acceptance set has exactly
+          // this shape — reused rather than re-derived.
+          if (isAppRelativeDestination(nav)) {
+            setPendingRedirect({ url: nav, delayMs: 0 });
+          } else {
+            window.location.assign(nav);
+          }
           return result;
         }
-        toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+        if (schema.navigateOnSuccess) {
+          // Declared, and refused (objectui#5034 point 2). This is NOT the total
+          // silence objectui#4989 defect 2 described — the submitter does get a
+          // success toast, so they are not left facing a still-filled form and are
+          // not invited to resubmit. The injury is narrower and real: that toast
+          // was indistinguishable from the one a form with no `navigateOnSuccess`
+          // produces, so the declared navigation failed with nobody told. The
+          // write genuinely succeeded, so the fix is a note on the success — not
+          // an error, not a blocking panel. The template goes to the console for
+          // the author, where naming it cannot mislead the submitter.
+          console.warn(
+            '[ObjectForm] `navigateOnSuccess` was declared but produced no destination:',
+            schema.navigateOnSuccess,
+          );
+          toast.success(
+            schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+            { description: NAVIGATE_ON_SUCCESS_REFUSED_NOTE },
+          );
+        } else {
+          toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+        }
       }
 
       return result;

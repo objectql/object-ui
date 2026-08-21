@@ -30,8 +30,45 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
+import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { useOccSave } from './occSave';
 import type { FormSectionConfig } from './TabbedForm';
+
+/**
+ * What the submitter is told when a DECLARED `navigateOnSuccess` produced no
+ * destination — objectui#5034 point 2.
+ *
+ * The write succeeded, so this rides on the success toast as a note rather than
+ * becoming an error or a blocking panel: turning a successful write into an
+ * error state would be a worse lie than the silence it replaces. What was
+ * missing is one fact, and only one: the navigation the author declared did not
+ * happen. Before this, the toast was byte-identical to the toast a form with no
+ * `navigateOnSuccess` at all produces, so an author who mistyped the destination
+ * — or whose record carried no usable id — saw a form that looked entirely
+ * healthy and had silently stopped honouring a key they wrote.
+ *
+ * Maintainer ruling, 2026-08-17: "A refused declared navigation is surfaced: the
+ * success toast carries a note that the declared navigation was not performed —
+ * never indistinguishable from the no-key case."
+ *
+ * The note names no REASON on purpose. `resolveSuccessNavigate` answers null for
+ * two different causes (no usable id on the written record; a destination the
+ * same-origin guard refused) and returns no discriminant, so a reason in this
+ * copy could only be re-derived by reimplementing that helper's internals at the
+ * call site — where it would drift from the helper, and would additionally bake
+ * today's acceptance rule into user-visible prose while objectui#5548 is still
+ * open on exactly that rule. The diagnosable detail — the template the author
+ * actually wrote — goes to `console.warn` at each call site instead.
+ *
+ * Lives here rather than in `successBehavior.ts` (the natural home, but read-only
+ * for this card) and is imported BY `ObjectForm`, which is the dependency
+ * direction that already exists — ObjectForm imports WizardForm, never the
+ * reverse. Single-sourced so a wizard and a flat form cannot tell a submitter
+ * two different things about one refusal; a test pins that they do not.
+ */
+export const NAVIGATE_ON_SUCCESS_REFUSED_NOTE =
+  'The `navigateOnSuccess` destination declared for this form was refused, '
+  + 'so the navigation did not happen.';
 
 // Falls back to English when no i18n provider is mounted.
 const useWizardTranslation = createSafeTranslation(
@@ -580,10 +617,35 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.
-            window.location.assign(nav);
+            //
+            // WHO travels is the same split ObjectForm's arm makes; see the long
+            // comment there (objectui#5034 point 1). An app-relative destination
+            // goes to the state the seam-owning effect above reads, so a mounted
+            // host's basename is applied instead of the origin root; anything
+            // else keeps this synchronous `window.location.assign`.
+            if (isAppRelativeDestination(nav)) {
+              setPendingRedirect({ url: nav, delayMs: 0 });
+            } else {
+              window.location.assign(nav);
+            }
             return result;
           }
-          toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+          if (schema.navigateOnSuccess) {
+            // Declared, and refused (objectui#5034 point 2). The write succeeded,
+            // so this stays a success toast — with the one fact that was missing
+            // attached to it. The template goes to the console for the author,
+            // where naming it cannot mislead the submitter.
+            console.warn(
+              '[WizardForm] `navigateOnSuccess` was declared but produced no destination:',
+              schema.navigateOnSuccess,
+            );
+            toast.success(
+              schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+              { description: NAVIGATE_ON_SUCCESS_REFUSED_NOTE },
+            );
+          } else {
+            toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+          }
           if (schema.resetOnSuccess && schema.mode === 'create') {
             // Back to a fresh step 1 for the next entry — same opening values
             // as the first entry, defaults included (#4047).
