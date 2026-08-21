@@ -7,8 +7,8 @@
  */
 
 /**
- * `data-table` reads the two column keys `TableColumn` DECLARES, and no others
- * (objectui#5120 for `accessorKey`, objectui#5351 for `header`).
+ * `data-table` reads the DECLARED `header`, not the undeclared `label`
+ * (objectui#5351).
  *
  * `TableColumn` (`packages/types/src/data-display.ts`) declares `header: string`
  * and `accessorKey: string`. It declares neither `label` nor `name`. The
@@ -26,11 +26,20 @@
  * purpose. Metadata vocabulary in, adapter vocabulary out; one translation, one
  * place — and that place is each producer, never here.
  *
- * The two aliases were DIFFERENT failure classes and are pinned separately:
- * an unresolved `accessorKey` gives blank cells under a live header, while an
- * unresolved `header` gives a headerless column over live cells. Neither is
- * dropped and neither throws — that legibility is pinned below too, because it
- * is exactly what objectui#5349 measures against.
+ * SCOPE. The `label` alias retires here; the `name` alias is HELD, and the last
+ * describe below pins it as still-read so the hold cannot be mistaken for the
+ * retirement having happened. Two published skill guides teach a directly
+ * authored `data-table` whose columns are spelled `{ name, label }`, and
+ * `skill-guide-data-table-binding.test.tsx` renders those blocks straight out of
+ * the guide files — so `name` cannot retire until the instruction corpus moves.
+ * That is objectui#5120's remaining step and is nobody's to take unbidden:
+ * `skills/**` is a customer-published surface with its own owning seat.
+ *
+ * The two aliases were DIFFERENT failure classes, which is why the cards were
+ * filed apart: an unresolved `accessorKey` gives blank cells under a live
+ * header, while an unresolved `header` gives a headerless column over live
+ * cells. Neither is dropped and neither throws — that legibility is pinned
+ * below too, because it is exactly what objectui#5349 measures against.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -69,32 +78,23 @@ describe('data-table columns — the declared keys render (unchanged)', () => {
   });
 });
 
-describe('data-table columns — the undeclared `name` alias is retired (#5120)', () => {
-  it('does not resolve an accessor from `name`', () => {
-    // THE CHANGE. Before the retirement this rendered both cells, because the
-    // adapter fell back to `col.name`. The declared key is `accessorKey`, and a
-    // producer resolves it (`columnIdentity`) before delivery.
+describe('data-table columns — the `name` alias is still read, and that is a HOLD (#5120)', () => {
+  it('still resolves an accessor from the undeclared `name`', () => {
+    // NOT an endorsement — a receipt. The 2026-08-20 ruling retires this limb;
+    // what stops it today is that two published skill guides teach it and
+    // `skill-guide-data-table-binding.test.tsx` renders their bytes. Pinning the
+    // CURRENT behaviour means the day the guides move, this test goes red and
+    // names itself as the thing to delete, instead of the retirement quietly
+    // never happening.
     renderTable([{ header: 'Stage', name: 'stage' }]);
-    expect(bodyCells()).toEqual(['', '']);
-  });
-
-  it('keeps an authored `accessorKey` winning over a divergent `name`', () => {
-    // `name` is not consulted at all, so it cannot win and cannot conflict.
-    renderTable([{ header: 'Stage', accessorKey: 'stage', name: 'nonsense' }]);
     expect(bodyCells()).toEqual(['Won', 'Lost']);
   });
 
-  it('LEGIBILITY: an unresolvable accessor keeps its header and its neighbour', () => {
-    // Measured, not assumed, and deliberately unchanged by this card: the
-    // column is neither dropped nor refused. It renders a live header over
-    // blank cells, and the column beside it is unaffected. Whether that silence
-    // earns a dev-time diagnostic is objectui#5349's question, not this one's.
-    renderTable([
-      { header: 'Stage', name: 'stage' },
-      { header: 'Id', accessorKey: 'id' },
-    ]);
-    expect(headers()).toEqual(['Stage', 'Id']);
-    expect(bodyCells()).toEqual(['', '1', '', '2']);
+  it('keeps an authored `accessorKey` ahead of a divergent `name`', () => {
+    // Precedence, unchanged and load bearing: columns can arrive in the table
+    // library's own shape, and those must not be second-guessed.
+    renderTable([{ header: 'Stage', accessorKey: 'stage', name: 'nonsense' }]);
+    expect(bodyCells()).toEqual(['Won', 'Lost']);
   });
 });
 
@@ -122,26 +122,26 @@ describe('data-table columns — the undeclared `label` alias is retired (#5351)
   });
 });
 
-describe('data-table columns — the auto-width pass reads the same two keys', () => {
-  it('sizes from the declared keys, not the retired aliases', () => {
-    // The width pass is a SECOND read of the same columns, five lines below the
-    // first. If the two ever spell the accessor differently the table measures
-    // one set of columns and renders another, so they are pinned to move
-    // together. A `name`-spelled column samples `row[undefined]`, contributes no
-    // content width and falls to the 80px floor; its declared twin over the
-    // same long values does not.
+describe('data-table columns — the auto-width pass reads the same header key', () => {
+  it('sizes from the declared `header`, not from `label`', () => {
+    // The width pass is a SECOND read of the same columns, a few lines below
+    // the first. If the two ever spell a key differently the table measures one
+    // set of columns and renders another, so they are pinned to move together.
+    // A column's estimated width starts from its HEADER length, so a long
+    // `label` that the adapter no longer reads contributes nothing and the
+    // column falls to the 80px floor, while its declared twin does not.
     const DataTable = ComponentRegistry.get('data-table') as any;
-    const LONG = 'a-really-quite-long-cell-value-here';
+    const LONG = 'A Really Quite Long Column Header';
     render(
       <DataTable
         schema={{
           type: 'data-table',
-          data: [{ id: '1', note: LONG }],
+          data: [{ id: '1', a: 'x', b: 'x' }],
           pagination: false,
           searchable: false,
           columns: [
-            { header: 'A', name: 'note' },
-            { header: 'B', accessorKey: 'note' },
+            { label: LONG, accessorKey: 'a' },
+            { header: LONG, accessorKey: 'b' },
           ],
         }}
       />,
