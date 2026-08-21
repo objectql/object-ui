@@ -2415,6 +2415,7 @@ const zh = {
     template: {
       title: '从模板开始',
       subtitle: '从应用市场安装模板应用并按需定制。',
+      marketplaceDisabled: '本运行时未配置应用市场，因此这里没有可安装的模板。',
     },
     open: '打开',
     stats: {
@@ -3085,9 +3086,15 @@ const zh = {
       installedBadge: '已安装 v{{version}}',
       load: {
         failed: '应用市场加载失败',
-        failedHint: '本运行时默认指向公共 ObjectStack 云端。请检查运行时是否在线，或通过 <code>OS_CLOUD_URL</code> 指向自托管控制面。',
+        failedHintConfigured: '本运行时通过 {{url}} 上的控制面访问应用市场。请检查该地址是否在线、能否从本运行时访问。',
+        failedHintSameOrigin: '本运行时自己提供应用市场目录。请检查运行时是否在线。',
         packageFailed: '应用加载失败',
         notFound: '未找到。',
+      },
+      disabled: {
+        title: '应用市场已关闭',
+        description: '本运行时未配置应用市场，因此这里没有可浏览或安装的内容。',
+        hint: '当运行时以 <code>OS_CLOUD_URL=off</code>（或 <code>none</code>、<code>local</code>、<code>disabled</code>）启动时，这就是预期状态。如需开启应用市场，请把 <code>OS_CLOUD_URL</code> 指向一个控制面并重启运行时。',
       },
       detail: {
         homepage: '主页',

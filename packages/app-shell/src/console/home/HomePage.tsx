@@ -39,6 +39,7 @@ import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, Layou
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
 import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
+import { isMarketplaceEnabled } from '../../runtime-config.js';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -373,12 +374,20 @@ export function HomePage() {
   // `org_owner` is an admin (`isAdmin === true`) yet deliberately holds no
   // `manage_metadata`, so role alone offered a front door the backend refuses.
   const canAuthorMetadata = useCanAuthorMetadata();
+  // objectui#5504 — a runtime deployed with `OS_CLOUD_URL=off` (the EE
+  // deploy template's shipped default) mounts no marketplace at all. Home
+  // used to recommend it first and error afterwards; that ORDERING was the
+  // injury, so the recommendation goes when the capability does.
+  const marketplaceEnabled = isMarketplaceEnabled();
   // Shown wherever an authoring entry point is withheld, so the posture is
   // explained on screen instead of surfacing as a refusal after a filled-in
   // dialog. Localized in all ten packs.
   const authoringGateReason = t('home.build.noCapability', {
     defaultValue:
       "Building apps isn't available in this workspace — it requires the “Manage Metadata” permission, which your account doesn't have.",
+  });
+  const marketplaceGateReason = t('home.template.marketplaceDisabled', {
+    defaultValue: 'This runtime has no app marketplace configured, so there are no templates to install here.',
   });
 
   const activeApps = filterActiveApps(apps);
@@ -561,8 +570,8 @@ export function HomePage() {
                     defaultValue: 'Install a template app from the marketplace and customize it.',
                   })}
                   onClick={() => navigate('/apps/setup/system/marketplace')}
-                  disabled={!canAuthorMetadata}
-                  disabledReason={authoringGateReason}
+                  disabled={!canAuthorMetadata || !marketplaceEnabled}
+                  disabledReason={canAuthorMetadata ? marketplaceGateReason : authoringGateReason}
                   testId="home-start-template"
                 />
               </div>
@@ -575,6 +584,19 @@ export function HomePage() {
                   data-testid="home-authoring-gate-reason"
                 >
                   {authoringGateReason}
+                </p>
+              )}
+              {/* Same shape, different cause: the capability is present but
+                  this runtime has no marketplace to spend it on. Rendered only
+                  when the authoring reason is NOT already on screen, so a
+                  deployment missing both never stacks two explanations for one
+                  greyed-out card. */}
+              {canAuthorMetadata && !marketplaceEnabled && (
+                <p
+                  className="mt-2 text-xs text-muted-foreground"
+                  data-testid="home-marketplace-disabled-reason"
+                >
+                  {marketplaceGateReason}
                 </p>
               )}
             </div>
@@ -598,6 +620,11 @@ export function HomePage() {
                strip-header link, with the cover's reason line already on
                screen). */
             canAuthorMetadata={canAuthorMetadata}
+            /* objectui#5504 — same reason as the gate above: this button
+               targets the very route that 404s on a marketplace-less runtime,
+               so it goes with the capability rather than leading into the
+               error card. */
+            marketplaceEnabled={marketplaceEnabled}
           />
 
           {/* Action center — what needs the user; leads the dashboard */}

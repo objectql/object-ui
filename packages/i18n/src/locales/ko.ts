@@ -2320,6 +2320,7 @@ const ko = {
     template: {
       title: "템플릿으로 시작",
       subtitle: "마켓플레이스에서 템플릿 앱을 설치하고 원하는 대로 바꾸세요.",
+      marketplaceDisabled: "이 런타임에는 앱 마켓플레이스가 구성되어 있지 않아 여기에서 설치할 템플릿이 없습니다.",
     },
     welcomeAdminDescription: "비즈니스를 한 문장으로 설명해 주세요 — AI가 객체, 화면, API, 에이전트 도구를 생성합니다. 왼쪽 메뉴에서 직접 설정할 수도 있습니다.",
     welcomeAdminDescriptionNoBuild: "왼쪽 관리 메뉴에서 첫 애플리케이션을 설정하세요. 데이터가 쌓이면 AI 어시스턴트가 살펴보는 것을 도와줍니다.",
@@ -2966,9 +2967,15 @@ const ko = {
     installedBadge: "v{{version}} 설치됨",
     load: {
       failed: "마켓플레이스를 로드할 수 없습니다",
-      failedHint: "기본적으로 이 런타임은 ObjectStack 퍼블릭 클라우드를 가리킵니다. 런타임이 온라인인지 확인하세요.",
+      failedHintConfigured: "이 런타임은 {{url}} 의 컨트롤 플레인을 통해 마켓플레이스에 접속합니다. 해당 주소가 온라인이고 여기에서 접근 가능한지 확인하세요.",
+      failedHintSameOrigin: "이 런타임이 마켓플레이스 카탈로그를 직접 제공합니다. 런타임이 온라인인지 확인하세요.",
       packageFailed: "패키지를 로드할 수 없습니다",
       notFound: "찾을 수 없습니다.",
+    },
+    disabled: {
+      title: "앱 마켓플레이스가 꺼져 있습니다",
+      description: "이 런타임에는 마켓플레이스가 구성되어 있지 않아 여기에서 둘러보거나 설치할 항목이 없습니다.",
+      hint: "런타임을 <code>OS_CLOUD_URL=off</code>(또는 <code>none</code>, <code>local</code>, <code>disabled</code>)로 시작하면 이것이 정상 상태입니다. 마켓플레이스를 켜려면 <code>OS_CLOUD_URL</code>을 컨트롤 플레인으로 지정하고 런타임을 다시 시작하세요.",
     },
     detail: {
       homepage: "홈페이지",

@@ -2320,6 +2320,7 @@ const de = {
     template: {
       title: "Mit einer Vorlage starten",
       subtitle: "Installieren Sie eine Vorlagen-App aus dem Marktplatz und passen Sie sie an.",
+      marketplaceDisabled: "Für diese Laufzeitumgebung ist kein App-Marktplatz konfiguriert, daher gibt es hier keine Vorlagen zum Installieren.",
     },
     welcomeAdminDescription: "Beschreiben Sie Ihr Geschäft in einem Satz — die KI erzeugt die Objekte, Bildschirme, APIs und Agent-Tools. Oder richten Sie alles selbst über das Menü links ein.",
     welcomeAdminDescriptionNoBuild: "Richten Sie Ihre erste Anwendung über das Verwaltungsmenü links ein. Sobald Daten vorhanden sind, kann der KI-Assistent bei der Auswertung helfen.",
@@ -2967,9 +2968,15 @@ const de = {
     installedBadge: "Installiert v{{version}}",
     load: {
       failed: "Marktplatz konnte nicht geladen werden",
-      failedHint: "Standardmäßig zeigt dieses Laufzeitsystem auf die öffentliche ObjectStack-Cloud. Stellen Sie sicher, dass das Laufzeitsystem online ist.",
+      failedHintConfigured: "Diese Laufzeitumgebung erreicht den Marktplatz über die Control Plane unter {{url}}. Prüfen Sie, ob diese online und von hier aus erreichbar ist.",
+      failedHintSameOrigin: "Diese Laufzeitumgebung stellt den Marktplatz-Katalog selbst bereit. Prüfen Sie, ob die Laufzeitumgebung online ist.",
       packageFailed: "Paket konnte nicht geladen werden",
       notFound: "Nicht gefunden.",
+    },
+    disabled: {
+      title: "App-Marktplatz ist deaktiviert",
+      description: "Für diese Laufzeitumgebung ist kein Marktplatz konfiguriert; es gibt hier nichts zu durchsuchen oder zu installieren.",
+      hint: "Das ist der erwartete Zustand, wenn die Laufzeitumgebung mit <code>OS_CLOUD_URL=off</code> (oder <code>none</code>, <code>local</code>, <code>disabled</code>) gestartet wird. Um den Marktplatz zu aktivieren, richten Sie <code>OS_CLOUD_URL</code> auf eine Control Plane und starten Sie die Laufzeitumgebung neu.",
     },
     detail: {
       homepage: "Startseite",

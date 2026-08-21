@@ -2320,6 +2320,7 @@ const ja = {
     template: {
       title: "テンプレートから始める",
       subtitle: "マーケットプレイスからテンプレートアプリをインストールしてカスタマイズします。",
+      marketplaceDisabled: "このランタイムにはアプリマーケットプレイスが設定されていないため、ここからインストールできるテンプレートはありません。",
     },
     welcomeAdminDescription: "ビジネスを一文で説明してください — AI がオブジェクト、画面、API、エージェントツールを生成します。左のメニューから自分で設定することもできます。",
     welcomeAdminDescriptionNoBuild: "左の管理メニューから最初のアプリケーションを設定してください。データが入ると、AI アシスタントが分析を手伝えます。",
@@ -2967,9 +2968,15 @@ const ja = {
     installedBadge: "インストール済み v{{version}}",
     load: {
       failed: "マーケットプレイスの読み込みに失敗しました",
-      failedHint: "このランタイムはデフォルトでパブリックObjectStackクラウドを指しています。ランタイムがオンラインであることを確認するか、<code>OS_CLOUD_URL</code> で自己ホスト型コントロールプレーンを指定してください。",
+      failedHintConfigured: "このランタイムは {{url}} のコントロールプレーン経由でマーケットプレイスに接続します。オンラインであること、ここから到達できることを確認してください。",
+      failedHintSameOrigin: "このランタイムはマーケットプレイスのカタログを自身で提供しています。ランタイムがオンラインであることを確認してください。",
       packageFailed: "パッケージの読み込みに失敗しました",
       notFound: "見つかりません。",
+    },
+    disabled: {
+      title: "アプリマーケットプレイスは無効です",
+      description: "このランタイムにはマーケットプレイスが設定されていないため、ここから閲覧またはインストールできるものはありません。",
+      hint: "ランタイムを <code>OS_CLOUD_URL=off</code>（または <code>none</code>、<code>local</code>、<code>disabled</code>）で起動した場合、これは想定どおりの状態です。マーケットプレイスを有効にするには、<code>OS_CLOUD_URL</code> をコントロールプレーンに向けてランタイムを再起動してください。",
     },
     detail: {
       homepage: "ホームページ",

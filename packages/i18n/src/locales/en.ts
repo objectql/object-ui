@@ -2576,6 +2576,7 @@ const en = {
     template: {
       title: 'Start with a template',
       subtitle: 'Install a template app from the marketplace and customize it.',
+      marketplaceDisabled: 'This runtime has no app marketplace configured, so there are no templates to install here.',
     },
     open: 'Open',
     stats: {
@@ -3273,9 +3274,15 @@ const en = {
       installedBadge: 'Installed v{{version}}',
       load: {
         failed: 'Failed to load marketplace',
-        failedHint: 'By default this runtime points at the public ObjectStack cloud. Check the runtime is online, or override <code>OS_CLOUD_URL</code> to point at a self-hosted control plane.',
+        failedHintConfigured: 'This runtime reaches the marketplace through the control plane at {{url}}. Check that it is online and reachable from here.',
+        failedHintSameOrigin: 'This runtime serves the marketplace catalog itself. Check that the runtime is online.',
         packageFailed: 'Failed to load package',
         notFound: 'Not found.',
+      },
+      disabled: {
+        title: 'App Marketplace is turned off',
+        description: 'This runtime has no marketplace configured, so there is nothing to browse or install from here.',
+        hint: 'That is the expected state when the runtime is started with <code>OS_CLOUD_URL=off</code> (or <code>none</code>, <code>local</code>, <code>disabled</code>). To turn the marketplace on, point <code>OS_CLOUD_URL</code> at a control plane and restart the runtime.',
       },
       detail: {
         homepage: 'Homepage',

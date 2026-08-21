@@ -2322,6 +2322,7 @@ const fr = {
     template: {
       title: "Partir d'un modèle",
       subtitle: "Installez une application modèle depuis la place de marché et personnalisez-la.",
+      marketplaceDisabled: "Aucune place de marché d'applications n'est configurée pour ce runtime : il n'y a donc aucun modèle à installer ici.",
     },
     welcomeAdminDescription: "Décrivez votre activité en une phrase — l'IA génère les objets, les écrans, les API et les outils d'agent. Ou configurez tout vous-même depuis le menu de gauche.",
     welcomeAdminDescriptionNoBuild: "Configurez votre première application depuis le menu Administration à gauche. Une fois les données en place, l'assistant IA pourra vous aider à les explorer.",
@@ -2969,9 +2970,15 @@ const fr = {
     installedBadge: "Installé v{{version}}",
     load: {
       failed: "Impossible de charger le marketplace",
-      failedHint: "Par défaut, ce runtime pointe vers le cloud public ObjectStack. Assurez-vous que le runtime est en ligne.",
+      failedHintConfigured: "Ce runtime accède à la place de marché via le plan de contrôle situé à {{url}}. Vérifiez qu'il est en ligne et joignable depuis ici.",
+      failedHintSameOrigin: "Ce runtime sert lui-même le catalogue de la place de marché. Vérifiez qu'il est en ligne.",
       packageFailed: "Impossible de charger le paquet",
       notFound: "Introuvable.",
+    },
+    disabled: {
+      title: "La place de marché des applications est désactivée",
+      description: "Aucune place de marché n'est configurée pour ce runtime : il n'y a donc rien à parcourir ni à installer ici.",
+      hint: "C'est l'état attendu lorsque le runtime démarre avec <code>OS_CLOUD_URL=off</code> (ou <code>none</code>, <code>local</code>, <code>disabled</code>). Pour activer la place de marché, faites pointer <code>OS_CLOUD_URL</code> vers un plan de contrôle puis redémarrez le runtime.",
     },
     detail: {
       homepage: "Page d'accueil",
