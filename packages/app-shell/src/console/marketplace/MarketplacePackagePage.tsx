@@ -98,10 +98,21 @@ export function MarketplacePackagePage() {
   const marketplaceEnabled = isMarketplaceEnabled();
 
   const [data, setData] = useState<MarketplaceDetailResponse | null>(null);
-  // Seeded from the flag rather than settled by the effect: a runtime with no
-  // marketplace is not "loading" a package, it is done. Keeps the state
+  // Seeded from the runtime flag rather than settled by the effect: a runtime
+  // with no marketplace is not "loading" a package, it is done. Keeps the state
   // truthful even if the early return below is ever reordered -- a seeded
   // `true` with the fetch skipped would spin forever.
+  //
+  // Deliberately NOT `&& isAdmin`, even though objectui#5583 gates both fetches
+  // on `isAdmin` as well. `isAdmin` reads `activeMember`, which AuthProvider
+  // resolves asynchronously AFTER the session settles (`refreshActiveMember`),
+  // so an admin whose adminship comes from the org member row renders once as a
+  // non-admin before flipping. Seeding `false` there would leave that first
+  // admin render with `loading: false` and no data -- i.e. the destructive
+  // "failed to load" card, painted for a frame before the effect could raise
+  // the flag again. `true` means "this runtime has a marketplace, so a package
+  // answer is expected and none has arrived yet"; whether THIS viewer may see
+  // it is the separate question answered by the guard above the branch.
   const [loading, setLoading] = useState(marketplaceEnabled);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,6 +173,10 @@ export function MarketplacePackagePage() {
     // are absent on this runtime too -- the probe would be one more guaranteed
     // 404 in the operator's network log.
     if (!marketplaceEnabled) return;
+    // The same argument one step further (objectui#5583): this viewer is
+    // refused before any CTA renders, so seeding one is work fired on behalf of
+    // a page we have already decided not to draw.
+    if (!isAdmin) return;
     const currentEnvId = getRuntimeConfig().defaultEnvironmentId ?? '';
     let cancelled = false;
     (async () => {
@@ -171,7 +186,7 @@ export function MarketplacePackagePage() {
       setCloudInstalledVersion(info.version);
     })();
     return () => { cancelled = true; };
-  }, [packageId, marketplaceEnabled]);
+  }, [packageId, marketplaceEnabled, isAdmin]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,6 +197,10 @@ export function MarketplacePackagePage() {
       // race the destructive card onto the screen before the disabled state
       // settles (objectui#5533).
       if (!marketplaceEnabled) return;
+      // Nor on behalf of a viewer this page refuses (objectui#5583).
+      // Authorization is not a function of whether the fetch succeeded, so it
+      // is settled before the request rather than after it.
+      if (!isAdmin) return;
       setLoading(true);
       setError(null);
       try {
@@ -194,7 +213,7 @@ export function MarketplacePackagePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [packageId, marketplaceEnabled]);
+  }, [packageId, marketplaceEnabled, isAdmin]);
 
   const openInstall = async () => {
     setInstallOpen(true);
@@ -518,6 +537,24 @@ export function MarketplacePackagePage() {
   // that exists for nobody is the same misdirection this fix removes.
   if (!marketplaceEnabled) return <MarketplaceDisabled />;
 
+  // Ahead of BOTH the loading and the load-failure branches below
+  // (objectui#5583): authorization is not a function of whether the fetch
+  // succeeded. Sitting behind them, this guard handed a non-admin whose package
+  // failed to load the destructive "Failed to load package" card carrying the
+  // server's own error message -- a diagnosis about a surface they are not
+  // allowed to use -- and reached the refusal only on the paths where the load
+  // happened to work. Both fetch effects above are gated on the same predicate,
+  // so the refusal also stops the page requesting on behalf of a viewer it has
+  // already decided to turn away: the discipline objectui#5533 established on
+  // this page for `features.marketplace`, applied to the other predicate that
+  // decides the same thing.
+  //
+  // The server remains the authority on what a non-admin may fetch; this only
+  // stops the client doing work it would throw away. It is also the ordering
+  // `MarketplacePage` carries after objectui#5557, so the sibling pages now
+  // answer one runtime the same way for every viewer.
+  if (!isAdmin) return <MarketplaceAccessDenied />;
+
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-6xl flex flex-col gap-6 p-4 sm:p-6">
@@ -589,8 +626,6 @@ export function MarketplacePackagePage() {
   const categoryLabel = pkg.category
     ? t(`marketplace.category.${pkg.category}` as any, { defaultValue: pkg.category })
     : null;
-
-  if (!isAdmin) return <MarketplaceAccessDenied />;
 
   return (
     <div className="mx-auto w-full max-w-6xl flex flex-col gap-6 p-4 sm:p-6">

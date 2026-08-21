@@ -19,6 +19,13 @@
  * been reordered under objectui#5533, so the two sibling pages disagreed about
  * one runtime for exactly one class of viewer.
  *
+ * Its detail-page legs were written against an ordering that has since been
+ * retired: objectui#5583 moved that page's `!isAdmin` guard ahead of its
+ * `loading` and `error || !data` branches, so it no longer needs a package to
+ * resolve before it can refuse anyone. The legs below now compare both pages'
+ * answers from config and privilege alone, which is what "the same kind of
+ * answer" was always meant to mean.
+ *
  * ## Why a separate suite from `MarketplacePage.disabledState.test.tsx`
  *
  * That suite pins WHERE the disabled state comes from, and hard-mocks
@@ -102,8 +109,10 @@ vi.mock('../../../providers/MetadataProvider', () => ({ useMetadata: () => ({ re
 
 import { initRuntimeConfig, resetRuntimeConfigForTesting } from '../../../runtime-config';
 import { MarketplacePage } from '../MarketplacePage';
-// Read-only here: the already-fixed sibling, mounted to prove the two pages
-// agree. objectui#5557 changes nothing in it.
+// Mounted to prove the two pages agree. objectui#5557 changed nothing in it;
+// objectui#5583 later moved its `!isAdmin` guard ahead of its load branches,
+// which is why the marketplace-ON leg below no longer has to resolve a package
+// first.
 import { MarketplacePackagePage } from '../MarketplacePackagePage';
 
 /** A `GET /api/v1/runtime/config` answer, as the server sends it. */
@@ -149,29 +158,6 @@ function answerOf(ui: ReactElement): Answer {
   const { unmount } = render(ui);
   const answer = classify();
   unmount();
-  return answer;
-}
-
-/**
- * The answer a page gives once it has settled.
- *
- * Needed only on a marketplace-ON runtime, and only for the detail page: its
- * `!isAdmin` guard sits AFTER its `loading` and `error || !data` branches
- * (`MarketplacePackagePage.tsx`), so it reaches a refusal only once a package
- * has loaded. A page that settles on neither refusal times out here, which is
- * the correct direction of failure — "did not refuse" is what this pins.
- */
-async function settledAnswerOf(ui: ReactElement): Promise<Answer> {
-  const { unmount } = render(ui);
-  let answer: Answer = 'neither';
-  try {
-    await waitFor(() => {
-      answer = classify();
-      expect(answer).not.toBe('neither');
-    });
-  } finally {
-    unmount();
-  }
   return answer;
 }
 
@@ -262,27 +248,19 @@ describe('the "Not claimed" boundary — a runtime that DOES have a marketplace'
     expect(screen.queryByText('«marketplace.title»')).toBeNull();
   });
 
-  it('and the detail page refuses that same non-admin the same way', async () => {
+  it('and the detail page refuses that same non-admin the same way', () => {
     // The sibling invariant, stated in the other direction: agreement must hold
     // on a marketplace-ON runtime too, or "the pages agree" would only mean
     // "both pages are off".
     //
-    // The detail page needs a package that LOADS to get there: its admin guard
-    // runs after `loading` and `error || !data`, so a 404 sends it to the
-    // destructive card and it never reaches a refusal at all.
-    getMarketplacePackage.mockResolvedValue({
-      package: {
-        id: 'pkg_1',
-        manifest_id: 'com.acme.crm',
-        display_name: 'Acme CRM',
-        description: 'A CRM.',
-        latest_version: null,
-      },
-      versions: [],
-    });
-
+    // Both answers are read WITHOUT letting a request settle, and the ambient
+    // `getMarketplacePackage` here is the `beforeEach` 404. Before
+    // objectui#5583 the detail page needed a package that LOADS to reach a
+    // refusal at all — a failing load sent it to the destructive card instead —
+    // so this leg had to stub a resolving package and await the settled answer.
+    // It no longer does, and not needing to is the point.
     const catalog = answerOf(<MarketplacePage />);
-    const detail = await settledAnswerOf(<MarketplacePackagePage />);
+    const detail = answerOf(<MarketplacePackagePage />);
 
     expect(catalog).toBe(detail);
     expect(catalog).toBe('access-denied');
