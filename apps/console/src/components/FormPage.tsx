@@ -48,11 +48,30 @@
  * router — a full-page navigation ignores the console mount and drops the
  * submitter at the origin root — while an out-of-contract absolute is refused
  * on screen instead of followed. See `submitRedirect.ts`.
+ *
+ * ## Conditional field visibility (objectui#5594)
+ *
+ * A FormView field may carry a CEL predicate saying WHEN it is visible —
+ * `visibleWhen`, or the deprecated ADR-0089 alias `visibleOn`. This renderer
+ * read neither, so such a field rendered unconditionally on both routes:
+ * fail-open and silent, with no diagnostic for the author.
+ *
+ * It is the SECOND form renderer in this repo, which is why the gap survived.
+ * objectui#2212 recorded this exact symptom and PR #2214 fixed it on the OTHER
+ * chain — `ModalForm` -> `resolveFormViewLayout` -> `@object-ui/plugin-form`
+ * `sectionFields.ts` -> `@object-ui/components` `renderers/form/form.tsx` —
+ * which this file is on at no point, and #2212's regression pin lives with
+ * that chain, so nothing in the suite could see this copy.
+ *
+ * The wiring is #2212's ruling applied verbatim, not a second semantics: see
+ * {@link isFieldVisible} for the engine, the bound scope, and what the fix
+ * deliberately does not change.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { evalFieldPredicate } from '@object-ui/core';
 import type { FormFieldSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
@@ -308,6 +327,27 @@ interface RenderableField {
   required: boolean;
   readonly: boolean;
   hidden: boolean;
+  /**
+   * Conditional visibility for this row — the predicate {@link isFieldVisible}
+   * evaluates against the LIVE form values, as distinct from the static
+   * `hidden` flag above.
+   *
+   * Resolved CANONICAL-FIRST when the row is built: `visibleWhen ?? visibleOn`.
+   * ADR-0089 renamed the key, and `@objectstack/spec`'s normaliser REWRITES the
+   * alias rather than keeping both, so a spec-served FormView carries
+   * `visibleWhen` and no `visibleOn` at all. The deprecated spelling is still
+   * read because it still has live producers — hand-written layouts, and this
+   * app's own create schemas, which never pass through that normaliser. Same
+   * spelling and same precedence as the two sibling readers, deliberately:
+   * `@object-ui/plugin-form` `sectionFields.ts` (`fd.visibleWhen ?? fd.visibleOn`)
+   * and app-shell's metadata-admin `readVisibility`.
+   *
+   * The TYPE is derived from the authoring surface rather than restated:
+   * re-spelling `string | { dialect?, source }` here would be a third
+   * description of one contract, which is the exact class objectui#5542 closed
+   * in this file.
+   */
+  visibleWhen?: FormFieldSpec['visibleWhen'];
   placeholder?: string;
   helpText?: string;
   defaultValue?: unknown;
@@ -373,6 +413,11 @@ export function buildSections(
         required: override.required ?? def.required ?? false,
         readonly: override.readonly ?? false,
         hidden: override.hidden ?? false,
+        // Canonical key wins over the deprecated alias — see
+        // `RenderableField.visibleWhen`. Carried, not evaluated: the verdict
+        // depends on the live form values, which change per keystroke, while
+        // these rows are memoized on the loaded spec.
+        visibleWhen: override.visibleWhen ?? override.visibleOn,
         placeholder: override.placeholder ?? def.placeholder,
         helpText: override.helpText ?? def.helpText,
         defaultValue: def.defaultValue,
@@ -388,6 +433,62 @@ export function buildSections(
       collapsed: !!sec.collapsed,
       fields,
     };
+  });
+}
+
+/**
+ * Is this row on screen, given the form's current state?
+ *
+ * Two independent reasons a field is not rendered, answered in ONE place so
+ * "is this field visible" has a single reader:
+ *
+ *  1. `hidden: true` — the static flag. Unconditional.
+ *  2. `visibleWhen` — the conditional predicate (ADR-0089), evaluated against
+ *     the live form values on every render.
+ *
+ * The predicate is routed through the CANONICAL engine — `evalFieldPredicate`
+ * (`@object-ui/core`, `evaluator/fieldRules.ts`) — which is objectui#2212's
+ * ruling applied verbatim rather than a second predicate semantics invented
+ * for this renderer. Two form renderers disagreeing about what `visibleWhen`
+ * MEANS would be a worse defect than one renderer ignoring it. So the engine,
+ * the accepted wire shapes (bare CEL string and `{ dialect, source }`), the
+ * bound scope and the failure behaviour are the shared ones by construction,
+ * not by agreement.
+ *
+ * Scope: `record.*` is the LIVE values — what the inputs currently hold, not
+ * what was loaded — so a predicate re-decides as the user types, which is the
+ * whole point of a conditional field. `previous.*` is the stored record an
+ * edit form started from (objectui#4278), unbound on a create form. That is
+ * the same pair `form.tsx` binds on the sibling chain.
+ *
+ * Fail-open (`fallback: true`) is deliberate and shared: a predicate that
+ * cannot be evaluated must not HIDE a field, because a hidden field is one the
+ * submitter can neither fill in nor see is missing. Open does not mean silent
+ * — `evalFieldPredicate` warns once per predicate text, naming the field.
+ *
+ * ## What this deliberately does NOT do
+ *
+ * It does not strip the VALUE of a field it hides. `values` still carries
+ * whatever {@link readPrefill} seeded and `handleSubmit` still submits it —
+ * exactly what a statically `hidden: true` field has always done here, and
+ * what the plugin-form chain does (#2212's fix returns `null` at render and
+ * clears stale ERRORS, never values). Conditional visibility is a rendering
+ * rule in both renderers; making it a submit-payload rule would be a new
+ * contract, decided once for both, not invented here in the second one.
+ */
+export function isFieldVisible(
+  field: RenderableField,
+  values: Record<string, unknown>,
+  previous?: Record<string, unknown> | null,
+): boolean {
+  if (field.hidden) return false;
+  return evalFieldPredicate(field.visibleWhen, values, true, previous ?? undefined, undefined, {
+    // Named for the canonical key even when the deprecated alias supplied the
+    // predicate: ADR-0089 is what this predicate is CALLED, and the warning
+    // prints the source text verbatim, which is what finds a hand-written
+    // `visibleOn`. A second stored key whose only job is to spell a deprecated
+    // name in a warning would be bookkeeping, not an honoured key.
+    context: `visibleWhen of field '${field.name}'`,
   });
 }
 
@@ -1310,7 +1411,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                       : 'grid grid-cols-1 gap-4 sm:grid-cols-4'
               }
             >
-              {sec.fields.filter((f) => !f.hidden).map((f) => (
+              {sec.fields.filter((f) => isFieldVisible(f, values, loaded.record)).map((f) => (
                 <div
                   key={f.name}
                   className={
