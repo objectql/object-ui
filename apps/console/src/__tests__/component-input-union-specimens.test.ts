@@ -216,17 +216,49 @@ describe('objectui#3832 — the five measured specimens declare their real union
     );
   });
 
-  it('the narrowing that STAYS narrow is not swept up by the widening', () => {
-    // `element:record_picker.emptyText` is the counter-example, and it is the
-    // reason this widening is per-key rather than a blanket "strings may also be
-    // objects": rc.6 widened the contract to the `I18nLabel` union, but the
-    // renderer passes the value into a text node with no locale resolution
-    // (objectui#4163), so only the plain-string form renders. Declaring the
-    // object arm here would advertise a shape the renderer drops — the exact
-    // mistake this repo files as a false declaration, so `emptyText` keeps its
-    // single `'string'` arm until the render site catches up.
-    expect(declaredArms('element:record_picker', 'emptyText')).toEqual(['string']);
-    expect(codesFor({ type: 'element:record_picker', emptyText: I18N_MAP })).toContain(
+  it('`element:record_picker.emptyText` accepts the inline translation map once its render site resolves one', () => {
+    // THE PIN THAT MOVED, and the condition it was written to wait for.
+    //
+    // This case used to assert the opposite — `toEqual(['string'])` plus a
+    // `type-mismatch` on the map — and it was correct for as long as its own
+    // reason held: rc.6 widened the contract to the `I18nLabel` union while the
+    // renderer still passed the value into a text node with no locale
+    // resolution, so declaring the object arm would have advertised a shape the
+    // renderer dropped. Its comment named the release condition in those words
+    // — "keeps its single `'string'` arm UNTIL THE RENDER SITE CATCHES UP".
+    //
+    // objectui#5590 is the render site catching up:
+    // `record-picker.tsx` now reads `pickLocalized(props.emptyText ?? 'No
+    // records', language)`, so the map arm reaches the screen resolved and
+    // withholding it here would be the false declaration in the other
+    // direction — the gate reporting `type-mismatch` on a legal write this very
+    // input's `description` teaches the author to make.
+    //
+    // What this file guards is UNCHANGED by the flip: the widening is still
+    // per-key, not a blanket "strings may also be objects". That property is
+    // asserted by `element:text_input.defaultValue` above, whose I18N_MAP
+    // control must still report `type-mismatch` because its spec type is
+    // `string | number` — a key whose contract has no object arm.
+    expect(declaredArms('element:record_picker', 'emptyText')).toEqual(
+      expect.arrayContaining(['string', 'object']),
+    );
+    expect(
+      diagnose({ type: 'element:record_picker', emptyText: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+    expect(
+      diagnose({ type: 'element:record_picker', emptyText: 'No records' }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // CONTROL — a value matching NEITHER declared arm is still reported, so the
+    // two green assertions above cannot be satisfied by a silenced check.
+    expect(codesFor({ type: 'element:record_picker', emptyText: 42 })).toContain(
+      'type-mismatch',
+    );
+    expect(codesFor({ type: 'element:record_picker', emptyText: ['No records'] })).toContain(
       'type-mismatch',
     );
   });

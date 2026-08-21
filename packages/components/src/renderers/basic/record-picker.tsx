@@ -40,6 +40,8 @@ import {
   useElementDataSource,
   usePageVariableBinding,
 } from '@object-ui/react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import type { I18nLabel } from '@objectstack/spec/ui';
 import {
   Select,
   SelectTrigger,
@@ -75,7 +77,11 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     valueField?: string;
     label?: unknown;
     placeholder?: string;
-    emptyText?: string;
+    // `string | I18nLabel` because that is what the contract says: rc.6 widened
+    // this key to the same inline-locale-map union it widened `label` and
+    // `placeholder` to, and the render site below now RESOLVES the map arm, so
+    // the declaration and the renderer finally agree (objectui#5590).
+    emptyText?: string | I18nLabel;
     filter?: unknown;
     sort?: any;
     limit?: number;
@@ -109,6 +115,9 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
   const valueField = props.valueField ?? 'id';
 
   const binding = usePageVariableBinding(schema?.id);
+  // Above every early return below, so hook order stays stable across
+  // resolution states — same rule as the block comment further down.
+  const { language } = useObjectTranslation();
 
   const [rows, setRows] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -162,6 +171,20 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
 
   const label = toText(props.label);
   const placeholder = props.placeholder ?? 'Select a record…';
+  // `emptyText` is `string | I18nLabel`, and its destination is a TEXT NODE, so
+  // it resolves through `pickLocalized` — the objectui-side helper the sibling
+  // text-node sites read through (`element:text.content`,
+  // `element:button.label`, `page:card.title`), which spells a miss as `''`
+  // rather than the spec resolver's `undefined`. Before this the map arm was
+  // handed to React as a child object, which React REFUSES rather than
+  // stringifies: the whole picker subtree threw
+  // `Objects are not valid as a React child`, the same pre-fix harm measured
+  // for `schema.label` in `inline-locale-label-read-sites.test.tsx`.
+  //
+  // The default is applied BEFORE resolution so `?? 'No records'` keeps meaning
+  // exactly what it meant (absent → default) and an authored `''` still renders
+  // empty — `pickLocalized` passes either string through untouched.
+  const emptyText = pickLocalized(props.emptyText ?? 'No records', language);
 
   // Placed AFTER every hook above so the hook order stays stable across
   // resolution states. A `view` that names nothing renders a configuration
@@ -210,7 +233,7 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
         </SelectContent>
       </Select>
       {!loading && !error && rows.length === 0 && (
-        <p className="text-xs text-muted-foreground">{props.emptyText ?? 'No records'}</p>
+        <p className="text-xs text-muted-foreground">{emptyText}</p>
       )}
     </div>
   );
@@ -253,8 +276,9 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
       // vocabulary lines up with the contract exactly as declared: one arm, no
       // union to spell and nothing for the description to make up for. Contrast
       // `element:text_input.defaultValue`, whose `string | number` needs two
-      // arms (objectui#3832), and `emptyText` below, which keeps one arm for a
-      // render-site reason rather than a type-system one.
+      // arms (objectui#3832), and `emptyText` below, which declares two for the
+      // same reason once its render site learned to resolve both
+      // (objectui#5590).
       type: 'object',
       label: 'Filter',
       // Taken from what the renderer DOES with the key, because the one thing
@@ -299,23 +323,25 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
     },
     {
       name: 'emptyText',
-      // A NARROWED type, and it STAYS narrow now that it need not be. The
-      // contract is `string | Record< string, string >` — rc.6 widened it to the
-      // same `I18nLabel` union it widened everywhere else — and since
-      // objectui#3832 this entry could spell that union. It deliberately does
-      // not: the reason for the narrowing was never the type's expressiveness,
-      // it is that THIS RENDERER passes the value straight into a text node with
-      // no locale resolution, so the map form does not render (objectui#4163).
-      // Declaring an arm the renderer drops would advertise a shape that never
-      // reaches the screen — the false-declaration defect this repo files
-      // separately — so `'string'` keeps describing what actually works, and the
-      // description below carries the gap. Contrast
-      // `element:text_input.defaultValue`, which DID widen: there both arms are
-      // honoured.
-      type: 'string',
+      // TWO arms, and the order in which they were earned is the point. The
+      // contract has been `string | Record< string, string >` since rc.6 widened
+      // it to the same `I18nLabel` union it widened everywhere else, and since
+      // objectui#3832 this entry could spell that union — but it deliberately
+      // did NOT, because THIS RENDERER passed the value straight into a text
+      // node with no locale resolution, and declaring an arm the renderer drops
+      // advertises a shape that never reaches the screen. That narrowing was
+      // correct for exactly as long as it was true. objectui#5590 made the
+      // render site resolve the map (`pickLocalized`, above), so the second arm
+      // is now a shape that DOES reach the screen and withholding it would be
+      // the opposite defect — the gate reporting `type-mismatch` on a legal
+      // write its own description teaches. Same resolution as
+      // `element:text_input.defaultValue`, `element:text.content` and
+      // `element:button.label`: declare the arm in the change that makes it
+      // render, never before and never after.
+      type: ['string', 'object'],
       label: 'Empty Text',
       description:
-        'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. KNOWN GAP: the contract also accepts an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — rc.6 widened this key to `I18nLabel` — and this renderer passes the value straight into a text node with no locale resolution, so only the plain-string form renders today. Tracked with the rest of the widened-`I18nLabel` render-site audit in objectui#4163; this input publishes the string form deliberately rather than advertising a shape the renderer drops.',
+        'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. Accepts either a plain string or an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — the `I18nLabel` union rc.6 widened this key to — and the renderer resolves the map against the active language at the read site, falling back through base language, `default`, then `en`. An authored empty string stays empty; the "No records" default applies only when the key is absent.',
     },
   ],
 });

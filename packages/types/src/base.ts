@@ -402,8 +402,11 @@ export interface ComponentInput {
    * matching none of the declared arms is still reported, so a union is not a
    * way to opt out of the gate. Declare only arms the contract accepts AND the
    * renderer resolves; an arm the renderer drops advertises a shape that never
-   * reaches the screen (`element:record_picker.emptyText` keeps a single
-   * `'string'` arm for exactly that reason — objectui#4163).
+   * reaches the screen. `element:record_picker.emptyText` was held at a single
+   * `'string'` arm for exactly that reason until objectui#5590 taught its render
+   * site to resolve the inline locale map, and the second arm was declared in
+   * that same change — which is the order this rule prescribes, not an
+   * exception to it.
    *
    * The single-kind form stays valid and unchanged, and it is the canonical
    * spelling for a key with one arm: the manifest serializer collapses a
