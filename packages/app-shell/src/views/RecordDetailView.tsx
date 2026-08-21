@@ -497,7 +497,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     });
   }, []);
 
-  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: any) => {
+  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: ActionDef) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // Related-list row actions retarget a CHILD object (e.g. sys_member rows
       // on an org record page) and stash the clicked row under

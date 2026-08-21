@@ -193,7 +193,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     });
   }, []);
 
-  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: any) => {
+  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: ActionDef) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // List_item actions stash the row record under params._rowRecord (see
       // ObjectGrid → onRowAction). Pull it out so resolveActionParams can
