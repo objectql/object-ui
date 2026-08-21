@@ -4,10 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
+  ESM_MODULE_EDGE,
   EXPLICIT_EXTENSION,
   MIN_LOADED,
   MIN_PACKAGES,
-  RELATIVE_SPECIFIER,
   SPECIFIER_DEBT,
   UNBUNDLED_NODE_UNSUPPORTED,
   attributeMissingModule,
@@ -16,9 +16,9 @@ import {
   emittedSources,
   esmEntryOf,
   importEntry,
+  relativeSpecifiers,
   resolvesToModule,
   scanSpecifiers,
-  withoutCommentedCode,
 } from '../check-node-esm-load.mjs';
 
 /**
@@ -47,6 +47,13 @@ import {
  *  5. **Line numbers must address the real file.** Stripping comments outright
  *     moved every finding in `react/src/index.ts` up by six lines, so the gate
  *     pointed at line 3 for what `tsc` reported at line 9.
+ *  6. **The gate must not MUTATE the text it grades** (objectui#5382). Leg 1
+ *     used to blank comments with two ordered regexes and match specifiers in
+ *     the result; the block-comment pass did not know it was already inside a
+ *     `//` line, so prose naming a package glob opened a comment that ran to
+ *     the next closing delimiter anywhere in the file and blanked the live code
+ *     between. The last `describe` below pins both halves of that: the hidden
+ *     import is found, and the prose that must stay invisible still is.
  */
 
 const tmpdir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'esm-load-gate-'));
@@ -99,10 +106,6 @@ describe('objectui#4538 — the defect the gate exists for', () => {
     expect(scanSpecifiers({ name: 'p', dir: 'p', srcDir: path.join(dir, 'src') })).toEqual([]);
   });
 
-  it('preserves line count when blanking comments', () => {
-    expect(withoutCommentedCode('/*\n\n*/\nkeep').split('\n')).toHaveLength(4);
-  });
-
   it('catches every specifier form the repo writes', () => {
     const forms = [
       "export * from './a';",
@@ -111,7 +114,7 @@ describe('objectui#4538 — the defect the gate exists for', () => {
       "import x from './d';",
       "export { y } from './e';",
     ].join('\n');
-    const specs = [...forms.matchAll(RELATIVE_SPECIFIER)].map((m) => m[3]);
+    const specs = relativeSpecifiers(forms, 'forms.ts').map((use) => use.specifier);
     expect(specs).toEqual(['./a', './b', './c', './d', './e']);
   });
 
@@ -273,6 +276,153 @@ describe('the gate cannot be green about nothing', () => {
     expect(resolvesToModule(from, './file')).toBe(true);
     expect(resolvesToModule(from, './sub')).toBe(true);
     expect(resolvesToModule(from, './nope')).toBe(false);
+  });
+});
+
+describe('objectui#5382 — the comment mask that hid live code', () => {
+  /**
+   * The measured shape, kept as close to the real file as a fixture can be.
+   *
+   * `packages/app-shell/src/preview/DraftChangesPanel.tsx` carries a line
+   * comment naming the `@objectstack` chunk group by glob. Under the retired
+   * mask the slash-star inside that prose opened a block comment, and the mask
+   * ran to the closing delimiter of the next doc comment — blanking the live
+   * `import` in between. Re-measured on `main` at 478ec54ce over the 805 files
+   * of the 13 specifier-preserving packages: the mask found 2132 relative
+   * specifiers, the TypeScript parser 2133, and the single difference was that
+   * import.
+   *
+   * Verified to be a real repro rather than a fixture that happens to pass:
+   * handed to the retired implementation this source yields ZERO specifiers.
+   */
+  const GLOB_PROSE_FIXTURE = [
+    '// The `vendor-objectstack` chunk group claims every `@objectstack/*` module',
+    '// except `@objectstack/lint`, and that group is a static import of the entry.',
+    "import { diffFields } from './object-fields-io';",
+    '',
+    'export interface DraftChangeEntry {',
+    '  /** The canonical singular metadata type. */',
+    '  type: string;',
+    '}',
+    '',
+  ].join('\n');
+
+  it('finds an import that a package glob in line-comment prose used to hide', () => {
+    expect(relativeSpecifiers(GLOB_PROSE_FIXTURE, 'DraftChangesPanel.tsx')).toEqual([
+      { specifier: './object-fields-io', kind: 'import', line: 3 },
+    ]);
+  });
+
+  it('flags it as a FINDING when it is extensionless, which is the point', () => {
+    // The mask did not merely mislabel this import, it removed it from the leg
+    // entirely — and since SPECIFIER_DEBT emptied, that leg is a hard
+    // requirement. A blind spot in a hard requirement is where a regression
+    // sits permanently, so the pin goes all the way to the verdict.
+    const dir = tmpdir();
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.writeFileSync(path.join(dir, 'src/object-fields-io.ts'), 'export const diffFields = 1;\n');
+    fs.writeFileSync(path.join(dir, 'src/DraftChangesPanel.tsx'), GLOB_PROSE_FIXTURE);
+
+    const findings = scanSpecifiers({ name: 'p', dir: 'p', srcDir: path.join(dir, 'src') });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].spec).toBe('./object-fields-io');
+    expect(findings[0].line).toBe(3);
+  });
+
+  it('is not fooled by the same glob inside an ordinary string literal', () => {
+    // The other half of the class the parser removes. The retired mask had no
+    // notion of a string either, so a const holding the glob opened exactly the
+    // same fake comment. Also a zero-specifier source under the old code.
+    const source = [
+      "export const CHUNK_GLOB = '@objectstack/*';",
+      "import { diffFields } from './object-fields-io';",
+      '/** Doc. */',
+      'export const used = diffFields;',
+      '',
+    ].join('\n');
+
+    expect(relativeSpecifiers(source, 'chunks.ts')).toEqual([
+      { specifier: './object-fields-io', kind: 'import', line: 2 },
+    ]);
+  });
+
+  it('reads JSX, so a `.tsx` file is not silently half-parsed', () => {
+    const source = [
+      "import { Panel } from './Panel';",
+      '',
+      'export const View = () => <Panel title="a > b" />;',
+      '',
+    ].join('\n');
+
+    expect(relativeSpecifiers(source, 'View.tsx').map((use) => use.specifier)).toEqual(['./Panel']);
+  });
+
+  it('reports the SPECIFIER line, not the line the statement opens on', () => {
+    // `tsc` reports this class at the specifier. Measured, for a fixture whose
+    // statement opens on line 1 and whose specifier sits on line 4:
+    //
+    //   src/index.ts(8,8): error TS2835: Relative import paths need explicit
+    //     file extensions ... Did you mean './a.js'?
+    //
+    // The two disagree for 255 of this repository's 2066 relative specifiers,
+    // by up to 7 lines, so this is not a hypothetical distinction. The retired
+    // regex matched at `from`, which shares the specifier's line; that accuracy
+    // is preserved rather than traded away for the parser's statement position.
+    const source = ['import {', '  a,', '  b,', "} from './wide';", ''].join('\n');
+    expect(relativeSpecifiers(source, 'wide.ts')).toEqual([
+      { specifier: './wide', kind: 'import', line: 4 },
+    ]);
+  });
+
+  describe('the counter-probe — a zero is only worth what the same method still finds', () => {
+    // "No hidden specifiers" means nothing unless the method that reports it is
+    // still capable of seeing the real ones AND of ignoring the prose. Both
+    // buckets are asserted, because a scanner that returned nothing at all
+    // would satisfy the first half of this file's promise and none of the
+    // second. Measured over the repository at 478ec54ce: 2139 textual
+    // occurrences of the specifier grammar, 2133 real module edges reported, 6
+    // prose-only occurrences correctly not reported.
+    const PROSE_ONLY = [
+      '/**',
+      ' * Usage:',
+      " *   import { translateMetadataType } from './i18n';",
+      ' */',
+      "// export { ObjectStackAdapter } from './objectstack-adapter';",
+      "import { real } from './real-module';",
+      "export * from './another-real-module';",
+      '',
+    ].join('\n');
+
+    it('still reports every specifier that is genuinely present', () => {
+      expect(relativeSpecifiers(PROSE_ONLY, 'probe.ts').map((use) => use.specifier)).toEqual([
+        './real-module',
+        './another-real-module',
+      ]);
+    });
+
+    it('still reports none of the ones that are only prose', () => {
+      const reported = relativeSpecifiers(PROSE_ONLY, 'probe.ts').map((use) => use.specifier);
+      expect(reported).not.toContain('./i18n');
+      expect(reported).not.toContain('./objectstack-adapter');
+    });
+  });
+
+  it('grades the ESM forms only, and says which those are', () => {
+    // The shared scanner reads all five forms that make a module edge. The two
+    // CommonJS ones are not resolved by Node's ESM resolver at all, so grading
+    // them here would answer a different question with this gate's message.
+    // Measured before excluding them: ZERO relative `require()` or
+    // `import =` edges exist in any specifier-preserving package, so the
+    // exclusion narrows nothing today — it is pinned so that stays deliberate.
+    expect([...ESM_MODULE_EDGE].sort()).toEqual(['dynamic import()', 'export', 'import', 'import()-type']);
+
+    const commonjs = ["const a = require('./cjs-dep');", "import b = require('./cjs-equals');", ''].join('\n');
+    expect(relativeSpecifiers(commonjs, 'cjs.ts')).toEqual([]);
+  });
+
+  it('never reports a bare package name, however relative it looks', () => {
+    const source = ["import { canonicalMetaUrlType } from '@objectstack/spec/shared';", ''].join('\n');
+    expect(relativeSpecifiers(source, 'a.ts')).toEqual([]);
   });
 });
 
