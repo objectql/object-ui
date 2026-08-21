@@ -37,26 +37,37 @@
  * measured: node v22.22.2, ICU 78.2, machine locale en-US.
  *
  * ⚠️ The en cases are not decoration. The obvious way to adopt the locale's
- * convention is `Intl`'s `style: 'percent'` — the way `formatPercent` does it —
- * but that style wants a FRACTION, so a value already in percentage points must
- * be divided by 100 for `Intl` to multiply it straight back, and that round trip
- * is lossy at rounding TIES. Measured on this runner: 27,581 of 1,200,013
+ * convention is `Intl`'s `style: 'percent'`, but that style wants a FRACTION,
+ * so a value already in percentage points must be divided by 100 for `Intl` to
+ * multiply it straight back, and that round trip is lossy at rounding TIES.
+ * Measured on this runner, on #4576's tie-dense grid (0.005 steps to 2,000,
+ * precisions 0/1/2) and on `formatMeasure`'s call shape: 27,581 of 1,200,013
  * ordinary-magnitude en-US forms move that way (`0.175` at 2 decimals goes from
- * `0.18%` to `0.17%`), plus `MAX_SAFE_INTEGER` and everything from 1e23 up. The
+ * `0.18%` to `0.17%`), plus `MAX_SAFE_INTEGER` and everything from 1e23 up.
+ * (#4590 re-measured the same route through `formatPercent` and reports 27,577
+ * of 1,200,003 — a different form set, not a correction of this one.) The
  * implementation formats the percentage points DIRECTLY with the percent unit
  * instead, which was measured byte-identical on the affix across all 171 locale
- * tags tested and moves none of those 1,200,013 forms. The tie and
- * extreme-magnitude cases below are what keep that route honest: they go red if
+ * tags tested and moves none of those 1,200,013 forms.
+ *
+ * No caller takes the divide-by-100 route today: `formatPercent` used to, and
+ * moved to `style: 'percentPoints'` in #4590, so the route now survives only
+ * where a test builds it in order to show it disagreeing. The tie and
+ * extreme-magnitude cases below are what keep it that way: they go red if
  * anyone "simplifies" this into the divide-by-100 form.
  */
 
 import { describe, it, expect } from 'vitest';
 import { formatMeasure } from '../dataset-format';
 
-// The locale's own percent affix, taken from `Intl` rather than hardcoded —
-// this is the SAME source `formatPercent` renders through, so comparing against
-// it is a structural pin on "both surfaces use the locale's convention" rather
-// than a restatement of today's CLDR data.
+// The locale's own percent affix, taken from `Intl` rather than hardcoded — the
+// same CLDR convention both surfaces render, so comparing against it is a
+// structural pin on "both surfaces use the locale's convention" rather than a
+// restatement of today's CLDR data. Since #4590 the two reach that convention
+// by different `Intl` options — `style: 'percent'` here, `style: 'percentPoints'`
+// in both `formatMeasure` and `formatPercent` — and those were measured to
+// produce a byte-identical affix across all 171 locale tags tested, so this
+// stays a cross-route parity check rather than a tautology.
 function percentAffix(locale: string): { prefix: string; suffix: string } {
   let prefix = '';
   let suffix = '';
