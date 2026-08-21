@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, type ComponentMeta } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, type ComponentMeta } from '@object-ui/core';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -547,17 +547,21 @@ export function formatPercent(value: number, precision: number = 0, locale?: str
 }
 
 /**
- * Humanize a snake_case or kebab-case string into Title Case.
- * Used as fallback label when no explicit option.label exists.
- * 
- * Examples:
- *   "in_progress" → "In Progress"
- *   "high-priority" → "High Priority"
- *   "active" → "Active"
+ * Humanize a snake_case or kebab-case string into Title Case — the fallback
+ * label when no explicit `option.label` exists.
+ *
+ * Defined in `@object-ui/core` (`utils/humanize-label.ts`) and re-exported here
+ * because this package is one of its two doorways: `plugin-grid`,
+ * `plugin-gantt` and `plugin-detail` read it from `@object-ui/fields`, while
+ * `plugin-charts` reads the same function straight from core. Until
+ * objectui#5444 this file and `plugin-charts`' `ObjectChart.tsx` each held a
+ * byte-identical private copy; core is the shared ancestor both packages
+ * already depend on, so the convention has one home and no new dependency edge
+ * (objectui#4389: core-canonical logic, plugins consume). The core docstring
+ * carries the convention itself, and the reason it stays distinct from
+ * `humanizeFieldKey`'s camelCase-splitting KEY convention.
  */
-export function humanizeLabel(value: string): string {
-  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
+export { humanizeLabel };
 
 /** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
 export interface DateDisplayOptions {

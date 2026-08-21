@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
+import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -10,11 +10,18 @@ import type { DrillDownConfig } from '@object-ui/types';
 
 /**
  * Humanize a snake_case or kebab-case string into Title Case.
- * Local implementation to avoid a dependency on @object-ui/fields.
+ *
+ * Was a local implementation here "to avoid a dependency on
+ * `@object-ui/fields`" — byte-identical to that package's export, which
+ * `plugin-grid` / `plugin-gantt` / `plugin-detail` read, so the two could drift
+ * into a live disagreement (one dashboard can hold a chart and a grid over the
+ * same stored value). objectui#5444 moved the single implementation to
+ * `@object-ui/core`, which this package already depends on: the dependency the
+ * copy existed to avoid is still avoided, and there is now one function rather
+ * than two. Re-exported at module scope because that is the surface this file
+ * has always offered.
  */
-export function humanizeLabel(value: string): string {
-  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
+export { humanizeLabel };
 
 /**
  * The result column an object-bound `aggregate` projects its value under
