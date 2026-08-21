@@ -30,4 +30,6 @@ call the list-view percent cell already makes for an ordinary percent column —
 so a percent reads the same as a record field, as a grid cell and as a dashboard
 measure. Output moves where it was wrong: values at or above 1 whose round trip
 lost a digit, fractions below `0.01`, negatives at or below `-1`, and exactly
-`1`, which is percentage points by core's convention and now renders `1%`.
+`1`, which is one percentage point by core's convention and now renders
+`1.00%` at two decimals, where the local `value > 1` test had made it
+`100.00%`.
