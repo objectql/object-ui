@@ -53,6 +53,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import type { FormFieldSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
@@ -272,19 +273,29 @@ interface FormSectionSpec {
   collapsible?: boolean;
   collapsed?: boolean;
   columns?: 1 | 2 | 3 | 4 | '1' | '2' | '3' | '4';
+  /**
+   * `FormFieldSpec` here is the app-shell declaration, imported — NOT a local
+   * copy of it (objectui#5542).
+   *
+   * This position describes what an AUTHOR wrote: `sec.fields` is read straight
+   * off the `/meta/view/:name` payload, the same `FormView` document
+   * metadata-admin authors and renders. Until #5542 this file declared its own
+   * nine-key `interface FormFieldSpec` in that position — a second description
+   * of one contract, and the description was wrong about the document: the
+   * shared surface has 26 keys, so legal metadata (`visibleWhen`, `dependsOn`,
+   * `type`, `options`, `immutable`, the recursive `fields`, …) was undeclared
+   * here. That is the exact failure mode objectui#5040 recorded — "the type
+   * rejects the configuration the runtime accepts" — and nothing could notice,
+   * because each copy was only ever checked against itself.
+   *
+   * The narrow shape this renderer actually honours is a DIFFERENT type and
+   * already exists: {@link RenderableField}, what {@link buildSections} emits.
+   * Keeping the incoming-document type wide and the honoured-row type narrow is
+   * the distinction the old declaration collapsed. `FormFieldSpec.contract.test.ts`
+   * pins this element type to the app-shell one, so re-inlining a local copy
+   * fails `type-check` even if it agrees on every key on the day it is written.
+   */
   fields: Array<string | FormFieldSpec>;
-}
-
-interface FormFieldSpec {
-  field: string;
-  label?: string;
-  placeholder?: string;
-  helpText?: string;
-  required?: boolean;
-  readonly?: boolean;
-  hidden?: boolean;
-  colSpan?: 1 | 2 | 3 | 4;
-  widget?: string;
 }
 
 /** Normalized field row used by the renderer. */
