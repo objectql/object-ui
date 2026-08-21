@@ -544,6 +544,47 @@ describe('GridField / LineItemsField — editable line items', () => {
       expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', receipt: null }]);
     });
 
+    it('announces a required, empty file cell on the focusable picker control (#5431)', () => {
+      const reqFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, required: true }],
+      } as any;
+      render(<GridField value={[{ receipt: null }]} onChange={() => {}} field={reqFileField} />);
+      // The VISUAL ring + testid predate #5431 and are not the assertion —
+      // the announced state is. The carrier must be the focusable picker
+      // button inside the cell, never the td wrapper (#3318 / #5223).
+      const cell = screen.getByTestId('line-items-invalid-0-receipt');
+      const carrier = cell.querySelector('[aria-invalid="true"]');
+      expect(carrier).toBeTruthy();
+      expect(carrier!.tagName).toBe('BUTTON');
+      expect(cell.getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('does not announce invalid on an optional empty file cell or on the ghost row', () => {
+      const optFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const }],
+      } as any;
+      const { container } = render(
+        <GridField value={[{ receipt: null }]} onChange={() => {}} field={optFileField} />,
+      );
+      // Data row and ghost row each render a picker; none may announce invalid.
+      expect(container.querySelector('[aria-invalid="true"]')).toBeNull();
+    });
+
+    it('stops announcing once the required file cell holds a file', () => {
+      const reqFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, required: true }],
+      } as any;
+      const { container } = render(
+        <GridField
+          value={[{ receipt: { name: 'receipt.png', mime_type: 'image/png' } }]}
+          onChange={() => {}}
+          field={reqFileField}
+        />,
+      );
+      expect(screen.queryByTestId('line-items-invalid-0-receipt')).toBeNull();
+      expect(container.querySelector('[aria-invalid="true"]')).toBeNull();
+    });
+
     it('passes the column accept list to the native picker', () => {
       const withAccept = {
         columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, accept: ['image/*', '.pdf'] }],

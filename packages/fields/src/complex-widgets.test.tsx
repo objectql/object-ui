@@ -5,7 +5,7 @@ import { ActionProvider } from '@object-ui/react';
 import { FieldEditWidget } from './FieldEditWidget';
 import { MasterDetailField } from './widgets/MasterDetailField';
 import { GridField } from './widgets/GridField';
-import { FileField } from './widgets/FileField';
+import { FileField, FileCell } from './widgets/FileField';
 import type { FieldWidgetComponentProps } from './widgets/types';
 
 // ------------- Mocks & Setup -------------
@@ -864,6 +864,20 @@ describe('Complex & Relationship Widgets', () => {
              // edit mode renders inputs whose values are the row data
              expect(screen.getByDisplayValue('Alice')).toBeInTheDocument();
              expect(screen.getByDisplayValue('30')).toBeInTheDocument();
+        });
+    });
+
+    describe('FileCell (grid cell helper)', () => {
+        it('drives aria-invalid on its picker button from the published error slot (#5431)', () => {
+            render(<FileCell value={null} onChange={() => {}} aria-label="Receipt" error="Receipt is required" />);
+            // The carrier is the focusable picker control, mirroring
+            // LookupField's trigger and FileField's dropzone (#3222 / #5223).
+            expect(screen.getByRole('button', { name: 'Receipt' }).getAttribute('aria-invalid')).toBe('true');
+        });
+
+        it('reports aria-invalid="false" when the slot is empty', () => {
+            render(<FileCell value={null} onChange={() => {}} aria-label="Receipt" />);
+            expect(screen.getByRole('button', { name: 'Receipt' }).getAttribute('aria-invalid')).toBe('false');
         });
     });
 

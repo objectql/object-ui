@@ -892,10 +892,6 @@ export function GridField({
     // not a text input: chips for uploaded files + a compact picker button.
     if (c.type === 'file') {
       return (
-        // Not marked by `invalid`: `FileCell`'s prop set is closed and its
-        // control is its own (objectui#3318 kept the scope to the controls this
-        // file renders directly). A required FILE column therefore still marks
-        // only the cell's visual ring — tracked, not silently accepted.
         <FileCell
           value={val}
           onChange={(v: any) => setCellValue(rowIdx, c.name, v)}
@@ -904,6 +900,11 @@ export function GridField({
           disabled={locked}
           aria-label={c.label || c.name}
           data-cell={`${rowIdx}-${colIdx}`}
+          // The published `error` slot, not a hand-rolled attribute — same
+          // wiring as the lookup branch above: FileCell puts `aria-invalid` on
+          // its own focusable picker button from it (objectui#5431, closing
+          // the one cell type #3318 left out).
+          error={invalid ? `${c.label || c.name} is required` : undefined}
         />
       );
     }
