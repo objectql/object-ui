@@ -198,13 +198,23 @@ describe('ui:grid — schema keys never reach the DOM (objectui#4787)', () => {
    *
    * Note it must SPY rather than rely on the run's output: Vitest 4's reporter
    * defaults to `silent: 'passed-only'`, so console output from a passing test is
-   * discarded — which is the third reason this warning could never have turned a
-   * test red on its own. See the PR body for the full answer.
+   * discarded — the third reason this warning could never have turned a test red on
+   * its own.
+   *
+   * And it must use a camelCase canary key of its OWN (`zzCanaryCamel`, authored
+   * nowhere else in this file). React latches the unknown-prop warning per prop NAME
+   * per module instance, so it fires only on the FIRST render that carries a given
+   * key. Written against the shared canary this case PASSED against the broken
+   * renderer — cases 1 and 1b render first and consume the latch for every key they
+   * carry, leaving nothing for the spy to see. That is measured, not theorized: it is
+   * how this case was first written, and reverse-verification caught it green on code
+   * that leaked ten attributes. A unique key makes the case independent of order.
+   * The latch is also the fourth reason the warning is useless as a gate.
    */
   it('case 3: React emits no unknown-prop warning for this renderer any more', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      renderCanary();
+      renderCanary({ zzCanaryCamel: 'leak' });
       const unknownPropWarnings = errSpy.mock.calls.filter((args) =>
         /does not recognize the .* prop on a DOM element/.test(String(args[0])),
       );
