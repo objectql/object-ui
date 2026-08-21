@@ -45,7 +45,11 @@ import { render, screen } from '@testing-library/react';
 import { Suspense, lazy } from 'react';
 import type { ComponentType } from 'react';
 
-type Registration = { ref: string; label?: string; source?: string; component: ComponentType<any> };
+// `ComponentType` (i.e. no props) rather than the registry's declared
+// `ComponentType<any>`: this file only ever renders the entry with no props,
+// and `any` here would add a `no-explicit-any` warning to a PR whose whole
+// argument is that standing warnings teach people to skim past warnings.
+type Registration = { ref: string; label?: string; source?: string; component: ComponentType };
 
 const { registrations } = vi.hoisted(() => ({ registrations: [] as Registration[] }));
 
