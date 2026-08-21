@@ -2269,8 +2269,17 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
 const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent.js'));
 
 /**
- * Renders `markdown` / `richtext` values as formatted GFM markdown (lazy-loaded,
- * sanitized) instead of the raw markup string.
+ * Renders `markdown` values as formatted GFM markdown (lazy-loaded, sanitized)
+ * instead of the raw markup string.
+ *
+ * Markdown ONLY. `MarkdownContent` runs react-markdown with no `rehype-raw`, so
+ * raw HTML in the string is not parsed and never reaches the DOM — that is this
+ * renderer's trust boundary, not an oversight, and it must stay that way
+ * (objectui#5452). `richtext` used to be routed here too and rendered as a
+ * COMPLETELY EMPTY cell, because a richtext value is entirely HTML and this
+ * pipeline drops all of it; see {@link HtmlCellRenderer}, which is where that
+ * type belongs. Loosening this pipeline to pass raw HTML through would have
+ * "fixed" one type by moving every `markdown` cell's trust boundary.
  */
 export function MarkdownCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (value == null || value === '') return <EmptyValue />;
@@ -2295,6 +2304,17 @@ function sanitizeHtml(html: string): string {
 
 /**
  * Renders an `html` value as sanitized, formatted HTML instead of raw markup.
+ *
+ * Also the renderer for `richtext` (objectui#5452). Both types store an HTML
+ * string: the spec's `Field.richtext` is documented as "Formatted content with
+ * HTML/WYSIWYG", the showcase seed's own specimen is
+ * `<p>Rich <strong>text</strong></p>`, and this repo's designer bridge already
+ * maps `richtext` onto its `html` type. {@link sanitizeHtml} above removes
+ * script/style/iframe/object/embed blocks, inline event handlers and
+ * `javascript:` URLs, and touches nothing a rich-text editor legitimately
+ * emits — headings, paragraphs, emphasis, lists, links, quotes all survive, so
+ * routing `richtext` here restores the content rather than trading a blank cell
+ * for a mangled one.
  */
 export function HtmlCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (value == null || value === '') return <EmptyValue />;
@@ -2407,7 +2427,10 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
     textarea: TextCellRenderer,
     markdown: MarkdownCellRenderer,
     html: HtmlCellRenderer,
-    richtext: MarkdownCellRenderer,
+    // `richtext` stores HTML, so it reads through the HTML renderer — NOT the
+    // markdown one, which drops raw HTML and therefore rendered every populated
+    // richtext value as a blank cell (objectui#5452).
+    richtext: HtmlCellRenderer,
     code: TextCellRenderer,
     qrcode: TextCellRenderer,
     number: NumberCellRenderer,
