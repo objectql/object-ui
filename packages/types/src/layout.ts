@@ -613,11 +613,25 @@ export interface PageNodeSchema extends BaseSchema {
    *
    * Source-authored (`source` carries the body; `regions` is unused) —
    * ADR-0080, see `content/docs/guide/react-pages.md`:
-   * - `"html"`: constrained JSX/HTML + Tailwind, PARSED into a SchemaNode
-   *   tree and rendered. Never executed — safe for untrusted authors.
-   *   `"jsx"` is a deprecated alias, still accepted.
+   * - `"html"`: constrained JSX, PARSED into a SchemaNode tree and
+   *   rendered. Never executed — safe for untrusted authors. Styled with
+   *   the blocks' own structured props (`<flex direction gap>`,
+   *   `<grid columns>`) plus a JSON `style` object. `"jsx"` is a
+   *   deprecated alias, still accepted.
    * - `"react"`: real React, transpiled and EVALUATED in the main tree.
-   *   No sandbox; gated behind the `react-pages` host capability.
+   *   No sandbox; gated behind the `react-pages` host capability. Styled
+   *   with inline `style` objects.
+   *
+   * Colors on both tiers come from the theme as `hsl(var(--token))`.
+   *
+   * Do NOT author Tailwind utility classes in page `source`, on either
+   * tier. `source` is *runtime metadata*: the console's Tailwind is
+   * compiled at build time by scanning the console's own `src`, and there
+   * is no safelist, so it never sees your page — an authored utility class
+   * produces CSS only by coincidence (when objectui already ships that
+   * exact class) and otherwise produces nothing, with no error anywhere.
+   * `os validate` reports it as `page-source-className-tailwind`.
+   * (ADR-0065; ADR-0080's 2026-06-30 amendment.)
    *
    * @default 'full'
    */

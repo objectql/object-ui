@@ -21,11 +21,21 @@
  *   - `React`                — so authors can call hooks.
  *   - the PUBLIC data blocks — `<ObjectGrid>`, `<ObjectForm>`, charts, metrics…
  *     each as a prop-driven wrapper that renders via SchemaRenderer. Layout is
- *     left to plain HTML + Tailwind (React's strength); only the data blocks
- *     that can't be expressed in HTML are injected.
+ *     left to plain HTML (React's strength); only the data blocks that can't be
+ *     expressed in HTML are injected.
  *   - `Block`                — escape hatch: `<Block type="object-grid" .../>`.
  *   - `useAdapter`            — live data hook: query/create/update objects.
  *   - `data` / `variables`   — page data + local variables, for convenience.
+ *
+ * Styling — page source is metadata, not build input. A react page styles with
+ * inline `style` objects using `hsl(var(--token))` theme colors; overlays render
+ * through `<ObjectForm formType="drawer"|"modal">` rather than a hand-rolled
+ * `fixed inset-0` backdrop. Do NOT author Tailwind utility classes in page
+ * `source`: `source` is runtime metadata, the console's Tailwind is compiled at
+ * build time by scanning the console's own `src`, and there is no safelist — an
+ * authored utility class silently produces no CSS. `os validate` reports it as
+ * `page-source-className-tailwind`. (ADR-0065; ADR-0080's 2026-06-30 amendment;
+ * see `content/docs/guide/react-pages.md`.)
  */
 
 import * as React from 'react';
@@ -46,7 +56,8 @@ function toPascal(tag: string): string {
 // Build the component scope from the curated PUBLIC contract. We inject the
 // data/leaf blocks (non-containers) as prop-driven wrappers; layout containers
 // are intentionally left out — in react mode the author composes layout with
-// real HTML + Tailwind, not our schema-children renderers.
+// real HTML and inline `style` objects, not our schema-children renderers (and
+// not Tailwind classes — see the styling note in this file's header).
 //
 // Lazily-registered blocks (`object-kanban`, `object-map`, `markdown`, … — see
 // apps/console/src/main.tsx) are in here too: `getPublicConfigs()` resolves
