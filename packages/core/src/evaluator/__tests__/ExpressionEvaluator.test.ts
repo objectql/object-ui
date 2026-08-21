@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ExpressionEvaluator, evaluateExpression, evaluateCondition, evaluatePlainCondition } from '../ExpressionEvaluator';
 import { ExpressionContext } from '../ExpressionContext';
 import { SafeExpressionParser } from '../SafeExpressionParser';
@@ -616,5 +616,55 @@ describe('ExpressionEvaluator — CSP safety integration', () => {
       globalThis.eval = originalEval;
       (globalThis as any).Function = originalFunction;
     }
+  });
+});
+
+/**
+ * The case-fold contract stated in `ExpressionEvaluator.registerFunction`'s
+ * JSDoc. These pin the half that is NOT self-evident: the spelling handed to
+ * `registerFunction` is not the spelling an expression can call, and getting it
+ * wrong is silent rather than loud. Registering `'DOUBLE'` and then calling
+ * `DOUBLE(...)` would prove none of that — every assertion below is one that a
+ * case-preserving `registerFunction` (objectui#5363 direction 2) would turn
+ * red, which is precisely the wanted signal if that behaviour is ever changed:
+ * the JSDoc on the method would have silently become wrong.
+ */
+describe('ExpressionEvaluator.registerFunction - documented case-fold', () => {
+  const evaluatorWithDouble = () => {
+    const evaluator = new ExpressionEvaluator({ x: 5 });
+    evaluator.registerFunction('double', (n: number) => n * 2);
+    return evaluator;
+  };
+
+  it('stores under the upper-cased name, so only that spelling resolves in an expression', () => {
+    const evaluator = evaluatorWithDouble();
+
+    expect(evaluator.evaluateExpression('DOUBLE(x)')).toBe(10);
+    expect(() => evaluator.evaluateExpression('double(x)')).toThrow(/"double" is not a function/);
+  });
+
+  it('renders the raw template source, not an error, when the call site uses the registered spelling', () => {
+    const evaluator = evaluatorWithDouble();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      expect(evaluator.evaluate('${DOUBLE(x)}')).toBe(10);
+      // Not a throw, not an empty string: the template's own source, verbatim.
+      // This soft-fail is what makes the fold easy to miss on screen.
+      expect(evaluator.evaluate('${double(x)}')).toBe('${double(x)}');
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('keeps the registry API case-insensitive, which is why the fold stays invisible until an expression runs', () => {
+    const evaluator = evaluatorWithDouble();
+
+    expect(evaluator.getFormulas().has('double')).toBe(true);
+    expect(typeof evaluator.getFormulas().get('double')).toBe('function');
+    // ...but the key the expression scope is built from is the folded one.
+    expect(evaluator.getFormulas().getNames()).toContain('DOUBLE');
+    expect(evaluator.getFormulas().getNames()).not.toContain('double');
   });
 });
