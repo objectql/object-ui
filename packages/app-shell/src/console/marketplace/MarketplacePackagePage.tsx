@@ -40,6 +40,7 @@ import { PackageIcon } from './PackageIcon.js';
 import { MarkdownText } from './MarkdownText.js';
 import { PluginDisclosure } from './PluginDisclosure.js';
 import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { MarketplaceDisabled } from './MarketplaceDisabled.js';
 import { localizePackage } from './usePackageL10n.js';
 import {
   getMarketplacePackage,
@@ -60,7 +61,7 @@ import {
   type LocalInstallEntry,
   type CloudInstallationInfo,
 } from './marketplaceApi.js';
-import { getRuntimeConfig } from '../../runtime-config.js';
+import { getRuntimeConfig, isMarketplaceEnabled } from '../../runtime-config.js';
 import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 import { useMetadata } from '../../providers/MetadataProvider.js';
 import { SuggestedBindingsPanel, type SuggestedBindingsStrings } from '../../components/SuggestedBindingsPanel.js';
@@ -89,9 +90,19 @@ export function MarketplacePackagePage() {
   };
   const basePath = appName ? `/apps/${appName}` : '';
   const { refresh: refreshMetadata } = useMetadata();
+  // The runtime's own answer, read once per render -- the same read the
+  // catalog page makes (objectui#5504). `false` means this runtime mounts no
+  // marketplace at all, so there is no package to fetch and nothing to
+  // install from here. NEVER inferred from a failed request: see
+  // `isMarketplaceEnabled()` for why a 404 is not evidence of it.
+  const marketplaceEnabled = isMarketplaceEnabled();
 
   const [data, setData] = useState<MarketplaceDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the flag rather than settled by the effect: a runtime with no
+  // marketplace is not "loading" a package, it is done. Keeps the state
+  // truthful even if the early return below is ever reordered -- a seeded
+  // `true` with the fetch skipped would spin forever.
+  const [loading, setLoading] = useState(marketplaceEnabled);
   const [error, setError] = useState<string | null>(null);
 
   const [installOpen, setInstallOpen] = useState(false);
@@ -147,6 +158,10 @@ export function MarketplacePackagePage() {
   // cloud…" for every already-installed package in an env console.
   useEffect(() => {
     if (!packageId) return;
+    // Nothing to seed a CTA that never renders, and the cloud-install routes
+    // are absent on this runtime too -- the probe would be one more guaranteed
+    // 404 in the operator's network log.
+    if (!marketplaceEnabled) return;
     const currentEnvId = getRuntimeConfig().defaultEnvironmentId ?? '';
     let cancelled = false;
     (async () => {
@@ -156,12 +171,17 @@ export function MarketplacePackagePage() {
       setCloudInstalledVersion(info.version);
     })();
     return () => { cancelled = true; };
-  }, [packageId]);
+  }, [packageId, marketplaceEnabled]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!packageId) return;
+      // No marketplace on this runtime -> no request. Fetching anyway and
+      // discarding the result would still put a 404/403 on the server and can
+      // race the destructive card onto the screen before the disabled state
+      // settles (objectui#5533).
+      if (!marketplaceEnabled) return;
       setLoading(true);
       setError(null);
       try {
@@ -174,7 +194,7 @@ export function MarketplacePackagePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [packageId]);
+  }, [packageId, marketplaceEnabled]);
 
   const openInstall = async () => {
     setInstallOpen(true);
@@ -485,6 +505,18 @@ export function MarketplacePackagePage() {
       setSampleDataBusy(null);
     }
   };
+
+  // A CONFIGURATION CONCLUSION, not a load failure -- the same informational
+  // state the catalog page renders, so the two pages stop disagreeing about the
+  // same runtime (objectui#5533). Reached by a pasted or bookmarked package URL,
+  // the only way in once the catalog and both Home entries are gated.
+  //
+  // Ahead of the `!isAdmin` branch below deliberately: on a runtime that mounts
+  // no marketplace, "there is no marketplace here" is true of every viewer, and
+  // `features.marketplace` is public runtime config that any client already
+  // reads. Telling an unprivileged operator they lack permission for a surface
+  // that exists for nobody is the same misdirection this fix removes.
+  if (!marketplaceEnabled) return <MarketplaceDisabled />;
 
   if (loading) {
     return (
