@@ -747,11 +747,11 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
   "resizableColumns": true,
   "striped": true,
   "columns": [
-    "name",
-    "email",
-    "company",
-    "phone",
-    { "name": "status", "label": "Status", "sortable": true }
+    { "field": "name" },
+    { "field": "email" },
+    { "field": "company" },
+    { "field": "phone" },
+    { "field": "status", "label": "Status", "sortable": true }
   ],
   "defaultSort": { "field": "name", "order": "asc" },
   "operations": {
@@ -777,7 +777,7 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
 | Property | Type | Description |
 |----------|------|-------------|
 | `objectName` | `string` | **Required.** ObjectQL object API name. |
-| `columns` | `string[] \| ListColumn[]` | Columns to display. Strings auto-resolve from object metadata. |
+| `columns` | `string[] \| ListColumn[]` | Columns to display. Either a plain array of field names (`["name", "email"]`), which auto-resolve from object metadata, or an array of `ListColumn` objects whose identity key is `field` (`{ "field": "status", "label": "Status" }`) — never `name`. **Do not mix the two forms in one array:** the array is dispatched on its first entry, so column objects sitting behind a bare string are dropped. |
 | `filter` | `any[]` | Pre-applied filter conditions. |
 | `sort` | `string \| SortConfig[]` | Default sort configuration. |
 | `searchableFields` | `string[]` | Fields included in search. |

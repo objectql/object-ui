@@ -302,13 +302,19 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
   "type": "object-grid",
   "objectName": "products",
   "columns": [
-    { "name": "name", "label": "Name", "type": "text" },
-    { "name": "price", "label": "Price", "type": "currency" },
-    { "name": "status", "label": "Status", "type": "select" }
+    { "field": "name", "label": "Name", "type": "text" },
+    { "field": "price", "label": "Price", "type": "currency" },
+    { "field": "status", "label": "Status", "type": "select" }
   ],
   "bind": "products"
 }
 ```
+
+> **Grid columns key off `field`; form fields key off `name`.** The two layers sit
+> next to each other here and use the same pair of words for opposite things:
+> `ListColumn.field` names the object field a column shows, while `FormField.name`
+> names the field a form input writes. A grid column written as `{ "name": ... }`
+> names no field, so `ObjectGrid` drops it.
 
 **Form plugin example:**
 ```json
