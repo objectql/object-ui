@@ -187,8 +187,36 @@ export function renderFieldValue(
   }
   if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
     const decimals = (fmt.match(/0\.(0+)%/) || [undefined, ''] as any)[1].length;
-    const normalized = value > 1 ? value / 100 : value;
-    return formatPercent(normalized * 100, decimals, displayLocale);
+    // The RAW stored value goes to `formatPercent`, which applies
+    // `percentDisplayValue` — the single source of truth for percent display
+    // scaling (`@object-ui/core`), whose doc comment says so in those words.
+    // This is the same call the list-view percent cell makes for an ordinary
+    // percent column (`PercentCellRenderer` in `@object-ui/fields`), so a
+    // percent now reads identically as a record field, as a grid cell and as a
+    // dashboard measure.
+    //
+    // ⚠️ This call site used to make the fraction/points decision AGAIN, with a
+    // local copy that had drifted from the one it duplicated (objectui#5607):
+    //
+    //   const normalized = value > 1 ? value / 100 : value;
+    //   return formatPercent(normalized * 100, decimals, displayLocale);
+    //
+    // Three measured divergences, all of them the one defect — a caller
+    // re-deciding what core owns:
+    //  - `(value / 100) * 100` is NOT value-preserving in binary floating
+    //    point. It re-introduced, one call frame upstream, exactly the round
+    //    trip objectui#4590 removed from inside `formatPercent`: 19,978 of
+    //    199,000 values on the 0.001-step grid to 200 change bit pattern and
+    //    1,108 rendered strings move, every one a last-digit off-by-one —
+    //    a stored `1.605` rendered `1.60%` where half-up is `1.61%`.
+    //  - A stored fraction below 0.01 was scaled TWICE: the local `* 100` put
+    //    it below 1, so core's fraction arm scaled it again — `0.005` (0.5%)
+    //    rendered `50.00%`, a factor of 100.
+    //  - The local test was `value > 1`, not core's symmetric `|value| < 1`,
+    //    so a negative already in points was treated as a fraction: `-5`
+    //    rendered `-500.00%`.
+    // Deleting the branch fixes all three, because they were never three bugs.
+    return formatPercent(value, decimals, displayLocale);
   }
   if (typeof fmt === 'string' && /[YMDHms]/.test(fmt)) {
     return formatDate(value, fmt);
