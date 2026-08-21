@@ -210,13 +210,21 @@ import { fileURLToPath } from 'node:url';
  *     one that could never have floated off its value on its own: a `0.x` caret does not
  *     cross a minor, so `^0.400.0` resolves inside 0.400.x forever — the same trap
  *     objectui#3755 removed from the `create-plugin` generator's own dependency map.
- *   - ONE claim measured WRONG and NOT repaired here: `i18n.md` attributes its
- *     plain-string label rule to `@objectstack/spec` `v4` while 33 manifests declare
- *     `^17.0.0`. Thirteen majors, same shape as the `architecture-overview.md` literal
- *     objectui#3708 repaired. It is inventoried `stale` and filed as objectui#5081,
- *     because its repair is a judgement this card did not own (correct the number, or
- *     delete a version qualifier that carries no information) — the same split the
- *     census below made nine times.
+ *   - ONE claim measured WRONG and NOT repaired here, inventoried `stale` and filed as
+ *     objectui#5081: `i18n.md` attributed its plain-string label rule to
+ *     `@objectstack/spec` `v4` while 33 manifests declare `^17.0.0`. Thirteen majors,
+ *     same shape as the `architecture-overview.md` literal objectui#3708 repaired. That
+ *     card has since landed and this entry left with it, but NOT down either arm of the
+ *     fork this section originally posed — correct the number, or delete a version
+ *     qualifier that carries no information. Neither arm was writable, and that is the
+ *     part worth keeping: the qualifier was backing a RULE ("labels are plain strings"),
+ *     and measurement against the INSTALLED `@objectstack/spec` 17.0.0 falsified the rule
+ *     too. `I18nLabelSchema` is a union of a plain string AND an inline locale map keyed
+ *     by BCP-47 tags or `default`, so "per v4" and "per v17" alike would have laundered a
+ *     false statement into a current one. objectui#5081 restated the rule instead
+ *     (maintainer ruling 2026-08-20, option A). The transferable lesson for the next
+ *     `stale` entry: a wrong version literal is evidence about the SENTENCE, not only
+ *     about the number in it — re-measure the claim before re-numbering it.
  *   - The rest are floors and reader-owned ranges, recorded with their reasons below.
  *
  * ### Which of them could be ANCHORED, and the line this card had to draw
@@ -787,12 +795,6 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     claim: 'TypeScript 5.0',
     kind: 'unanchored',
     why: 'The second half of that same mirrored sentence, and a FLOOR ("5.0+") rather than a statement of what this repo builds with - 40 manifests declare typescript ^6.0.3, which satisfies it, and would still satisfy it after another major. Deliberately not "corrected" to 6.0 here: the sentence is copied from AGENTS.md section 2, and editing the skills copy alone would desync the two agent-facing texts. What this gate cannot measure, stated so it is not mistaken for checked: whether 5.0 is still a true floor for a CONSUMER, given the published declarations are emitted by TypeScript 6.',
-  },
-  {
-    file: 'skills/objectui/guides/i18n.md',
-    claim: '@objectstack/spec' + TICK + ' v4',
-    kind: 'stale',
-    why: 'Measured WRONG at the time of writing, recorded rather than blessed - the class the census below opened and objectui#3708/#3709/#3710/#3690 emptied. Two lines (117 and 162, one inventory key) attribute the plain-string label rule to @objectstack/spec v4 while this repo declares ^17.0.0 in 33 places across 31 manifests, with node_modules carrying 17.0.0: thirteen majors, the same shape as the architecture-overview.md literal #3708 repaired. Filed as objectui#5081 rather than repaired in #4981, because the repair is a judgement that card did not own (correct the number, or delete a version qualifier that carries no information and can only rot). When that card lands, this entry must go with it or the downward ratchet turns red.',
   },
   {
     file: 'skills/objectui/guides/plugin-development.md',
