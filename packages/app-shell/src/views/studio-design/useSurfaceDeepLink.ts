@@ -21,6 +21,14 @@
  * pillar grew the capture half for the app→Studio object bridge (#2446);
  * Automations/Access had neither, so their deep-links snapped back to the
  * first item. This hook is the single canonical implementation.
+ *
+ * Both halves above are URL-shaped, which is exactly why a producer that is
+ * ALREADY INSIDE a mounted pillar cannot use them: writing `?surface=` moves
+ * nothing (capture is over) and the mirror overwrites it on the next
+ * selection. The third half — a live target delivered beside the URL, applied
+ * once — lives in {@link file://./surfaceDeepLinkChannel.ts}. It is additive:
+ * nothing here observes it, so the mount-time ref keeps meaning exactly what
+ * it meant.
  */
 
 import * as React from 'react';

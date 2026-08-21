@@ -79,6 +79,8 @@ import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector
 import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata.js';
 import {
   DESIGNER_SEL_PARAM,
+  DESIGNER_SURFACE_PARAM,
+  formatSurfaceParam,
   parseNavSelParam,
   formatNavSelParam,
   findNavPositionById,
@@ -88,7 +90,8 @@ import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor.js
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
 import { loadPackageSurfaces } from './packageSurfaces.js';
 import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
-import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink.js';
+import { useSurfaceDeepLink, resolveSurfaceDeepLink, type SurfaceTarget } from './useSurfaceDeepLink.js';
+import { SurfaceDeepLinkProvider, useRequestedSurface } from './surfaceDeepLinkChannel.js';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
 import { OWD_CREATE_MODELS, OWD_DEFAULT, type OwdCreateModel } from './owd-sharing.js';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
@@ -149,6 +152,20 @@ const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> =
   { key: 'interfaces', label: 'Interfaces', Icon: LayoutDashboard },
   { key: 'access', label: 'Access', Icon: Shield },
 ];
+
+/**
+ * Which pillar owns a surface type — the routing half of a live surface
+ * request (see surfaceDeepLinkChannel). Only the types a pillar actually
+ * RESOLVES are listed, mirroring the `resolveSurfaceDeepLink` call sites
+ * below; an unlisted type is delivered in place rather than guessed at,
+ * because navigating to the wrong pillar costs the author their position and
+ * buys nothing.
+ */
+const PILLAR_FOR_SURFACE_TYPE: Readonly<Record<string, string>> = {
+  object: 'data',
+  flow: 'automations',
+  permission: 'access',
+};
 
 const KIND_ICON: Record<string, LucideIcon> = {
   group: Folder,
@@ -614,194 +631,226 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // — the cloud edition migrates on its own schedule.
   const chatDockMode = !aiSlot;
 
+  /**
+   * Host side of the live `?surface=` channel. Producers below the provider —
+   * today the pending-changes sheet's security block, which names a draft the
+   * publish door would refuse — hand us a surface identity and we put the
+   * author in front of it:
+   *
+   *  - ANOTHER pillar's surface still travels through the URL, because that
+   *    pillar is unmounted and its mount-time capture is the mechanism built
+   *    for exactly this. Vetoed (`false`) when the author declines to abandon
+   *    unsaved edits, so a request never outlives the navigation it needed.
+   *  - THIS pillar's surface is the case the capture cannot serve at all —
+   *    nothing remounts — so the channel carries it and the pillar applies it
+   *    once.
+   *
+   * Either way the sheet closes: a selection nobody can see is not navigation.
+   */
+  const requestSurface = React.useCallback(
+    (target: SurfaceTarget): boolean | void => {
+      const pillar = PILLAR_FOR_SURFACE_TYPE[target.type];
+      if (pillar && pillar !== tab) {
+        if (!confirmLeavePillar()) return false;
+        shellNavigate(
+          `/studio/${packageId}/${pillar}?${DESIGNER_SURFACE_PARAM}=${encodeURIComponent(formatSurfaceParam(target))}`,
+        );
+      }
+      setChangesOpen(false);
+    },
+    [tab, packageId, confirmLeavePillar, shellNavigate],
+  );
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* The ADR-0080 `aiSlot` seam — a cloud edition may still inject its own
-        * left copilot panel; the built-in copilot is the RIGHT dock below. */}
-      {aiSlot ? (
-        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : null}
+    <SurfaceDeepLinkProvider onRequest={requestSurface}>
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+        {/* The ADR-0080 `aiSlot` seam — a cloud edition may still inject its own
+          * left copilot panel; the built-in copilot is the RIGHT dock below. */}
+        {aiSlot ? (
+          <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
+        ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
-          * `shrink-0`, and PackageSwitcher's trigger is `whitespace-nowrap`),
-          * so on a narrow viewport this whole strip overflows instead of any
-          * one piece silently clipping off past the screen edge. Scrolling
-          * the header is a worse look than a proper responsive redesign, but
-          * it guarantees every pillar and the Publish button stay reachable. */}
-        <header className="flex items-center gap-3 overflow-x-auto border-b px-3 py-2">
-          {/* Never a dead end: walk back to the platform Home / builder landing. */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!confirmLeavePillar()) return;
-              shellNavigate('/home');
-            }}
-            title={t('engine.studio.home', locale)}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <HomeIcon className="h-4 w-4" />
-          </button>
-          <div className="shrink-0">
-            <PackageSwitcher packageId={packageId} tab={tab} beforeNavigate={confirmLeavePillar} />
-          </div>
-          <span className="shrink-0 text-muted-foreground">·</span>
-          <nav className="flex shrink-0 gap-1">
-            {PILLARS.map((p) => (
-              <Link
-                key={p.key}
-                to={`/studio/${packageId}/${p.key}`}
-                onClick={(e) => {
-                  // Re-clicking the open pillar re-navigates to the same URL —
-                  // nothing unmounts. Modified/aux clicks open a new tab and
-                  // leave this one (and its edits) alone; react-router defers
-                  // those to the browser, so don't veto them either.
-                  if (tab === p.key) return;
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  if (!confirmLeavePillar()) e.preventDefault();
-                }}
-                className={
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
-                  (tab === p.key
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground')
-                }
-              >
-                <p.Icon className="h-3.5 w-3.5" />
-                {t(`engine.studio.pillar.${p.key}`, locale)}
-              </Link>
-            ))}
-          </nav>
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
+            * `shrink-0`, and PackageSwitcher's trigger is `whitespace-nowrap`),
+            * so on a narrow viewport this whole strip overflows instead of any
+            * one piece silently clipping off past the screen edge. Scrolling
+            * the header is a worse look than a proper responsive redesign, but
+            * it guarantees every pillar and the Publish button stay reachable. */}
+          <header className="flex items-center gap-3 overflow-x-auto border-b px-3 py-2">
+            {/* Never a dead end: walk back to the platform Home / builder landing. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmLeavePillar()) return;
+                shellNavigate('/home');
+              }}
+              title={t('engine.studio.home', locale)}
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <HomeIcon className="h-4 w-4" />
+            </button>
+            <div className="shrink-0">
+              <PackageSwitcher packageId={packageId} tab={tab} beforeNavigate={confirmLeavePillar} />
+            </div>
+            <span className="shrink-0 text-muted-foreground">·</span>
+            <nav className="flex shrink-0 gap-1">
+              {PILLARS.map((p) => (
+                <Link
+                  key={p.key}
+                  to={`/studio/${packageId}/${p.key}`}
+                  onClick={(e) => {
+                    // Re-clicking the open pillar re-navigates to the same URL —
+                    // nothing unmounts. Modified/aux clicks open a new tab and
+                    // leave this one (and its edits) alone; react-router defers
+                    // those to the browser, so don't veto them either.
+                    if (tab === p.key) return;
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    if (!confirmLeavePillar()) e.preventDefault();
+                  }}
+                  className={
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
+                    (tab === p.key
+                      ? 'bg-primary/10 font-medium text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                  }
+                >
+                  <p.Icon className="h-3.5 w-3.5" />
+                  {t(`engine.studio.pillar.${p.key}`, locale)}
+                </Link>
+              ))}
+            </nav>
 
-          {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {packageApp ? (
+            {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {packageApp ? (
+                <button
+                  type="button"
+                  onClick={() => window.open(resolveConsoleUrl(`apps/${encodeURIComponent(packageApp.name)}`), '_blank')}
+                  title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {t('engine.studio.app.open', locale)}
+                </button>
+              ) : appDraftPending ? (
+                <span
+                  title={t('engine.studio.app.willOpenAfterPublish', locale)}
+                  className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
+                >
+                  {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAppCreating(true)}
+                  disabled={readOnly}
+                  title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t('engine.studio.app.create', locale)}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => window.open(resolveConsoleUrl(`apps/${encodeURIComponent(packageApp.name)}`), '_blank')}
-                title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
+                onClick={() => setChangesOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t('engine.studio.app.open', locale)}
+                <GitBranch className="h-3.5 w-3.5" />
+                {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
               </button>
-            ) : appDraftPending ? (
-              <span
-                title={t('engine.studio.app.willOpenAfterPublish', locale)}
-                className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
-              >
-                {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
-              </span>
-            ) : (
               <button
                 type="button"
-                onClick={() => setAppCreating(true)}
-                disabled={readOnly}
-                title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
-                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                // Publish is review-then-confirm: open the pending-changes panel,
+                // whose footer button fires the actual atomic package publish —
+                // never straight from this header click (objectui#2261).
+                onClick={() => setChangesOpen(true)}
+                disabled={publishing || !hasPending || readOnly}
+                title={
+                  readOnly
+                    ? t('engine.studio.pkg.readonlyHint', locale)
+                    : hasPending
+                      ? t('engine.studio.publishTitle', locale)
+                      : t('engine.studio.publishNoneTitle', locale)
+                }
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
               >
-                <Plus className="h-3.5 w-3.5" />
-                {t('engine.studio.app.create', locale)}
+                {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+                {t('engine.studio.publish', locale)}
               </button>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1">
+            {tab === 'data' ? (
+              <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            ) : tab === 'automations' ? (
+              <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            ) : tab === 'access' ? (
+              <AccessPillar
+                packageId={packageId}
+                publishNonce={publishNonce}
+                onDraftSaved={onDraftSaved}
+                readOnly={readOnly}
+                onDirtyChange={setPillarDirty}
+              />
+            ) : (
+              <InterfacesPillar
+                packageId={packageId}
+                publishNonce={publishNonce}
+                draftNonce={draftNonce}
+                onDraftSaved={onDraftSaved}
+                onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
+                readOnly={readOnly}
+                foldInspector={chatDockMode}
+                onDirtyChange={setPillarDirty}
+              />
             )}
-            <button
-              type="button"
-              onClick={() => setChangesOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <GitBranch className="h-3.5 w-3.5" />
-              {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
-            </button>
-            <button
-              type="button"
-              // Publish is review-then-confirm: open the pending-changes panel,
-              // whose footer button fires the actual atomic package publish —
-              // never straight from this header click (objectui#2261).
-              onClick={() => setChangesOpen(true)}
-              disabled={publishing || !hasPending || readOnly}
-              title={
-                readOnly
-                  ? t('engine.studio.pkg.readonlyHint', locale)
-                  : hasPending
-                    ? t('engine.studio.publishTitle', locale)
-                    : t('engine.studio.publishNoneTitle', locale)
-              }
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-              {t('engine.studio.publish', locale)}
-            </button>
           </div>
-        </header>
-
-        <div className="min-h-0 flex-1">
-          {tab === 'data' ? (
-            <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
-          ) : tab === 'automations' ? (
-            <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
-          ) : tab === 'access' ? (
-            <AccessPillar
-              packageId={packageId}
-              publishNonce={publishNonce}
-              onDraftSaved={onDraftSaved}
-              readOnly={readOnly}
-              onDirtyChange={setPillarDirty}
-            />
-          ) : (
-            <InterfacesPillar
-              packageId={packageId}
-              publishNonce={publishNonce}
-              draftNonce={draftNonce}
-              onDraftSaved={onDraftSaved}
-              onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
-              readOnly={readOnly}
-              foldInspector={chatDockMode}
-              onDirtyChange={setPillarDirty}
-            />
-          )}
         </div>
+
+        {/* ADR-0057 P3c — the copilot as the shared right dock (same package-
+          * scoped build thread as the left panel it replaces; self-gates on the
+          * agent catalog like the copilot always has). */}
+        {chatDockMode && <StudioChatDock packageId={packageId} locale={locale} />}
+
+        <DraftChangesPanel
+          open={changesOpen}
+          onOpenChange={setChangesOpen}
+          packageId={packageId}
+          onPublish={readOnly ? undefined : doPublish}
+          publishing={publishing}
+        />
+
+        <CreateItemDialog
+          open={appCreating}
+          onOpenChange={setAppCreating}
+          title={t('engine.studio.app.create', locale)}
+          labelFieldLabel={t('engine.studio.app.nameLabel', locale)}
+          labelPlaceholder={t('engine.studio.app.namePlaceholder', locale)}
+          idFieldLabel={t('engine.studio.app.idLabel', locale)}
+          idPlaceholder={t('engine.studio.app.idPlaceholder', locale)}
+          submitLabel={t('engine.studio.createDraft', locale)}
+          submittingLabel={t('engine.studio.creating', locale)}
+          busy={appBusy}
+          error={appErr}
+          locale={locale}
+          onSubmit={({ label, name }) => void doCreateApp(label, name)}
+          extra={
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={appAddObjects}
+                onChange={(e) => setAppAddObjects(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              {t('engine.studio.app.scaffoldNav', locale)}
+            </label>
+          }
+        />
       </div>
-
-      {/* ADR-0057 P3c — the copilot as the shared right dock (same package-
-        * scoped build thread as the left panel it replaces; self-gates on the
-        * agent catalog like the copilot always has). */}
-      {chatDockMode && <StudioChatDock packageId={packageId} locale={locale} />}
-
-      <DraftChangesPanel
-        open={changesOpen}
-        onOpenChange={setChangesOpen}
-        packageId={packageId}
-        onPublish={readOnly ? undefined : doPublish}
-        publishing={publishing}
-      />
-
-      <CreateItemDialog
-        open={appCreating}
-        onOpenChange={setAppCreating}
-        title={t('engine.studio.app.create', locale)}
-        labelFieldLabel={t('engine.studio.app.nameLabel', locale)}
-        labelPlaceholder={t('engine.studio.app.namePlaceholder', locale)}
-        idFieldLabel={t('engine.studio.app.idLabel', locale)}
-        idPlaceholder={t('engine.studio.app.idPlaceholder', locale)}
-        submitLabel={t('engine.studio.createDraft', locale)}
-        submittingLabel={t('engine.studio.creating', locale)}
-        busy={appBusy}
-        error={appErr}
-        locale={locale}
-        onSubmit={({ label, name }) => void doCreateApp(label, name)}
-        extra={
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={appAddObjects}
-              onChange={(e) => setAppAddObjects(e.target.checked)}
-              className="h-3.5 w-3.5 accent-primary"
-            />
-            {t('engine.studio.app.scaffoldNav', locale)}
-          </label>
-        }
-      />
-    </div>
+    </SurfaceDeepLinkProvider>
   );
 }
 
@@ -1963,6 +2012,25 @@ export function DataPillar({
   // (ADR-0080, `appStudioObjectPath`) lands here with a specific object;
   // shared plumbing (see useSurfaceDeepLink).
   const initialSurface = useSurfaceDeepLink(current);
+  // The LIVE half of the same plumbing (see surfaceDeepLinkChannel): a
+  // producer already inside this mounted pillar — the pending-changes sheet's
+  // security block, naming the object the publish door would refuse — asks for
+  // an object long after the capture ref above was read.
+  //
+  // Applied AT MOST ONCE, by id. A standing request re-resolved on every rail
+  // reload (publish, package switch) would drag the author back off whatever
+  // they had since selected, which is the regression the mount-time ref exists
+  // to prevent — so the id is marked spent as soon as the loaded rail has been
+  // consulted, whether or not it held a match.
+  const requestedSurface = useRequestedSurface();
+  const appliedRequestRef = React.useRef(0);
+  React.useEffect(() => {
+    if (!requestedSurface || !objectsLoaded) return;
+    if (requestedSurface.id === appliedRequestRef.current) return;
+    appliedRequestRef.current = requestedSurface.id;
+    const match = resolveSurfaceDeepLink(objects, requestedSurface.target, 'object');
+    if (match) setCurrent(match);
+  }, [requestedSurface, objects, objectsLoaded]);
   const [objDraft, setObjDraft] = React.useState<Record<string, unknown>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
