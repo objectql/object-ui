@@ -110,6 +110,32 @@ const FLAT_MAP_CONFIG_KEYS = (Object.keys(ObjectMapConfigSchema.shape) as (keyof
  */
 function getDataConfig(schema: ObjectMapSchema): ViewData | null {
   if (schema.data) {
+    // Array shorthand -> the declared `value` provider.
+    //
+    // `ObjectMapSchema.data` is declared `ViewData`, and `ViewData` resolves to
+    // @objectstack/spec's `ViewDataSchema` — a `z.discriminatedUnion('provider',
+    // [...])` over OBJECT variants, whose `value` member additionally declares
+    // `aliases: { data: 'items', rows: 'items', records: 'items' }`. So a bare
+    // array under `data` is off-contract twice over, and `staticData` is this
+    // schema's declared door for inline rows.
+    //
+    // It is normalized rather than rejected because the array shorthand is a
+    // deliberate, commented convention across this block family — ObjectGrid's
+    // own `getDataConfig` ("Check if data is an array (shorthand format)"),
+    // ListView ("Also support schema.data as a plain array (shorthand for value
+    // provider)"), ObjectTree, ObjectChart, ObjectDataTable and
+    // calendar-view-renderer all accept it. An author (or a generator) that
+    // learned the shorthand from `object-grid` writes it for `object-map` next;
+    // dropping it HERE alone would leave the one block in the family that
+    // answers the shorthand with a silently empty map.
+    //
+    // Normalizing at this single boundary — instead of a second short-circuit
+    // inside the fetch effect below — is what lets that effect read `dataConfig`
+    // only, which is already one of its dependencies (objectui#5305).
+    const authored: unknown = schema.data;
+    if (Array.isArray(authored)) {
+      return { provider: 'value', items: authored };
+    }
     return schema.data;
   }
   
@@ -561,16 +587,6 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           return;
         }
 
-        // Check schema.data next
-        if (schema.data) {
-             const passed: unknown = schema.data;
-             if (Array.isArray(passed)) {
-                 setData(passed);
-                 setLoading(false);
-                 return;
-             }
-        }
-        
         if (hasInlineData && dataConfig?.provider === 'value') {
           setData(dataConfig.items as any[]);
           setLoading(false);
