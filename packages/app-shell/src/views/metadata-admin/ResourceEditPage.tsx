@@ -82,6 +82,7 @@ import {
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import type {
   MetadataLayered,
+  MetadataLockState,
   MetadataReference,
 } from '@object-ui/data-objectstack';
 import { PageShell } from './PageShell.js';
@@ -126,6 +127,62 @@ import { validateMetadataDraft, hasClientValidator, type DraftMode } from './cli
 import { describeIssuePath } from './issuePath.js';
 import { buildCreateModeBody } from './createBody.js';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
+
+/**
+ * ADR-0010 §3.6 lock state -> the lock banner's headline sentence.
+ *
+ * Keyed on `MetadataLockState` — which derives from `packages/spec`'s own
+ * `z.enum` — so a fifth state added upstream fails `type-check` HERE, naming
+ * the label that is missing. That is the strictness the audit panel's
+ * `LOCK_STATE_ZH` has had since objectui#5004 and this banner did not: its
+ * title used to be three independent `&&` branches with no `else`.
+ *
+ * `Exclude<…, 'none'>` because `none` never banners — `isLocked` gates the
+ * whole box on `lock && lock !== 'none'`. Typing the record over exactly the
+ * states that CAN reach the screen keeps the two rules from drifting apart,
+ * and still fails on a state added to the union.
+ */
+const LOCK_BANNER_TITLE_KEY: Record<Exclude<MetadataLockState, 'none'>, string> = {
+  'no-overlay': 'engine.edit.lockNoOverlay',
+  'no-delete': 'engine.edit.lockNoDelete',
+  full: 'engine.edit.lockFull',
+};
+
+/**
+ * The banner's headline for whatever `lock` ACTUALLY arrived — including a
+ * value the lookup above has never heard of (objectui#5024).
+ *
+ * The compile-time half cannot be the whole fix. `MetadataLockState` types what
+ * this repo may WRITE; it constrains nothing about what a server may SEND,
+ * because `MetadataClient.layered()` casts the wire value in unchecked:
+ *
+ *   ...(body.lock !== undefined ? { lock: body.lock as MetadataLayered['lock'] } : {}),
+ *
+ * over a raw `res.json()` body — no parse, no allowlist, no default. So a
+ * back end that grows a fifth state reaches this banner with no code change
+ * here at all. Measured rather than assumed: feeding `no-publish` through this
+ * page opened the amber box, drew the padlock and the border, and left the
+ * title `<div>` empty. An exhaustive `satisfies` alone would have type-checked
+ * green over that exact render.
+ *
+ * Hence a sentence for the unrecognised value, carrying the raw token: the
+ * operator who meets this is the only person able to report which state their
+ * server actually sent, and a generic "this is locked" would take that away.
+ * `String(lock)` rather than a cast — the same unchecked path can hand us a
+ * number or an object, and this must not throw on the way to explaining itself.
+ */
+function lockBannerTitle(
+  lock: MetadataLayered['lock'],
+  locale: string | undefined,
+): string {
+  if (
+    typeof lock === 'string' &&
+    Object.prototype.hasOwnProperty.call(LOCK_BANNER_TITLE_KEY, lock)
+  ) {
+    return t(LOCK_BANNER_TITLE_KEY[lock as Exclude<MetadataLockState, 'none'>], locale);
+  }
+  return tFormat('engine.edit.lockUnknown', locale, { state: String(lock) });
+}
 
 /**
  * Metadata types whose canvas IS the primary create-time authoring
@@ -1990,10 +2047,8 @@ function MetadataResourceEditPageImpl({
               <div className="text-xs text-amber-900 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-2.5">
                 <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-80" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium">
-                    {layered?.lock === 'full' && t('engine.edit.lockFull', locale)}
-                    {layered?.lock === 'no-overlay' && t('engine.edit.lockNoOverlay', locale)}
-                    {layered?.lock === 'no-delete' && t('engine.edit.lockNoDelete', locale)}
+                  <div className="font-medium" data-testid="lock-banner-title">
+                    {lockBannerTitle(layered?.lock, locale)}
                   </div>
                   {lockReason && <div className="mt-0.5 opacity-90">{lockReason}</div>}
                   {layered?.lockDocsUrl && (

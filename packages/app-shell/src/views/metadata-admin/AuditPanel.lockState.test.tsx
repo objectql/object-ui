@@ -19,10 +19,13 @@
  *
  * The state list below is bound to `MetadataAuditEntry['lockState']` itself
  * rather than spelled freely, so a fifth lock state is covered by these cases
- * the moment the union gains it. Unlike objectui#4982's overlay scopes there is
- * no `@objectstack/spec` enum to read at runtime — this union is hand-written in
- * `packages/data-objectstack` — hence the `satisfies`-checked key trick instead
- * of a `.options` array. (The compile-time half of the coverage is
+ * the moment the vocabulary gains it. That field is `MetadataLockState` since
+ * objectui#5024, derived from `GetMetaItemLayeredResponseSchema`'s `z.enum` —
+ * so unlike what this comment first claimed, objectui#4982's overlay scopes are
+ * NOT the odd one out: the spec declares this enum too (17.1.0). The
+ * `satisfies`-checked key trick is kept over a runtime `.options` array because
+ * it fails at `type-check` rather than at run time, which is the earlier of the
+ * two; nothing about the derivation forces the choice either way. (The compile-time half of the coverage is
  * `LOCK_STATE_ZH` in `./i18n`, whose key type is that union: a new state with no
  * zh-CN label fails `type-check` before it can reach the column.)
  */

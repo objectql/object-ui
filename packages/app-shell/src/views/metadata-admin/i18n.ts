@@ -282,6 +282,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.lockFull': 'This item is locked and cannot be edited or deleted.',
   'engine.edit.lockNoOverlay': 'This item is locked and cannot be edited.',
   'engine.edit.lockNoDelete': 'This item is locked and cannot be deleted.',
+  // objectui#5024 — the headline for a lock state this console has no
+  // sentence for. Reachable without any change here: `layered()` casts the
+  // wire value through unchecked, so a newer server can send a fifth state
+  // today. Names the raw token because the operator who sees it is the only
+  // one who can report which state their server sent.
+  'engine.edit.lockUnknown':
+    'This item is locked, but this console does not recognise the lock state \u2018{state}\u2019 — it may come from a newer server. Some operations will be blocked.',
   'engine.edit.history': 'History',
   'engine.edit.auditTab': 'Audit log',
   'engine.edit.auditCount': 'events',
@@ -2101,6 +2108,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.lockFull': '该元数据已锁定，不可编辑或删除。',
   'engine.edit.lockNoOverlay': '该元数据已锁定，不可编辑。',
   'engine.edit.lockNoDelete': '该元数据已锁定，不可删除。',
+  'engine.edit.lockUnknown':
+    '该元数据已锁定，但当前控制台无法识别锁状态“{state}”——它可能来自更新版本的服务端。部分操作将被阻止。',
   'engine.edit.history': '历史',
   'engine.edit.auditTab': '审计日志',
   'engine.edit.auditCount': '条记录',
@@ -4244,13 +4253,15 @@ const LAYER_SCOPE_ZH: Record<NonNullable<MetadataOverlayScope>, string> = {
  * zh-CN labels for the ADR-0010 §3.6 four-state metadata lock, keyed by the
  * producer field the only consumer actually renders.
  *
- * The key type is `MetadataAuditEntry['lockState']` — the hand-written union in
- * `packages/data-objectstack/src/metadata-client.ts`, not a `@objectstack/spec`
- * enum, because this repo owns that union today. (Whether the spec should own
- * the lock vocabulary is a separate question; it is deliberately not answered
- * here.) Binding the keys means a fifth lock state added to the union stops this
- * record from compiling and names the label that is missing, instead of the
- * column silently shipping a raw English token.
+ * The key type is `MetadataAuditEntry['lockState']`, which since objectui#5024
+ * is `MetadataLockState` — derived from `GetMetaItemLayeredResponseSchema`'s
+ * `z.enum` in `@objectstack/spec`. It was a hand-written union in
+ * `packages/data-objectstack/src/metadata-client.ts` when this comment was
+ * first written, on the belief that the spec had no enum to derive from; the
+ * spec does declare one (17.1.0), so the question of ownership this comment
+ * used to leave open is answered upstream, not here. Binding the keys means a
+ * fifth lock state stops this record from compiling and names the label that is
+ * missing, instead of the column silently shipping a raw English token.
  *
  * That silent path is objectui#5004, and it was total rather than partial: the
  * table used to hold `draft` / `locked` / `published` / `none` — a draft-status

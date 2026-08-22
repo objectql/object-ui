@@ -266,6 +266,35 @@ export interface MetadataDeleteOptions extends MetadataClientSaveOptions {
 export type MetadataOverlayScope = GetMetaItemLayeredResponse['overlayScope'];
 
 /**
+ * ADR-0010 §3.6 — the four-state metadata protection lock
+ * (`none` / `no-overlay` / `no-delete` / `full`), read from
+ * `GetMetaItemLayeredResponseSchema`'s own `z.enum` rather than spelled out
+ * again here (objectui#5024).
+ *
+ * It used to be written out twice in this file, 42 lines apart: once as
+ * {@link MetadataLayered.lock} (optional) and once as
+ * {@link MetadataAuditEntry.lockState} (nullable), identical in every other
+ * respect and compared by no gate. A fifth state added to one would have left
+ * the other compiling — the same "declared N times, diffed by nothing" failure
+ * objectui#4972 and objectui#4984 record for other vocabularies.
+ *
+ * Deriving beats a local alias the two merely share. The producer of these
+ * values is the framework, and `packages/spec` already declares the vocabulary,
+ * so the copies were restating a schema that existed rather than filling a gap.
+ * The card that reported this recorded the opposite — "`@objectstack/spec` 也没
+ * 有对应的 `z.enum` 可派生" — and so did the audit panel's neighbouring comment;
+ * both predate the enum, which ships in `@objectstack/spec` 17.1.0. This is the
+ * same treatment {@link MetadataOverlayScope} above already gets, and it closes
+ * the cross-repo half of the drift, not just the in-repo half.
+ *
+ * ⚠️ This types what this repo may WRITE. It does NOT constrain what a server
+ * may SEND: {@link MetadataClient.layered} casts the wire value through
+ * unchecked, so every reader must still handle a value outside these four. The
+ * lock banner in `ResourceEditPage` is the worked example.
+ */
+export type MetadataLockState = GetMetaItemLayeredResponse['lock'];
+
+/**
  * Layered view of a metadata item — the body of
  * `GET /meta/:type/:name/layers` (`GetMetaItemLayeredResponseSchema`).
  *
@@ -295,7 +324,7 @@ export interface MetadataLayered<T = unknown> {
   _diagnostics?: MetadataDiagnostics;
   // ── ADR-0010 Phase 1 — protection envelope ──
   /** 4-state lock: `none` / `no-overlay` / `no-delete` / `full`. */
-  lock?: 'none' | 'no-overlay' | 'no-delete' | 'full';
+  lock?: MetadataLockState;
   /** Human-readable reason for the lock (tooltip text). */
   lockReason?: string;
   /** Which layer set the lock: artifact / package / overlay / env-forced. */
@@ -337,7 +366,7 @@ export interface MetadataAuditEntry {
   /** Machine-readable reason code (`item_locked`, `ok`, …). */
   code: string;
   /** Effective lock at the moment of the attempt. */
-  lockState: 'none' | 'no-overlay' | 'no-delete' | 'full' | null;
+  lockState: MetadataLockState | null;
   /** True when admin forced the write through despite the lock. */
   lockOverridden: boolean;
   /** Request-id for trace correlation (if propagated). */
