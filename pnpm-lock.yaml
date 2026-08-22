@@ -275,6 +275,9 @@ importers:
       '@objectstack/client':
         specifier: ^17.0.0
         version: 17.1.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/lint':
+        specifier: ^17.0.0
+        version: 17.1.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.1.0(ai@7.0.65(zod@4.4.3))

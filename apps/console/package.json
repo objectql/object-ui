@@ -91,6 +91,7 @@
     "@object-ui/test-support": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/client": "^17.0.0",
+    "@objectstack/lint": "^17.0.0",
     "@objectstack/spec": "^17.0.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
