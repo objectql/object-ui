@@ -91,15 +91,17 @@ describe('MetadataClient', () => {
     expect(items).toEqual([{ name: 'wrapped' }]);
   });
 
-  it('sends If-Match and X-Actor headers on save when provided', async () => {
+  // objectui#4834 removed the `actor` option and its `X-Actor` emission; the
+  // If-Match half of this case is untouched optimistic-concurrency coverage and
+  // stays. That the header is NOT emitted is pinned in
+  // `metadata-actor-retired-4834.pin.test.ts`.
+  it('sends the If-Match header on save when provided', async () => {
     await client('http://localhost:3000').save('object', 'account', { foo: 1 }, {
       ifMatch: 'sha256:abc',
-      actor: 'user_1',
     });
     expect(inits[0]?.method).toBe('PUT');
     const headers = inits[0]?.headers as Record<string, string>;
     expect(headers['If-Match']).toBe('sha256:abc');
-    expect(headers['X-Actor']).toBe('user_1');
     expect(headers['Content-Type']).toBe('application/json');
     expect(inits[0]?.body).toBe(JSON.stringify({ foo: 1 }));
   });

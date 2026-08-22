@@ -182,9 +182,9 @@ export interface MetadataDraftHeader {
  * metadata item to a FILE — `format: json|yaml|ts`, `path`, `indent`,
  * `prettify`, `sortKeys`, `backup`, `atomic`, `loader`. Not one of those keys
  * exists here, and not one of these exists there: this is the REST client's
- * request envelope — optimistic concurrency (`ifMatch` → `If-Match`), actor
- * attribution, the destructive-change override, the ADR-0033 draft/publish
- * mode, and the owning package. Same words, different layer.
+ * request envelope — optimistic concurrency (`ifMatch` → `If-Match`), the
+ * destructive-change override, the ADR-0033 draft/publish mode, and the
+ * owning package. Same words, different layer.
  */
 export interface MetadataClientSaveOptions {
   /**
@@ -193,8 +193,6 @@ export interface MetadataClientSaveOptions {
    * edits get a 409 instead of overwriting each other.
    */
   ifMatch?: string;
-  /** Optional actor id, sent as `X-Actor` for history attribution. */
-  actor?: string;
   /**
    * Bypass destructive-change protection (Phase 3a). The server returns
    * `409 destructive_change` with `issues[]` if a write would drop or
@@ -355,7 +353,10 @@ export interface MetadataAuditEntry {
   id: unknown;
   /** ISO timestamp when the attempt happened. */
   occurredAt: string;
-  /** Who attempted the operation (`x-actor` header or `'system'`). */
+  /**
+   * Who attempted the operation — the identity the request was authorized
+   * as, or `'system'` for internal machine writes (objectstack#7941).
+   */
   actor: string;
   /** Code path that recorded the row (e.g. `protocol.saveMetaItem`). */
   source: string | null;
@@ -804,7 +805,6 @@ export class MetadataClient {
       'Content-Type': 'application/json',
     };
     if (options.ifMatch) headers['If-Match'] = options.ifMatch;
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'PUT',
       headers,
@@ -1019,7 +1019,6 @@ export class MetadataClient {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}${qs}`;
     const headers: Record<string, string> = { ...this.headers };
     if (options.ifMatch) headers['If-Match'] = options.ifMatch;
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, { method: 'DELETE', headers });
     if (!res.ok) throw await parseError(res);
     return (await res.json()) as T;
@@ -1035,14 +1034,13 @@ export class MetadataClient {
   async publish<T = unknown>(
     type: string,
     name: string,
-    options: { actor?: string; message?: string } = {},
+    options: { message?: string } = {},
   ): Promise<T> {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish`;
     const headers: Record<string, string> = {
       ...this.headers,
       'Content-Type': 'application/json',
     };
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'POST',
       headers,
@@ -1064,14 +1062,13 @@ export class MetadataClient {
     type: string,
     name: string,
     toVersion: number,
-    options: { actor?: string; message?: string } = {},
+    options: { message?: string } = {},
   ): Promise<T> {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/rollback`;
     const headers: Record<string, string> = {
       ...this.headers,
       'Content-Type': 'application/json',
     };
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'POST',
       headers,
