@@ -25,13 +25,23 @@
  *     cannot quietly inherit the exception.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { validatePageSourceStyling, PAGE_SOURCE_CLASSNAME } from '@objectstack/lint';
 import { parseJsx } from '@object-ui/sdui-parser';
 
-const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/**
+ * The harness files as TEXT, enumerated by Vite rather than `node:fs`: this
+ * app's tsconfig is browser-only (`lib: ES2020, DOM`, `types` without `node`),
+ * so a `node:fs` import passes under Vitest and fails the console's `tsc` —
+ * the trap `insecure-origin-crypto.placement.test.ts` records. The glob is also
+ * the enumeration the last test needs: Vite expands it against the real
+ * directory at transform time, so a NEW harness appears here without anyone
+ * remembering to add it.
+ */
+const harnesses = import.meta.glob('../*-preview.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
 
 /** The header line every harness that keeps its Tailwind must carry. */
 const EXCEPTION_ANCHOR = ' * ADR-0080 EXCEPTION — Tailwind in page source';
@@ -88,7 +98,16 @@ function findingsFor(pages: HarnessPage[]) {
   return validatePageSourceStyling({ pages: pages as unknown as Record<string, unknown>[] });
 }
 
-const read = (file: string) => readFileSync(path.join(srcDir, file), 'utf8');
+function read(file: string): string {
+  const text = harnesses[`../${file}`];
+  // A missing key means the file was renamed or the glob stopped matching —
+  // fail loudly rather than assert over an empty string, which reads exactly
+  // like a clean file.
+  if (typeof text !== 'string') {
+    throw new Error(`${file} is not in the preview-harness glob (found: ${Object.keys(harnesses).join(', ')})`);
+  }
+  return text;
+}
 
 describe('ADR-0080 preview harnesses — page-source styling', () => {
   // ---- the instrument, before anything is asserted with it ----------------
@@ -164,10 +183,17 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
 
   // ---- no silent third path ----------------------------------------------
   it('every preview harness in src/ is one of the two declared shapes', () => {
-    const harnesses = readdirSync(srcDir).filter((f) => /-preview\.tsx$/.test(f));
-    expect(harnesses.length).toBeGreaterThanOrEqual(3);
+    const files = Object.keys(harnesses).map((k) => k.replace('../', ''));
+    expect(files.length).toBeGreaterThanOrEqual(3);
+    expect(files).toEqual(
+      expect.arrayContaining([
+        'sdui-jsx-preview.tsx',
+        'sdui-tiers-preview.tsx',
+        'sdui-workbench-preview.tsx',
+      ]),
+    );
 
-    for (const file of harnesses) {
+    for (const file of files) {
       const text = read(file);
       const pages = pagesOf(text);
       if (pages.length === 0) continue; // not a source-tier harness
@@ -177,7 +203,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
         dirty === declared,
         dirty
           ? `${file} authors Tailwind in page source without the "${EXCEPTION_ANCHOR.trim()}" header note. ` +
-            'Style with the tier primitive (see sdui-tiers-preview.tsx), or declare the exception.'
+            'Style with the tier primitive (content/docs/guide/react-pages.md §Styling), or declare the exception.'
           : `${file} carries the exception note but authors no Tailwind in page source — drop the note.`,
       ).toBe(true);
     }
