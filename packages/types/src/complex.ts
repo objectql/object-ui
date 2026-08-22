@@ -17,6 +17,7 @@
 
 import type {
   DashboardWidget as SpecDashboardWidget,
+  DateRangeDefaultRange as SpecDateRangeDefaultRange,
   GlobalFilter as SpecGlobalFilter,
 } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
@@ -784,12 +785,26 @@ export interface DashboardComponentSchema extends BaseSchema {
   /**
    * Date range filter configuration.
    * Aligned with @objectstack/spec DashboardSchema.dateRange.
+   *
+   * `defaultRange` is BOUND to the spec's `DateRangeDefaultRange` rather than
+   * restated (objectui#4984). It used to be a hand-written 14-member union —
+   * byte-faithful to the spec, but faithful only until the next spec release:
+   * a preset the spec ADDS would be a legal document that objectui's own types
+   * say cannot exist, the same "narrower than the contract it implements" shape
+   * as objectui#4163's `label`, whose consequence was that the bad reads were
+   * invisible to `tsc`. No gate could report the drift either — `check:spec-symbols`
+   * rule 1 matches by NAME and an inline union on an interface member has no
+   * symbol to collide with, while rule 2's claim heuristic was waved through by
+   * the `SpecGlobalFilter` reference a few lines up. Binding makes the "Aligned
+   * with" line above structural instead of prose.
+   *
+   * `DATE_RANGE_DEFAULT_RANGES` is `[...DATE_RANGE_PRESETS, 'custom']`, so this
+   * tracks the same vocabulary `@object-ui/core` re-exports by reference
+   * (objectui#4167) — one list, reached two ways.
    */
   dateRange?: {
     field?: string;
-    defaultRange?: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month'
-      | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year'
-      | 'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom';
+    defaultRange?: SpecDateRangeDefaultRange;
     allowCustomRange?: boolean;
   };
   /**
