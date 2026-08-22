@@ -367,8 +367,9 @@ export class ExpressionEvaluator {
    *    object, whose identifiers expressions match case-sensitively.
    * 2. A wrong-case call site does not raise. {@link evaluate} catches, warns,
    *    and returns `defaultValue ?? expression`, so the template renders its own
-   *    `${...}` source as literal text. {@link evaluateExpression} is the
-   *    throwing sibling, and reports `'formatCurrency' is not a function`.
+   *    `${...}` source as literal text.
+   *    {@link ExpressionEvaluator.evaluateExpression} is the throwing sibling,
+   *    and reports `'formatCurrency' is not a function`.
    *
    * To keep a name's exact spelling, supply the function as evaluation context
    * data instead: context entries are merged over the formulas and stay verbatim.
@@ -384,7 +385,10 @@ export class ExpressionEvaluator {
    * evaluator.evaluate('${FORMATCURRENCY(price)}'); // '$1,234.50'
    * evaluator.evaluate('${formatCurrency(price)}'); // '${formatCurrency(price)}' — the source, verbatim
    *
-   * // Case-sensitive alternative — the function travels as context data:
+   * // Case-sensitive alternative — the function travels as context data.
+   * // Note the receiver: the call below is the MODULE-LEVEL export (a context
+   * // bag as its second parameter), not the method used above.
+   * import { evaluateExpression } from '@object-ui/core';
    * evaluateExpression('${formatCurrency(price)}', { formatCurrency: fmt, price: 1234.5 }); // '$1,234.50'
    * ```
    */
