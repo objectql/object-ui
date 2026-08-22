@@ -7,7 +7,6 @@
  */
 
 import type { ComponentInputControlType } from '@object-ui/types';
-import type { SchemaNode } from '../types/index.js';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
@@ -103,7 +102,6 @@ export type ComponentMeta = {
   labelling?: 'control' | 'group' | 'display';
   inputs?: ComponentInput[];
   defaultProps?: Record<string, any>; // Default props when dropped
-  defaultChildren?: SchemaNode[]; // Default children when dropped
   examples?: Record<string, any>; // Example configurations
   isContainer?: boolean; // Whether the component can have children
   resizable?: boolean; // Whether the component can be resized in the designer

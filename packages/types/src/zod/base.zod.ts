@@ -247,7 +247,6 @@ export const ComponentMetaSchema = z.object({
   category: z.string().optional().describe('Component category'),
   inputs: z.array(ComponentInputSchema).optional().describe('Configurable properties'),
   defaultProps: z.record(z.string(), z.any()).optional().describe('Default property values'),
-  defaultChildren: z.array(SchemaNodeSchema).optional().describe('Default children'),
   examples: z.record(z.string(), z.any()).optional().describe('Example configurations'),
   isContainer: z.boolean().optional().describe('Can have children'),
   resizable: z.boolean().optional().describe('Can be resized'),

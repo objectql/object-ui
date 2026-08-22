@@ -156,9 +156,6 @@ ComponentRegistry.register('span',
     ],
     defaultProps: {
       className: 'px-1.5 py-0.5 sm:px-2 sm:py-1'
-    },
-    defaultChildren: [
-      { type: 'text', content: 'Inline text' }
-    ]
+    }
   }
 );

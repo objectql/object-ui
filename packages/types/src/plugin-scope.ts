@@ -152,7 +152,6 @@ export interface ComponentMeta {
   category?: string;
   inputs?: ComponentInput[];
   defaultProps?: Record<string, any>;
-  defaultChildren?: any[];
   examples?: Record<string, any>;
   isContainer?: boolean;
   resizable?: boolean;

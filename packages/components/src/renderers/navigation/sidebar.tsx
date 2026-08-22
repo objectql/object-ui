@@ -49,11 +49,7 @@ ComponentRegistry.register('sidebar-provider',
     ],
     defaultProps: {
       defaultOpen: true
-    },
-    defaultChildren: [
-      { type: 'sidebar' },
-      { type: 'sidebar-inset' }
-    ]
+    }
   }
 );
 
@@ -73,12 +69,7 @@ ComponentRegistry.register('sidebar',
       collapsible: 'icon',
       side: 'left',
       variant: 'sidebar'
-    },
-    defaultChildren: [
-      { type: 'sidebar-header' },
-      { type: 'sidebar-content' },
-      { type: 'sidebar-footer' }
-    ]
+    }
   }
 );
 
@@ -88,10 +79,7 @@ ComponentRegistry.register('sidebar-header',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Header',
-    defaultChildren: [
-      { type: 'text', content: 'Sidebar Header' }
-    ]
+    label: 'Sidebar Header'
   }
 );
 
@@ -101,10 +89,7 @@ ComponentRegistry.register('sidebar-content',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Content',
-    defaultChildren: [
-      { type: 'sidebar-group' }
-    ]
+    label: 'Sidebar Content'
   }
 );
 
@@ -136,10 +121,7 @@ ComponentRegistry.register('sidebar-group',
     ],
     defaultProps: {
       label: 'Menu'
-    },
-    defaultChildren: [
-      { type: 'sidebar-menu' }
-    ]
+    }
   }
 );
 
@@ -149,11 +131,7 @@ ComponentRegistry.register('sidebar-menu',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Menu',
-    defaultChildren: [
-      { type: 'sidebar-menu-item' },
-      { type: 'sidebar-menu-item' }
-    ]
+    label: 'Sidebar Menu'
   }
 );
 
@@ -163,10 +141,7 @@ ComponentRegistry.register('sidebar-menu-item',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Menu Item',
-    defaultChildren: [
-      { type: 'sidebar-menu-button' }
-    ]
+    label: 'Sidebar Menu Item'
   }
 );
 
@@ -186,10 +161,7 @@ ComponentRegistry.register('sidebar-menu-button',
     ],
     defaultProps: {
       size: 'default'
-    },
-    defaultChildren: [
-      { type: 'text', content: 'Menu Item' }
-    ]
+    }
   }
 );
 
@@ -199,10 +171,7 @@ ComponentRegistry.register('sidebar-footer',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Footer',
-    defaultChildren: [
-      { type: 'text', content: 'Footer' }
-    ]
+    label: 'Sidebar Footer'
   }
 );
 
@@ -212,10 +181,7 @@ ComponentRegistry.register('sidebar-inset',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Inset',
-    defaultChildren: [
-      { type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Main content area' }] }
-    ]
+    label: 'Sidebar Inset'
   }
 );
 

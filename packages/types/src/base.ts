@@ -535,11 +535,6 @@ export interface ComponentMeta {
   defaultProps?: Record<string, any>;
 
   /**
-   * Default children for container components
-   */
-  defaultChildren?: SchemaNode[];
-
-  /**
    * Example configurations for documentation
    */
   examples?: Record<string, any>;
