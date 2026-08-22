@@ -52,6 +52,7 @@ import { resolvePageVarTokens } from '../utils/resolvePageVarTokens.js';
 import { interpretFlowResponse } from '../utils/flowResponse.js';
 import { createConsoleServerActionHandler } from '../utils/consoleServerAction.js';
 import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
+import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -193,7 +194,14 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     });
   }, []);
 
-  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: ActionDef) => {
+  // `ConsoleActionDispatch`, not bare `ActionDef` (objectui#5611): this handler
+  // reads `overrideNotice`, which is host-composed dispatch chrome rather than
+  // authorable metadata, so it is declared at the seam instead of on the
+  // published authored-metadata mirror. Narrowing off `any` is what puts this
+  // whole function under the compiler — every other read below is a declared
+  // `ActionDef` field, and the one that was not is the reason objectui#4282
+  // backed the narrowing out.
+  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: ConsoleActionDispatch) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // List_item actions stash the row record under params._rowRecord (see
       // ObjectGrid → onRowAction). Pull it out so resolveActionParams can

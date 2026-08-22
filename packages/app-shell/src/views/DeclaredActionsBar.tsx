@@ -41,6 +41,7 @@ import {
   useActionTextLocalizer,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
+import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
@@ -275,7 +276,15 @@ const DeclaredActionButton: React.FC<{
       const outputParams = decision
         ? decisionOutputParams(decisionOutputDefs(recordData), t, { decision })
         : [];
-      const dispatch: any = {
+      // Typed as the SEAM's contract, not as `any` and not cast to `ActionDef`
+      // on the way out (objectui#5611). `overrideNotice` below is host-composed
+      // chrome, not authorable metadata, so it is declared on
+      // `ConsoleActionDispatch` rather than on the authored-metadata mirror —
+      // maintainer ruling 2026-08-22, reasoning at the type's own docblock.
+      // What the annotation buys: the key now passes through ONE declaration
+      // that its reader also imports, so a rename on either side is a compile
+      // error instead of a notice that silently stops appearing.
+      const dispatch: ConsoleActionDispatch = {
         // Localized copies ride the dispatch: the runner reads `label` for the
         // param-dialog title, `confirmText` for the confirm prompt and
         // `successMessage` for the toast. A nameless action has no translation
@@ -309,7 +318,7 @@ const DeclaredActionButton: React.FC<{
       if (staticParams.length > 0 || outputParams.length > 0) {
         dispatch.actionParams = [...staticParams, ...outputParams];
       }
-      await execute(dispatch as ActionDef);
+      await execute(dispatch);
     } finally {
       setLoading(false);
     }

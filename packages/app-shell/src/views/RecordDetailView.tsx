@@ -43,6 +43,7 @@ import { useRecordBreadcrumbTitle } from '../context/NavigationContext.js';
 import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields.js';
 import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
+import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals.js';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel.js';
 import { RecordApprovalsPanel } from './RecordApprovalsPanel.js';
@@ -497,7 +498,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     });
   }, []);
 
-  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: ActionDef) => {
+  // The SECOND param-collection handler the console mounts, narrowed to the
+  // same seam contract as `useConsoleActionRuntime`'s (objectui#5611). It does
+  // not read `overrideNotice` itself — it takes the envelope so the two
+  // handlers on this seam cannot drift apart from each other, and so a reader
+  // added here later has the key declared rather than reaching for a cast.
+  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: ConsoleActionDispatch) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // Related-list row actions retarget a CHILD object (e.g. sys_member rows
       // on an org record page) and stash the clicked row under

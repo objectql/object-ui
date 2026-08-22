@@ -121,12 +121,6 @@ export const ACTION_DEF_KEYS = [
   // of an action), forwarded by all four action renderers and read by the
   // param-collection dialog, but never declared on `ActionDef`.
   'description',
-  // objectui dialect with no spec counterpart and no authorable twin — a HOST
-  // (`DeclaredActionsBar`) composes it in code for the privileged
-  // admin-override branch, and the param-collection dialog reads it ahead of
-  // `description`. Listed here so the dev-mode warning stops reporting a key
-  // two files read as one "no reader recognizes".
-  'overrideNotice',
   'confirmText',
   'confirm',
   'condition',
