@@ -163,7 +163,7 @@ vi.mock('@object-ui/auth', () => {
       getAuthConfig,
     }),
     getUserInitials: () => 'ZS',
-    useIsWorkspaceAdmin: () => false,
+    useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   };
 });
 

@@ -43,7 +43,7 @@ import type { NavigationArea, NavigationItem } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider.js';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useRecentItems } from '../hooks/useRecentItems.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useNavPins } from '../hooks/useNavPins.js';
@@ -161,7 +161,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
   const { context, currentAppName } = useNavigationContext();
   const { user, activeOrganization } = useAuth();
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   // `type: 'action'` nav items dispatch through here (framework#4509). The
   // sidebar renders inside ConsoleShell's GlobalActionRuntimeProvider, so this
   // resolves to the fully-wired console runner — confirm/param/result dialogs

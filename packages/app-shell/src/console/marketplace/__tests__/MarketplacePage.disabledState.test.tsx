@@ -58,7 +58,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@object-ui/auth', () => ({
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 
 vi.mock('@object-ui/i18n', async (importOriginal) => ({

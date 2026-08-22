@@ -23,7 +23,13 @@
 
 export { AuthProvider, type AuthProviderProps } from './AuthProvider.js';
 export { useAuth } from './useAuth.js';
-export { useIsWorkspaceAdmin } from './useIsWorkspaceAdmin.js';
+// objectui#5619 — replaces `useIsWorkspaceAdmin(): boolean`, which had no way
+// to say "not resolved yet" and so answered "not an admin" about an
+// administrator whose adminship lives only in the active member row. The old
+// name is REMOVED rather than kept alongside: a caller that misses the third
+// state is the whole defect, and a deleted export makes that a compile error
+// instead of a silent access-denied screen.
+export { useWorkspaceAdminStatus, type WorkspaceAdminStatus } from './useWorkspaceAdminStatus.js';
 export { AuthGuard, type AuthGuardProps } from './AuthGuard.js';
 export { AuthShell, type AuthShellProps, type AuthShellBrandPanel } from './AuthShell.js';
 export { LoginForm, type LoginFormProps, type LoginFormLabels } from './LoginForm.js';

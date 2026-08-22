@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged, FilterScopeProvider } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { AppAccessVerdict, ConnectionState } from '@object-ui/data-objectstack';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useAdapter } from '../providers/AdapterProvider.js';
 import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
@@ -166,7 +166,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   const { user, getAuthConfig, activeOrganization } = useAuth();
   // objectui#4473 — read at the top (hooks are unconditional); consumed by the
   // no-app guard far below, where the comment explains what it decides.
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin, isResolved: isWorkspaceAdminResolved } = useWorkspaceAdminStatus();
   const dataSource = useAdapter();
 
   // Deployment-level feature flags from `/api/v1/auth/config`. Used by
@@ -677,7 +677,26 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     [user, activeApp, editingRecord],
   );
 
-  if (!dataSource || metadataLoading || !scopeMetaReady) return <LoadingScreen />;
+  // objectui#5619 — `isWorkspaceAdminResolved` belongs in this readiness gate
+  // for the same reason `metadataLoading` does: everything below branches on
+  // the verdict. The guard at the "no active app" strand turns a `false` into a
+  // `<Navigate to="/home" replace>` that the later flip to `true` cannot undo,
+  // and the chrome this mounts (ConsoleLayout -> UnifiedSidebar / AppHeader)
+  // reads the same verdict to decide which navigation exists. Waiting for three
+  // of four inputs and acting on the fourth mid-flight is the defect itself.
+  //
+  // Deliberately NOT a mask over one page (objectui#5621 correctly removed the
+  // last of those): this is the ONE readiness gate this surface already has,
+  // and it withholds every consequence shape at once — the redirect, both
+  // marketplace refusals routed below, and the nav entries.
+  //
+  // Cost, measured: `useWorkspaceAdminStatus` reports `isResolved` the instant
+  // `isAdmin` is true, so any admin the session already identifies (the
+  // `positions[]` leg, which is every admin on a session minted with an active
+  // organization stamped) waits exactly zero extra frames. What does wait is
+  // the viewer whose verdict genuinely is not known yet — and for them a
+  // LoadingScreen is the honest frame, not a screen built on a guess.
+  if (!dataSource || metadataLoading || !scopeMetaReady || !isWorkspaceAdminResolved) return <LoadingScreen />;
 
   // ADR-0037 — preview mode renders its OWN empty/error states and never
   // falls through to the generic "No Apps Configured" guard below: inside a

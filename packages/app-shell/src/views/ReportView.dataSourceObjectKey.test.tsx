@@ -88,7 +88,7 @@ vi.mock('./metadata-admin/useMetadata', () => ({ useMetadataClient: () => ({ get
 vi.mock('./runtime-metadata-persistence', () => ({ persistRuntimeMetadata: vi.fn() }));
 vi.mock('../providers/AdapterProvider', () => ({ useAdapter: () => ({}) }));
 vi.mock('../providers/ExpressionProvider', () => ({ useExpressionContext: () => ({ app: undefined }) }));
-vi.mock('@object-ui/auth', () => ({ useIsWorkspaceAdmin: () => true }));
+vi.mock('@object-ui/auth', () => ({ useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }) }));
 vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({ t: (k: string) => k }),
   createSafeTranslation: (defaults: Record<string, string>) => () => ({

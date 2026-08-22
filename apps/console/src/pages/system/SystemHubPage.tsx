@@ -43,7 +43,7 @@ import {
   Boxes,
 } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 
 interface HubCard {
   title: string;
@@ -75,7 +75,7 @@ export function SystemHubPage() {
   const { appName } = useParams();
   const basePath = appName ? `/apps/${appName}` : '';
   const dataSource = useAdapter();
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
 
   const [counts, setCounts] = useState<Record<string, number | null>>({
     users: null,

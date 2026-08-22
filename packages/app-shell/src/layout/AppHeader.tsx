@@ -66,7 +66,7 @@ import type { ConnectionState } from '@object-ui/data-objectstack';
 import { useAdapter } from '../providers/AdapterProvider.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
-import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, getUserInitials, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils/index.js';
 import { getIcon } from '../utils/getIcon.js';
@@ -160,7 +160,7 @@ export function AppHeader({
   const { enabled: aiEnabled } = useAiSurfaceEnabled();
   // Design entry points mutate shared package metadata, so the app → Studio
   // bridge below is admin-only (mirrors the runtime view/page editors).
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   const { t } = useObjectTranslation();
   const { objectLabel, dashboardLabel, pageLabel, reportLabel, viewLabel, appLabel } = useObjectLabel();
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();

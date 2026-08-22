@@ -48,7 +48,7 @@
  *
  * ## Why a separate suite from `MarketplacePackagePage.disabledState.test.tsx`
  *
- * That suite hard-mocks `useIsWorkspaceAdmin: () => true` at module scope, so
+ * That suite hard-mocks `useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true })` at module scope, so
  * every viewer in it is an admin and none of them can see this defect. The
  * admin flag has to vary per case here — a different module mock, therefore a
  * different file.
@@ -67,7 +67,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@object-ui/auth', () => ({
-  useIsWorkspaceAdmin: () => viewer.isAdmin,
+  useWorkspaceAdminStatus: () => ({ isAdmin: viewer.isAdmin, isResolved: true }),
 }));
 
 // `t` echoes the KEY, for the reason the sibling suites give: a `t` echoing
@@ -272,7 +272,7 @@ describe('CONTROL — the ordering against `features.marketplace` is untouched',
 });
 
 describe('an admin whose adminship resolves AFTER first paint', () => {
-  // Not hypothetical: `useIsWorkspaceAdmin` reads `activeMember`, which
+  // Not hypothetical: `useWorkspaceAdminStatus` reads `activeMember`, which
   // `AuthProvider.refreshActiveMember` resolves asynchronously after the
   // session settles — so an admin holding the role through the org member row
   // renders once as a non-admin. Gating the fetches on `isAdmin` without

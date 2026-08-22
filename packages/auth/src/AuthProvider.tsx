@@ -142,6 +142,12 @@ export function AuthProvider({
   const [activeOrganization, setActiveOrganization] = useState<AuthOrganization | null>(null);
   const [activeMember, setActiveMember] = useState<AuthOrganizationMember | null>(null);
   const [isOrganizationsLoading, setIsOrganizationsLoading] = useState(false);
+  // objectui#5619 — the two halves of "the membership answer has landed".
+  // Kept as POSITIVE resolution flags rather than another `isLoading`: a
+  // loading flag reads `false` both before the request starts and after it
+  // finishes, and that is precisely the ambiguity this card exists to remove.
+  const [organizationsResolved, setOrganizationsResolved] = useState(false);
+  const [activeMemberResolved, setActiveMemberResolved] = useState(false);
 
   // Determine if we're in preview mode
   const isPreviewMode = previewMode != null;
@@ -608,6 +614,10 @@ export function AuthProvider({
     } finally {
       if (!isCancelled?.()) {
         setIsOrganizationsLoading(false);
+        // In `finally`, so a failed `listOrganizations` still counts as an
+        // answer. It is not a good answer, but leaving it unresolved would
+        // strand every gate that waits on it (objectui#5619).
+        setOrganizationsResolved(true);
       }
     }
   }, [client, enabled, isPreviewMode, activeOrganization]);
@@ -624,18 +634,33 @@ export function AuthProvider({
         userId: 'preview-user',
         role,
       } as AuthOrganizationMember);
+      // Neither mode runs `refreshOrganizations` (its effect requires a real
+      // `user`, and the callback itself returns early), so this is the one
+      // place that can close BOTH halves for them (objectui#5619).
+      setOrganizationsResolved(true);
+      setActiveMemberResolved(true);
       return;
     }
     if (!activeOrganization) {
+      // "No active organization" is a real answer about the member row — but
+      // only once the org list itself has come back, which is what
+      // `organizationsResolved` below contributes. On mount this branch runs
+      // with the pipeline not yet started, and the combined flag stays false.
       setActiveMember(null);
+      setActiveMemberResolved(true);
       return;
     }
+    // A switch re-opens the question: until `getActiveMember()` answers for the
+    // NEW org, `activeMember` still holds the OLD org's row.
+    setActiveMemberResolved(false);
     try {
       const member = await client.getActiveMember();
       setActiveMember(member);
     } catch (err) {
       console.warn('[AuthProvider] Failed to load active member:', err);
       setActiveMember(null);
+    } finally {
+      setActiveMemberResolved(true);
     }
   }, [client, enabled, isPreviewMode, previewMode, activeOrganization]);
 
@@ -803,6 +828,23 @@ export function AuthProvider({
   // and a no-op signOut backend, so consumers should hide sign-out UIs.
   const isAuthEnabled = enabled && !isPreviewMode;
 
+  // objectui#5619 — see `AuthContext.isMembershipResolved` for the contract.
+  //
+  // Three modes, three reasons:
+  //  - preview / auth-disabled: no pipeline runs; `refreshActiveMember`'s first
+  //    branch closes both halves on its own effect.
+  //  - no user: there is no membership to fetch, so the question is answered.
+  //    Without this the flag would sit false forever on an unauthenticated
+  //    visitor and hang any gate that waits on it. Consumers that must also
+  //    wait for the SESSION read `isLoading` alongside this (the hook does).
+  //  - signed in: both halves, because "no active organization" only means
+  //    "no member row" once the org list has actually come back.
+  const isMembershipResolved = !isAuthEnabled
+    ? activeMemberResolved
+    : user == null
+      ? true
+      : organizationsResolved && activeMemberResolved;
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -839,6 +881,7 @@ export function AuthProvider({
       activeOrganization,
       activeMember,
       isOrganizationsLoading,
+      isMembershipResolved,
       switchOrganization,
       createOrganization,
       refreshOrganizations,
@@ -862,7 +905,7 @@ export function AuthProvider({
       signIn, signUp, signOut, refreshSession, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
       sendPhoneOtp, signInWithPhoneOtp, signInWithPhonePassword, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
       remediationRequired, enrollTotp, verifyTotp,
-      organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
+      organizations, activeOrganization, activeMember, isOrganizationsLoading, isMembershipResolved, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,
       getMembers, inviteMember, describeDelegableScope, removeMember, updateMemberRole,
       listInvitations, cancelInvitation, getInvitation, acceptInvitation, rejectInvitation, listUserInvitations,

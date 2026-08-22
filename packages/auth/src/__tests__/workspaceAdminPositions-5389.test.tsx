@@ -7,7 +7,7 @@
  */
 
 /**
- * objectui#5389 — `useIsWorkspaceAdmin` decides platform-admin, and with it
+ * objectui#5389 — `useWorkspaceAdminStatus` decides platform-admin, and with it
  * Setup app + Studio visibility, App Marketplace gating and the "Build an app"
  * CTAs. Its third leg read `user.roles`, a key the protocol-17 session face no
  * longer emits (framework ADR-0090 D3 renamed it to `positions`). This file is
@@ -65,7 +65,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider } from '../AuthProvider';
 import { useAuth } from '../useAuth';
-import { useIsWorkspaceAdmin } from '../useIsWorkspaceAdmin';
+import { useWorkspaceAdminStatus } from '../useWorkspaceAdminStatus';
 import type { AuthClient, AuthUser } from '../types';
 
 /**
@@ -132,7 +132,7 @@ function createMockClient(user: AuthUser, overrides: Partial<AuthClient> = {}): 
  * supplies to have ARRIVED before reading the verdict.
  */
 function AdminProbe() {
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin } = useWorkspaceAdminStatus();
   const { user, activeMember } = useAuth();
   return (
     <div>
@@ -176,7 +176,7 @@ async function mountAndRead(
   return screen.getByTestId('is-admin').textContent ?? '';
 }
 
-describe('useIsWorkspaceAdmin — the v17 session face publishes `positions` (#5389)', () => {
+describe('useWorkspaceAdminStatus — the v17 session face publishes `positions` (#5389)', () => {
   describe('the reported defect', () => {
     it('detects a permission-set-derived platform admin with no member row and no admin scalar', async () => {
       const client = createMockClient(V17_PERMISSION_SET_ADMIN);

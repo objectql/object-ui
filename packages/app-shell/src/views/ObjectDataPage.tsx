@@ -40,7 +40,7 @@ import {
 import { Database, Lock, Plus, Save, X } from 'lucide-react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions, useFieldPermissions } from '@object-ui/permissions';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { resolveFilterPlaceholders } from '@object-ui/core';
 import { normalizeFilterOperator, ViewFilterRuleSchema } from '@objectstack/spec/ui';
 import type { ViewFilterRule } from '@objectstack/spec/ui';
@@ -193,7 +193,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const { can, getObjectApiOperations } = usePermissions();
   const { canRead } = useFieldPermissions(objectName ?? '');
   const { user, activeOrganization } = useAuth();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin } = useWorkspaceAdminStatus();
   const metadataClient = useMetadataClient();
   // ADR-0105: group posture appends a trailing organization_id attribution
   // column to the auto-derived columns (reads span all the user's orgs).

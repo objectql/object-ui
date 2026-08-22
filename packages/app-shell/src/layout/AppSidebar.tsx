@@ -57,7 +57,7 @@ import { NavigationRenderer, resolveHref, resolveActiveNavItem, hasVisibleNaviga
 import type { NavigationArea, NavigationItem } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider.js';
-import { useAuth, useIsWorkspaceAdmin, getUserInitials } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus, getUserInitials } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems.js';
 import { useFavorites } from '../hooks/useFavorites.js';
@@ -149,7 +149,7 @@ const getIcon = resolveIcon;
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const { user, signOut, isAuthEnabled, activeOrganization } = useAuth();
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language } = useObjectTranslation();

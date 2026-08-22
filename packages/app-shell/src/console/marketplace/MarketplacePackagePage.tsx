@@ -34,12 +34,13 @@ import {
   DropdownMenuItem,
 } from '@object-ui/components';
 import { ArrowLeft, ExternalLink, Download, AlertCircle, Package, Trash2, MoreHorizontal, CheckCircle2, ArrowUpCircle, Database, Loader2 } from 'lucide-react';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { PackageIcon } from './PackageIcon.js';
 import { MarkdownText } from './MarkdownText.js';
 import { PluginDisclosure } from './PluginDisclosure.js';
 import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { MarketplaceResolving } from './MarketplaceResolving.js';
 import { MarketplaceDisabled } from './MarketplaceDisabled.js';
 import { localizePackage } from './usePackageL10n.js';
 import {
@@ -71,7 +72,7 @@ import { errorCodeIs } from '@object-ui/types';
 export function MarketplacePackagePage() {
   const navigate = useNavigate();
   const { packageId, appName } = useParams<{ packageId?: string; appName?: string }>();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin, isResolved } = useWorkspaceAdminStatus();
   const { t, language } = useObjectTranslation();
   // ADR-0090 D5 — install-time suggested audience bindings ("this app
   // suggests granting <set> to Everyone"), surfaced right after a
@@ -553,6 +554,20 @@ export function MarketplacePackagePage() {
   // stops the client doing work it would throw away. It is also the ordering
   // `MarketplacePage` carries after objectui#5557, so the sibling pages now
   // answer one runtime the same way for every viewer.
+  // objectui#5619 — a refusal is not a repaint: `MarketplaceAccessDenied` tells
+  // a real administrator they lack a grant they hold, and it is the frame they
+  // read. The verdict has a third state ("not resolved yet") and this guard is
+  // the reason it exists. Ordered AFTER `!marketplaceEnabled` deliberately —
+  // that answer is true of every viewer on this runtime and needs no verdict,
+  // so the ordering objectui#5557/#5533 established is untouched — and BEFORE
+  // `!isAdmin`, which is the branch that must not fire on a guess.
+  //
+  // This is NOT the incidental skeleton objectui#5621 removed: that one hid the
+  // window behind an unrelated package fetch, for as long as the network
+  // happened to take. This waits on the verdict itself and on nothing else, and
+  // `isResolved` is already true for any admin the session identifies.
+  if (!isResolved) return <MarketplaceResolving />;
+
   if (!isAdmin) return <MarketplaceAccessDenied />;
 
   if (loading) {

@@ -61,7 +61,7 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', email: 'ada@example.com' } }),
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));
 
 vi.mock('@object-ui/plugin-chatbot', () => ({

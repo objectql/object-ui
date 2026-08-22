@@ -25,7 +25,7 @@ import {
   Skeleton,
 } from '@object-ui/components';
 import { RefreshCcw, Trash2, AlertCircle, ExternalLink } from 'lucide-react';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { ComponentRegistry } from '@object-ui/core';
 import {
@@ -39,7 +39,7 @@ import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
 export function InstalledList() {
   const navigate = useNavigate();
   const { appName } = useParams<{ appName?: string }>();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin } = useWorkspaceAdminStatus();
   const { t, language } = useObjectTranslation();
   const basePath = appName ? `/apps/${appName}` : '';
 

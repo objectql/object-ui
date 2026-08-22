@@ -92,7 +92,7 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
   getUserInitials: () => 'U',
 }));
 

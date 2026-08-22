@@ -21,7 +21,7 @@ import { useMetadata } from '../../providers/MetadataProvider.js';
 import { useRecentItems } from '../../hooks/useRecentItems.js';
 import { useFavorites } from '../../hooks/useFavorites.js';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
 import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
 import { HomeAppsStrip } from './HomeAppsStrip.js';
@@ -80,7 +80,7 @@ const AUTHORING_CAPABILITY = 'manage_metadata';
  * objectstack#8270 — on the EE single-database multi-tenant deployment a
  * workspace owner holds `org_owner` + `organization_admin` but NOT
  * `manage_metadata`; that absence is the intended hosted posture (maintainer
- * ruling 2026-08-13), not a missing grant. `useIsWorkspaceAdmin` reads the
+ * ruling 2026-08-13), not a missing grant. `useWorkspaceAdminStatus` reads the
  * session's POSITIONS (spelled `roles` until framework ADR-0090 D3 renamed it;
  * objectui#5389 moved this hook onto the live spelling, and `org_owner` is in
  * that array either way), so it says `true` for that owner and the builder CTAs
@@ -357,7 +357,7 @@ export function HomePage() {
   const { recentItems } = useRecentItems();
   const { favorites } = useFavorites();
   const { user } = useAuth();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin, isResolved: isAdminResolved } = useWorkspaceAdminStatus();
   const { pendingApprovalsCount, notifications, unreadTopicCount, notificationsStatus, activities } =
     useHomeInbox();
   // Home renders OUTSIDE the `/apps/:appName/*` router, so there is no
@@ -431,7 +431,14 @@ export function HomePage() {
   const greeting = useMemo(() => t(pickGreetingKey(new Date().getHours()), { defaultValue: 'Welcome' }), [t]);
   const displayName = (user?.name?.trim() || user?.email?.split('@')[0] || '').trim();
 
-  if (loading) {
+  // objectui#5619 — `isAdminResolved` joins the metadata wait for the same
+  // reason it joins `AppContent`'s: Home is the OTHER route that renders admin-
+  // gated affordances, and it is outside `AppContent`'s gate. Landing here with
+  // the verdict still in flight drops the admin entries and adds them back a
+  // moment later. `isResolved` is true the instant `isAdmin` is, so an admin the
+  // session already identifies waits nothing; this only holds the frame that
+  // would otherwise be built on a guess.
+  if (loading || !isAdminResolved) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
         <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace…' })}</div>

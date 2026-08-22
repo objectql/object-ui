@@ -144,7 +144,7 @@ vi.mock('@object-ui/auth', () => ({
     getAuthConfig: undefined,
   }),
   getUserInitials: () => 'ZS',
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));
 
 vi.mock('../../providers/MetadataProvider', () => ({

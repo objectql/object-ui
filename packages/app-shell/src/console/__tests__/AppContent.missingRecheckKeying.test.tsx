@@ -90,7 +90,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
     getAuthConfig: async () => ({ features: {} }),
     activeOrganization: { id: 'org_jia', name: 'Jia' },
   }),
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));
 
 /**

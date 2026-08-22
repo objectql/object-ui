@@ -70,7 +70,7 @@ import { warnSuppressedListNav } from '../utils/warnSuppressedListNav.js';
 import { useObjectActions } from '../hooks/useObjectActions.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, useRowPredicate, RelatedRecordActionsProvider } from '@object-ui/react';
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
@@ -909,7 +909,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     
     // Admin users automatically get design tools (no toggle needed)
     const { user, activeOrganization } = useAuth();
-    const isAdmin = useIsWorkspaceAdmin();
+    const { isAdmin } = useWorkspaceAdminStatus();
     const perms = usePermissions();
     const { can, getObjectApiOperations } = perms;
     

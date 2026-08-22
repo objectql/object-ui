@@ -60,7 +60,7 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 let isAdminFixture = false;
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', email: 'ada@example.com' } }),
-  useIsWorkspaceAdmin: () => isAdminFixture,
+  useWorkspaceAdminStatus: () => ({ isAdmin: isAdminFixture, isResolved: true }),
 }));
 
 vi.mock('@object-ui/plugin-chatbot', () => ({

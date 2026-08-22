@@ -114,6 +114,24 @@ export interface AuthContextValue {
   activeMember: AuthOrganizationMember | null;
   /** Whether organizations are loading */
   isOrganizationsLoading: boolean;
+  /**
+   * objectui#5619 — whether `organizations` / `activeOrganization` /
+   * `activeMember` MEAN what they say yet.
+   *
+   * Those three are `[]` / `null` / `null` both before the pipeline starts and
+   * after it finds nothing, and `isOrganizationsLoading` is `false` on both
+   * sides of the request — so no combination of the fields above can tell
+   * "not asked yet" from "asked, and there is none". That ambiguity is what let
+   * `useWorkspaceAdminStatus` answer "not an admin" about an administrator
+   * whose adminship lives only in the member row.
+   *
+   * True once the pipeline has reached a terminal state: the org list came back
+   * AND the active-member row either landed, failed, or was established not to
+   * exist (no active organization). Also true immediately where there is no
+   * pipeline to run at all — preview / auth-disabled mode, and outside an
+   * AuthProvider — so a gate on this can never hang.
+   */
+  isMembershipResolved: boolean;
   /** Switch the active organization (workspace) */
   switchOrganization: (orgId: string) => Promise<void>;
   /** Create a new organization */

@@ -8,7 +8,7 @@
  *
  * On the EE single-database multi-tenant deployment a workspace owner holds
  * `org_owner` + `organization_admin` but NOT `manage_metadata`. `HomePage`
- * gated its builder cover on `useIsWorkspaceAdmin()`, which reads the session's
+ * gated its builder cover on `useWorkspaceAdminStatus()`, which reads the session's
  * POSITIONS (spelled `roles` until framework ADR-0090 D3 renamed it; see
  * objectui#5389) and finds `org_owner` there — so that owner saw "Build an app"
  * as the most prominent thing on their home page,
@@ -68,7 +68,7 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // consulted. Cases that vary the capability keep this fixed at `true`.
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: { id: 'u1', name: 'Zhang San', email: 'zhangsan@acme-test.com' } }),
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 
 // An authoring-capable AI agent IS deployed in every case, so "Build with AI"

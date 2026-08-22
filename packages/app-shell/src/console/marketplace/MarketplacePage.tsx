@@ -20,10 +20,11 @@ import {
   Skeleton,
 } from '@object-ui/components';
 import { Package, Search, RefreshCcw, Store, AlertCircle, CheckCircle2, Settings } from 'lucide-react';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { PackageIcon } from './PackageIcon.js';
 import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { MarketplaceResolving } from './MarketplaceResolving.js';
 import { MarketplaceDisabled } from './MarketplaceDisabled.js';
 import { localizePackage } from './usePackageL10n.js';
 import {
@@ -71,7 +72,7 @@ function useRelativeFormatter() {
 export function MarketplacePage() {
   const navigate = useNavigate();
   const { appName } = useParams();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin, isResolved } = useWorkspaceAdminStatus();
   const { t, language } = useObjectTranslation();
   const formatRelative = useRelativeFormatter();
   const basePath = appName ? `/apps/${appName}` : '';
@@ -211,6 +212,20 @@ export function MarketplacePage() {
   // On a runtime that DOES have a marketplace, admin-first stays correct: the
   // catalog is an install surface, and a member who cannot install has nothing
   // to do with it. objectui#5557 did not claim otherwise.
+  // objectui#5619 — a refusal is not a repaint: `MarketplaceAccessDenied` tells
+  // a real administrator they lack a grant they hold, and it is the frame they
+  // read. The verdict has a third state ("not resolved yet") and this guard is
+  // the reason it exists. Ordered AFTER `!marketplaceEnabled` deliberately —
+  // that answer is true of every viewer on this runtime and needs no verdict,
+  // so the ordering objectui#5557/#5533 established is untouched — and BEFORE
+  // `!isAdmin`, which is the branch that must not fire on a guess.
+  //
+  // This is NOT the incidental skeleton objectui#5621 removed: that one hid the
+  // window behind an unrelated package fetch, for as long as the network
+  // happened to take. This waits on the verdict itself and on nothing else, and
+  // `isResolved` is already true for any admin the session identifies.
+  if (!isResolved) return <MarketplaceResolving />;
+
   if (!isAdmin) return <MarketplaceAccessDenied />;
 
   return (

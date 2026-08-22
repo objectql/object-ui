@@ -44,7 +44,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@object-ui/auth', () => ({
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 
 // `t` echoes the KEY (not `defaultValue`), for the reason the sibling suite

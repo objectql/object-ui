@@ -29,7 +29,7 @@
  * ## Why a separate suite from `MarketplacePage.disabledState.test.tsx`
  *
  * That suite pins WHERE the disabled state comes from, and hard-mocks
- * `useIsWorkspaceAdmin: () => true` at module scope — every case in it is an
+ * `useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true })` at module scope — every case in it is an
  * admin, so none of them can see this defect. The admin flag has to vary per
  * case here, which is a different module mock and therefore a different file.
  *
@@ -66,7 +66,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@object-ui/auth', () => ({
-  useIsWorkspaceAdmin: () => viewer.isAdmin,
+  useWorkspaceAdminStatus: () => ({ isAdmin: viewer.isAdmin, isResolved: true }),
 }));
 
 // `t` echoes the KEY, for the reason the sibling suites give: a `t` echoing

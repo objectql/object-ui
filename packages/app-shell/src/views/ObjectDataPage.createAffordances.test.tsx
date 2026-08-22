@@ -80,7 +80,7 @@ vi.mock('@object-ui/permissions', () => ({
 
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: { id: 'u1', name: 'Ada' }, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   createAuthenticatedFetch: () => vi.fn(),
 }));
 

@@ -45,7 +45,7 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: null, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));
 
 // Mutable permission state — swapped per test, re-read on every render.

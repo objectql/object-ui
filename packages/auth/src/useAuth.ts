@@ -63,6 +63,10 @@ export function useAuth(): AuthContextValue {
       activeOrganization: null,
       activeMember: null,
       isOrganizationsLoading: false,
+      // Nothing to resolve without a provider — same reasoning as `isLoading`
+      // above, which is `false` here for the same reason. A consumer gating on
+      // this must render through in a provider-less embed, not hang.
+      isMembershipResolved: true,
       switchOrganization: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       createOrganization: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       refreshOrganizations: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
