@@ -16,6 +16,13 @@ import {
   normalizeFilterOperator,
 } from "@objectstack/spec/ui"
 import { SchemaRendererContext } from "@object-ui/react"
+// The retirement gate (objectui#4914, ruling B). Read from
+// `@object-ui/core` rather than from `@object-ui/fields` — which is where
+// the maintainer's ruling names it — for the one reason that cannot be
+// argued with: `@object-ui/fields` DEPENDS on this package, so importing it
+// here is a cycle. `core` re-homes the table and `fields` re-exports it, so
+// both spellings resolve to the SAME function and the SAME dedupe set.
+import { isRetiredFieldType, reportRetiredFieldType } from "@object-ui/core"
 import { createSafeTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
@@ -61,7 +68,7 @@ export interface FilterBuilderProps {
     label: string
     type?: string
     options?: Array<{ value: string; label: string }> // For select fields
-    /** For lookup/master_detail/user/owner fields — referenced object name */
+    /** For lookup/master_detail/user fields — referenced object name */
     referenceTo?: string
     /** Display field on the referenced object (defaults to "name") */
     displayField?: string
@@ -404,8 +411,13 @@ function valueFamilyForFieldType(fieldType: string | undefined): FilterValueFami
   if (type === "date") return "date"
   if (type === "datetime") return "datetime"
   if (type === "time") return "time"
-  // select / status / lookup / master_detail / user / owner / text / unknown:
-  // all edited as free text or as a list of option ids, all string-shaped.
+  // select / status / lookup / master_detail / user / text / unknown — and a
+  // RETIRED spelling, which the gate has already refused upstream but whose
+  // VALUE must still survive a field switch (objectui#4914): all edited as free
+  // text or as a list of option ids, all string-shaped. Deliberately NOT gated:
+  // this function answers "what shape can this column hold", and answering
+  // "none" for a retired column would EAT a stored filter value on the way to
+  // showing the author their prescription.
   return "text"
 }
 
@@ -921,8 +933,18 @@ const numberLikeTypes = ["number", "currency", "percent", "rating"]
 const dateLikeTypes = ["date", "datetime", "time"]
 /** Field types that use select operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
 const selectLikeTypes = ["select", "status"]
-/** Relational/reference field types that use lookup operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
-const lookupLikeTypes = ["lookup", "master_detail", "user", "owner"]
+/**
+ * Relational/reference field types that use lookup operators (equals/in/notIn)
+ * and render dropdown or checkbox list when options provided.
+ *
+ * `owner` left this list with objectui#4914: it is a RETIRED spelling, and
+ * the gate below answers for it before this membership test is ever reached.
+ * The deletion is lockstep hygiene rather than the behavioural half — a list
+ * that still named a retired spelling would be a second, contradicting
+ * authority on what is live — and it is exactly the shape PR #4932 used when
+ * it retired the same word from `INLINE_ROUTED_FIELD_TYPES`.
+ */
+const lookupLikeTypes = ["lookup", "master_detail", "user"]
 
 /**
  * The operators the dropdown offers for a field of `fieldType`, given the
@@ -940,17 +962,35 @@ export function operatorsForFieldType(
   extraOperators: readonly string[] = [],
 ): ReadonlyArray<{ value: string; label: string }> {
   const type = fieldType || "text"
-  const bucket = numberLikeTypes.includes(type)
-    ? numberOperators
-    : type === "boolean"
-      ? booleanOperators
-      : dateLikeTypes.includes(type)
-        ? dateOperators
-        : selectLikeTypes.includes(type)
-          ? selectOperators
-          : lookupLikeTypes.includes(type)
-            ? lookupOperators
-            : textOperators
+  // THE GATE (objectui#4914, ruling B), ahead of every bucket test.
+  //
+  // Measured before the ruling (comment 5324769751): `operatorsForFieldType`
+  // answered a retired `owner` column with the LOOKUP bucket, item for item
+  // identical to `user` — a first-class relational offering for a spelling this
+  // renderer refuses to render. The gate refuses it here instead, LOUDLY: the
+  // author gets the migration prescription on the console, once per spelling,
+  // and the column falls to the bucket an unrecognised spelling gets.
+  //
+  // Falling to `textOperators` rather than to an EMPTY list is deliberate. An
+  // empty bucket draws a blank operator trigger — objectui#4768's defect
+  // verbatim — which is a broken control, not a refusal anyone can read, and it
+  // would leave a stored filter row unremovable. The refusal is the console
+  // prescription plus the loss of the relational offering.
+  const retired = isRetiredFieldType(type)
+  if (retired) reportRetiredFieldType(type)
+  const bucket = retired
+    ? textOperators
+    : numberLikeTypes.includes(type)
+      ? numberOperators
+      : type === "boolean"
+        ? booleanOperators
+        : dateLikeTypes.includes(type)
+          ? dateOperators
+          : selectLikeTypes.includes(type)
+            ? selectOperators
+            : lookupLikeTypes.includes(type)
+              ? lookupOperators
+              : textOperators
 
   const granted = new Set(extraOperators)
   return defaultOperators.filter(
@@ -1202,7 +1242,24 @@ function FilterBuilder({
     // form gets the multi-value input its alias `notIn` already got.
     const arity = filterValueArity(condition.operator)
     const isMultiOperator = arity === "list"
-    const isLookupLike = lookupLikeTypes.includes(field?.type || "")
+    // THE GATE (objectui#4914, ruling B), ahead of the control choice.
+    //
+    // A RETIRED spelling never reaches the remote person picker, and is told so
+    // out loud. Before the ruling an `owner` column rode this branch through
+    // its own `type === "owner"` conjunct — the picker even defaulted its
+    // `referenceTo` to "users" for it (see {@link LookupValuePicker}) — so the
+    // one word this renderer refuses to render still got the richest control
+    // the filter row has.
+    //
+    // The column then draws whatever an unrecognised spelling draws (an
+    // option-driven Select when it carries `options`, a plain input otherwise)
+    // — the same degradation `mapFieldTypeToFormType`'s `field:text` tail would
+    // have given, EXCEPT that it is no longer silent. That distinction is the
+    // whole ruling: the measurement that killed the "just delete the members"
+    // plan (comment 5324769751) objected to the SILENCE, not to the fallback.
+    const retiredColumn = isRetiredFieldType(field?.type)
+    if (retiredColumn) reportRetiredFieldType(field!.type as string)
+    const isLookupLike = !retiredColumn && lookupLikeTypes.includes(field?.type || "")
 
     // Lookup-like fields without a static option domain → remote search picker.
     //
@@ -1217,7 +1274,7 @@ function FilterBuilder({
     // "which control is drawn" and "may this value be cleared" cannot give
     // opposite answers about one column. A column with NON-EMPTY `options` is
     // unaffected — it owns its domain and keeps the static Select.
-    if (isLookupLike && !hasStaticOptionDomain(field) && (field?.referenceTo || field?.type === "user" || field?.type === "owner")) {
+    if (isLookupLike && !hasStaticOptionDomain(field) && (field?.referenceTo || field?.type === "user")) {
       return (
         <LookupValuePicker
           field={field!}
@@ -1697,7 +1754,7 @@ function MultiValueInput({ values, inputType, numeric, testId, onChange }: Multi
 MultiValueInput.displayName = "MultiValueInput"
 
 // ============================================================================
-// LookupValuePicker — remote-search picker for lookup/master_detail/user/owner
+// LookupValuePicker — remote-search picker for lookup/master_detail/user
 // ============================================================================
 
 interface LookupOption {
@@ -1724,10 +1781,14 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
   const ctx = React.useContext(SchemaRendererContext)
   const dataSource: any = ctx?.dataSource ?? null
 
-  // Default `referenceTo` for user/owner field types when not explicitly set
+  // Default `referenceTo` for the `user` field type when not explicitly set.
+  //
+  // `owner` was a second spelling here until objectui#4914. It is unreachable
+  // now — the gate in `renderValueInput` refuses a retired spelling before this
+  // component is ever chosen — so the member is removed rather than left as a
+  // list that disagrees with the gate about what is live.
   const referenceTo =
-    field.referenceTo ||
-    (field.type === "user" || field.type === "owner" ? "users" : undefined)
+    field.referenceTo || (field.type === "user" ? "users" : undefined)
   const displayField = field.displayField || "name"
   const idField = field.idField || "id"
 

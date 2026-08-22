@@ -24,6 +24,12 @@ export * from './utils/filter-converter.js';
 export * from './utils/managedBy.js';
 export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
+// The RETIREMENT gate (objectui#4914, maintainer ruling B). Homed here rather
+// than in `@object-ui/fields` because `@object-ui/components` is one of its six
+// consumers and `fields` depends on `components` — see the module's docblock
+// for why a second copy was not an option. `@object-ui/fields` re-exports every
+// name, so its published surface is unchanged.
+export * from './utils/retired-field-types.js';
 export * from './utils/unmaterialized-fields.js';
 export * from './utils/column-identity.js';
 export * from './utils/sort-values.js';

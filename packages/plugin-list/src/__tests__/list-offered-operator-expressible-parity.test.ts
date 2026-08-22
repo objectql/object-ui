@@ -66,6 +66,7 @@ import {
   VALUELESS_FILTER_BUILDER_OPERATORS,
   operatorsForFieldType,
 } from '@object-ui/components';
+import { RETIRED_FIELD_TYPES, resetRetiredFieldTypeReports } from '@object-ui/fields';
 import {
   LIST_VIEW_EXTRA_OPERATORS,
   convertFilterGroupToAST,
@@ -97,8 +98,20 @@ const PROBE_FIELD_TYPES: ReadonlyArray<string | undefined> = [
   'lookup',
   'master_detail',
   'user',
-  'owner',
 ];
+
+/**
+ * A RETIRED spelling is NOT a bucket representative (objectui#4914).
+ *
+ * It used to sit in the list above, next to `user`, because it answered with
+ * the lookup bucket item for item. The retirement gate refuses it ahead of
+ * every bucket test now, so it belongs on the other side of the ledger — and
+ * leaving it in the probe list would have quietly asserted the opposite.
+ *
+ * Read from the table rather than spelled out, so the next retirement is
+ * covered here on the day it lands.
+ */
+const RETIRED_FIELD_TYPE = Object.keys(RETIRED_FIELD_TYPES)[0];
 
 /** Operator ids offered across every bucket, given the opt-ins granted. */
 function offeredAcrossBuckets(extra: readonly string[]): string[] {
@@ -284,5 +297,55 @@ describe('the list toolbar offers only operators its dialects can express', () =
       expect(OFFERED_BY_LIST, `${id} must still be offered`).toContain(id);
       expect(isExpressible(id), `${id} must still be expressible on both dialects`).toBe(true);
     }
+  });
+});
+
+/**
+ * The other side of the ledger for {@link RETIRED_FIELD_TYPE} — objectui#4914.
+ *
+ * The probe list above lost the retired spelling, and a deletion on its own
+ * would have been a NET LOSS of coverage: it removes a currently-true
+ * assertion and asserts nothing in its place. This is the assertion that
+ * replaces it, and it is the inverted one — the retired spelling is refused the
+ * relational offering it used to hold, out loud.
+ *
+ * Kept in THIS file rather than moved elsewhere because the fact it pins is
+ * this file's own subject: which operators the list toolbar offers, per field
+ * type, and whether every offered id survives the round trip.
+ */
+describe('a RETIRED field type is refused the lookup bucket (objectui#4914)', () => {
+  const idsFor = (type: string | undefined) => operatorsForFieldType(type, LIST_VIEW_EXTRA_OPERATORS).map((op) => op.value);
+
+  it('gets the unknown-spelling offering, not the relational one', () => {
+    const unknown = idsFor('a_type_this_builder_has_never_heard_of');
+    const live = idsFor('user');
+
+    // Non-vacuity first: the two yardsticks must actually differ, or both
+    // assertions below hold no matter what the gate does.
+    expect(live).not.toEqual(unknown);
+
+    expect(idsFor(RETIRED_FIELD_TYPE)).toEqual(unknown);
+    expect(idsFor(RETIRED_FIELD_TYPE)).not.toEqual(live);
+  });
+
+  it('still offers a usable, round-trippable row', () => {
+    // The refusal must not strand a stored filter: everything still offered for
+    // the retired column has to survive the same round trip every other offered
+    // id in this file does.
+    resetRetiredFieldTypeReports();
+    const offered = idsFor(RETIRED_FIELD_TYPE);
+    expect(offered.length).toBeGreaterThan(0);
+    for (const id of offered) {
+      expect(isExpressible(id), `${id} is offered for a retired column but not expressible`)
+        .toBe(true);
+    }
+  });
+
+  it('does not widen what the toolbar offers overall', () => {
+    // The union the ratchet below is computed from must be unchanged by the
+    // retired column's presence — it contributes nothing the live buckets did
+    // not already contribute.
+    const withRetired = new Set([...OFFERED_BY_LIST, ...idsFor(RETIRED_FIELD_TYPE)]);
+    expect([...withRetired].sort()).toEqual(OFFERED_BY_LIST);
   });
 });

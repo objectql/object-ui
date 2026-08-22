@@ -2470,7 +2470,21 @@ setCellRendererResolver(getCellRenderer);
 // FieldEditWidget can resolve spec aliases without importing this barrel.
 export { mapFieldTypeToFormType } from './field-type-alias.js';
 import { mapFieldTypeToFormType } from './field-type-alias.js';
-export { RETIRED_FIELD_TYPES, reportRetiredFieldType, resetRetiredFieldTypeReports } from './field-type-alias.js';
+// `isRetiredFieldType` is the gate the maintainer ruled onto THIS package's
+// surface (objectui#4914, ruling B) — "export a single `isRetiredFieldType(t)`
+// gate from `@object-ui/fields` and place it ahead of each of the six live
+// predicate faces". The implementation is homed in `@object-ui/core` because
+// one of those six faces lives in `@object-ui/components`, which this package
+// depends on; see `core/src/utils/retired-field-types.ts`. Every consumer that
+// can reach `@object-ui/fields` reads it from here, and the two that cannot
+// (`components`, and `plugin-view` which carries no `fields` dependency) read
+// the same function object from `@object-ui/core`.
+export {
+  RETIRED_FIELD_TYPES,
+  isRetiredFieldType,
+  reportRetiredFieldType,
+  resetRetiredFieldTypeReports,
+} from './field-type-alias.js';
 import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias.js';
 
 /**

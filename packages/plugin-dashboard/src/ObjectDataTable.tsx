@@ -8,7 +8,16 @@
 
 import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useFilterScope } from '@object-ui/react';
-import { extractRecords, isDrillEnabled, columnIdentity, columnHeader } from '@object-ui/core';
+import {
+  extractRecords,
+  isDrillEnabled,
+  columnIdentity,
+  columnHeader,
+  // The retirement gate (objectui#4914, ruling B) — `@object-ui/fields`
+  // re-exports the same function object; read here from its home.
+  isRetiredFieldType,
+  reportRetiredFieldType,
+} from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
@@ -164,9 +173,18 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
 /**
  * Compute the list of lookup-typed accessors that should be expanded when
  * fetching rows. Returns column accessors whose object schema field type is
- * a relation (lookup/reference/master_detail/user/owner). Used by the
+ * a relation (lookup/reference/master_detail/user). Used by the
  * dashboard table widget to ask the data adapter to populate referenced
  * records (e.g. `account: { id, name }`) so cells don't show raw FK ids.
+ *
+ * THE GATE (objectui#4914, ruling B) runs ahead of the relation test. Measured
+ * before the ruling: a `record_owner: { type: 'owner' }` column was ACTIVELY
+ * requested for `$expand` — the retired spelling got the full relational read
+ * path while the same field's editor answered with a tombstone. It is refused
+ * now, loudly and once, and the cell shows the raw id it was always going to
+ * show once the spelling stopped being a relation. That the author is TOLD is
+ * the whole difference between this and the mechanical deletion the
+ * measurement rejected.
  */
 export function computeLookupExpand(
   schema: { columns?: any[]; objectName?: string },
@@ -179,8 +197,13 @@ export function computeLookupExpand(
   } else {
     for (const [name, def] of Object.entries(objectSchema.fields)) fieldsByName[name] = { name, ...(def as any) };
   }
-  const isLookup = (t: unknown) =>
-    t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user' || t === 'owner';
+  const isLookup = (t: unknown) => {
+    if (typeof t === 'string' && isRetiredFieldType(t)) {
+      reportRetiredFieldType(t);
+      return false;
+    }
+    return t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user';
+  };
 
   const cols = Array.isArray(schema.columns) ? schema.columns : [];
   const out = new Set<string>();

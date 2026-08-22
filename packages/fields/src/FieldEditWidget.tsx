@@ -46,30 +46,24 @@ import { CodeField } from './widgets/CodeField.js';
 import { QRCodeField } from './widgets/QRCodeField.js';
 // The FORM's spec-alias table (`json` → `field:code`, `tree` → `field:lookup`,
 // …) — inline resolution reuses it so spec spellings get the form's decision.
-// `RETIRED_FIELD_TYPES` / `reportRetiredFieldType` come from the same module on
-// purpose: it is the live retirement table (objectui#4814), and importing it
-// from here — rather than from the `./index` barrel, which re-exports this
-// file — keeps the module graph acyclic, exactly as the alias import already
-// does (see the note at index.tsx's `mapFieldTypeToFormType` re-export).
+// `isRetiredFieldType` / `reportRetiredFieldType` come from the same module on
+// purpose: it re-exports the live retirement gate (objectui#4814, hoisted to
+// `@object-ui/core` by objectui#4914), and importing them from here — rather
+// than from the `./index` barrel, which re-exports this file — keeps the module
+// graph acyclic, exactly as the alias import already does (see the note at
+// index.tsx's `mapFieldTypeToFormType` re-export).
+//
+// `isRetiredFieldType` used to be defined locally in this file, quantified over
+// the table for objectui#4931. That definition is now THE gate the maintainer
+// ruled into `@object-ui/fields`' surface (objectui#4914 ruling B) and the same
+// function object the other six faces call, so the local copy is gone rather
+// than kept in sync: this file was the precedent for the shape, not a second
+// implementation of it.
 import {
   mapFieldTypeToFormType,
-  RETIRED_FIELD_TYPES,
+  isRetiredFieldType,
   reportRetiredFieldType,
 } from './field-type-alias.js';
-
-/**
- * True when a spelling has been RETIRED by this renderer (objectui#4814's
- * tombstone table, read live — never copied).
- *
- * Quantified over the whole table rather than written per spelling, which is
- * the point: the next retirement closes every seam in this file the day it
- * lands in `RETIRED_FIELD_TYPES`, instead of leaving a delegation road open
- * until someone notices it (objectui#4931 — which is how `owner` survived
- * #4814 here).
- */
-function isRetiredFieldType(type: string): boolean {
-  return Object.prototype.hasOwnProperty.call(RETIRED_FIELD_TYPES, type);
-}
 
 /**
  * Field types that edit in place with a dedicated widget. Keyed by the raw

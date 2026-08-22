@@ -48,70 +48,30 @@ const MULTI_VALUE_FORM_TYPES: Record<string, string> = {
 };
 
 /**
- * TOMBSTONE table — field-type spellings this renderer has RETIRED, mapped to
- * the prescription an author must follow instead (ADR-0049 enforce-or-remove).
+ * The retirement half of this module — the TOMBSTONE table
+ * {@link RETIRED_FIELD_TYPES}, the {@link isRetiredFieldType} gate, and the
+ * once-per-spelling reporter — now lives in `@object-ui/core`
+ * (`utils/retired-field-types.ts`), hoisted there by objectui#4914 so that
+ * `@object-ui/components`' filter builder can read the SAME table: `fields`
+ * depends on `components`, so the six ruled predicate faces could not all
+ * reach a table that lived here. The module's docblock carries the full
+ * reasoning, including why a second copy in `components` would have broken the
+ * ruling's "fires once" clause on day one.
  *
- * A retired spelling is not merely absent: absence here means
- * {@link mapFieldTypeToFormType}'s `|| 'field:text'` tail would hand back a
- * working plain text input, which is the failure mode this table exists to
- * prevent. An author who writes a retired name — or an AI author who copies one
- * out of a stale doc — must be TOLD, not quietly given a text box that looks
- * like it worked. So each entry resolves to {@link RETIRED_WIDGET_KEY_PREFIX}
- * plus the retired name: a registered tombstone widget that renders a visible
- * refusal naming the migration (`packages/fields/src/index.tsx`), while
- * {@link reportRetiredFieldType} writes the same prescription to the console.
- *
- * `owner` (objectui#4814, ruling A′): a synonym for `user` with zero behavioral
- * delta — both resolved to the SAME `UserField` widget — and absent from the
- * spec's closed 48-member `FieldType`, so no object schema could ever declare
- * it; it was reachable only through hand-written SDUI. Three code faces had
- * already drifted apart on this one word (the form's data-source rule excluded
- * it while plugin-grid's bulk dialog included it), which is the standing
- * evidence that a second spelling for one concept is a drift channel, not a
- * convenience. The idiom survives verbatim as `{ type: 'user', name: 'owner' }`.
+ * Re-exported from here, and from the `./index` barrel, so `@object-ui/fields`'
+ * published surface is exactly what it was plus the newly ruled gate. This file
+ * remains the retirement table's first consumer (the `field:text` tail below).
  */
-export const RETIRED_FIELD_TYPES: Readonly<Record<string, string>> = Object.freeze({
-  owner:
-    "[object-ui] Field type `owner` was RETIRED (objectui#4814). It was a synonym " +
-    "for `user` with no behavioral difference, and it is not a member of " +
-    "`@objectstack/spec`'s FieldType. Write the record-owner field as " +
-    "`{ type: 'user', name: 'owner' }` — the field NAME carries the ownership " +
-    "meaning, the type carries the widget. The `widget: 'field:owner'` spelling " +
-    "is retired with it.",
-});
+export {
+  RETIRED_FIELD_TYPES,
+  isRetiredFieldType,
+  reportRetiredFieldType,
+  resetRetiredFieldTypeReports,
+} from '@object-ui/core';
+import { reportRetiredFieldType } from '@object-ui/core';
 
 /** Namespace prefix the retired spellings resolve into. */
 const RETIRED_WIDGET_KEY_PREFIX = 'field:';
-
-/**
- * Spellings already reported this session, so a retired type inside a rendered
- * list logs its prescription ONCE instead of once per row. The message is a
- * fix instruction for an author, not a per-render event — a 1000-row grid
- * repeating it 1000 times buries the very thing it is trying to surface.
- */
-const reportedRetiredTypes = new Set<string>();
-
-/**
- * Report a retired field-type spelling loudly, once per spelling.
- *
- * @param fieldType - The spelling the author wrote.
- * @returns `true` when `fieldType` is retired (whether or not this call was the
- * one that logged), so callers can branch on it without a second table lookup.
- */
-export function reportRetiredFieldType(fieldType: string): boolean {
-  const prescription = RETIRED_FIELD_TYPES[fieldType];
-  if (!prescription) return false;
-  if (!reportedRetiredTypes.has(fieldType)) {
-    reportedRetiredTypes.add(fieldType);
-    console.error(prescription);
-  }
-  return true;
-}
-
-/** Test seam — forget which spellings have been reported. */
-export function resetRetiredFieldTypeReports(): void {
-  reportedRetiredTypes.clear();
-}
 
 /**
  * Map field type to form component type

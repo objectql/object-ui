@@ -49,7 +49,14 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SchemaRendererContext } from '@object-ui/react';
+import { RETIRED_FIELD_TYPES, resetRetiredFieldTypeReports } from '@object-ui/core';
 import { FilterBuilder } from '../custom/filter-builder';
+
+/**
+ * The retired spelling, read from the table rather than written down
+ * (objectui#4914). `owner_pending` below carries it.
+ */
+const RETIRED_FIELD_TYPE = Object.keys(RETIRED_FIELD_TYPES)[0];
 
 /**
  * The columns this card distinguishes. Every one of them is the SAME lookup
@@ -64,13 +71,21 @@ import { FilterBuilder } from '../custom/filter-builder';
  *   - `account_loaded` — `referenceTo` AND a NON-EMPTY `options`. A lookup whose
  *     domain really is local and complete; it must keep the static Select, or
  *     the fix has taken the static case with it;
- *   - `owner_pending` — `type: 'owner'` with `options: []` and no `referenceTo`,
- *     reached through the branch's `type === "owner"` conjunct;
+ *   - `assignee_pending` — `type: 'user'` with `options: []` and no
+ *     `referenceTo`, reached through the branch's `type === "user"` conjunct.
+ *     It took this slot from `owner_pending` in objectui#4914: that column was
+ *     the ONLY pin on the type-driven half of the third conjunct, and inverting
+ *     it without a live stand-in would have deleted the coverage rather than
+ *     moved it;
+ *   - `owner_pending` — the RETIRED spelling with `options: []` and no
+ *     `referenceTo`. It used to be reached through the branch's own
+ *     `type === "owner"` conjunct; objectui#4914's gate refuses it ahead of the
+ *     branch, and the pin below is inverted to say so;
  *   - `stage_pending` — a `select` (NOT lookup-like) with `options: []`. It has
  *     no remote search to fall back to, so it must be unaffected;
  *   - `orphan_pending` — a lookup with `options: []` and NO `referenceTo`, of a
- *     type that is neither `user` nor `owner`. There is nothing to search
- *     against, so the branch's third conjunct must keep rejecting it.
+ *     type that is not `user`. There is nothing to search against, so the
+ *     branch's third conjunct must keep rejecting it.
  */
 const FIELDS = [
   { value: 'title', label: 'Title', type: 'text' },
@@ -92,7 +107,8 @@ const FIELDS = [
       { value: 'acc_002', label: 'Globex' },
     ],
   },
-  { value: 'owner_pending', label: 'Owner', type: 'owner', options: [] },
+  { value: 'assignee_pending', label: 'Assignee', type: 'user', options: [] },
+  { value: 'owner_pending', label: 'Owner', type: RETIRED_FIELD_TYPE, options: [] },
   { value: 'stage_pending', label: 'Stage', type: 'select', options: [] },
   { value: 'orphan_pending', label: 'Orphan', type: 'lookup', options: [] },
 ];
@@ -227,15 +243,20 @@ describe('routes an unloaded lookup column to the remote picker', () => {
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   });
 
-  it('routes an `owner` column with `options: []` through the same criterion', () => {
-    renderRow({ field: 'owner_pending', operator: 'equals', value: 'usr_1' });
+  it('routes a `user` column with `options: []` through the same criterion', () => {
+    renderRow({ field: 'assignee_pending', operator: 'equals', value: 'usr_1' });
 
-    // The branch's `type === "owner"` conjunct, which supplies its own
+    // The branch's `type === "user"` conjunct, which supplies its own
     // `referenceTo` ("users") downstream. `options: []` used to block it here
     // exactly as it blocked the `referenceTo` case.
+    //
+    // This case was `owner_pending` until objectui#4914 retired that spelling.
+    // The column moved to the live sibling rather than the assertion being
+    // deleted: it is the only pin on the type-driven half of the conjunct, and
+    // this card's own rule is that a fixture inverts, never merely disappears.
     expect(comboboxCount()).toBe(2);
-    const input = document.querySelector<HTMLInputElement>('input[placeholder="Enter Owner id"]');
-    expect(input, 'the owner column drew no id input').toBeTruthy();
+    const input = document.querySelector<HTMLInputElement>('input[placeholder="Enter Assignee id"]');
+    expect(input, 'the user column drew no id input').toBeTruthy();
     expect(input!.value).toBe('usr_1');
   });
 
@@ -304,6 +325,54 @@ describe('a column that owns its option domain keeps the static Select', () => {
   });
 });
 
+describe('a RETIRED spelling is refused the branch entirely (objectui#4914)', () => {
+  it('draws no picker for `owner_pending`, and says why once', () => {
+    // THE INVERSION. This column was the file's POSITIVE pin on the branch's
+    // `type === "owner"` conjunct — its previous assertion required an id input
+    // to be present. The maintainer's ruling of 2026-08-18 put the retirement
+    // gate ahead of the branch, so the same column must now be refused, and the
+    // pin says the opposite thing about the same DOM.
+    //
+    // It was inverted in the SAME change that added the gate, never ahead of
+    // it: while the production predicate still special-cased the spelling, this
+    // assertion was TRUE, and deleting it early would have been a net loss of
+    // coverage for nothing.
+    resetRetiredFieldTypeReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      renderRow({ field: 'owner_pending', operator: 'equals', value: 'usr_1' });
+
+      expect(screen.queryByTestId('lookup-picker-owner_pending')).toBeNull();
+      expect(
+        document.querySelector('input[placeholder="Enter Owner id"]'),
+        'the retired column still drew the picker’s id input',
+      ).toBeNull();
+
+      // Loud, and exactly once — the half that distinguishes this ruling from
+      // the mechanical deletion the premise-gate measurement rejected.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(RETIRED_FIELD_TYPES[RETIRED_FIELD_TYPE]);
+    } finally {
+      errorSpy.mockRestore();
+      resetRetiredFieldTypeReports();
+    }
+  });
+
+  it('is refused for the LIST operators too', () => {
+    resetRetiredFieldTypeReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      renderRow({ field: 'owner_pending', operator: 'in', value: ['usr_1'] });
+      // `in`/`notIn` reach the multi-value picker by the same branch, so the
+      // refusal has to hold on both arities or the gate only closed one door.
+      expect(screen.queryByTestId('lookup-ids-owner_pending')).toBeNull();
+    } finally {
+      errorSpy.mockRestore();
+      resetRetiredFieldTypeReports();
+    }
+  });
+});
+
 describe("the branch's other conditions are untouched", () => {
   it('leaves a non-lookup `select` column with `options: []` exactly where it was', () => {
     renderRow({ field: 'stage_pending', operator: 'equals', value: 'draft' });
@@ -318,7 +387,7 @@ describe("the branch's other conditions are untouched", () => {
   it('still rejects a lookup with `options: []` that has nothing to search against', () => {
     renderRow({ field: 'orphan_pending', operator: 'equals', value: 'x_1' });
 
-    // No `referenceTo`, and neither `user` nor `owner`: the picker would have no
+    // No `referenceTo`, and not `user`: the picker would have no
     // object to query. The third conjunct is what says so, and it is unchanged —
     // this column's degradation is the card's adjacent observation, out of scope.
     expect(screen.queryByTestId('lookup-picker-orphan_pending')).toBeNull();

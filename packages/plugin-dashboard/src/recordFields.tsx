@@ -28,10 +28,22 @@ import {
   formatCurrency,
   formatPercent,
   formatDate,
+  // THE GATE the maintainer ruled onto this package's surface (objectui#4914,
+  // ruling B). Read from `@object-ui/fields` here — the spelling the ruling
+  // names — which re-exports the single implementation homed in
+  // `@object-ui/core`.
+  isRetiredFieldType,
+  reportRetiredFieldType,
 } from '@object-ui/fields';
 
-/** Field types treated as relations (rendered as links to the related record). */
-const LOOKUP_TYPES = new Set(['lookup', 'reference', 'master_detail', 'user', 'owner']);
+/**
+ * Field types treated as relations (rendered as links to the related record).
+ *
+ * `owner` left this set with objectui#4914; {@link isLookupType} refuses every
+ * retired spelling ahead of the membership test, so the deletion is lockstep
+ * hygiene rather than the behavioural half.
+ */
+const LOOKUP_TYPES = new Set(['lookup', 'reference', 'master_detail', 'user']);
 
 /**
  * Framework / system audit fields hidden from auto-derived columns and the
@@ -225,7 +237,18 @@ export function renderFieldValue(
   return <Renderer value={value} field={fieldMeta as any} />;
 }
 
-/** Whether a field is a relation/lookup (used to drive `$expand`). */
+/**
+ * Whether a field is a relation/lookup (used to drive `$expand`).
+ *
+ * THE GATE (objectui#4914, ruling B) runs ahead of the membership test.
+ * Measured before the ruling: `isLookupType('owner')` was `true`, at exactly
+ * the same level as `isLookupType('reference')` — a retired spelling holding
+ * first-class relation status. It answers `false` now, and says why once.
+ */
 export function isLookupType(t: unknown): boolean {
+  if (typeof t === 'string' && isRetiredFieldType(t)) {
+    reportRetiredFieldType(t);
+    return false;
+  }
   return LOOKUP_TYPES.has(t as string);
 }
