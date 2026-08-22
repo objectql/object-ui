@@ -119,23 +119,31 @@ function frame(): Frame {
   return 'admin-surface';
 }
 
-/** Mount, read the frame, and read it again after the verdict resolves. */
-function framesAcrossResolution(ui: ReactElement, resolvedTo: boolean): [Frame, Frame] {
+/**
+ * Mount, read the frame, and read it again after the verdict resolves.
+ *
+ * `make()` builds a FRESH element for the second render on purpose. React bails
+ * out of re-rendering when the next element is referentially identical to the
+ * previous one, so passing the same `ReactElement` twice reads the first frame
+ * again and both frames agree no matter what the page does — a green (or, as
+ * here, a red) that measures the harness rather than the fix.
+ */
+function framesAcrossResolution(make: () => ReactElement, resolvedTo: boolean): [Frame, Frame] {
   viewer.isAdmin = false;
   viewer.isResolved = false;
-  const { rerender, unmount } = render(ui);
+  const { rerender, unmount } = render(make());
   const during = frame();
   viewer.isAdmin = resolvedTo;
   viewer.isResolved = true;
-  rerender(ui);
+  rerender(make());
   const after = frame();
   unmount();
   return [during, after];
 }
 
-const PAGES: Array<[string, ReactElement]> = [
-  ['MarketplacePage', <MarketplacePage key="catalog" />],
-  ['MarketplacePackagePage', <MarketplacePackagePage key="detail" />],
+const PAGES: Array<[string, () => ReactElement]> = [
+  ['MarketplacePage', () => <MarketplacePage />],
+  ['MarketplacePackagePage', () => <MarketplacePackagePage />],
 ];
 
 beforeEach(() => {
@@ -155,13 +163,13 @@ afterEach(() => {
 });
 
 describe('marketplace refusal surfaces wait for the admin verdict (objectui#5619)', () => {
-  describe.each(PAGES)('%s', (_name, ui) => {
+  describe.each(PAGES)('%s', (_name, make) => {
     it('shows the resolving frame while the verdict is in flight, then admits the admin', async () => {
       await bootOn(true);
 
       // Pre-fix the FIRST of these was 'access-denied' — the access-denied
       // screen painted at an administrator, for as long as the member row took.
-      expect(framesAcrossResolution(ui, true)).toEqual(['resolving', 'admin-surface']);
+      expect(framesAcrossResolution(make, true)).toEqual(['resolving', 'admin-surface']);
     });
 
     it('MUST NOT CHANGE — a settled non-admin is still refused', async () => {
@@ -170,7 +178,7 @@ describe('marketplace refusal surfaces wait for the admin verdict (objectui#5619
       // The boundary that keeps the case above load-bearing: waiting is only
       // correct while the answer is unknown. Once it is known, the install
       // surface stays closed to a member.
-      expect(framesAcrossResolution(ui, false)).toEqual(['resolving', 'access-denied']);
+      expect(framesAcrossResolution(make, false)).toEqual(['resolving', 'access-denied']);
     });
 
     it('MUST NOT CHANGE — the runtime-off answer still comes first, even unresolved', async () => {
@@ -181,7 +189,7 @@ describe('marketplace refusal surfaces wait for the admin verdict (objectui#5619
       viewer.isAdmin = false;
       viewer.isResolved = false;
 
-      const { unmount } = render(ui);
+      const { unmount } = render(make());
       expect(frame()).toBe('runtime-off');
       unmount();
     });

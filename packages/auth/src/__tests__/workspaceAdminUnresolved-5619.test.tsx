@@ -304,11 +304,11 @@ describe('useWorkspaceAdminStatus — the unresolved third state (objectui#5619)
     });
   });
 
-  it('preview mode as a NON-admin still reaches a resolved verdict', async () => {
+  it('preview mode as a NON-admin (`simulatedRole: \'user\'`) still reaches a resolved verdict', async () => {
     // The mode runs no organization pipeline at all, so this is the case that
     // would hang if `refreshActiveMember`'s preview branch forgot to close it.
     render(
-      <AuthProvider authUrl="/api/v1/auth" previewMode={{ simulatedRole: 'member' }}>
+      <AuthProvider authUrl="/api/v1/auth" previewMode={{ simulatedRole: 'user' }}>
         <AdminProbe />
       </AuthProvider>,
     );
