@@ -10,7 +10,6 @@ import {
   ThemeSwitcherSchema,
   ThemePreviewSchema,
   ThemeUnionSchema,
-  ThemeDefinitionSchema,
   ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
@@ -121,11 +120,15 @@ describe('Phase 2: Theme component kinds — Zod Validation', () => {
   // VALID is now proven REFUSED, so a re-added union member fails here rather
   // than reappearing silently in the published `@object-ui/types/zod` surface.
   //
-  // The theme SYSTEM is untouched — `ThemeDefinitionSchema` (the theme
-  // document the engine and the provider consume) is retained, and this
-  // fixture's `themes[0]` still parses against it, which is what makes the
-  // refusal below attributable to the retired WRAPPER and not to a bad fixture.
-  it('refuses the retired `type: \'theme\'` component kind, while the theme document it carried still parses', () => {
+  // The control leg this pin used to carry — `themes[0]` still parsing against
+  // `ThemeDefinitionSchema` — left with that validator: objectstack#10485 (PR
+  // objectstack#10695) retired the spec's whole theme module, and the
+  // objectstack#10856 ruling had objectui remove its re-exports rather than
+  // keep a local mirror (objectui#5710). Attribution now reads the refusal
+  // itself: a discriminated union rejecting an unknown `type` reports the
+  // DISCRIMINATOR, so asserting every issue sits on `type` proves the refusal
+  // hit the retired wrapper kind, not the theme document it carried.
+  it('refuses the retired `type: \'theme\'` component kind at the discriminator', () => {
     const retiredWrapper = {
       type: 'theme',
       mode: 'dark',
@@ -160,13 +163,19 @@ describe('Phase 2: Theme component kinds — Zod Validation', () => {
     };
 
     // The wrapper: gone from every union that used to carry it.
-    expect(ThemeUnionSchema.safeParse(retiredWrapper).success).toBe(false);
+    const refusal = ThemeUnionSchema.safeParse(retiredWrapper);
+    expect(refusal.success).toBe(false);
     expect(AnyComponentSchema.safeParse(retiredWrapper).success).toBe(false);
 
-    // The control that makes that refusal mean something: the document the
-    // wrapper carried is retained and still valid on its own. If this leg ever
-    // fails, the fixture broke — not the retirement.
-    expect(ThemeDefinitionSchema.safeParse(retiredWrapper.themes[0]).success).toBe(true);
+    // Attribution control (see the block comment above): the refusal must sit
+    // on the `type` discriminator — the retired WRAPPER kind — not somewhere
+    // inside the theme document the fixture carries.
+    if (!refusal.success) {
+      expect(refusal.error.issues.length).toBeGreaterThan(0);
+      for (const issue of refusal.error.issues) {
+        expect(issue.path, `refusal must be at the discriminator, got ${JSON.stringify(issue)}`).toEqual(['type']);
+      }
+    }
   });
 
   it('should validate ThemeSwitcherSchema', () => {

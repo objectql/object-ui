@@ -7,79 +7,45 @@
  */
 
 /**
- * @object-ui/types/zod - Theme Schema Zod Validators
+ * @object-ui/types/zod - Theme Component Zod Validators
  *
- * Zod validation schemas for theme configuration.
- * Aligned with @objectstack/spec UI specification.
+ * Zod validation schemas for the theme COMPONENT nodes (`theme-switcher` /
+ * `theme-preview`) — objectui-local declarations, recorded for triage as
+ * objectui#5647.
+ *
+ * The six `@objectstack/spec/ui` theme-schema re-exports that used to live
+ * here (`ColorPaletteSchema`, `TypographySchema`, `BorderRadiusSchema`,
+ * `ShadowSchema`, `ThemeModeSchema`, `ThemeDefinitionSchema` — the spec's
+ * `ThemeSchema`) are RETIRED. objectstack#10485 (ADR-0049 enforce-or-remove,
+ * PR objectstack#10695) deleted the spec's whole `ui/theme.zod.ts` module —
+ * values AND types, `AnimationSchema`/`ZIndexSchema` having gone earlier in
+ * 17.0.0-rc.3 (objectstack#5021) — and the maintainer's ruling on
+ * objectstack#10856 (2026-08-22, Options A + C) has objectui REMOVE these
+ * dangling imports; restoring the spec exports (Option B) was explicitly not
+ * taken. Executed as objectui#5710.
+ *
+ * The theme SYSTEM is retained by the same rulings: the `Theme` TYPE surface
+ * lives in `../theme.ts`, `ThemeEngine` turns a theme document into CSS
+ * variables, and `ThemeProvider` applies it — none of them consumed these
+ * runtime validators (measured at objectui#5710). Do NOT hand-write local
+ * mirrors of the retired schemas here: that localization is a contract
+ * decision no ruling has taken, and `__tests__/spec-subschema-parity.test.ts`
+ * pins the retired names out of this module.
  *
  * @module zod/theme
  * @packageDocumentation
  */
 
 import { z } from 'zod';
-import {
-  ColorPaletteSchema as SpecColorPaletteSchema,
-  TypographySchema as SpecTypographySchema,
-  BorderRadiusSchema as SpecBorderRadiusSchema,
-  ShadowSchema as SpecShadowSchema,
-  ThemeModeSchema as SpecThemeModeSchema,
-  ThemeSchema as SpecThemeSchema,
-} from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
-
-/**
- * Color Palette Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const ColorPaletteSchema = SpecColorPaletteSchema;
-
-/**
- * Typography Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const TypographySchema = SpecTypographySchema;
-
-/**
- * Border Radius Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const BorderRadiusSchema = SpecBorderRadiusSchema;
-
-/**
- * Shadow Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const ShadowSchema = SpecShadowSchema;
-
-// `AnimationSchema` / `ZIndexSchema` RETIRED in @objectstack/spec 17.0.0-rc.3
-// (objectstack#5021 option 2, PR objectstack#5289). `theme.animation` and
-// `theme.zIndex` are tombstones now and the spec deleted both value schemas
-// outright; `theme.customVars` is the declared door. See `../theme.ts`.
-
-/**
- * Theme Mode Schema — `@objectstack/spec/ui` schema re-exported by reference
- * (issue #2231; formerly a hand-written mirror).
- */
-export const ThemeModeSchema = SpecThemeModeSchema;
-
-/**
- * Theme Definition Schema — `@objectstack/spec/ui` `ThemeSchema` re-exported by
- * reference (issue #2231; formerly a hand-written mirror). `mode` defaults to the
- * spec's `'light'` (the old mirror had drifted to `'auto'`). The TS type side
- * (`Theme` in `../theme.ts`) is the spec's too, so validator and type agree.
- *
- * spec v17 (#3494) pruned the never-enforced `spacing`/`breakpoints`/`logo`/
- * `density`/`wcagContrast`/`rtl`/`touchTarget`/`keyboardNavigation` keys; they are
- * gone from this schema by reference, and their sub-schema re-exports went with
- * them rather than surviving here as an objectui-only mirror.
- */
-export const ThemeDefinitionSchema = SpecThemeSchema;
 
 // `ThemeComponentSchema` (`type: 'theme'`) RETIRED in objectui#5489 — the value
 // side of the interface retired in `../theme.ts`, where the ruling and the
-// unregistered-kind measurement are recorded. `ThemeDefinitionSchema` (the
-// spec's `ThemeSchema`, the theme DOCUMENT) and `ThemeModeSchema` are retained
-// and still exported above: the engine and the provider validate against them.
+// unregistered-kind measurement are recorded. Its former retention note kept
+// `ThemeDefinitionSchema` / `ThemeModeSchema` exported here "for the engine and
+// the provider" — measured stale at objectui#5710: the engine and the provider
+// consume the `Theme` / `ThemePreference` TYPES, and no package imported either
+// validator. Both left with the spec's theme module (see the header).
 
 /**
  * Theme Switcher Schema
@@ -95,11 +61,18 @@ export const ThemeSwitcherSchema = BaseSchema.extend({
 
 /**
  * Theme Preview Schema
+ *
+ * The `theme` / `mode` props RETIRED with the spec's theme module (see the
+ * header): their validators (`ThemeDefinitionSchema` / `ThemeModeSchema`) no
+ * longer exist upstream, and hand-writing local mirrors is the localization
+ * branch the objectstack#10856 ruling left untaken. `BaseSchema` is
+ * `.passthrough()`, so an authored `theme:` / `mode:` key now passes through
+ * unvalidated rather than being checked — tolerable only because no renderer
+ * registers `theme-preview` at all (objectui#5647 measured the kind itself as
+ * declared-but-unenforced and holds it for triage).
  */
 export const ThemePreviewSchema = BaseSchema.extend({
   type: z.literal('theme-preview'),
-  theme: ThemeDefinitionSchema.optional().describe('Theme to preview'),
-  mode: ThemeModeSchema.optional().describe('Preview mode'),
   showColors: z.boolean().optional().describe('Show color palette'),
   showTypography: z.boolean().optional().describe('Show typography samples'),
   showComponents: z.boolean().optional().describe('Show component samples'),
@@ -116,11 +89,5 @@ export const ThemeUnionSchema = z.discriminatedUnion('type', [
 /**
  * Export type inference helpers
  */
-export type ColorPaletteSchemaType = z.infer<typeof ColorPaletteSchema>;
-export type TypographySchemaType = z.infer<typeof TypographySchema>;
-export type BorderRadiusSchemaType = z.infer<typeof BorderRadiusSchema>;
-export type ShadowSchemaType = z.infer<typeof ShadowSchema>;
-export type ThemeModeSchemaType = z.infer<typeof ThemeModeSchema>;
-export type ThemeDefinitionSchemaType = z.infer<typeof ThemeDefinitionSchema>;
 export type ThemeSwitcherSchemaType = z.infer<typeof ThemeSwitcherSchema>;
 export type ThemePreviewSchemaType = z.infer<typeof ThemePreviewSchema>;

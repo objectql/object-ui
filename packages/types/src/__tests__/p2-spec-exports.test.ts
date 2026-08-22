@@ -67,8 +67,11 @@ import {
   UserActionsConfigSchema as UserActionsConfigZod,
   ViewTabSchema as ViewTabZod,
   ViewFilterRuleSchema as ViewFilterRuleZod,
-  ThemeModeSchema as ThemeModeZod,
 } from '@objectstack/spec/ui';
+// `ThemeModeSchema` no longer imported: objectstack#10485 (PR objectstack#10695)
+// retired the spec's whole `ui/theme.zod.ts` module, and the objectstack#10856
+// ruling had objectui drop its dangling imports (objectui#5710) — its
+// spec-liveness `describe` block left with it.
 
 // ============================================================================
 // P2.3 Sharing & Embedding
@@ -243,19 +246,12 @@ describe('v3.0.10 Spec Protocol New Types', () => {
     });
   });
 
-  describe('ThemeModeSchema', () => {
-    it('should be a valid Zod schema with parse method', () => {
-      expect(ThemeModeZod).toBeDefined();
-      expect(typeof ThemeModeZod.parse).toBe('function');
-      expect(typeof ThemeModeZod.safeParse).toBe('function');
-    });
-
-    it('should validate theme mode values', () => {
-      expect(ThemeModeZod.safeParse('light').success).toBe(true);
-      expect(ThemeModeZod.safeParse('dark').success).toBe(true);
-      expect(ThemeModeZod.safeParse('auto').success).toBe(true);
-    });
-  });
+  // `describe('ThemeModeSchema')` DELETED, not rewritten: its whole point was
+  // that the spec publishes a live `ThemeModeSchema` validator, and
+  // objectstack#10485 (PR objectstack#10695) retired the spec's entire theme
+  // module — there is no upstream referent left to assert against
+  // (objectui#5710). The provider's own mode handling stays covered by
+  // `packages/providers/src/__tests__/theme-mode-spec-parity.test.tsx`.
 });
 describe('Type re-exports from @object-ui/types index', () => {
   it('should re-export P2.3 types (compile-time verification)', async () => {

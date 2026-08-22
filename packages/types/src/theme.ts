@@ -68,13 +68,14 @@ export type { Shadow } from '@objectstack/spec/ui';
 export type { ThemeMode } from '@objectstack/spec/ui';
 
 // `ThemeModeSchema` (the zod value) is intentionally not re-exported — under
-// `export type` it was value-erased (#2561); import it from
-// `@objectstack/spec/ui` directly when the runtime validator is needed.
-
-// Import spec types for local use in interfaces below
-import type {
-  ThemeMode,
-} from '@objectstack/spec/ui';
+// `export type` it was value-erased (#2561). It can no longer be imported from
+// `@objectstack/spec/ui` either: objectstack#10485 (PR objectstack#10695)
+// retired the spec's whole `ui/theme.zod.ts` module, and the objectstack#10856
+// ruling had objectui remove its dangling re-exports (objectui#5710). The
+// installed `@objectstack/spec` pin still publishes the type re-exports in
+// this file; re-homing the theme TYPE surface once the pin moves past the
+// retirement is a separate, un-ruled decision — see the tripwire note in
+// `packages/providers/src/__tests__/spec-symbol-batch7.test.ts`.
 
 /**
  * Complete Theme Definition — the spec's **authoring** theme shape, re-exported
@@ -163,15 +164,16 @@ export interface ThemeSwitcherSchema extends BaseSchema {
 
 /**
  * Theme Preview Component Schema
+ *
+ * The `theme` / `mode` members RETIRED with the spec's theme module
+ * (objectstack#10485; removal ruled on objectstack#10856, executed as
+ * objectui#5710): their zod validators no longer exist upstream, so keeping
+ * the members here while `zod/theme.zod.ts` cannot check them would be
+ * declared-without-enforcement. The kind itself is unregistered and held for
+ * triage as objectui#5647.
  */
 export interface ThemePreviewSchema extends BaseSchema {
   type: 'theme-preview';
-
-  /** Theme to preview */
-  theme?: Theme;
-
-  /** Preview mode */
-  mode?: ThemeMode;
 
   /** Show color palette */
   showColors?: boolean;

@@ -284,12 +284,11 @@ export {
 // Phase 2 Schemas - Theme, Reports, Blocks, and Views
 // ============================================================================
 export {
-  ColorPaletteSchema,
-  TypographySchema,
-  BorderRadiusSchema,
-  ShadowSchema,
-  ThemeModeSchema,
-  ThemeDefinitionSchema,
+  // `ColorPaletteSchema` / `TypographySchema` / `BorderRadiusSchema` /
+  // `ShadowSchema` / `ThemeModeSchema` / `ThemeDefinitionSchema` RETIRED with
+  // the spec's whole `ui/theme.zod.ts` module (objectstack#10485, PR
+  // objectstack#10695; removal ruled on objectstack#10856, executed as
+  // objectui#5710) — see `./theme.zod`.
   // `ThemeComponentSchema` RETIRED in objectui#5489 — see `./theme.zod`.
   ThemeUnionSchema,
   ThemeSwitcherSchema,
