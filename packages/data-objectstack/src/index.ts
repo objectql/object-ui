@@ -572,7 +572,18 @@ export class AnalyticsNotInstalledError extends Error {
   readonly code = 'ANALYTICS_NOT_INSTALLED';
   /** The surface that was unavailable, for the message a host renders. */
   readonly surface: string;
-  constructor(surface: string, detail?: string) {
+  /**
+   * The server's own ADR-0112 code — the field this branch was chosen BY, when
+   * a producer named one (`NOT_IMPLEMENTED` from the mounted route with no
+   * service behind it, `ROUTE_NOT_FOUND` from the dispatcher when the route is
+   * not mounted at all). Absent for the no-code residual, where a bare
+   * transport 404/501 is all there was to read.
+   *
+   * Additive (objectui#5663): carried so a reader can audit that the headline
+   * and the quoted `detail` below came off the same answer.
+   */
+  readonly serverCode?: string;
+  constructor(surface: string, detail?: string, serverCode?: string) {
     super(
       `Analytics capability is not installed on this deployment — ${surface} is unavailable. ` +
       'Install @objectstack/service-analytics and mount AnalyticsServicePlugin to enable it.' +
@@ -580,6 +591,7 @@ export class AnalyticsNotInstalledError extends Error {
     );
     this.name = 'AnalyticsNotInstalledError';
     this.surface = surface;
+    this.serverCode = serverCode;
   }
 }
 
@@ -588,6 +600,171 @@ export function isAnalyticsNotInstalledError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   return (error as { code?: unknown }).code === 'ANALYTICS_NOT_INSTALLED';
 }
+
+/**
+ * Thrown when the dataset route ANSWERED and said the dataset this query named
+ * does not exist in this environment — `404` + ADR-0112 `NOT_FOUND`, the
+ * `body.datasetName` lookup miss in `@objectstack/rest`'s
+ * `registerAnalyticsEndpoints` (`Dataset "<name>" not found.`).
+ *
+ * A SIBLING of {@link AnalyticsNotInstalledError}, never a shade of it
+ * (objectui#5663). Both conditions answer **404** — routes-not-mounted through
+ * the runtime dispatcher's `ROUTE_NOT_FOUND`, an unknown dataset through this
+ * route's own `NOT_FOUND` — so a `res.status === 404` test cannot separate
+ * them, and the mapping that could not tell them apart reported EVERY unknown
+ * dataset as a missing server capability.
+ *
+ * Measured live on a prod tenant: four HotCRM Executive Overview widgets told
+ * the operator to install `@objectstack/service-analytics` and mount
+ * `AnalyticsServicePlugin`, while the analytics service was installed and
+ * answering the whole time. The real condition was an installed
+ * `app.objectstack.hotcrm` pinned at 1.3.0 whose datasets ship in 2.2.2. The
+ * remedy the banner named — install a server plugin — is the opposite corner of
+ * the system from the remedy that works: upgrade the installed app. A wrong
+ * diagnosis is not a smaller version of no diagnosis; it spends the operator's
+ * time in the wrong subsystem.
+ *
+ * The `code` is the ONLY field that separates the two, which is why this branch
+ * reads it and nothing else. See {@link readAnalyticsErrorEnvelope}.
+ */
+export class AnalyticsDatasetNotFoundError extends Error {
+  readonly code = 'ANALYTICS_DATASET_NOT_FOUND';
+  /**
+   * The dataset this query asked for, taken from the REQUEST rather than parsed
+   * back out of the server's prose: the request is what we know for certain,
+   * and re-reading the name out of a message would make the headline depend on
+   * that message's WORDING — the coupling framework#5367 spent a whole issue
+   * removing from the producing route.
+   */
+  readonly datasetName?: string;
+  /** The server's own ADR-0112 code — the field this branch was chosen BY. */
+  readonly serverCode?: string;
+  /** The server's own message, quoted verbatim in the parenthetical. */
+  readonly serverMessage?: string;
+  constructor(opts: { datasetName?: string; serverCode?: string; serverMessage?: string }) {
+    const subject = opts.datasetName ? `Dataset "${opts.datasetName}"` : 'The requested dataset';
+    super(
+      `${subject} is not defined in this environment — the app that defines it is missing or out of date. ` +
+      'Analytics itself is installed and answering, so the fix is to upgrade the installed app, not to install a server plugin.' +
+      (opts.serverMessage ? ` (server said: ${opts.serverMessage})` : ''),
+    );
+    this.name = 'AnalyticsDatasetNotFoundError';
+    this.datasetName = opts.datasetName;
+    this.serverCode = opts.serverCode;
+    this.serverMessage = opts.serverMessage;
+  }
+}
+
+/**
+ * Thrown when the dataset query was refused before it ran because the session
+ * is not authenticated — `401` + ADR-0112 `UNAUTHENTICATED`, the REST seam's
+ * `ANONYMOUS_DENY_BODY` (`@objectstack/core`'s `security/anonymous-deny.ts`,
+ * written verbatim by `enforceAuth`).
+ *
+ * The THIRD branch, and the one the reported card under-states (objectui#5663):
+ * it recorded a live `POST /api/v1/analytics/dataset/query -> 401
+ * UNAUTHENTICATED` and read it as evidence for the dataset-unknown branch. It
+ * is neither of the other two. An expired session reported as "the deployment
+ * is missing a capability" is the SAME defect wearing a different mask — an
+ * operator sent to install a server plugin because their token lapsed — so the
+ * separation is the point, not a nicety.
+ *
+ * Deliberately not left to the generic `Dataset query failed: 401 …` either:
+ * that string names a transport status where a person needs an action, and
+ * "sign in again" is an action.
+ */
+export class AnalyticsUnauthenticatedError extends Error {
+  readonly code = 'ANALYTICS_UNAUTHENTICATED';
+  /** The server's own ADR-0112 code — the field this branch was chosen BY. */
+  readonly serverCode?: string;
+  /** The server's own message, quoted verbatim in the parenthetical. */
+  readonly serverMessage?: string;
+  constructor(opts: { serverCode?: string; serverMessage?: string } = {}) {
+    super(
+      'Analytics query refused: this session is not authenticated. Sign in again and retry — ' +
+      'the request was refused before it ran, so it says nothing about whether the analytics ' +
+      'capability is installed.' +
+      (opts.serverMessage ? ` (server said: ${opts.serverMessage})` : ''),
+    );
+    this.name = 'AnalyticsUnauthenticatedError';
+    this.serverCode = opts.serverCode;
+    this.serverMessage = opts.serverMessage;
+  }
+}
+
+/**
+ * The ADR-0112 `code` + `message` an analytics REST error body declares.
+ *
+ * ONE url, TWO declared producers — which is why this reads two SHAPES, and why
+ * it is not the tolerant `body.error?.code ?? body.error` chain that
+ * `@objectstack/core`'s `anonymous-deny.ts` explicitly warns consumers off:
+ *
+ *  - **flat** `{ code, message }` — everything the route writes itself in
+ *    `@objectstack/rest`'s `registerAnalyticsEndpoints` (`501 NOT_IMPLEMENTED`
+ *    when no analytics service provides `queryDataset`, `404 NOT_FOUND` for an
+ *    unknown `datasetName`, `400 VALIDATION_FAILED`, `500
+ *    ANALYTICS_QUERY_FAILED`), plus `enforceAuth`'s `401` `ANONYMOUS_DENY_BODY`
+ *    — `{ error: 'UNAUTHENTICATED', code: 'UNAUTHENTICATED', message: … }`,
+ *    where `error` carries the CODE as a string.
+ *  - **wrapped** `{ success: false, error: { code, message } }` — what answers
+ *    when this route is not mounted at all: `@objectstack/runtime`'s dispatcher
+ *    `404 ROUTE_NOT_FOUND`. The REST auth-gate `403` (`{ error: { code,
+ *    message } }`) is the same shape.
+ *
+ * Both envelopes are live and sanctioned (ADR-0112's 2026-07-30 amendment
+ * records the flat and wrapped families as the two live ones and assigns
+ * converging them to the envelope-convergence line). Reading both here is not a
+ * consumer inventing leniency: this ONE request genuinely has two possible
+ * producers, and which one answered is itself part of the signal — the wrapped
+ * `ROUTE_NOT_FOUND` means the route is absent, and only the route's own flat
+ * envelope can mean the dataset is.
+ *
+ * They are told apart STRUCTURALLY — `typeof body.error === 'object'` — never
+ * by trying one key and falling through to the other. A producer that regresses
+ * its envelope therefore reads as "no code" here, which is the honest answer
+ * and lands in the residual below, instead of being quietly absorbed.
+ *
+ * `message` is DISPLAY ONLY and never feeds classification. That split is what
+ * makes the objectui#5663 contradiction structurally impossible: the headline
+ * is a pure function of `code`, the parenthetical is a verbatim quote of
+ * `message`, and both are read off the SAME response. If they ever disagree the
+ * producer has a bug — whereas under the old mapping the CONSUMER did, because
+ * the headline came from a status two conditions share while the quote came
+ * from the one that had actually happened.
+ */
+function readAnalyticsErrorEnvelope(body: unknown): { code?: string; message?: string } {
+  if (!body || typeof body !== 'object') return {};
+  const flat = body as { code?: unknown; message?: unknown; error?: unknown };
+  const wrapped =
+    flat.error && typeof flat.error === 'object'
+      ? (flat.error as { code?: unknown; message?: unknown })
+      : undefined;
+  const source = wrapped ?? flat;
+  const code = typeof source.code === 'string' && source.code.length > 0 ? source.code : undefined;
+  // Display-only fallback: the flat family's `error` key carries the MESSAGE in
+  // some producers (`{ code: 'ANALYTICS_QUERY_FAILED', error: <text> }`) and the
+  // CODE in others (`ANONYMOUS_DENY_BODY`). Harmless here precisely because
+  // nothing downstream classifies on it — at worst the parenthetical quotes a
+  // code string, which is still the server's own words about its own answer.
+  const message =
+    typeof source.message === 'string' && source.message.length > 0 ? source.message
+    : typeof flat.error === 'string' && flat.error.length > 0 ? flat.error
+    : undefined;
+  return { code, message };
+}
+
+/**
+ * Statuses that identify a condition ON THEIR OWN when the answer carries no
+ * ADR-0112 `code` at all — a bare transport 404/501 from a proxy, a gateway, or
+ * a host that never mounted the API, none of which any ObjectStack route wrote.
+ *
+ * NOT a re-entry for status-mapping (objectui#5663 exists because of it): these
+ * are consulted only AFTER every code branch has declined, i.e. only when there
+ * is no contract field to read at all. `404` is safe HERE and unsafe as a
+ * primary test for exactly the same reason — the route's own `NOT_FOUND` always
+ * ships a `code`, so a 404 WITHOUT one cannot be the unknown-dataset case.
+ */
+const ANALYTICS_ABSENT_STATUSES: readonly number[] = [404, 501];
 
 /**
  * Thrown when the server REJECTED the analytics query body (HTTP 400 —
@@ -4282,21 +4459,99 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     });
 
     if (!res.ok) {
-      let detail = '';
-      try {
-        const errBody = await res.json();
-        detail = errBody?.message || errBody?.error || JSON.stringify(errBody);
-      } catch { /* non-JSON error body */ }
-      // "The capability isn't installed" is not a stack trace to show an
-      // author (framework#3891): the REST dataset route answers 501
-      // NOT_IMPLEMENTED when no analytics service provides `queryDataset`, and
-      // a host that doesn't mount the route at all answers 404. Both mean the
-      // same thing and both get a message a UI can render verbatim; anything
-      // else (a compile error like "relationship not declared in include") is
-      // a real authoring error and keeps its server detail.
-      if (res.status === 501 || res.status === 404) {
-        throw new AnalyticsNotInstalledError('POST /analytics/dataset/query', detail || undefined);
+      let errBody: unknown;
+      try { errBody = await res.json(); } catch { /* non-JSON error body */ }
+      const { code: serverCode, message: serverMessage } = readAnalyticsErrorEnvelope(errBody);
+      // The generic branch's tail, and ONLY the generic branch's: it falls back
+      // to the raw body so an unclassifiable failure still shows an operator
+      // something the server actually sent. Every classified branch below
+      // quotes `serverMessage` instead — a message the producer DECLARED — so a
+      // parenthetical is never a JSON dump dressed up as the server speaking.
+      const detail = serverMessage || (errBody === undefined ? '' : JSON.stringify(errBody));
+      const surface = 'POST /analytics/dataset/query';
+      // The dataset this query asked for, read off OUR request. `queryDataset`
+      // accepts either a saved dataset by name or an inline draft; only the
+      // by-name form can miss, but the inline form still carries `name`, so the
+      // subject of the sentence is known in both.
+      const requestedDatasetName =
+        typeof dataset === 'string' ? dataset
+        : typeof (dataset as { name?: unknown })?.name === 'string' ? String((dataset as { name?: unknown }).name)
+        : undefined;
+
+      /* ── objectui#5663 — branch on the server's ADR-0112 `code`, never on
+       * "the endpoint errored" ────────────────────────────────────────────────
+       *
+       * What stood here tested `res.status === 501 || res.status === 404` and
+       * called all of it "the analytics capability is not installed". TWO
+       * unrelated conditions answer 404 on this url, and the mapping could not
+       * see the difference:
+       *
+       *   route absent      404 `ROUTE_NOT_FOUND` (runtime dispatcher)
+       *   dataset unknown   404 `NOT_FOUND`       (this route's own lookup miss)
+       *
+       * So a HotCRM tenant whose installed app was too old to define
+       * `opportunity_metrics` was told to install a server plugin — while the
+       * server printed `Dataset "opportunity_metrics" not found.` inside the
+       * SAME banner, in the parenthetical the headline was contradicting. The
+       * evidence was in the payload the whole time; the mapping was reading a
+       * different field from the one it quoted.
+       *
+       * The status is not a contract here and never was: it is a transport fact
+       * several conditions share, which is the same reason `isApiAccessDenied`
+       * and `isAppPermissionDeniedError` above discriminate on `code` (see
+       * objectui#4408). The `code` is the contract, it is what ADR-0112 exists
+       * to make readable, and the framework declares a distinct one for every
+       * condition this call can land in. Branch on it.
+       */
+
+      // ① The capability really is absent, from either of its two producers:
+      //    the route is mounted with no analytics service behind it (501
+      //    `NOT_IMPLEMENTED`, `registerAnalyticsEndpoints`), or the route was
+      //    never mounted and the dispatcher answered (404 `ROUTE_NOT_FOUND`).
+      //    One remedy — install and mount the service — so one copy.
+      if (errorCodeIsAnyOf({ code: serverCode }, ['NOT_IMPLEMENTED', 'ROUTE_NOT_FOUND'])) {
+        throw new AnalyticsNotInstalledError(surface, serverMessage, serverCode);
       }
+
+      // ② The route answered; the DATASET is the thing that is missing (404
+      //    `NOT_FOUND`). A package problem in the environment, not a missing
+      //    server capability — the remedy is upgrading the installed app.
+      if (errorCodeIs({ code: serverCode }, 'NOT_FOUND')) {
+        throw new AnalyticsDatasetNotFoundError({
+          datasetName: requestedDatasetName,
+          serverCode,
+          serverMessage,
+        });
+      }
+
+      // ③ The request never ran: the session is anonymous or its token lapsed
+      //    (401 `UNAUTHENTICATED`, `enforceAuth`). Nothing about it is evidence
+      //    for or against the capability being installed.
+      if (errorCodeIs({ code: serverCode }, 'UNAUTHENTICATED')) {
+        throw new AnalyticsUnauthenticatedError({ serverCode, serverMessage });
+      }
+
+      // ④ Residual — the answer declared NO ADR-0112 code, so no ObjectStack
+      //    route wrote it (a proxy, a gateway, a host with no API mounted).
+      //    Only here is the bare status the best signal available, and only
+      //    because every code branch has already declined: this route's own
+      //    `NOT_FOUND` always ships a `code`, so a code-less 404 cannot be the
+      //    unknown-dataset case.
+      if (serverCode === undefined) {
+        if (ANALYTICS_ABSENT_STATUSES.includes(res.status)) {
+          throw new AnalyticsNotInstalledError(surface, detail || undefined);
+        }
+        if (res.status === 401) {
+          throw new AnalyticsUnauthenticatedError({ serverMessage });
+        }
+      }
+
+      // ⑤ Everything that named itself and is none of the above — a compile
+      //    error like "relationship not declared in include" (400
+      //    `DATASET_INVALID`), a `CUBE_NOT_FOUND`, a 5xx — is a real failure
+      //    with a real server detail, and keeps it. Note that a 404
+      //    `CUBE_NOT_FOUND` used to land in the capability-missing branch too,
+      //    by the same status collision; it now reads as what it is.
       throw new Error(`Dataset query failed: ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
     }
 
