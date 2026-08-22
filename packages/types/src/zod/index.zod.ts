@@ -290,7 +290,7 @@ export {
   ShadowSchema,
   ThemeModeSchema,
   ThemeDefinitionSchema,
-  ThemeComponentSchema,
+  // `ThemeComponentSchema` RETIRED in objectui#5489 — see `./theme.zod`.
   ThemeUnionSchema,
   ThemeSwitcherSchema,
   ThemePreviewSchema,

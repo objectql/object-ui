@@ -341,8 +341,12 @@ const DOC_TYPE_EXEMPTIONS = {
   },
   'content/docs/core/theme-schema.mdx': {
     theme:
-      'ThemeSchema discriminant — `packages/types/src/theme.ts` declares the theme document\'s own ' +
-      '`type`, validated by zod/theme.zod.ts.',
+      'RETIRED discriminant, kept exempt only until this page is rewritten. `ThemeComponentSchema` ' +
+      '(`type: \'theme\'`) was removed from packages/types in objectui#5489 under the maintainer ' +
+      'ruling of 2026-08-21 — no renderer ever implemented it, so the literal named nothing even ' +
+      'before the removal. This page still teaches it, along with five falsehoods that predate the ' +
+      'retirement; the rewrite around the RETAINED theme document is objectui#5648, and DELETING ' +
+      'this entry is part of it.',
     'theme-preview': 'ThemePreviewSchema discriminant — packages/types/src/theme.ts:167.',
     'theme-switcher': 'ThemeSwitcherSchema discriminant — packages/types/src/theme.ts:145.',
   },
@@ -437,10 +441,6 @@ const DOC_TYPE_EXEMPTIONS = {
     string:
       'BlockVariable.type in the BlockSchema tour\'s `variables[]` — a variable declaration\'s data ' +
       'type, next to `name` / `defaultValue`.',
-    theme:
-      'ThemeSchema discriminant in a `const theme: ThemeComponentSchema = { … }` declaration — ' +
-      'packages/types/src/theme.ts declares the theme document\'s own `type`, validated by ' +
-      'zod/theme.zod.ts. Same vocabulary as core/theme-schema.mdx.',
   },
   'content/docs/guide/schema-playground.md': {
     reset:

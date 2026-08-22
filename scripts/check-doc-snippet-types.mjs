@@ -351,7 +351,10 @@ const UNGATED_DOCS = {
     '`ThemeComponentSchema`, `ReportComponentSchema` at every site including the prose. The ' +
     'annotations that renaming made real then rejected two more falsehoods in the theme example ' +
     '(`mode: \'system\'`, and per-theme `light`/`dark` palettes where the spec `Theme` carries one ' +
-    '`colors` map), fixed in the same pass so the page could not get worse',
+    '`colors` map), fixed in the same pass so the page could not get worse. objectui#5489 then ' +
+    'RETIRED `ThemeComponentSchema` itself — the `type: \'theme\'` component kind no renderer ' +
+    'implemented — so the theme example named above is gone from this page rather than re-spelled ' +
+    'again; the two `AppComponentSchema` / `ReportComponentSchema` re-spellings stand',
   'content/docs/guide/schema-rendering.md':
     '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +

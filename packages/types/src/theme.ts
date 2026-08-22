@@ -111,32 +111,33 @@ import type { Theme } from '@objectstack/spec/ui';
 // ObjectUI Component Schemas (UI rendering)
 // ============================================================================
 
-/**
- * Theme Component Schema
- *
- * Used by SchemaRenderer to render a theme manager component.
- */
-export interface ThemeComponentSchema extends BaseSchema {
-  type: 'theme';
-
-  /** Current theme mode */
-  mode?: ThemeMode;
-
-  /** Available themes */
-  themes?: Theme[];
-
-  /** Active theme name */
-  activeTheme?: string;
-
-  /** Allow user theme switching */
-  allowSwitching?: boolean;
-
-  /** Persist theme preference to storage */
-  persistPreference?: boolean;
-
-  /** Storage key for persisting theme */
-  storageKey?: string;
-}
+// `ThemeComponentSchema` (`type: 'theme'`) RETIRED in objectui#5489, under the
+// maintainer ruling of 2026-08-21 on objectstack#10485 (option B, quoted
+// verbatim and untranslated):
+//
+//   「B：退役授权面 —— 收掉 `themes` 载体键与 schema，`app.branding` 留作唯一颜色面；
+//   objectui 引擎代码与单测保留」
+//
+// It declared a COMPONENT kind — a theme-manager node carrying `themes[]`,
+// `activeTheme`, `allowSwitching`, `persistPreference` and `storageKey`. No
+// renderer ever implemented `'theme'`: the literal is absent from every
+// `ComponentRegistry.register(...)` / `registerLazy(...)` site in
+// `packages/*/src`, and from both `PROTOCOL_COMPONENTS` and
+// `PALETTE_PLACEHOLDER_BLOCKS` in
+// `packages/components/src/renderers/placeholders.tsx` — so it did not even
+// resolve to a placeholder. A page declaring one got the registry's "Unknown
+// component type" panel (OBJUI-001), never a theme manager. Declared-but-
+// unenforced, the ADR-0078 class.
+//
+// The theme SYSTEM is untouched and is explicitly RETAINED by the same ruling:
+// `Theme` above is the spec's authoring theme document, `ThemeEngine`
+// (`packages/core/src/theme/ThemeEngine.ts`) turns it into CSS variables, and
+// `ThemeProvider` (`packages/react/src/context/ThemeContext.tsx`) applies it.
+// Retiring the dead component kind is not retiring theming.
+//
+// The two siblings below — `ThemeSwitcherSchema` / `ThemePreviewSchema` — are
+// unregistered in exactly the same way but were NOT named by the ruling; they
+// are recorded as objectui#5647 rather than removed here.
 
 /**
  * Theme Switcher Component Schema

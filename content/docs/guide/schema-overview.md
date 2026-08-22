@@ -47,20 +47,17 @@ const app: AppComponentSchema = {
 #### [Theme Schema](/docs/core/theme-schema)
 Dynamic theming with light/dark modes, color palettes, and typography.
 
-```typescript
-const theme: ThemeComponentSchema = {
-  type: 'theme',
-  mode: 'dark',
-  themes: [{
-    name: 'professional-dark',
-    label: 'Professional (Dark)',
-    mode: 'dark',
-    colors: { primary: '#60a5fa', background: '#0f172a', ... }
-  }]
-};
-```
+Theming is **not** a component you declare in a page. There is no `type: 'theme'`
+node: the `ThemeComponentSchema` wrapper documented here until objectui#5489 was
+retired because no renderer ever implemented it, so a page declaring one got the
+registry's "Unknown component type" panel rather than a theme manager.
 
-**Features:**
+A theme is a **document**, not a node. Author it as the `Theme` shape
+`@object-ui/types` re-exports from `@objectstack/spec/ui`, hand it to
+`ThemeProvider` (`@object-ui/react`), and `ThemeEngine` (`@object-ui/core`)
+turns it into the CSS variables your components already read.
+
+**What the theme document carries:**
 - Light/dark mode switching
 - 20+ semantic colors
 - Typography system
@@ -162,7 +159,6 @@ const block: BlockSchema = {
 | Schema | Purpose | Best For |
 |--------|---------|----------|
 | **AppComponentSchema** | Application structure | Multi-page apps, dashboards |
-| **ThemeComponentSchema** | Visual theming | Brand consistency, white-labeling |
 | **Enhanced Actions** | Complex workflows | API integration, multi-step processes |
 | **ReportComponentSchema** | Data reporting | Analytics, business intelligence |
 | **BlockSchema** | Reusable components | Marketing pages, component libraries |
@@ -204,7 +200,6 @@ Import the type definitions you need:
 ```typescript
 import type { 
   AppComponentSchema, 
-  ThemeComponentSchema, 
   ActionSchema,
   ReportComponentSchema,
   BlockSchema 
@@ -218,7 +213,6 @@ For runtime validation, use the included Zod schemas:
 ```typescript
 import { 
   AppComponentSchema,
-  ThemeComponentSchema,
   ActionSchema,
   ReportComponentSchema,
   BlockSchema
@@ -239,7 +233,7 @@ if (result.success) {
 Here's a complete example showing how to build a simple CRM application using ObjectUI schemas:
 
 ```typescript
-import type { AppComponentSchema, ThemeComponentSchema } from '@object-ui/types';
+import type { AppComponentSchema } from '@object-ui/types';
 
 // Define your application structure
 const app: AppComponentSchema = {
@@ -276,35 +270,15 @@ const app: AppComponentSchema = {
     }
   ]
 };
-
-// Configure your theme
-const theme: ThemeComponentSchema = {
-  type: 'theme',
-  mode: 'auto',
-  themes: [
-    {
-      name: 'professional-light',
-      label: 'Professional (Light)',
-      mode: 'light',
-      colors: { primary: '#3b82f6', background: '#ffffff' }
-    },
-    {
-      name: 'professional-dark',
-      label: 'Professional (Dark)',
-      mode: 'dark',
-      colors: { primary: '#60a5fa', background: '#0f172a' }
-    }
-  ],
-  allowSwitching: true,
-  persistPreference: true
-};
 ```
 
 This creates a professional-looking CRM application with:
 - A sidebar layout with navigation menu
 - Sales section with leads and deals
 - User menu with profile and logout options
-- Professional theme with light/dark mode support
+
+Theming is configured separately, as a theme document handed to `ThemeProvider` —
+see [Theme Schema](/docs/core/theme-schema).
 
 ## Advanced Features
 
@@ -315,7 +289,6 @@ ObjectUI provides advanced schemas and capabilities for enterprise applications:
 ObjectUI includes these top-level schemas:
 
 - **`AppComponentSchema`** - Define your entire application structure
-- **`ThemeComponentSchema`** - Configure themes and color palettes
 - **`ReportComponentSchema`** - Create data reports with aggregation
 - **`BlockSchema`** - Build reusable component blocks
 
@@ -350,7 +323,7 @@ ObjectUI includes enhanced view components:
 
 2. **Configure application** - Define your app structure with AppComponentSchema (optional)
    
-3. **Set up theming** - Add a ThemeComponentSchema for consistent styling (optional)
+3. **Set up theming** - Hand a `Theme` document to `ThemeProvider` for consistent styling (optional)
 
 4. **Implement actions** - Use advanced action features like `confirm` and callbacks
 

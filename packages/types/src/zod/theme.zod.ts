@@ -75,18 +75,11 @@ export const ThemeModeSchema = SpecThemeModeSchema;
  */
 export const ThemeDefinitionSchema = SpecThemeSchema;
 
-/**
- * Theme Component Schema (ObjectUI rendering)
- */
-export const ThemeComponentSchema = BaseSchema.extend({
-  type: z.literal('theme'),
-  mode: ThemeModeSchema.optional().describe('Current theme mode'),
-  themes: z.array(ThemeDefinitionSchema).optional().describe('Available themes'),
-  activeTheme: z.string().optional().describe('Active theme name'),
-  allowSwitching: z.boolean().optional().describe('Allow user theme switching'),
-  persistPreference: z.boolean().optional().describe('Persist theme preference'),
-  storageKey: z.string().optional().describe('Storage key for persisting theme'),
-});
+// `ThemeComponentSchema` (`type: 'theme'`) RETIRED in objectui#5489 — the value
+// side of the interface retired in `../theme.ts`, where the ruling and the
+// unregistered-kind measurement are recorded. `ThemeDefinitionSchema` (the
+// spec's `ThemeSchema`, the theme DOCUMENT) and `ThemeModeSchema` are retained
+// and still exported above: the engine and the provider validate against them.
 
 /**
  * Theme Switcher Schema
@@ -116,7 +109,6 @@ export const ThemePreviewSchema = BaseSchema.extend({
  * Union of all theme component schemas (for AnyComponentSchema union).
  */
 export const ThemeUnionSchema = z.discriminatedUnion('type', [
-  ThemeComponentSchema,
   ThemeSwitcherSchema,
   ThemePreviewSchema,
 ]);
@@ -130,6 +122,5 @@ export type BorderRadiusSchemaType = z.infer<typeof BorderRadiusSchema>;
 export type ShadowSchemaType = z.infer<typeof ShadowSchema>;
 export type ThemeModeSchemaType = z.infer<typeof ThemeModeSchema>;
 export type ThemeDefinitionSchemaType = z.infer<typeof ThemeDefinitionSchema>;
-export type ThemeComponentSchemaType = z.infer<typeof ThemeComponentSchema>;
 export type ThemeSwitcherSchemaType = z.infer<typeof ThemeSwitcherSchema>;
 export type ThemePreviewSchemaType = z.infer<typeof ThemePreviewSchema>;

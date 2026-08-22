@@ -701,7 +701,8 @@ import type { AppComponentSchema } from './app.js';
 export type {
   // Theme System (aligned with @objectstack/spec)
   Theme,
-  ThemeComponentSchema,
+  // `ThemeComponentSchema` RETIRED in objectui#5489 — the `type: 'theme'`
+  // component kind no renderer implemented. See `./theme` for the tombstone.
   ThemeMode,
   ColorPalette,
   Typography,

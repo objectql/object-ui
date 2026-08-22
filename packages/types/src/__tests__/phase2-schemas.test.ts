@@ -1,15 +1,16 @@
 /**
  * Tests for Phase 2 Schema Definitions
- * Testing AppSchema, ThemeComponentSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
+ * Testing AppSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
  */
 import { describe, it, expect } from 'vitest';
 import {
   AppComponentSchema,
   AppActionSchema,
   AppMenuItemSchema,
-  ThemeComponentSchema,
   ThemeSwitcherSchema,
   ThemePreviewSchema,
+  ThemeUnionSchema,
+  ThemeDefinitionSchema,
   ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
@@ -112,9 +113,20 @@ describe('Phase 2: AppComponentSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
-  it('should validate a complete ThemeComponentSchema', () => {
-    const theme = {
+describe('Phase 2: Theme component kinds — Zod Validation', () => {
+  // `type: 'theme'` (`ThemeComponentSchema`) was RETIRED in objectui#5489 under
+  // the maintainer ruling of 2026-08-21 on objectstack#10485 (option B). It
+  // declared a theme-manager COMPONENT that no renderer ever implemented. This
+  // is the pin that keeps it retired: the shape the old acceptance test proved
+  // VALID is now proven REFUSED, so a re-added union member fails here rather
+  // than reappearing silently in the published `@object-ui/types/zod` surface.
+  //
+  // The theme SYSTEM is untouched — `ThemeDefinitionSchema` (the theme
+  // document the engine and the provider consume) is retained, and this
+  // fixture's `themes[0]` still parses against it, which is what makes the
+  // refusal below attributable to the retired WRAPPER and not to a bad fixture.
+  it('refuses the retired `type: \'theme\'` component kind, while the theme document it carried still parses', () => {
+    const retiredWrapper = {
       type: 'theme',
       mode: 'dark',
       activeTheme: 'professional',
@@ -147,12 +159,14 @@ describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
       storageKey: 'app-theme',
     };
 
-    const result = ThemeComponentSchema.safeParse(theme);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.mode).toBe('dark');
-      expect(result.data.themes).toHaveLength(1);
-    }
+    // The wrapper: gone from every union that used to carry it.
+    expect(ThemeUnionSchema.safeParse(retiredWrapper).success).toBe(false);
+    expect(AnyComponentSchema.safeParse(retiredWrapper).success).toBe(false);
+
+    // The control that makes that refusal mean something: the document the
+    // wrapper carried is retained and still valid on its own. If this leg ever
+    // fails, the fixture broke — not the retirement.
+    expect(ThemeDefinitionSchema.safeParse(retiredWrapper.themes[0]).success).toBe(true);
   });
 
   it('should validate ThemeSwitcherSchema', () => {
@@ -651,7 +665,8 @@ describe('Phase 2: AnyComponentSchema Union Type', () => {
   it('should validate any Phase 2 schema through union type', () => {
     const schemas = [
       { type: 'app', name: 'test-app' },
-      { type: 'theme', mode: 'light' },
+      // `{ type: 'theme' }` removed with the kind itself (objectui#5489); its
+      // refusal is pinned in the theme describe block above.
       { type: 'report', title: 'Test Report' },
       { type: 'block', meta: { name: 'test-block' } },
       { type: 'action', label: 'Test Action' },
