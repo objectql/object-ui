@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import type { ComponentInputControlType } from './base.js';
+import type { ComponentInput } from './base.js';
 
 /**
  * Plugin Scope Interface
@@ -168,28 +168,15 @@ export interface ComponentMeta {
 /**
  * Component input definition
  *
- * The plugin-scoped twin of `base.ts`' {@link ComponentInput}. The arm
- * vocabulary is IMPORTED from there rather than re-spelled (objectui#3832):
- * the two interfaces already have to move together, and a second copy of the
- * eleven literals is the copy that drifts — the hazard objectui#4580's ruling
- * settled by re-exporting one declaration instead of restating it.
+ * The plugin-scoped twin of `base.ts`' {@link ComponentInput} is no longer a
+ * twin: it is the SAME declaration, RE-EXPORTED rather than restated
+ * (objectui#4972). Only the arm vocabulary was shared before (objectui#3832);
+ * this finishes the job for the rest of the interface, per objectui#4580's
+ * ruling — *a structural copy would reproduce the defect the moment either
+ * side moved.* Re-exported under this name so that `index.ts`' public
+ * `ComponentInput as PluginComponentInput` alias keeps naming a real export.
  */
-export interface ComponentInput {
-  name: string;
-  /**
-   * Input control type — one coarse kind, or an array of them for a union key.
-   * Semantics, the array form's rules and why it exists: see
-   * `ComponentInput.type` in `base.ts`.
-   */
-  type: ComponentInputControlType | ComponentInputControlType[];
-  label?: string;
-  defaultValue?: any;
-  required?: boolean;
-  enum?: string[] | { label: string; value: any }[];
-  description?: string;
-  advanced?: boolean;
-  inputType?: string;
-}
+export type { ComponentInput } from './base.js';
 
 /**
  * Event handler type

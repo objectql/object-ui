@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ComponentInputControlType } from '@object-ui/types';
+import type { ComponentInput } from '@object-ui/types';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
@@ -15,29 +15,24 @@ export type ComponentRenderer<T = any> = T;
  * What a registration DECLARES about one authorable prop.
  *
  * This is the declaration the component registrations themselves import, so it
- * is the one an author's manifest is ultimately built from. It is structurally
- * the third copy of `ComponentInput` (the others live in the types package's
- * `base.ts` and `plugin-scope.ts`); the arm vocabulary of `type` is imported
- * from there rather than re-spelled, so the union widening of objectui#3832
- * cannot land on two of the three and drift.
+ * is the one an author's manifest is ultimately built from — and it is now
+ * RE-EXPORTED from `@object-ui/types` rather than restated here
+ * (objectui#4972), the disposition objectui#4580 ruled for the identical
+ * shape: *a structural copy would reproduce the defect the moment either side
+ * moved.* This package already depends on `@object-ui/types`, so the edge
+ * exists and adds no cycle, and `src/types/index.ts` re-exports `SchemaNode`
+ * from there the same way.
+ *
+ * The copy this replaces had ALREADY moved, which is why the card is not
+ * hypothetical: it carried nine keys while `base.ts` carried thirteen, so
+ * `min` / `max` / `step` / `placeholder` were missing from *the copy every
+ * registration actually imports*. Those four keys were therefore unwritable at
+ * any real registration — a plain TS error — while `ComponentInputSchema` (the
+ * zod schema) and `ComponentMeta.inputs` both accepted them. The publication
+ * face advertised four keys the authoring face rejected; the divergence was
+ * dormant only because no registration had tried to write one yet.
  */
-export type ComponentInput = {
-  name: string;
-  /**
-   * Input control type — one coarse kind, or an array of them when the key's
-   * contract is a union (objectui#3832). A value passes the manifest gate when
-   * ANY declared arm accepts it; a value matching none is still reported. Full
-   * semantics: `ComponentInput.type` in the types package's `base.ts`.
-   */
-  type: ComponentInputControlType | ComponentInputControlType[];
-  label?: string;
-  defaultValue?: any;
-  required?: boolean;
-  enum?: string[] | { label: string; value: any }[];
-  description?: string;
-  advanced?: boolean;
-  inputType?: string;
-};
+export type { ComponentInput } from '@object-ui/types';
 
 export type ComponentMeta = {
   label?: string; // Display name in designer
