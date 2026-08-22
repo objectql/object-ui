@@ -2266,7 +2266,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                      <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
                    </span>
                  }
-                 description={objectDef.description ? objectDesc(objectDef) : undefined}
+                 subtitle={objectDef.description ? objectDesc(objectDef) : undefined}
                  icon={(() => { const I = getIcon((objectDef as any)?.icon); return <I className="h-4 w-4" />; })()}
                  actions={
                    <>

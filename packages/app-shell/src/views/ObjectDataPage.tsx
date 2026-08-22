@@ -511,7 +511,7 @@ export function ObjectDataPage({ dataSource, objects }: any) {
               </span>
             </span>
           }
-          description={t('console.objectData.description', {
+          subtitle={t('console.objectData.description', {
             defaultValue: 'URL-defined data slice — not bound to any saved view.',
           })}
           icon={React.createElement(getIcon((objectDef as any)?.icon), { className: 'h-4 w-4' })}
