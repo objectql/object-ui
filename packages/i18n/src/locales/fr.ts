@@ -1415,6 +1415,13 @@ const fr = {
       passwordsDownload: "Télécharger le CSV",
     },
     ai: {
+      pendingDrafts: {
+        count: "{{count}} modification(s) ne sont pas encore publiée(s) — les utilisateurs ne peuvent pas les voir.",
+        publish: "Publier",
+        published: "Toutes les modifications en attente sont actives.",
+        failed: "Échec de la publication.",
+        publishedWithFindings: "Publié, mais les contrôles d'exécution ont signalé des problèmes : {{detail}}",
+      },
       usage: {
         title: "Utilisation de l'IA",
         meterBuild: "Créer",

@@ -1413,6 +1413,13 @@ const ko = {
       passwordsDownload: "CSV 다운로드",
     },
     ai: {
+      pendingDrafts: {
+        count: "게시되지 않은 변경이 {{count}}건 있습니다 — 사용자에게는 보이지 않습니다.",
+        publish: "게시",
+        published: "대기 중인 변경 사항이 모두 반영되었습니다.",
+        failed: "게시에 실패했습니다.",
+        publishedWithFindings: "게시했지만 런타임 프로브에서 문제가 보고되었습니다: {{detail}}",
+      },
       usage: {
         title: "AI 사용량",
         meterBuild: "빌드",

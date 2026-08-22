@@ -1423,6 +1423,15 @@ const ru = {
       passwordsDownload: "Скачать CSV",
     },
     ai: {
+      pendingDrafts: {
+        // Число вынесено в конец («…: {{count}}») — так этот пак пишет
+        // количества, как в home.pendingDrafts.publishedVerified.
+        count: "Ещё не опубликовано изменений: {{count}} — пользователи их не видят.",
+        publish: "Опубликовать",
+        published: "Все ожидающие изменения вступили в силу.",
+        failed: "Не удалось опубликовать.",
+        publishedWithFindings: "Опубликовано, но проверки среды выполнения выявили проблемы: {{detail}}",
+      },
       usage: {
         title: "Использование ИИ",
         meterBuild: "Сборка",
