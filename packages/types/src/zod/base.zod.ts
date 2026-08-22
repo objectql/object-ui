@@ -17,6 +17,33 @@
  */
 
 import { z } from 'zod';
+import { I18nLabelSchema } from '@objectstack/spec/ui';
+
+/**
+ * A KEYED i18n label — the runtime mirror of `KeyedI18nLabel` in `../base.ts`.
+ *
+ * ⚠️ This is objectui's OWN label vocabulary, and it is NOT the spec's
+ * `I18nLabelSchema` that `label` / `description` below declare. The two are
+ * structurally confusable and answer wrongly for each other's input — the
+ * objectui#4167 hazard, which #4580's Q2-B ruling turned on:
+ *
+ *  - KEYED (this schema): `{ key, defaultValue?, params? }`, a reference INTO a
+ *    translation bundle, resolved by `resolveKeyedI18nLabel`
+ *    (`packages/react/src/utils/i18n.ts`). `ariaLabel` declares this one.
+ *  - INLINE (`I18nLabelSchema`): a locale MAP like `{ en: 'Owner' }`, resolved
+ *    against a BCP-47 locale by the spec's own `resolveI18nLabel(label,
+ *    locale)`. `label` and `description` declare that one.
+ *
+ * Hand-written rather than taken from the spec because the spec has no keyed
+ * form: `I18nLabelSchema` REJECTS `{ key, defaultValue }` at parse time, and
+ * objectstack#9925 made both limbs `never` on its type axis for the same
+ * reason. The shape here mirrors `KeyedI18nLabel` limb-for-limb.
+ */
+export const KeyedI18nLabelSchema = z.object({
+  key: z.string().describe('Translation-bundle key, e.g. `dialog.close`'),
+  defaultValue: z.string().optional().describe('Rendered when the key is missing from the bundle'),
+  params: z.record(z.string(), z.any()).optional().describe("Interpolation values for the key's placeholders"),
+});
 
 /**
  * Schema Node - Can be a schema object or primitive value
@@ -55,14 +82,22 @@ const BaseSchemaCore = z.object({
   name: z.string().optional().describe('Component name'),
 
   /**
-   * Display label
+   * Display label.
+   *
+   * The spec's INLINE locale map (`string | Record<string, string>`), embedded
+   * BY REFERENCE so a change to the spec's own label contract is picked up
+   * here rather than re-typed — the same property `specFieldsExcept` below
+   * relies on. Mirrors `BaseSchema.label: string | I18nLabel` (`../base.ts`),
+   * widened by #4580's revised Q1-A ruling.
    */
-  label: z.string().optional().describe('Display label'),
+  label: I18nLabelSchema.optional().describe('Display label (plain string or inline locale map)'),
 
   /**
-   * Description text
+   * Description text.
+   *
+   * Same vocabulary and same resolver as `label` above — see `BaseSchema.description`.
    */
-  description: z.string().optional().describe('Description text'),
+  description: I18nLabelSchema.optional().describe('Description text (plain string or inline locale map)'),
 
   /**
    * Placeholder text
@@ -95,9 +130,17 @@ const BaseSchemaCore = z.object({
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components (React-style)'),
 
   /**
-   * Visibility control
+   * Visibility control — a boolean, or the predicate STRING the renderer
+   * evaluates.
+   *
+   * Mirrors `BaseSchema.visible: boolean | string` (`../base.ts`), widened by
+   * #4581. `SchemaRenderer.tsx` passes this key to
+   * `evaluator.evaluateCondition`, which is declared
+   * `(condition: string | boolean | undefined, …) => boolean` — so the string
+   * form is an implemented, evaluated capability, and this validator was the
+   * one surface still refusing it.
    */
-  visible: z.boolean().optional().describe('Visibility control'),
+  visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility control (boolean or predicate expression)'),
 
   /**
    * Canonical conditional-visibility predicate (ADR-0089) — shown when truthy.
@@ -122,9 +165,14 @@ const BaseSchemaCore = z.object({
   hiddenOn: z.string().optional().describe('Expression for conditional hiding'),
 
   /**
-   * Disabled state
+   * Disabled state — a boolean, or the predicate STRING the renderer evaluates.
+   *
+   * Mirrors `BaseSchema.disabled: boolean | string` (`../base.ts`), widened by
+   * #4581 under #4580's Q3-A ruling: the renderer reads this key through the
+   * same `evaluateCondition` as `visible`, and the asymmetry between the two
+   * was accidental rather than deliberate.
    */
-  disabled: z.boolean().optional().describe('Disabled state'),
+  disabled: z.union([z.boolean(), z.string()]).optional().describe('Disabled state (boolean or predicate expression)'),
 
   /**
    * Conditional disabled expression
@@ -137,9 +185,15 @@ const BaseSchemaCore = z.object({
   testId: z.string().optional().describe('Test identifier'),
 
   /**
-   * Accessibility label
+   * Accessibility label — a plain string, or the KEYED i18n reference.
+   *
+   * Mirrors `BaseSchema.ariaLabel: string | KeyedI18nLabel` (`../base.ts`).
+   * ⚠️ KEYED, NOT the spec's inline locale map two properties up: the renderer
+   * reads this slot with `resolveKeyedI18nLabel`, which returns `undefined`
+   * for a locale map and would render an EMPTY aria-label. #4580's Q2-B ruling
+   * withdrew the `I18nLabel` spelling as measured-wrong for exactly that.
    */
-  ariaLabel: z.string().optional().describe('Accessibility label'),
+  ariaLabel: z.union([z.string(), KeyedI18nLabelSchema]).optional().describe('Accessibility label (plain string or keyed i18n reference)'),
 }).passthrough(); // Allow additional properties for type-specific extensions
 
 /**
