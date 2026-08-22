@@ -9,8 +9,10 @@
  * Used by the ActionRunner when an action defines params to collect.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ActionParamDef } from '@object-ui/core';
+import { isValueStillOffered, resolveVisibleOptions, type OptionLike } from '@object-ui/core';
+import { usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import {
   Dialog,
@@ -129,6 +131,87 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── Per-option `visibleWhen`, through the SHARED evaluator (objectui#4758) ──
+  //
+  // This file is the repo's SECOND action-param dialog, and its `select` branch
+  // used to render `param.options?.map(...)` straight into Radix `SelectItem`s.
+  // A per-option `visibleWhen` was not evaluated WRONGLY here — it was not
+  // evaluated at all, so an option the field metadata gates on `record.*` or
+  // `current_user.*` was offered unconditionally on this published surface,
+  // while the app-shell dialog (objectui#3765 / PR #4756) filtered the identical
+  // metadata. Triage ruled the governed side authoritative and this one rebinds
+  // to it. Rebind, NOT delete: `ActionParamDialog` is a published export of this
+  // package's `custom` barrel, so retiring it is a separate maintainer decision.
+  //
+  // `resolveVisibleOptions` is the same entry the governed path reaches:
+  // app-shell renders params through `@object-ui/fields`' widgets, whose
+  // `useCascadingOptions` calls `resolveCascadingOptions`, which delegates the
+  // filtering half to this very function.
+  //
+  // The `dependsOn` GATING half of `resolveCascadingOptions` ("select the parent
+  // first") is deliberately not reproduced, and that is measured rather than
+  // assumed: `paramToField()` copies `depends_on` onto the field only for
+  // `EXPANDABLE_FIELD_TYPES` (lookup / reference / user), so a `select` param
+  // reaches the governed widget carrying no `dependsOn` at all and
+  // `resolveCascadingOptions` reduces to exactly the call below. Gating this
+  // branch would make the two surfaces DIVERGE, not converge.
+  //
+  // The record is this dialog's own in-progress `values` — the ruling on
+  // objectui#3765 (maintainer 2026-08-11, Option B: "the dialog is a small
+  // form"), which app-shell implements as `dependentValues={values}` on the
+  // widget. `current_user` / `features` / `app` come from the ambient predicate
+  // scope, `{}` when no host mounted a provider, which is the same source the
+  // object form reads (`renderers/form/form.tsx`).
+  //
+  // The cast is the seam `@object-ui/core`'s `ActionParamDef.options.test.ts`
+  // documents: `ActionParamOption`'s catch-all types every key other than
+  // `label` / `value` as `unknown`, so it is not STATICALLY an `OptionLike`
+  // even though every value it carries is one. Written out rather than narrowing
+  // the param option type, which would re-open objectui#3559.
+  const predicateScope = usePredicateScope();
+  const optionState = useMemo(() => {
+    const byParam = new Map<string, { offered: OptionLike[]; predicated: boolean }>();
+    for (const p of params) {
+      if (p.type !== 'select') continue;
+      const raw = (p.options ?? []) as OptionLike[];
+      byParam.set(p.name, {
+        offered: resolveVisibleOptions(raw, values, predicateScope),
+        predicated: raw.some((o) => o?.visibleWhen != null),
+      });
+    }
+    return byParam;
+  }, [params, values, predicateScope]);
+
+  // A selection the predicate stopped offering must not survive as a hidden
+  // value. Filtering alone would introduce a state the unfiltered code could not
+  // reach: the user picks an option, then changes the sibling param that gated
+  // it, and the trigger falls back to its placeholder (Radix renders no label
+  // for a value with no matching item) while `values` still holds the choice and
+  // `handleSubmit` still submits it — gone from the screen, present in the
+  // payload. The governed side already answers this with the same shared helper
+  // (`fields/src/widgets/SelectField.tsx` clears when
+  // `!isValueStillOffered(value, options)`), so this is the sibling's shape, not
+  // a new rule invented here.
+  //
+  // Confined to option lists that actually declare a predicate: with no
+  // `visibleWhen` anywhere on the param the offered set IS the authored set,
+  // this effect can never fire, and the change stays inert for every param that
+  // rendered correctly before. (The governed widget also clears a value matching
+  // no option at all — a different question, about unmatched authored defaults,
+  // left exactly as it was.)
+  useEffect(() => {
+    const stale = params.filter((p) => {
+      const state = optionState.get(p.name);
+      return state?.predicated === true && !isValueStillOffered(values[p.name], state.offered);
+    });
+    if (stale.length === 0) return;
+    setValues((prev) => {
+      const next = { ...prev };
+      for (const p of stale) next[p.name] = '';
+      return next;
+    });
+  }, [params, values, optionState]);
 
   const handleChange = useCallback((name: string, value: any) => {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -254,8 +337,15 @@ export const ActionParamDialog: React.FC<ActionParamDialogProps> = ({
                 <SelectValue placeholder={param.placeholder || t('common.select')} />
               </SelectTrigger>
               <SelectContent>
-                {param.options?.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+                {/* The offered set, not the authored one — see `optionState`
+                    above for why this branch may not read `param.options`
+                    directly (objectui#4758). `String(...)` because the shared
+                    reader types an option value `string | number | boolean`
+                    (core#3090) while a Radix item speaks strings; a resolved
+                    param option's `value` is already declared `string`, so this
+                    is a type bridge and not a conversion. */}
+                {(optionState.get(param.name)?.offered ?? []).map((opt) => (
+                  <SelectItem key={String(opt.value)} value={String(opt.value)}>
                     {opt.label}
                   </SelectItem>
                 ))}
