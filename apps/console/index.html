@@ -15,19 +15,59 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="./manifest.json" />
     <title></title>
+    <!--
+      Pre-React branding, and the page's ONE `GET /api/v1/runtime/config`
+      (objectui#5544).
+
+      This script runs during parse so the title and favicon are the operator's
+      before the bundle is even fetched. `initRuntimeConfig()` in
+      `@object-ui/app-shell` then needs the same payload — and used to fetch it a
+      second time, which is the `runtime/config ×2` the card measured on both
+      prod and staging. It is the expensive kind of duplicate: the console
+      `await`s that second call before `createRoot().render()`, so it sits on the
+      critical path to first paint.
+
+      The fix is in-flight SHARING, not caching. We publish this request's parsed
+      -body promise into the registry `@object-ui/types` keeps on `globalThis`
+      (`Symbol.for('objectui.inflightGet')`), and delete the entry the moment it
+      settles. `sharedGetJson()` finds it and joins, so app-shell inherits a
+      request that started hundreds of ms earlier instead of starting its own; if
+      it ever arrives after settle it simply fetches, exactly as before.
+
+      Why the key is spelled out by hand here: a classic inline script cannot
+      import, and it must stay classic (see the crypto shim's comment below for
+      the measurement that rules out `type="module"` ordering). The format is
+      owned by `inflightGetKey()` in `packages/types/src/http-inflight.ts`, and
+      `src/__tests__/runtimeConfigBootDedup.test.ts` executes THIS script's text
+      against that function — so a drift between the two spellings fails a test
+      rather than silently restoring the duplicate.
+
+      Falls back gracefully on any error (non-blocking).
+    -->
     <script>
-      // Pre-React branding — fetch runtime config as early as possible so the
-      // browser title and favicon reflect the operator's branding BEFORE React
-      // mounts. Falls back gracefully on any error (non-blocking).
       (async function applyEarlyBranding() {
+        const base = (window.__CONSOLE_SERVER_URL || '').replace(/\/+$/, '');
+        const url = base + '/api/v1/runtime/config';
+        const init = { credentials: 'include', headers: { Accept: 'application/json' } };
+        // Must equal inflightGetKey(url, init) — see the comment above.
+        const key = 'GET\ninclude\n' + url + '\naccept=application/json';
+
+        const registryKey = Symbol.for('objectui.inflightGet');
+        const registry = globalThis[registryKey] || (globalThis[registryKey] = new Map());
+
+        const pending = (async function () {
+          const res = await fetch(url, init);
+          if (!res.ok) throw new Error('runtime/config ' + res.status);
+          return res.json();
+        })();
+        registry.set(key, pending);
+        const drop = function () {
+          if (registry.get(key) === pending) registry.delete(key);
+        };
+        pending.then(drop, drop);
+
         try {
-          const base = (window.__CONSOLE_SERVER_URL || '').replace(/\/+$/, '');
-          const res = await fetch(base + '/api/v1/runtime/config', {
-            credentials: 'include',
-            headers: { Accept: 'application/json' },
-          });
-          if (!res.ok) return;
-          const body = await res.json();
+          const body = await pending;
           if (body?.branding) {
             if (body.branding.productName) {
               document.title = body.branding.productName;

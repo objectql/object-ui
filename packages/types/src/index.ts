@@ -1274,3 +1274,15 @@ export {
     sleep,
     retryAfterFrom,
 } from './http-retry.js';
+
+// In-flight sharing for identical GETs (objectui#5544). Same argument for the
+// same home: the callers that overlap — the pre-React branding script, app-shell's
+// runtime config, the language seed and the localization provider — have no
+// package in common lower than this one. Shares the PROMISE only; the entry is
+// gone the moment the request settles, so nothing here is a cache.
+export {
+    INFLIGHT_GET_REGISTRY_KEY,
+    inflightGetKey,
+    sharedGetJson,
+    resetInflightGetsForTesting,
+} from './http-inflight.js';

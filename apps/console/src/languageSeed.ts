@@ -47,6 +47,7 @@
  * The seed lands in the cache instead, and the next boot is correct forever.
  */
 import { cacheLanguageSeed, readCachedLanguageSeed, readStoredLanguage } from '@object-ui/i18n';
+import { sharedGetJson } from '@object-ui/types';
 
 /**
  * How long a true first visit will wait for the tenant's locale before booting
@@ -72,12 +73,17 @@ interface MeLocalizationResponse {
  */
 async function fetchAndCacheSeed(serverBase: string): Promise<void> {
   try {
-    const res = await fetch(`${serverBase}/api/v1/auth/me/localization`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return;
-    const json = (await res.json()) as MeLocalizationResponse;
+    // Shared in flight with `LocalizationFetchProvider` (objectui#5544), which
+    // asks the same endpoint on every boot. The prose above already treats the
+    // two as one request — "without a second request here" — but on a true first
+    // visit both fired, and the card measured them as `me/localization ×2`. They
+    // overlap by construction: this one keeps running past the 500 ms race, and
+    // the provider mounts as soon as the race resolves. Sharing is in-flight
+    // only, so on the boots where they do NOT overlap each still fetches.
+    const json = await sharedGetJson<MeLocalizationResponse>(
+      `${serverBase}/api/v1/auth/me/localization`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    );
     if (json?.authenticated === false) return;
     cacheLanguageSeed(json?.locale);
   } catch {

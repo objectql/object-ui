@@ -20,6 +20,8 @@
  *   framework/packages/runtime/src/cloud/runtime-config-plugin.ts
  */
 
+import { sharedGetJson } from '@object-ui/types';
+
 export interface RuntimeFeatures {
   /** "Install to this runtime" button is meaningful on this runtime. */
   installLocal: boolean;
@@ -156,16 +158,25 @@ function applyUpdate(patch: Partial<AppShellRuntimeConfig>): void {
  * `baseUrl` lets callers in dev (Vite proxy) override the fetch origin.
  * In production both Console SPA and tenant runtime share an origin so
  * the default (relative `/api/v1/...`) works.
+ *
+ * Goes through {@link sharedGetJson} because this is NOT the page's first ask
+ * for this URL (objectui#5544): the inline branding script in
+ * `apps/console/index.html` starts the identical request during HTML parse, well
+ * before this module chunk is even fetched. Both were measured on prod and
+ * staging, and this one is on the critical path — the console awaits it before
+ * `createRoot().render()`. Joining the earlier request removes a whole
+ * control-plane round trip AND lets this await settle sooner, since it inherits
+ * a request that started first. In-flight only: with nothing in flight this
+ * fetches normally, and the repeat-call contract above is unchanged, because the
+ * registry entry is gone by the time any later call arrives.
  */
 export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
   const base = (baseUrl || '').replace(/\/+$/, '');
   try {
-    const res = await fetch(`${base}/api/v1/runtime/config`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return;
-    const body = (await res.json()) as Partial<AppShellRuntimeConfig> | null;
+    const body = await sharedGetJson<Partial<AppShellRuntimeConfig> | null>(
+      `${base}/api/v1/runtime/config`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    );
     if (!body || typeof body !== 'object') return;
     applyUpdate({
       cloudUrl: typeof body.cloudUrl === 'string' ? body.cloudUrl.replace(/\/+$/, '') : current.cloudUrl,

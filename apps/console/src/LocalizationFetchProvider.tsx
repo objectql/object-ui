@@ -31,7 +31,7 @@ import {
   HttpFetchError,
   backoffMs,
   isTransientFailure,
-  retryAfterFrom,
+  sharedGetJson,
   sleep,
 } from '@object-ui/types';
 
@@ -67,13 +67,17 @@ export function LocalizationFetchProvider({
     void (async () => {
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const res = await fetch(endpoint, {
+          // Shared in flight with `seedTenantLanguage()` (objectui#5544): on a
+          // device's first visit that seed asks this same endpoint, and its
+          // request is still running when this one starts. `sharedGetJson`
+          // rejects with the same `HttpFetchError` a non-2xx produced here
+          // before — including `Retry-After` — so the retry policy below is
+          // untouched, and a shared 503 reaches BOTH callers rather than
+          // resolving one of them empty.
+          const json = await sharedGetJson<MeLocalizationResponse>(endpoint, {
             credentials: 'include',
             headers: { Accept: 'application/json' },
           });
-          if (!res.ok) throw new HttpFetchError(res.status, retryAfterFrom(res));
-
-          const json = (await res.json()) as MeLocalizationResponse;
           // Refresh the UI-language seed cache (objectui#4035) — the
           // "revalidate" half of stale-while-revalidate. This boot has already
           // committed to a language; what this write buys is the NEXT one, so a
