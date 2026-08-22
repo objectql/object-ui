@@ -24,6 +24,10 @@
  * `advancedChunks` deliberately routes vendor and workspace code into named
  * chunks, so MOST regressions land outside `index-*.js`.
  *
+ * That table is the MOTIVATING measurement and stays pinned to `77f846a8b`; it
+ * is not the current reading. {@link BASELINE} carries today's, and the ceiling
+ * section below does the arithmetic against it.
+ *
  * ## Where the number comes from
  *
  * `apps/console/vite.config.ts` (`emitEagerClosureReport`) writes
@@ -41,20 +45,43 @@
  * Two constraints pin it from both sides:
  *
  *   - It must PASS on today's `main`. A gate that lands red is a gate someone
- *     disables, and this one is landing as a replacement for a gate nobody could
- *     fail. Headroom above the current 3,881,609 bytes: 78,391 (2.02%).
+ *     disables, and this one replaced a gate nobody could fail. Headroom above
+ *     the current 4,005,911 bytes: 80,089 (2.00%).
  *   - The headroom must stay SMALLER than the regression the gate exists to
- *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 78,391 < 91,136, so this
+ *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 80,089 < 91,136, so this
  *     ceiling would have failed on that change. Widening the headroom past ~89
  *     KiB would leave the gate green through a repeat of its own motivating
  *     incident.
  *
- * This is a truthful CURRENT-STATE ceiling, not a target. 3.7 MB gzipped before
+ * ## Why this number moved once (objectui#5328, maintainer ruling on #5531)
+ *
+ * It was 3,960,000 over a 3,881,609 baseline measured on `77f846a8b`. Pinning
+ * `@objectstack/spec` and its three siblings to 17.1.0 put the closure 41,689
+ * bytes over that ceiling: the release is ~930 KB larger uncompressed, and
+ * essentially all of it lands in `vendor-objectstack-*.js`. That is REAL added
+ * payload, not a measurement artefact, and it is larger than the #5266
+ * regression this gate was sized to catch — the gate did its job.
+ *
+ * The re-baseline was therefore escalated rather than taken by the seat doing
+ * the bump, because #5468 had ruled days earlier that the aggregate ceiling
+ * "stays as shipped" and that gate-strength policy is the maintainer's. The
+ * maintainer ruled option A on #5531: raise it, permanently, together with the
+ * headroom assertion that guards it. Both constants move in ONE commit — raising
+ * the ceiling alone leaves headroom at ~200 KB and fails the test below, which
+ * is the guard working, not an obstacle to route around.
+ *
+ * What did NOT move: {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}. That is the
+ * gate's sensitivity, the ruling did not touch it, and re-baselining must never
+ * become an excuse to widen it — a ceiling that rises while the sensitivity
+ * relaxes is a gate quietly retiring itself.
+ *
+ * This is a truthful CURRENT-STATE ceiling, not a target. 3.8 MB gzipped before
  * first render is a bad payload, and the honest long-term line is far below it —
  * but lowering the line is a separate decision with its own work behind it
- * (objectui#5324 names the candidates: per-chunk budgets, a ratchet against
- * `main`, or actually cleaving the closure). Nothing here should be read as a
- * finding that 3.79 MB is acceptable.
+ * (objectui#5324 names the candidates; objectui#5490 is the ruled follow-up
+ * adding per-chunk budgets so `vendor-objectstack` cannot grow unnoticed inside
+ * aggregate headroom again). Nothing here should be read as a finding that
+ * 3.82 MB is acceptable.
  *
  * ## Raising it
  *
@@ -70,9 +97,9 @@ import { pathToFileURL } from 'node:url';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,881,609 on `77f846a8b`.
+ * how this number was chosen; measured 4,005,911 on `4c1623c0c`.
  */
-export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_960_000;
+export const MAX_EAGER_CLOSURE_GZIP_BYTES = 4_086_000;
 
 /**
  * The measurement the ceiling above was derived from. Exported so the two
@@ -83,10 +110,10 @@ export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_960_000;
  */
 export const BASELINE = Object.freeze({
   /** `emitEagerClosureReport`'s `eagerGzipBytes` on this commit. */
-  gzipBytes: 3_881_609,
-  chunks: 58,
-  totalChunks: 507,
-  commit: '77f846a8b',
+  gzipBytes: 4_005_911,
+  chunks: 52,
+  totalChunks: 508,
+  commit: '4c1623c0c',
 });
 
 /**
