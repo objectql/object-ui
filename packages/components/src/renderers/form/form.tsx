@@ -1463,6 +1463,32 @@ ComponentRegistry.register('form',
     const baselineRef = React.useRef<Record<string, unknown>>(
       (defaultValues ?? {}) as Record<string, unknown>,
     );
+    // The window in which a `defaultValues` reset is running. The two
+    // value-notification channels below — `onChange` and the `form_change`
+    // `onAction` — read it, so that what they report across a reset is stated
+    // HERE, explicitly, the way `onDirtyChange` already states it (a few lines
+    // down: it computes its payload from `baselineRef` and is then called
+    // outright).
+    //
+    // Before this ref, those two rode on React's effect ordering instead:
+    // every layout DESTROY runs before any layout CREATE, so a caller passing
+    // a fresh callback each render had its subscription torn down before the
+    // reset and re-established after, and the reset went unreported. That
+    // guarantee was delivered by the CALLBACK'S IDENTITY CHANGING — so a
+    // caller wrapping the same callback in `React.useCallback`, taught
+    // everywhere as a pure performance optimization, kept one identity, the
+    // effect never re-ran, the subscription stayed live across the reset, and
+    // the record landing was delivered as if the user had edited every field
+    // it filled (#2968, measured in #5235). Nothing in the type, the docs or
+    // this renderer said "do not memoize this callback".
+    //
+    // ⛔ NOT decided here (#5235, explicitly left open): whether a value
+    // channel SHOULD report a programmatic reset. That is a contract change.
+    // This only makes the answer the file already gives identity-independent —
+    // the same for memoized and inline callers. If it is ever answered "yes",
+    // the explicit call belongs beside the `onDirtyChangeProp?.(...)` one
+    // below, not back in a subscription's teardown ordering.
+    const resetInFlightRef = React.useRef(false);
     // LAYOUT effect, deliberately — not a passive one. A passive effect runs a
     // commit LATER than the render that produced the new values, so there is a
     // window in which the new inputs are already mounted and interactive but the
@@ -1514,9 +1540,20 @@ ComponentRegistry.register('form',
       // Set the baseline before resetting: `reset`/`setValue` notify the watcher
       // below synchronously, and it reads this to compute dirtiness.
       baselineRef.current = incoming;
-      form.reset(defaultValues);
-      for (const [name, value] of carried) {
-        form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
+      // Everything up to the `finally` is the reset: `reset()` itself plus the
+      // re-application of the carried values, which is part of the same
+      // operation and is no more a user edit than the reset is. RHF delivers
+      // both to `form.watch` subscribers SYNCHRONOUSLY (measured on 7.85, and
+      // relied on by the `baselineRef` line above), so the window shuts before
+      // anything else can run in it — a keystroke least of all.
+      resetInFlightRef.current = true;
+      try {
+        form.reset(defaultValues);
+        for (const [name, value] of carried) {
+          form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
+        }
+      } finally {
+        resetInFlightRef.current = false;
       }
       // Fresh values, so last attempt's rejected-field markers no longer apply.
       setRejectedFieldNames([]);
@@ -1530,17 +1567,21 @@ ComponentRegistry.register('form',
 
     // Watch for form changes - only track changes when onAction is available.
     // LAYOUT effect to stay in the same phase as the `defaultValues` reset
-    // above. React runs every layout DESTROY (mutation phase) before any layout
-    // CREATE, so a caller passing a fresh `onAction` each render — the common
-    // case, it is usually an inline arrow — has this subscription torn down
-    // before the reset runs and re-established after. That is what keeps a
-    // reset from being reported as a user edit. Leaving this passive while the
-    // reset is layout-phase inverts the order: the reset fires into the still
-    // live previous subscription and a record landing looks like the user
-    // editing every field it filled (#2968).
+    // above: a passive subscription is established one commit LATER than the
+    // layout-phase reset, which is a schedule of its own for no reason.
+    //
+    // What keeps a reset from being reported as a user edit is the explicit
+    // window (`resetInFlightRef`), NOT this effect's teardown ordering. That
+    // ordering unsubscribes only when the callback's identity changes, so it
+    // held for inline arrows and quietly did nothing for a caller who
+    // memoized — see the ref's declaration above (#2968, #5235).
     React.useLayoutEffect(() => {
       if (onAction) {
         const subscription = form.watch((data) => {
+          // A `defaultValues` reset is the host's own data landing, not the
+          // user editing every field it fills. Driven from the reset itself,
+          // so it holds for every caller.
+          if (resetInFlightRef.current) return;
           onAction({
             type: 'form_change',
             data,
@@ -1580,15 +1621,17 @@ ComponentRegistry.register('form',
     // nothing — a behaviour change for them, where honouring the declaration
     // is meant to be purely additive.
     //
-    // Layout-phase for the ordering reason spelled out above the `onAction`
-    // effect: React runs every layout DESTROY before any layout CREATE, so a
-    // caller passing a fresh inline arrow each render — the common case — has
-    // this torn down before the `defaultValues` reset runs and re-established
-    // after. That is what keeps a record landing from being reported to the
-    // host as a user edit. A passive effect inverts the order (#2968).
+    // Layout-phase for the same reason as the `onAction` effect above, and —
+    // like it — a `defaultValues` reset is kept off this channel by the
+    // explicit window (`resetInFlightRef`), not by whether React happened to
+    // tear this subscription down. The teardown only happens when the
+    // callback's identity changes, i.e. for callers who do not memoize; the
+    // guarantee is not theirs alone (#2968, #5235).
     React.useLayoutEffect(() => {
       if (onChangeProp) {
         const subscription = form.watch((values) => {
+          // The host's own record landing is not the user changing values.
+          if (resetInFlightRef.current) return;
           onChangeProp(values as Record<string, any>);
         });
         return () => subscription.unsubscribe();
