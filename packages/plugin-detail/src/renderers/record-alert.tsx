@@ -31,11 +31,34 @@
  *
  * Visibility model
  * ----------------
- *   Reuses `useCondition` + `toPredicateInput` (same pipeline as every
- *   `<ActionButton>` / `<ActionBar>`), so the predicate evaluates against
- *   the same scope: `record`, `user`, `objectName`, `features`, plus
- *   `ctx.*` namespace mirror. Missing predicate → always visible.
+ *   `properties.visible` is normalized by `toPredicateInput` and evaluated by
+ *   `useCondition` against `usePredicateRecordContext(record)` — the repo's one
+ *   row-binding rule (objectui#4075 / #4077), shared with `<ActionButton>` /
+ *   `<ActionMenu>` / `<ActionGroup>` / `<ActionIcon>` and app-shell's
+ *   `DeclaredActionsBar`, so this banner cannot disagree with the buttons it
+ *   pairs with. The row therefore resolves the three ways objectui#5330 ruled
+ *   on (maintainer, 2026-08-20): `record.status` — the CANON, what an author
+ *   should write — plus the deprecated-but-kept row-action shorthand `status`
+ *   and legacy `data.status`.
+ *
+ *   Merged UNDER the row is whatever the host put in the ambient predicate
+ *   scope (`PredicateScopeProvider`; app-shell's `ExpressionProvider` supplies
+ *   `current_user` / `user` / `ctx.user` / `os.user` / `app` / `data` /
+ *   `features`). The row wins, so a host-supplied `record` / `data` cannot
+ *   shadow it. `objectName` is NOT in the predicate scope — it is read from
+ *   `useRecordContext()` for the metadata lookup and the dismiss key only.
+ *
+ *   Missing predicate → always visible. A predicate that cannot be evaluated →
+ *   also visible: this call site is FAIL-SOFT (it does not pass
+ *   `throwOnError`), which is why the unbound spellings above were a
+ *   user-visible defect rather than a console line — objectui#4807.
  *   Empty `record` (loading) → hidden (no flash of stale alert).
+ *
+ *   A node-level `visibleWhen` is a SEPARATE gate one tier up, evaluated by
+ *   `SchemaRenderer` on its own bindings (notably `data` = the data-source
+ *   ADAPTER, not the row). The two compose as AND. Both facts are pinned in
+ *   `__tests__/record-alert.visibleWhen.evidence.test.tsx` (group 4) and
+ *   `__tests__/record-alert.rowBinding.test.tsx`.
  *
  * CTA wiring
  * ----------
@@ -51,6 +74,7 @@ import {
   useMetadataItem,
   useCondition,
   toPredicateInput,
+  usePredicateRecordContext,
   useActionEngine,
 } from '@object-ui/react';
 import { Alert, AlertTitle, AlertDescription, Button, cn, LazyIcon } from '@object-ui/components';
@@ -161,12 +185,16 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   const styles = SEVERITY_STYLES[severity];
   const iconName = props.icon || styles.icon;
 
-  // Always-call hooks (Rules of Hooks). Evaluate the visibility predicate
-  // against the record / user / ctx scope using the same canonical helper
-  // every action button uses, so this banner can't disagree with the
-  // Salesforce Lightning-style buttons it commonly pairs with.
+  // Always-call hooks (Rules of Hooks). Bind the row through the shared
+  // helper — NOT a local `{ record }` bag (objectui#4807). A root-only bag
+  // resolves the canonical `record.*` spelling and nothing else, so the two
+  // spellings objectui#5330 kept never reached the row: the shorthand threw
+  // and this fail-soft site answered SHOWN, while `data.*` silently read the
+  // host's ambient `data` and answered a constant false. Either way the
+  // author's gate was never consulted. See `usePredicateRecordContext`.
+  const predicateRecord = usePredicateRecordContext(record);
   const predicateInput = toPredicateInput(props.visible);
-  const passesPredicate = useCondition(predicateInput, { record });
+  const passesPredicate = useCondition(predicateInput, predicateRecord);
 
   // Dismissed-state persistence. Keyed by `<objectName>:<recordId>:<key>`
   // so an admin viewing a different record sees the alert fresh, and so
