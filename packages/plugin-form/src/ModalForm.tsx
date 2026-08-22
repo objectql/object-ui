@@ -325,7 +325,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         // supplied initial values still win. See `schemaDefaults` for why
         // runtime defaults (`NOW()`, `current_user`, CEL envelopes) are left
         // to the server and why option-level `default` is not read here.
-        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId: perms.userId }));
         setLoading(false);
         return;
       }

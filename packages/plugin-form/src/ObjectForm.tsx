@@ -1012,9 +1012,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // the create-mode `required` suppression (#4069), so seeding and validation
   // cannot disagree about which mode this form is in.
   const isCreateForm = isCreateFormMode(schema);
+  // [#5683] `currentUserId` lets the one client-resolvable token
+  // (`current_user`) pre-fill with the id the server would stamp anyway;
+  // null/unloaded seeds nothing and keeps the omit-and-let-the-engine-resolve
+  // contract above.
   const schemaDefaults = React.useMemo(
-    () => (isCreateForm ? schemaDefaultValues(objectSchema) : {}),
-    [objectSchema, isCreateForm],
+    () => (isCreateForm ? schemaDefaultValues(objectSchema, { currentUserId: perms.userId }) : {}),
+    [objectSchema, isCreateForm, perms.userId],
   );
 
   const finalDefaultValues = {

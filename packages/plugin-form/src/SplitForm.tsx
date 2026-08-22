@@ -29,6 +29,7 @@ import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
+import { usePermissions } from '@object-ui/permissions';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { useOccSave } from './occSave';
 
@@ -116,6 +117,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const { userId: currentUserId } = usePermissions();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
@@ -164,7 +166,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
         // Declared static defaults are this form's opening values (#4047) —
         // see `schemaDefaults` for the create-only boundary and for why
         // runtime defaults are left to the server.
-        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
         setLoading(false);
         return;
       }

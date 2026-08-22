@@ -290,6 +290,9 @@ export function MePermissionsProvider({
       getRowFilter,
       getObjectApiOperations,
       roles: data?.roles ?? [],
+      // [objectui#5683] `null` while unloaded/anonymous — never ''. Consumers
+      // treat null as "unknown" and defer to the server.
+      userId: data?.userId ?? null,
       // [objectui#4656] Forward the raw signal — do NOT `?? []` this. A
       // backend predating ADR-0066 omits `systemPermissions` from the
       // response entirely, and defaulting that to `[]` here made it

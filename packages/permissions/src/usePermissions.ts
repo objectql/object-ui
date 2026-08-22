@@ -36,6 +36,8 @@ export function usePermissions(): PermissionContextValue & {
         getRowFilter: () => undefined,
         getObjectApiOperations: () => undefined,
         roles: [],
+        // [objectui#5683] No provider → identity unknown, defer to the server.
+        userId: null,
         // [objectui#4656] No provider mounted at all → no answer, not "holds
         // nothing". `undefined` matches MePermissionsProvider's own signal
         // for an unreported backend and keeps `hasCapabilities` fail-open.

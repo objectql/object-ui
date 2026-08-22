@@ -49,6 +49,7 @@ import {
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
 import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
+import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
 
 /**
@@ -180,6 +181,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   className,
 }) => {
   const { fieldLabel, sectionLabel } = useSafeFieldLabel();
+  const { userId: currentUserId } = usePermissions();
   const { t } = useDiscardTranslation();
   const previewMode = usePreviewMode();
   const [objectSchema, setObjectSchema] = useState<any>(null);
@@ -256,7 +258,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         // Declared static defaults are this form's opening values (#4047) —
         // see `schemaDefaults` for the create-only boundary and for why
         // runtime defaults are left to the server.
-        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
         setLoading(false);
         return;
       }
