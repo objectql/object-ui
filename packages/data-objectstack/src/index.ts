@@ -625,7 +625,8 @@ export function isAnalyticsNotInstalledError(error: unknown): boolean {
  * time in the wrong subsystem.
  *
  * The `code` is the ONLY field that separates the two, which is why this branch
- * reads it and nothing else. See {@link readAnalyticsErrorEnvelope}.
+ * reads it and nothing else. See `readAnalyticsErrorEnvelope` below — the
+ * module-private reader that pulls the code out of either declared envelope.
  */
 export class AnalyticsDatasetNotFoundError extends Error {
   readonly code = 'ANALYTICS_DATASET_NOT_FOUND';
