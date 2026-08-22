@@ -170,6 +170,17 @@ export async function sharedGetJson<T>(
     );
   }
 
+  // An `AbortSignal` belongs to ONE caller. Sharing a request behind two signals
+  // would let either caller's abort cancel the other's read — a starvation this
+  // module exists to avoid — and the signal is not part of the key, so it cannot
+  // be separated by one either. A cancellable request simply opts out: it fetches
+  // on its own, and it neither joins nor blocks anyone else's.
+  if (init?.signal) {
+    const res = await fetchImpl(url, { ...init, method: 'GET' });
+    if (!res.ok) throw new HttpFetchError(res.status, retryAfterFrom(res));
+    return (await res.json()) as T;
+  }
+
   const key = inflightGetKey(url, init);
   const reg = registry();
 

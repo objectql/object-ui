@@ -91,7 +91,7 @@ describe('the shipped pre-boot script is findable', () => {
 
 describe('one cold load, one runtime/config request', () => {
   it('lets app-shell join the pre-boot request instead of issuing a second one', async () => {
-    const fetchStub = vi.fn(async () => jsonResponse(CONFIG_BODY));
+    const fetchStub = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(CONFIG_BODY));
     vi.stubGlobal('fetch', fetchStub);
 
     // Parse-time script, then the module chunk — the real boot order.

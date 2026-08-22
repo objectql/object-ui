@@ -1,6 +1,7 @@
 ---
 '@object-ui/types': patch
 '@object-ui/app-shell': patch
+'@object-ui/console': patch
 ---
 
 The console's cold load no longer asks `/api/v1/runtime/config` or

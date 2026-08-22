@@ -200,6 +200,24 @@ describe('sharedGetJson', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('opts a cancellable request out of sharing, in both directions', async () => {
+    const gate = deferred<Response>();
+    const fetchImpl = vi.fn(() => gate.promise);
+
+    const all = Promise.all([
+      // A caller with its own AbortSignal must neither join…
+      sharedGetJson(URL_A, { ...JSON_GET, signal: new AbortController().signal }, fetchImpl as unknown as typeof fetch),
+      // …nor be joined: aborting one caller must never cancel another's read.
+      sharedGetJson(URL_A, JSON_GET, fetchImpl as unknown as typeof fetch),
+      sharedGetJson(URL_A, { ...JSON_GET, signal: new AbortController().signal }, fetchImpl as unknown as typeof fetch),
+    ]);
+    gate.resolve(jsonResponse({ n: 1 }));
+    const results = await all;
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    for (const result of results) expect(result).toEqual({ n: 1 });
+  });
+
   it('refuses to share a mutation', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}));
     await expect(
@@ -209,9 +227,9 @@ describe('sharedGetJson', () => {
   });
 
   it('issues a GET even when the caller passed method: GET explicitly', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({}));
+    const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse({}));
     await sharedGetJson(URL_A, { ...JSON_GET, method: 'get' }, fetchImpl as unknown as typeof fetch);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect((fetchImpl.mock.calls[0]![1] as RequestInit).method).toBe('GET');
+    expect(fetchImpl.mock.calls[0]![1]?.method).toBe('GET');
   });
 });
