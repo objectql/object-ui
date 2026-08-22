@@ -75,8 +75,10 @@
  * So every key the two layers agree on comes FROM the spec and cannot fall
  * behind it, and each of the four positions where this layer is deliberately
  * narrower is named in an `Omit` list and restated once, next to its reason.
- * `FormSpec.contract.test.ts` pins both halves: that the derived keys really are
- * the spec's, and that each narrowing still refuses the arm it means to refuse.
+ * `form-spec.containers.test.tsx` pins both halves: that the derived keys really
+ * are the spec's, and that each narrowing still refuses the arm it means to
+ * refuse. Its console twin, `FormPage.viewSpec.test.ts`, pins the same two
+ * types back out of that app's own renderer signature.
  */
 
 import type { FormSection, FormView } from '@objectstack/spec/ui';
