@@ -5,7 +5,9 @@
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between mb-6",
+      "align": "center",
+      "justify": "between",
+      "className": "mb-6",
       "children": [
         {
           "type": "text",
@@ -48,7 +50,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -91,7 +93,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -134,7 +136,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -177,7 +179,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",

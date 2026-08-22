@@ -4,7 +4,8 @@
   "header": [
     {
       "type": "flex",
-      "className": "items-center gap-2",
+      "align": "center",
+      "gap": 2,
       "children": [
         {
           "type": "icon",
@@ -22,11 +23,11 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
+      "gap": 4,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",
@@ -54,7 +55,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",
@@ -70,7 +71,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",
@@ -84,7 +85,7 @@
         },
         {
           "type": "flex",
-          "className": "gap-2",
+          "gap": 2,
           "children": [
             {
               "type": "checkbox",
@@ -121,7 +122,9 @@
         },
         {
           "type": "flex",
-          "className": "justify-end gap-2 pt-2",
+          "justify": "end",
+          "gap": 2,
+          "className": "pt-2",
           "children": [
             {
               "type": "button",

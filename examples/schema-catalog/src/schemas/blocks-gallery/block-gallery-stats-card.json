@@ -4,12 +4,13 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "className": "p-4",
       "children": [
         {
           "type": "flex",
-          "className": "items-center justify-between",
+          "align": "center",
+          "justify": "between",
           "children": [
             {
               "type": "text",

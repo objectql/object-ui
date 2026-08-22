@@ -32,7 +32,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",
@@ -67,7 +67,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",
@@ -102,7 +102,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",
@@ -137,7 +137,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",
@@ -172,7 +172,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",
@@ -207,7 +207,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 3,
+              "gap": 3,
               "children": [
                 {
                   "type": "flex",

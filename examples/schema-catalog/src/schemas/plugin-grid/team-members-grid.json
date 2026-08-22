@@ -3,7 +3,9 @@
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between mb-4",
+      "align": "center",
+      "justify": "between",
+      "className": "mb-4",
       "children": [
         {
           "type": "text",
@@ -21,11 +23,13 @@
     },
     {
       "type": "stack",
-      "spacing": 0,
+      "gap": 0,
       "children": [
         {
           "type": "flex",
-          "className": "items-center gap-4 px-4 py-2 bg-muted text-xs font-medium text-muted-foreground border-b",
+          "align": "center",
+          "gap": 4,
+          "className": "px-4 py-2 bg-muted text-xs font-medium text-muted-foreground border-b",
           "children": [
             {
               "type": "text",
@@ -56,7 +60,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-4 px-4 py-3 border-b text-sm",
+          "align": "center",
+          "gap": 4,
+          "className": "px-4 py-3 border-b text-sm",
           "children": [
             {
               "type": "text",
@@ -88,7 +94,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-4 px-4 py-3 border-b text-sm",
+          "align": "center",
+          "gap": 4,
+          "className": "px-4 py-3 border-b text-sm",
           "children": [
             {
               "type": "text",
@@ -120,7 +128,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-4 px-4 py-3 border-b text-sm",
+          "align": "center",
+          "gap": 4,
+          "className": "px-4 py-3 border-b text-sm",
           "children": [
             {
               "type": "text",
@@ -152,7 +162,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-4 px-4 py-3 text-sm",
+          "align": "center",
+          "gap": 4,
+          "className": "px-4 py-3 text-sm",
           "children": [
             {
               "type": "text",

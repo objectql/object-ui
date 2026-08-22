@@ -22,7 +22,19 @@ const StackRenderer = forwardRef<HTMLDivElement, { schema: StackSchema; classNam
     const direction = schema.direction || 'col';
     const justify = schema.justify || 'start';
     const align = schema.align || 'stretch'; // Stack items usually stretch
-    const gap = schema.gap ?? (schema as any).spacing ?? 2;
+    // `gap` ONLY. `stack.tsx` also read an undeclared `spacing` here, through an
+    // `as any` that existed to get past the type system saying it wasn't there —
+    // `StackSchema` extends `FlexSchema`, whose only spacing key is `gap`, and the
+    // registration below has always listed `gap` alone. That second reader made
+    // `spacing` a de-facto contract nothing declared: 135 catalog nodes across 39
+    // files were authored with it, rendered correctly, and taught every copying
+    // author (and every few-shot retrieval over these examples) a key the types do
+    // not have. Re-typing such a node to `flex` — semantically one `direction`
+    // away — would have dropped the spacing silently, because `flex.tsx` never
+    // read `spacing`. Fixed at the PRODUCER (AGENTS.md #0.1): the 135 nodes now
+    // author `gap`, and the alias is gone rather than legalised into the schema,
+    // where it would only have been a second name for `gap` (objectui#4890).
+    const gap = schema.gap ?? 2;
     const wrap = schema.wrap || false;
     
     const stackClass = cn(

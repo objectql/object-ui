@@ -4,11 +4,13 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 1,
+      "gap": 1,
       "children": [
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md bg-accent text-accent-foreground",
           "children": [
             {
               "type": "icon",
@@ -24,7 +26,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
@@ -46,7 +50,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
@@ -71,7 +77,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
@@ -87,7 +95,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
@@ -107,7 +117,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",

@@ -4,7 +4,7 @@
   "header": [
     {
       "type": "stack",
-      "spacing": 1,
+      "gap": 1,
       "className": "text-center",
       "children": [
         {
@@ -23,11 +23,11 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 3,
+      "gap": 3,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",
@@ -42,7 +42,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",

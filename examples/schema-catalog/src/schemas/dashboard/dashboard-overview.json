@@ -1,10 +1,11 @@
 {
   "type": "stack",
-  "spacing": 6,
+  "gap": 6,
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between",
+      "align": "center",
+      "justify": "between",
       "children": [
         {
           "type": "text",
@@ -29,7 +30,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-4",
+              "padding": 4,
               "children": [
                 {
                   "type": "text",
@@ -50,7 +51,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-4",
+              "padding": 4,
               "children": [
                 {
                   "type": "text",
@@ -71,7 +72,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-4",
+              "padding": 4,
               "children": [
                 {
                   "type": "text",
@@ -92,7 +93,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-4",
+              "padding": 4,
               "children": [
                 {
                   "type": "text",
@@ -121,7 +122,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-6",
+              "padding": 6,
               "children": [
                 {
                   "type": "text",
@@ -130,7 +131,9 @@
                 },
                 {
                   "type": "flex",
-                  "className": "h-[300px] items-center justify-center text-muted-foreground",
+                  "align": "center",
+                  "justify": "center",
+                  "className": "h-[300px] text-muted-foreground",
                   "children": [
                     {
                       "type": "text",
@@ -148,7 +151,7 @@
           "children": [
             {
               "type": "container",
-              "className": "p-6",
+              "padding": 6,
               "children": [
                 {
                   "type": "text",
@@ -157,11 +160,11 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 4,
+                  "gap": 4,
                   "children": [
                     {
                       "type": "flex",
-                      "className": "items-center",
+                      "align": "center",
                       "children": [
                         {
                           "type": "avatar",
@@ -170,7 +173,7 @@
                         },
                         {
                           "type": "stack",
-                          "spacing": 1,
+                          "gap": 1,
                           "children": [
                             {
                               "type": "text",

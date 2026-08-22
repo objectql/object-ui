@@ -4,7 +4,7 @@
   "header": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "className": "text-center",
       "children": [
         { "type": "text", "content": "Welcome Back", "className": "text-2xl font-bold tracking-tight" },
@@ -15,11 +15,11 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
+      "gap": 4,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             { "type": "label", "htmlFor": "email", "label": "Email" },
             {
@@ -34,7 +34,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             { "type": "label", "htmlFor": "password", "label": "Password" },
             {
@@ -49,11 +49,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center justify-between",
+          "align": "center",
+          "justify": "between",
           "children": [
             {
               "type": "flex",
-              "className": "items-center space-x-2",
+              "align": "center",
+              "className": "space-x-2",
               "children": [
                 { "type": "checkbox", "id": "remember", "name": "remember" },
                 { "type": "label", "htmlFor": "remember", "label": "Remember me", "className": "text-sm font-normal" }

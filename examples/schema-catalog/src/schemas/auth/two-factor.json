@@ -4,7 +4,7 @@
   "header": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "className": "text-center",
       "children": [
         { "type": "text", "content": "Two-Factor Authentication", "className": "text-2xl font-bold tracking-tight" },
@@ -19,11 +19,11 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
+      "gap": 4,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             { "type": "label", "htmlFor": "code", "label": "Verification Code" },
             {

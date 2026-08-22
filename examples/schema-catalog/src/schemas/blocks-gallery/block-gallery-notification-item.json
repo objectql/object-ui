@@ -1,6 +1,8 @@
 {
   "type": "flex",
-  "className": "items-start gap-3 p-4 border rounded-lg max-w-md",
+  "align": "start",
+  "gap": 3,
+  "className": "p-4 border rounded-lg max-w-md",
   "children": [
     {
       "type": "avatar",
@@ -9,7 +11,7 @@
     },
     {
       "type": "stack",
-      "spacing": 1,
+      "gap": 1,
       "children": [
         {
           "type": "text",

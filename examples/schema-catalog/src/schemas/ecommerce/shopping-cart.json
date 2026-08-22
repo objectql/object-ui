@@ -4,11 +4,12 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 6,
+      "gap": 6,
       "children": [
         {
           "type": "flex",
-          "className": "items-center justify-between",
+          "align": "center",
+          "justify": "between",
           "children": [
             {
               "type": "text",
@@ -27,11 +28,11 @@
         },
         {
           "type": "stack",
-          "spacing": 4,
+          "gap": 4,
           "children": [
             {
               "type": "flex",
-              "className": "gap-4",
+              "gap": 4,
               "children": [
                 {
                   "type": "flex",
@@ -49,7 +50,7 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 1,
+                  "gap": 1,
                   "children": [
                     {
                       "type": "text",
@@ -63,7 +64,9 @@
                     },
                     {
                       "type": "flex",
-                      "className": "items-center gap-2 mt-2",
+                      "align": "center",
+                      "gap": 2,
+                      "className": "mt-2",
                       "children": [
                         {
                           "type": "button",
@@ -90,7 +93,7 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 2,
+                  "gap": 2,
                   "children": [
                     {
                       "type": "text",
@@ -113,7 +116,7 @@
             },
             {
               "type": "flex",
-              "className": "gap-4",
+              "gap": 4,
               "children": [
                 {
                   "type": "flex",
@@ -131,7 +134,7 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 1,
+                  "gap": 1,
                   "children": [
                     {
                       "type": "text",
@@ -145,7 +148,9 @@
                     },
                     {
                       "type": "flex",
-                      "className": "items-center gap-2 mt-2",
+                      "align": "center",
+                      "gap": 2,
+                      "className": "mt-2",
                       "children": [
                         {
                           "type": "button",
@@ -172,7 +177,7 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 2,
+                  "gap": 2,
                   "children": [
                     {
                       "type": "text",
@@ -197,11 +202,12 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "flex",
-              "className": "justify-between text-sm",
+              "justify": "between",
+              "className": "text-sm",
               "children": [
                 {
                   "type": "text",
@@ -215,7 +221,8 @@
             },
             {
               "type": "flex",
-              "className": "justify-between text-sm",
+              "justify": "between",
+              "className": "text-sm",
               "children": [
                 {
                   "type": "text",
@@ -229,7 +236,8 @@
             },
             {
               "type": "flex",
-              "className": "justify-between text-sm",
+              "justify": "between",
+              "className": "text-sm",
               "children": [
                 {
                   "type": "text",
@@ -246,7 +254,8 @@
             },
             {
               "type": "flex",
-              "className": "justify-between text-lg font-bold",
+              "justify": "between",
+              "className": "text-lg font-bold",
               "children": [
                 {
                   "type": "text",

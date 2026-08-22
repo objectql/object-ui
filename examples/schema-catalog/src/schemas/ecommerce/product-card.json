@@ -18,11 +18,11 @@
     },
     {
       "type": "stack",
-      "spacing": 3,
+      "gap": 3,
       "children": [
         {
           "type": "stack",
-          "spacing": 1,
+          "gap": 1,
           "children": [
             {
               "type": "text",
@@ -38,7 +38,8 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-1",
+          "align": "center",
+          "gap": 1,
           "children": [
             {
               "type": "icon",
@@ -74,7 +75,8 @@
         },
         {
           "type": "flex",
-          "className": "items-baseline gap-2",
+          "align": "baseline",
+          "gap": 2,
           "children": [
             {
               "type": "text",
@@ -96,7 +98,7 @@
         },
         {
           "type": "flex",
-          "className": "gap-2",
+          "gap": 2,
           "children": [
             {
               "type": "button",

@@ -1,10 +1,13 @@
 {
   "type": "flex",
-  "className": "items-center justify-between p-3 border rounded-lg bg-background",
+  "align": "center",
+  "justify": "between",
+  "className": "p-3 border rounded-lg bg-background",
   "children": [
     {
       "type": "flex",
-      "className": "items-center gap-3",
+      "align": "center",
+      "gap": 3,
       "children": [
         {
           "type": "icon",
@@ -20,7 +23,8 @@
     },
     {
       "type": "flex",
-      "className": "items-center gap-2",
+      "align": "center",
+      "gap": 2,
       "children": [
         {
           "type": "button",
@@ -38,7 +42,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 ml-2 pl-2 border-l",
+          "align": "center",
+          "gap": 2,
+          "className": "ml-2 pl-2 border-l",
           "children": [
             {
               "type": "avatar",
@@ -47,7 +53,7 @@
             },
             {
               "type": "stack",
-              "spacing": 0,
+              "gap": 0,
               "children": [
                 {
                   "type": "text",

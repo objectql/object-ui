@@ -4,8 +4,9 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
-      "className": "items-center text-center p-4",
+      "gap": 4,
+      "align": "center",
+      "className": "text-center p-4",
       "children": [
         {
           "type": "flex",

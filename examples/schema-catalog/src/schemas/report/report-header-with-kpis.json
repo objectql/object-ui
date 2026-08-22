@@ -1,14 +1,15 @@
 {
   "type": "stack",
-  "spacing": 4,
+  "gap": 4,
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between",
+      "align": "center",
+      "justify": "between",
       "children": [
         {
           "type": "stack",
-          "spacing": 1,
+          "gap": 1,
           "children": [
             {
               "type": "text",
@@ -24,7 +25,7 @@
         },
         {
           "type": "flex",
-          "className": "gap-2",
+          "gap": 2,
           "children": [
             {
               "type": "button",

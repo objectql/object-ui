@@ -319,3 +319,373 @@ describe('the recycled documentation-page node still cancels prose\'s max-width 
     expect(getComputedStyle(el).maxWidth).toBe('none');
   });
 });
+
+/**
+ * The SECOND sweep over the same catalog surface (objectui#4891 + objectui#4890),
+ * landing here because #4003 already built the ratchet and these are the same
+ * files, the same anti-pattern, and the same "keep the next one out" job.
+ *
+ * #4003 converted nodes whose TYPE was wrong (`div` carrying layout intent).
+ * These two cards are about nodes whose type was already right:
+ *
+ *  - #4891 — 140 nodes across 33 files were already `flex` / `stack` /
+ *    `container`, and still hand-wrote, in `className`, props their own type
+ *    declares: `items-center` for `align`, `justify-between` for `justify`,
+ *    `gap-2` for `gap`, `flex-wrap` for `wrap`, `p-4` for a container's
+ *    `padding`. Re-measured on `origin/main` before the sweep: 231 such tokens,
+ *    distributed `flex` 221 / `container` 7 / `stack` 3 / `grid` 0 — the card's
+ *    own figures, reproduced exactly.
+ *  - #4890 — 135 `stack` nodes across 39 files authored `spacing`, a key NO
+ *    schema declares. `StackSchema extends Omit<FlexSchema, 'type'>`, whose only
+ *    spacing key is `gap`; `stack.tsx` read `spacing` anyway through an `as any`,
+ *    which is what made an undeclared key look authorable for as long as it did.
+ *    Fixed at the producer and the alias deleted, per AGENTS.md #0.1 — NOT by
+ *    legalising `spacing` into `StackSchema`, which would only have added a
+ *    second name for `gap`.
+ *
+ * Why it matters here and not only in a renderer test: `className` wins over the
+ * renderer's own classes (`cn()` is `clsx` + `tailwind-merge`, author string
+ * last), so every one of these 275 nodes RENDERED CORRECTLY. There was no
+ * failure to notice — only 423 shipped examples, read by the docs site and
+ * retrieved as AI few-shot material, teaching authors to reimplement a
+ * component's props in Tailwind and to spell a key the types do not have.
+ *
+ * And the props are not merely a tidier spelling: `gap` / `padding` render a
+ * MOBILE-FIRST LADDER (`gap: 3` → `gap-2 sm:gap-3`), while a hand-written
+ * `gap-3` is one dead value at every width. That is why the equivalence cases
+ * below are split into two kinds instead of asserting one blanket rule.
+ */
+
+const ALIGN_VALUES = new Set(['start', 'end', 'center', 'baseline', 'stretch']);
+const JUSTIFY_VALUES = new Set(['start', 'end', 'center', 'between', 'around', 'evenly']);
+const DIRECTION_TOKENS = new Set(['flex-row', 'flex-col', 'flex-row-reverse', 'flex-col-reverse']);
+/**
+ * The gap steps each renderer actually maps. A step OUTSIDE its ladder is not an
+ * offender: `flex.tsx` has no `gap === 9` arm, so `gap: 9` would emit no gap
+ * class at all and moving `gap-9` out of `className` would DELETE the spacing.
+ * The ratchet must only demand extraction where extraction is lossless.
+ */
+const GAP_LADDER: Record<string, ReadonlySet<number>> = {
+  flex: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]),
+  stack: new Set([0, 1, 2, 3, 4, 5, 6, 8, 10]),
+  grid: new Set([0, 1, 2, 3, 4, 5, 6, 8, 10, 12]),
+};
+const CONTAINER_PADDING = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16]);
+const CONTAINER_MAX_W = new Set([
+  'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', 'full', 'none', 'screen-2xl',
+]);
+
+/**
+ * The className tokens on this node that spell a prop THIS node's own type
+ * declares — i.e. the ones the node should be authoring as props.
+ *
+ * PREFIXED TOKENS ARE NEVER OFFENDERS. `md:items-start` is a responsive
+ * override and the props are not responsive (`grid.columns` is the one
+ * exception, and it takes an object rather than a class). Stripping a
+ * breakpoint-prefixed class into a flat prop would silently discard the
+ * breakpoint, so they stay in `className` by design — as does everything
+ * decorative (`border-b`, `bg-muted`), and everything belonging to a DIFFERENT
+ * type (`max-w-md` on a `flex`: a flex node has no `maxWidth` prop, so that
+ * class is the only way to say it) or describing this node AS A FLEX ITEM
+ * rather than as a container (`flex-shrink-0`, `space-x-2`).
+ */
+function ownPropTokens(type: string, className: unknown): string[] {
+  if (typeof className !== 'string') return [];
+  const hits: string[] = [];
+  for (const token of className.trim().split(/\s+/).filter(Boolean)) {
+    if (token.includes(':')) continue; // breakpoint / state override — stays
+    let m: RegExpExecArray | null;
+    if (type === 'flex' || type === 'stack') {
+      if ((m = /^items-(.+)$/.exec(token)) && ALIGN_VALUES.has(m[1])) { hits.push(token); continue; }
+      if ((m = /^justify-(.+)$/.exec(token)) && JUSTIFY_VALUES.has(m[1])) { hits.push(token); continue; }
+      if ((m = /^gap-(\d+)$/.exec(token)) && GAP_LADDER[type].has(Number(m[1]))) { hits.push(token); continue; }
+      if (token === 'flex-wrap') { hits.push(token); continue; }
+      if (DIRECTION_TOKENS.has(token)) { hits.push(token); continue; }
+      if (type === 'stack' && (m = /^space-y-(\d+)$/.exec(token)) && GAP_LADDER.stack.has(Number(m[1]))) {
+        hits.push(token); continue;
+      }
+    }
+    if (type === 'container') {
+      if ((m = /^p-(\d+)$/.exec(token)) && CONTAINER_PADDING.has(Number(m[1]))) { hits.push(token); continue; }
+      if ((m = /^max-w-(.+)$/.exec(token)) && CONTAINER_MAX_W.has(m[1])) { hits.push(token); continue; }
+      if (token === 'mx-auto') { hits.push(token); continue; }
+    }
+    if (type === 'grid') {
+      if ((m = /^gap-(\d+)$/.exec(token)) && GAP_LADDER.grid.has(Number(m[1]))) { hits.push(token); continue; }
+      if (/^grid-cols-\d+$/.test(token)) { hits.push(token); continue; }
+    }
+  }
+  return hits;
+}
+
+describe('schema-catalog — a layout node configures itself with props (#4891)', () => {
+  it('no flex/stack/container/grid node hand-writes its own props in className', () => {
+    const offenders = allExamples().flatMap((example) =>
+      collect(
+        example.schema,
+        (n) => typeof n.type === 'string' && LAYOUT_TYPES.has(n.type as string),
+      ).flatMap((n) =>
+        ownPropTokens(String(n.type), n.className).map(
+          (token) => `${example.id} :: ${String(n.type)} :: ${token} (in "${String(n.className)}")`,
+        ),
+      ),
+    );
+    expect(
+      offenders,
+      'a first-class layout node that spells its OWN declared prop in Tailwind ' +
+        'teaches every reader to bypass the props — and `gap`/`padding` props ' +
+        'render a mobile-first ladder that a hand-written single value cannot ' +
+        '(#4891). Author the prop; leave decoration and breakpoint-prefixed ' +
+        'overrides in className.',
+    ).toEqual([]);
+  });
+
+  it('sees enough layout nodes WITH a className for the ratchet to mean something', () => {
+    // The guard is only interesting over nodes that still carry a className at
+    // all — 187 of them after the sweep (252 before; 65 nodes had nothing left
+    // to say once their props were extracted). A floor, so adding examples never
+    // fails this, but a mass deletion of classNames would.
+    const withClassName = allExamples().flatMap((e) =>
+      collect(e.schema, (n) => typeof n.type === 'string' && LAYOUT_TYPES.has(n.type as string))
+        .filter((n) => typeof n.className === 'string' && n.className.trim() !== ''),
+    );
+    expect(withClassName.length).toBeGreaterThanOrEqual(180);
+  });
+});
+
+describe('schema-catalog — `spacing` is not a key (#4890)', () => {
+  it('no node anywhere authors `spacing`, which no schema declares', () => {
+    const offenders = allExamples().flatMap((example) =>
+      collect(example.schema, (n) => 'spacing' in n).map(
+        (n) => `${example.id} (type: ${String(n.type)}, spacing: ${JSON.stringify(n.spacing)})`,
+      ),
+    );
+    expect(
+      offenders,
+      '`spacing` is declared by nothing — `StackSchema` extends `FlexSchema`, ' +
+        'whose spacing key is `gap`. It rendered only because `stack.tsx` read it ' +
+        'behind an `as any`, and that reader is gone (#4890). A `stack` node ' +
+        'authoring `spacing` now renders the DEFAULT gap; re-typing one to `flex` ' +
+        'always did. Author `gap`.',
+    ).toEqual([]);
+  });
+
+  it('the rename landed on every node, carrying every value across', () => {
+    // Measured on `origin/main` before the sweep: 153 stack nodes, of which 18
+    // already authored `gap` and the other 135 authored `spacing` — none had
+    // neither. So "all 153 declare a gap" is the statement that all 135 arrived,
+    // and the per-value counts are the statement that each arrived with the
+    // value it had. The renamed 135 were {0:5, 1:13, 2:68, 3:14, 4:28, 6:7};
+    // adding the 18 that already said `gap` ({2:5, 3:5, 4:7, 6:1}) gives the
+    // census below. A rename that dropped a node, or coerced a value, moves one
+    // of these numbers.
+    const stacks = allExamples().flatMap((e) => collect(e.schema, (n) => n.type === 'stack'));
+    expect(stacks.length, 'catalog stack-node count (a floor, so new examples are free)')
+      .toBeGreaterThanOrEqual(153);
+
+    const declared = stacks.filter((n) => typeof n.gap === 'number');
+    expect(
+      stacks.length - declared.length,
+      'every stack node declares a numeric gap; the 135 that said `spacing` now say `gap`',
+    ).toBe(0);
+
+    const census: Record<string, number> = {};
+    for (const n of declared) census[String(n.gap)] = (census[String(n.gap)] ?? 0) + 1;
+    expect(census).toEqual({ '0': 5, '1': 13, '2': 73, '3': 19, '4': 35, '6': 8 });
+
+    // Every value in that census is a step `stack.tsx` actually maps. An unmapped
+    // step (the ladder skips 7) emits NO gap class at all, so the rename would
+    // have been render-neutral in name only.
+    for (const value of Object.keys(census)) {
+      expect(GAP_LADDER.stack.has(Number(value)), `stack gap ${value} is not on the ladder`).toBe(true);
+    }
+  });
+});
+
+/**
+ * Render-level equivalence for #4891, in the two kinds the conversion actually
+ * produces. Each case carries the pre-sweep node as it shipped on `origin/main`,
+ * rebuilt around the node's own children so the comparison isolates this one
+ * conversion.
+ *
+ * This harness measures the className→props half ONLY. #4890's half cannot be
+ * measured this way and must not appear to be: rendering a pre-sweep `spacing`
+ * node through today's renderer exercises the DELETED leg's absence, not the
+ * rename — see the note on the two stack cases below, and the deleted leg's own
+ * reverse-verification in the PR.
+ *
+ * The comparison is on the class TOKEN SET, not the class string. `cn()` emits
+ * the renderer's own classes first and the author's `className` last, so moving
+ * a token from the author string into a prop moves it earlier in the output;
+ * `tailwind-merge` has already resolved every same-property conflict by then, so
+ * the surviving tokens do not conflict with one another and their order carries
+ * no meaning. Asserting the string would be asserting `cn()`'s argument order.
+ * The post-sweep string is still pinned literally, per case.
+ *
+ * `identical` — the set is unchanged: the author's token and the prop's token are
+ * the same class. Every `align` / `justify` / `wrap` / `direction` extraction is
+ * this kind.
+ *
+ * `ladder` — the set differs, in the gap/padding group ONLY, and deliberately:
+ * `gap: 2` is `gap-1.5 sm:gap-2`, not `gap-2`. Below the `sm` breakpoint that is
+ * genuinely a different rendering, and it is the correct one — the ladder IS what
+ * the prop means (#4891's card says so, and #4003 pinned the same delta). Each
+ * ladder case pins BOTH sides' spacing tokens and asserts everything else is
+ * untouched, so "only the ladder moved" is a measurement rather than a claim.
+ *
+ * `grid` has no case because the sweep converted no grid node: re-measured on
+ * `origin/main`, grid's unprefixed className tokens were `mb-6` and `p-4`, and a
+ * grid declares neither. Zero hits, so there is nothing to sample.
+ */
+describe('the swept nodes render what they rendered before (#4891/#4890)', () => {
+  type SweepCase = {
+    readonly id: string;
+    readonly type: string;
+    /** the node exactly as it shipped before the sweep, minus children */
+    readonly before: Record<string, unknown>;
+    /** the class string the node renders now, pinned literally */
+    readonly after: string;
+    readonly kind: 'identical' | 'ladder';
+  };
+
+  const SWEEP_CASES: readonly SweepCase[] = [
+    // ---- #4891, align/justify: same classes, now declared ----
+    {
+      id: 'actions/action-toolbar',
+      type: 'flex',
+      before: { className: 'items-center justify-between border-b pb-3 mb-4' },
+      after: 'flex flex-row justify-between items-center gap-1.5 sm:gap-2 border-b pb-3 mb-4',
+      kind: 'identical',
+    },
+    {
+      id: 'app/application-header',
+      type: 'flex',
+      before: { className: 'items-center justify-between p-3 border rounded-lg bg-background' },
+      after: 'flex flex-row justify-between items-center gap-1.5 sm:gap-2 p-3 border rounded-lg bg-background',
+      kind: 'identical',
+    },
+    // ---- #4891, gap/wrap: the mobile-first ladder appears ----
+    {
+      id: 'actions/action-button-variants',
+      type: 'flex',
+      before: { className: 'gap-2 flex-wrap' },
+      after: 'flex flex-row justify-start items-start gap-1.5 sm:gap-2 flex-wrap',
+      kind: 'ladder',
+    },
+    {
+      id: 'app/application-header',
+      type: 'flex',
+      before: { className: 'items-center gap-3' },
+      after: 'flex flex-row justify-start items-center gap-2 sm:gap-3',
+      kind: 'ladder',
+    },
+    // ---- #4891, container padding ----
+    {
+      id: 'dashboard/dashboard-overview',
+      type: 'container',
+      before: { className: 'p-4' },
+      after: 'w-full max-w-xl mx-auto p-2 sm:p-3 md:p-4',
+      kind: 'ladder',
+    },
+    {
+      id: 'dashboard/recent-activity-card',
+      type: 'container',
+      before: { className: 'p-6' },
+      after: 'w-full max-w-xl mx-auto p-3 sm:p-4 md:p-6',
+      kind: 'ladder',
+    },
+    // ---- stack, where BOTH cards land on the same node ----
+    // These two shipped as `spacing: N` + `items-center …`. `before` writes the
+    // gap as `gap: N`, NOT as the `spacing: N` actually authored, and that is
+    // deliberate: the leg that resolved `spacing` is deleted, so rendering the
+    // literal pre-sweep node here would render the DEFAULT gap and this harness
+    // would be measuring the alias removal instead of the className extraction.
+    // (It would also pass for the wrong reason wherever the authored value
+    // happened to be the default, 2 — which is how this was caught.) So the
+    // rename is held to its own assertions — `spacing` banned above, the value
+    // census below, and the renderer pin in
+    // `packages/components/src/__tests__/stack-spacing-alias-removed.test.tsx` —
+    // and what these two cases measure is the className half, on the resolved
+    // gap the node had either way.
+    {
+      id: 'block-schema/feature-card-block',
+      type: 'stack',
+      before: { gap: 4, className: 'items-center text-center p-4' }, // shipped as `spacing: 4`
+      after: 'flex flex-col justify-start items-center gap-2 sm:gap-3 md:gap-4 text-center p-4',
+      kind: 'identical',
+    },
+    {
+      id: 'block-schema/block-with-variable-overrides-analytics-feature',
+      type: 'stack',
+      before: { gap: 3, className: 'items-center text-center p-4' }, // shipped as `spacing: 3`
+      after: 'flex flex-col justify-start items-center gap-2 sm:gap-3 text-center p-4',
+      kind: 'identical',
+    },
+  ];
+
+  function renderClass(schema: unknown) {
+    const { container } = render(<SchemaRenderer schema={schema as never} />);
+    const el = container.firstElementChild as HTMLElement;
+    return { className: el.className, innerHTML: el.innerHTML };
+  }
+
+  const isSpacingToken = (t: string) => /(^|:)(gap|p)-/.test(t);
+  const sorted = (s: string) => s.trim().split(/\s+/).filter(Boolean).sort();
+
+  it('covers every converted category and both kinds of delta', () => {
+    expect(SWEEP_CASES.filter((c) => c.kind === 'identical').length).toBeGreaterThanOrEqual(2);
+    expect(SWEEP_CASES.filter((c) => c.kind === 'ladder').length).toBeGreaterThanOrEqual(2);
+    for (const type of ['flex', 'stack', 'container']) {
+      expect(SWEEP_CASES.filter((c) => c.type === type).length, `${type} needs 2+ cases`)
+        .toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it.each(SWEEP_CASES.map((c) => [`${c.id} (${c.type}, ${c.kind})`, c] as const))(
+    '%s',
+    (_label, testCase) => {
+      const example = allExamples().find((e) => e.id === testCase.id);
+      expect(example, `${testCase.id} is missing from the catalog`).toBeTruthy();
+
+      const node = collect(example!.schema, (n) => n.type === testCase.type).find(
+        (n) => renderClass(n).className === testCase.after,
+      );
+      expect(
+        node,
+        `${testCase.id} has no ${testCase.type} node rendering \`${testCase.after}\` — ` +
+          'the pin is stale, or the sweep was undone',
+      ).toBeTruthy();
+
+      // Rebuild the pre-sweep node around the SAME children.
+      const asAuthoredBefore: Node = { type: testCase.type, ...testCase.before };
+      if (node!.children !== undefined) asAuthoredBefore.children = node!.children;
+
+      const after = renderClass(node!);
+      const before = renderClass(asAuthoredBefore);
+
+      expect(after.className).toBe(testCase.after);
+      // Content still reaches the DOM — the failure a naive re-type produces.
+      expect(after.innerHTML).toBe(before.innerHTML);
+
+      if (testCase.kind === 'identical') {
+        expect(
+          sorted(after.className),
+          'this conversion changes no class at all; the props emit exactly the ' +
+            'tokens the author had written by hand',
+        ).toEqual(sorted(before.className));
+      } else {
+        // Everything that is NOT gap/padding is untouched...
+        expect(
+          sorted(after.className).filter((t) => !isSpacingToken(t)),
+          'a ladder conversion must move the gap/padding group and NOTHING else',
+        ).toEqual(sorted(before.className).filter((t) => !isSpacingToken(t)));
+        // ...and the spacing group genuinely differs, which is the upgrade.
+        expect(
+          sorted(after.className).filter(isSpacingToken),
+          'the whole point of the prop: a single hand-written step becomes a ' +
+            'mobile-first ladder',
+        ).not.toEqual(sorted(before.className).filter(isSpacingToken));
+      }
+    },
+  );
+});
