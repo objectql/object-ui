@@ -1687,6 +1687,13 @@ const en = {
       createApp: 'Create New App',
     },
     ai: {
+      pendingDrafts: {
+        count: '{{count}} change(s) are not published yet — users cannot see them.',
+        publish: 'Publish',
+        published: 'All pending changes are live.',
+        failed: 'Publish failed.',
+        publishedWithFindings: 'Published, but the runtime probes reported problems: {{detail}}',
+      },
       usage: {
         title: 'AI usage',
         meterBuild: 'Build',
