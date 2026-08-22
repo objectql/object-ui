@@ -3030,6 +3030,7 @@ const zh = {
     retry: '重试',
     errors: {
       expired: '请求在获批前已过期，请重新开始。',
+      accessDenied: '连接请求已被拒绝，请重新开始。',
       bindFailed: '绑定失败。',
       deviceCodeFailed: '设备码请求失败。',
     },

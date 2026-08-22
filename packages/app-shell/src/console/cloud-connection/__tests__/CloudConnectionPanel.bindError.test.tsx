@@ -125,6 +125,26 @@ describe('objectui#5028 — the bind-failure text a human reads', () => {
     // objectstack#9267's body, verbatim, at the status it is served with.
     // `getJson` throws on it, so the message shown is the one IT picked; the
     // changed line in poll() is not on this path in either direction.
+    //
+    // objectui#5054 moved what "the one IT picked" IS. This case used to assert
+    // the wire sentence `Device authorization failed: expired_token`; that was
+    // the measured asymmetry — the SAME expiry noticed by the panel's own clock
+    // rendered `cloudConnection.errors.expired`, so one condition read in two
+    // languages. `getJson` now carries the envelope's codes across its throw and
+    // the catch maps the two user-causable RFC 8628 spellings onto that key, so
+    // both readers land on it. The fixture is untouched — it is still the
+    // producer's verbatim envelope — and the `DEVICE_CODE_FAILED` negative is
+    // still this file's own subject: no machine code reaches a human.
+    //
+    // ⚠️ What this case lost, and where it went: the wire English used to
+    // DISCRIMINATE the two readers, because only `getJson` produced it. Post-fix
+    // both readers answer `expired_token` identically — that is the point of the
+    // card — so the route claim in this case's title now rests on the argument
+    // above (400 -> `getJson` throws) rather than on its own assertion. The
+    // measurable discriminator moved to `CloudConnectionPanel.bindErrorLocale
+    // .test.tsx`'s ROUTE case, which uses a 400 carrying no `error` object at
+    // all: `getJson` renders `HTTP 400`, poll()'s terminal branch would render
+    // `cloudConnection.errors.bindFailed`, and nothing else tells them apart.
     pollReply = {
       status: 400,
       body: {
@@ -140,7 +160,8 @@ describe('objectui#5028 — the bind-failure text a human reads', () => {
 
     await connectAndPollOnce();
 
-    expect(screen.getByText('Device authorization failed: expired_token')).toBeInTheDocument();
+    expect(screen.getByText('cloudConnection.errors.expired')).toBeInTheDocument();
+    expect(screen.queryByText('Device authorization failed: expired_token')).not.toBeInTheDocument();
     expect(screen.queryByText('DEVICE_CODE_FAILED')).not.toBeInTheDocument();
   });
 

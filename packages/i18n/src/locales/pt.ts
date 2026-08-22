@@ -2902,6 +2902,7 @@ const pt = {
     retry: "Tentar novamente",
     errors: {
       expired: "A solicitação expirou antes de ser aprovada. Comece novamente.",
+      accessDenied: "A solicitação de conexão foi recusada. Comece novamente.",
       bindFailed: "Falha ao vincular.",
       deviceCodeFailed: "Falha na solicitação do código do dispositivo.",
     },

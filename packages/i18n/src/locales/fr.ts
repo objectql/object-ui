@@ -2905,6 +2905,7 @@ const fr = {
     retry: "Réessayer",
     errors: {
       expired: "La demande a expiré avant d'être approuvée. Recommencez.",
+      accessDenied: "La demande de connexion a été refusée. Recommencez.",
       bindFailed: "Échec de la liaison.",
       deviceCodeFailed: "Échec de la demande de code d'appareil.",
     },

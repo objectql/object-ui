@@ -2902,6 +2902,7 @@ const ko = {
     retry: "다시 시도",
     errors: {
       expired: "승인되기 전에 요청이 만료되었습니다. 다시 시작하세요.",
+      accessDenied: "연결 요청이 거부되었습니다. 다시 시작하세요.",
       bindFailed: "바인딩에 실패했습니다.",
       deviceCodeFailed: "장치 코드 요청에 실패했습니다.",
     },

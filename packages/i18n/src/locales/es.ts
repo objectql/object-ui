@@ -2907,6 +2907,7 @@ const es = {
     retry: "Reintentar",
     errors: {
       expired: "La solicitud caducó antes de ser aprobada. Vuelva a empezar.",
+      accessDenied: "La solicitud de conexión fue rechazada. Vuelva a empezar.",
       bindFailed: "Error al vincular.",
       deviceCodeFailed: "Error en la solicitud del código de dispositivo.",
     },

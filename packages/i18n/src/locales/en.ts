@@ -3218,6 +3218,7 @@ const en = {
     retry: 'Try again',
     errors: {
       expired: 'The request expired before it was approved. Start again.',
+      accessDenied: 'The connection request was denied. Start again.',
       bindFailed: 'Binding failed.',
       deviceCodeFailed: 'Device code request failed.',
     },

@@ -2903,6 +2903,7 @@ const de = {
     retry: "Erneut versuchen",
     errors: {
       expired: "Die Anfrage ist abgelaufen, bevor sie genehmigt wurde. Starten Sie erneut.",
+      accessDenied: "Die Verbindungsanfrage wurde abgelehnt. Starten Sie erneut.",
       bindFailed: "Verbindung fehlgeschlagen.",
       deviceCodeFailed: "Anforderung des Gerätecodes fehlgeschlagen.",
     },
