@@ -404,12 +404,10 @@ console path uses it.
 
 ## Key hooks
 
-`useBranding` is the **only** file in `apps/console/src/hooks/`. The other seven live in
-`@object-ui/app-shell`, so the first row's prefix does not generalise to the rest.
+All seven live in `@object-ui/app-shell`; the console app declares no hooks of its own.
 
 | Hook | Location | Purpose |
 |------|----------|---------|
-| `useBranding` | `apps/console/src/hooks/useBranding.ts` | AppShell brand colors/logo |
 | `useFavorites` | `packages/app-shell/src/hooks/useFavorites.ts` | Starred items state |
 | `useMetadataService` | `packages/app-shell/src/hooks/useMetadataService.ts` | CRUD operations on metadata |
 | `useNavPins` | `packages/app-shell/src/hooks/useNavPins.ts` | Pinned navigation items |
