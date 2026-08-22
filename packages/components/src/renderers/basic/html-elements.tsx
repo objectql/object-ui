@@ -7,7 +7,7 @@
  *
  * Safe native HTML element passthrough renderers (ADR: kind:'html').
  *
- * A `kind:'html'` page is authored as a constrained JSX/Tailwind string that is
+ * A `kind:'html'` page is authored as a constrained JSX string that is
  * PARSED (never executed) into the SDUI tree. For that tier to live up to its
  * name, the everyday HTML tags an author reaches for — headings, paragraphs,
  * lists, links, images, emphasis — must each resolve to a renderer (otherwise

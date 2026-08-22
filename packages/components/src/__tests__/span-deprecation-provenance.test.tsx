@@ -10,7 +10,7 @@
  * The `span` deprecation notice is scoped BY PROVENANCE (objectui#4917,
  * applying the ruling made for `div` in objectui#4000).
  *
- * A `kind:'html'` page is authored as constrained JSX/Tailwind text that our own
+ * A `kind:'html'` page is authored as constrained JSX text that our own
  * parser compiles (never executes) into SDUI nodes, tag name straight through.
  * So an author writing the plain inline tag in that tier gets a node the
  * DEPRECATED renderer serves — and the notice fired at them, recommending

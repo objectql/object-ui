@@ -2,7 +2,7 @@
  * ObjectUI — SDUI JSX-source parser (ADR-0080)
  *
  * Types shared by the constrained JSX-source compiler. The parser turns a
- * constrained JSX/HTML+Tailwind *text* into the existing SDUI `SchemaNode`
+ * constrained JSX *text* into the existing SDUI `SchemaNode`
  * tree. It PARSES — it never executes. No `import`, no `eval`, no JS.
  */
 

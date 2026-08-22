@@ -538,9 +538,15 @@ export const PageRenderer: React.FC<{
     if (kind === 'react') {
       return <ReactKindPage schema={schema} />;
     }
-    // `kind:'html'` (formerly 'jsx') — author-written constrained JSX/HTML+Tailwind
-    // compiled (parsed, never executed) to a SchemaNode tree and rendered. The
-    // legacy 'jsx' value is still accepted as a deprecated alias.
+    // `kind:'html'` (formerly 'jsx') — author-written constrained JSX compiled
+    // (parsed, never executed) to a SchemaNode tree and rendered. The legacy
+    // 'jsx' value is still accepted as a deprecated alias.
+    // Styling on this tier is the blocks' own structured props
+    // (`<flex direction gap>`, `<grid columns>`) plus a JSON `style` object —
+    // NOT Tailwind utility classes. `source` is runtime metadata, so the build's
+    // Tailwind scan never sees it and an authored class produces no CSS and no
+    // error anywhere; `os validate` reports `page-source-className-tailwind`.
+    // (ADR-0065; ADR-0080's 2026-06-30 amendment.)
     if (kind === 'html' || kind === 'jsx') {
       const src = (schema as { source?: string }).source ?? '';
       const { tree, diagnostics } = compile(src, getJsxManifest());
