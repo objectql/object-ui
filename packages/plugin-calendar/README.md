@@ -148,18 +148,43 @@ ComponentRegistry.register('my-calendar', ObjectCalendarRenderer);
 
 ### CalendarView
 
-Display a monthly calendar with events:
+Display a monthly calendar with events. This is a **partial summary**: the full
+contract is `CalendarViewSchema` in `@object-ui/types`, which declares 13 keys of
+its own on top of the common `BaseSchema` keys (`className`, `id`, `data`,
+`visible`, ...).
 
 ```typescript
 {
   type: 'calendar-view',
-  events?: CalendarEvent[],
-  defaultDate?: string,           // ISO date string
-  onEventClick?: (event) => void,
-  onDateClick?: (date) => void,
-  className?: string
+  events: CalendarEvent[],          // REQUIRED — the only required key besides `type`
+  defaultView?: CalendarViewMode,   // 'month' | 'week' | 'day' | 'agenda' (default 'month')
+  view?: CalendarViewMode,          // controlled
+  views?: CalendarViewMode[],       // default ['month', 'week', 'day']
+  defaultDate?: string | Date,
+  date?: string | Date,             // controlled
+  editable?: boolean,               // default false
+  onEventClick?: (event: CalendarEvent) => void,
+  onDateChange?: (date: Date) => void,
+  onViewChange?: (view: CalendarViewMode) => void,
+  className?: string                // from `BaseSchema`, not `CalendarViewSchema`
 }
 ```
+
+`onEventCreate` and `onEventUpdate` complete the 13; see `CalendarViewSchema` for
+their signatures. `onDateClick` is **not** on this schema — it is a
+`CalendarViewProps` component prop (see [Drag-and-Drop](#drag-and-drop) and
+[Click-to-Create](#click-to-create)).
+
+> **The type is not the renderer.** `CalendarViewSchema` is the shape
+> `@object-ui/types` publishes for this node, not a description of what the
+> registered `calendar-view` renderer reads. That renderer builds its events from
+> the node's `data` array plus the `titleField` / `startDateField` /
+> `endDateField` / `colorField` / `allDayField` inputs, and **drops an authored
+> `events` key** (objectui#4433) — so the type's one required key does nothing
+> when written as JSON. Of the keys above it also reads `view` and `className`;
+> the handlers only ever arrive from a React host
+> (`<SchemaRenderer ... onEventClick={fn} />`), because JSON cannot carry a
+> function.
 
 ### Calendar Event Structure
 
@@ -226,9 +251,9 @@ const schema = {
     console.log('Event clicked:', event);
     // Open event details modal
   },
-  onDateClick: (date) => {
-    console.log('Date clicked:', date);
-    // Create new event
+  onDateChange: (date) => {
+    console.log('Visible date changed:', date);
+    // React to the calendar moving to another month/week/day
   }
 };
 ```
