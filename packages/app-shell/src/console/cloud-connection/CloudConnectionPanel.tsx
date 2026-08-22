@@ -142,18 +142,19 @@ export function CloudConnectionPanel() {
   // timed out all nine cases in this directory's two suites at 15s. A latest-ref
   // gives the helper the current `t` while keeping its own identity stable.
   const tRef = useRef(t);
-  tRef.current = t;
+  useEffect(() => { tRef.current = t; }, [t]);
 
   /**
    * What a caught failure says to a human. One reading for all four catch
    * sites, so no future call site can reintroduce the split this card closed.
    */
-  const failureText = useCallback(
-    (err: any): string =>
-      translateFailureCode(tRef.current, err?.declaredCode, err?.code) ??
-      (err?.message ?? String(err)),
-    [],
-  );
+  const failureText = useCallback((err: unknown): string => {
+    const e = err as { declaredCode?: unknown; code?: unknown; message?: unknown } | null | undefined;
+    return (
+      translateFailureCode(tRef.current, e?.declaredCode, e?.code) ??
+      ((e?.message as string | undefined) ?? String(err))
+    );
+  }, []);
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current) { clearTimeout(pollTimer.current); pollTimer.current = null; }
