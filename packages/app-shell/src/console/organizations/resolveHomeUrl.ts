@@ -58,3 +58,35 @@ export function resolveRootUrl(baseURI?: string): string {
 export function resolveConsoleUrl(path: string, baseURI?: string): string {
   return new URL(path.replace(/^\//, ''), resolveRootUrl(baseURI)).toString();
 }
+
+/**
+ * Resolve the public share-link landing base — the console-mounted `/s` route
+ * that `SharedRecordPage` serves (`/_console/s/:token` on a CLI-served
+ * deployment). `ShareDialog` appends `/:token` to it for the link a user
+ * copies and hands to a recipient.
+ *
+ * `ShareDialog`'s own default is `${origin}/s/:token`, which 404s wherever the
+ * console is not root-mounted. The link is a full-page destination pasted into
+ * another browser, so it needs exactly the deployment-mount resolution the
+ * navigations above already do — and it takes it from {@link resolveConsoleUrl}
+ * rather than a private copy. This helper replaced the third hand-rolled
+ * base-href reader in the console (objectui#4482); objectui#4472 removed the
+ * other two. One resolver, so the next change to mount semantics cannot reach
+ * some call sites and miss others.
+ *
+ * Returns `undefined` — not a guessed URL — with no DOM, so `ShareDialog`
+ * applies its own fallback instead of rendering a link built from an origin
+ * that does not exist. That guard is the one thing this adds over a bare
+ * `resolveConsoleUrl('s')` call.
+ *
+ * Deliberately takes no `baseURI` argument, unlike its three siblings: the
+ * mount is only ever carried by the injected `<base href>`, and a resolver
+ * with no other input cannot be pinned by a test that steers something the
+ * production path never reads (the `vi.stubEnv('BASE_URL', …)` trap recorded
+ * in objectui#4482 — Vite inlines `import.meta.env` at transform time, so such
+ * a test is permanently green).
+ */
+export function resolvePublicShareBase(): string | undefined {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+  return resolveConsoleUrl('s');
+}

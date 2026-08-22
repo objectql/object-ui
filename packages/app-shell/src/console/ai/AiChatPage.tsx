@@ -23,6 +23,7 @@ import { useAdapter } from '../../providers/AdapterProvider.js';
 import { useMetadata } from '../../providers/MetadataProvider.js';
 import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError.js';
 import { resolveKeyedI18nLabel } from '../../utils/index.js';
+import { resolvePublicShareBase } from '../organizations/resolveHomeUrl.js';
 import { ExcelImportBar } from './ExcelImportBar.js';
 import {
   Select,
@@ -980,20 +981,10 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
 
   // Public share-link landing base. SharedRecordPage lives UNDER the console
   // SPA basename (e.g. `/_console/s/:token`), so the ShareDialog default of
-  // `${origin}/s/:token` 404s for recipients. Derive the base from the SPA's
-  // BASE_URL so the copyable link points at the actually-served route.
-  const publicShareBase = useMemo(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
-    // Mirror the console's own basename resolution (App.tsx resolveBasename):
-    // the published SPA uses a relative Vite base, so the mount path is carried
-    // by the injected `<base href>` tag, NOT import.meta.env.BASE_URL.
-    let base = '';
-    try {
-      const href = document.querySelector('base')?.getAttribute('href');
-      if (href) base = new URL(href, window.location.origin).pathname.replace(/\/+$/, '');
-    } catch { /* no <base> → root-mounted SPA */ }
-    return `${window.location.origin}${base}/s`;
-  }, []);
+  // `${origin}/s/:token` 404s for recipients. The mount comes from the one
+  // console-mount resolver, which reads the injected `<base href>` — this used
+  // to be a third hand-rolled copy of that resolution (objectui#4482).
+  const publicShareBase = useMemo(() => resolvePublicShareBase(), []);
 
   // New-conversation race guard. On an IN-SPA `/ai?new=1` navigation the
   // URL-mirroring effect below fires in the SAME commit as the hook's effect,
