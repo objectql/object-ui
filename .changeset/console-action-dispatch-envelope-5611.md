@@ -24,5 +24,11 @@ those functions under the compiler at all.
 The published `ActionDef` deliberately does NOT declare the key (maintainer
 ruling 2026-08-22): it is the authored-metadata mirror, and `overrideNotice` is
 the first key no author supplies, so declaring it there would make an unenforced
-key legally writable in metadata. `@object-ui/core` is untouched by this change,
-and its published `.d.ts` is byte-identical.
+key legally writable in metadata. That prohibition still holds exactly as
+written — `ActionDef` and `ACTION_DEF_KEYS` are unchanged.
+
+`@object-ui/core` is NOT untouched, and the reason is a separate declaration:
+the same ruling's item 4 adds `HOST_DISPATCH_ACTION_KEYS` to the key inventory
+so the dev-mode warning stops calling the host-composed key unknown. That change
+carries its own changeset (`host-dispatch-action-keys-5611.md`) and its own
+patch bump; this one remains the app-shell half, which publishes nothing.

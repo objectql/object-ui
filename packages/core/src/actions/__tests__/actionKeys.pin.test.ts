@@ -24,6 +24,7 @@ import {
   ACTION_DEF_KEYS,
   SPEC_ACTION_KEYS,
   NAVIGATION_ALIAS_KEYS,
+  HOST_DISPATCH_ACTION_KEYS,
   RETIRED_ACTION_KEYS,
   KNOWN_ACTION_KEYS,
   classifyActionKeys,
@@ -136,6 +137,38 @@ describe('action key inventory (objectstack#4075 step 1)', () => {
     expect(KNOWN_ACTION_KEYS.has('execute')).toBe(false);
   });
 
+  it('pins the host-dispatch list EXACTLY, because its set is the ruling', () => {
+    // Exact contents, not `toContain`. The maintainer ruling of 2026-08-22
+    // authorized ONE key here, and the danger this list carries is growth: a
+    // key in it is a key the unknown-key warning stops asking about, so a
+    // silent addition is a silent hole in the diagnostic. `toEqual` on the whole
+    // array is what makes adding a second member a red test that names it,
+    // rather than an edit nobody reads.
+    expect([...HOST_DISPATCH_ACTION_KEYS]).toEqual(['overrideNotice']);
+  });
+
+  it('counts the host-dispatch key as known, so the dev warning stops crying wolf', () => {
+    // The defect item 4 closes: `DeclaredActionsBar` composes `overrideNotice`
+    // on the dispatch, `useConsoleActionRuntime` and `RecordDetailView` read
+    // it, and the runner — which classifies the DISPATCH, not the stored row —
+    // called it a key "no reader recognizes".
+    expect(KNOWN_ACTION_KEYS.has('overrideNotice')).toBe(true);
+  });
+
+  it('does NOT let the host-dispatch key onto the authored surface', () => {
+    // The other half of the same ruling, and the half that has to stay true
+    // while the half above changes: ⛔ not declared on `ActionDef`, ⛔ not in
+    // `ACTION_DEF_KEYS`. Membership in `KNOWN_ACTION_KEYS` widens what the
+    // dev-mode WARNING tolerates; it must not widen what an author may WRITE.
+    // Read off the interface's AST, so re-declaring the key on `ActionDef` to
+    // "make it consistent" fails here by name.
+    expect({
+      declaredOnActionDef: declaredActionDefKeys().includes('overrideNotice'),
+      inActionDefKeys: (ACTION_DEF_KEYS as readonly string[]).includes('overrideNotice'),
+      inSpecActionKeys: (SPEC_ACTION_KEYS as readonly string[]).includes('overrideNotice'),
+    }).toEqual({ declaredOnActionDef: false, inActionDefKeys: false, inSpecActionKeys: false });
+  });
+
   it('keeps the navigation alias out of the spec vocabulary it is not part of', () => {
     // If the spec ever adopts one of these, it stops being objectui dialect and
     // this fails — naming the alias to retire, the same tripwire shape as
@@ -185,6 +218,38 @@ describe('unknown-key warning', () => {
     warnOnUnknownActionKeys({ name: 'remove', type: 'script', targt: 'y' });
     expect(warn).toHaveBeenCalledTimes(2);
     expect(warn.mock.calls[1][0]).toContain('"remove"');
+  });
+
+  it('says nothing about the dispatch a console host actually composes', () => {
+    // The exact object literal at `DeclaredActionsBar.tsx`'s override branch,
+    // reduced to the keys that decide the verdict. Before item 4 this produced
+    // one warning naming `overrideNotice`, on the one privileged path that
+    // finalises an approval over approvers who have not acted.
+    warnOnUnknownActionKeys({
+      name: 'approval_reject',
+      type: 'api',
+      target: '/api/v1/approvals/{id}/reject',
+      label: 'Reject (override)',
+      objectName: 'approval_request',
+      params: { _rowRecord: { id: 'a1' } },
+      overrideNotice: 'You are overriding 2 approvers who have not acted.',
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('still names a typo riding the SAME host dispatch', () => {
+    // The discrimination half: the fix must silence one key, not the check.
+    // Without this, replacing `classifyActionKeys` with `() => ({unknown: [],
+    // retired: []})` would pass the test above.
+    warnOnUnknownActionKeys({
+      name: 'approval_reject',
+      type: 'api',
+      overrideNotice: 'You are overriding 2 approvers who have not acted.',
+      targt: '/api/v1/approvals/{id}/reject',
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('`targt`');
+    expect(warn.mock.calls[0][0]).not.toContain('overrideNotice');
   });
 
   it('is silent in production', () => {
