@@ -1558,6 +1558,13 @@ const zh = {
       createApp: '创建新应用',
     },
     ai: {
+      pendingDrafts: {
+        count: '有 {{count}} 项改动尚未发布——用户还看不到。',
+        publish: '发布',
+        published: '全部待发布改动已生效。',
+        failed: '发布失败。',
+        publishedWithFindings: '已发布，但运行时探针发现问题：{{detail}}',
+      },
       usage: {
         title: 'AI 用量',
         meterBuild: 'AI 搭建',
