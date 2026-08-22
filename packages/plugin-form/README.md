@@ -224,7 +224,7 @@ here too. Two that a reader might expect, and that are **not** declared:
 | Not a `FormField` key | Write this instead |
 |---|---|
 | `defaultValue` | `FormSchema.defaultValues` at form level. An object-bound form seeds from the object field's own declared `defaultValue` — see [What a create form opens with](#what-a-create-form-opens-with) |
-| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the grid. (A field-level `className` is read on exactly one pseudo-field, `type: 'section-divider'`, where it styles the inline section header.) |
+| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the grid. (An undeclared key still rides the props spread down to whichever component the field resolves to, so a field-level `className` can visibly land on a built-in control — but nothing in the contract promises that, and a registered widget honours it only if it happens to spread its leftover props. The renderer reads it *explicitly* on exactly one pseudo-field, `type: 'section-divider'`, where it styles the inline section header.) |
 
 There is no `ValidationRule` type in this repo, under any spelling.
 

@@ -1413,6 +1413,15 @@ const ja = {
       passwordsDownload: "CSV をダウンロード",
     },
     ai: {
+      pendingDrafts: {
+        // {{detail}} はランタイムが返すメッセージ列なので、中間コロンは全角
+        // (exportFailed などと同じ。単一トークンの値なら半角)。
+        count: "未公開の変更が {{count}} 件あります — ユーザーには表示されません。",
+        publish: "公開",
+        published: "保留中の変更はすべて反映されています。",
+        failed: "公開に失敗しました。",
+        publishedWithFindings: "公開しましたが、ランタイムプローブが問題を報告しました：{{detail}}",
+      },
       usage: {
         title: "AI 使用状況",
         meterBuild: "ビルド",

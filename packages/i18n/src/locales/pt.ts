@@ -1412,6 +1412,13 @@ const pt = {
       passwordsDownload: "Baixar CSV",
     },
     ai: {
+      pendingDrafts: {
+        count: "{{count}} alteração(ões) ainda não publicada(s) — os usuários não conseguem vê-las.",
+        publish: "Publicar",
+        published: "Todas as alterações pendentes estão ativas.",
+        failed: "Falha ao publicar.",
+        publishedWithFindings: "Publicado, mas as verificações de tempo de execução relataram problemas: {{detail}}",
+      },
       usage: {
         title: "Uso de IA",
         meterBuild: "Criar",
