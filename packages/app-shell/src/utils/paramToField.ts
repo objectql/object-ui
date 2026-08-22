@@ -12,7 +12,7 @@
  * render tree (mirrors `filterVisibleParams`' style), with a drift test
  * asserting param support ⊇ form support.
  */
-import type { ActionParamDef } from '@object-ui/core';
+import { EXPANDABLE_FIELD_TYPES, type ActionParamDef } from '@object-ui/core';
 import { resolveFormWidgetType } from '@object-ui/fields';
 
 /**
@@ -40,7 +40,17 @@ export function resolveParamWidgetType(paramType: string): string {
   return resolveFormWidgetType(PARAM_TYPE_ALIASES[paramType] ?? paramType);
 }
 
-/** Widget keys that render the record-picker family and need a reference target. */
+/**
+ * Widget keys whose picker cannot query without an explicitly DECLARED target,
+ * so a param of that type with no `referenceTo` degrades to a plain text input.
+ *
+ * Deliberately NOT the reference-bearing family (`EXPANDABLE_FIELD_TYPES`, read
+ * below): `user` belongs to that family but defaults its target to `sys_user`,
+ * so it must never degrade. Two rules over overlapping types, kept separate —
+ * the same split the twin keeps between its own `LOOKUP_WIDGET_TYPES` and
+ * `widgetNeedsDataSource` (plugin-grid's `bulkParamToField`). objectui#5312
+ * converged the second rule only, on purpose.
+ */
 const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
 
 /**
@@ -91,10 +101,35 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
     field.widget = 'checkbox';
   }
 
-  // `|| type === 'owner'` stood here until objectui#4814 retired that spelling
-  // (ruling A′). It moves in lockstep with plugin-grid's `bulkParamToField`
-  // twin — the two param faces are never split.
-  if (LOOKUP_WIDGET_TYPES.has(type) || type === 'user') {
+  // Which widgets carry a reference target is NOT restated here: it is
+  // `EXPANDABLE_FIELD_TYPES` from `@object-ui/core`, the one relational-field
+  // family that `buildExpandFields`, the predicate-record projection, the object
+  // form's `needsDataSourceWiring` and the grid's `bulkParamToField` already
+  // read (objectui#4770 / #4790 / #4815). This face held the fourth and last
+  // private copy of it — `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'`,
+  // once with a fifth spelling `owner` that objectui#4814 retired (ruling A′).
+  //
+  // The comment that stood here claimed the disjunction "moves in lockstep with
+  // plugin-grid's `bulkParamToField` twin — the two param faces are never
+  // split". Measured on the tip before this change, that was false in BOTH
+  // senses: mechanically, the twin had read core's Set since objectui#4815 while
+  // this line read a private literal, so the two faces shared nothing and no
+  // gate could report a split; and by membership they already differed, by
+  // `tree`. Lockstep is true again — and for the first time it is mechanical,
+  // not hand-kept: the identity pin in `paramToField.test.ts` fails on a
+  // member-identical private copy, which is what a value check would not.
+  //
+  // `tree` is the member this face gains, and it is unreachable here: it is
+  // absent from `fields`' widget map and `mapFieldTypeToFormType` sends it to
+  // `field:lookup`, so every key tested here — always `resolveParamWidgetType`
+  // output — arrives as `lookup`. Pinned, so registering a real `tree` widget
+  // surfaces that behaviour change instead of shipping it silently.
+  //
+  // Extending this surface later: OR in a second, surface-local set, the way
+  // `needsDataSourceWiring` does. Never `new Set([...EXPANDABLE_FIELD_TYPES, …])`
+  // — a copy re-forks the table, which is the defect this change removed, and
+  // the identity pin fails on it by design.
+  if (EXPANDABLE_FIELD_TYPES.has(type)) {
     Object.assign(field, {
       reference_to: param.referenceTo,
       display_field: param.displayField,
