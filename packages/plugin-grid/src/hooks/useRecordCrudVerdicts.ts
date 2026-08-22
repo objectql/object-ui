@@ -41,9 +41,10 @@
  * SPA origin where the cookie doesn't reach the API: the row's verdict is
  * `undefined` and the caller keeps the OBJECT-level answer, i.e. exactly what
  * this list rendered before this hook existed. The server is the authority
- * (ADR-0057 D10) and stays so; hiding a capability on missing data would be a
- * worse defect than the wasted click this fixes, and it is the same posture
- * `useRecordEditable` takes for the detail header.
+ * (the framework's ADR-0057 D10 — framework numbering; this repo's own
+ * ADR-0057 is an unrelated document) and stays so; hiding a capability on
+ * missing data would be a worse defect than the wasted click this fixes, and
+ * it is the same posture `useRecordEditable` takes for the detail header.
  *
  * The probe rides the host's AUTHENTICATED fetch (`SchemaRendererProvider`'s
  * `apiFetch`) rather than the bare global one: a bearer-token session carries

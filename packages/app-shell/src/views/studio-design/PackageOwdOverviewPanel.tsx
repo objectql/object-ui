@@ -85,7 +85,11 @@ export interface PackageOwdOverviewPanelProps {
   publishNonce?: number;
   /** Notify the surface so its pending-changes counter refreshes after a save. */
   onDraftSaved?: () => void;
-  /** Courtesy gate: read-only packages render badges only (ADR-0057 D10). */
+  /**
+   * Courtesy gate: read-only packages render badges only (the framework's
+   * ADR-0057 D10 — framework numbering; this repo's own ADR-0057 is an
+   * unrelated document).
+   */
   readOnly?: boolean;
   locale: SupportedLocale;
   /** Object to scroll to / highlight (deep-link from the permission matrix badge). */
