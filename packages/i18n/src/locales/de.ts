@@ -1413,6 +1413,13 @@ const de = {
       passwordsDownload: "CSV herunterladen",
     },
     ai: {
+      pendingDrafts: {
+        count: "{{count}} Änderung(en) sind noch nicht veröffentlicht — Benutzer können sie nicht sehen.",
+        publish: "Veröffentlichen",
+        published: "Alle ausstehenden Änderungen sind live.",
+        failed: "Veröffentlichen fehlgeschlagen.",
+        publishedWithFindings: "Veröffentlicht, aber die Laufzeitprüfungen haben Probleme gemeldet: {{detail}}",
+      },
       usage: {
         title: "KI-Nutzung",
         meterBuild: "Erstellen",

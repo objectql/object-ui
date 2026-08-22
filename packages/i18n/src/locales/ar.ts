@@ -1420,6 +1420,13 @@ const ar = {
       passwordsDownload: "تنزيل ملف CSV",
     },
     ai: {
+      pendingDrafts: {
+        count: "هناك {{count}} من التغييرات لم تُنشر بعد — لا يمكن للمستخدمين رؤيتها.",
+        publish: "نشر",
+        published: "جميع التغييرات المعلّقة فعّالة الآن.",
+        failed: "فشل النشر.",
+        publishedWithFindings: "تم النشر، لكن مجسّات وقت التشغيل أبلغت عن مشكلات: {{detail}}",
+      },
       usage: {
         title: "استخدام الذكاء الاصطناعي",
         meterBuild: "الإنشاء",
