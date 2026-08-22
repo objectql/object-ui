@@ -37,13 +37,13 @@ enableCapability(CAP_REACT_PAGES);
 // deferred expression.
 const htmlSource = `
 <section style={{"maxWidth":"48rem","margin":"0 auto","padding":"var(--space-10)","color":"hsl(var(--foreground))"}}>
-  <flex direction="col" gap={6}>
-    <flex direction="col" gap={3}>
+  <flex direction="col" align="stretch" gap={6}>
+    <flex direction="col" align="stretch" gap={3}>
       <h1 style={{"fontSize":"2.25rem","fontWeight":"700","letterSpacing":"-0.02em","lineHeight":"1.15"}}>Release Notes</h1>
       <p style={{"fontSize":"1rem","lineHeight":"1.7","color":"hsl(var(--muted-foreground))"}}>A <strong style={{"fontWeight":"600","color":"hsl(var(--foreground))"}}>kind:'html'</strong> page — native HTML tags and the blocks' structured props, parsed (never executed), styled from theme tokens.</p>
     </flex>
     <hr style={{"border":"0","borderTop":"1px solid hsl(var(--border))"}} />
-    <flex direction="col" gap={3}>
+    <flex direction="col" align="stretch" gap={3}>
       <h2 style={{"fontSize":"1.5rem","fontWeight":"600"}}>What shipped</h2>
       <ul style={{"paddingLeft":"var(--space-6)","listStyleType":"disc","lineHeight":"1.9","color":"hsl(var(--muted-foreground))"}}>
         <li>Full HTML tag set in the <em style={{"fontStyle":"italic"}}>html</em> tier.</li>
