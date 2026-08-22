@@ -25,6 +25,7 @@ import { formatPublishFailures, type PublishFailure } from '../../views/studio-d
 import { resolveKeyedI18nLabel } from '../../utils/index.js';
 import { resolvePublicShareBase } from '../organizations/resolveHomeUrl.js';
 import { ExcelImportBar } from './ExcelImportBar.js';
+import { PendingDraftsBar } from './PendingDraftsBar.js';
 import {
   Select,
   SelectContent,
@@ -2054,6 +2055,16 @@ export function ChatPane({
               onDone={() => setPendingSheet(null)}
             />
           </div>
+        </div>
+      ) : null}
+      {/* objectui#5694 — standing unpublished-changes affordance: floats above
+          the composer while the bound package has pending drafts, so the
+          publish entry point survives scrolling (the inline card button does
+          not). Same float idiom as ExcelImportBar above; renders nothing when
+          the count is 0 or the conversation is unbound. */}
+      {isBuildSurface ? (
+        <div className="pointer-events-none absolute bottom-20 left-0 right-0 z-20 flex justify-center px-4">
+          <PendingDraftsBar packageId={boundPackageId} idle={!isLoading} />
         </div>
       ) : null}
       <div
