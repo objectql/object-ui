@@ -35,6 +35,7 @@ import {
   EmptyTitle,
   EmptyDescription,
   NavigationOverlay,
+  isFilterValueComplete,
 } from '@object-ui/components';
 import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
 import { useFavorites } from '../hooks/useFavorites.js';
@@ -325,6 +326,30 @@ export function defaultListColumnsFromObject(
  * objects (`{ field, operator, value }`, what the fold writes) and the legacy
  * runtime triple `[field, operator, value]` a source view may declare and which
  * `persistViewPatch` copies into the overlay along with the rest of the view.
+ *
+ * Whether a matched entry's VALUE counts as supplied is asked of the builder's
+ * own {@link isFilterValueComplete}, not of a local predicate (objectstack#8815,
+ * objectui#5025). This pass used to spell the question out here:
+ *
+ * ```ts
+ * value == null || value === '' || (Array.isArray(value) && value.length === 0)
+ * ```
+ *
+ * — right for `scalar` and `list`, blind to `pair`. A `between` carrying one
+ * bound is `['2024-01-01', '']`, an array of length 2, so the recovery pass read
+ * it as a real condition and handed it back. That is the one shape this pass
+ * most needs to strip: `ViewFilterRuleSchema` ACCEPTS a half-filled range
+ * (measured on `@objectstack/spec` 17.1.0 — it counts the two slots, not what is
+ * in them), so authoring validation is green on it and it only dies at query
+ * time, where the server refuses the WHOLE view (`400 INVALID_FILTER`) for every
+ * user on every later read. The builder's two write paths were converted to the
+ * arity-aware reading; this is the read-path half, and it was the third verbatim
+ * copy of a predicate that had already been indicted twice.
+ *
+ * The split of duties is the helper's own: it answers the VALUE question only,
+ * while which operators want no value at all stays with
+ * {@link VALUELESS_FILTER_OPERATORS} above — this layer additionally sees the
+ * canonical spec spellings (`is_null`) that never reach the dropdown.
  */
 export function sanitizeViewOverride(override: any): any {
     if (!override || typeof override !== 'object') return override;
@@ -348,13 +373,13 @@ export function sanitizeViewOverride(override: any): any {
             if (entry.length < 2) return false;
             const [, operator, value] = entry;
             if (VALUELESS_FILTER_OPERATORS.has(String(operator))) return true;
-            return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+            return isFilterValueComplete(String(operator), value);
         }
         if (!entry || typeof entry !== 'object') return false;
         if (typeof entry.field !== 'string' || entry.field === '') return false;
         if (VALUELESS_FILTER_OPERATORS.has(String(entry.operator))) return true;
         const value = entry.value;
-        return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+        return isFilterValueComplete(String(entry.operator), value);
     });
 
     // The empty-array case is checked FIRST: `filter: []` (Clear all's write)
