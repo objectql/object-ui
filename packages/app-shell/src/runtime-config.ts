@@ -14,10 +14,21 @@
  * The runtime-config shape lives in app-shell because the Console SPA in
  * `apps/console` consumes app-shell code.
  *
- * Server-side: see
- *   cloud/packages/service-cloud/src/multi-environment-plugins.ts
- *   cloud/packages/service-cloud/src/single-environment-plugin.ts
- *   framework/packages/runtime/src/cloud/runtime-config-plugin.ts
+ * Server-side producers of this payload — anchored by exported symbol +
+ * package rather than by file path, because the previous path list went stale
+ * (the framework implementation moved packages; the cloud repo deleted its
+ * dead forked per-environment stack). Nothing imports across the repo
+ * boundary, so this list is the only link between the two sides of the shape:
+ *
+ *   - `RuntimeConfigPlugin` from `@objectstack/cloud-connection` (framework)
+ *     — the open implementation. Serves `GET /api/v1/runtime/config` and the
+ *     legacy `GET /api/v1/studio/runtime-config` alias, and owns the
+ *     `branding` / `features` shape mirrored below.
+ *   - `RuntimeConfigPlugin` from `@objectstack/objectos-runtime` (cloud) —
+ *     subclasses the open plugin to inject cloud plan policy, i.e. which plan
+ *     unlocks `aiStudio` / `customDomain` / `sso`.
+ *   - `createStudioRuntimeConfigPlugin` from `@objectstack/service-cloud`
+ *     (cloud) — the multi-environment control-plane handshake.
  */
 
 import { sharedGetJson } from '@object-ui/types';
