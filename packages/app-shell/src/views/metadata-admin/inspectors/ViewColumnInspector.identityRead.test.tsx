@@ -128,6 +128,11 @@ describe('ViewColumnInspector — identity is read in the canonical spelling onl
 
     fireEvent.change(screen.getByLabelText(FIELD_KEY), { target: { value: 'title' } });
 
+    // Reverse-verified: against the pre-change source this test is red for a
+    // reason that is NOT the writeback — the retired alias seeded a picker
+    // option from `accessorKey`, so the control was a Radix combobox and
+    // `fireEvent.change` was inert (0 calls). The writeback itself is identical
+    // either way; this assertion is a PIN on it, not a red signal.
     expect(onPatch).toHaveBeenCalledTimes(1);
     const written = (onPatch.mock.calls[0][0] as any).list.columns[0];
     // The edit lands on `accessorKey`, NOT on a freshly minted `field` — the
@@ -160,6 +165,11 @@ describe('ViewColumnInspector — identity is read in the canonical spelling onl
     // card's granted surface; filed separately. When that lands, this
     // expectation flips — deliberately, so the boundary is visible rather than
     // silently forgotten.
-    expect(screen.getByText('Name')).toBeInTheDocument();
+    //
+    // Counted, not merely asserted present: post-change EXACTLY ONE element
+    // says `Name`, the list row. Against the pre-change source there were two
+    // (the panel title read `header` as the column's label as well), which is
+    // why this reverse-verifies as a "found multiple elements" failure.
+    expect(screen.getAllByText('Name')).toHaveLength(1);
   });
 });
