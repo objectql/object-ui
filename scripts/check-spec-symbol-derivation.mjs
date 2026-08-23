@@ -329,45 +329,16 @@ const ALLOW = {
       "authored `UserFilters`.",
     issue: 4115,
   },
-  // The three theme document types, localized under the objectui#5716 ruling
-  // (2026-08-23, option A): the spec RETIRED its whole theme module
-  // (objectstack#10485 / PR objectstack#10695) while objectui retained the
-  // theme SYSTEM, so this package now OWNS the vocabulary — hand-written from
-  // the last-published 17.1.0 shapes, with no spec import left for the pin
-  // refresh to break. The names still collide only because the installed pin
-  // is that last publishing release. Deliberate consequence of this list's
-  // shrink-only staleness check: when the pin moves past the retirement, rule
-  // 1 stops flagging these names, all three entries turn STALE and this gate
-  // fails loudly — the refresh announces itself here instead of the theme
-  // surface narrowing silently, which is the objectui#5716 ruling's
-  // silent-half axis. The refresh PR deletes these three entries.
-  "@object-ui/types:Theme": {
-    reason:
-      "Owned here since the upstream theme retirement (objectui#5716 ruling, option A — " +
-      "localize): the retired module's authoring theme document, hand-written from the " +
-      "17.1.0 z.input reading. One-time exact-equality probe (both directions, all six " +
-      "shapes) ran against the installed 17.1.0 in the objectui#5716 PR; " +
-      "page-nav-misc-spec-parity.test.ts keeps mutual assignability with the spec's Theme " +
-      "compiled until the pin refresh retires its spec leg.",
-    issue: 5716,
-  },
-  "@object-ui/types:ThemeMode": {
-    reason:
-      "Owned here since the upstream theme retirement (objectui#5716 ruling, option A). " +
-      "Derived locally from the THEME_MODES runtime witness tuple, which keeps the " +
-      "@object-ui/providers parity pins executable (theme-mode-spec-parity.test.tsx, " +
-      "spec-symbol-batch7.test.ts — both fail if the vocabulary gains, loses, or " +
-      "misspells a member the provider does not handle).",
-    issue: 5716,
-  },
-  "@object-ui/types:ColorPalette": {
-    reason:
-      "Owned here since the upstream theme retirement (objectui#5716 ruling, option A), " +
-      "hand-written from the 17.1.0 z.input reading. Drift guard is structural: " +
-      "ThemeEngine's COLOR_TO_CSS_MAP is Record<keyof ColorPalette, …>, so the compiler " +
-      "rejects a key added or removed here without the CSS-variable mapping moving with it.",
-    issue: 5716,
-  },
+  // The three theme document types (`Theme`, `ThemeMode`, `ColorPalette`,
+  // objectui#5716 ruling, option A — localize) carried ALLOW entries here from
+  // the localization until the `@objectstack/spec` 17.2.0 refresh
+  // (objectui#5668). 17.2.0 shipped the theme-module retirement
+  // (objectstack#10485 / PR objectstack#10695), the names stopped colliding,
+  // the entries went stale exactly as their own comment predicted, and the
+  // refresh PR deleted them. The vacancy is pinned where it can execute:
+  // page-nav-misc-spec-parity.test.ts asserts all three names ABSENT from the
+  // spec export set, so an upstream re-publish is a loud collision, not an
+  // inherited exemption.
 };
 
 // ── Untriaged collisions (the ledger) ────────────────────────────────────────
@@ -455,24 +426,6 @@ const DEBT = {
     "JoinedReportBlock",
     "NavigationItem",
     "NavigationItemSchema",
-  ],
-  // Entered by the `@objectstack/spec` 17.1.0 pin bump (objectui#5328), and it is
-  // worth naming how this collision differs from the three above: objectui did
-  // not fork a spec name here. The local `ReferenceRailEntry` predates the
-  // release and did not move — 17.1.0 started EXPORTING the name (absent from
-  // 17.0.0's `dist/` entirely), so the collision arrived from upstream. The
-  // gate's own framing, "a fresh fork fails on the PR that writes it", does not
-  // fit a PR that wrote no fork.
-  //
-  // Not burnable in that PR either, because the two shapes disagree on one key:
-  // spec's `ReferenceRailEntrySchema` is `$strict` over
-  // {objectName, relationshipField, title, limit, displayField}, while the local
-  // interface adds `icon` — which the renderer reads and the strict schema
-  // REFUSES at save. Importing/deriving retires `icon`; renaming to a dialect
-  // keeps it unsaveable. Either is a contract call, so it is filed rather than
-  // guessed: objectui#5494.
-  "@object-ui/plugin-detail": [
-    "ReferenceRailEntry",
   ],
 };
 
