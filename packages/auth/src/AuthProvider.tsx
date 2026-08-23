@@ -163,6 +163,20 @@ export function AuthProvider({
   // re-entering on it would loop this provider against the server forever.
   const sessionLoadInFlight = useRef(false);
 
+  // objectui#5750 — the org id `switchOrganization` last resolved to, tracked
+  // independently of React state so a switch that starts before the PREVIOUS
+  // switch's render has committed still compares against a value, not a stale
+  // closure. Kept in sync with every path that can move `activeOrganization`
+  // (not just `switchOrganization` itself — `refreshOrganizations`'
+  // single-membership repair also does), via the effect below.
+  const activeOrgIdRef = useRef<string | null>(null);
+  // Bumped by every `switchOrganization` call that decides to re-resolve
+  // identity. Lets an EARLIER switch's still-in-flight `getSession()` notice
+  // a LATER switch superseded it and discard its answer instead of applying
+  // stale, previous-organization data over the newer one (see
+  // `switchOrganization`).
+  const sessionLoadGeneration = useRef(0);
+
   /**
    * The ONE session loader. Runs on mount (below) and on every later
    * re-resolution — `refreshSession` on the context, and the rotation
@@ -713,9 +727,48 @@ export function AuthProvider({
     return () => { cancelled = true; };
   }, [user, enabled, isPreviewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // objectui#5750 — keep `activeOrgIdRef` current for every path that can
+  // move `activeOrganization`, not only `switchOrganization` (e.g.
+  // `refreshOrganizations`' single-membership repair calls
+  // `client.setActiveOrganization` directly). `switchOrganization` also
+  // writes it synchronously on its own success, below — this effect is the
+  // fallback for every OTHER path, and re-affirms after commit.
+  useEffect(() => {
+    activeOrgIdRef.current = activeOrganization?.id ?? null;
+  }, [activeOrganization]);
+
+  /**
+   * objectui#5750 — `switchOrganization` now DECLARES the re-resolution
+   * instead of relying on the objectui#4467 rotation subscription noticing
+   * one by accident.
+   *
+   * Why that accident cannot be trusted here: `POST /organization/set-active`
+   * always returns the SIGNED `token.signature` spelling in `set-auth-token`
+   * (better-auth's `bearer()` fires for any response that stages a session
+   * cookie), which differs from the UNSIGNED `session.token` spelling the
+   * client normally holds — so `TokenStorage.set` reads the flip as a
+   * rotation and the objectui#4467 subscription re-resolves identity. That
+   * accidental rotation is deterministic on the RAW token, not on the
+   * organization — so a SECOND switch whose response lands before the FIRST
+   * switch's follow-up `get-session` has re-armed it (re-stored the unsigned
+   * spelling) writes the SAME signed value already in storage. No value
+   * change, no notification, no re-resolution — `user.positions` is left
+   * answering for the organization the FIRST switch targeted, while
+   * `activeOrganization` already reads as the new one. Measured in #5749/#5750.
+   *
+   * The fix does not add a second call on the common path: it SUPPRESSES the
+   * accidental one (via `sessionLoadInFlight`, the same flag that already
+   * suppresses the rotation observed inside `loadSession`'s own
+   * `getSession()` call) and re-resolves explicitly instead, so a switch that
+   * changes the active organization still spends exactly one `get-session` —
+   * now unconditionally, so it does not depend on which spelling happened to
+   * already be in storage.
+   */
   const switchOrganization = useCallback(
     async (orgId: string) => {
       setError(null);
+      const previousOrgId = activeOrgIdRef.current;
+      sessionLoadInFlight.current = true;
       try {
         const org = await client.setActiveOrganization(orgId);
         setActiveOrganization(org);
@@ -725,13 +778,27 @@ export function AuthProvider({
         } else {
           ActiveOrganizationStorage.clear();
         }
+        const newOrgId = org?.id ?? null;
+        if (newOrgId !== previousOrgId) {
+          activeOrgIdRef.current = newOrgId;
+          // A LATER switch may already be in flight by the time this
+          // `getSession()` answer comes back (no debounce guards repeat
+          // switches — see the WorkspaceSwitcher/OrganizationLayout callers).
+          // Discard this answer if a newer switch has since claimed the
+          // generation, rather than clobber fresher, later-organization data
+          // with a stale, earlier one.
+          const generation = ++sessionLoadGeneration.current;
+          await loadSession(() => sessionLoadGeneration.current !== generation);
+        }
       } catch (err) {
         const authError = err instanceof Error ? err : new Error(String(err));
         setError(authError);
         throw authError;
+      } finally {
+        sessionLoadInFlight.current = false;
       }
     },
-    [client],
+    [client, loadSession],
   );
 
   const createOrganization = useCallback(

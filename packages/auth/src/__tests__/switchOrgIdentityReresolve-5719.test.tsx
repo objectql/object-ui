@@ -70,6 +70,34 @@
  * two on the common path — a regression traded for an edge case. The card's
  * own caveat (that `refreshSession` deliberately does not raise `isLoading`,
  * so the console must not blank) is honoured for free by not adding one.
+ *
+ * ## Update — objectui#5750: the accident does not re-arm between two
+ * switches with no session read in between
+ *
+ * #5750 measured a narrower client-side fact about the SAME mechanism: the
+ * signed spelling `bearer()` hands back is deterministic on the RAW session
+ * token, not on the organization. Two `set-active` responses with no
+ * `get-session` landing in between therefore carry the identical signed
+ * value — the SECOND `TokenStorage.set` sees no change from the first and
+ * never notifies, so the objectui#4467 rotation never fires for it, and
+ * identity is left answering for whichever organization the FIRST switch
+ * targeted. Reachable in the console via `OrganizationLayout`'s slug-driven
+ * effect (`packages/app-shell/.../manage/OrganizationLayout.tsx`) — reached
+ * by the "Manage" link on an org card plus the "Back to organizations"
+ * button, both plain client-side navigation with no full-page reload and no
+ * debounce guarding repeat switches — unlike `WorkspaceSwitcher` and
+ * `OrganizationsPage`'s own card click, which both force
+ * `window.location.href` immediately after a successful switch and so
+ * self-heal via a fresh `AuthProvider` mount's own authoritative
+ * `loadSession()` regardless of how this race resolves.
+ *
+ * The fix: `switchOrganization` no longer relies on `TokenStorage` noticing a
+ * value change at all. It tracks the organization it last resolved to
+ * itself, and re-resolves identity explicitly whenever a switch's target
+ * differs from that — declared, not accidental — while suppressing the (now
+ * redundant) rotation notification for its own `set-active` call so the
+ * common path still spends exactly one `get-session` per switch. See
+ * `AuthProvider.switchOrganization`'s own docstring for the full mechanism.
  */
 
 import React, { useEffect } from 'react';
@@ -228,7 +256,7 @@ afterEach(() => {
   SessionUserScope._resetForTests();
 });
 
-describe('#5719 — identity re-resolves across an organization switch', () => {
+describe('#5719/#5750 — identity re-resolves across an organization switch', () => {
   it('an owner of A who is an ordinary member of B stops reading as admin after the switch', async () => {
     const { client, getSession } = orgBoundClient({
       memberships: { [ORG_A.id]: 'owner', [ORG_B.id]: 'member' },
@@ -285,25 +313,29 @@ describe('#5719 — identity re-resolves across an organization switch', () => {
   });
 
   /**
-   * The counterfactual, and the reason this file exists.
+   * The counterfactual — objectui#5750 closed this.
    *
    * Everything above is identical except the spelling the `set-active`
    * response hands back: the token the console ALREADY holds instead of the
-   * signed form. `TokenStorage.set` does not notify on an unchanged value
-   * (objectui#4467, by design — `get-session` re-stores on every boot), so no
-   * rotation fires, `loadSession()` is never called, and leg 3 keeps answering
-   * for organization A. That is precisely the defect #5719 predicted.
+   * signed form. Before objectui#5750, `TokenStorage.set` did not notify on
+   * an unchanged value (objectui#4467, by design — `get-session` re-stores on
+   * every boot), so no rotation fired, `loadSession()` was never called, and
+   * leg 3 kept answering for organization A — precisely the defect #5719
+   * predicted, and precisely the window #5750 measured: two `set-active`
+   * responses carrying the same signed spelling (deterministic on the RAW
+   * session token, not on the organization) with no intervening `get-session`
+   * to re-arm it.
    *
-   * It is unreachable in production ONLY because `bearer()` emits the signed
-   * `<token>.<signature>` while `createAuthClient.getSession` stores the
-   * unsigned `session.token`. This case is what turns that undeclared
-   * asymmetry into something a change has to walk past deliberately.
-   *
-   * If a future change makes `switchOrganization` re-resolve identity
-   * EXPLICITLY, this case will fail — and that failure is the signal to update
-   * this file, not a defect. The three cases above stay correct either way.
+   * `switchOrganization` no longer depends on that spelling accident at all
+   * (objectui#5750) — it explicitly re-resolves identity whenever the active
+   * organization actually changed, using its OWN before/after comparison
+   * rather than a side effect of `TokenStorage`'s diff-on-write semantics. So
+   * this case, which used to pin the ABSENCE of a rotation, now pins its
+   * PRESENCE: this scenario is indistinguishable from the ordinary case as
+   * far as identity re-resolution is concerned, precisely because it no
+   * longer rides the accident.
    */
-  it('does NOT re-resolve when the switch response echoes the token already held (the counterfactual)', async () => {
+  it('re-resolves even when the switch response echoes the token already held (objectui#5750)', async () => {
     const { client, getSession } = orgBoundClient({
       memberships: { [ORG_A.id]: 'owner', [ORG_B.id]: 'member' },
       rotationSpelling: 'same',
@@ -313,14 +345,87 @@ describe('#5719 — identity re-resolves across an organization switch', () => {
     const before = getSession.mock.calls.length;
 
     await switchToOrgB();
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await waitFor(() => expect(screen.getByTestId('positions').textContent).toBe('user,org_member'));
 
-    // No re-resolution: leg 3 is still organization A's answer…
-    expect(getSession.mock.calls.length).toBe(before);
-    expect(screen.getByTestId('positions').textContent).toBe('user,org_owner');
-    // …and the composite verdict is over-permissive in organization B, with
-    // `isResolved` short-circuited to true, so callers act on it.
+    // Re-resolution happened despite the echoed spelling — and it cost
+    // exactly the same ONE extra session read as the ordinary case above,
+    // not two: `switchOrganization` suppresses the (now redundant) rotation
+    // notification for its own `set-active` call rather than stacking an
+    // explicit read on top of it.
+    expect(getSession.mock.calls.length).toBe(before + 1);
     expect(screen.getByTestId('org').textContent).toBe(ORG_B.id);
+    expect(screen.getByTestId('verdict').textContent).toBe('not-admin');
+    expect(screen.getByTestId('resolved').textContent).toBe('resolved');
+  });
+
+  /**
+   * objectui#5750 — the exact scenario the card measured: TWO switches with
+   * NO session read landing in between. Before the fix, the second switch's
+   * `set-active` response carried the same signed spelling as the first
+   * (deterministic on the raw session token), so `TokenStorage.set` saw no
+   * value change, no rotation fired, and identity was left answering for
+   * organization A — the FIRST switch's target — even though
+   * `activeOrganization` already read as organization C.
+   *
+   * Blocking `getSession` mid-flight (never letting it resolve) is the
+   * literal reproduction of "no `get-session` round trip lands between the
+   * two switches" — a stronger, deterministic stand-in for the timing race a
+   * fast real double-switch would have to win.
+   */
+  it('the SECOND of two switches with no session read in between still re-resolves', async () => {
+    const memberships: Record<string, string> = { [ORG_A.id]: 'owner', [ORG_B.id]: 'member' };
+    const { client, getSession, sessionRow } = orgBoundClient({ memberships });
+
+    await bootOnOrgA(client);
+    const before = getSession.mock.calls.length;
+
+    // Gate every `getSession` call from here on so NONE lands until
+    // released — the literal reproduction of "no `get-session` round trip
+    // landed between the two switches" the card measured, stronger than
+    // reproducing the timing race a fast real double-switch would have to
+    // win. Installed only AFTER boot so mount's own `loadSession()` (which
+    // also calls `getSession`) is unaffected.
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    getSession.mockImplementation(async () => {
+      const orgId = sessionRow.activeOrganizationId;
+      const role = orgId ? memberships[orgId] : undefined;
+      const user = {
+        id: 'u_5719', name: 'Switcher', email: 'switcher@example.com', role: 'user',
+        positions: ['user', ...(role ? [mapMembershipRole(role)] : [])],
+        isPlatformAdmin: false,
+      } as unknown as AuthUser;
+      await gate;
+      TokenStorage.set(sessionRow.token);
+      return { user, session: { token: sessionRow.token, activeOrganizationId: orgId } };
+    });
+
+    // Switch 1: A → B. Not awaited to completion — real callers
+    // (`OrganizationLayout`'s effect, `WorkspaceSwitcher`) never await
+    // `switchOrganization` either.
+    act(() => { void authRef.current!.switchOrganization(ORG_B.id); });
+    await waitFor(() => expect(screen.getByTestId('org').textContent).toBe(ORG_B.id));
+    await waitFor(() => expect(getSession.mock.calls.length).toBe(before + 1));
+
+    // Switch 2: B → A, fired while switch 1's OWN follow-up `get-session` is
+    // still blocked on `gate` — no session read has landed for EITHER switch.
+    act(() => { void authRef.current!.switchOrganization(ORG_A.id); });
+    await waitFor(() => expect(screen.getByTestId('org').textContent).toBe(ORG_A.id));
+
+    // The crux: switch 2 triggered its OWN `get-session`, independent of
+    // switch 1's. Before objectui#5750 this stayed at `before + 1` — switch
+    // 2's `set-active` response carries the SAME signed token switch 1's did
+    // (same session, same deterministic HMAC), so `TokenStorage.set` saw no
+    // value change and the objectui#4467 rotation never fired for it.
+    await waitFor(() => expect(getSession.mock.calls.length).toBe(before + 2));
+
+    // Let both blocked reads land. Switch 1's answer (organization B) is
+    // subscribed first and settles first, but must be DISCARDED as stale —
+    // applying it after switch 2's would silently revert identity to the
+    // organization the user already switched away from.
+    release?.();
+
+    await waitFor(() => expect(screen.getByTestId('positions').textContent).toBe('user,org_owner'));
     expect(screen.getByTestId('verdict').textContent).toBe('admin');
     expect(screen.getByTestId('resolved').textContent).toBe('resolved');
   });
