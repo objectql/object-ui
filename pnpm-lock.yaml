@@ -2324,6 +2324,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@object-ui/plugin-list':
+        specifier: workspace:*
+        version: link:../plugin-list
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18

@@ -82,6 +82,42 @@ function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
 }
 
 /**
+ * The effective map configuration for a list view: the spec's VIEW-LEVEL `map`
+ * block merged OVER the legacy `options.map` bag, per key.
+ *
+ * `map` is `ListMapConfigSchema` (objectstack#9340, consumable here since the
+ * `@objectstack/spec` 17.1.0 pin) — a strict, seven-key block that flows into
+ * this package's own `ListViewSchema` by reference (it is not in
+ * `LIST_VIEW_LOCAL_OVERRIDES`, so `specFieldsExcept` imports it). It was
+ * authorable and validated but never read: `case 'map'` forwarded only
+ * `schema.options?.map`, so declaring it changed nothing at runtime
+ * (objectui#5042).
+ *
+ * PRECEDENCE — the view-level block wins, per key. Both halves of that are the
+ * convention already set by every sibling visualization in this file, not a new
+ * rule: `kanban`, `calendar`, `gallery`, `timeline` and `gantt` each spread
+ * `schema.options?.<kind>` FIRST and `schema.<kind>` LAST, which is a per-key
+ * override in the view-level block's favour. (`tree` and `chart` also put the
+ * view-level block first, but with `||` — whole-block replacement rather than a
+ * merge. The direction is unanimous across all seven; only the granularity
+ * differs, and this follows the five that merge, which are also the five that
+ * flatten config into props the way the map branch does.)
+ *
+ * Both sides go through the same whitelist, so the typed block cannot
+ * reintroduce the `style` namespace collision that objectui#5177 closed.
+ *
+ * NOT a second validation of the seven keys — that reading belongs to
+ * `getMapConfig` in `ObjectMap.tsx` and stays there (objectui#5018). This is
+ * the whitelist-flatten that already existed, applied to one more source.
+ */
+function resolveListMapConfig(schema: { map?: unknown; options?: { map?: unknown } }): Record<string, unknown> {
+  return {
+    ...pickFlatMapConfig(schema.options?.map),
+    ...pickFlatMapConfig(schema.map),
+  };
+}
+
+/**
  * The list view's props.
  *
  * ## Why there is no `[key: string]: any` here (objectui#4528)
@@ -1807,8 +1843,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('gantt');
     }
 
-    // Check for Map capabilities
-    if (schema.options?.map?.locationField || (schema.options?.map?.latitudeField && schema.options?.map?.longitudeField)) {
+    // Check for Map capabilities (spec config takes precedence)
+    //
+    // Asked of the SAME merged config the render branch forwards
+    // (`resolveListMapConfig`), not of `options.map` alone: the gate and the
+    // seam must answer one question, or a view that binds its coordinates in
+    // the view-level `map` block renders fine but is filtered out of
+    // `allowedVisualizations` below — whitelist ∩ resolvable — and falls back
+    // to `['grid']`. That is what made the spec block inert for the SWITCHER
+    // even where the forward alone would have been enough (objectui#5042).
+    // Sharing the resolver also means a split binding (`latitudeField` on the
+    // block, `longitudeField` in the bag) is judged the way it will render.
+    const mapConfig = resolveListMapConfig(schema);
+    if (mapConfig.locationField || (mapConfig.latitudeField && mapConfig.longitudeField)) {
       resolvable.push('map');
     }
 
@@ -1834,7 +1881,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return resolvable;
-  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, (schema as any).tree, schema.appearance?.allowedVisualizations]);
+  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
   React.useEffect(() => {
@@ -2131,17 +2178,34 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.options?.gantt || {}),
           ...(schema.gantt || {}),
         };
-      case 'map':
+      case 'map': {
         // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
         // `schema.options.map` is an untyped bag; a raw spread here forwarded
         // every key the author wrote, including `style`, which `ObjectMap`'s
         // `FlatMapConfigKeys` declares OUT of this flat form.
+        //
+        // The spec's view-level `map` block merges over that bag — see
+        // `resolveListMapConfig` for the precedence and its sibling evidence.
+        //
+        // Emitted in the FLAT form, deliberately, exactly as before: a nested
+        // `map` key would win OUTRIGHT at `getMapConfig` (objectui#5018), which
+        // would turn this per-key merge into whole-block replacement of the bag
+        // and would trip `warnOnShadowedFlatMapKeys`. That precedence rule is
+        // written around the flatten product — "neither flattener emits a `map`
+        // key at all" — and this branch keeps that true.
+        //
+        // No camera is synthesized here: `pickFlatMapConfig` copies only keys
+        // the author actually wrote, so an undeclared `zoom`/`center` stays
+        // absent and `ObjectMap` still fits the camera to the queried records
+        // (objectui#5000, objectui#4941).
+        const mapConfig = resolveListMapConfig(schema);
         return {
           type: 'object-map',
           ...baseProps,
-          locationField: schema.options?.map?.locationField || 'location',
-          ...pickFlatMapConfig(schema.options?.map),
+          locationField: mapConfig.locationField || 'location',
+          ...mapConfig,
         };
+      }
       case 'tree': {
         // Self-referencing tree-grid. Config lives under view.tree.* (direct)
         // or options.tree.* (app-shell object pages). parentField auto-detects

@@ -347,6 +347,13 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       view.gantt ?? (allowedSet.has('gantt') ? defaultGanttFromObject(objectDef) : undefined);
     // Map binding lives under options.map (locationField); auto-derive when
     // whitelisted so a map interface page renders without hand-wiring.
+    //
+    // The referenced view's own spec-level `map` block is NOT folded in here —
+    // it is forwarded as `map` on the schema below, so `ListView` merges it
+    // per key over this bag (objectui#5042). Collapsing the two with `??`, the
+    // way the sibling bindings above do, would make a partial authored block
+    // REPLACE the derivation: `map: { titleField: 'title' }` alone would drop
+    // the auto-derived `locationField` and the page would render no markers.
     const mapCfg =
       (view.options as any)?.map ?? (allowedSet.has('map') ? defaultMapFromObject(objectDef) : undefined);
 
@@ -393,6 +400,9 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       gallery,
       timeline,
       gantt,
+      // The spec's view-level `map` block (`ListMapConfigSchema`), forwarded
+      // verbatim so `ListView` can merge it over the `options.map` bag below.
+      ...((view as any).map ? { map: (view as any).map } : {}),
       ...((mapCfg || (view.options as any)) ? { options: { ...((view.options as any) ?? {}), ...(mapCfg ? { map: mapCfg } : {}) } } : {}),
 
       // Presentation policy — the page layer (ADR-0047).
