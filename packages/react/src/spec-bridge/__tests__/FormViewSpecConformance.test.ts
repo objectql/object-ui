@@ -70,7 +70,11 @@ const FULL_SPEC_FORM_VIEW = {
           helpText: 'Deal name',
           colSpan: 2,
           widget: 'input',
-          dependsOn: ['account'],
+          // A BARE parent-field name: the array arm this fixture used to spell
+          // is the one arm `FormFieldSchema` rejects (`expected string, received
+          // array`), so it pinned a shape no spec-valid document can carry
+          // (objectui#5652).
+          dependsOn: 'account',
           visibleWhen: 'record.active == true',
         },
         {

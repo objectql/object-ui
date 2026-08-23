@@ -6,10 +6,75 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { BaseSchema } from '@object-ui/types';
+/**
+ * Form-view bridge input — the documented SUBSET of `@objectstack/spec`'s
+ * FormViewSchema this bridge consumes, with every drift-prone key's TYPE bound
+ * to the contract instead of restated (objectui#5652).
+ *
+ * The subset stays hand-listed on purpose: this declaration is load-bearing
+ * documentation, and its NON-declarations are a retirement ledger
+ * (`defaultSort` / `aria`, objectui#3901 / #3974) that a blanket
+ * `Omit<FormView, ...>` would erase. What was never deliberate is the TYPE each
+ * declared key was given. Three of them had drifted from what the contract
+ * accepts, and nothing ever compared the two descriptions — the mirror shape
+ * `scripts/check-spec-symbol-derivation.mjs` exists to catch. The sibling
+ * bridge in this directory (`list-view.ts`) was converted the same way and for
+ * the same reason (objectui#2231): the shape derives, so it cannot drift.
+ *
+ * ## What the contract actually answers
+ *
+ * Measured with `safeParse` against the installed `@objectstack/spec` while
+ * fixing this, NOT copied from the finding — two of its three rows were wrong,
+ * in ways that change the repair:
+ *
+ *   FormSection.columns    `1 | 2 | 3 | 4 | '1' | '2' | '3' | '4'`. The string
+ *                          arm IS admitted, and the section schema's own pipe
+ *                          folds it to a number. The bridge declared `number`
+ *                          and refused it.
+ *   FormView.columns       `number`, with NO string arm: `FormViewSchema`
+ *                          rejects `columns: '3'` at the FORM level while
+ *                          `FormSectionSchema` accepts it at the SECTION level.
+ *                          The bridge's `number` was already right here — it is
+ *                          bound to the contract so the asymmetry cannot rot,
+ *                          and the two answers are pinned side by side.
+ *   FormField.dependsOn    a BARE parent-field name. The array arm is rejected
+ *                          by the contract outright. The bridge declared
+ *                          `string[]`, so it admitted only the arm the contract
+ *                          refuses and refused the only arm it admits — the one
+ *                          configuration that makes `field-selector` and
+ *                          `dynamic-config` work (objectui#5040).
+ *   *.visibleWhen          `string | { dialect, source?, ast?, meta? }`, with
+ *                          `dialect` REQUIRED and enum-typed. `{ dialect?,
+ *                          source }` is a DIFFERENT layer's type — the
+ *                          evaluator's `FieldRulePredicate` (`@object-ui/core`,
+ *                          ADR-0089) — and the contract does not accept it: an
+ *                          object arm without `dialect` is refused. The bridge
+ *                          declared `string` and refused the object arm
+ *                          entirely.
+ *
+ * ## Declaring an arm is not consuming it
+ *
+ * A key that is declarable but dropped on the way out is the same defect one
+ * layer over (objectui#5542 / #5594), so each widened arm is followed all the
+ * way onto the `object-form` node by `FormViewWidenedArms.test.ts`, and the one
+ * arm that needs a translation to get there gets it — see `normalizeColumns`.
+ */
+
+import type { BaseSchema, DependsOnInput } from '@object-ui/types';
+// `FormFieldInput` is the AUTHORING half of the spec's form field (`z.input`) —
+// what a bridge that reads authored metadata is handed. Its parsed twin,
+// `FormField`, is banned from import here by `no-restricted-imports` (it names
+// the runtime vocabulary in this repo, and its spec type erases to `any` —
+// objectstack#4171 / objectui#3090). `FormFieldInput` carries neither problem.
+import type { FormFieldInput, FormSection, FormView } from '@objectstack/spec/ui';
 import type { BridgeContext, BridgeFn } from '../types.js';
 
-interface FormField {
+/**
+ * A form field as authored. Exported so the derivation pins in
+ * `__tests__/FormViewWidenedArms.test.ts` can name the declared types; NOT
+ * re-exported by `spec-bridge/index.ts`, so the package surface is unchanged.
+ */
+export interface FormFieldSpec {
   field: string;
   /** Field type (spec FormFieldSchema reuses Data.FieldType; auto-infers widget). */
   type?: string;
@@ -25,24 +90,46 @@ interface FormField {
   hidden?: boolean;
   colSpan?: number;
   widget?: string;
-  dependsOn?: string[];
-  /** Canonical conditional-visibility predicate (ADR-0089). */
-  visibleWhen?: string;
-  /** @deprecated ADR-0089 → `visibleWhen`. */
-  visibleOn?: string;
+  /**
+   * Sibling field name whose value this field's widget reads (objectui#5040).
+   *
+   * The contract admits a BARE NAME and refuses an array. This is the wider
+   * {@link DependsOnInput} rather than the contract's `string` alone because
+   * the value is FORWARDED, unread, into the node slot that is declared with
+   * exactly this type (`FormField.dependsOn`, `@object-ui/types`) and read by
+   * `resolveCascadingOptions` / `resolveDependsOnFields` (`@object-ui/core`),
+   * whose parameter is also exactly this type (framework#4074). Narrowing to
+   * the contract's `string` would refuse array-authored layouts that the
+   * runtime has always honoured, on the same never-parsed inputs `groups` and
+   * `visibleOn` below are still read for. The contract's arm is a subset of
+   * this one, which is what the derivation pin asserts — so a spec that widens
+   * `dependsOn` fails the pin instead of silently outgrowing the declaration.
+   */
+  dependsOn?: DependsOnInput;
+  /** Canonical conditional-visibility predicate (ADR-0089), bound to the contract. */
+  visibleWhen?: FormFieldInput['visibleWhen'];
+  /** @deprecated ADR-0089 -> `visibleWhen`. */
+  visibleOn?: FormFieldInput['visibleOn'];
 }
 
-interface FormSection {
+/** One section of a form layout, as authored. */
+export interface FormSectionSpec {
   /** Stable section identifier for i18n lookup (spec FormSectionSchema.name). */
   name?: string;
   label?: string;
   description?: string;
   collapsible?: boolean;
   collapsed?: boolean;
-  columns?: number;
-  /** Section-level conditional-visibility predicate (ADR-0089). */
-  visibleWhen?: string;
-  fields?: FormField[];
+  /** Bound to the contract: the string spelling of a column count is admitted. */
+  columns?: FormSection['columns'];
+  /** Section-level conditional-visibility predicate (ADR-0089), bound to the contract. */
+  visibleWhen?: FormSection['visibleWhen'];
+  /**
+   * The authored field list. A bare string is the spec's shorthand for "this
+   * object's own field, rendered with its defaults" — the same shorthand
+   * `mapColumn` already honours on the list bridge.
+   */
+  fields?: Array<string | FormFieldSpec>;
 }
 
 /**
@@ -51,10 +138,11 @@ interface FormSection {
  * or listed here with an explicit reason for being ignored — the bridge must
  * never silently drop spec configuration (#2545).
  */
-interface FormViewSpec {
+export interface FormViewSpec {
   type?: string;
   layout?: string;
-  columns?: number;
+  /** Bound to the contract, which admits NO string arm here — unlike a section. */
+  columns?: FormView['columns'];
   title?: string;
   description?: string;
   // Tabbed (`type: 'tabbed'`)
@@ -73,9 +161,9 @@ interface FormViewSpec {
   // Modal (`type: 'modal'`)
   modalSize?: string;
   data?: any;
-  sections?: FormSection[];
+  sections?: FormSectionSpec[];
   /** Legacy alias of `sections` (spec: "Legacy support → alias to sections"). */
-  groups?: FormSection[];
+  groups?: FormSectionSpec[];
   /** Inline master-detail child collections. */
   subforms?: any[];
   // `defaultSort` and `aria` are NOT declared here on purpose — see the
@@ -86,7 +174,23 @@ interface FormViewSpec {
   submitBehavior?: any;
 }
 
-function mapField(field: FormField): Record<string, any> {
+/**
+ * Fold the contract's string spelling of a column count onto the number the
+ * node carries.
+ *
+ * `FormSectionSchema` accepts `'2'` and `2` and normalises the string away in
+ * its own pipe; the `object-form` node's section declares `columns?: 1|2|3|4`
+ * and `FormSectionContainer` indexes its grid-class map by that number. Its
+ * header states where the fold belongs: "The normalisation belongs at the seam
+ * that parses authored metadata, not in the container's props." This bridge is
+ * that seam. Forwarding `'2'` verbatim hands every downstream renderer a value
+ * outside the type it declares.
+ */
+function normalizeColumns(columns: FormSectionSpec['columns']): number | undefined {
+  return typeof columns === 'string' ? Number(columns) : columns;
+}
+
+function mapField(field: FormFieldSpec): Record<string, any> {
   const mapped: Record<string, any> = {
     name: field.field,
     label: field.label ?? field.field,
@@ -102,20 +206,38 @@ function mapField(field: FormField): Record<string, any> {
   if (field.hidden != null) mapped.hidden = field.hidden;
   if (field.colSpan != null) mapped.colSpan = field.colSpan;
   if (field.widget) mapped.widget = field.widget;
+  // Forwarded unread into the node's `dependsOn`, which is declared with the
+  // same type and read by `@object-ui/core`'s cascading-option resolver.
   if (field.dependsOn) mapped.dependsOn = field.dependsOn;
   // ADR-0089: `visibleWhen` is the canonical view-form-field visibility predicate
   // (the spec folds the deprecated `visibleOn` into it at parse). Prefer it and
   // fall back to `visibleOn` for raw / un-normalized metadata. The ObjectForm
   // renderer reads this view-level predicate from the node's `visibleOn` slot.
+  //
+  // Both contract arms travel whole: the bare CEL string, and the expression
+  // object. `evalFieldPredicate` reads `{ dialect, source }` back out of the
+  // object arm, which is how a spec-authored `{ dialect: 'cel', source: ... }`
+  // now drives visibility instead of being refused by this declaration. An
+  // `ast`-only expression (legal metadata: the contract requires `dialect` plus
+  // one of `source` / `ast`) is forwarded whole rather than dropped, but no
+  // evaluator in this repo reads an `ast` today — that gap is the evaluator's,
+  // and the bridge must not hide it by discarding the key.
   const visiblePredicate = field.visibleWhen ?? field.visibleOn;
   if (visiblePredicate) mapped.visibleOn = visiblePredicate;
 
   return mapped;
 }
 
-function mapSection(section: FormSection): Record<string, any> {
+function mapSection(section: FormSectionSpec): Record<string, any> {
   const mapped: Record<string, any> = {
-    fields: (section.fields ?? []).map(mapField),
+    // A bare field name is the spec's shorthand and is forwarded verbatim: the
+    // node's `fields` slot admits it and `normalizeSectionField`
+    // (@object-ui/plugin-form) resolves it against the object schema. Running
+    // it through `mapField` instead produced `{ name: undefined }` — a field
+    // with no identity — for the most ordinary section a form can declare.
+    fields: (section.fields ?? []).map((field) =>
+      typeof field === 'string' ? field : mapField(field),
+    ),
   };
 
   if (section.name) mapped.name = section.name;
@@ -123,7 +245,8 @@ function mapSection(section: FormSection): Record<string, any> {
   if (section.description) mapped.description = section.description;
   if (section.collapsible != null) mapped.collapsible = section.collapsible;
   if (section.collapsed != null) mapped.collapsed = section.collapsed;
-  if (section.columns != null) mapped.columns = section.columns;
+  if (section.columns != null) mapped.columns = normalizeColumns(section.columns);
+  // Whole, both arms — same predicate contract as the field above.
   if (section.visibleWhen) mapped.visibleWhen = section.visibleWhen;
 
   return mapped;
