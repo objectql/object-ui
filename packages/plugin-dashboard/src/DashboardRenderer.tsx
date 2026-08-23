@@ -945,25 +945,50 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // spec-compliant dashboards get their header title (framework#1878/#1891;
     // mirrors the DashboardGridLayout fallback from #2666).
     const headerTitle = schema.title || schema.label;
-    const headerSection = schema.header && (
+    /**
+     * Decide what the header would actually SHOW before deciding whether to
+     * render its wrapper at all.
+     *
+     * Every child here is independently suppressible: the console page chrome
+     * passes `hideHeaderText` because it already renders the dashboard's title
+     * and description itself, and `showTitle` / `showDescription` can be
+     * authored off. The wrapper, however, used to render whenever `header` was
+     * merely *declared* — so with the chrome present and no `header.actions`,
+     * every child evaluated falsy and the DOM still got
+     * `<div class="col-span-full mb-4"></div>`: an empty node that claims a
+     * full grid row (measured 64px) plus `mb-4`, opening every console
+     * dashboard page with a blank band above the filter bar (objectui#5812,
+     * measured on HotCRM 17.1.0). Authors had no lever — dropping `header`
+     * would have traded this for the standalone embed's lost title, which is
+     * the very thing `header` is for.
+     *
+     * So the contract is: the header costs zero pixels when it has nothing to
+     * show, and is otherwise untouched. `header.actions` keep it alive even
+     * under the chrome, since the chrome renders text only, not actions.
+     */
+    const header = schema.header;
+    const showHeaderTitle = !hideHeaderText && header?.showTitle !== false && !!headerTitle;
+    const showHeaderDescription = !hideHeaderText && header?.showDescription !== false && !!schema.description;
+    const headerActions = header?.actions ?? [];
+    const headerSection = header && (showHeaderTitle || showHeaderDescription || headerActions.length > 0) && (
       <div className="col-span-full mb-4">
-        {!hideHeaderText && schema.header.showTitle !== false && headerTitle && (
+        {showHeaderTitle && (
           <h2 className="text-lg font-semibold tracking-tight">
             {dashName
               ? dashboardLabel({ name: dashName, label: resolveLabel(headerTitle) })
               : resolveLabel(headerTitle)}
           </h2>
         )}
-        {!hideHeaderText && schema.header.showDescription !== false && schema.description && (
+        {showHeaderDescription && (
           <p className="text-sm text-muted-foreground mt-1">
             {dashName
               ? dashboardDescription({ name: dashName, description: resolveLabel(schema.description) })
               : resolveLabel(schema.description)}
           </p>
         )}
-        {schema.header.actions && schema.header.actions.length > 0 && (
+        {headerActions.length > 0 && (
           <div className="flex gap-2 mt-3">
-            {schema.header.actions.map((action: { label: string; actionUrl?: string; actionType?: string; icon?: string }, i: number) => {
+            {headerActions.map((action: { label: string; actionUrl?: string; actionType?: string; icon?: string }, i: number) => {
               const Icon = resolveLucideIcon(action.icon);
               const handleClick = async () => {
                 const { actionType, actionUrl, label } = action;
