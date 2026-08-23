@@ -41,19 +41,65 @@ export const DEFAULT_ACTIVITY_LIMIT = 20;
 /**
  * `sys_activity.type` → `FeedItem.type`.
  *
- * Identical to the map `RecordDetailView` uses when it merges `sys_activity`
- * into the discussion feed, deliberately: one table, one reading. Two renderers
- * that disagree about what a `created` row IS would put the same record's
- * history under two different icons depending on which block an author reached
- * for, so the richer `record_create` / `record_delete` / `sharing` feed types
- * the spec offers are NOT used here — adopting them is a change to that shared
- * map, not to this block.
+ * Meant to be one reading with the map `RecordDetailView` uses when it merges
+ * `sys_activity` into the discussion feed. Two renderers that disagree about what a `created` row IS would put
+ * the same record's history under two different icons depending on which block
+ * an author reached for, so the richer `record_create` / `record_delete` /
+ * `sharing` feed types the spec offers are NOT used here — adopting them is a
+ * change to that shared map, not to this block.
+ *
+ * ⚠️ That copy is a hand-written literal in `app-shell`, not an import of this
+ * one, and nothing fails when the two disagree — so the `scheduled` entry below
+ * is currently present here and absent there. Tracked as objectui#5878; fixing
+ * it means the second copy reading this export, which is a different package's
+ * surface than this card's.
  *
  * `commented` / `mentioned` map to nothing because their content lives in
  * `sys_comment` (with reactions and threading attached) — a host that has both
  * merges the comment rows, and the block on its own has no comment write path
  * to pair them with. `login` / `logout` are account events, not record
  * activity.
+ *
+ * ## Two vocabularies, not one (objectui#5840)
+ *
+ * The keys were originally set-equal to plugin-audit's declared
+ * `sys_activity.type` select options, and the test pinned exactly that. They no
+ * longer are, because those options are **not** what the column stores:
+ *
+ *  - Every field on `sys_activity` is `readonly: true`, and objectql's
+ *    `validateRecord` skips readonly fields on both the insert and the update
+ *    branch. The eleven-value enum is therefore documentation, not a contract —
+ *    an undeclared value is written silently (measured upstream by
+ *    plugin-audit's own `sys-activity-type-vocabulary.test.ts`).
+ *  - The platform itself forwards author-declared values into the column:
+ *    ADR-0052 §5b.2 `activityMilestones[].type` is applied verbatim by
+ *    plugin-audit's `audit-writers.ts` (`if (milestone.type) activityType =
+ *    milestone.type`). That is how `completed` is produced, and it is a general
+ *    door, not a special case.
+ *
+ * So `scheduled` is a value that is written, stored and queryable while being
+ * undeclared upstream. Dropping it was not a decision this map made; it was the
+ * absence of one. Its producer is HotCRM's `schedule_meeting` action
+ * (`src/actions/global.actions.ts` — `type: EVENT_STATUS === 'held' ?
+ * 'completed' : 'scheduled'`), registered for `crm_lead`, `crm_contact`,
+ * `crm_account`, `crm_opportunity` and `crm_case`: the held branch reached the
+ * timeline, the scheduled branch never did.
+ *
+ * `scheduled` → `event` is the semantic pairing and it is what makes the
+ * declared `event` feed type reachable at all. Note the two branches of that
+ * one producer now land at different DEFAULT visibility, which is the intended
+ * reading: a held meeting is `completed` → `task`, hidden unless
+ * `showCompleted`; a not-yet-held meeting is `scheduled` → `event`, shown,
+ * because an upcoming meeting is the part of a timeline you still act on.
+ *
+ * Whether the upstream enum should GAIN `scheduled` is a platform ruling, not
+ * this block's to make — filed as objectstack#11424. Until it is ruled, the
+ * honest statement of this table is the one the test now pins: the upstream
+ * declaration PLUS the values a shipped producer measurably writes.
+ *
+ * Values outside BOTH groups are still dropped — see
+ * {@link activityRowToFeedItem}, which now says so out loud instead of
+ * silently.
  */
 export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | undefined>> = {
   created: 'field_change',
@@ -63,6 +109,7 @@ export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | 
   shared: 'field_change',
   system: 'system',
   completed: 'task',
+  scheduled: 'event',
   commented: undefined,
   mentioned: undefined,
   login: undefined,
@@ -144,14 +191,62 @@ export function activityTimestamp(row: SysActivityRow): string {
 }
 
 /**
+ * `sys_activity.type` values this map has never heard of, already warned about.
+ *
+ * Module scope so one unknown type warns ONCE rather than once per row: a
+ * 200-row page of the same unknown type is one authoring mistake, not two
+ * hundred. Same shape as the evaluator's fail-open warning
+ * (`core/src/evaluator/fieldRules.ts`, objectstack#5149) — skipping something
+ * an author declared is loud, not silent.
+ */
+const warnedUnknownActivityTypes = new Set<string>();
+
+/**
+ * Say out loud that a row was dropped for having a type nothing maps.
+ *
+ * Deliberately NOT fired for a type this map knows and deliberately drops
+ * (`commented` / `mentioned` / `login` / `logout` → `undefined`): those are
+ * decisions, and a warning about a decision is noise that teaches authors to
+ * ignore the channel. It fires only for a value outside the table entirely —
+ * which is the objectui#5840 failure mode: written, stored, invisible, no
+ * diagnostic anywhere.
+ */
+function warnUnknownActivityType(type: string): void {
+  if (warnedUnknownActivityTypes.has(type)) return;
+  warnedUnknownActivityTypes.add(type);
+  console.warn(
+    `[record:activity] dropped a sys_activity row with type "${type}": no feed `
+      + 'item type is mapped for it, so it cannot appear on any timeline whatever '
+      + 'the page authors. `sys_activity.type` is not validated on write (every '
+      + 'field on that object is readonly), so a producer can store a value the '
+      + 'platform never declared. Map it in ACTIVITY_TYPE_TO_FEED_TYPE '
+      + '(@object-ui/plugin-detail) if it is record activity.',
+  );
+}
+
+/** Test seam: forget which unknown types have already been warned about. */
+export function resetUnknownActivityTypeWarnings(): void {
+  warnedUnknownActivityTypes.clear();
+}
+
+/**
  * One `sys_activity` row → one {@link FeedItem}, or `null` when the row is not
  * record activity (see {@link ACTIVITY_TYPE_TO_FEED_TYPE}).
+ *
+ * Two different `null`s, and the difference is the point: a type the table
+ * maps to `undefined` is a deliberate exclusion and returns quietly; a type the
+ * table does not contain at all is an unmapped producer and says so once.
  */
 export function activityRowToFeedItem(
   row: SysActivityRow,
   systemActorLabel: string,
 ): FeedItem | null {
-  const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[String(row?.type)];
+  const rawType = String(row?.type);
+  if (!Object.prototype.hasOwnProperty.call(ACTIVITY_TYPE_TO_FEED_TYPE, rawType)) {
+    warnUnknownActivityType(rawType);
+    return null;
+  }
+  const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[rawType];
   if (!feedType) return null;
   return {
     id: row.id as string | number,

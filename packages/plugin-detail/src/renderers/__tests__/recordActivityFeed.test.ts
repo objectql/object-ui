@@ -15,7 +15,7 @@
  * green while that was true.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FeedFilterMode as SpecFilterMode, FeedItemType as SpecFeedItemType } from '@objectstack/spec/data';
 import type { FeedItem } from '@object-ui/types';
 import {
@@ -28,6 +28,7 @@ import {
   normalizeFeedTypes,
   normalizeFilterMode,
   normalizeLimit,
+  resetUnknownActivityTypeWarnings,
 } from '../recordActivityFeed';
 
 const item = (over: Partial<FeedItem> & Pick<FeedItem, 'id' | 'type'>): FeedItem => ({
@@ -36,19 +37,90 @@ const item = (over: Partial<FeedItem> & Pick<FeedItem, 'id' | 'type'>): FeedItem
   ...over,
 });
 
+/**
+ * The two vocabularies this map has to cover (objectui#5840).
+ *
+ * They are LITERALS on purpose, in both groups, for the reason plugin-audit's
+ * own `sys-activity-type-vocabulary.test.ts` gives: a pin that read its
+ * expectation out of the thing it is pinning cannot fail. The cost is that a
+ * human redoes the census when either group moves, which is the point.
+ */
+
+/**
+ * plugin-audit's declared `sys_activity.type` select options
+ * (`sys-activity.object.ts`). A new option added upstream should show up here
+ * as a DECISION rather than as a row that silently renders nothing.
+ */
+const DECLARED_UPSTREAM_TYPES = [
+  'assigned', 'commented', 'completed', 'created', 'deleted',
+  'login', 'logout', 'mentioned', 'shared', 'system', 'updated',
+] as const;
+
+/**
+ * Values a shipped producer measurably WRITES while being undeclared upstream.
+ *
+ * This group exists because the declaration is not a contract: every field on
+ * `sys_activity` is `readonly: true` and objectql's `validateRecord` skips
+ * readonly fields, so an undeclared value is stored silently. The second
+ * element names the producer — add the producer before adding the row.
+ *
+ * Whether the upstream enum should absorb these is a platform ruling, not this
+ * block's; until it is made, rendering them is what stops a stored row from
+ * being invisible.
+ */
+const UNDECLARED_BUT_WRITTEN_TYPES: ReadonlyArray<readonly [type: string, writer: string]> = [
+  [
+    'scheduled',
+    'hotcrm/src/actions/global.actions.ts — schedule_meeting: '
+      + "type: EVENT_STATUS === 'held' ? 'completed' : 'scheduled'; registered for "
+      + 'crm_lead / crm_contact / crm_account / crm_opportunity / crm_case',
+  ],
+];
+
 describe('sys_activity row → FeedItem', () => {
-  it('maps every activity type the platform writes, and only to spec feed types', () => {
-    // The keys are `sys_activity.type`'s select options (plugin-audit
-    // sys-activity.object.ts). Pinned as a set so a new activity type added
-    // upstream shows up here as a decision rather than silently rendering
-    // nothing.
-    expect(Object.keys(ACTIVITY_TYPE_TO_FEED_TYPE).sort()).toEqual([
-      'assigned', 'commented', 'completed', 'created', 'deleted',
-      'login', 'logout', 'mentioned', 'shared', 'system', 'updated',
-    ]);
+  it('covers the declared vocabulary AND the values producers actually write', () => {
+    expect(Object.keys(ACTIVITY_TYPE_TO_FEED_TYPE).sort()).toEqual(
+      [...DECLARED_UPSTREAM_TYPES, ...UNDECLARED_BUT_WRITTEN_TYPES.map(([t]) => t)].sort(),
+    );
     for (const mapped of Object.values(ACTIVITY_TYPE_TO_FEED_TYPE)) {
       if (mapped) expect(SpecFeedItemType.options).toContain(mapped);
     }
+  });
+
+  it.each(UNDECLARED_BUT_WRITTEN_TYPES)(
+    'renders %s — it is stored by a real producer, so dropping it loses data',
+    (type, writer) => {
+      expect(
+        activityRowToFeedItem({ id: 'x', type }, 'System'),
+        `'${type}' must keep reaching the feed: it is written by ${writer}. `
+          + 'It is absent from plugin-audit\'s declared options and lands anyway, '
+          + 'because readonly fields are never validated on write — so the enum '
+          + 'cannot be used as the list of what this map has to handle.',
+      ).not.toBeNull();
+    },
+  );
+
+  /**
+   * Regression control for the #5840 change: the entries that existed before
+   * `scheduled` was added still resolve exactly as they did. Written as the
+   * whole table rather than as "not broken" so a future edit that RE-points an
+   * existing type has to say so here.
+   */
+  it('leaves every previously-mapped type pointing where it did', () => {
+    expect({ ...ACTIVITY_TYPE_TO_FEED_TYPE, scheduled: undefined }).toEqual({
+      created: 'field_change',
+      updated: 'field_change',
+      deleted: 'field_change',
+      assigned: 'field_change',
+      shared: 'field_change',
+      system: 'system',
+      completed: 'task',
+      commented: undefined,
+      mentioned: undefined,
+      login: undefined,
+      logout: undefined,
+      scheduled: undefined,
+    });
   });
 
   it('drops the rows that are not record activity', () => {
@@ -92,6 +164,109 @@ describe('sys_activity row → FeedItem', () => {
       .toBe('2026-02-02T00:00:00.000Z');
     expect(activityTimestamp({ timestamp: null, created_at: '2026-02-03T00:00:00.000Z' }))
       .toBe('2026-02-03T00:00:00.000Z');
+  });
+});
+
+/**
+ * objectui#5840 — a `scheduled` meeting reaches the timeline, and the fix is an
+ * ADDITION rather than a loosening.
+ *
+ * Both directions are asserted on purpose. "`scheduled` now renders" alone
+ * would stay green if the map had been replaced by a catch-all bucket, which is
+ * the wrong fix (an unmeasured type rendering as `system` is new wrong data,
+ * not recovered data). So the unknown-type leg below is not decoration: it is
+ * what makes the pair discriminate between the fix that was made and the fix
+ * that was rejected.
+ */
+describe('a scheduled activity reaches the feed (objectui#5840)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetUnknownActivityTypeWarnings();
+  });
+
+  it('maps a scheduled meeting row onto an `event` feed item, carrying its ADR-0052 pointer', () => {
+    const mapped = activityRowToFeedItem(
+      {
+        id: 'act-9',
+        type: 'scheduled',
+        summary: 'Discovery call (30 min)',
+        timestamp: '2026-04-01T09:00:00.000Z',
+        actor_name: 'Grace',
+        source_object: 'crm_event',
+        source_id: 'evt-3',
+      },
+      'System',
+    );
+    expect(mapped).toEqual({
+      id: 'act-9',
+      type: 'event',
+      actor: 'Grace',
+      actorAvatarUrl: undefined,
+      body: 'Discovery call (30 min)',
+      createdAt: '2026-04-01T09:00:00.000Z',
+      sourceObject: 'crm_event',
+      sourceId: 'evt-3',
+    });
+  });
+
+  it('produces a feed type the spec actually declares, so `types` can name it', () => {
+    // The other half of #5840's complaint: `event` was a declared FeedItemType
+    // that nothing could produce, so `types: ['event']` was a permanently empty
+    // tab. It is reachable now.
+    expect(SpecFeedItemType.options).toContain('event');
+    expect(ACTIVITY_TYPE_TO_FEED_TYPE.scheduled).toBe('event');
+  });
+
+  const scheduledItem: FeedItem = item({ id: 'e1', type: 'event' });
+
+  it('survives the default filters — an upcoming meeting is not "completed"', () => {
+    // Reaching activityRowToFeedItem is not enough: the row is only visible if
+    // it also survives the pipeline every page runs. `showCompleted` defaults
+    // to false, and a scheduled meeting must NOT be caught by it — that is the
+    // whole difference from the held branch of the same producer.
+    expect(applyFeedConfig([scheduledItem], {}, 50).items.map((i) => i.id)).toEqual(['e1']);
+  });
+
+  it('survives `types: [\'event\']`, the filter an author writes to show meetings', () => {
+    expect(applyFeedConfig([scheduledItem], { types: ['event'] }, 50).items.map((i) => i.id))
+      .toEqual(['e1']);
+  });
+
+  it('survives unifiedTimeline:false — a meeting is not a field change', () => {
+    expect(applyFeedConfig([scheduledItem], { unifiedTimeline: false }, 50).items.map((i) => i.id))
+      .toEqual(['e1']);
+  });
+
+  it('is excluded when the author asks for other kinds, like any other item', () => {
+    // Control for the three legs above: they pass because `event` is genuinely
+    // carried through the pipeline, not because the pipeline stopped filtering.
+    expect(applyFeedConfig([scheduledItem], { types: ['comment'] }, 50).items).toEqual([]);
+  });
+
+  it('still DROPS a type nothing maps — the fix is an addition, not a catch-all', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(activityRowToFeedItem({ id: 'z', type: 'teleported' }, 'System')).toBeNull();
+    expect(activityRowToFeedItem({ id: 'z2' }, 'System')).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(String(warn.mock.calls[0][0])).toContain('teleported');
+  });
+
+  it('warns once per unknown type, not once per row', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (let i = 0; i < 5; i += 1) {
+      activityRowToFeedItem({ id: `z${i}`, type: 'teleported' }, 'System');
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays SILENT for the types it deliberately drops', () => {
+    // A warning about a decision teaches authors to ignore the channel. Only a
+    // value outside the table entirely is a missing decision.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const type of ['commented', 'mentioned', 'login', 'logout']) {
+      expect(activityRowToFeedItem({ id: '1', type }, 'System')).toBeNull();
+    }
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

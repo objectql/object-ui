@@ -196,12 +196,28 @@ Three sources, in precedence order:
    rows per page. This is what makes it work on a hand-authored record page
    with no host feeding it.
 
-`sys_activity` rows map to feed items the same way the console's record page
-maps them, so both surfaces agree about what a row is:
+`sys_activity` rows map to feed items like this:
 `created` / `updated` / `deleted` / `assigned` / `shared` → `field_change`,
-`completed` → `task`, `system` → `system`. `commented` / `mentioned` are
-skipped (their content lives in `sys_comment`), and `login` / `logout` are
-account events, not record activity.
+`completed` → `task`, `scheduled` → `event`, `system` → `system`.
+`commented` / `mentioned` are skipped (their content lives in `sys_comment`),
+and `login` / `logout` are account events, not record activity.
+
+`scheduled` and `completed` are the two branches the same producer writes for a
+meeting, and they land at different default visibility on purpose: a held
+meeting is `completed` → `task`, hidden unless `showCompleted`; a not-yet-held
+meeting is `scheduled` → `event`, shown, because an upcoming meeting is the part
+of a timeline you still act on.
+
+A row whose `type` is in neither list is dropped and logs one `console.warn`
+naming the type — `sys_activity.type` is not validated on write, so a producer
+can store a value the platform never declared, and a silently missing row is
+indistinguishable from no activity at all.
+
+<Callout type="warn">
+  The console's own record page maps these rows with a second, hand-written copy
+  of the table, so the two surfaces agree on everything except `scheduled`,
+  which that page still drops. Tracked in `objectui#5878`.
+</Callout>
 
 ### Which inputs do what
 
