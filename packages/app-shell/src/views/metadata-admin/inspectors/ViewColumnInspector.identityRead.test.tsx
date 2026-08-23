@@ -162,7 +162,7 @@ describe('ViewColumnInspector — identity is read in the canonical spelling onl
     // alias retired above (`o.label ?? o.header ?? o.field ?? o.accessorKey`).
     // So the panel's identity controls stop presenting the refused spelling
     // while the list one line above still does. That file is outside this
-    // card's granted surface; filed separately. When that lands, this
+    // card's granted surface; filed as objectui#5725. When that lands, this
     // expectation flips — deliberately, so the boundary is visible rather than
     // silently forgotten.
     //
