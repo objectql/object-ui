@@ -1559,6 +1559,7 @@ const de = {
       changesApplied: "Angewendet",
       changesDrafted: "Als Entwurf gespeichert",
       changesFailed: "Nicht angewendet",
+      discussing: "Thema: {{target}}",
       changeVerb: {
         createObject: "Objekt erstellen",
         addField: "Feld hinzufügen",

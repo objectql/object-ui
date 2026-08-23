@@ -1558,6 +1558,7 @@ const pt = {
       changesApplied: "Aplicado",
       changesDrafted: "Salvo como rascunho",
       changesFailed: "Não aplicado",
+      discussing: "Discutindo: {{target}}",
       changeVerb: {
         createObject: "Criar objeto",
         addField: "Adicionar campo",

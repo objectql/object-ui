@@ -1563,6 +1563,7 @@ const es = {
       changesApplied: "Aplicado",
       changesDrafted: "Guardado como borrador",
       changesFailed: "No aplicado",
+      discussing: "Tratando: {{target}}",
       changeVerb: {
         createObject: "Crear objeto",
         addField: "Añadir campo",

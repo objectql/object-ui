@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useIsMobile } from '@object-ui/components';
 import { useAgents } from '@object-ui/plugin-chatbot';
@@ -40,6 +40,25 @@ export function StudioCopilotConversation({
   packageId,
   onCanvasOpenChange,
 }: StudioCopilotConversationProps): React.ReactElement | null {
+  // cloud#1610 — the URL is the single source of the surface context: the
+  // pillar is the :tab route segment, the artifact is the `?surface=type:name`
+  // deep-link every pillar already mirrors (useSurfaceDeepLink). Derived per
+  // render; the ChatPane transport reads it per send, so each turn carries
+  // what the user is looking at RIGHT NOW.
+  const { tab } = useParams<{ tab?: string }>();
+  const copilotLocation = useLocation();
+  const surfaceContext = React.useMemo(() => {
+    const raw = new URLSearchParams(copilotLocation.search).get('surface');
+    let artifact: { type: string; name: string } | undefined;
+    if (raw) {
+      const idx = raw.indexOf(':');
+      if (idx > 0 && idx < raw.length - 1) {
+        artifact = { type: raw.slice(0, idx), name: raw.slice(idx + 1) };
+      }
+    }
+    if (!tab && !artifact) return undefined;
+    return { ...(tab ? { pillar: tab } : {}), ...(artifact ? { artifact } : {}) };
+  }, [tab, copilotLocation.search]);
   const { user } = useAuth();
   const userId = user?.id;
   const apiBase = React.useMemo(() => resolveApiBase(), []);
@@ -88,6 +107,7 @@ export function StudioCopilotConversation({
       apiBase={apiBase}
       conversationId={conversationId}
       editPackageId={packageId}
+      surfaceContext={surfaceContext}
       initialMessages={initialMessages}
       pendingFirstMessageRef={pendingFirstMessageRef}
       onSent={() => {}}

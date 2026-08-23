@@ -741,6 +741,13 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   /** Terminal badge when the replay's publish did not go live (default "Not applied"). */
   changesFailedLabel?: string;
   /**
+   * cloud#1610 — a small chip above the composer naming what the conversation
+   * is currently ABOUT (「正在讨论：仪表盘 sales_overview」), so the context the
+   * host sends to the agent is visible to the user instead of invisible
+   * grounding. Display-only; absent = no chip.
+   */
+  surfaceContextLabel?: string;
+  /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
    * each draft card's Publish/Published affordance reflects the SERVER's
@@ -1293,6 +1300,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       changesAppliedLabel = 'Applied',
       changesDraftedLabel = 'Saved as draft',
       changesFailedLabel = 'Not applied',
+      surfaceContextLabel,
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -2998,6 +3006,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             isPlainSurface && 'mx-auto w-full max-w-2xl px-4 pb-4 sm:px-0',
           )}
         >
+          {surfaceContextLabel ? (
+            <div className="mb-1 flex" data-testid="surface-context-chip">
+              <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                {surfaceContextLabel}
+              </span>
+            </div>
+          ) : null}
           {promptOverlaySlot ? (
             <div className="absolute bottom-full left-0 right-0 z-10 px-3 pb-1">
               {promptOverlaySlot}

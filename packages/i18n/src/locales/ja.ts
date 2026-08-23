@@ -1561,6 +1561,7 @@ const ja = {
       changesApplied: "適用済み",
       changesDrafted: "下書きとして保存",
       changesFailed: "未適用",
+      discussing: "話題: {{target}}",
       changeVerb: {
         createObject: "オブジェクトを作成",
         addField: "項目を追加",

@@ -1377,6 +1377,18 @@ function AiUnavailable({
 }
 
 interface ChatPaneProps {
+  /**
+   * cloud#1610 — what the user is currently discussing, derived by the HOST
+   * from its route/selection (Studio: pillar + the ?surface= deep-link the
+   * pillars already mirror — the URL is the single source of truth). Sent as
+   * `context.surface` on every turn (the transport reads the body per send),
+   * and surfaced to the user as a chip above the composer.
+   */
+  surfaceContext?: {
+    pillar?: string;
+    artifact?: { type: string; name: string };
+    mode?: string;
+  };
   agents: AgentDescriptor[];
   agentsLoading: boolean;
   agentsError: Error | undefined;
@@ -1426,6 +1438,7 @@ export function ChatPane({
   apiBase,
   conversationId,
   editPackageId,
+  surfaceContext,
   onPackageBound,
   canBind,
   parentHandoffConversationId,
@@ -1576,6 +1589,9 @@ export function ChatPane({
         // ADR-0070 "Edit with AI": scope the build agent to the app the user
         // opened to edit. Cloud seeds it as the conversation's active package.
         ...(editPackageId ? { packageId: editPackageId } : {}),
+        // cloud#1610 — what the user is currently discussing (advisory; the
+        // transport reads the body per send, so this stays fresh per turn).
+        ...(surfaceContext ? { surface: surfaceContext } : {}),
       },
     },
     initialMessages: hydrated,
@@ -2360,6 +2376,14 @@ export function ChatPane({
         changesAppliedLabel={t('console.ai.changesApplied', { defaultValue: 'Applied' })}
         changesDraftedLabel={t('console.ai.changesDrafted', { defaultValue: 'Saved as draft' })}
         changesFailedLabel={t('console.ai.changesFailed', { defaultValue: 'Not applied' })}
+        surfaceContextLabel={
+          surfaceContext?.artifact
+            ? t('console.ai.discussing', {
+                defaultValue: 'Discussing: {{target}}',
+                target: `${surfaceContext.artifact.type} · ${surfaceContext.artifact.name}`,
+              })
+            : undefined
+        }
         planAnswerMessage={(question, option) =>
           outboundText('planAnswerMessage', { question, option })
         }

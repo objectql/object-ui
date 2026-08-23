@@ -1571,6 +1571,7 @@ const ru = {
       changesApplied: "Применено",
       changesDrafted: "Сохранено как черновик",
       changesFailed: "Не применено",
+      discussing: "Обсуждается: {{target}}",
       changeVerb: {
         createObject: "Создать объект",
         addField: "Добавить поле",

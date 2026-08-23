@@ -1559,6 +1559,7 @@ const ko = {
       changesApplied: "적용됨",
       changesDrafted: "초안으로 저장됨",
       changesFailed: "적용되지 않음",
+      discussing: "논의 중: {{target}}",
       changeVerb: {
         createObject: "객체 생성",
         addField: "필드 추가",

@@ -1561,6 +1561,7 @@ const fr = {
       changesApplied: "Appliqué",
       changesDrafted: "Enregistré comme brouillon",
       changesFailed: "Non appliqué",
+      discussing: "Sujet : {{target}}",
       changeVerb: {
         createObject: "Créer un objet",
         addField: "Ajouter un champ",

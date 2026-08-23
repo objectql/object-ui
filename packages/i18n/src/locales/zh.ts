@@ -1679,6 +1679,7 @@ const zh = {
       changesApplied: '已生效',
       changesDrafted: '已暂存为草稿',
       changesFailed: '未生效',
+      discussing: '正在讨论：{{target}}',
       changesConfirmMessage: '确认修改，应用你刚才提议的改动。',
       changeVerb: {
         createObject: '新建对象',
