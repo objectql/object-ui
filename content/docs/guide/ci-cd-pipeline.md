@@ -715,24 +715,60 @@ Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `ly
 Uses [Changesets](https://github.com/changesets/changesets) for automated versioning and npm
 publishing, in **two lanes that cannot do each other's job**:
 
-| Event | `.changeset/` | What runs |
+| Event | Predicate | What runs |
 |---|---|---|
-| Push to `main` | empty | **Publish to npm.** The version PR has just been merged; that merge is the release act. |
-| Push to `main` | changesets pending | **Nothing.** The whole release job is skipped. |
-| Cron `0 */6 * * *` | either | **Refresh the version PR** ([#5400](https://github.com/objectstack-ai/objectui/pull/5400)) — never publishes. |
-| Manual, `refresh_version_pr` checked | either | The same refresh, on demand. |
-| Manual, unchecked | either | Nothing; the run says so with a `::notice::`. |
+| Push to `main` | declared version **not** on npm | **Publish to npm.** Normally the version-PR merge, which is the release act; also the retry for a release whose own run failed. |
+| Push to `main` | declared version already on npm | **Nothing.** Every ordinary landing — a merge that is not a release does not move the version. |
+| Cron `0 */6 * * *` | n/a | **Refresh the version PR** ([#5400](https://github.com/objectstack-ai/objectui/pull/5400)) — never publishes. |
+| Manual, `refresh_version_pr` checked | n/a | The same refresh, on demand. |
+| Manual, unchecked | n/a | Nothing; the run says so with a `::notice::`. |
 
 The refresh used to run on **every** push to `main`, which force-pushed the version PR ~18 times
 a working day while releases are weekly — so its branch CI never converged, and every refresh
 was a CI run spent on bookkeeping nobody reads until release day
-([objectstack#10850](https://github.com/objectstack-ai/objectstack/issues/10850)). A `lane` job
-answers "does this commit carry pending changesets?" from a sparse checkout of `.changeset/`
-before anything installs or builds, so a landing that owes no publish costs one cheap job.
+([objectstack#10850](https://github.com/objectstack-ai/objectstack/issues/10850)). A cheap `lane`
+job answers the questions the split turns on from a sparse checkout of `.changeset/` and
+`packages/core/`, before anything installs or builds.
+
+#### The publish lane is keyed on npm, not on `.changeset/`
+
+The publish half asks **"is the version this commit declares already on npm?"** — not "are
+changesets pending?" ([#5442](https://github.com/objectstack-ai/objectui/issues/5442)). The two
+read as interchangeable and come apart exactly where it costs a release: the version PR is cut
+from `main` at T and merged at T+n, `main` takes ~18 merges a working day, and the merge does not
+remove the changesets that landed in between. Those belong to the *next* version — but keyed on
+them, the version this commit just bumped to is skipped, and the next version PR bumps straight
+past it. Measured when #5442 was fixed: of the 90 versions `packages/core/CHANGELOG.md` declared,
+**16 had never reached npm**, and the repository said `17.6.0` while `dist-tags.latest` said
+`17.5.0`.
+
+The npm predicate is also **cheaper** than the one it replaced, rather than a trade against it. An
+ordinary landing does not move the manifest version, so it answers "already published" and the
+expensive job is skipped — where "no changesets pending" ran the job in full on every landing that
+happened to find `.changeset/` empty, only to publish nothing.
+
+`@object-ui/core` is the version anchor because every package in the `fixed` group of
+`.changeset/config.json` moves as one version, so any member answers for the whole release. The
+lane **asserts** that membership instead of assuming it, and it refuses to guess a lane if the
+registry cannot be read: 200 is published, 404 is not, and anything else fails the run.
+
+`changesets/action@v1` chooses publish-vs-version from repository state rather than from an input,
+so the predicate cannot reach it on its own — with changesets present it would take its version
+branch and publish nothing. The publish lane therefore clears the pending `.changeset/*.md` from
+the **runner's working tree** before invoking it. Nothing is committed and nothing is pushed
+(`runPublish` pushes tags and creates releases; it never commits), so `.changeset/` on `main` is
+untouched and those changesets are still owed to the next version PR.
+
+#### The loud check
+
+#5442's defect was never a red run — it was a green one: run 3370 on `cfeb378b5` completed
+`success` having published nothing, and only a CHANGELOG-against-registry audit noticed, 16
+versions later. So the publish lane now reads the registry back afterwards and **fails** if the
+version it exists to ship is still absent. A repo/npm divergence is a failing run, not a finding.
 
 The refresh lane is invoked **without** a `publish:` script and **without** npm credentials, so
 it cannot publish by construction rather than by a condition — the release act in this
-repository stays the human merge of the version PR. Step 3 of the publish lane runs
+repository stays the human merge of the version PR. The publish lane runs
 `pnpm changeset:publish`, and that script is
 `node scripts/check-published-dist-tooling.mjs && changeset publish` — the **blocking** copy of
 the Published Dist Gate above. A published package whose `dist/` carries tooling material stops

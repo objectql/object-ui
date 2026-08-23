@@ -68,16 +68,22 @@ name: Changeset Release
 #
 # THE LANES
 # ---------
-#   push to main, `.changeset/` empty   -> PUBLISH. The version PR has just been
-#                                          merged; this is the release. Unchanged
-#                                          from before, including the retry on a
-#                                          later push that still finds it empty,
-#                                          which is how @object-ui/*@17.5.0
-#                                          eventually shipped (see the `pnpm test`
-#                                          note further down).
-#   push to main, changesets pending    -> NOTHING. The whole release job is
-#                                          skipped; the refresh is the clock's
-#                                          job now. This is the ruling.
+#   push to main, version NOT on npm    -> PUBLISH what this commit declares.
+#                                          Normally that is the version-PR merge
+#                                          itself. It is also the retry: any
+#                                          later push re-attempts a release whose
+#                                          own run failed, which is how
+#                                          @object-ui/*@17.5.0 eventually shipped
+#                                          6h50m late (see the `pnpm test` note
+#                                          further down) — except that it is no
+#                                          longer luck, because it no longer
+#                                          depends on `.changeset/` happening to
+#                                          still be empty (objectui#5442).
+#   push to main, version already on npm-> NOTHING. This is every ordinary
+#                                          landing: a merge that is not a release
+#                                          does not move the manifest version, so
+#                                          there is nothing to publish and the
+#                                          expensive job is skipped.
 #   schedule (6-hourly)                 -> REFRESH ONLY. The changesets step is
 #   or a dispatch with                     invoked WITHOUT a `publish:` script
 #   `refresh_version_pr`                   and WITHOUT npm credentials, so the
@@ -85,6 +91,51 @@ name: Changeset Release
 #                                          construction rather than by an `if:`
 #                                          someone can get wrong.
 #   dispatch without the input          -> NOTHING, loudly. See the input's note.
+#
+# WHY THE PUBLISH LANE IS KEYED ON npm AND NOT ON `.changeset/`
+# -------------------------------------------------------------
+# It used to be keyed on "does this commit carry pending changesets?", and that
+# predicate answers a question about BOOKKEEPING while being read as if it
+# answered a question about the REGISTRY. The two come apart exactly where it
+# costs a release (objectui#5442, maintainer ruling 2026-08-22, Option B):
+#
+#   The version PR is cut from `main` at T and merged at T+n. `main` takes ~18
+#   merges a working day, so by T+n it has almost always accumulated changesets
+#   that the merge does not remove. Those changesets belong to the NEXT version;
+#   the version this commit declares is finished and unpublished. Keyed on
+#   changesets, that release is skipped, and the next version PR bumps straight
+#   past it.
+#
+# Measured, and still true at the commit this paragraph was written on: of the 90
+# versions `packages/core/CHANGELOG.md` declares, 16 never reached npm, and
+# `packages/core/package.json` says 17.6.0 while `dist-tags.latest` says 17.5.0.
+# `@object-ui/react` and `@object-ui/types` are missing the exact same 16, which
+# is the counter-probe that matters: whole RELEASES never published, rather than
+# some package failing to.
+#
+# So the predicate is now "is the version this commit declares already on npm?".
+# It is answered in the `lane` job by one read of `registry.npmjs.org`, and it is
+# better than its predecessor on both axes at once:
+#
+#   - CORRECTNESS. Pending changesets stop being the publish lane's business.
+#     What this commit declares gets published, whatever the next version is
+#     accumulating.
+#   - COST. It is STRICTLY cheaper than "no pending changesets", not a trade
+#     against it. An ordinary landing does not move the manifest version, so it
+#     answers "already on npm" and skips the expensive job — where the old
+#     predicate ran the job in full on every landing that happened to find
+#     `.changeset/` empty, only to publish nothing.
+#
+# The saving objectstack#10850 asked for is therefore kept, and kept for a
+# sounder reason: a landing pays for the release job when it has a release to
+# make, rather than when a directory happens to be empty.
+#
+# ⚠️ The predicate cannot reach the action on its own. `changesets/action@v1`
+# does not take a "publish" instruction — it picks a branch from repository
+# state, and `hasChangesets` is the discriminator (algorithm quoted above). On a
+# release-merge commit carrying the next version's changesets it takes
+# `runVersion` and publishes nothing. So the publish lane hands it a tree with
+# nothing pending; see the step that does it, which explains why that is safe.
 #
 # ⛔ A refresh lane that could publish would be a NEW capability, not a moved
 # one: this repository's release act is the version-PR MERGE, a human action. A
@@ -207,13 +258,20 @@ jobs:
       contents: read
     outputs:
       pending_changesets: ${{ steps.detect.outputs.pending_changesets }}
+      manifest_version: ${{ steps.npm.outputs.manifest_version }}
+      version_on_npm: ${{ steps.npm.outputs.version_on_npm }}
     steps:
-      # `.changeset/` only — the whole question is answered by that directory, and
-      # a full checkout of this repository is ~15s that every landing would pay.
-      - name: Check out .changeset
+      # Two directories, because the lane now turns on two facts: `.changeset/`
+      # answers "are changesets pending?" and `packages/core/` carries the fixed
+      # group's version anchor, which answers "is that version already on npm?".
+      # Still far short of a full checkout of this repository — ~15s that every
+      # landing would otherwise pay.
+      - name: Check out the lane inputs
         uses: actions/checkout@v7
         with:
-          sparse-checkout: .changeset
+          sparse-checkout: |
+            .changeset
+            packages/core
 
       # ⛔ This must stay a faithful mirror of `readChangesetState` in
       # `changesets/action`'s `src/index.ts` (it re-exports `@changesets/read`),
@@ -281,17 +339,102 @@ jobs:
             echo "::notice::Nothing to do. Check 'refresh_version_pr' to regenerate the version PR; publishing to npm happens when that PR is merged, not from a dispatch."
           fi
 
+      # ══════════════════════════════════════════════════════════════════════
+      # THE PUBLISH PREDICATE: is the version this commit declares on npm?
+      # (objectui#5442 — the ruled Option B, argued in this file's header)
+      # ══════════════════════════════════════════════════════════════════════
+      # `@object-ui/core` is an ANCHOR, not a special case: every package in the
+      # `fixed` group of `.changeset/config.json` moves as one version, so any
+      # member answers for the whole release. That membership is ASSERTED rather
+      # than assumed — if `@object-ui/core` ever leaves the group it stops
+      # answering for the release, and the publish lane must fail rather than key
+      # itself on a package that no longer represents one.
+      #
+      # LOUD on every answer that is not a clean yes or no. 200 is present, 404
+      # is absent, and anything else — 5xx, a proxy, no network — is neither.
+      # Guessing "absent" publishes on a registry hiccup; guessing "present"
+      # skips a real release. Neither is worth making silently, which is the same
+      # reason the detector above refuses to guess a lane.
+      - name: Is this commit's version already on npm?
+        id: npm
+        env:
+          ANCHOR_PKG: '@object-ui/core'
+          ANCHOR_MANIFEST: packages/core/package.json
+          ATTEMPTS: '5'
+          BACKOFF_SECONDS: '5'
+        run: |
+          set -euo pipefail
+
+          if ! jq -e --arg p "$ANCHOR_PKG" '[.fixed[]?[]?] | index($p)' \
+                 .changeset/config.json > /dev/null; then
+            echo "::error::${ANCHOR_PKG} is not in the 'fixed' group of .changeset/config.json, so it no longer answers for the release version. Point this step at a package that is still in the group (objectui#5442)."
+            exit 1
+          fi
+
+          manifest_version=$(jq -r '.version // empty' "$ANCHOR_MANIFEST")
+          if [ -z "$manifest_version" ]; then
+            echo "::error::Could not read a version from ${ANCHOR_MANIFEST} (objectui#5442)."
+            exit 1
+          fi
+
+          # The registry's per-version endpoint, which answers 200 for a version
+          # it has published and 404 for one it has never seen. `/` in the scope
+          # has to be percent-encoded.
+          encoded=$(printf '%s' "$ANCHOR_PKG" | sed 's|/|%2F|')
+          url="https://registry.npmjs.org/${encoded}/${manifest_version}"
+
+          on_npm=''
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+                     -H 'Cache-Control: no-cache' --max-time 20 "$url" 2>/dev/null) || code='000'
+            case "$code" in
+              200) on_npm=true;  break ;;
+              404) on_npm=false; break ;;
+              *)   echo "attempt ${attempt}/${ATTEMPTS}: registry answered ${code} for ${url}" ;;
+            esac
+            # An explicit `if`, not `[ ... ] && sleep`: bash exempts AND-lists
+            # from `set -e`, so the short form works, but it works for a reason
+            # a reader has to already know.
+            if [ "${attempt}" -lt "${ATTEMPTS}" ]; then sleep "$BACKOFF_SECONDS"; fi
+          done
+
+          if [ -z "$on_npm" ]; then
+            echo "::error::Could not establish whether ${ANCHOR_PKG}@${manifest_version} is on npm after ${ATTEMPTS} attempts, so the publish lane has no predicate to run on. Refusing to guess (objectui#5442)."
+            exit 1
+          fi
+
+          echo "manifest_version=${manifest_version}" >> "$GITHUB_OUTPUT"
+          echo "version_on_npm=${on_npm}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "- declared version: \`${ANCHOR_PKG}@${manifest_version}\`"
+            echo "- already on npm: \`${on_npm}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$on_npm" = false ] && [ "${GITHUB_EVENT_NAME}" != 'push' ]; then
+            # Visible, but not a failure here: this lane cannot publish, and the
+            # next push to `main` closes the gap. The failure lives on the push
+            # lane, where it is actionable — see "Verify the release reached npm".
+            echo "::notice::${ANCHOR_PKG}@${manifest_version} is not on npm. The next push to main will publish it (objectui#5442)."
+          fi
+
   release:
     name: Changeset Release
     needs: lane
     # The whole lane split, in one place (objectstack#10850). Each half names its
     # own event rather than leaning on the complement of the other:
     #
-    #   push + no pending changesets  -> the version PR was merged: PUBLISH.
-    #   push + pending changesets     -> skipped; the clock refreshes the PR now.
+    #   push + version not yet on npm -> PUBLISH what this commit declares.
+    #   push + version already on npm -> skipped; nothing to release.
     #   schedule                      -> REFRESH.
     #   dispatch WITH the input       -> the same refresh, on demand.
     #   dispatch WITHOUT it           -> skipped; the `lane` job says why.
+    #
+    # ⚠️ The push half reads `version_on_npm`, NOT `pending_changesets`. That is
+    # the whole of objectui#5442: pending changesets belong to the next version
+    # and say nothing about whether THIS one shipped. `pending_changesets` is
+    # still produced and still load-bearing, but for the step that clears the
+    # tree for the action — not for deciding whether there is a release to make.
     #
     # `inputs.refresh_version_pr` is guarded by its event test rather than read
     # bare: the `inputs` context exists only on `workflow_dispatch`, so on a
@@ -299,7 +442,7 @@ jobs:
     # accident. Say which event we are on, so the guard states the lane split
     # instead of leaning on a context's emptiness.
     if: >-
-      (github.event_name == 'push' && needs.lane.outputs.pending_changesets == 'false') ||
+      (github.event_name == 'push' && needs.lane.outputs.version_on_npm == 'false') ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.refresh_version_pr)
     runs-on: ubuntu-latest
@@ -426,17 +569,80 @@ jobs:
       #
       # The `id:`s are for the log, nothing reads them.
 
-      # PUBLISH. Reachable only from `push`, and the job guard above has already
-      # established that this commit carries no pending changesets — so the
-      # action takes its `!hasChangesets && hasPublishScript` branch, which is
+      # ⚠️ THE STEP THAT LETS THE PREDICATE REACH THE ACTION (objectui#5442).
+      #
+      # The job guard above no longer says anything about `.changeset/` — it says
+      # the declared version is not on npm. But `changesets/action@v1` still
+      # picks its own branch from `hasChangesets`, so on a release-merge commit
+      # carrying the NEXT version's changesets it would take `runVersion` and
+      # publish nothing. That is objectui#5442's defect arriving through the
+      # action instead of through the job guard, and no `if:` can talk the action
+      # out of it. A tree with nothing pending can.
+      #
+      # ⛔ Nothing is committed and nothing is pushed. That is verified against
+      # the action's source rather than assumed: `runPublish` (`src/run.ts`) runs
+      # the publish script, then for each package it published pushes a TAG and
+      # creates a GitHub release. It never commits, and never pushes a branch. So
+      # this deletion cannot leave the runner, and `.changeset/` on `main` is
+      # untouched — those changesets are still owed to the next version PR, which
+      # the 6-hourly refresh lane will render as usual.
+      #
+      # This is deliberately a SUPERSET of what the action counts, and it is NOT
+      # a second copy of the `lane` job's mirror. The mirror's job is to PREDICT
+      # the action's branch, and predicting requires agreeing exactly. This step
+      # has a one-directional obligation — leave the count at zero — so removing
+      # more than the action would count is safe, and it is checked directly
+      # below instead of being reasoned about. Keeping only `README.md` covers
+      # every name the reader ignores (`README.md` case-insensitively, plus
+      # `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) as well as `.changeset/pre/*.md`,
+      # without owning a list that has to track theirs.
+      #
+      # `.changeset/config.json` is NOT touched: `changeset publish` reads the
+      # `fixed` group from it, and so does `check-published-dist-tooling.mjs`,
+      # which `pnpm changeset:publish` runs first.
+      - name: Clear pending changesets for the publish branch
+        if: github.event_name == 'push' && needs.lane.outputs.pending_changesets == 'true'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # `/^README\.md$/i` is how `@changesets/read` spells its exclusion, so
+          # the comparison is case-folded rather than matching one spelling.
+          keep_this() {
+            [ "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" = 'readme.md' ]
+          }
+
+          removed=0
+          for file in .changeset/*.md .changeset/pre/*.md; do
+            if keep_this "$file"; then continue; fi
+            rm -f "$file"
+            removed=$((removed + 1))
+          done
+          echo "Removed ${removed} pending changeset file(s) from the runner's working tree."
+
+          left=0
+          for file in .changeset/*.md .changeset/pre/*.md; do
+            if keep_this "$file"; then continue; fi
+            echo "still pending: ${file}"
+            left=$((left + 1))
+          done
+          if [ "${left}" -ne 0 ]; then
+            echo "::error::${left} changeset file(s) survived the clear step, so changesets/action will take its runVersion branch and publish nothing (objectui#5442)."
+            exit 1
+          fi
+
+      # PUBLISH. Reachable only from `push`. Between the job guard (the declared
+      # version is not on npm) and the step above (nothing pending in the tree),
+      # the action takes its `!hasChangesets && hasPublishScript` branch, which is
       # `runPublish`. No `version:` here: it would be dead configuration, and a
       # reader is better served by a step that carries only what it can use.
       #
       # ⚠️ Do not mistake that for a guarantee. Omitting `version:` does NOT
       # disable the refresh branch — the action falls back to plain
       # `changeset version` — so what keeps THIS step from force-pushing the
-      # version PR is the job's `needs.lane` guard, and only that. If you ever
-      # relax that guard, this step starts refreshing the PR again.
+      # version PR is now the clear step above, and only that. If you ever drop
+      # or weaken it, this step starts refreshing the PR again, and the release
+      # goes back to being skipped exactly as objectui#5442 describes.
       - name: Publish to npm
         id: changesets-publish
         if: github.event_name == 'push'
@@ -447,6 +653,72 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ══════════════════════════════════════════════════════════════════════
+      # THE LOUD CHECK (objectui#5442, ruled alongside the predicate)
+      # ══════════════════════════════════════════════════════════════════════
+      # The defect this closes was never a red run — it was a GREEN one. Run 3370
+      # on `cfeb378b5` (#3598) completed `success` having published nothing,
+      # purely because three changesets were pending; 17.4.0 was skipped, the next
+      # version PR bumped past it, and only an audit of CHANGELOG-against-registry
+      # noticed, 16 versions later. A publish lane whose failure mode is a green
+      # tick is not a publish lane, so this one is not allowed to finish green
+      # without the version it exists to ship being on npm.
+      #
+      # There is no innocent reading of a failure here: the job only reached this
+      # step because the `lane` job said this version was ABSENT from npm.
+      #
+      # Scope, so it is not mistaken for more. This asserts the fixed group's
+      # anchor, and that is enough because the OTHER failure shapes are already
+      # red without it: a per-package publish failure makes `changeset publish`
+      # exit non-zero and the action forwards that exit code
+      # (`process.exit(result.exitCode)` in its `src/index.ts`). What only this
+      # step can catch is the lane publishing NOTHING while reporting success.
+      #
+      # The retries are for registry propagation, not for flakiness: `npm publish`
+      # returns before the version is readable through every CDN edge. An
+      # unreadable registry is a failure too — a release nobody can confirm is not
+      # a confirmed release.
+      - name: Verify the release reached npm
+        if: github.event_name == 'push'
+        env:
+          ANCHOR_PKG: '@object-ui/core'
+          ANCHOR_MANIFEST: packages/core/package.json
+          EXPECTED: ${{ needs.lane.outputs.manifest_version }}
+          ATTEMPTS: '10'
+          BACKOFF_SECONDS: '15'
+        run: |
+          set -euo pipefail
+
+          # The lane job read the anchor from a sparse checkout of the same sha;
+          # if the two disagree the predicate was computed against a different
+          # tree than the one just published, and nothing below means what it says.
+          from_tree=$(jq -r '.version // empty' "$ANCHOR_MANIFEST")
+          if [ "${from_tree}" != "${EXPECTED}" ]; then
+            echo "::error::The lane job keyed on ${ANCHOR_PKG}@${EXPECTED} but this checkout declares ${from_tree}. The publish decision was made against a different tree (objectui#5442)."
+            exit 1
+          fi
+
+          encoded=$(printf '%s' "$ANCHOR_PKG" | sed 's|/|%2F|')
+          url="https://registry.npmjs.org/${encoded}/${EXPECTED}"
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+                     -H 'Cache-Control: no-cache' --max-time 20 "$url" 2>/dev/null) || code='000'
+            if [ "${code}" = '200' ]; then
+              echo "${ANCHOR_PKG}@${EXPECTED} is on npm."
+              echo "- published: \`${ANCHOR_PKG}@${EXPECTED}\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "attempt ${attempt}/${ATTEMPTS}: registry answered ${code} for ${url}"
+            # An explicit `if`, not `[ ... ] && sleep`: bash exempts AND-lists
+            # from `set -e`, so the short form works, but it works for a reason
+            # a reader has to already know.
+            if [ "${attempt}" -lt "${ATTEMPTS}" ]; then sleep "$BACKOFF_SECONDS"; fi
+          done
+
+          echo "::error::${ANCHOR_PKG}@${EXPECTED} is STILL not on npm after a publish run that reported success. The repository declares a version the registry has never seen — this is objectui#5442's silent failure, made loud. Check the 'Publish to npm' step's log for which branch changesets/action took."
+          exit 1
 
       # REFRESH. No `publish:` input, so `runPublish` is unreachable; no npm
       # credentials in `env:`, so it is unreachable a second time over. Both are
