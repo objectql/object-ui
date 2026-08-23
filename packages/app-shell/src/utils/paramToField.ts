@@ -54,6 +54,37 @@ export function resolveParamWidgetType(paramType: string): string {
 const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
 
 /**
+ * Does this param degrade to a plain text input for want of a declared target?
+ *
+ * The ONE answer to that question, exported so every surface that REACTS to the
+ * degradation reads the same table that PERFORMS it. `ActionParamDialog` is the
+ * caller that made exporting it necessary (objectui#5654): it decides whether to
+ * show the #3405 "paste a record id" placeholder and help text, and it used to
+ * answer with its own literal over RAW param spellings
+ * (`param.type === 'lookup' || param.type === 'reference'`). That copy disagreed
+ * with this one in BOTH directions, so neither set contained the other:
+ *
+ *   - `master_detail` degrades here but got no hints there — a targetless
+ *     `master_detail` param really did render as an unexplained empty box asking
+ *     for a bare UUID, which is exactly the state #3405 added the hints for.
+ *   - `reference` was hand-copied out of `PARAM_TYPE_ALIASES`, a spelling this
+ *     side never sees: it is folded to `lookup` before the membership test.
+ *
+ * Note the parameter: an `ActionParamDef`, not a widget key. Callers must not
+ * resolve the widget key themselves to ask this — re-deriving the input is how
+ * the fork happened. The predicate is exactly equivalent to "`paramToField()`
+ * replaced this param's own widget with the text fallback", pinned as an
+ * equivalence over every spelling in `paramToField.test.ts` — which is what lets
+ * the dialog drop its `field.type === 'text'` proxy for that question.
+ *
+ * Deliberately NOT the reference-bearing family: see `LOOKUP_WIDGET_TYPES` above
+ * for why `user` must never degrade.
+ */
+export function paramDegradesWithoutTarget(param: ActionParamDef): boolean {
+  return LOOKUP_WIDGET_TYPES.has(resolveParamWidgetType(param.type)) && !param.referenceTo;
+}
+
+/**
  * Map an `ActionParamDef` to the field-metadata shape `FieldWidgetComponentProps.field`
  * expects. Lossless for the widget-relevant config: options, `multiple`,
  * upload `accept`/`maxSize`, and the full lookup picker config that
@@ -72,7 +103,7 @@ const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
  */
 export function paramToField(param: ActionParamDef): Record<string, any> {
   let type = resolveParamWidgetType(param.type);
-  if (LOOKUP_WIDGET_TYPES.has(type) && !param.referenceTo) {
+  if (paramDegradesWithoutTarget(param)) {
     if (process.env.NODE_ENV !== 'production') {
       console.warn(
         `[ActionParamDialog] Param "${param.name}" is type "${param.type}" but has no reference target, ` +

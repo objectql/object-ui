@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FORM_FIELD_TYPES } from '@object-ui/fields';
 import { EXPANDABLE_FIELD_TYPES, type ActionParamDef } from '@object-ui/core';
-import { paramToField, resolveParamWidgetType } from './paramToField';
+import { paramToField, paramDegradesWithoutTarget, resolveParamWidgetType } from './paramToField';
 
 const p = (over: Partial<ActionParamDef>): ActionParamDef => ({
   name: 'x',
@@ -255,6 +255,80 @@ describe("the reference-bearing rule is core's object, not a copy (objectui#5312
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       expect(paramToField(p({ type: 'master_detail' }))).toMatchObject({ type: 'text' });
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+/**
+ * The degradation rule is ONE exported predicate (objectui#5654).
+ *
+ * `ActionParamDialog` shows the #3405 "paste a record id" placeholder + help
+ * text for a picker param that fell back to text. It answered "did it fall
+ * back?" with its own literal over RAW spellings (`'lookup' || 'reference'`),
+ * which was neither a subset nor a superset of the set that actually degrades:
+ * `master_detail` degraded with no hints, `reference` was a hand-copy of an
+ * alias row the adapter folds away before it tests membership.
+ *
+ * The rows below are the card's measured table, now asked of one predicate; the
+ * equivalence case is what licenses the dialog to stop asking
+ * `field.type === 'text'` as its proxy for the same question.
+ */
+describe('paramDegradesWithoutTarget — one answer to "did this param degrade?" (objectui#5654)', () => {
+  it('is true for every picker spelling that degrades, alias and master_detail included', () => {
+    expect(paramDegradesWithoutTarget(p({ type: 'lookup' }))).toBe(true);
+    // Folded by PARAM_TYPE_ALIASES before the membership test — which is why
+    // the dialog's raw-spelling copy had to restate an alias-table row.
+    expect(paramDegradesWithoutTarget(p({ type: 'reference' }))).toBe(true);
+    // The row the dialog's copy missed: degraded, and (until now) hint-less.
+    expect(paramDegradesWithoutTarget(p({ type: 'master_detail' }))).toBe(true);
+  });
+
+  it('is false with a target declared, and for types that never degrade', () => {
+    expect(paramDegradesWithoutTarget(p({ type: 'lookup', referenceTo: 'accounts' }))).toBe(false);
+    expect(paramDegradesWithoutTarget(p({ type: 'reference', referenceTo: 'accounts' }))).toBe(false);
+    expect(paramDegradesWithoutTarget(p({ type: 'master_detail', referenceTo: 'accounts' }))).toBe(false);
+    // Reference-bearing but never degrading — its target defaults to sys_user.
+    expect(paramDegradesWithoutTarget(p({ type: 'user' }))).toBe(false);
+    expect(paramDegradesWithoutTarget(p({ type: 'text' }))).toBe(false);
+    // Renders as text, but was never a picker: it must get no picker hints.
+    expect(paramDegradesWithoutTarget(p({ type: 'no-such-type' }))).toBe(false);
+  });
+
+  it('agrees with the adapter on every spelling — the equivalence the dialog relies on', () => {
+    // predicate(param) ⇔ paramToField(param) replaced this param's OWN widget
+    // with the text fallback. Both halves matter: `no-such-type` also yields
+    // `type: 'text'`, and a hint-showing reader keyed on the OUTPUT alone would
+    // decorate it too.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const spellings = [
+        ...FORM_FIELD_TYPES,
+        'reference',
+        'checkbox',
+        'datetime-local',
+        'autonumber',
+        'no-such-type',
+      ];
+      const degrading: string[] = [];
+      for (const type of spellings) {
+        for (const referenceTo of [undefined, 'accounts'] as const) {
+          const param = p({ type, ...(referenceTo ? { referenceTo } : {}) });
+          const ownWidget = resolveParamWidgetType(type);
+          const fellBack = paramToField(param).type === 'text' && ownWidget !== 'text';
+          if (fellBack) degrading.push(type);
+          expect(
+            paramDegradesWithoutTarget(param),
+            `'${type}' (referenceTo: ${String(referenceTo)}) — predicate disagrees with the adapter`,
+          ).toBe(fellBack);
+        }
+      }
+      // Control: an equivalence loop where NOTHING degrades would pass
+      // vacuously (`false === false`, every row). Naming the rows that do
+      // degrade keeps the sweep from going quietly hollow, and makes the card's
+      // table the assertion: exactly these three spellings, each only on its
+      // targetless pass.
+      expect([...degrading].sort()).toEqual(['lookup', 'master_detail', 'reference']);
     } finally {
       warn.mockRestore();
     }
