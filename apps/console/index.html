@@ -42,11 +42,33 @@
       against that function — so a drift between the two spellings fails a test
       rather than silently restoring the duplicate.
 
+      The ORIGIN is the other half of that contract (objectui#5660). Sharing
+      keys on the full URL, so the two callers must agree on the server origin
+      or they build two different keys, never find each other, and issue two
+      requests to two different servers. This script used to read
+      `window.__CONSOLE_SERVER_URL` — a global NOTHING in this repository ever
+      set — while every module-side consumer reads
+      `import.meta.env.VITE_SERVER_URL`. A dev pointing the console at a
+      separate server therefore got exactly that split, silently, because both
+      spellings collapse to '' in a same-origin production build, which is the
+      only shape the dedup above was ever measured in. Vite's HTML env
+      substitution resolves the SAME variable the modules read, so one value
+      reaches both callers.
+
       Falls back gracefully on any error (non-blocking).
     -->
     <script>
       (async function applyEarlyBranding() {
-        const base = (window.__CONSOLE_SERVER_URL || '').replace(/\/+$/, '');
+        // Vite's HTML env substitution fills the token below with
+        // `import.meta.env.VITE_SERVER_URL` — the same value `src/main.tsx`
+        // hands `initRuntimeConfig()`. It substitutes only when the variable is
+        // SET and leaves the token verbatim when it is not (`htmlEnvHook`:
+        // `if (key in env) return env[key]; else return text`). Unset is the
+        // ordinary production case — Console SPA and tenant runtime share an
+        // origin — so an unsubstituted token MUST read as same-origin '' and
+        // never as a path segment. No origin can begin with '%'.
+        const injected = '%VITE_SERVER_URL%';
+        const base = (injected.charAt(0) === '%' ? '' : injected).replace(/\/+$/, '');
         const url = base + '/api/v1/runtime/config';
         const init = { credentials: 'include', headers: { Accept: 'application/json' } };
         // Must equal inflightGetKey(url, init) — see the comment above.

@@ -53,8 +53,23 @@ function extractEarlyBrandingSource(html: string = indexHtml): string {
 }
 
 /** Run the shipped pre-boot script, as the browser would during parse. */
-function runEarlyBranding(): void {
-  new Function(extractEarlyBrandingSource())();
+function runEarlyBranding(html: string = indexHtml): void {
+  new Function(extractEarlyBrandingSource(html))();
+}
+
+/**
+ * Vite's `%ENV%` substitution over the HTML, as `htmlEnvHook` performs it:
+ * `html.replace(/%(\S+?)%/g, ...)`, the value when the key is present and the
+ * token VERBATIM when it is not.
+ *
+ * The `?raw` import above deliberately bypasses that hook — it reads the file
+ * off disk — so these tests apply it themselves. That is the only way to grade
+ * BOTH halves of the contract from the shipped artifact: the substituted page a
+ * split-origin dev serves, and the unsubstituted one every same-origin
+ * production build ships.
+ */
+function applyViteHtmlEnv(html: string, env: Record<string, string>): string {
+  return html.replace(/%(\S+?)%/g, (text, key: string) => (key in env ? env[key]! : text));
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -154,5 +169,77 @@ describe('one cold load, one runtime/config request', () => {
     await initRuntimeConfig('');
     expect(fetchStub).toHaveBeenCalledTimes(2);
     expect(getRuntimeConfig().branding.productName).toBe('Acme Ops');
+  });
+});
+
+/**
+ * objectui#5660 — one page, one server origin.
+ *
+ * Sharing keys on the FULL URL (`inflightGetKey`), so the dedup above only ever
+ * fires while both callers agree on the origin. They did not: this script read
+ * `window.__CONSOLE_SERVER_URL`, which nothing in the repository sets, while
+ * `main.tsx` reads `import.meta.env.VITE_SERVER_URL`. Same-origin production
+ * hid it completely — both spellings collapse to '' — so the split only ever
+ * appeared in a dev pointing the console at a separate server, where it cost
+ * two requests to two different servers and pre-boot branding read from the
+ * wrong one.
+ *
+ * These grade the SHIPPED html through Vite's substitution rather than a copy
+ * of the script, so a future edit that reintroduces a second spelling of the
+ * origin fails here.
+ */
+describe('one page, one server origin', () => {
+  const SERVER = 'https://api.example.test';
+
+  it('sends the pre-boot request to VITE_SERVER_URL, so app-shell joins it', async () => {
+    const fetchStub = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(CONFIG_BODY));
+    vi.stubGlobal('fetch', fetchStub);
+
+    // The page a split-origin dev actually serves.
+    runEarlyBranding(applyViteHtmlEnv(indexHtml, { VITE_SERVER_URL: SERVER }));
+    // `main.tsx:65` hands `initRuntimeConfig` the same env var.
+    await initRuntimeConfig(SERVER);
+
+    // Before the fix this was 2 — '/api/v1/runtime/config' from the inline
+    // script and the SERVER-based one from app-shell, two keys, no sharing.
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(fetchStub.mock.calls[0]![0]).toBe(`${SERVER}/api/v1/runtime/config`);
+    expect(getRuntimeConfig().branding.productName).toBe('Acme Ops');
+  });
+
+  it('normalises trailing slashes the same way app-shell does', async () => {
+    const fetchStub = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(CONFIG_BODY));
+    vi.stubGlobal('fetch', fetchStub);
+
+    runEarlyBranding(applyViteHtmlEnv(indexHtml, { VITE_SERVER_URL: `${SERVER}///` }));
+    await initRuntimeConfig(`${SERVER}///`);
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(fetchStub.mock.calls[0]![0]).toBe(`${SERVER}/api/v1/runtime/config`);
+  });
+
+  it('falls back to same-origin when the variable is unset, never to the raw token', async () => {
+    const fetchStub = vi.fn(async (_url: string, _init?: RequestInit) => jsonResponse(CONFIG_BODY));
+    vi.stubGlobal('fetch', fetchStub);
+
+    // Vite leaves its token verbatim when the variable is unset, and that is the
+    // ORDINARY production build. An unsubstituted token must never reach the URL.
+    const productionHtml = applyViteHtmlEnv(indexHtml, {});
+    expect(extractEarlyBrandingSource(productionHtml)).toContain('%VITE_SERVER_URL%');
+
+    runEarlyBranding(productionHtml);
+    await initRuntimeConfig('');
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(fetchStub.mock.calls[0]![0]).toBe('/api/v1/runtime/config');
+    expect(String(fetchStub.mock.calls[0]![0])).not.toContain('%');
+  });
+
+  it('reads the origin from one place only — no second spelling survives', () => {
+    const source = extractEarlyBrandingSource();
+    // The global nothing ever set is gone from the executable text.
+    expect(source).not.toContain('window.__CONSOLE_SERVER_URL');
+    // And the one it does read is the variable the modules read.
+    expect(source).toContain('%VITE_SERVER_URL%');
   });
 });

@@ -62,6 +62,11 @@ registerPlaceholders();
 // it the SPA would fall back to defaults on first paint and hit 404s.
 // Both kicks are awaited so first paint sees definitive values, but each
 // one absorbs its own failures so a missing endpoint never blocks boot.
+// `index.html`'s pre-boot branding script resolves this SAME variable through
+// Vite's HTML env substitution, so both callers build one `/api/v1/runtime/config`
+// URL and share one request instead of asking two servers (objectui#5660).
+// Change the spelling here and that script has to change with it;
+// `src/__tests__/runtimeConfigBootDedup.test.ts` fails when the two stop agreeing.
 const SERVER_BASE = (import.meta.env.VITE_SERVER_URL || '').replace(/\/+$/, '');
 // The third entry seeds the UI language from the tenant's server-side locale
 // (objectui#4035). It joins this existing gate rather than adding one of its
