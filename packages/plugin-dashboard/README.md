@@ -505,9 +505,7 @@ auto-detection.
 }
 ```
 
-## DashboardGridLayout — persisting drag / resize edits
-
-### DashboardRenderer — design-mode widget reorder
+## DashboardRenderer — design-mode widget reorder
 
 When `DashboardRenderer` is used in design mode (`designMode={true}` plus an
 `onWidgetsReorder` callback), widgets become sortable via
