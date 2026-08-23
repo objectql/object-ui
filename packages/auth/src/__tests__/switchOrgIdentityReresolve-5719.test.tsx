@@ -385,7 +385,19 @@ describe('#5719/#5750 — identity re-resolves across an organization switch', (
     // reproducing the timing race a fast real double-switch would have to
     // win. Installed only AFTER boot so mount's own `loadSession()` (which
     // also calls `getSession`) is unaffected.
-    let release: (() => void) | null = null;
+    // Typed as non-nullable + definite-assignment (`!`) at the call site
+    // rather than `(() => void) | null = null`: the Promise executor runs
+    // SYNCHRONOUSLY (the JS spec guarantees it), so `release` is genuinely
+    // assigned by the time `release!()` runs below — but `tsc` narrows a
+    // `let x: T | null = null` reassigned only inside a nested closure back
+    // to `null` at the read site regardless (TS does not track assignments
+    // through closure boundaries for control-flow narrowing), so `release?.()`
+    // type-checks against `never` and fails `tsc -p tsconfig.test.json`
+    // (`This expression is not callable. Type 'never' has no call signatures.`)
+    // even though the runtime behaviour is correct. Reproduced in isolation
+    // outside this file/tsconfig to confirm it is this pattern, not anything
+    // about `switchOrganization`'s signature.
+    let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     getSession.mockImplementation(async () => {
       const orgId = sessionRow.activeOrganizationId;
@@ -423,7 +435,7 @@ describe('#5719/#5750 — identity re-resolves across an organization switch', (
     // subscribed first and settles first, but must be DISCARDED as stale —
     // applying it after switch 2's would silently revert identity to the
     // organization the user already switched away from.
-    release?.();
+    release();
 
     await waitFor(() => expect(screen.getByTestId('positions').textContent).toBe('user,org_owner'));
     expect(screen.getByTestId('verdict').textContent).toBe('admin');
