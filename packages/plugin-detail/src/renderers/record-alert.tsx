@@ -52,7 +52,12 @@
  *   also visible: this call site is FAIL-SOFT (it does not pass
  *   `throwOnError`), which is why the unbound spellings above were a
  *   user-visible defect rather than a console line — objectui#4807.
- *   Empty `record` (loading) → hidden (no flash of stale alert).
+ *   Empty `record` (loading) → hidden (no flash of stale alert), AND the
+ *   predicate is not evaluated at all in that frame — a bare/`${…}`
+ *   `record.*` reference against an unbound row faults, and evaluating a
+ *   verdict this component is about to discard anyway only produced a
+ *   permanently misleading `record is not defined` console line on every
+ *   load (objectui#5776).
  *
  *   A node-level `visibleWhen` is a SEPARATE gate one tier up, evaluated by
  *   `SchemaRenderer` on its own bindings (notably `data` = the data-source
@@ -194,7 +199,24 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   // author's gate was never consulted. See `usePredicateRecordContext`.
   const predicateRecord = usePredicateRecordContext(record);
   const predicateInput = toPredicateInput(props.visible);
-  const passesPredicate = useCondition(predicateInput, predicateRecord);
+  // `recordLoaded` is also the early-return condition below — deliberately
+  // the SAME expression, not a re-derived one, so the two can never drift
+  // apart (objectui#5776). While `record` hasn't loaded this hook still has
+  // to run (Rules of Hooks), but its verdict is provably moot: the early
+  // return a few lines down hides the banner unconditionally in that frame
+  // regardless of what the predicate says. Evaluating anyway made a bare/
+  // `${…}` predicate that references `record.*` fault with a bare
+  // `record is not defined` ReferenceError against `usePredicateRecordContext`'s
+  // empty loading-frame bag (its own doc: "No row → bind NOTHING") — logged
+  // via `console.warn` on EVERY load, including the correct, working ones,
+  // because the SAME predicate resolves fine one frame later once `record`
+  // populates. Skipping evaluation while unloaded removes that permanently
+  // misleading noise without touching the verdict once data arrives: a
+  // predicate that is genuinely broken (bad field, bad syntax) still faults —
+  // and still logs, via this same fail-soft `useCondition` call — on every
+  // frame from the first loaded one onward.
+  const recordLoaded = !!record && Object.keys(record).length > 0;
+  const passesPredicate = useCondition(recordLoaded ? predicateInput : undefined, predicateRecord);
 
   // Dismissed-state persistence. Keyed by `<objectName>:<recordId>:<key>`
   // so an admin viewing a different record sees the alert fresh, and so
@@ -242,10 +264,11 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   });
 
   // Hide if dismissed, if record hasn't loaded yet (avoids false alerts
-  // during the empty initial-render frame), or if the visibility predicate
-  // returns false.
+  // during the empty initial-render frame — same `recordLoaded` the
+  // predicate evaluation above is gated on, see its comment), or if the
+  // visibility predicate returns false.
   if (dismissed) return null;
-  if (!record || Object.keys(record).length === 0) return null;
+  if (!recordLoaded) return null;
   if (predicateInput !== undefined && !passesPredicate) return null;
 
   const handleDismiss = () => {
