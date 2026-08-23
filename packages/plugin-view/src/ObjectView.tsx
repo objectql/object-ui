@@ -57,7 +57,13 @@ import {
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation, createSafeTranslation } from '@object-ui/i18n';
-import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes, columnIdentity } from '@object-ui/core';
+import {
+  buildExpandFields,
+  normalizeListViewSchema,
+  mergeFilterNodes,
+  columnIdentity,
+  convertSortToQueryParams,
+} from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
@@ -726,8 +732,40 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             || schema.table?.filter || schema.table?.defaultFilters,
         );
 
+        // objectui#4869: this was the LAST object-bound read site handing an
+        // AUTHORED sort to `$orderby` unlowered — gantt / map / calendar /
+        // timeline / `record:line_items` all lower through the shared sink
+        // already. Leaving this one raw was not merely a divergence, it was a
+        // live `400 INVALID_SORT`: `table.defaultSort` is declared a SINGLE
+        // `{ field, order }` object, so it reached the adapter's
+        // `serializeOrderBy` as an `$orderby` MAP and
+        // `Object.entries({ field: 'name', order: 'desc' })` serialized to the
+        // wire string `field,-order` — two columns that do not exist. The
+        // server rejects an unreadable sort rather than ignoring it, the catch
+        // below swallows the 400, and a calendar/kanban/gallery whose only sort
+        // was `table.defaultSort` rendered EMPTY while the SAME metadata sorted
+        // correctly as a grid.
+        //
+        // The legacy member of the pair is lowered HERE, before the sink, which
+        // is verbatim the resolution `ObjectGrid` already performs for this
+        // exact pair (`plugin-grid/src/ObjectGrid.tsx`: `schemaSort ??
+        // (schema.defaultSort ? [schema.defaultSort] : undefined)`) and which
+        // ObjectView's own grid path inherits by forwarding both slots. It is
+        // not a new tolerance layer: the sink still honours only the two
+        // spellings the schema declares (`string` and `SortConfig[]`), and
+        // ⛔ must NOT be widened to accept a bare `{ field, order }` — its input
+        // slot legitimately also carries `$orderby`'s own
+        // `Record<field, direction>` map, in which `{ field: 'desc' }` is a
+        // perfectly legal ordering by a column literally named `field`, so the
+        // sink would have to GUESS. (Maintainer ruling 2026-08-22: Option A;
+        // Option B — widening the shared sink — rejected on the merits.)
+        //
+        // Precedence is unchanged: the canonical `table.sort` still outranks the
+        // deprecated `table.defaultSort`, and both still lose to a view's sort —
+        // the same order the grid path and `mergedSort` express.
         const sort = currentNamedViewConfig?.sort || activeView?.sort
-          || schema.table?.sort || schema.table?.defaultSort || undefined;
+          || schema.table?.sort
+          || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
         // Auto-inject $expand for lookup/master_detail fields.
         // Use a ref instead of the state variable to avoid re-running this effect
@@ -738,7 +776,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           // `mergeFilterNodes` returns a node or `undefined`; the old
           // `.length > 0` here was the second place an object filter was lost.
           $filter: finalFilter,
-          $orderby: sort,
+          // objectui#4869: lowered through the shared sink, so ONE normalized
+          // shape reaches `DataSource.find` from every object-bound read site
+          // rather than whichever of `$orderby`'s four declared shapes the
+          // author happened to write. An adapter that implements `find` itself
+          // now sees the same `Record<field, direction>` here that it already
+          // sees from the other five blocks.
+          $orderby: convertSortToQueryParams(sort),
           $top: 100,
           ...(expand.length > 0 ? { $expand: expand } : {}),
         });

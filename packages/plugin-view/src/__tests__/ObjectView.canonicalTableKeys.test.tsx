@@ -303,6 +303,24 @@ describe('grid path: a named view still outranks the table segment', () => {
 describe('non-grid path: ObjectView resolves the pair itself, canonical first', () => {
   // Calendar / kanban / gallery / timeline fetch through ObjectView, so the
   // precedence chosen for this card is directly observable on the wire here.
+  //
+  // ⚠️ objectui#4869 REWROTE the three `$orderby` expectations below, and the
+  // maintainer ruling of 2026-08-22 authorises exactly that. They used to pin
+  // the AUTHORED value reaching `$orderby` VERBATIM — which for the legacy
+  // `table.defaultSort` spelling was a live `400 INVALID_SORT`: a single
+  // `{ field, order }` object is read by the adapter as an `$orderby` MAP, so
+  // `Object.entries` folded it to the wire string `field,order`, two columns
+  // that do not exist, and the view came back EMPTY. This read site now lowers
+  // the whole chain through the shared sink (`convertSortToQueryParams`), so
+  // the assertions moved to the LOWERED value — the same value, in the one
+  // normalized shape every other object-bound block already sends.
+  //
+  // What objectui#5102 put here is NOT weakened by that: each expectation is
+  // still an exact `toEqual` on a fully specified map, so both halves of every
+  // pair — canonical `table.sort` and legacy `table.defaultSort` — are still
+  // pinned as WORKING, and the PRECEDENCE between them is still pinned. What
+  // changed is the shape they arrive in, which is the defect objectui#4869
+  // fixed. See `ObjectView.sortSink.test.tsx` for the read-site evidence.
   it('queries with a canonical table.filter', async () => {
     const params = await queryParams(nonGridFind({ table: { filter: [['stage', '=', 'won']] } as any }));
     expect(params.$filter).toEqual([['stage', '=', 'won']]);
@@ -333,7 +351,7 @@ describe('non-grid path: ObjectView resolves the pair itself, canonical first', 
 
   it('orders by a canonical table.sort', async () => {
     const params = await queryParams(nonGridFind({ table: { sort: [{ field: 'name', order: 'desc' }] } as any }));
-    expect(params.$orderby).toEqual([{ field: 'name', order: 'desc' }]);
+    expect(params.$orderby).toEqual({ name: 'desc' });
   });
 
   it('prefers table.sort over table.defaultSort', async () => {
@@ -342,12 +360,17 @@ describe('non-grid path: ObjectView resolves the pair itself, canonical first', 
         table: { sort: [{ field: 'name', order: 'desc' }], defaultSort: { field: 'created', order: 'asc' } } as any,
       }),
     );
-    expect(params.$orderby).toEqual([{ field: 'name', order: 'desc' }]);
+    expect(params.$orderby).toEqual({ name: 'desc' });
   });
 
   it('still orders by table.defaultSort alone', async () => {
     const params = await queryParams(nonGridFind({ table: { defaultSort: { field: 'created', order: 'asc' } } as any }));
-    expect(params.$orderby).toEqual({ field: 'created', order: 'asc' });
+    // objectui#4869: `{ field: 'created', order: 'asc' }` — the value this line
+    // used to assert — is what the server answered `400 INVALID_SORT` for. The
+    // legacy spelling is still HONOURED (that is objectui#5102's half, and it
+    // is what this exact-value assertion keeps pinned); it is now honoured in
+    // the shape the query can carry.
+    expect(params.$orderby).toEqual({ created: 'asc' });
   });
 });
 
