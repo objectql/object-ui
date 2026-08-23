@@ -30,7 +30,10 @@ import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
-import { reportUnresolvableVisibilityPredicate } from './utils/visibilityDiagnostic.js';
+import {
+  reportUnresolvableVisibilityPredicate,
+  reportAdapterOnlyDataPredicate,
+} from './utils/visibilityDiagnostic.js';
 
 /**
  * Dev-mode schema validation.
@@ -594,7 +597,16 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       // build a message no production build ever prints.
       if (!__DEV__) return evaluator.evaluateCondition(raw);
       try {
-        return evaluator.evaluateCondition(raw, { throwOnError: true });
+        const verdict = evaluator.evaluateCondition(raw, { throwOnError: true });
+        // objectui#5687 — the NON-throwing half of the same silence, and it is
+        // reachable ONLY here, on the branch where the predicate evaluated
+        // cleanly. A `data.*` read the adapter cannot answer is not a fault the
+        // evaluator can raise: `undefined == 'draft'` is a perfectly good
+        // `false`. Verdict untouched — `verdict` is returned exactly as
+        // computed, which is what keeps the ruling's "no verdict changes" true
+        // by construction rather than by review.
+        reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource);
+        return verdict;
       } catch (err) {
         reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
         // The historical fail-soft answer, unchanged — and identical to what
