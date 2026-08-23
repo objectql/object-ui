@@ -38,6 +38,16 @@
  * NOT this card, and deliberately unasserted: the untranslated measure header
  * ("Annual Revenue" beside 行业) is the dataset-label i18n gap filed as
  * objectstack#10292.
+ *
+ * objectui#5845 later RULED the first-click direction, which #5827 had shipped
+ * as asc-first for every column and flagged as an open question: a numeric
+ * MEASURE column now starts DESCENDING (desc → asc → dataset order), while a
+ * dimension and a non-numeric measure keep asc → desc → dataset order. The
+ * cases below are split along that line — the #5827 block pins what did NOT
+ * move, the #5845 block pins what did — and the blanks-last invariant is
+ * asserted on BOTH halves, because the descending arm (where naive negation of
+ * `compareSortValues` would float blanks to the top) is now what a measure
+ * column's very FIRST click runs.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -215,7 +225,9 @@ describe('objectui#5827 — the empty dimension bucket sorts last', () => {
 });
 
 describe('objectui#5827 — sortable headers', () => {
-  it('cycles asc → desc → the default order, per column, and reports it via aria-sort', async () => {
+  it('cycles a DIMENSION column asc → desc → the default order and reports it via aria-sort', async () => {
+    // A grouping axis keeps the console DataTable idiom, A→Z first. objectui#5845
+    // moved the MEASURE columns only; this case is the unchanged half.
     installMetaRouter();
     render(<DatasetWidget widget={TABLE_WIDGET} dataSource={industrySource()} />);
     await screen.findByText('Industry');
@@ -224,32 +236,36 @@ describe('objectui#5827 — sortable headers', () => {
     // Default: no column claims a sort.
     expect(headerCells().map((th) => th.getAttribute('aria-sort'))).toEqual(['none', 'none', 'none']);
 
-    // Ascending by revenue: the blank bucket's 0 is a real number, so it leads.
-    fireEvent.click(sortButtons()[1]);
-    expect(headerCells()[1].getAttribute('aria-sort')).toBe('ascending');
-    expect(dimensionColumn()).toEqual(['—', 'Finance', 'Technology']);
+    fireEvent.click(sortButtons()[0]);
+    expect(headerCells()[0].getAttribute('aria-sort')).toBe('ascending');
+    expect(dimensionColumn()).toEqual(['Finance', 'Technology', '—']);
 
-    // Descending: the biggest industry first — the complaint this card opened on.
-    fireEvent.click(sortButtons()[1]);
-    expect(headerCells()[1].getAttribute('aria-sort')).toBe('descending');
+    fireEvent.click(sortButtons()[0]);
+    expect(headerCells()[0].getAttribute('aria-sort')).toBe('descending');
     expect(dimensionColumn()).toEqual(['Technology', 'Finance', '—']);
 
-    // Third click returns the dataset's own order (blank bucket still last).
-    fireEvent.click(sortButtons()[1]);
-    expect(headerCells()[1].getAttribute('aria-sort')).toBe('none');
+    // Third click returns the dataset's own order.
+    fireEvent.click(sortButtons()[0]);
+    expect(headerCells()[0].getAttribute('aria-sort')).toBe('none');
     expect(dimensionColumn()).toEqual(['Finance', 'Technology', '—']);
   });
 
-  it('starts a NEW column ascending rather than inheriting the previous column state', async () => {
+  it('starts a NEW column at its OWN first direction rather than inheriting the previous column state', async () => {
     installMetaRouter();
     render(<DatasetWidget widget={TABLE_WIDGET} dataSource={industrySource()} />);
     await waitFor(() => expect(bodyRows().length).toBe(3));
 
-    fireEvent.click(sortButtons()[1]);
-    fireEvent.click(sortButtons()[1]); // revenue, descending
-    fireEvent.click(sortButtons()[0]); // switch to the dimension
+    fireEvent.click(sortButtons()[1]); // revenue — a measure, so DESCENDING
+    fireEvent.click(sortButtons()[1]); // …then ascending
+    fireEvent.click(sortButtons()[0]); // switch to the dimension: ascending, its own first
     expect(headerCells().map((th) => th.getAttribute('aria-sort'))).toEqual(['ascending', 'none', 'none']);
     expect(dimensionColumn()).toEqual(['Finance', 'Technology', '—']);
+
+    // …and back the other way: leaving an ascending DIMENSION for a measure
+    // does not carry `asc` across — the measure claims its own descending.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells().map((th) => th.getAttribute('aria-sort'))).toEqual(['none', 'descending', 'none']);
+    expect(dimensionColumn()).toEqual(['Technology', 'Finance', '—']);
   });
 
   it('sorts blanks LAST in both directions', async () => {
@@ -284,11 +300,13 @@ describe('objectui#5827 — sortable headers', () => {
     render(<DatasetWidget widget={{ ...TABLE_WIDGET, values: ['account_count'] }} dataSource={src} />);
     await waitFor(() => expect(bodyRows().length).toBe(2));
 
-    fireEvent.click(sortButtons()[1]);
-    // 9 before 10. A string compare would invert this.
-    expect(dimensionColumn()).toEqual(['Finance', 'Technology']);
+    // First click on a measure is DESCENDING (objectui#5845): 10 before 9.
+    // A string compare would put '9' first descending, inverting this.
     fireEvent.click(sortButtons()[1]);
     expect(dimensionColumn()).toEqual(['Technology', 'Finance']);
+    // Second click ascending: 9 before 10 — a string compare inverts this one too.
+    fireEvent.click(sortButtons()[1]);
+    expect(dimensionColumn()).toEqual(['Finance', 'Technology']);
   });
 
   it('exports the CSV in the order the table is showing', async () => {
@@ -301,8 +319,7 @@ describe('objectui#5827 — sortable headers', () => {
     try {
       render(<DatasetWidget widget={TABLE_WIDGET} dataSource={industrySource()} />);
       await waitFor(() => expect(bodyRows().length).toBe(3));
-      fireEvent.click(sortButtons()[1]);
-      fireEvent.click(sortButtons()[1]); // revenue, descending
+      fireEvent.click(sortButtons()[1]); // revenue — one click IS descending now
       fireEvent.click(screen.getByTestId('dataset-export'));
 
       expect(blobs.length).toBe(1);
@@ -316,6 +333,111 @@ describe('objectui#5827 — sortable headers', () => {
       (URL as any).createObjectURL = origCreate;
       (URL as any).revokeObjectURL = origRevoke;
     }
+  });
+});
+
+describe('objectui#5845 — a numeric measure column starts DESCENDING', () => {
+  it('cycles a measure desc → asc → the dataset order and reports each state via aria-sort', async () => {
+    // The ruled contract. "Who is biggest" is the question a click asks of a
+    // measure, and #5827's own motivating reading was that Technology — the
+    // largest industry — rendered last; one click now answers it.
+    installMetaRouter();
+    render(<DatasetWidget widget={TABLE_WIDGET} dataSource={industrySource()} />);
+    await screen.findByText('Industry');
+    await waitFor(() => expect(bodyRows().length).toBe(3));
+
+    expect(headerCells().map((th) => th.getAttribute('aria-sort'))).toEqual(['none', 'none', 'none']);
+
+    // FIRST click: descending. `aria-sort` says so, and it is truthful about
+    // the direction actually applied rather than about where the cycle began.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('descending');
+    expect(dimensionColumn()).toEqual(['Technology', 'Finance', '—']);
+
+    // Second click: ascending. The blank bucket's revenue is 0 — a real
+    // number, not a blank — so it leads.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('ascending');
+    expect(dimensionColumn()).toEqual(['—', 'Finance', 'Technology']);
+
+    // Third click: the dataset's own order (blank dimension bucket last). The
+    // measure keeps all THREE states — writing the middle step as the literal
+    // `'desc'` would have collapsed the cycle to desc → desc.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('none');
+    expect(dimensionColumn()).toEqual(['Finance', 'Technology', '—']);
+  });
+
+  it('starts a measure whose values are TEXT ascending — direction follows the numeric classification, not "is a measure"', async () => {
+    // Same set that decides right-alignment: a `min()`/`max()` over a text
+    // field is a measure but not a NUMERIC one, so it keeps the A→Z idiom.
+    // The declared `type: 'number'` is deliberately kept in the fixture — it is
+    // what the executor sends, and it must not be what decides this.
+    installMetaRouter();
+    const src = {
+      queryDataset: vi.fn(async () => ({
+        rows: [
+          { industry: 'Finance', top_account: 'Northwind', account_count: 3 },
+          { industry: 'Technology', top_account: 'Contoso', account_count: 5 },
+        ],
+        fields: [
+          { name: 'industry', type: 'text', label: 'Industry' },
+          { name: 'top_account', type: 'number', label: 'Top Account' },
+          { name: 'account_count', type: 'number', label: 'Accounts' },
+        ],
+      })),
+    };
+    render(
+      <DatasetWidget
+        widget={{ ...TABLE_WIDGET, values: ['top_account', 'account_count'] }}
+        dataSource={src}
+      />,
+    );
+    await screen.findByText('Top Account');
+    await waitFor(() => expect(bodyRows().length).toBe(2));
+
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('ascending');
+    expect(dimensionColumn()).toEqual(['Technology', 'Finance']); // Contoso before Northwind
+
+    // …while the genuinely numeric measure beside it starts descending.
+    fireEvent.click(sortButtons()[2]);
+    expect(headerCells()[2].getAttribute('aria-sort')).toBe('descending');
+    expect(dimensionColumn()).toEqual(['Technology', 'Finance']); // 5 before 3
+  });
+
+  it('keeps blanks LAST on a measure in both directions, starting with the descending FIRST click', async () => {
+    // The negate-trap #5827 documented has to survive the flip, and the flip
+    // makes it the FIRST thing a user hits: `compareSortValues` places blanks
+    // last ASCENDING and expects callers to negate for descending, which would
+    // float them to the top. A null value keeps the column numeric (nulls are
+    // allowed by the all-non-null-values-are-numbers test), so this really is
+    // a desc-first column.
+    installMetaRouter();
+    const src = {
+      queryDataset: vi.fn(async () => ({
+        rows: [
+          { industry: 'Finance', annual_revenue_sum: 12000000, account_count: 3 },
+          { industry: 'Technology', annual_revenue_sum: null, account_count: 5 },
+          { industry: 'Retail', annual_revenue_sum: 30000000, account_count: 2 },
+        ],
+        fields: industryFields,
+      })),
+    };
+    render(<DatasetWidget widget={TABLE_WIDGET} dataSource={src} />);
+    await screen.findByText('Industry');
+    await waitFor(() => expect(bodyRows().length).toBe(3));
+
+    // Descending on the first click: 30m, 12m, then the blank — NOT the blank
+    // first, which is what a negated comparator would have produced.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('descending');
+    expect(dimensionColumn()).toEqual(['Retail', 'Finance', 'Technology']);
+
+    // Ascending on the second: 12m, 30m, blank still last.
+    fireEvent.click(sortButtons()[1]);
+    expect(headerCells()[1].getAttribute('aria-sort')).toBe('ascending');
+    expect(dimensionColumn()).toEqual(['Finance', 'Retail', 'Technology']);
   });
 });
 

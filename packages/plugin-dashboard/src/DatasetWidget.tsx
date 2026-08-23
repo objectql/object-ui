@@ -1130,7 +1130,10 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
             // Blanks last in BOTH directions. `compareSortValues` places them
             // last ascending and documents that callers negate for descending —
             // negation would float them to the top, so the blank arm is settled
-            // BEFORE the direction is applied and never inside it.
+            // BEFORE the direction is applied and never inside it. Since
+            // objectui#5845 the descending arm is what a measure column's
+            // FIRST click runs, so this is now the very first thing a user
+            // exercises rather than the second.
             if (a.key === null && b.key === null) return 0;
             if (a.key === null) return 1;
             if (b.key === null) return -1;
@@ -1151,18 +1154,35 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
           return 0;
         });
 
-    // asc → desc → back to the default order. Three states, not the two a
-    // server-paged grid offers: here the default IS a meaningful order (the
-    // dataset's own, which an author can set via `options.sortBy`), so a header
-    // has to be able to hand it back.
+    // ── First-click direction (objectui#5845) ───────────────────────────
+    // A numeric MEASURE starts DESCENDING; everything else starts ascending.
+    // The question a click asks of a measure is "who is biggest" — the very
+    // complaint objectui#5827 opened on (Technology, the largest industry,
+    // rendering last) — and one click answering it is what every analytics
+    // table does. A dimension is a grouping axis, where A→Z is the idiom the
+    // console's DataTable uses and this table keeps.
+    //
+    // The predicate is `numericColumns`, the SAME set that decides
+    // right-alignment: first-click direction is a property of the column's
+    // ROLE (a measure whose values really are numbers), not of "it looks like
+    // digits". So a digit-keyed dimension (a year, a quarter) still starts
+    // ascending, and so does a `min()`/`max()` over a text field.
+    const firstDir = (c: string): 'asc' | 'desc' => (numericColumns.has(c) ? 'desc' : 'asc');
+    // <first> → <the other one> → back to the default order. Three states, not
+    // the two a server-paged grid offers: here the default IS a meaningful
+    // order (the dataset's own, which an author can set via `options.sortBy`),
+    // so a header has to be able to hand it back. The middle step is written
+    // as "whatever `firstDir` is not" rather than as the literal `'desc'`,
+    // because hard-coding it would send a measure column desc → desc and cost
+    // it the ascending state entirely.
     const cycleSort = (c: string) =>
-      setTableSort((prev) =>
-        prev?.column !== c
-          ? { column: c, dir: 'asc' }
-          : prev.dir === 'asc'
-            ? { column: c, dir: 'desc' }
-            : null,
-      );
+      setTableSort((prev) => {
+        const first = firstDir(c);
+        if (prev?.column !== c) return { column: c, dir: first };
+        return prev.dir === first
+          ? { column: c, dir: first === 'asc' ? 'desc' : 'asc' }
+          : null;
+      });
     // The console's own indicator (`components/…/data-table.tsx`): an idle
     // column shows nothing until the header is hovered, the sorted one shows a
     // primary-tinted arrow. `aria-hidden` because the `th`'s `aria-sort` is
