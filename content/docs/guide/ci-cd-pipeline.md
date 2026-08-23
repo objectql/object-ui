@@ -38,7 +38,6 @@ one has its own section below.
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
 | `changeset-release.yml` | Changeset Release | Push to `main` (publish half); 6-hourly cron `0 */6 * * *`; manual (version-PR refresh half) | n/a |
-| `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
@@ -931,13 +930,6 @@ commits before it landed reports 10 that would have failed, two of them user-vis
 CHANGELOG line anywhere. `scripts/__tests__/check-changeset-presence.test.ts` pins the verdicts, the derived
 surface, and every loud-failure path.
 
-### Changelog Generation (`changelog.yml`)
-
-**Trigger:** `release` event (when a GitHub Release is published), or manual dispatch.
-
-Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
-moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
-
 ## Repository Maintenance
 
 ### Auto-Labeler (`labeler.yml`)
@@ -1066,20 +1058,19 @@ that may have moved defines it immediately after checkout:
     git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
 ```
 
-Three workflows carry that step, for three different reasons:
+Two workflows carry that step, for two different reasons:
 
 | Workflow | Why it needs the driver |
 |---|---|
 | `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
-| `changelog.yml` | commits a regenerated `CHANGELOG.md` back to the branch |
 | `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
 actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
 already drifted two ways at once, and neither copy was checked by anything: this page named
 `changeset-release.yml` and `dependabot-auto-merge.yml`, while the deleted `.github/WORKFLOWS.md`
-named `changeset-release.yml` and `changelog.yml`. Each was missing a different one
-([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
+named `changeset-release.yml` and a now-removed changelog-generation workflow. Each was missing a
+different one ([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
 
 `--no-frozen-lockfile` is spelled out because Actions sets `CI=true`, under which pnpm refuses
 to modify the lockfile — a driver that cannot write the file it exists to rewrite would fail the
