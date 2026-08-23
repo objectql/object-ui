@@ -10,9 +10,14 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { SonnerSchema } from '@object-ui/types';
 import { toast } from 'sonner';
 import { Button } from '../../ui';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('sonner', 
   ({ schema, ...props }: { schema: SonnerSchema; [key: string]: any }) => {
+    // `style` forwarded by name; the rest through the form-control
+    // declaration (objectui#5632).
+    const { style, ...buttonProps } = props;
+
     const showToast = () => {
       const toastFn = schema.variant === 'success' ? toast.success :
                       schema.variant === 'error' ? toast.error :
@@ -26,7 +31,13 @@ ComponentRegistry.register('sonner',
     };
     
     return (
-      <Button onClick={showToast} variant={schema.buttonVariant} className={schema.className} {...props}>
+      <Button
+        onClick={showToast}
+        variant={schema.buttonVariant}
+        className={schema.className}
+        {...toFormControlDomProps(buttonProps)}
+        style={style}
+      >
         {schema.buttonLabel || 'Show Toast'}
       </Button>
     );

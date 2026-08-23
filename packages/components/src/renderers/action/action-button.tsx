@@ -25,6 +25,7 @@ import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
@@ -249,7 +250,7 @@ const ActionButtonRenderer = forwardRef<
               : false
         ) || loading}
         onClick={handleClick}
-        {...rest}
+        {...toFormControlDomProps(rest)}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -11,9 +11,16 @@ import { resolveKeyedI18nLabel } from '@object-ui/react';
 import type { ToggleSchema } from '@object-ui/types';
 import { Toggle } from '../../ui';
 import { renderChildren } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('toggle',
-  ({ schema, ...props }: { schema: ToggleSchema; [key: string]: any }) => (
+  ({ schema, ...props }: { schema: ToggleSchema; [key: string]: any }) => {
+    // `style` is forwarded BY NAME rather than reopened in the shared list —
+    // the objectui#4435 route, same as the layout renderers objectui#5574
+    // converged. Everything else goes through the form-control declaration.
+    const { style, ...toggleProps } = props;
+
+    return (
     <Toggle
       variant={schema.variant}
       size={schema.size}
@@ -25,11 +32,13 @@ ComponentRegistry.register('toggle',
       // "[object Object]" to a screen reader. This renderer bypasses
       // SchemaRenderer's `resolveAriaProps`, so it has to do it itself.
       aria-label={resolveKeyedI18nLabel(schema.ariaLabel)}
-      {...props}
+      {...toFormControlDomProps(toggleProps)}
+      style={style}
     >
       {schema.label || renderChildren(schema.children)}
     </Toggle>
-  ),
+  );
+  },
   {
     namespace: 'ui',
     label: 'Toggle',

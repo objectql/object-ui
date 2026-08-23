@@ -10,6 +10,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { RadioGroupSchema } from '@object-ui/types';
 import { RadioGroup, RadioGroupItem, Label } from '../../ui';
 import { toControlValue } from './option-value';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('radio-group', 
   ({ schema, className, ...props }: { schema: RadioGroupSchema; className?: string; [key: string]: any }) => {
@@ -27,7 +28,7 @@ ComponentRegistry.register('radio-group',
     <RadioGroup
         defaultValue={toControlValue(schema.defaultValue)}
         className={className}
-        {...radioProps}
+        {...toFormControlDomProps(radioProps)}
         // Apply designer props to the root element
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >

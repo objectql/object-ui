@@ -12,6 +12,7 @@ import { Button } from '../../ui';
 import { renderChildren } from '../../lib/utils';
 import { forwardRef } from 'react';
 import { Loader2, icons, type LucideIcon } from 'lucide-react';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 // Helper to convert icon names to PascalCase (e.g., "arrow-right" -> "ArrowRight")
 function toPascalCase(str: string): string {
@@ -61,7 +62,7 @@ const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
         size={schema.size} 
         className={schema.className} 
         disabled={isDisabled}
-        {...buttonProps}
+        {...toFormControlDomProps(buttonProps)}
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >

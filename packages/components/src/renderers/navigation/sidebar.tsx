@@ -21,6 +21,7 @@ import { useDisplayLocale } from '@object-ui/i18n';
 // see `BaseSchema.label` (objectui#4580).
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { renderChildren } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import {
   SidebarProvider,
   Sidebar,
@@ -146,11 +147,24 @@ ComponentRegistry.register('sidebar-menu-item',
 );
 
 ComponentRegistry.register('sidebar-menu-button',
-  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
-    <SidebarMenuButton isActive={schema.active} {...props}>
-      {renderChildren(schema.body)}
-    </SidebarMenuButton>
-  ),
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => {
+    // `style` forwarded by name (the objectui#4435 route); everything else goes
+    // through the form-control DOM declaration. This is the only `sidebar-*`
+    // registration in this file that objectui#5632's group covers — the
+    // container ones render `<div>`s and belong to `BARE_SPREAD`, which is a
+    // different mechanism group and a different card.
+    const { style, ...buttonProps } = props;
+
+    return (
+      <SidebarMenuButton
+        isActive={schema.active}
+        {...toFormControlDomProps(buttonProps)}
+        style={style}
+      >
+        {renderChildren(schema.body)}
+      </SidebarMenuButton>
+    );
+  },
   {
     namespace: 'ui',
     label: 'Sidebar Menu Button',

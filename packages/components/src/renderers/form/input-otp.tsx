@@ -9,9 +9,13 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { InputOTPSchema } from '@object-ui/types';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '../../ui';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('input-otp', 
   ({ schema, className, onChange, value, ...props }: { schema: InputOTPSchema; className?: string; [key: string]: any }) => {
+    // `style` forwarded by name; the rest through the form-control
+    // declaration (objectui#5632).
+    const { style, ...otpProps } = props;
     const length = schema.maxLength || 6;
     const slots = Array.from({ length });
 
@@ -27,7 +31,8 @@ ComponentRegistry.register('input-otp',
         className={className} 
         value={value ?? schema.value}
         onChange={handleChange}
-        {...props}
+        {...toFormControlDomProps(otpProps)}
+        style={style}
       >
         <InputOTPGroup>
           {slots.map((_, i) => (

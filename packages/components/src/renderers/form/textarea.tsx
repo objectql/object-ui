@@ -10,6 +10,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { TextareaSchema } from '@object-ui/types';
 import { Textarea, Label } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import React from 'react';
 
 const TextareaRenderer = ({ schema, className, onChange, value, ...props }: { schema: TextareaSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
@@ -48,7 +49,7 @@ const TextareaRenderer = ({ schema, className, onChange, value, ...props }: { sc
         value={value ?? schema.value ?? ''}
         defaultValue={value === undefined ? schema.defaultValue : undefined}
         onChange={handleChange}
-        {...inputProps} 
+        {...toFormControlDomProps(inputProps)}
       />
     </div>
   );

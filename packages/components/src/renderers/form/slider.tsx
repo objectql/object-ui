@@ -9,6 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { SliderSchema } from '@object-ui/types';
 import { Slider } from '../../ui';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('slider', 
   ({ schema, className, ...props }: { schema: SliderSchema; className?: string; [key: string]: any }) => {
@@ -34,7 +35,7 @@ ComponentRegistry.register('slider',
       min={schema.min}
       step={schema.step}
       className={className} 
-      {...sliderProps} 
+      {...toFormControlDomProps(sliderProps)}
       // Apply designer props
       {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     />

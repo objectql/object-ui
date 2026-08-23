@@ -37,9 +37,9 @@
  *   | plugin-calendar  |       3 |               0 |                 0 |
  *   | plugin-chatbot   |       3 |               0 |                 0 |
  *   | plugin-dashboard |       8 |               2 |             7 / 9 |
- *   | components       |     158 |             115 |          12 .. 15 |
+ *   | components       |     158 |              97 |          12 .. 15 |
  *
- * **117 of 181 targets leak.** The `components` row is objectui#5574 and is
+ * **99 of 181 targets leak.** The `components` row is objectui#5574 and is
  * covered in its own section below; the two `plugin-dashboard` rows are the
  * older tail. Both are in {@link LEAK_LEDGER}:
  * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
@@ -121,7 +121,7 @@
  * have failed. These two differ in exactly one thing: which namespace the extra
  * widget went into.
  *
- * ### The reading — 119 of 158 ON ARRIVAL, in eight shapes; 115 today
+ * ### The reading — 119 of 158 ON ARRIVAL, in seven shapes; 97 today
  *
  * The card named four candidates (`flex`, `stack`, `container`, `text`) and was
  * careful to call them candidates. All four leaked. So did 115 others, and the
@@ -130,11 +130,13 @@
  * `ui:grid` read clean, which is objectui#4787 / PR #5573's fix now pinned by
  * a gate instead of by hand.
  *
- * The first four rows have since been DELETED rather than edited: `ui:flex`,
- * `ui:stack`, `ui:container` and `ui:text` are converged on `toDomProps` and
- * measure clean, so their rows had to go for the gate to pass — the two-way
- * expiry below, working exactly once it had something to expire. 115 rows
- * remain. What the arrival reading measured is preserved here in prose and in
+ * Twenty-two rows have since been DELETED rather than edited. First `ui:flex`,
+ * `ui:stack`, `ui:container` and `ui:text` (objectui#5574), then the eighteen
+ * form controls that made up the whole `BARE_SPREAD_MINUS_NAME` shape
+ * (objectui#5632) — which took a SHAPE off this list, not just rows, so the
+ * grouping is six mechanisms now and not seven. All twenty-two measure clean,
+ * so their rows had to go for the gate to pass — the two-way expiry below,
+ * working exactly once it had something to expire. 97 rows remain. What the arrival reading measured is preserved here in prose and in
  * the burn-down note on {@link COMPONENTS_LEAK_GROUPS}; what the gate asserts
  * is always current truth, which is the whole point of not writing dates into
  * a ledger.
@@ -866,8 +868,11 @@ interface LedgerEntry {
 /* ── objectui#5574: the `packages/components` reading, as a LEDGER ─────────── */
 
 /**
- * 115 of the 158 `packages/components` targets leak, and they do it in exactly
- * EIGHT shapes (119 did on arrival; see the burn-down note below). Writing that
+ * 97 of the 158 `packages/components` targets leak, and they do it in exactly
+ * SIX shapes (119 targets in seven shapes did on arrival; see the burn-down
+ * note below — and note the arrival count of shapes read `eight` here until
+ * objectui#5632 counted them: the groups were seven, and the card's own table
+ * listed seven). Writing that
  * many near-identical rows longhand would have buried the shapes
  * — so the rows are GROUPED BY MEASURED SHAPE, and every group names its
  * renderers one by one. Nothing here is a wildcard and nothing here is a
@@ -891,6 +896,28 @@ interface LedgerEntry {
  *     `flex[direction]` 5, `stack[align]` 4, `text[value]` 1); the same probe
  *     reads 0 after, with `grid`'s 26 nodes at 0 both times as the control.
  *
+ *   - objectui#5632 — the entire `BARE_SPREAD_MINUS_NAME` shape, all eighteen
+ *     members: `action:button`, `action:icon`, `ui:button`, `ui:checkbox`,
+ *     `ui:combobox`, `ui:date-picker`, `ui:email`, `ui:file-upload`, `ui:input`,
+ *     `ui:input-otp`, `ui:password`, `ui:radio-group`, `ui:sidebar-menu-button`,
+ *     `ui:slider`, `ui:sonner`, `ui:switch`, `ui:textarea`, `ui:toggle`. These
+ *     render FORM CONTROLS, so the convergence is NOT the bare `toDomProps` the
+ *     four above took — it is a form-control DECLARATION over the same
+ *     mechanism (`packages/components/src/lib/form-control-dom-props.ts`),
+ *     which forwards the `name` and `disabled` the SDUI baseline deliberately
+ *     withholds. That distinction is invisible from inside this file, which is
+ *     the point of writing it down here: `name` was never in these rows and
+ *     `disabled` is not even a canary, so a convergence that dropped both would
+ *     have turned this gate green while un-naming and re-enabling every control
+ *     in the library. The catalog-scale reading: 287 form-control nodes in
+ *     `examples/schema-catalog` put 284 illegitimate attributes on the DOM
+ *     (`button[label]` 140, `button[icon]` 25, `input[inputtype]` 23,
+ *     `input[label]` 19, `toggle[label]` 14, `radio-group[options]` 8,
+ *     `date-picker[placeholder]` 7, `file-upload[label]` 7,
+ *     `file-upload[buttontext]` 7, and a 34-attribute tail); the same probe
+ *     reads 0 after, with `grid`'s 26 nodes at 0 both times as the control and
+ *     an unchanged per-type node census across the two runs.
+ *
  * ## This is a ledger, not an allowlist — the difference, stated once
  *
  * An allowlist says "do not look here". Every row below says "we looked, this
@@ -900,7 +927,7 @@ interface LedgerEntry {
  * equals the recorded one; if it stops leaking, the gate ALSO fails until the
  * row goes. An allowlist has neither property. Nothing below is skipped,
  * `it.skip`-ed, quarantined or excluded from the sweep — all 158 targets render
- * and all 158 are scanned on every run, the 43 clean ones included.
+ * and all 158 are scanned on every run, the 61 clean ones included.
  */
 
 /**
@@ -920,8 +947,24 @@ const BARE_SPREAD: readonly string[] = [
  * mostly. `name` is absent from these rows not because the renderer stripped
  * it but because HTML makes it legitimate there, so the judge does not report
  * it. The authored identity key still reaches the DOM; on this host it is
- * simply not a leak. Worth keeping straight: converging these renderers on
- * `toDomProps` will not change that attribute, only the thirteen around it.
+ * simply not a leak.
+ *
+ * NO GROUP CARRIES THIS SHAPE ANY MORE — objectui#5632 burned all eighteen of
+ * its members and DELETED the group, which is why what is left is a bare
+ * attribute list. It survives as the base three other groups still derive from
+ * (`action:menu`, `ui:form`, `ui:sidebar-trigger`), each of which measures this
+ * shape plus or minus one attribute. Deleting it would mean hand-copying
+ * thirteen strings into three places and losing the statement that those three
+ * ARE this shape, varied.
+ *
+ * The prediction this docblock carried before the burn-down — "converging these
+ * renderers on `toDomProps` will not change that attribute, only the thirteen
+ * around it" — is now measured, and it was only true because the convergence
+ * was built to make it true. A bare `toDomProps` would have stripped `name`
+ * (and `disabled`, which this gate never measured at all) off every one of the
+ * eighteen controls, and nothing in this file would have moved. See
+ * `packages/components/src/lib/form-control-dom-props.ts`, which is the
+ * declaration that keeps the promise.
  */
 const BARE_SPREAD_MINUS_NAME: readonly string[] = [
   'ariadescribedby', 'arialabel', 'bind', 'colorvariant', 'datasource', 'events', 'props',
@@ -974,20 +1017,6 @@ const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
       'ui:sidebar-menu-item', 'ui:sidebar-provider', 'ui:skeleton', 'ui:small', 'ui:span',
       'ui:strong', 'ui:sub', 'ui:sup', 'ui:table', 'ui:tabs',
       'ui:time', 'ui:toggle-group', 'ui:tree-view', 'ui:u', 'ui:ul', 'ui:utility',
-    ],
-  },
-  {
-    attributes: BARE_SPREAD_MINUS_NAME,
-    reason:
-      'the same bare spread onto a host element that DEFINES `name` (form ' +
-      'controls and their siblings), so `name` is legitimate there and the ' +
-      'other thirteen leak.',
-    issue: 'objectui#5574',
-    targets: [
-      'action:button', 'action:icon', 'ui:button', 'ui:checkbox', 'ui:combobox',
-      'ui:date-picker', 'ui:email', 'ui:file-upload', 'ui:input', 'ui:input-otp',
-      'ui:password', 'ui:radio-group', 'ui:sidebar-menu-button', 'ui:slider', 'ui:sonner',
-      'ui:switch', 'ui:textarea', 'ui:toggle',
     ],
   },
   {
@@ -1391,6 +1420,40 @@ describe('the sweep covers a real, non-empty target set (objectui#4425)', () => 
       'these renderers are converged on `toDomProps` (objectui#4787 / PR #5573 ' +
         'for `grid`, objectui#5574 for the other four) and measure clean. A row ' +
         'here means a regression was re-ledgered instead of fixed.',
+    ).toEqual([]);
+    // …and they are still SWEPT, so "no row" cannot mean "no longer looked at".
+    const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
+    expect(converged.filter((type) => !sweptTypes.has(type))).toEqual([]);
+  });
+
+  it('the whole form-control family is CLEAN — no row may re-absorb it', () => {
+    // objectui#5632's slice: the eighteen renderers that carried the
+    // `BARE_SPREAD_MINUS_NAME` shape. Their group is DELETED, and this is the
+    // inverted case that keeps it deleted — the same treatment objectui#5574
+    // gave the layout family directly above, and for the same reason: the sweep
+    // case fails if one of these regresses, and this one additionally fails if
+    // someone makes that red green by putting the row back.
+    //
+    // What this family adds over the layout one is the second failure
+    // direction, which is why the fix is NOT a bare `toDomProps`. These hosts
+    // are form controls, so `name` and `disabled` are legal on them — the judge
+    // never reported either, and the canary node authors no `disabled` at all.
+    // A convergence that dropped them would therefore read as a clean pass HERE
+    // while silently un-naming and re-enabling every control in the library.
+    // The declaration that prevents it is
+    // `packages/components/src/lib/form-control-dom-props.ts`; the guard that
+    // proves this file could not have noticed is stated in its docblock.
+    const converged = [
+      'action:button', 'action:icon', 'ui:button', 'ui:checkbox', 'ui:combobox',
+      'ui:date-picker', 'ui:email', 'ui:file-upload', 'ui:input', 'ui:input-otp',
+      'ui:password', 'ui:radio-group', 'ui:sidebar-menu-button', 'ui:slider', 'ui:sonner',
+      'ui:switch', 'ui:textarea', 'ui:toggle',
+    ];
+    expect(
+      converged.filter((type) => LEAK_LEDGER[type]),
+      'these renderers are converged on the form-control DOM declaration ' +
+        '(objectui#5632) and measure clean. A row here means a regression was ' +
+        're-ledgered instead of fixed.',
     ).toEqual([]);
     // …and they are still SWEPT, so "no row" cannot mean "no longer looked at".
     const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
