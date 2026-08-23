@@ -587,7 +587,16 @@ const LOADERS: Record<string, SchemaLoader> = {
   dashboard: async () => (await import('@objectstack/spec/ui')).DashboardSchema as unknown as ZodLikeSchema,
   report: async () => (await import('@objectstack/spec/ui')).ReportSchema as unknown as ZodLikeSchema,
   action: async () => (await import('@objectstack/spec/ui')).ActionSchema as unknown as ZodLikeSchema,
-  theme: async () => (await import('@objectstack/spec/ui')).ThemeSchema as unknown as ZodLikeSchema,
+  // `theme` is intentionally absent. It was never a registered metadata type,
+  // so metadata-admin never asks for it — and the spec retired the whole
+  // `ui/theme.zod.ts` module (objectstack#10485 / PR objectstack#10695), so the
+  // `ThemeSchema` the old entry read off this subpath is gone upstream. Nothing
+  // here ever went red because objectui's own `@objectstack/spec` pin (17.1.0)
+  // still publishes that symbol: the entry type-checked and resolved, and would
+  // simply have degraded to a silent no-op validator (`getSchemaForType`'s
+  // `safeParse` duck-check) on the first bump past the retirement. Do not
+  // re-add it from the spec — a metadata-admin theme editing surface is a
+  // capability decision of its own (objectui#5715).
 
   // automation
   flow: async () => (await import('@objectstack/spec/automation')).FlowSchema as unknown as ZodLikeSchema,

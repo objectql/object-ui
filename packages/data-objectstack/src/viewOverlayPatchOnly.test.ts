@@ -10,11 +10,14 @@
  * objectui#5233 — an overlay row is a PATCH, and only the keys it owns may
  * reach the view it is merged over.
  *
- * `ObjectView.persistViewPatch` sends `{ ...baseViewDef, ...patch }` and this
- * adapter persists what it is given, so a row written by a column drag carries
- * the whole source view — `filter` included — as of that moment. The display
- * merge is `{ ...source, ...override }`, which hands that stale copy authority
- * over the source declaration it was copied from.
+ * `ObjectView.persistViewPatch` USED TO send `{ ...baseViewDef, ...patch }` and
+ * this adapter persists what it is given, so a row written by a column drag
+ * carried the whole source view — `filter` included — as of that moment. The
+ * display merge is `{ ...source, ...override }`, which handed that stale copy
+ * authority over the source declaration it was copied from. The write half has
+ * since landed (`buildPersistedViewBody` in app-shell's `ObjectView`), so a fat
+ * row is now a LEGACY shape — which is exactly what the fixtures below model,
+ * and why this read-side policy still has work to do.
  *
  * {@link narrowPersonalizationOverlay} is the read-side half: the policy for
  * WHAT an overlay may contribute, owned by this package because this package
@@ -78,7 +81,9 @@ function makeDS(meta: any) {
   return ds;
 }
 
-/** What `persistViewPatch` sends for a column drag: the whole tab + one key. */
+/** What `persistViewPatch` USED TO send for a column drag: the whole tab + one
+ *  key. Rows in this shape are still at rest on every install that predates the
+ *  write-side narrowing, which is why this file keeps modelling them. */
 const FAT_WRITE = {
   name: 'crm_lead.default',
   label: 'All Leads',

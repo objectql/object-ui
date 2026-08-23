@@ -109,7 +109,7 @@ describe('ObjectStackDataSource.listViews', () => {
   describe('excludes personalization overlays (objectui#4227)', () => {
     it('excludes a row carrying the explicit write-side marker', async () => {
       // Exactly what `updateViewConfig` writes today: the marker plus a full
-      // copy of the system view's body (`persistViewPatch` spreads the whole
+      // copy of the system view's body (`persistViewPatch` USED TO spread the whole
       // active tab into the write).
       const override = {
         name: 'crm_lead.default', object: 'crm_lead', type: 'grid',

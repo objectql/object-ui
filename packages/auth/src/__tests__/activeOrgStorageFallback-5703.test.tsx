@@ -31,13 +31,28 @@
  * Lives as `.test.tsx` so it runs under happy-dom alongside
  * `createAuthenticatedFetch.test.tsx` — the wire-level cases need `fetch`,
  * `Headers` and a `window.location` for the same-origin check.
+ *
+ * ## What objectui#5664 changed here, and what it did NOT
+ *
+ * The persisted key is now per-user (`...:u:<userId>`), so these cases adopt a
+ * session user before they touch storage and assert against the scoped
+ * spelling. That is a SPELLING change: every property this file exists to pin
+ * — a non-null persisted read wins, the memory fallback is reachable when
+ * `localStorage` rejects writes, `clear()` nulls `_memoryValue` before it
+ * touches storage, and a cleared org never goes back on the wire — is asserted
+ * unchanged. Without the adopt the cases would still be green and would mean
+ * nothing: with no session user `set()` writes to memory only, so every
+ * "reached the persisted layer" assertion below would be vacuously testing an
+ * empty store.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createAuthenticatedFetch, ActiveOrganizationStorage } from '../createAuthenticatedFetch';
+import { SessionUserScope } from '../ActiveOrganizationStorage';
 import { TokenStorage } from '../createAuthClient';
 
-const ACTIVE_ORG_STORAGE_KEY = 'auth-active-organization-id';
+const SESSION_USER_ID = 'u_5703';
+const ACTIVE_ORG_STORAGE_KEY = `auth-active-organization-id:u:${SESSION_USER_ID}`;
 const API_URL = 'http://localhost/api/v1/meta/object/account';
 
 /**
@@ -81,6 +96,11 @@ function stubFetch() {
 describe('ActiveOrganizationStorage — the in-memory fallback (#5703)', () => {
   beforeEach(() => {
     ActiveOrganizationStorage.clear();
+    // objectui#5664 — the persisted key is per-user. `current()` reads the
+    // in-memory pointer first, so this survives the `localStorage` doubles the
+    // cases install below and the scope is the same in every case.
+    SessionUserScope._resetForTests();
+    SessionUserScope.adopt(SESSION_USER_ID);
     vi.spyOn(TokenStorage, 'get').mockReturnValue(null);
   });
 
@@ -88,6 +108,7 @@ describe('ActiveOrganizationStorage — the in-memory fallback (#5703)', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     ActiveOrganizationStorage.clear();
+    SessionUserScope._resetForTests();
   });
 
   // ── (a) read-succeeds / write-fails: the card's probe ──────────────────

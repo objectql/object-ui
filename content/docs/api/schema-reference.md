@@ -1036,15 +1036,17 @@ Each widget supports `colSpan` and `rowSpan` to control its size in the grid. Th
 
 ### CalendarViewSchema
 
-A multi-view calendar for displaying and managing events.
+A multi-view calendar computed from the node's `data` records. There is no
+authorable `events` key: the renderer builds one event per record in `data`,
+reading the fields the field-name properties point at (objectui#5667; an
+authored `events` is dropped by design, objectui#4433).
 
 ```json
 {
   "type": "calendar-view",
-  "defaultView": "month",
-  "views": ["month", "week", "day", "agenda"],
-  "editable": true,
-  "events": [
+  "view": "month",
+  "currentDate": "2024-03-15T12:00:00.000Z",
+  "data": [
     {
       "id": "evt-1",
       "title": "Team Standup",
@@ -1060,21 +1062,30 @@ A multi-view calendar for displaying and managing events.
       "color": "#8b5cf6",
       "allDay": false
     }
-  ]
+  ],
+  "allowCreate": true,
+  "className": "h-[600px] border rounded-lg"
 }
 ```
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `events` | `CalendarEvent[]` | **Required.** Events with `id`, `title`, `start`, `end`, optional `color` and `allDay`. |
-| `defaultView` | `CalendarViewMode` | Initial view: `"month"`, `"week"`, `"day"`, `"agenda"`. |
-| `views` | `CalendarViewMode[]` | Available view modes the user can switch between. |
-| `editable` | `boolean` | Allow creating and modifying events. |
-| `defaultDate` | `string \| Date` | Initial calendar date. |
-| `onEventClick` | `function` | Callback when an event is clicked. |
-| `onEventCreate` | `function` | Callback for new event creation: `(start, end)`. |
-| `onEventUpdate` | `function` | Callback when an event is modified. |
-| `onDateChange` | `function` | Callback when the visible date range changes. |
+| `data` | `any` | Records rendered as events — an array, or a binding expression that resolves to one. |
+| `titleField` | `string` | Record field for the event title. Default `"title"`. |
+| `startDateField` | `string` | Record field for the event start date/time. Default `"start"`. |
+| `endDateField` | `string` | Record field for the event end date/time. Default `"end"`. |
+| `allDayField` | `string` | Record field for the all-day flag. Default `"allDay"`. |
+| `colorField` | `string` | Record field for the event color. Default `"color"`. |
+| `view` | `CalendarViewMode` | View mode: `"month"`, `"week"`, `"day"` — the full union. `"agenda"` was retired in objectui#5740 and now fails validation. Default `"month"`. |
+| `currentDate` | `string \| Date` | Initial calendar date — an ISO date string when authored as JSON. |
+| `allowCreate` | `boolean` | Show the "New event" affordance; clicking it dispatches a `create` action. Default `false`. |
+| `onEventClick` | `function` | Host-only: forwarded when a React host supplies a function; authored JSON cannot produce one. |
+| `onViewChange` | `function` | Host-only: same rule as `onEventClick`. |
+
+Nine formerly declared keys — `events` (was required, and dropped by the
+renderer), `defaultView`, `defaultDate`, `date`, `views`, `editable`,
+`onEventCreate`, `onEventUpdate`, `onDateChange` — were retired in
+objectui#5667: nothing read them on the authored-node path.
 
 **Related:** [ObjectViewSchema](#objectviewschema), [DashboardComponentSchema](#dashboardcomponentschema)
 

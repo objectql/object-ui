@@ -36,7 +36,13 @@
  * bumping the CLI without declaring the key exited 1 on `changeset status` AND
  * on `changeset version` — the release lane stops, and nothing in PR CI would
  * have said so, because no PR workflow runs either command (the only invocation
- * is inside `.github/workflows/changeset-release.yml`, on push to `main`).
+ * is inside `.github/workflows/changeset-release.yml`). Since objectstack#10850
+ * that invocation is later still: `changeset version` runs on that workflow's
+ * REFRESH lane — the 6-hourly cron or a manual `refresh_version_pr` dispatch —
+ * not on push to `main`, so a mixed changeset that would stop the release lane
+ * now surfaces at the next refresh rather than at the next landing. Which only
+ * sharpens the point: this gate is still the only thing that can say so on a
+ * pull request.
  *
  * Hence rule 2: silence about `privatePackages` is no longer a safe default,
  * because its meaning inverted. And hence rule 3: `fixed` membership and

@@ -105,8 +105,14 @@ const DROPPED_SCHEMA_EXPORTS = [
   'SpecResponsiveConfigSchema',
   'BreakpointColumnMapSchema',
   'BreakpointOrderMapSchema',
-  // theme.ts
-  'ThemeModeSchema',
+  // The `ThemeModeSchema` row (theme.ts) was removed by objectui#5716, ahead
+  // of the ratchet below firing: the spec retired its whole theme module
+  // (objectstack#10485) and the theme TYPE surface is owned by this package
+  // now — `theme.ts` no longer re-exports anything from `@objectstack/spec/ui`,
+  // so once the pin moves past the retirement the row would have asserted
+  // nothing. The mode vocabulary's runtime value is `THEME_MODES` (a local
+  // tuple, deliberately exported as a VALUE — the #2561 erasure cannot recur
+  // for it).
 ];
 
 /**

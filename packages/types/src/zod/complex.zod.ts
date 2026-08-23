@@ -66,9 +66,13 @@ export const KanbanSchema = BaseSchema.extend({
 });
 
 /**
- * Calendar View Mode
+ * Calendar View Mode — the registered renderer's rendered set.
+ *
+ * `'agenda'` was retired (objectui#5740): no view ever rendered it, and no
+ * measured app authors it. `view` is a DECLARED key, so this retirement is a
+ * new rejection — see the accept-set note on {@link CalendarViewSchema}.
  */
-export const CalendarViewModeSchema = z.enum(['month', 'week', 'day', 'agenda']);
+export const CalendarViewModeSchema = z.enum(['month', 'week', 'day']);
 
 /**
  * Calendar Event Schema
@@ -86,21 +90,57 @@ export const CalendarEventSchema = z.object({
 
 /**
  * Calendar View Schema - Calendar component
+ *
+ * Mirrors `CalendarViewSchema` in `../complex.ts`, converged on the registered
+ * `calendar-view` renderer's measured read set (objectui#5667): events are
+ * computed from `data` plus the field-name keys; the formerly required
+ * `events` and the eight other inert keys (`defaultView`, `defaultDate`,
+ * `date`, `views`, `editable`, `onEventCreate`, `onEventUpdate`,
+ * `onDateChange`) are retired (ADR-0049 enforce-or-remove).
+ *
+ * `BaseSchema` is `.passthrough()`, so the retired keys are not REJECTED here
+ * — they are simply no longer declared or type-checked. The material accept
+ * change is that `events` is no longer required.
+ *
+ * Value-level residue (objectui#5740): `'agenda'` left
+ * `CalendarViewModeSchema`. Unlike the key retirements above, this IS a new
+ * rejection — `view` is a declared key, and declared keys are validated even
+ * under `.passthrough()` — so `view: 'agenda'`, which parsed green before,
+ * now fails with an `invalid_value` issue on the `view` path.
  */
 export const CalendarViewSchema = BaseSchema.extend({
   type: z.literal('calendar-view'),
-  events: z.array(CalendarEventSchema).describe('Calendar events'),
-  defaultView: CalendarViewModeSchema.optional().describe('Default view mode'),
-  view: CalendarViewModeSchema.optional().describe('Controlled view mode'),
-  defaultDate: z.union([z.string(), z.date()]).optional().describe('Default date'),
-  date: z.union([z.string(), z.date()]).optional().describe('Controlled date'),
-  views: z.array(CalendarViewModeSchema).optional().describe('Available views'),
-  editable: z.boolean().optional().describe('Whether events are editable'),
-  onEventClick: z.function().optional().describe('Event click handler'),
-  onEventCreate: z.function().optional().describe('Event create handler'),
-  onEventUpdate: z.function().optional().describe('Event update handler'),
-  onDateChange: z.function().optional().describe('Date change handler'),
-  onViewChange: z.function().optional().describe('View change handler'),
+  data: z
+    .any()
+    .optional()
+    .describe(
+      'Records to display as events (computed with the field-name keys; binding expressions resolve before the renderer reads it)',
+    ),
+  titleField: z.string().optional().describe("Record field for the event title (default 'title')"),
+  startDateField: z
+    .string()
+    .optional()
+    .describe("Record field for the event start date/time (default 'start')"),
+  endDateField: z
+    .string()
+    .optional()
+    .describe("Record field for the event end date/time (default 'end')"),
+  allDayField: z.string().optional().describe("Record field for the all-day flag (default 'allDay')"),
+  colorField: z.string().optional().describe("Record field for the event color (default 'color')"),
+  view: CalendarViewModeSchema.optional().describe(
+    "View mode — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5740)",
+  ),
+  currentDate: z
+    .union([z.string(), z.date()])
+    .optional()
+    .describe('Initial calendar date (ISO string authored; Date instance from a React host)'),
+  allowCreate: z.boolean().optional().describe('Show the "New event" affordance (default false)'),
+  className: z.string().optional().describe('Tailwind classes for the calendar container'),
+  onEventClick: z
+    .function()
+    .optional()
+    .describe('Host-only event click handler (authored JSON cannot produce a function)'),
+  onViewChange: z.function().optional().describe('Host-only view change handler'),
 });
 
 /**

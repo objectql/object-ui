@@ -94,8 +94,9 @@ describe('updateViewConfig stamps the overlay marker (objectui#4227)', () => {
     const { meta } = makeMetaStore();
     const ds = makeDS(meta);
 
-    // `persistViewPatch` spreads the whole active tab into the write; nothing
-    // in that spread should be able to defeat the marker.
+    // `persistViewPatch` USED TO spread the whole active tab into the write
+    // (objectui#5233 narrowed the overlay branch to the patch); nothing a
+    // caller sends — spread or patch — may defeat the marker.
     await ds.updateViewConfig('crm_lead', 'crm_lead.default', { _isOverride: false, rowHeight: 40 } as any);
 
     expect(meta.saveItem).toHaveBeenCalledWith(

@@ -11,7 +11,7 @@ import { authGateEvents } from './auth-gate-events.js';
 import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types.js';
 import { AuthCtx, type AuthContextValue } from './AuthContext.js';
 import { createAuthClient, TokenStorage } from './createAuthClient.js';
-import { ActiveOrganizationStorage } from './createAuthenticatedFetch.js';
+import { ActiveOrganizationStorage, SessionUserScope } from './ActiveOrganizationStorage.js';
 
 /**
  * Prefix of every `MetadataProvider` seed entry in `sessionStorage`
@@ -669,6 +669,37 @@ export function AuthProvider({
       setActiveMemberResolved(true);
     }
   }, [client, enabled, isPreviewMode, previewMode, activeOrganization]);
+
+  /**
+   * objectui#5664 — the session-user-change invariant.
+   *
+   * Declared BEFORE the two effects below on purpose: effects run in the order
+   * their hooks were called, so this settles "whose browser is this" before
+   * `refreshActiveMember` and `refreshOrganizations` read or write anything
+   * org-scoped. `refreshOrganizations` in particular calls
+   * `ActiveOrganizationStorage.set()`, which resolves its key through the
+   * pointer this establishes.
+   *
+   * Keyed on the session user ID rather than wired into each of the five
+   * places that set `user` (mount / `refreshSession` / rotation, sign-in,
+   * sign-up, and the two provider flows). One implementation, and a sign-in
+   * path added later is covered without being told to be.
+   *
+   * Preview and auth-disabled mounts are excluded because their identities are
+   * SYNTHETIC — a fixed `preview-user` / `guest` id. Adopting one would read as
+   * a user change and purge a real user's state on any browser that opened a
+   * marketplace demo.
+   *
+   * What "purge" means, and why it is wholesale rather than key-by-key, is in
+   * `ActiveOrganizationStorage.ts`: it is an allowlist sweep, so the NEXT
+   * un-namespaced key is covered before anyone writes it.
+   */
+  useEffect(() => {
+    if (!enabled || isPreviewMode) return;
+    const sessionUserId = user?.id;
+    if (!sessionUserId) return;
+    SessionUserScope.adopt(sessionUserId);
+  }, [user?.id, enabled, isPreviewMode]);
 
   useEffect(() => {
     refreshActiveMember();

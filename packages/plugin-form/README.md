@@ -306,7 +306,7 @@ at insert regardless of state, so the producer's guarantee covers the
 conditional claim exactly as it covers the unconditional one:
 
 ```ts
-remind_at: Field.datetime({ requiredWhen: 'status == "scheduled"', defaultValue: 'NOW()' }),
+remind_at: Field.datetime({ requiredWhen: 'record.status == "scheduled"', defaultValue: 'NOW()' }),
 ```
 
 | Mode | Declared | Left empty | Effect |

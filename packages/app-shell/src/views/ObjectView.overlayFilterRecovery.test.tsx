@@ -147,8 +147,10 @@ describe('sanitizeViewOverride — what must NOT change', () => {
     });
 
     it('handles the legacy runtime TRIPLE shape a source view may declare', () => {
-        // `persistViewPatch` copies the whole view body into the overlay, so an
-        // overlay's `filter` can be triples rather than spec rule objects.
+        // `persistViewPatch` USED TO copy the whole view body into the overlay
+        // (objectui#5233 narrowed it to the patch), so an overlay's `filter` can
+        // be triples rather than spec rule objects — on any row written before
+        // that landed, and on a saved view's own body.
         expect(sanitizeViewOverride({ name: 'v', filter: [['status', '=', '']] }))
             .toEqual({ name: 'v' });
         const real = { name: 'v', filter: [['status', 'not_in', ['archived']]] };

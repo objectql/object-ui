@@ -1,9 +1,139 @@
 name: Changeset Release
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TWO LANES, ONE FILE: THE VERSION PR REFRESHES ON A CLOCK, npm PUBLISHES ON A
+# MERGE. (objectstack#10850)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Maintainer ruling, 2026-08-21 (verbatim, do not translate):
+#
+#   「我每周才发一次版本,changeset 每个pr 都跑有必要吗」
+#   「立卡吧,version 工作流改成发版前手动触发」
+#   「包括 objectui 仓库」
+#
+# The sister half landed first in `../objectstack` as its `release.yml`
+# `version-pr` job (objectstack#11233 / PR #11238, maintainer 2026-08-23): a
+# 6-hourly `schedule` plus an on-demand dispatch input, which is the later and
+# more specific spelling of "手动触发" and the one mirrored here. Per-PR changeset
+# VALIDATION is explicitly untouched by the ruling — `changeset-guard.yml` and
+# `changeset-presence.yml` still run on every pull request.
+#
+# WHY THE REFRESH LEFT THE PUSH TRIGGER
+# -------------------------------------
+# With pending changesets this file's changesets step recomputed and FORCE-PUSHED
+# the standing "chore: release packages" PR (objectui#5400) on every landing, and
+# `main` takes ~18 merges a working day (the same cadence the concurrency note
+# below measures). The PR therefore never held still long enough for its own
+# branch CI to finish. Releases are weekly, so every one of those refreshes was a
+# CI run spent on bookkeeping nobody reads until release day. Between refreshes
+# `changeset-release/main` is now a static branch whose CI can converge.
+#
+# The staleness window is the whole cost, and it is bounded on demand: dispatch
+# with `refresh_version_pr` when you want the PR current NOW (immediately before
+# a release, say). The bookkeeping is not time-critical — the changesets are
+# already committed on `main`; objectui#5400 is only their rendering.
+#
+# WHY THE SPLIT NEEDS A SEPARATE `lane` JOB, AND NOT JUST AN `if:` ON THE STEP
+# ---------------------------------------------------------------------------
+# ⚠️ Unlike objectstack's `release.yml` — which has a version job and a publish
+# job and could simply give each one its own trigger — this repository publishes
+# from THE SAME changesets step that refreshes the PR. Which of the two it does
+# is not ours to choose per invocation: the action decides from repository state.
+# Its v1 source (`changesets/action`, `src/index.ts`) dispatches on exactly two
+# facts, `hasChangesets` and whether a `publish:` input was given:
+#
+#     case !hasChangesets && !hasPublishScript:  -> nothing
+#     case !hasChangesets &&  hasPublishScript:  -> runPublish   (npm + tags)
+#     case  hasChangesets && !hasNonEmptyChangesets: -> nothing
+#     case  hasChangesets:                       -> runVersion   (force-push PR)
+#
+# Two consequences drive everything below, and they are NOT symmetric:
+#
+#   - Omitting `publish:` makes publishing UNREACHABLE BY CONSTRUCTION. There is
+#     no state in which the action publishes without that input.
+#   - Omitting `version:` does NOT make the refresh unreachable. `runVersion`
+#     falls back to plain `changeset version` when the input is absent, so a step
+#     invoked on a push that still carries pending changesets force-pushes
+#     objectui#5400 no matter how it is configured.
+#
+# So the refresh lane is closed by construction, and the publish lane can only be
+# closed by NOT INVOKING THE ACTION on a push that carries pending changesets.
+# That question — "does `main` carry pending changesets?" — has to be answered
+# before the expensive steps, or the saving the ruling asked for is not made: the
+# job would still install and build on all ~18 daily landings just to decide to
+# do nothing. Hence one cheap job that answers it from a sparse checkout, and one
+# job-level `if:` that states the policy. A second workflow FILE was ruled out
+# (no new lanes to maintain, and the publish invariants would be duplicated where
+# they can drift apart).
+#
+# THE LANES
+# ---------
+#   push to main, `.changeset/` empty   -> PUBLISH. The version PR has just been
+#                                          merged; this is the release. Unchanged
+#                                          from before, including the retry on a
+#                                          later push that still finds it empty,
+#                                          which is how @object-ui/*@17.5.0
+#                                          eventually shipped (see the `pnpm test`
+#                                          note further down).
+#   push to main, changesets pending    -> NOTHING. The whole release job is
+#                                          skipped; the refresh is the clock's
+#                                          job now. This is the ruling.
+#   schedule (6-hourly)                 -> REFRESH ONLY. The changesets step is
+#   or a dispatch with                     invoked WITHOUT a `publish:` script
+#   `refresh_version_pr`                   and WITHOUT npm credentials, so the
+#                                          publish branch is unreachable by
+#                                          construction rather than by an `if:`
+#                                          someone can get wrong.
+#   dispatch without the input          -> NOTHING, loudly. See the input's note.
+#
+# ⛔ A refresh lane that could publish would be a NEW capability, not a moved
+# one: this repository's release act is the version-PR MERGE, a human action. A
+# scheduled tick that reached npm would publish with nobody having merged
+# anything. That is why the publish half is denied to it twice over — no
+# `publish:` input and no `NPM_TOKEN`/`NODE_AUTH_TOKEN` in its env — and why the
+# publish half keeps its trigger exactly as it was. This card changed WHEN the
+# version PR refreshes and nothing else: no gate was added, and none removed.
+#
+# ⚠️ Scheduled runs are queued, not guaranteed on the minute — GitHub delays or
+# drops them under load, and disables them entirely after 60 days of repository
+# inactivity. Both are acceptable HERE and would not be on a publishing lane: a
+# refresh that arrives late leaves objectui#5400 stale, which is visible on the
+# PR and fixable with one dispatch. It is a second reason the publish lane must
+# never be reachable from `schedule`.
+
 on:
+  # The PUBLISH lane (and only it — see the header). Kept exactly as it was: the
+  # merge of the version PR is the release act in this repository.
   push:
     branches:
       - main
+  # The REFRESH lane. GitHub runs `schedule` on the DEFAULT BRANCH exclusively,
+  # which is the only ref this workflow may regenerate the version PR from, so
+  # the trigger cannot reach a ref the lane is not meant to touch.
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      # The on-demand half of the schedule. Its ONLY effect is to select the
+      # refresh lane; it can start nothing the 6-hourly tick does not start, so
+      # it cannot widen anything.
+      #
+      # ⚠️ It defaults to FALSE to match objectstack's spelling of the same
+      # input, which leaves "Run workflow" with default inputs doing NOTHING in
+      # this repository — objectstack's bare dispatch is its publish REPAIR lane,
+      # and this repository has no such lane (publishing here is not gated on an
+      # environment approval, so there is nothing to re-approve). Rather than
+      # invent one under this card, the `lane` job below prints a `::notice::`
+      # saying why nothing ran, so a bare dispatch reports instead of vanishing.
+      refresh_version_pr:
+        description: >-
+          Regenerate the "chore: release packages" PR (objectui#5400) now instead
+          of waiting for the next 6-hourly refresh. Runs the bookkeeping lane
+          ONLY: nothing is published to npm. Leave unchecked and this workflow
+          does nothing at all.
+        required: false
+        default: false
+        type: boolean
 
 # One concurrency group per COMMIT — never one shared by every push to `main`.
 #
@@ -15,10 +145,27 @@ on:
 # 106 that did execute held the group for a median of 33m22s. Median wait for a run
 # that survived: 5m16s (objectui#5404, method and figures from objectui#5395).
 #
-# The last step of this workflow publishes to npm, so a discarded run is a discarded
+# A push run of this workflow can publish to npm, so a discarded run is a discarded
 # publish. `cancel-in-progress: true` is NOT the fix: it keeps one pending slot by
 # killing the run that may be mid-`changeset publish`, which is strictly worse than
 # any wait.
+#
+# ⚠️ "A push run" is where that sentence used to say "this workflow", and the
+# distinction is new with objectstack#10850: since the refresh lane arrived, `push`
+# is no longer the only event here, and `github.sha` is no longer unique per run.
+# A `schedule` tick and a `workflow_dispatch` both read the head of `main`, so two
+# of them between merges land in the SAME group and the older pending one is
+# evicted. That is harmless, and provably so rather than by luck:
+#
+#   - Only refresh runs can be evicted. A push run at `<sha>` is always the FIRST
+#     run in its group — the sha did not exist before that push — so it is never
+#     the pending one, and `cancel-in-progress: false` means it is never cancelled
+#     once started. The publish lane keeps exactly the protection this key was
+#     added for.
+#   - An evicted refresh is nothing lost. The refresh regenerates objectui#5400
+#     from scratch, so the newest run's result is the one that was wanted anyway —
+#     the same reasoning `../objectstack`'s `version-pr` job records for its own
+#     concurrency group.
 #
 # Keyed by `github.sha` the group holds exactly one run, so nothing is ever discarded.
 # Serialisation is not given up — it moves into the "Wait for older release runs" step
@@ -37,8 +184,124 @@ permissions:
   id-token: write
 
 jobs:
+  # ══════════════════════════════════════════════════════════════════════════
+  # Which lane is this run in? (objectstack#10850)
+  # ══════════════════════════════════════════════════════════════════════════
+  # The header explains why this cannot be an `if:` on the changesets step: the
+  # publish lane is only safe on a commit where `.changeset/` is empty, and that
+  # fact has to be known BEFORE install and build, or every one of `main`'s ~18
+  # daily landings still pays for a job that will decide to do nothing.
+  #
+  # This job answers the FACT ("does this commit carry pending changesets?") and
+  # nothing else. The POLICY lives in the release job's `if:` below, in workflow
+  # expression language where it can be read in one place — a shell script that
+  # emitted "the lane" would move the split somewhere no reviewer looks.
+  lane:
+    name: Decide lane
+    runs-on: ubuntu-latest
+    # Narrower than the workflow-level block deliberately: this job reads files
+    # and writes nothing. Declaring any `permissions:` sets every unlisted scope
+    # to `none`, which is the point — a new job on a workflow that can publish
+    # should not inherit the publish credentials' scopes.
+    permissions:
+      contents: read
+    outputs:
+      pending_changesets: ${{ steps.detect.outputs.pending_changesets }}
+    steps:
+      # `.changeset/` only — the whole question is answered by that directory, and
+      # a full checkout of this repository is ~15s that every landing would pay.
+      - name: Check out .changeset
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .changeset
+
+      # ⛔ This must stay a faithful mirror of `readChangesetState` in
+      # `changesets/action`'s `src/index.ts` (it re-exports `@changesets/read`),
+      # because the release job's guard is only correct while the two agree:
+      #
+      #   - every `.changeset/*.md` counts EXCEPT `README.md`;
+      #   - an EMPTY changeset still counts (this repository declares "nothing to
+      #     release" with empty frontmatter — see `changeset-presence.yml` — and
+      #     the action's `hasChangesets` counts those too, which is why a commit
+      #     carrying only empty changesets skips this job's release half. The
+      #     action would have taken its `!hasNonEmptyChangesets` branch and done
+      #     nothing anyway, so the observable behaviour is unchanged);
+      #   - in pre mode ONLY, the ids already listed in `pre.json.changesets` are
+      #     filtered out, because the action filters them and would therefore
+      #     publish where a naive file count says "pending". This repository is
+      #     not in pre mode and has no `pre.json`, so that branch is dormant — it
+      #     is written because the failure it prevents (a pre-mode release that
+      #     silently never publishes) is invisible until release day.
+      #
+      # It fails LOUDLY rather than guessing a lane: this is deterministic file
+      # I/O, so an error here means something is wrong that a default would hide.
+      - name: Detect pending changesets
+        id: detect
+        env:
+          REFRESH_VERSION_PR: ${{ inputs.refresh_version_pr }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          in_pre_mode=false
+          consumed=''
+          if [ -f .changeset/pre.json ]; then
+            if [ "$(jq -r '.mode // ""' .changeset/pre.json)" = 'pre' ]; then
+              in_pre_mode=true
+              consumed=$(jq -r '.changesets[]? // empty' .changeset/pre.json)
+            fi
+          fi
+
+          pending=false
+          for file in .changeset/*.md; do
+            name="${file##*/}"
+            if [ "$name" = 'README.md' ]; then
+              continue
+            fi
+            if [ "$in_pre_mode" = true ] && printf '%s\n' "$consumed" | grep -qxF -- "${name%.md}"; then
+              continue
+            fi
+            echo "pending changeset: ${name}"
+            pending=true
+          done
+
+          echo "pending_changesets=${pending}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo '### Changeset Release lane'
+            echo
+            echo "- event: \`${GITHUB_EVENT_NAME}\`"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo "- pending changesets: \`${pending}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # A bare "Run workflow" reports instead of vanishing — see the input's
+          # note in the `on:` block above.
+          if [ "${GITHUB_EVENT_NAME}" = 'workflow_dispatch' ] && [ "${REFRESH_VERSION_PR}" != 'true' ]; then
+            echo "::notice::Nothing to do. Check 'refresh_version_pr' to regenerate the version PR; publishing to npm happens when that PR is merged, not from a dispatch."
+          fi
+
   release:
     name: Changeset Release
+    needs: lane
+    # The whole lane split, in one place (objectstack#10850). Each half names its
+    # own event rather than leaning on the complement of the other:
+    #
+    #   push + no pending changesets  -> the version PR was merged: PUBLISH.
+    #   push + pending changesets     -> skipped; the clock refreshes the PR now.
+    #   schedule                      -> REFRESH.
+    #   dispatch WITH the input       -> the same refresh, on demand.
+    #   dispatch WITHOUT it           -> skipped; the `lane` job says why.
+    #
+    # `inputs.refresh_version_pr` is guarded by its event test rather than read
+    # bare: the `inputs` context exists only on `workflow_dispatch`, so on a
+    # `schedule` run it is null — falsy, and therefore the right answer by
+    # accident. Say which event we are on, so the guard states the lane split
+    # instead of leaning on a context's emptiness.
+    if: >-
+      (github.event_name == 'push' && needs.lane.outputs.pending_changesets == 'false') ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.refresh_version_pr)
     runs-on: ubuntu-latest
     steps:
       # The queue the `concurrency:` key above cannot provide. GitHub offers exactly two
@@ -150,15 +413,59 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
+      # ══════════════════════════════════════════════════════════════════════
+      # One changesets step per lane, and each one CANNOT do the other's job.
+      # ══════════════════════════════════════════════════════════════════════
+      # These were a single step carrying both `version:` and `publish:`, which
+      # let repository state pick the behaviour (the algorithm is quoted in this
+      # file's header). Splitting them is what makes each lane's limit structural
+      # instead of conditional: the refresh step has no `publish:` input, so no
+      # state — not even a `.changeset/` that has just been emptied by a merge
+      # racing the tick — can make a scheduled run publish. An `if:` cannot say
+      # that; an absent input can.
+      #
+      # The `id:`s are for the log, nothing reads them.
+
+      # PUBLISH. Reachable only from `push`, and the job guard above has already
+      # established that this commit carries no pending changesets — so the
+      # action takes its `!hasChangesets && hasPublishScript` branch, which is
+      # `runPublish`. No `version:` here: it would be dead configuration, and a
+      # reader is better served by a step that carries only what it can use.
+      #
+      # ⚠️ Do not mistake that for a guarantee. Omitting `version:` does NOT
+      # disable the refresh branch — the action falls back to plain
+      # `changeset version` — so what keeps THIS step from force-pushing the
+      # version PR is the job's `needs.lane` guard, and only that. If you ever
+      # relax that guard, this step starts refreshing the PR again.
+      - name: Publish to npm
+        id: changesets-publish
+        if: github.event_name == 'push'
         uses: changesets/action@v1
         with:
-          version: pnpm changeset:version
           publish: pnpm changeset:publish
-          title: 'chore: release packages'
-          commit: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # REFRESH. No `publish:` input, so `runPublish` is unreachable; no npm
+      # credentials in `env:`, so it is unreachable a second time over. Both are
+      # deliberate — this lane runs unattended on a clock, and the release act in
+      # this repository is a human merging the PR it regenerates.
+      #
+      # `version:` must stay `pnpm changeset:version` rather than bare
+      # `changeset version`: the npm script also runs
+      # `scripts/sync-quick-reference-release.mjs`, which is the only thing that
+      # keeps `QUICK_REFERENCE.md` from fossilising at release time
+      # (objectui#5394). `scripts/__tests__/sync-quick-reference-release.test.ts`
+      # reads this very line and fails if it changes.
+      - name: Refresh the version PR
+        id: changesets-version
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          title: 'chore: release packages'
+          commit: 'chore: release packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

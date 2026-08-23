@@ -150,14 +150,26 @@ export function MarketplacePackagePage() {
   const [localResult, setLocalResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
+    // `features.installLocal` is a genuinely separate deployment axis from
+    // `features.marketplace` (a runtime can mount a local kernel install path
+    // with no marketplace proxy at all), so it stays its own check rather than
+    // being folded into the other two predicates.
     if (!getRuntimeConfig().features.installLocal) return;
+    // Its only consumer is `localInstalls.find(...)` in the content branch
+    // below, which is unreachable whenever the page has already returned
+    // `MarketplaceDisabled` or (post-objectui#5583) `MarketplaceAccessDenied`.
+    // Firing anyway would be the same discarded-request class objectui#5533
+    // closed for this page, on the flag that card was not about
+    // (objectui#5620).
+    if (!marketplaceEnabled) return;
+    if (!isAdmin) return;
     let cancelled = false;
     (async () => {
       const items = await listLocalInstalls();
       if (!cancelled) setLocalInstalls(items);
     })();
     return () => { cancelled = true; };
-  }, [packageId, localResult]);
+  }, [packageId, localResult, marketplaceEnabled, isAdmin]);
 
   // Seed cloud-install state so the primary CTA renders as "Installed" on
   // first paint instead of inviting another install.
