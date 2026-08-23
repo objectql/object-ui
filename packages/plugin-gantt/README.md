@@ -90,18 +90,16 @@ pnpm add @object-ui/plugin-gantt
 // In your app entry point (e.g., App.tsx or main.tsx)
 import '@object-ui/plugin-gantt';
 
-// Now you can use gantt types in your schemas
+// Now you can use gantt types in your schemas.
+// The gantt is RECORD-DRIVEN: it names a data source and the fields to read.
+// It does not take a task array — see "Schema API" below.
 const schema = {
   type: 'gantt',
-  tasks: [
-    {
-      id: '1',
-      name: 'Project Setup',
-      start: '2024-01-01',
-      end: '2024-01-05',
-      progress: 100
-    }
-  ]
+  objectName: 'project_tasks',
+  titleField: 'name',
+  startDateField: 'start_date',
+  endDateField: 'end_date',
+  progressField: 'completion_percentage'
 };
 ```
 
@@ -188,19 +186,89 @@ ComponentRegistry.register('my-gantt', ObjectGanttRenderer, {
 
 ### Gantt Chart
 
-Display project timeline with tasks:
+The gantt node is **record-driven**: it names *where records come from* and
+*which fields* carry the schedule. It does not carry a task array — the task
+objects further down this page are the component's runtime shape, produced by
+`ObjectGantt` from each record.
+
+`ObjectGantt` decides what to render from exactly two reads
+(`src/ObjectGantt.tsx`):
+
+**1. Where the records come from — `getDataConfig`.** The first of these three
+that is present wins; if none is present there is no data config at all and the
+chart renders empty:
 
 ```typescript
 {
   type: 'gantt',
-  tasks: GanttTask[],
-  viewMode?: 'day' | 'week' | 'month',
-  onTaskClick?: (task) => void,
-  onTaskUpdate?: (task) => void,
-  readOnly?: boolean,          // disable all editing (drag/resize/inline/delete/link/undo)
-  className?: string
+
+  // Pick ONE of the three:
+  objectName: 'project_tasks',                          // load through the host DataSource
+  // data: { provider: 'value', items: [ /* records */ ] },  // inline records
+  // staticData: [ /* records */ ],                          // shorthand for the above
 }
 ```
+
+`data` is the spec's `ViewData` union — `{ provider: 'object', object }`,
+`{ provider: 'value', items }`, `{ provider: 'api', read, write }` or
+`{ provider: 'schema', schemaId }`.
+
+**2. How the fields map — `getGanttConfig`.** Two spellings, checked in order.
+Top-level keys are used **only when `startDateField` and `endDateField` are both
+present**; otherwise the whole `gantt` block is read instead:
+
+```typescript
+{
+  type: 'gantt',
+  objectName: 'project_tasks',
+
+  // (a) flat spelling — requires BOTH date fields to be taken
+  startDateField: 'start_date',
+  endDateField: 'end_date',
+  titleField: 'name',                 // defaults to 'name'
+  progressField: 'completion_percentage',
+  dependenciesField: 'dependent_task_ids',
+  colorField: 'bar_color',
+  parentField: 'parent_task',
+  typeField: 'task_kind',
+  viewMode: 'week',                   // 'day'|'week'|'month'|'quarter'|'year'
+
+  // (b) …or the same configuration as one block:
+  // gantt: { startDateField: 'start_date', endDateField: 'end_date', … }
+}
+```
+
+`viewMode` is real authoring surface (`ObjectGanttSchema`, derived from the
+spec's `GanttConfigSchema.viewMode`) and is honoured by **both** renderer
+branches — the timeline and the resource-workload grid. It reaches the renderer
+through `getGanttConfig`, so it only takes effect alongside a taken gantt
+config: as a top-level key it needs `startDateField` + `endDateField` beside it,
+or it can sit inside the `gantt` block. Omitting it is meaningful — a persisted
+layout then seeds the granularity before the renderer's `'day'` fallback.
+
+#### Keys this page used to teach that the renderer never reads
+
+Earlier revisions of this README showed a task-array schema. Those keys have no
+read site anywhere in `src/` — a schema built from them renders an **empty
+chart with no diagnostic**, because `type: 'gantt'` *is* a registered type, so
+the node mounts and simply finds nothing to draw:
+
+| Key shown before | Status | Use instead |
+| --- | --- | --- |
+| `tasks` | never read off the schema | `objectName` / `data` / `staticData` |
+| `object` | never read | `objectName` |
+| `nameField` | never read | `titleField` |
+| `startField` | never read | `startDateField` |
+| `endField` | never read | `endDateField` |
+| `fields: { name, start, end, … }` | never read | the flat `*Field` keys, or the `gantt` block |
+| `onTaskClick`, `onTaskUpdate` | never read *off the schema* | React props on `<ObjectGantt>` / `<GanttView>` — functions do not belong in serializable metadata |
+| `className` | never read off the schema | a React prop on `<ObjectGantt>` |
+
+Keys that **are** read but only through a cast, so they are easy to miss when
+grepping — all of them genuine, all optional: `readOnly` (disables every edit
+path — drag/resize/inline/delete/link/undo), `mobileReadOnly`, `markers`,
+`navigation`, `skipWeekends`, `holidays`, `criticalPath`, `showBaselines`,
+`persistLayout` / `viewName`, `label`.
 
 ### Task Structure
 
@@ -235,76 +303,101 @@ the full declaration.
 
 ### Basic Gantt Chart
 
+Inline records, no backend — `data.items` carries the records and the `*Field`
+keys say which of their fields the chart reads. Note that the record field
+names are yours; only the `*Field` keys are fixed vocabulary.
+
 ```typescript
 const schema = {
   type: 'gantt',
   viewMode: 'week',
-  tasks: [
-    {
-      id: '1',
-      name: 'Project Planning',
-      start: '2024-01-01',
-      end: '2024-01-07',
-      progress: 100,
-      color: 'bg-blue-500'
-    },
-    {
-      id: '2',
-      name: 'Design Phase',
-      start: '2024-01-08',
-      end: '2024-01-21',
-      progress: 75,
-      dependencies: ['1'],
-      color: 'bg-purple-500'
-    },
-    {
-      id: '3',
-      name: 'Development',
-      start: '2024-01-22',
-      end: '2024-02-15',
-      progress: 30,
-      dependencies: ['2'],
-      color: 'bg-green-500'
-    },
-    {
-      id: '4',
-      name: 'Testing',
-      start: '2024-02-16',
-      end: '2024-02-28',
-      progress: 0,
-      dependencies: ['3'],
-      color: 'bg-orange-500'
-    }
-  ]
+  startDateField: 'start',
+  endDateField: 'end',
+  titleField: 'name',
+  progressField: 'progress',
+  dependenciesField: 'dependencies',
+  colorField: 'color',
+  data: {
+    provider: 'value',
+    items: [
+      {
+        id: '1',
+        name: 'Project Planning',
+        start: '2024-01-01',
+        end: '2024-01-07',
+        progress: 100,
+        // bar fill goes straight into an inline `backgroundColor` —
+        // it must be a CSS color, NOT a Tailwind class
+        color: '#3b82f6'
+      },
+      {
+        id: '2',
+        name: 'Design Phase',
+        start: '2024-01-08',
+        end: '2024-01-21',
+        progress: 75,
+        dependencies: ['1'],
+        color: '#a855f7'
+      },
+      {
+        id: '3',
+        name: 'Development',
+        start: '2024-01-22',
+        end: '2024-02-15',
+        progress: 30,
+        dependencies: ['2'],
+        color: '#22c55e'
+      },
+      {
+        id: '4',
+        name: 'Testing',
+        start: '2024-02-16',
+        end: '2024-02-28',
+        progress: 0,
+        dependencies: ['3'],
+        color: '#f97316'
+      }
+    ]
+  }
 };
 ```
 
 ### Interactive Gantt
 
-```typescript
-const schema = {
-  type: 'gantt',
-  tasks: [/* tasks */],
-  onTaskClick: (task) => {
-    console.log('Task clicked:', task);
-    // Show task details
-  },
-  onTaskUpdate: (updatedTask) => {
-    console.log('Task updated:', updatedTask);
-    // Save changes to backend
-  }
-};
+Callbacks are **not** schema keys — the schema is serializable metadata, and a
+function cannot survive it. Through the registered `gantt` / `object-gantt`
+types the whole CRUD lifecycle is already wired to the host `DataSource`
+(create/edit/drag/delete/detail drawer), so there is usually nothing to pass.
+When you render the component yourself, hand the callbacks in as React props:
+
+```tsx
+import { ObjectGantt } from '@object-ui/plugin-gantt';
+
+<ObjectGantt
+  schema={{
+    type: 'gantt',
+    objectName: 'project_tasks',
+    startDateField: 'start_date',
+    endDateField: 'end_date',
+    titleField: 'name',
+  }}
+  dataSource={dataSource}
+  onTaskClick={(record) => console.log('Task clicked:', record)}
+/>
 ```
+
+To turn editing off from the metadata instead, set `readOnly: true` on the
+schema — that one *is* read.
 
 ### With ObjectQL Integration
 
 ```typescript
 const schema = {
   type: 'object-gantt',
-  object: 'project_tasks',
-  nameField: 'name',
-  startField: 'start_date',
-  endField: 'end_date',
+  objectName: 'project_tasks',
+  titleField: 'name',
+  startDateField: 'start_date',
+  endDateField: 'end_date',
   progressField: 'completion_percentage',
   dependenciesField: 'dependent_task_ids'
 };
@@ -318,6 +411,7 @@ The Gantt chart renders one timeline column per unit of the active scale:
 - **week** - one column per week (starting Monday)
 - **month** - one column per calendar month
 - **quarter** - one column per quarter (Q1–Q4)
+- **year** - one column per year (decade band above)
 
 A two-row header shows the grouping above the units (months above days/weeks,
 years above months/quarters). The toolbar's segmented control switches scales
@@ -327,11 +421,17 @@ Drag snapping follows the active scale: bars snap to days in day view, weeks
 in week view, and whole calendar months/quarters (duration preserved) in the
 coarse views.
 
+Set the initial scale with `viewMode`. It is read through the gantt config, so
+it needs the field mapping beside it (or a `gantt` block of its own):
+
 ```typescript
 const schema = {
   type: 'gantt',
   viewMode: 'month',
-  tasks: [/* tasks */]
+  objectName: 'project_tasks',
+  startDateField: 'start_date',
+  endDateField: 'end_date',
+  titleField: 'name'
 };
 ```
 
@@ -350,12 +450,19 @@ Zero-duration tasks (`end <= start`) — or tasks whose `type` is
 can be dragged to move but not resized; dependency arrows anchor at the
 diamond center.
 
+These are runtime `GanttTask` objects (what `<GanttView>` takes directly) —
+dates are real `Date`s and the label field is `title`. Coming from records
+instead, the same tree is configured with `parentField` / `typeField`.
+
 ```typescript
-const tasks = [
-  { id: 'phase1', title: 'Phase 1', start: '…', end: '…', progress: 0 },        // summary (has children)
-  { id: 't1', title: 'Design', parent: 'phase1', start: '…', end: '…', progress: 80 },
-  { id: 't2', title: 'Build', parent: 'phase1', start: '…', end: '…', progress: 20 },
-  { id: 'launch', title: 'Launch', type: 'milestone', start: '2024-07-01', end: '2024-07-01', progress: 0 },
+import type { GanttTask } from '@object-ui/plugin-gantt';
+
+const tasks: GanttTask[] = [
+  // summary (has children) — its span and progress are rolled up
+  { id: 'phase1', title: 'Phase 1', start: new Date('2024-06-01'), end: new Date('2024-06-30'), progress: 0 },
+  { id: 't1', title: 'Design', parent: 'phase1', start: new Date('2024-06-01'), end: new Date('2024-06-14'), progress: 80 },
+  { id: 't2', title: 'Build', parent: 'phase1', start: new Date('2024-06-15'), end: new Date('2024-06-30'), progress: 20 },
+  { id: 'launch', title: 'Launch', type: 'milestone', start: new Date('2024-07-01'), end: new Date('2024-07-01'), progress: 0 },
 ];
 ```
 
@@ -413,32 +520,37 @@ Through the schema, pass the same array as `markers` on the gantt node.
 Link tasks to show dependencies:
 
 ```typescript
-const tasks = [
+import type { GanttTask } from '@object-ui/plugin-gantt';
+
+const tasks: GanttTask[] = [
   {
     id: 'task-1',
-    name: 'Foundation',
-    start: '2024-01-01',
-    end: '2024-01-10',
+    title: 'Foundation',
+    start: new Date('2024-01-01'),
+    end: new Date('2024-01-10'),
     progress: 100
   },
   {
     id: 'task-2',
-    name: 'Building',
-    start: '2024-01-11',
-    end: '2024-01-25',
+    title: 'Building',
+    start: new Date('2024-01-11'),
+    end: new Date('2024-01-25'),
     progress: 50,
     dependencies: ['task-1']  // Depends on task-1
   },
   {
     id: 'task-3',
-    name: 'Finishing',
-    start: '2024-01-26',
-    end: '2024-02-05',
+    title: 'Finishing',
+    start: new Date('2024-01-26'),
+    end: new Date('2024-02-05'),
     progress: 0,
     dependencies: ['task-2']  // Depends on task-2
   }
 ];
 ```
+
+Through a data source the same links come from `dependenciesField` on the
+schema, and the tree/label fields from `parentField` / `titleField`.
 
 Dependencies render as arrows from the predecessor bar to the dependent bar.
 Arrows follow bars live while dragging, and hovering a bar highlights its links.
@@ -464,8 +576,13 @@ be a CSV string (`"task1, task2"`), an array of ids, or an array of objects —
 
 ## Integration with Data Sources
 
-```typescript
+The adapter is **not** a schema key — it reaches the renderer through the
+renderer context (or as an explicit `dataSource` prop), while the schema names
+the object and the fields:
+
+```tsx
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import { ObjectGantt } from '@object-ui/plugin-gantt';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
@@ -474,16 +591,21 @@ const dataSource = createObjectStackAdapter({
 
 const schema = {
   type: 'object-gantt',
-  dataSource,
-  object: 'tasks',
-  fields: {
-    name: 'task_name',
-    start: 'start_date',
-    end: 'end_date',
-    progress: 'progress_percent'
-  }
+  objectName: 'tasks',
+  titleField: 'task_name',
+  startDateField: 'start_date',
+  endDateField: 'end_date',
+  progressField: 'progress_percent'
 };
+
+<ObjectGantt schema={schema} dataSource={dataSource} />
 ```
+
+⚠️ A `dataSource` key **on the schema node** is a different thing with the same
+name: it is the spec's `PageComponentSchema.dataSource` *binding* —
+`{ object, view?, filter?, sort?, limit? }`, a declarative reference resolved
+against the host — **not** an adapter instance. The renderer guards against the
+confusion explicitly, so putting a live adapter there does not wire anything up.
 
 ## TypeScript Support
 
