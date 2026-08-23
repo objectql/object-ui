@@ -5,11 +5,12 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * objectui#5378 + objectui#5377 — the getting-started guide's own `object-grid`
- * snippets are RENDERED here, not read.
+ * objectui#5378 + objectui#5377 + objectui#5446 — the getting-started guide's
+ * own `object-grid` snippets are RENDERED here, not read.
  *
  * `content/docs/guide/building-crud-app.md` is the first-run CRUD walkthrough,
- * and three independent axes each took it from "works" to "renders nothing":
+ * and four independent axes each took it from "works" to "renders nothing" (or,
+ * for the fourth, to "renders something, but not what the prose claims"):
  *
  *  1. **registration** — its `setup.ts` loaded `@object-ui/components` and
  *     `@object-ui/fields` only, so `object-grid` resolved to the registry's
@@ -20,12 +21,26 @@
  *  3. **keys** (#5377) — it named the object with `object`, and this block
  *     declares `objectName` (`GRID_QUERY_INPUTS`, `required: true`). Measured
  *     `find` **0** even under the right wiring.
+ *  4. **capability** (#5446) — Step 7 named a top-level `view` and a
+ *     `data.queryParams.$search`, neither of which `ObjectGrid` reads at all
+ *     (`schema.view` — zero hits; `data` is the `ViewData` union, `queryParams`
+ *     is not one of its arms). Measured identical `find` params with and
+ *     without those two keys. The maintainer ruled (2026-08-22) that the guide
+ *     should teach the declarative binding those blocks DO read —
+ *     `dataSource: { object, view }`, resolved by `ElementDataSourceGate`
+ *     against the object's saved views — and accept the resulting trade: a
+ *     `view` the backend does not publish now renders a configuration-error
+ *     panel instead of a silently unfiltered grid. The describe block at the
+ *     bottom of this file measures that the rewritten binding really does
+ *     change `find`'s params, with the old inert shape reproduced as a control.
  *
- * Every intermediate state passes a diff review and renders nothing, which is
+ * Every intermediate state passes a diff review and renders nothing (or, for
+ * axis 4, renders the SAME thing regardless of the prose's claims), which is
  * why this file evaluates the guide's literals instead of asserting about their
  * text: the schema objects below are the ones the published page hands a reader.
- * The `find` **0 → 1** contrast for each axis is pinned so a future edit that
- * reintroduces one fails here rather than on a reader's screen.
+ * The `find` **0 → 1** contrast for axes 1-3, and the `find`-params contrast for
+ * axis 4, are pinned so a future edit that reintroduces one fails here rather
+ * than on a reader's screen.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -43,6 +58,11 @@ import '../index';
 
 const GUIDE = path.resolve(__dirname, '../../../../content/docs/guide/building-crud-app.md');
 
+// `list_views` mirrors the guide's own Step 3 `TaskSchema.list_views` exactly
+// (same two ids, same `active` filter/sort) — the fourth axis below measures
+// whether Step 7's `dataSource: { object, view }` binding resolves against a
+// backend that publishes what the guide instructs the reader to declare, not
+// against a richer fixture this file invented for its own convenience.
 const TASK_SCHEMA = {
   name: 'task',
   label: 'Task',
@@ -52,6 +72,18 @@ const TASK_SCHEMA = {
     priority: { name: 'priority', type: 'text', label: 'Priority' },
     assignee: { name: 'assignee', type: 'text', label: 'Assignee' },
     due_date: { name: 'due_date', type: 'date', label: 'Due Date' },
+  },
+  list_views: {
+    all: {
+      label: 'All Tasks',
+      columns: ['title', 'status', 'priority', 'assignee', 'due_date'],
+    },
+    active: {
+      label: 'Active',
+      columns: ['title', 'status', 'priority', 'assignee', 'due_date'],
+      filter: [['status', '!=', 'Done']],
+      sort: [{ field: 'priority', order: 'asc' }],
+    },
   },
 };
 
@@ -226,5 +258,121 @@ describe('object-grid — a block that resolves no adapter says so (objectui#537
     );
     await new Promise((r) => setTimeout(r, 50));
     expect(queryByTestId('object-grid-no-data-source')).toBeNull();
+  });
+});
+
+describe('object-grid — Step 7’s rewritten dataSource binding actually changes find() (objectui#5446)', () => {
+  // Control: reproduces the card's own two-row table. The OLD Step 7 shape —
+  // a top-level `view` plus a `data.queryParams.$search` that is not a
+  // `ViewData` arm — versus the same query with both keys dropped. Neither is
+  // read by `ObjectGrid`, so `find`'s params must come out identical. This is
+  // the proof the measuring instrument below actually detects a difference
+  // when the guide's rewritten form causes one.
+  it('control: the old inert `view` + `data.queryParams` shape changes nothing', async () => {
+    const withInertKeys = {
+      type: 'object-grid',
+      objectName: 'task',
+      view: 'active',
+      data: { objectSchema: TASK_SCHEMA, queryParams: { $search: 'foo' } },
+    };
+    const withoutThem = { type: 'object-grid', objectName: 'task' };
+
+    const adapterA = makeAdapter();
+    render(
+      <SchemaRendererProvider dataSource={adapterA as any}>
+        <SchemaRenderer schema={withInertKeys as any} />
+      </SchemaRendererProvider>,
+    );
+    await waitFor(() => expect(adapterA.find).toHaveBeenCalledTimes(1));
+    const paramsA = adapterA.find.mock.calls[0][1];
+    cleanup();
+
+    const adapterB = makeAdapter();
+    render(
+      <SchemaRendererProvider dataSource={adapterB as any}>
+        <SchemaRenderer schema={withoutThem as any} />
+      </SchemaRendererProvider>,
+    );
+    await waitFor(() => expect(adapterB.find).toHaveBeenCalledTimes(1));
+    const paramsB = adapterB.find.mock.calls[0][1];
+
+    expect(paramsA).toEqual(paramsB);
+    expect(paramsA.$filter).toBeUndefined();
+    expect(paramsA.$orderby).toBeUndefined();
+  });
+
+  it('the guide’s own Step 7 literal DOES change find() params — same schema object, two view names', async () => {
+    // The literal the published page hands a reader, read out of the doc the
+    // same way the rest of this file does — not a hand-rolled analog.
+    const [step7] = guideSchemas('object-grid').slice(2);
+    expect(step7.dataSource).toEqual({ object: 'task', view: 'all' });
+
+    const allView = { ...step7, dataSource: { ...step7.dataSource, view: 'all' } };
+    const adapterAll = makeAdapter();
+    render(
+      <SchemaRendererProvider dataSource={adapterAll as any}>
+        <SchemaRenderer schema={allView as any} />
+      </SchemaRendererProvider>,
+    );
+    await waitFor(() => expect(adapterAll.find).toHaveBeenCalledTimes(1));
+    const paramsAll = adapterAll.find.mock.calls[0][1];
+    cleanup();
+
+    // Simulates clicking the "Active" switcher button: `activeView` becomes
+    // 'active', re-evaluating the SAME schema literal with a different view.
+    const activeView = { ...step7, dataSource: { ...step7.dataSource, view: 'active' } };
+    const adapterActive = makeAdapter();
+    render(
+      <SchemaRendererProvider dataSource={adapterActive as any}>
+        <SchemaRenderer schema={activeView as any} />
+      </SchemaRendererProvider>,
+    );
+    await waitFor(() => expect(adapterActive.find).toHaveBeenCalledTimes(1));
+    const paramsActive = adapterActive.find.mock.calls[0][1];
+
+    // `all` has no filter/sort of its own — same shape as the inert-key
+    // control above, which is exactly the point: a correctly-resolved default
+    // view is indistinguishable from "nothing was read" until you switch views.
+    expect(paramsAll.$filter).toBeUndefined();
+    expect(paramsAll.$orderby).toBeUndefined();
+    // `active` (`status != Done`, sort `priority asc`) DOES reach the wire.
+    expect(paramsActive.$filter).toEqual([['status', '!=', 'Done']]);
+    expect(paramsActive.$orderby).toBe('priority asc');
+    expect(paramsActive).not.toEqual(paramsAll);
+  });
+
+  it('a view name the backend does not publish renders a configuration-error panel, not a silently unfiltered grid', async () => {
+    // The behavioural trade the maintainer ruled acceptable (2026-08-22):
+    // `archived` is not one of `TASK_SCHEMA.list_views`'s keys.
+    const [step7] = guideSchemas('object-grid').slice(2);
+    const unpublished = { ...step7, dataSource: { ...step7.dataSource, view: 'archived' } };
+
+    const adapter = makeAdapter();
+    const { findByTestId } = render(
+      <SchemaRendererProvider dataSource={adapter as any}>
+        <SchemaRenderer schema={unpublished as any} />
+      </SchemaRendererProvider>,
+    );
+    const panel = await findByTestId('object-grid-datasource-error');
+    expect(panel).toHaveAttribute('role', 'alert');
+    expect(panel.textContent).toContain('archived');
+    // Explicit failure, not a wider answer: the grid never queried at all.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(adapter.find).not.toHaveBeenCalled();
+  });
+
+  it('with no adapter at all, the binding-only schema still fails loudly — no silent empty grid', async () => {
+    const [step7] = guideSchemas('object-grid').slice(2);
+    const { container, queryByTestId } = render(<SchemaRenderer schema={step7 as any} />);
+    await new Promise((r) => setTimeout(r, 50));
+    // Whichever panel this path takes (`object-grid` carries no `objectName`
+    // of its own here, only `dataSource.object`, so the "no data source"
+    // panel's `requiresDataSource` check does not fire the way it does for
+    // Steps 5/6 — the binding's own "cannot list saved views" report takes
+    // over instead), it must not be a blank/empty grid.
+    expect(container.textContent).not.toContain('Write the guide');
+    expect(
+      queryByTestId('object-grid-no-data-source') ?? queryByTestId('object-grid-datasource-error'),
+    ).not.toBeNull();
   });
 });

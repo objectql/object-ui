@@ -135,7 +135,7 @@ export const TaskSchema = {
       label: 'Active',
       columns: ['title', 'status', 'priority', 'assignee', 'due_date'],
       filter: [['status', '!=', 'Done']],
-      sort: [['priority', 'asc']],
+      sort: [{ field: 'priority', order: 'asc' }],
     },
   },
 };
@@ -211,7 +211,6 @@ against that one adapter:
 ```tsx
 import './setup';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
-import { TaskSchema } from './schemas/task';
 import { RestDataSource } from './data/rest-data-source';
 
 const dataSource = new RestDataSource('https://api.example.com/v1');
@@ -224,8 +223,6 @@ function App() {
           schema={{
             type: 'object-grid',
             objectName: 'task',
-            view: 'all',
-            data: { objectSchema: TaskSchema },
           }}
         />
       </div>
@@ -236,7 +233,11 @@ function App() {
 export default App;
 ```
 
-This renders a fully interactive data grid with sortable columns, pagination, and row actions — all driven by the `TaskSchema` you defined.
+This renders a fully interactive data grid with sortable columns, pagination,
+and row actions. `object-grid` fetches the object's schema itself — through
+your data source's `getObjectSchema` (Step 4) — to generate the columns and
+field types, so nothing from `src/schemas/task.ts` needs to be imported here;
+that file only has to describe what your backend actually serves.
 
 Two details in that snippet are load-bearing, and getting either wrong produces
 a grid that draws its header and nothing else:
@@ -270,7 +271,7 @@ carries a data source of its own:
 
 ```tsx
 <SchemaRenderer
-  schema={{ type: 'object-grid', objectName: 'task', view: 'all', data: { objectSchema: TaskSchema } }}
+  schema={{ type: 'object-grid', objectName: 'task' }}
   onRowClick={(row: any) => { setEditId(row.id); setShowForm(true); }}
 />
 
@@ -281,7 +282,6 @@ carries a data source of its own:
       objectName: 'task',
       mode: editId ? 'edit' : 'create',
       recordId: editId,
-      data: { objectSchema: TaskSchema },
     }}
     onSubmit={() => setShowForm(false)}
     onCancel={() => setShowForm(false)}
@@ -306,36 +306,46 @@ you pass as `initialData` / `initialValues` outrank a schema default.
 
 ## Step 7: Add Filters and Search
 
-Leverage the `active` list view you defined in Step 3, or add dynamic search:
+Leverage the `active` list view you defined in Step 3 by binding the grid to
+it declaratively, with the spec's per-element `dataSource` binding
+(`dataSource: { object, view }`). This is the same binding `list-view`,
+`detail-view` and every other object-bound block in this repo read —
+`ElementDataSourceGate` resolves `view` against the object's saved views
+(fetched through your data source's `getObjectSchema` / `listViews`) and
+composes that view's `filter` and `sort` onto the query for you:
 
 ```tsx
 const [activeView, setActiveView] = useState('all');
-const [searchQuery, setSearchQuery] = useState('');
 
-// View switcher buttons
+// View switcher buttons — the names match the `list_views` keys from Step 3.
 <button onClick={() => setActiveView('all')}>All Tasks</button>
 <button onClick={() => setActiveView('active')}>Active</button>
-<input
-  placeholder="Search tasks..."
-  value={searchQuery}
-  onChange={(e) => setSearchQuery(e.target.value)}
-/>
 
-// Grid responds to view and search changes
+// The grid re-resolves `view` whenever `activeView` changes.
 <SchemaRenderer
   schema={{
     type: 'object-grid',
-    objectName: 'task',
-    view: activeView,
-    data: {
-      objectSchema: TaskSchema,
-      queryParams: searchQuery ? { $search: searchQuery } : undefined,
-    },
+    dataSource: { object: 'task', view: activeView },
   }}
 />
 ```
 
-The `filter` and `sort` arrays defined in the `active` list view are applied automatically when that view is selected. The `$search` query param is passed through to your `DataSource.find()` method.
+Selecting **Active** re-queries with the `active` view's `filter`
+(`status != Done`) and `sort` (`priority asc`) applied — you never assemble
+`$filter` / `$orderby` by hand. A view name your backend does not publish is
+reported, not silently ignored: swap `activeView` for a name outside
+`list_views` and the grid renders a configuration-error panel in place of the
+table, the same way an unresolved `objectName` does (Step 5). A page that
+instead fell back to the object's full, unfiltered scope would look like it
+worked while returning every record regardless of which button was pressed —
+so this block does not offer that fallback.
+
+**Search needs no binding at all.** `object-grid` renders its own search box
+in the toolbar — on by default — and typing there drives
+`DataSource.find()`'s `$search` parameter directly; there is no separate
+query-param key to author. Add `searchableFields: ['title', 'description']`
+to the schema to narrow which fields the server matches; leave it out and the
+server decides.
 
 ## Step 8: Add a Detail View
 
