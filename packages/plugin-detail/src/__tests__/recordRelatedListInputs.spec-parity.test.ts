@@ -96,10 +96,18 @@ describe('record:related_list — registry inputs vs @objectstack/spec', () => {
 
   it('publishes `relationshipValueField`, which the renderer has read all along', () => {
     // A KEY-reachability claim, so the criterion is that the key SURVIVES the
-    // parse rather than merely that the parse succeeds. `RecordRelatedListProps`
-    // is a strip-mode `z.object`: an UNDECLARED key also parses green, it is just
-    // silently gone from `data` afterwards — which is exactly how this gap stayed
-    // invisible for as long as it did.
+    // parse rather than merely that the parse succeeds. The verdict behind that
+    // choice holds on every pin — an UNDECLARED top-level key is not an authoring
+    // surface — but the contract states it two ways depending on the installed
+    // `@objectstack/spec`: the closed props schemas refuse it with a named
+    // `unrecognized_keys`, while the older strip-mode `z.object`s parsed it green
+    // and dropped it from `data` in silence, which is exactly how this gap stayed
+    // invisible for as long as it did. Key survival is the criterion that reads
+    // the same either way; `success === true` does not, because on a stripping
+    // pin an undeclared key gets that too. For the behavioural probe of which way
+    // the installed pin says it, see `specRefusesUnknownTopLevelKeys` in the
+    // sibling `recordHighlightsInputs.spec-parity.test.ts` — strictness is per
+    // schema, so that probe is the shape to copy, not evidence about this one.
     expect(specTopLevelKeys()).toContain('relationshipValueField');
     const parsed = RecordRelatedListProps.safeParse({ ...baseline, relationshipValueField: 'name' });
     expect(parsed.success).toBe(true);

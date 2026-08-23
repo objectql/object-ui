@@ -275,10 +275,19 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // in objectui#3407.
     //
     // A KEY-reachability claim, so the criterion is that the key SURVIVES the
-    // parse. These props schemas are strip-mode `z.object`s: an undeclared key
-    // is dropped from `data` with no error at all, which is exactly why the gap
-    // was silent — so "it is still there afterwards" is the proof, not
-    // `success === true` (which an undeclared key also gets).
+    // parse. The verdict behind that choice is the same on every pin — an
+    // undeclared top-level key is not an authoring surface — while the contract
+    // states it two ways depending on the installed `@objectstack/spec`: the
+    // closed props schemas refuse it with a named `unrecognized_keys` (the
+    // top-level twin of `specRefusesUnknownSectionKeys` above), where the older
+    // strip-mode `z.object`s dropped it from `data` with no error at all, which
+    // is exactly why the gap was silent. So "it is still there afterwards" is the
+    // proof on both, and `success === true` is not — on a stripping pin an
+    // undeclared key gets that too. Probed behaviourally rather than off a
+    // version string: `specRefusesUnknownTopLevelKeys` in the sibling
+    // `recordHighlightsInputs.spec-parity.test.ts` models the shape, and
+    // strictness is per schema, so it is the pattern rather than a reading of
+    // this one.
     expect(specTopLevelKeys()).toContain('hideFields');
     const parsed = RecordDetailsProps.safeParse({ hideFields: ['phone'] });
     expect(parsed.success).toBe(true);
