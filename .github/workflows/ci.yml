@@ -703,11 +703,13 @@ jobs:
       # That the gate fires on a merged report is a code path, not a guess:
       # `mergeReports()` calls `generateReports(coverageMap, true)`, which ends
       # in `if (this.options.thresholds) await this.reportThresholds(...)`. It
-      # is also measured end-to-end on the pull request for objectui#5436 —
-      # same blob set, threshold moved across the report's own number, exit 0
-      # one side and exit 1 the other. #5403's CI ablation could not separate
-      # the two (its blobs carried a failing shard, so both legs went red for
-      # that reason), which is why the demonstration was owed.
+      # is also measured, not asserted (objectui#5436): against one real blob
+      # set reporting 38.4% lines, `--coverage.thresholds.lines=38` exits 0 and
+      # `=39` exits 1 with `ERROR: Coverage for lines (38.4%) does not meet
+      # global threshold (39%)`. Only the threshold moved between the two runs.
+      # #5403's CI ablation could not separate the two legs (its blobs carried
+      # a failing shard, so both went red for that reason), which is why the
+      # demonstration was owed here.
       #
       # `generateReports()` writes the json reporter BEFORE it evaluates the
       # thresholds, which is what lets the publish step below still capture a
@@ -767,10 +769,24 @@ jobs:
             exit 0
           fi
 
-          # The gate RAN and said no. Distinguished from the case below because
-          # they call for opposite actions: this one is a real coverage
+          # The gate RAN and said no. Distinguished from the case below
+          # because they call for opposite actions: this one is a real coverage
           # regression to fix, that one is a broken lane to repair.
-          if [ "$MERGE" = 'failure' ]; then
+          #
+          # `report=success` is what separates them, and it is load-bearing
+          # rather than decorative. `generateReports()` writes the configured
+          # reporters in a loop and only THEN evaluates the thresholds, so a
+          # breach leaves a complete `coverage/` behind and the publish step
+          # succeeds; a merge that dies earlier (an unreadable blob, a version
+          # mismatch) writes no report, `if-no-files-found: error` makes the
+          # publish step red too, and this run falls through to the "gate did
+          # not run" branch below — where it belongs. Measured on the pull
+          # request for #5436: same blob set, `--coverage.thresholds.lines`
+          # moved from 38 to 39 across the report's own 38.4%, exit 0 then
+          # exit 1 with `ERROR: Coverage for lines (38.4%) does not meet global
+          # threshold (39%)`, and a byte-identical `coverage-final.json` left
+          # behind on BOTH legs.
+          if [ "$MERGE" = 'failure' ] && [ "$REPORT" = 'success' ]; then
             echo "::error title=Coverage thresholds breached::shards=$SHARDS blobs=$BLOBS merge=failure report=$REPORT — the merged report for $GITHUB_SHA was produced and the configured thresholds were enforced over it, and they FAILED"
             {
               echo "### Coverage: the thresholds were enforced and BREACHED"
