@@ -342,8 +342,9 @@ const KanbanConfig = SpecKanbanConfigSchema.partial().extend({
 
 const CalendarConfig = SpecCalendarConfigSchema.partial().extend({
   // objectui-only: the calendar renderer's initial view mode. No spec counterpart —
-  // promote it rather than growing this extension.
-  defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional().describe('Initial calendar view mode'),
+  // promote it rather than growing this extension. `'agenda'` was retired
+  // (objectui#5784, following #5740): `CalendarView` renders no agenda view.
+  defaultView: z.enum(['month', 'week', 'day']).optional().describe("Initial calendar view mode — 'month' | 'week' | 'day' ('agenda' was retired: objectui#5784)"),
 }).passthrough();
 
 const GalleryConfig = SpecGalleryConfigSchema.partial().extend({
@@ -614,7 +615,7 @@ export const ObjectCalendarSchema = BaseSchema.extend({
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
-  defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional().describe('Default view'),
+  defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
 });
 
 /**

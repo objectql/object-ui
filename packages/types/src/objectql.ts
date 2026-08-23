@@ -1977,8 +1977,12 @@ export interface ObjectCalendarSchema extends BaseSchema {
   endDateField?: string;
   /** Field for event title */
   titleField?: string;
-  /** Default view mode */
-  defaultView?: 'month' | 'week' | 'day' | 'agenda';
+  /**
+   * Default view mode — the renderer's rendered set. `'agenda'` was retired
+   * (objectui#5784, following #5740): `CalendarView` renders no agenda view,
+   * and the enforcement points read only these three values.
+   */
+  defaultView?: 'month' | 'week' | 'day';
 }
 
 /**
