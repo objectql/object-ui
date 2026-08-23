@@ -66,13 +66,43 @@
  * The wiring is #2212's ruling applied verbatim, not a second semantics: see
  * {@link isFieldVisible} for the engine, the bound scope, and what the fix
  * deliberately does not change.
+ *
+ * ## The other three conditional-rule surfaces (objectui#5627)
+ *
+ * #5594 wired ONE of the four surfaces the sibling chain honours — the
+ * view-level field predicate. The other three were dropped in the same place
+ * and for the same reason: nothing downstream could read a key this file's
+ * payload types did not admit.
+ *
+ *  - SECTION-level `visibleWhen` / `visibleOn` (ADR-0089). The section type is
+ *    no longer this file's to widen — objectui#5596 replaced the hand copy with
+ *    the shared `FormSectionSpec`, which has DECLARED these two keys ever since
+ *    ("declaring a key is not honouring it", as that type's own docstring says
+ *    while naming this card). What was missing here was the evaluation, and the
+ *    render mapped every section unconditionally. See {@link isSectionVisible}.
+ *  - OBJECT-level `visibleWhen` / `readonlyWhen` / `requiredWhen` (ADR-0036),
+ *    authored on the object's field rather than on the form view. This file's
+ *    own `ObjectFieldDef` admitted none of them, so `readonly` and `required`
+ *    were whatever the static flags said. See {@link resolveRowState}, which
+ *    resolves them through the SHARED `resolveFieldRuleState` rather than
+ *    re-deriving what the three rules mean for a fourth time.
+ *
+ * Both halves are RENDERING rules: a hidden section's fields still submit their
+ * values, exactly as a hidden field's do (triage ruling, 2026-08-22, following
+ * #5594 and the plugin-form chain). Nothing in this file makes visibility a
+ * submit-payload rule, at either granularity.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { evalFieldPredicate } from '@object-ui/core';
-import type { FormFieldSpec, FormViewSpec } from '@object-ui/app-shell';
+import {
+  evalFieldPredicate,
+  isServerOwnedValue,
+  resolveFieldRuleState,
+  type FieldRulePredicate,
+} from '@object-ui/core';
+import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || '') + '/api/v1';
@@ -101,6 +131,29 @@ interface ObjectFieldDef {
   options?: Array<{ value: string; label?: string }> | string[];
   placeholder?: string;
   helpText?: string;
+  /**
+   * The OBJECT-level conditional rules (ADR-0036), authored on the object's
+   * field rather than on a form view — a DIFFERENT slot from the view-level
+   * predicate {@link RenderableField.visibleWhen} carries (objectui#5627).
+   *
+   * The sibling chain keeps the two apart on purpose: `@object-ui/plugin-form`
+   * `sectionFields.ts` copies these three straight off the object field and
+   * routes the VIEW predicate into `visibleOn` "so the object rule is never
+   * clobbered", and `@object-ui/components` `renderers/form/form.tsx` then
+   * evaluates the two slots independently and ANDs them. This file admitted
+   * neither of them until #5627, so `buildSections` could not read what it was
+   * never handed: `readonly` was `override.readonly ?? false` and `required`
+   * was `override.required ?? def.required ?? false` — static, never
+   * conditional, on both routes including the anonymous `/f/:slug` one.
+   *
+   * Typed as `@object-ui/core`'s own {@link FieldRulePredicate} rather than
+   * re-spelled, because that is the parameter type of `resolveFieldRuleState`,
+   * the engine every one of these predicates is handed to. (The view-level slot
+   * derives its type from `FormFieldSpec` for the same reason, one layer up.)
+   */
+  visibleWhen?: FieldRulePredicate;
+  readonlyWhen?: FieldRulePredicate;
+  requiredWhen?: FieldRulePredicate;
 }
 
 /** Visualization types the form renderer understands (FormViewSpec.type). */
@@ -320,9 +373,14 @@ interface RenderableField {
   readonly: boolean;
   hidden: boolean;
   /**
-   * Conditional visibility for this row — the predicate {@link isFieldVisible}
-   * evaluates against the LIVE form values, as distinct from the static
-   * `hidden` flag above.
+   * Conditional visibility for this row, as authored on the FORM VIEW's field
+   * — the predicate {@link isFieldVisible} evaluates against the LIVE form
+   * values, as distinct from the static `hidden` flag above.
+   *
+   * The VIEW level, specifically: the object field's own `visibleWhen` is a
+   * separate rule that lives in {@link RenderableField.rules} and is ANDed with
+   * this one by {@link resolveRowState} (objectui#5627). Two layers may both
+   * condition one control, and either one hiding it is enough.
    *
    * Resolved CANONICAL-FIRST when the row is built: `visibleWhen ?? visibleOn`.
    * ADR-0089 renamed the key, and `@objectstack/spec`'s normaliser REWRITES the
@@ -340,6 +398,29 @@ interface RenderableField {
    * in this file.
    */
   visibleWhen?: FormFieldSpec['visibleWhen'];
+  /**
+   * The OBJECT-level rules (ADR-0036) copied off {@link ObjectFieldDef} —
+   * `visibleWhen`, `readonlyWhen`, `requiredWhen` (objectui#5627).
+   *
+   * Carried as a GROUP rather than as three sibling keys because the group IS
+   * `resolveFieldRuleState`'s first parameter: {@link resolveRowState} hands
+   * this object over whole, so there is no per-key re-assembly step for a
+   * fourth consumer-side copy of the rule semantics to hide in. Nesting also
+   * settles the one genuine ambiguity in this row type — `visibleWhen` one
+   * level up is the VIEW's predicate, `rules.visibleWhen` is the OBJECT's, and
+   * the sibling chain's runtime `FormField` happens to spell that same pair the
+   * other way round (`visibleWhen` = object, `visibleOn` = view). A reader of
+   * either file can tell which layer a predicate came from without knowing the
+   * other file's convention.
+   *
+   * Carried, not evaluated, for the reason the view-level slot is: the verdict
+   * depends on the live values, and these rows are memoized on the loaded spec.
+   */
+  rules?: {
+    visibleWhen?: FieldRulePredicate;
+    readonlyWhen?: FieldRulePredicate;
+    requiredWhen?: FieldRulePredicate;
+  };
   placeholder?: string;
   helpText?: string;
   defaultValue?: unknown;
@@ -353,6 +434,26 @@ interface RenderableSection {
   columns: 1 | 2 | 3 | 4;
   collapsible: boolean;
   collapsed: boolean;
+  /**
+   * Conditional visibility for the whole section (ADR-0089), resolved
+   * CANONICAL-FIRST when the row is built: `visibleWhen ?? visibleOn`
+   * (objectui#5627).
+   *
+   * The same key, the same precedence and the same reason as the field row one
+   * type up — the spec's normaliser rewrites the alias, so a spec-served
+   * FormView carries only `visibleWhen`, while hand-written layouts and this
+   * app's own create schemas still produce the deprecated spelling. app-shell's
+   * `SchemaForm` reads its sections through a `readVisibility` helper spelling
+   * exactly this `??`; that helper is module-private there (it is not part of
+   * `@object-ui/app-shell`'s published surface), so the shared machinery this
+   * file can actually import is the ENGINE — `evalFieldPredicate`, via
+   * {@link isSectionVisible} — which is the half that decides anything.
+   *
+   * Type derived from the shared authoring surface (objectui#5596's
+   * {@link FormSectionSpec}) rather than restated, exactly as the field row
+   * derives its own from `FormFieldSpec`.
+   */
+  visibleWhen?: FormSectionSpec['visibleWhen'];
   fields: RenderableField[];
 }
 
@@ -410,6 +511,16 @@ export function buildSections(
         // depends on the live form values, which change per keystroke, while
         // these rows are memoized on the loaded spec.
         visibleWhen: override.visibleWhen ?? override.visibleOn,
+        // The OBJECT's own rules (ADR-0036), off the object field and NOT
+        // merged with the view predicate above: two layers, two slots, ANDed
+        // at render by `resolveRowState` (objectui#5627). A `??` here would be
+        // the collapse the sibling chain avoids on purpose — a view predicate
+        // would then clobber the object's rule instead of narrowing it.
+        rules: {
+          visibleWhen: def.visibleWhen,
+          readonlyWhen: def.readonlyWhen,
+          requiredWhen: def.requiredWhen,
+        },
         placeholder: override.placeholder ?? def.placeholder,
         helpText: override.helpText ?? def.helpText,
         defaultValue: def.defaultValue,
@@ -430,6 +541,9 @@ export function buildSections(
       columns: cols,
       collapsible: !!sec.collapsible,
       collapsed: !!sec.collapsed,
+      // Canonical key wins over the deprecated alias, same precedence as the
+      // field row — see `RenderableSection.visibleWhen` (objectui#5627).
+      visibleWhen: sec.visibleWhen ?? sec.visibleOn,
       fields,
     };
   });
@@ -489,6 +603,120 @@ export function isFieldVisible(
     // name in a warning would be bookkeeping, not an honoured key.
     context: `visibleWhen of field '${field.name}'`,
   });
+}
+
+/**
+ * Is this SECTION on screen, given the form's current state? (objectui#5627)
+ *
+ * The section-granularity twin of {@link isFieldVisible}, and deliberately the
+ * same three things: the canonical-first key read (done once, at build time —
+ * `RenderableSection.visibleWhen`), the canonical ENGINE
+ * (`evalFieldPredicate`), and fail-OPEN with a one-time warning. A section that
+ * cannot be evaluated must not vanish, for the field-level reason multiplied by
+ * however many controls it holds: a section nobody can see is one the submitter
+ * can neither fill in nor notice is missing.
+ *
+ * Scope is the same pair the field predicate binds — live `record.*`, stored
+ * `previous.*` — so an author writes ONE dialect for both granularities, and
+ * `SECTION.visibleWhen` and `FIELD.visibleWhen` cannot disagree about what
+ * `record.status` refers to.
+ *
+ * ## Rendering rule, ruled (triage first-touch, 2026-08-22)
+ *
+ * > Section-level visibility is a rendering rule — a hidden section's fields
+ * > still submit, matching the field-level answer #5594 deliberately kept and
+ * > the plugin-form chain.
+ *
+ * So this decides what is DRAWN and nothing else: `values` still carries what
+ * {@link readPrefill} seeded and `handleSubmit` still submits it, exactly as a
+ * field hidden by its own predicate has done here since #5594.
+ */
+export function isSectionVisible(
+  section: RenderableSection,
+  values: Record<string, unknown>,
+  previous?: Record<string, unknown> | null,
+): boolean {
+  return evalFieldPredicate(section.visibleWhen, values, true, previous ?? undefined, undefined, {
+    // Sections have no `name`, so the locator is the heading an author can
+    // actually find in their own metadata; an unlabelled section says so
+    // rather than printing `undefined`.
+    context: `visibleWhen of section '${section.label ?? '(unlabelled)'}'`,
+  });
+}
+
+/**
+ * The row's EFFECTIVE `{ visible, readonly, required }` — every conditional
+ * rule that bears on one control, resolved in one place (objectui#5627).
+ *
+ * Three of the four inputs are the OBJECT-level rules (`rules.visibleWhen`,
+ * `readonlyWhen`, `requiredWhen`) and they are not evaluated here at all: they
+ * go to `@object-ui/core`'s `resolveFieldRuleState`, the engine the sibling
+ * renderers (`renderers/form/form.tsx`, `WizardForm`, `GridField`,
+ * `plugin-kanban`) already share. That reuse is the point of the card — a
+ * FOURTH consumer-side re-implementation of "what does readonlyWhen mean" is
+ * the defect, not the fix — and it is what carries three settled rulings in
+ * without re-deriving any of them: a static `readonly: true` is never weakened
+ * by a false predicate, a static `required: true` is never weakened by a false
+ * one either, and `serverOwnedValue` outranks both spellings of required.
+ *
+ * ## `isCreateForm` is the CALLER's fact
+ *
+ * `resolveFieldRuleState` must be told whether this submit is an INSERT; it may
+ * not infer it (objectui#4085 — an evaluator guessing from a missing `previous`
+ * would read an edit form that simply passes none as a create). This renderer
+ * knows it exactly, from the URL: {@link readFormRecordTarget} already decided
+ * create / edit / refuse, and `/f/:slug` is create by construction. Passed as a
+ * required parameter rather than defaulted, so a new call site cannot get edit
+ * semantics by omission.
+ *
+ * On a create form a field whose `defaultValue` is a runtime instruction the
+ * server resolves per insert (`NOW()`, `current_user`, a CEL envelope) is
+ * therefore not required — whatever `requiredWhen` evaluates to (#4085) and
+ * whatever the static flag says (#4069). Both halves come from the resolver,
+ * not from a carve-out re-derived here; `isServerOwnedValue` is likewise the
+ * shared classifier, handed the declared default this row already carries.
+ *
+ * ## The two visibility LAYERS are ANDed, never collapsed
+ *
+ * A view-level predicate ({@link isFieldVisible}) and an object-level one
+ * (`rules.visibleWhen`) are different authoring slots with different owners,
+ * and the sibling chain keeps them separate for exactly that reason. Either
+ * one resolving false hides the control; neither can re-show what the other
+ * hid. Both are evaluated on every call even when the first has already
+ * decided, because the warning a broken predicate emits is the author's ONLY
+ * diagnostic — short-circuiting would make a typo in one layer invisible
+ * whenever the other happened to hide the row.
+ */
+export function resolveRowState(
+  field: RenderableField,
+  values: Record<string, unknown>,
+  previous: Record<string, unknown> | null | undefined,
+  isCreateForm: boolean,
+): { visible: boolean; readonly: boolean; required: boolean } {
+  const ruleState = resolveFieldRuleState(
+    field.rules ?? {},
+    values,
+    {
+      required: field.required,
+      readonly: field.readonly,
+      serverOwnedValue: isServerOwnedValue(
+        // The shape that classifier reads — the resolved object-field metadata
+        // and its declared default, which is what `def.defaultValue` already
+        // put on this row in `buildSections`.
+        { field: { defaultValue: field.defaultValue } },
+        isCreateForm,
+      ),
+    },
+    previous ?? undefined,
+    undefined,
+    `field '${field.name}'`,
+  );
+  const viewVisible = isFieldVisible(field, values, previous);
+  return {
+    visible: ruleState.visible && viewVisible,
+    readonly: ruleState.readonly,
+    required: ruleState.required,
+  };
 }
 
 /**
@@ -956,16 +1184,29 @@ const FIELD_CLASS =
 
 interface FieldInputProps {
   field: RenderableField;
+  /**
+   * The row's EFFECTIVE required/readonly verdict for the CURRENT values, from
+   * {@link resolveRowState} — never the static flags on `field` (objectui#5627).
+   *
+   * A prop rather than a read of `field.required` / `field.readonly`, because
+   * those two are now only INPUTS to the verdict: an object-level `readonlyWhen`
+   * can lock a statically-editable field and a `requiredWhen` can require a
+   * statically-optional one. Taking it as a parameter is what makes the control
+   * and the asterisk beside it read ONE verdict — the two-layer disagreement
+   * objectui#4201 removed on the sibling chain, where a field showed no marker
+   * and the submit was refused anyway.
+   */
+  state: { readonly: boolean; required: boolean };
   value: unknown;
   onChange: (v: unknown) => void;
 }
 
-function FieldInput({ field, value, onChange }: FieldInputProps) {
+function FieldInput({ field, state, value, onChange }: FieldInputProps) {
   const common = {
     id: `f_${field.name}`,
     name: field.name,
-    required: field.required,
-    disabled: field.readonly,
+    required: state.required,
+    disabled: state.readonly,
     placeholder: field.placeholder,
     className: FIELD_CLASS,
   };
@@ -1036,7 +1277,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
             id={common.id}
             name={common.name}
             type="checkbox"
-            disabled={field.readonly}
+            disabled={state.readonly}
             checked={Boolean(v)}
             onChange={(e) => onChange(e.target.checked)}
             className="h-4 w-4 rounded border-input"
@@ -1054,7 +1295,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
           value={String(v)}
           onChange={(e) => onChange(e.target.value)}
         >
-          <option value="" disabled={field.required}>
+          <option value="" disabled={state.required}>
             {field.placeholder ?? '— Select —'}
           </option>
           {opts.map((o) => (
@@ -1074,7 +1315,7 @@ function FieldInput({ field, value, onChange }: FieldInputProps) {
                 name={field.name}
                 value={o.value}
                 checked={String(v) === o.value}
-                disabled={field.readonly}
+                disabled={state.readonly}
                 onChange={() => onChange(o.value)}
               />
               <span>{o.label}</span>
@@ -1142,6 +1383,14 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
   const editingId = target.kind === 'edit' ? target.recordId : null;
   /** The object the URL claims `editingId` belongs to (#4292), or null. */
   const editingObject = target.kind === 'edit' ? target.recordObject : null;
+  /**
+   * Is the write this form is heading for an INSERT? Read off the same URL
+   * switch as the pair above, because `resolveFieldRuleState` requires the
+   * caller to STATE it rather than infer it (objectui#4085) — see
+   * {@link resolveRowState}. `/f/:slug` is create by construction: public mode
+   * never reads `?recordId=` at all.
+   */
+  const isCreateForm = target.kind !== 'edit';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1400,7 +1649,15 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
         )}
       </header>
       <form onSubmit={handleSubmit} className="space-y-6">
-        {sections.map((sec, i) => (
+        {sections.map((sec, i) => {
+          // A section conditioned away is skipped IN PLACE rather than filtered
+          // out of the list first (objectui#5627). The key here is the section's
+          // POSITION, and these predicates re-decide on every keystroke: filtering
+          // would renumber every later section the moment one hid, remounting
+          // their inputs and taking the caret with them. `null` keeps each
+          // surviving section on the key it already had.
+          if (!isSectionVisible(sec, values, loaded.record)) return null;
+          return (
           <section key={i} className="rounded-md border bg-card p-4 sm:p-5">
             {sec.label && (
               <h2 className="mb-3 text-sm font-medium">{sec.label}</h2>
@@ -1416,7 +1673,14 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                       : 'grid grid-cols-1 gap-4 sm:grid-cols-4'
               }
             >
-              {sec.fields.filter((f) => isFieldVisible(f, values, loaded.record)).map((f) => (
+              {sec.fields.map((f) => {
+                // One resolution per row per render, read by all three of the
+                // things that depend on it below — the row's presence, the
+                // required marker, and the control's own attributes. Computing
+                // it three times would be three chances to disagree.
+                const state = resolveRowState(f, values, loaded.record, isCreateForm);
+                if (!state.visible) return null;
+                return (
                 <div
                   key={f.name}
                   className={
@@ -1431,10 +1695,11 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                     className="mb-1 block text-xs font-medium text-foreground"
                   >
                     {f.label}
-                    {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                    {state.required && <span className="ml-0.5 text-destructive">*</span>}
                   </label>
                   <FieldInput
                     field={f}
+                    state={state}
                     value={values[f.name]}
                     onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
                   />
@@ -1442,10 +1707,12 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                     <p className="mt-1 text-xs text-muted-foreground">{f.helpText}</p>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </section>
-        ))}
+          );
+        })}
         {error && (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             {error}
