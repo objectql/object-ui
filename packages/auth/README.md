@@ -167,7 +167,7 @@ authorization input, and **not** what scopes rows.
 | | |
 | --- | --- |
 | Stamped by | `createAuthenticatedFetch` ([`src/createAuthenticatedFetch.ts`](src/createAuthenticatedFetch.ts)) |
-| Value read from | `ActiveOrganizationStorage` — `localStorage`, key `auth-active-organization-id` |
+| Value read from | `ActiveOrganizationStorage` ([`src/ActiveOrganizationStorage.ts`](src/ActiveOrganizationStorage.ts)) — `localStorage`, key `auth-active-organization-id:u:$userId` (per-user since objectui#5664; the bare key is the retired pre-#5664 spelling) |
 | Condition | that storage holds a non-empty value |
 | *Not* conditioned on | the URL being an `/api/` call. `Authorization` and `Accept-Language` are; this is not |
 | Suppressed by | `createAuthenticatedFetch({ sameOriginOnly: true })` for cross-origin URLs — it returns before any header work |

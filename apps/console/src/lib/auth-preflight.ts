@@ -23,16 +23,50 @@
  *
  * Run BEFORE React renders. If `auth-session-token` is present, probe
  * `/api/v1/auth/get-session` with that Bearer (and no cookie). If the
- * response is not authenticated, delete the stale token + the stale
- * `auth-active-organization-id` so AuthProvider's first `getSession()`
- * falls back to cookie auth cleanly.
+ * response is not authenticated, delete the stale token + every stale
+ * active-organization id (the bare pre-objectui#5664 key and each
+ * `auth-active-organization-id:u:` scope) so AuthProvider's first
+ * `getSession()` falls back to cookie auth cleanly.
  *
  * Idempotent, runs once per page load, < 50 ms when the token is valid
  * (single round-trip), no UI flicker (happens before render).
  */
 
 const TOKEN_KEY = 'auth-session-token';
-const ACTIVE_ORG_KEY = 'auth-active-organization-id';
+/**
+ * Base name of the active-organization key. Since objectui#5664 the live key
+ * is per-user (`auth-active-organization-id:u:<userId>`) and the bare name is
+ * the retired pre-#5664 spelling, so the purge below matches BOTH by prefix.
+ *
+ * Spelled out rather than imported from `@object-ui/auth`: this module runs
+ * BEFORE React renders, and pulling the auth barrel in here would drag its
+ * component closure into the eager entry chunk.
+ */
+const ACTIVE_ORG_KEY_BASE = 'auth-active-organization-id';
+
+/**
+ * Remove the stale active-organization id under every spelling — the bare
+ * pre-#5664 key and each `:u:<userId>` scope.
+ *
+ * Every scope goes, not just the current user's: a dead Bearer means this
+ * browser cannot say whose ids these are, and the value is a client-side cache
+ * of a SERVER-owned fact (`AuthProvider.refreshOrganizations` re-asks on the
+ * next boot), so deleting one that turns out to still be wanted costs a
+ * re-fetch and nothing else.
+ *
+ * `auth-session-user-id` is deliberately NOT removed. It is the pointer that
+ * lets the next sign-in notice it belongs to a DIFFERENT user and drop the
+ * previous user's state wholesale (objectui#5664); clearing it here would make
+ * that transition look like a first-ever sign-in and skip the purge.
+ */
+function purgeActiveOrgKeys(): void {
+  // Snapshot first — removing during a live index walk skips entries.
+  for (const key of Object.keys(localStorage)) {
+    if (key === ACTIVE_ORG_KEY_BASE || key.startsWith(`${ACTIVE_ORG_KEY_BASE}:u:`)) {
+      localStorage.removeItem(key);
+    }
+  }
+}
 
 export async function preflightAuth(authBaseUrl: string): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -69,7 +103,7 @@ export async function preflightAuth(authBaseUrl: string): Promise<void> {
 
     // 401, 4xx, or 200-with-null — token is stale. Purge.
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ACTIVE_ORG_KEY);
+    purgeActiveOrgKeys();
   } catch {
     // Network error: assume token might still be good; don't punish the
     // user by clearing it. Worst case AuthProvider will detect it next.
