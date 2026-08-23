@@ -41,10 +41,36 @@ const ACTIVE_ORG_STORAGE_KEY = 'auth-active-organization-id';
 export const ActiveOrganizationStorage = {
   _memoryValue: null as string | null,
 
+  /**
+   * The active org id, or `null`.
+   *
+   * READ ORDER — a non-null `localStorage` read wins; anything else falls
+   * through to `_memoryValue`. Returning the `localStorage` read
+   * UNCONDITIONALLY (what this did before objectui#5703) left the fallback
+   * reachable only when the read THREW, and there is a real browser state
+   * where the read does not throw and the fallback is still the only copy:
+   * `localStorage` present and readable but REJECTING WRITES — Safari private
+   * browsing, and any quota-exhausted origin, where `setItem` throws
+   * `QuotaExceededError`. `set()` swallows that failure into `_memoryValue`
+   * (correctly — the fallback is right there), and `get()` then never
+   * consulted it: the value was stored and could not be read back, so
+   * `X-Tenant-ID` went unstamped for the whole session, not just the early
+   * requests.
+   *
+   * WHY FALLING BACK ON `null` DOES NOT RESURRECT A CLEARED ORG. After
+   * `clear()` the `localStorage` read is null by construction, so this
+   * fallback fires — and it must answer `null`, because sign-out is one of
+   * `clear()`'s callers. It does, because `clear()` nulls `_memoryValue` too.
+   * That property is what makes this read order safe rather than an
+   * incidental detail of `clear()`'s body, so it is pinned by test
+   * (`__tests__/activeOrgStorageFallback-5703.test.tsx`) instead of being
+   * re-derived by whoever edits `clear()` next.
+   */
   get(): string | null {
     try {
       if (typeof localStorage !== 'undefined') {
-        return localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+        const persisted = localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+        if (persisted !== null) return persisted;
       }
     } catch { /* SSR / test */ }
     return this._memoryValue;
@@ -60,6 +86,12 @@ export const ActiveOrganizationStorage = {
   },
 
   clear(): void {
+    // Nulling the fallback is SECURITY-RELEVANT, not bookkeeping: `get()`
+    // falls through to `_memoryValue` whenever the `localStorage` read comes
+    // back null, which is exactly the state this method leaves behind. Drop
+    // this line and sign-out's clear stops sticking — the removed key reads
+    // null, the fallback fires, and the cleared org goes back on the wire as
+    // `X-Tenant-ID`. Pinned by `__tests__/activeOrgStorageFallback-5703.test.tsx`.
     this._memoryValue = null;
     try {
       if (typeof localStorage !== 'undefined') {
