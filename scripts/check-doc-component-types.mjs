@@ -339,17 +339,6 @@ const DOC_TYPE_EXEMPTIONS = {
       'Deliberate placeholder in the "register your own component" walkthrough — the page teaches ' +
       'the reader to register this key, so it is unregistered here by design.',
   },
-  'content/docs/core/theme-schema.mdx': {
-    theme:
-      'RETIRED discriminant, kept exempt only until this page is rewritten. `ThemeComponentSchema` ' +
-      '(`type: \'theme\'`) was removed from packages/types in objectui#5489 under the maintainer ' +
-      'ruling of 2026-08-21 — no renderer ever implemented it, so the literal named nothing even ' +
-      'before the removal. This page still teaches it, along with five falsehoods that predate the ' +
-      'retirement; the rewrite around the RETAINED theme document is objectui#5648, and DELETING ' +
-      'this entry is part of it.',
-    'theme-preview': 'ThemePreviewSchema discriminant — packages/types/src/theme.ts:167.',
-    'theme-switcher': 'ThemeSwitcherSchema discriminant — packages/types/src/theme.ts:145.',
-  },
   'content/docs/fields/object.mdx': {
     array: 'JSON Schema property type inside a field\'s `schema.properties`, not a node type.',
     string: 'JSON Schema property type inside a field\'s `schema.properties`, not a node type.',
