@@ -115,7 +115,7 @@ describe('[#5330] `evalRowPredicate` — the tolerance is no longer silent', () 
   afterEach(() => warn.mockRestore());
 
   const deprecationWarnings = (): string[] =>
-    warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('DEPRECATED spelling'));
+    warn.mock.calls.map((c: unknown[]) => String(c[0])).filter((m: string) => m.includes('DEPRECATED spelling'));
 
   it('warns on the bare shorthand and prescribes `record.status`', () => {
     evalRowPredicate("status == 'in_review'", row, { label: 'row action "approve"' });
