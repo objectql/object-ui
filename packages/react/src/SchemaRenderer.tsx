@@ -217,6 +217,85 @@ function propsWithoutCanonicalKeys(
 }
 
 /**
+ * The visibility-chain keys, in the EXACT precedence order the `shouldHide`
+ * IIFE in the evaluation memo consults them (objectui#5756).
+ *
+ * That chain is one sequence of `if (…) return …` — an early-return chain,
+ * not independent checks — so only the FIRST key here found "declared" on a
+ * node is ever the one that decides, and every lower-priority key is never
+ * even asked. `SHOW` keys ask "is it `!== undefined`?" (their `true` means
+ * *shown*, so "absent" already means shown and needs no narrower test);
+ * `HIDE` keys ask {@link hasDeclaredPredicate} instead, because their `true`
+ * means *hidden* and the wider `!== undefined` test would vanish a node for
+ * `hidden: ''` (objectui#3955). See {@link winningVisibilityKey}.
+ */
+const VISIBILITY_SHOW_KEYS = ['visibleWhen', 'visible', 'visibleOn', 'visibility'] as const;
+const VISIBILITY_HIDE_KEYS = ['hidden', 'hiddenOn'] as const;
+
+/**
+ * Which ONE visibility key actually decides a node's fate, mirroring both the
+ * `properties` hoist's precedence (same-named key: `properties.<key>`
+ * overwrites a node-level `<key>`) and `shouldHide`'s early-return chain
+ * (first-declared-wins across {@link VISIBILITY_SHOW_KEYS} then
+ * {@link VISIBILITY_HIDE_KEYS}) — without waiting for either to run.
+ *
+ * ## Why this exists (objectui#5756)
+ *
+ * A `${…}` template written as `properties.visible` is evaluated — and
+ * collapsed to a plain boolean — by the loop that runs BEFORE the hoist, in
+ * the SAME render pass. By the time `shouldHide` runs, the predicate TEXT is
+ * gone; there is nothing left to diagnose. Reaching it means asking "does
+ * THIS properties key actually decide?" at the one point in the render where
+ * the raw text still exists — which means asking the precedence question
+ * EARLY, on values the hoist has not yet merged and `shouldHide` has not yet
+ * consulted.
+ *
+ * ## Why the precedence question, and not just "is it in `properties`?"
+ *
+ * Without it, a `properties.visible` template that a co-declared `visibleWhen`
+ * OUTRANKS (exactly `shouldHide`'s own early-return: `visibleWhen` short-
+ * circuits before `visible` is ever reached) would be reported even though it
+ * decides nothing — a false positive for a leg that never runs. Restricting
+ * the report to the WINNING key mirrors what `shouldHide` already does for
+ * every OTHER key spelling (objectui#5454's leg-3 reporter is only ever
+ * invoked on the leg that is actually consulted, by construction of the same
+ * early-return chain) rather than inventing a different posture for this one.
+ *
+ * ## Why `node.properties` must already be POST-evaluation here
+ *
+ * The caller runs this AFTER the `properties.*` evaluation loop (so
+ * `node.properties.visible` may already be the collapsed boolean, not the raw
+ * template) and BEFORE the hoist (so a plain node-level key, untouched by that
+ * loop, is still exactly what `shouldHide` will see). That ordering is what
+ * makes "declared" answered here agree bit-for-bit with what `shouldHide`
+ * answers later — including the corner a naive PRE-evaluation read would get
+ * wrong: a template that evaluates to a literal `undefined` (e.g.
+ * `${data.missing}` read alone) is `!== undefined` on its RAW text but not on
+ * its EVALUATED value, and `shouldHide` falls through to the next key for
+ * exactly that reason. Reading pre-eval text here would call `visible` the
+ * winner when the real chain does not.
+ *
+ * Read-only: decides nothing about visibility itself, only which key a
+ * DIAGNOSTIC should look at.
+ */
+function winningVisibilityKey(node: Record<string, unknown>): string | undefined {
+  const propertiesBag = node.properties;
+  const hasPropertiesBag =
+    propertiesBag != null && typeof propertiesBag === 'object' && !Array.isArray(propertiesBag);
+  const effective = (key: string): unknown =>
+    hasPropertiesBag && Object.prototype.hasOwnProperty.call(propertiesBag, key)
+      ? (propertiesBag as Record<string, unknown>)[key]
+      : node[key];
+  for (const key of VISIBILITY_SHOW_KEYS) {
+    if (effective(key) !== undefined) return key;
+  }
+  for (const key of VISIBILITY_HIDE_KEYS) {
+    if (hasDeclaredPredicate(effective(key))) return key;
+  }
+  return undefined;
+}
+
+/**
  * Per-component Error Boundary for SchemaRenderer.
  * Catches render errors in individual components, preventing one broken
  * component from crashing the entire page.
@@ -475,6 +554,78 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // Shallow copy
     const newSchema = { ...schema };
 
+    /**
+     * Evaluate ONE visibility predicate, and make an unresolvable one LOUD
+     * (objectui#5454, leg 3 of the 2026-08-21 ruling).
+     *
+     * ## The verdict is byte-for-byte what it was — only the silence moved
+     *
+     * `evaluateCondition` answers an unresolvable predicate with `true`, on
+     * every one of its three internal paths: the CEL envelope fails soft to its
+     * `true` fallback, a bare expression that throws is caught and returns
+     * `true`, and a `${…}` template that throws returns its own SOURCE TEXT,
+     * which is a non-empty string and therefore truthy. Passing
+     * `throwOnError: true` changes none of those verdicts — it only converts
+     * "could not evaluate" from a value into a throw — so this helper returns
+     * `true` from the catch and reproduces the old answer exactly. That is why
+     * it is safe on the two NON-negated legs (`hidden` / `hiddenOn`) as well,
+     * where the same `true` means HIDE rather than SHOW.
+     *
+     * ## Why it needed saying at all
+     *
+     * A fail-soft surface answers "this predicate is broken" and "this
+     * predicate said yes" with the same word. On the negated legs that word is
+     * SHOWN, so a `record.*` gate written before objectui#5454 bound the row
+     * rendered its block unconditionally and looked exactly like a gate the
+     * author had got right. One of the three paths was already loud — the CEL
+     * envelope's `evalFieldPredicate` warns (objectstack#5149) — and the other
+     * two were mute, so whether an author heard about their own typo depended
+     * on which dialect they happened to write it in.
+     *
+     * Deduped per (node type, key, predicate source): a broken predicate is
+     * re-evaluated on every render, and the point is one line, not a wall.
+     *
+     * ## Defined HERE, ahead of the `properties` evaluation loop below
+     *
+     * It used to sit just above `shouldHide`, its only caller. objectui#5756
+     * added a second call site — inside the `properties` loop below, on the
+     * raw (pre-evaluation) text of whichever key that loop is about to collapse
+     * — so the definition moved up to be in scope for both. Nothing about the
+     * function changed; `shouldHide` below still calls it exactly as before,
+     * on the POST-evaluation, POST-hoist schema, for the real verdict.
+     */
+    const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
+      // PRODUCTION IS THE UNTOUCHED CALL. `throwOnError` is how the fault is
+      // detected, and on the CEL branch `evaluateCelCondition` implements it by
+      // evaluating TWICE (once with each fallback — a value that tracks the
+      // fallback both times is a fault). Spec-parsed metadata normalizes
+      // `visibleWhen` into a `{ dialect: 'cel' }` envelope, so that branch is
+      // the common one in production: paying for the probe unconditionally
+      // would double the engine calls for every predicate of every node, to
+      // build a message no production build ever prints.
+      if (!__DEV__) return evaluator.evaluateCondition(raw);
+      try {
+        const verdict = evaluator.evaluateCondition(raw, { throwOnError: true });
+        // objectui#5687 — the NON-throwing half of the same silence, and it is
+        // reachable ONLY here, on the branch where the predicate evaluated
+        // cleanly. A `data.*` read the adapter cannot answer is not a fault the
+        // evaluator can raise: `undefined == 'draft'` is a perfectly good
+        // `false`. Verdict untouched — `verdict` is returned exactly as
+        // computed, which is what keeps the ruling's "no verdict changes" true
+        // by construction rather than by review.
+        reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource);
+        return verdict;
+      } catch (err) {
+        reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
+        // The historical fail-soft answer, unchanged — and identical to what
+        // the production branch above returns for the same input, which is what
+        // keeps the two branches one behaviour rather than two. See the
+        // docblock: `true` is the value EVERY path of `evaluateCondition`
+        // already returned for an unevaluable predicate.
+        return true;
+      }
+    };
+
     // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
     // which `props` (evaluated below) is the legacy alias.
     //
@@ -508,16 +659,71 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // this value FEEDS the hoist, so re-shaping a degenerate `properties`
     // (a string, an array) via the object spread would propagate. Non-objects
     // skip evaluation and reach the hoist exactly as they do today.
-    if (
+    // Snapshotted BEFORE evaluation — objectui#5756's diagnostic below reads
+    // the RAW (pre-collapse) text from this reference, since `newSchema.properties`
+    // is about to be replaced with the evaluated copy.
+    const rawPropertiesBag: Record<string, unknown> | undefined =
       newSchema.properties &&
       typeof newSchema.properties === 'object' &&
       !Array.isArray(newSchema.properties)
-    ) {
-      const newProperties: Record<string, any> = { ...newSchema.properties };
+        ? (newSchema.properties as Record<string, unknown>)
+        : undefined;
+
+    if (rawPropertiesBag) {
+      const newProperties: Record<string, any> = { ...rawPropertiesBag };
       for (const [key, val] of Object.entries(newProperties)) {
         newProperties[key] = evaluator.evaluate(val as any);
       }
       newSchema.properties = newProperties;
+    }
+
+    /**
+     * objectui#5756 — the `${…}` HALF of the #5687/#5454 silence, reached at
+     * the one point in this render where it still can be: BEFORE the hoist
+     * (which would bury it under the node-level keys) and immediately AFTER
+     * the loop above (so `newSchema.properties` already reflects which key
+     * would win the SAME precedence `shouldHide` applies later — see
+     * {@link winningVisibilityKey}).
+     *
+     * A `${…}`-spelled visibility predicate written inside `properties` is
+     * evaluated — and collapsed to a plain boolean — by the loop directly
+     * above, before `shouldHide` (and its #5454/#5687 reporter) ever sees it.
+     * The bare-string spelling of the SAME gate (`properties: { visible:
+     * "data.status == 'draft'" }`) is untouched by that loop (no `${` to
+     * interpolate) and reaches `shouldHide` intact, where the existing
+     * reporter already catches it — this block exists only to give the
+     * template spelling the same fate, not a different one.
+     *
+     * ## What this does NOT do
+     *
+     * - **No verdict change.** This call's return value is discarded; the
+     *   REAL verdict is still decided by `shouldHide` below, off the
+     *   POST-evaluation, POST-hoist schema, exactly as before this card.
+     * - **No new report shape.** It is the SAME `evaluateVisibilityPredicate`
+     *   `shouldHide` calls — same two reporters, same dedupe `Set`, same
+     *   `__DEV__` gate — called one render-step earlier, on the text this
+     *   step is about to erase. There is nothing here to duplicate the LATER
+     *   call: by the time `shouldHide` runs, this key's value is already the
+     *   collapsed boolean, which carries no `data.` text for either reporter
+     *   to match — so at most one of the two calls ever fires per predicate.
+     * - **Only the WINNING key.** Gated on {@link winningVisibilityKey} so a
+     *   `properties.visible` template that a co-declared `visibleWhen`
+     *   outranks is not reported for deciding nothing (mirrors #5454's own
+     *   leg semantics: its reporter is likewise only ever invoked on the leg
+     *   `shouldHide` actually consults).
+     * - **Only what would actually collapse.** A bare string (no `${`) is
+     *   untouched by the loop above and is left for the existing gate-time
+     *   report to catch, unchanged.
+     */
+    if (__DEV__) {
+      const winningKey = winningVisibilityKey(newSchema);
+      if (winningKey && rawPropertiesBag && Object.prototype.hasOwnProperty.call(rawPropertiesBag, winningKey)) {
+        const rawWinningValue = rawPropertiesBag[winningKey];
+        if (typeof rawWinningValue === 'string' && rawWinningValue.includes('${')) {
+          // Diagnostic only — the boolean this returns is thrown away.
+          evaluateVisibilityPredicate(rawWinningValue as VisibilityPredicate, winningKey);
+        }
+      }
     }
 
     // COMPAT: Hoist 'properties' up to schema level
@@ -554,69 +760,6 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       }
       newSchema.props = newProps;
     }
-
-    /**
-     * Evaluate ONE visibility predicate, and make an unresolvable one LOUD
-     * (objectui#5454, leg 3 of the 2026-08-21 ruling).
-     *
-     * ## The verdict is byte-for-byte what it was — only the silence moved
-     *
-     * `evaluateCondition` answers an unresolvable predicate with `true`, on
-     * every one of its three internal paths: the CEL envelope fails soft to its
-     * `true` fallback, a bare expression that throws is caught and returns
-     * `true`, and a `${…}` template that throws returns its own SOURCE TEXT,
-     * which is a non-empty string and therefore truthy. Passing
-     * `throwOnError: true` changes none of those verdicts — it only converts
-     * "could not evaluate" from a value into a throw — so this helper returns
-     * `true` from the catch and reproduces the old answer exactly. That is why
-     * it is safe on the two NON-negated legs (`hidden` / `hiddenOn`) as well,
-     * where the same `true` means HIDE rather than SHOW.
-     *
-     * ## Why it needed saying at all
-     *
-     * A fail-soft surface answers "this predicate is broken" and "this
-     * predicate said yes" with the same word. On the negated legs that word is
-     * SHOWN, so a `record.*` gate written before objectui#5454 bound the row
-     * rendered its block unconditionally and looked exactly like a gate the
-     * author had got right. One of the three paths was already loud — the CEL
-     * envelope's `evalFieldPredicate` warns (objectstack#5149) — and the other
-     * two were mute, so whether an author heard about their own typo depended
-     * on which dialect they happened to write it in.
-     *
-     * Deduped per (node type, key, predicate source): a broken predicate is
-     * re-evaluated on every render, and the point is one line, not a wall.
-     */
-    const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
-      // PRODUCTION IS THE UNTOUCHED CALL. `throwOnError` is how the fault is
-      // detected, and on the CEL branch `evaluateCelCondition` implements it by
-      // evaluating TWICE (once with each fallback — a value that tracks the
-      // fallback both times is a fault). Spec-parsed metadata normalizes
-      // `visibleWhen` into a `{ dialect: 'cel' }` envelope, so that branch is
-      // the common one in production: paying for the probe unconditionally
-      // would double the engine calls for every predicate of every node, to
-      // build a message no production build ever prints.
-      if (!__DEV__) return evaluator.evaluateCondition(raw);
-      try {
-        const verdict = evaluator.evaluateCondition(raw, { throwOnError: true });
-        // objectui#5687 — the NON-throwing half of the same silence, and it is
-        // reachable ONLY here, on the branch where the predicate evaluated
-        // cleanly. A `data.*` read the adapter cannot answer is not a fault the
-        // evaluator can raise: `undefined == 'draft'` is a perfectly good
-        // `false`. Verdict untouched — `verdict` is returned exactly as
-        // computed, which is what keeps the ruling's "no verdict changes" true
-        // by construction rather than by review.
-        reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource);
-        return verdict;
-      } catch (err) {
-        reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
-        // The historical fail-soft answer, unchanged — and identical to what
-        // the production branch above returns for the same input, which is what
-        // keeps the two branches one behaviour rather than two. See the
-        // docblock: `true` is the value EVERY path of `evaluateCondition`
-        // already returned for an unevaluable predicate.
-        return true;
-      }
-    };
 
     // Evaluate visibility: visibleWhen / visible / visibleOn / visibility / hidden / hiddenOn
     const shouldHide = (() => {

@@ -48,6 +48,18 @@
  * change moves the silence, not the answer. Removing the `unresolved.length`
  * guard instead turns RED the silence cases (2a/2b/2c/3a/3b) while group 1 stays
  * green, which is the false-positive direction the ruling refuses.
+ *
+ * ## objectui#5756 — the KNOWN LIMIT below is now FIXED, not pinned as a gap
+ *
+ * The 2026-08-22 "no interpolation changes" ruling quoted above was **this
+ * card's own scope constraint**, not a standing ban — objectui#5756 is the
+ * deliberate carrier for the `${…}`-inside-`properties` surface it fenced off.
+ * The test immediately below used to assert ZERO reports for that spelling;
+ * it now asserts ONE, and its describe-group comment is updated to match. What
+ * still stands, unchanged by #5756: no verdict changed (see `#5756 group 5`
+ * below for the byte-identical-verdict control), and every OTHER case in this
+ * file — the two negatives this docblock names, the record.* bucket, the
+ * production build — stays exactly as pinned here.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -205,31 +217,39 @@ describe('#5687 group 1 — the card\'s reproduction shape is reported', () => {
     expect(reports(warn)).toHaveLength(1);
   });
 
-  it('KNOWN LIMIT, measured and pinned: a `${…}` template INSIDE `properties` is invisible to this leg', () => {
-    // Not a choice — a structural consequence of an ordering this ruling
-    // fences off. The memo evaluates every `properties.*` value BEFORE the
-    // hoist ("Evaluating first is what makes one key mean one thing"), and
-    // measured on `@object-ui/core`'s evaluator:
+  it('FIXED by objectui#5756: a `${…}` template INSIDE `properties` now reports too', () => {
+    // Was a structural consequence of an ordering: the memo evaluates every
+    // `properties.*` value BEFORE the hoist ("Evaluating first is what makes
+    // one key mean one thing"), and measured on `@object-ui/core`'s evaluator:
     //
     //   evaluate("data.status == 'draft'")   -> "data.status == 'draft'"  (verbatim)
     //   evaluate("${data.status == 'draft'}") -> false                    (boolean)
     //
-    // So the bare string — the card's pinned repro — arrives at the gate with
-    // its `data.` text intact and IS reported, while the template arrives as a
-    // plain `false` with nothing left to detect. Reaching it would mean adding
-    // a diagnostic inside the interpolation loop, and the 2026-08-22 ruling
-    // fences interpolation off ("no interpolation changes").
+    // So the bare string — the card's pinned repro — arrived at the gate with
+    // its `data.` text intact and was already reported, while the template
+    // arrived as a plain `false` with nothing left to detect. objectui#5756
+    // reaches it by diagnosing INSIDE the `properties` evaluation loop, on the
+    // RAW pre-evaluation text, before it collapses — see
+    // `winningVisibilityKey` in `SchemaRenderer.tsx`.
     //
-    // The verdict is pinned here anyway: the block is hidden on every row, and
-    // the author gets no signal. That silence is filed separately, not
-    // smuggled in here.
+    // The verdict is UNCHANGED: the block is still hidden on every row. Only
+    // the silence moved — see `#5756 group 5` below for the control that pins
+    // this as byte-identical, not merely "still hidden".
     const warn = spyWarn();
     mount({ properties: { visible: "${data.status == 'draft'}" } }, DRAFT);
     expect(shown()).toBe(false);
+    const msg = reports(warn)[0];
+    expect(msg).toBeDefined();
+    expect(msg).toContain(TYPE);
+    expect(msg).toContain('visible');
+    expect(msg).toContain("${data.status == 'draft'}");
+    expect(msg).toContain('data.status');
     cleanup();
     mount({ properties: { visible: "${data.status == 'draft'}" } }, PUBLISHED);
     expect(shown()).toBe(false); // constant across rows, exactly as in group 1
-    expect(reports(warn)).toHaveLength(0);
+    // Deduped across both mounts — same (type, key, source) triple, matching
+    // group 1's "deduped" case exactly, not a second implementation of it.
+    expect(reports(warn)).toHaveLength(1);
   });
 
   it('a node-level `visibleWhen` written the deprecated way reports on ITS key', () => {
@@ -421,12 +441,140 @@ describe('#5687 group 4 — production is untouched', () => {
       cleanup();
       mountProd({ properties: { visible: "record.status == 'draft'" } }, PUBLISHED);
       expect(shown()).toBe(false);
+      cleanup();
+      // objectui#5756: the TEMPLATE spelling of the repro — same constant-false,
+      // same hidden block, and (unlike dev) no report is even attempted, since
+      // the whole diagnostic block is behind `if (__DEV__)`.
+      mountProd({ properties: { visible: "${data.status == 'draft'}" } }, DRAFT);
+      expect(shown()).toBe(false);
       // …and none of this module's output, on any of them.
       expect(warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(ADAPTER_ONLY_DATA_PREDICATE_PREFIX))).toHaveLength(0);
       core.ComponentRegistry.unregister?.(NAME, 'element');
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();
+    }
+  });
+});
+
+/**
+ * objectui#5756 — the two design points the card left to this seat, each
+ * pinned as its own case, plus the control the dispatch required explicitly:
+ * a value-level (not just verdict-level) proof that interpolation itself is
+ * untouched.
+ */
+describe('#5756 group 5 — the design points this card left open', () => {
+  it('5a: an OUTRANKED `properties.visible` template stays silent — a co-declared `visibleWhen` decides instead', () => {
+    // Mirrors #5454's own leg semantics: `evaluateVisibilityPredicate` is only
+    // ever CALLED on the leg `shouldHide`'s early-return chain actually
+    // consults, so an outranked leg's predicate — however broken — was never
+    // going to be diagnosed by that reporter either. This card's early call
+    // site (inside the `properties` loop) has to earn that same restraint on
+    // purpose, via `winningVisibilityKey`, rather than reporting every
+    // `${…}`-templated visibility key present regardless of whether the chain
+    // ever reaches it.
+    const warn = spyWarn();
+    mount(
+      { visibleWhen: 'true', properties: { visible: "${data.status == 'draft'}" } },
+      DRAFT,
+    );
+    // `visibleWhen` wins the precedence chain and says SHOW — the outranked
+    // `properties.visible` template decides NOTHING about what's on screen.
+    expect(shown()).toBe(true);
+    // Neither leg reports: `visibleWhen: 'true'` has no `data.` text to flag,
+    // and `properties.visible`'s template — despite being exactly the card's
+    // repro shape — is never even looked at, because it never wins.
+    expect(reports(warn)).toHaveLength(0);
+  });
+
+  it('5b: a GENUINE adapter read spelled as a `properties` TEMPLATE stays silent, on both polarities', () => {
+    // The template-dialect sibling of group 2b — extending that silence to
+    // the spelling this card's diagnostic newly reaches, so the new call site
+    // does not turn every properties-authored template gate into noise.
+    const warn = spyWarn();
+    mount({ properties: { visible: '${data.total > 0}' } }, DRAFT);
+    expect(shown()).toBe(true); // 99 > 0
+    cleanup();
+    mount({ properties: { visible: '${data.total > 100}' } }, DRAFT);
+    expect(shown()).toBe(false); // 99 > 100 is a REAL verdict, not an absence
+    expect(reports(warn)).toHaveLength(0);
+  });
+
+  it('5c: the NON-negated `hidden` leg, template-in-properties, reports and keeps its inverted answer', () => {
+    // The template-dialect sibling of group 1's `hidden` case. `hidden` is not
+    // negated, so a predicate that evaluates to `false` (the adapter has no
+    // `status`, so `undefined == 'draft'` is `false`) means "do NOT hide" —
+    // the node stays SHOWN, same as the bare-string spelling.
+    const warn = spyWarn();
+    mount({ properties: { hidden: "${data.status == 'draft'}" } }, DRAFT);
+    expect(shown()).toBe(true);
+    const msg = reports(warn)[0];
+    expect(msg).toBeDefined();
+    expect(msg).toContain('hidden');
+    expect(msg).toContain('data.status');
+  });
+
+  it('5d: a template-in-properties predicate that FAULTS reports via the #5454 (unresolvable) leg, not the #5687/#5756 (adapter-only) one', () => {
+    // The two reporters stay two reporters for this spelling too: a genuine
+    // fault (undefined identifier) is #5454's case, and this leg's dedupe Set
+    // is shared but keyed by reporter name, so the two cannot silence one
+    // another for the same predicate.
+    const warn = spyWarn();
+    mount({ properties: { visible: '${totallyUndefinedIdentifierXYZ}' } }, DRAFT);
+    expect(shown()).toBe(true); // fail-soft default, unchanged
+    expect(unresolvableReports(warn).length).toBeGreaterThan(0);
+    expect(reports(warn)).toHaveLength(0);
+  });
+
+  it('5e: interpolation-unchanged CONTROL — the evaluated `properties.visible` value the schema carries is a plain, real boolean, not something the diagnostic call altered', () => {
+    // The dispatch's explicit ask: prove the diagnostic is read-only, at the
+    // VALUE level, not only at the verdict (`shown()`) level every other case
+    // here already pins. `SchemaValueProbe` reads `props.schema.properties.*`
+    // directly — the exact value `newSchema.properties` carries after BOTH
+    // the evaluation loop AND the new diagnostic call have run — so this is
+    // the evaluated value a hypothetical OTHER renderer reading the raw
+    // `properties` bag (rather than the hoisted top-level key) would see.
+    //
+    // The predicate is the card's repro with the polarity FLIPPED
+    // (`!=` instead of `==`) rather than reused verbatim: the repro's own
+    // spelling evaluates to `false`, which would hide the probe itself and
+    // leave nothing mounted to read a value off of. `data.status` is still
+    // unresolved on this adapter either way — `unresolvedDataPaths` scans
+    // text, not verdicts — so the diagnostic still fires; only the verdict
+    // this control reads off flips, on purpose, to `true`.
+    const VALUE_PROBE_NAME = 'probe-5756-value';
+    const VALUE_PROBE_TYPE = 'element:probe-5756-value';
+    const SchemaValueProbe = (props: { schema?: { properties?: Record<string, unknown> } }) => (
+      <div
+        data-testid="value-probe"
+        data-visible={String(props.schema?.properties?.visible)}
+        data-visible-type={typeof props.schema?.properties?.visible}
+      />
+    );
+    ComponentRegistry.register(VALUE_PROBE_NAME, SchemaValueProbe as never, { namespace: 'element', skipFallback: true } as never);
+    try {
+      const warn = spyWarn();
+      render(
+        <PredicateScopeProvider scope={APP_SCOPE}>
+          <SchemaRendererContext.Provider value={{ dataSource: ADAPTER } as never}>
+            <RecordContextProvider objectName="showcase_task" recordId="r1" data={DRAFT}>
+              <SchemaRenderer schema={{ type: VALUE_PROBE_TYPE, properties: { visible: "${data.status != 'draft'}" } } as never} />
+            </RecordContextProvider>
+          </SchemaRendererContext.Provider>
+        </PredicateScopeProvider>,
+      );
+      const el = screen.getByTestId('value-probe');
+      // A plain JS `true` — `evaluator.evaluate("${data.status != 'draft'}")`'s
+      // OWN answer, exactly as it was before this card, not a string, not the
+      // literal template text, and not some sentinel the diagnostic left behind.
+      expect(el).toHaveAttribute('data-visible-type', 'boolean');
+      expect(el).toHaveAttribute('data-visible', 'true');
+      // The diagnostic still ran (this IS the winning, properties-sourced,
+      // `${…}`-templated key) — the control is that it ran WITHOUT touching
+      // the value above, not that it didn't run.
+      expect(reports(warn)).toHaveLength(1);
+    } finally {
+      ComponentRegistry.unregister?.(VALUE_PROBE_NAME, 'element');
     }
   });
 });
