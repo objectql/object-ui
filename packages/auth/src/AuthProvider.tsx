@@ -56,20 +56,61 @@ const METADATA_SEED_CACHE_PREFIX = 'objectui:metadata:';
  * blob that escapes this purge (a tab open across the upgrade, a session ended
  * by expiry rather than by this call) is unreadable rather than merely
  * undeleted. The two halves are deliberately independent.
+ *
+ * ## The `try` guards the SNAPSHOT, not the walk (objectui#5777)
+ *
+ * `Object.keys(sessionStorage)` can itself throw — partitioned iframes, some
+ * privacy modes — and that is the reason a guard exists here at all, so it
+ * stays. What it must NOT do is wrap the loop: a `removeItem` that throws on
+ * key `n` would abort the walk, leaving every still-unvisited MATCHING key
+ * unswept, with the failure swallowed so the caller believes the sweep
+ * completed. The keys this purges are a cross-principal disclosure risk on a
+ * shared browser (objectui#5198), not ordinary staleness — a partial sweep
+ * leaves an arbitrary subset of the previous principal's permission-filtered
+ * app list readable to whoever signs in next in this tab. So each
+ * `removeItem` gets its own `try`: one uncooperative key costs exactly that
+ * key. Same defect class and same remedy as `sweepStore` in
+ * `ActiveOrganizationStorage.ts` (objectui#5763) — different file and
+ * different caller (sign-out, not sign-in) is why it is fixed here rather
+ * than there.
+ *
+ * ## Reported, not quarantined — same reason as `sweepStore`
+ *
+ * This function walks keys it does not own reads for: `MetadataProvider`
+ * (`@object-ui/app-shell`) is the reader of the seed cache, not this
+ * provider — there is no local `get()` here to guard, so there is nothing to
+ * quarantine the way `ActiveOrganizationStorage.clear()` quarantines a key
+ * (objectui#5731). What IS mirrored is the reporting channel: a key whose
+ * `removeItem` throws is named in a `console.warn`, so a partial sweep is
+ * discoverable instead of silent. The caller (`signOut`, above) cannot act on
+ * it either way — the session is already ending — so, like `sweepStore` on
+ * the sign-in path, this must not throw.
  */
 function purgeSignedOutClientCaches(): void {
   if (typeof sessionStorage !== 'undefined') {
+    let keys: string[];
     try {
       // Snapshot the keys first (`Object.keys`) — removing entries during a
       // live index walk shifts the ones behind it and skips half of them.
       // Same idiom as the `MarketplacePackagePage` purge loop.
-      for (const key of Object.keys(sessionStorage)) {
-        if (key.startsWith(METADATA_SEED_CACHE_PREFIX)) {
-          sessionStorage.removeItem(key);
-        }
-      }
+      keys = Object.keys(sessionStorage);
     } catch {
-      /* storage unavailable */
+      keys = []; /* storage unavailable */
+    }
+    const unswept: string[] = [];
+    for (const key of keys) {
+      if (!key.startsWith(METADATA_SEED_CACHE_PREFIX)) continue;
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        unswept.push(key);
+      }
+    }
+    if (unswept.length > 0) {
+      console.warn(
+        `[purgeSignedOutClientCaches] could not remove ${unswept.length} key(s) from sessionStorage: ` +
+          `${unswept.join(', ')}. The signed-out user's metadata seed cache may still be readable under these keys.`,
+      );
     }
   }
   ActiveOrganizationStorage.clear();

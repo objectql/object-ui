@@ -197,6 +197,80 @@ describe('signOut purges the signed-out principal’s client caches (#5198)', ()
     expect(observed[observed.length - 1]).toEqual([]);
   });
 
+  // ---------------------------------------------------------------------
+  // objectui#5777 — a throwing `removeItem` must cost exactly that key
+  // ---------------------------------------------------------------------
+
+  it('sweeps every other metadata key when one removeItem throws (#5777)', async () => {
+    const client = createMockClient();
+    await renderSignedIn(client);
+
+    // Keys on BOTH SIDES of the poisoned one in insertion order, so a green
+    // run proves the walk continues past the throw rather than stopping at
+    // the first non-poisoned key it happens to reach.
+    sessionStorage.setItem('objectui:metadata:app:org_a:abc', JSON.stringify([{ name: 'crm' }]));
+    const POISON_KEY = 'objectui:metadata:nav:org_a:abc';
+    sessionStorage.setItem(POISON_KEY, JSON.stringify(['accounts']));
+    sessionStorage.setItem('objectui:metadata:object:org_a:abc', JSON.stringify([{ name: 'account' }]));
+    // Non-matching key — never a removal candidate either way.
+    sessionStorage.setItem('objectui:sidebar:collapsed', 'true');
+    ActiveOrganizationStorage.set('org_a');
+
+    const realRemoveItem = sessionStorage.removeItem.bind(sessionStorage);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const removeItemSpy = vi
+      .spyOn(sessionStorage, 'removeItem')
+      .mockImplementation((key: string) => {
+        if (key === POISON_KEY) throw new Error('simulated removeItem failure');
+        realRemoveItem(key);
+      });
+
+    try {
+      await act(async () => {
+        await authRef.current!.signOut();
+      });
+
+      // The poisoned key is the residue the card is about — it survives.
+      expect(sessionStorage.getItem(POISON_KEY)).toBe(JSON.stringify(['accounts']));
+
+      // Everything else matching the prefix is still swept — this is the
+      // pin: one uncooperative key costs one key, not the rest of the sweep.
+      expect(sessionStorage.getItem('objectui:metadata:app:org_a:abc')).toBeNull();
+      expect(sessionStorage.getItem('objectui:metadata:object:org_a:abc')).toBeNull();
+
+      // Non-matching keys were never removal candidates either way.
+      expect(sessionStorage.getItem('objectui:sidebar:collapsed')).toBe('true');
+
+      // The active-org clear is unconditional and runs after the sweep either way.
+      expect(ActiveOrganizationStorage.get()).toBeNull();
+
+      // Discoverable, not silent — the failure is named, not swallowed whole.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain(POISON_KEY);
+    } finally {
+      // Explicit, not left to `afterEach`'s `restoreAllMocks()` — a spy
+      // installed on a jsdom `Storage` instance has been observed to survive
+      // `restoreAllMocks()` across tests (objectui#5763's sibling case).
+      removeItemSpy.mockRestore();
+    }
+  });
+
+  it('reports nothing when every removal sticks (#5777)', async () => {
+    // Control on the case above: the warning is a measurement of an actual
+    // failure, not a constant emitted on every purge.
+    const client = createMockClient();
+    await renderSignedIn(client);
+    seedPreviousSessionCaches();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await act(async () => {
+      await authRef.current!.signOut();
+    });
+
+    expect(metadataKeys()).toEqual([]);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
   it('drops the previous principal’s organization block from context', async () => {
     // The list is the workspaces THAT user belongs to (the switcher renders
     // it), and a surviving `activeOrganization` would also suppress the
