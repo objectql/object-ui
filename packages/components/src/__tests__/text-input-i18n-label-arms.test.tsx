@@ -63,7 +63,13 @@ function renderInput(properties: Record<string, unknown>, language = 'en') {
       persistLanguage={false}
       config={{ defaultLanguage: language, detectBrowserLanguage: false }}
     >
-      {/* eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns the registered component (stable), not one created during render */}
+      {/* `C` is the component the registry ALREADY holds — `ComponentRegistry.get`
+          returns a stable reference, not one created during this render — so the
+          static-components concern does not apply. Stated as prose rather than as
+          the `eslint-disable-next-line` its sibling
+          `record-picker-empty-text-i18n.test.tsx` carries: that directive is
+          reported UNUSED by this repo's own config (the rule never fires here),
+          and an inert suppression outlives the reason anyone wrote it. */}
       <C schema={{ type: 'element:text_input', id: 'ws_input', properties }} />
     </I18nProvider>,
   );
