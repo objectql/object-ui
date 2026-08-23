@@ -345,6 +345,17 @@ export interface ReplayOutcome {
   error?: string;
   /** Owning package of a drafted outcome, for the inline publish affordance. */
   packageId?: string;
+  /**
+   * The replay DISPATCH itself errored (bare `{error: …}` envelope) rather
+   * than the publish being refused — measured live 2026-08-24: an apply_edit
+   * replay carrying a blueprint-local object name errored `object "task" not
+   * found`, after which the MODEL self-repaired with different tool calls
+   * that succeeded. A dispatch error is therefore only provisionally
+   * `failed`: the card walk may supersede it with a later successful
+   * authoring verdict from the same turn (see `detectAuthoringVerdict`),
+   * so the card never says 未生效 over a change that actually landed.
+   */
+  dispatchError?: boolean;
 }
 
 export function detectReplayOutcome(
@@ -355,6 +366,14 @@ export function detectReplayOutcome(
   const obj = parseResultEnvelope(result);
   if (!obj) return undefined;
   if (obj.status === 'published') return { kind: 'published' };
+  const rawDispatchErr = (obj as { error?: unknown }).error;
+  if (typeof rawDispatchErr === 'string' && rawDispatchErr.trim() && obj.status === undefined) {
+    return {
+      kind: 'failed',
+      dispatchError: true,
+      error: rawDispatchErr.trim().split('\n')[0],
+    };
+  }
   if (obj.status !== 'drafted') return undefined;
   const rawPkg = (obj as { packageId?: unknown }).packageId;
   const packageId =
@@ -371,6 +390,26 @@ export function detectReplayOutcome(
       ...packageId,
     };
   }
+  return { kind: 'drafted', ...packageId };
+}
+
+/**
+ * objectui#5695 — classify ANY tool result as an authoring verdict, for the
+ * confirm card's self-repair supersede: after a replay DISPATCH error, the
+ * model may land the same change through different tool calls; those results
+ * carry the ordinary authoring envelope, and the latest one in the turn is
+ * the truthful terminal state for the card.
+ */
+export function detectAuthoringVerdict(
+  result: unknown,
+): { kind: 'published' | 'drafted' | 'failed'; packageId?: string } | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status === 'published') return { kind: 'published' };
+  if (obj.status !== 'drafted') return undefined;
+  const rawPkg = (obj as { packageId?: unknown }).packageId;
+  const packageId = typeof rawPkg === 'string' && rawPkg ? { packageId: rawPkg } : {};
+  if ((obj as { publishFailed?: unknown }).publishFailed === true) return { kind: 'failed', ...packageId };
   return { kind: 'drafted', ...packageId };
 }
 

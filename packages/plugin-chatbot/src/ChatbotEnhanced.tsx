@@ -79,7 +79,7 @@ import {
   SourcesContent,
   Source,
 } from './elements/sources';
-import { parseResultEnvelope } from './mapMessages';
+import { parseResultEnvelope, detectAuthoringVerdict } from './mapMessages';
 
 export interface ChatMessage {
   id: string;
@@ -332,6 +332,7 @@ export interface ChatToolInvocation {
     outcome?: string;
     error?: string;
     packageId?: string;
+    dispatchError?: boolean;
   };
 }
 
@@ -1784,26 +1785,46 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // `confirmedChangeIds` above. A replay invocation still awaiting its result
     // marks the card 'applying'; later replays of the same card overwrite
     // earlier ones (an adjusted-and-reconfirmed change reports its LAST run).
+    //
+    // Self-repair supersede (measured live 2026-08-24): a replay whose DISPATCH
+    // errored (`dispatchError`) may be followed, in the same turn, by the model
+    // landing the change through different tool calls. Any LATER non-replay
+    // invocation whose result parses as an authoring verdict overrides the
+    // provisional failure — the card must never say 未生效 over a change that
+    // actually landed (that would be the original bug, mirrored).
     const replayOutcomeByProposalId = React.useMemo(() => {
       const byId = new Map<
         string,
         NonNullable<ChatToolInvocation['replayOutcome']> | { kind: 'applying' }
       >();
+      const dispatchErrorTargets = new Map<string, number>(); // proposalId → replay order
       const proposals: Array<{ id: string; toolName: string; order: number }> = [];
       let order = 0;
       for (const message of messages) {
         for (const tool of message.toolInvocations ?? []) {
           if (tool.proposedChanges && tool.toolCallId) {
             proposals.push({ id: tool.toolCallId, toolName: tool.toolName ?? '', order });
+            dispatchErrorTargets.delete(tool.toolCallId);
           } else if (tool.toolCallId?.startsWith('replay_')) {
             let target: { id: string } | undefined;
             for (const p of proposals) {
               if (p.order < order && p.toolName === (tool.toolName ?? '')) target = p;
             }
             if (target) {
-              if (tool.replayOutcome) byId.set(target.id, tool.replayOutcome);
-              else if (tool.result === undefined && !tool.errorText)
+              if (tool.replayOutcome) {
+                byId.set(target.id, tool.replayOutcome);
+                if (tool.replayOutcome.dispatchError) dispatchErrorTargets.set(target.id, order);
+                else dispatchErrorTargets.delete(target.id);
+              } else if (tool.result === undefined && !tool.errorText) {
                 byId.set(target.id, { kind: 'applying' });
+              }
+            }
+          } else if (tool.result !== undefined && dispatchErrorTargets.size > 0) {
+            const verdict = detectAuthoringVerdict(tool.result);
+            if (verdict) {
+              for (const [pid, replayOrder] of dispatchErrorTargets) {
+                if (order > replayOrder) byId.set(pid, verdict);
+              }
             }
           }
           order += 1;

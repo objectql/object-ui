@@ -172,7 +172,7 @@ interface CacheableChatToolInvocation {
   proposedPlan?: CachedProposedPlan;
   /** objectui#5695 — the confirm-replay verdict, so the 确认修改 card's terminal
    *  state (已生效 / 已暂存为草稿 / 未生效) survives a cache-fallback reload. */
-  replayOutcome?: { kind: 'published' | 'drafted' | 'failed'; outcome?: string; error?: string; packageId?: string };
+  replayOutcome?: { kind: 'published' | 'drafted' | 'failed'; outcome?: string; error?: string; packageId?: string; dispatchError?: boolean };
 }
 
 interface CacheableChatMessage {
@@ -242,6 +242,9 @@ function replayOutcomeToCachedResult(
   ro: NonNullable<CacheableChatToolInvocation['replayOutcome']>,
 ): Record<string, unknown> {
   if (ro.kind === 'published') return { status: 'published' };
+  // A dispatch error round-trips as the bare `{error}` shape it was detected
+  // from, so re-detection keeps its provisional (supersedable) semantics.
+  if (ro.kind === 'failed' && ro.dispatchError) return { error: ro.error ?? 'replay dispatch failed' };
   return {
     status: 'drafted',
     ...(ro.packageId ? { packageId: ro.packageId } : {}),

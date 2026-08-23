@@ -360,6 +360,7 @@ export {
   detectBuilderHandoff,
   detectProposedChanges,
   detectReplayOutcome,
+  detectAuthoringVerdict,
   buildProgressFromDraftReview,
 } from './mapMessages';
 export type {

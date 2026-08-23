@@ -13,7 +13,7 @@
  * live Publish button.
  */
 import { describe, it, expect } from 'vitest';
-import { detectReplayOutcome, uiMessagesToChatMessages } from '../mapMessages';
+import { detectReplayOutcome, detectAuthoringVerdict, uiMessagesToChatMessages } from '../mapMessages';
 
 const FAILED = JSON.stringify({
   status: 'drafted',
@@ -103,5 +103,38 @@ describe('replay suppression in the live mapper (objectui#5695)', () => {
     const tool = msg.toolInvocations?.[0];
     expect(tool?.draftReview?.items).toEqual([{ type: 'view', name: 'v' }]);
     expect(tool?.replayOutcome).toBeUndefined();
+  });
+});
+
+describe('replay dispatch errors + authoring verdicts (objectui#5695 follow-up, measured live 2026-08-24)', () => {
+  it('a bare {error} replay result is a provisional dispatch failure', () => {
+    expect(
+      detectReplayOutcome(
+        'replay_t1_0',
+        JSON.stringify({ error: 'apply_edit op #1 (add_field): object "task" not found.\nmore' }),
+      ),
+    ).toEqual({
+      kind: 'failed',
+      dispatchError: true,
+      error: 'apply_edit op #1 (add_field): object "task" not found.',
+    });
+  });
+
+  it('an {error} beside a status keeps status semantics (not a dispatch error)', () => {
+    expect(
+      detectReplayOutcome('replay_t1_0', JSON.stringify({ status: 'published', error: 'noise' })),
+    ).toEqual({ kind: 'published' });
+  });
+
+  it('detectAuthoringVerdict classifies arbitrary tool results for the self-repair supersede', () => {
+    expect(detectAuthoringVerdict(JSON.stringify({ status: 'published' }))).toEqual({ kind: 'published' });
+    expect(
+      detectAuthoringVerdict(JSON.stringify({ status: 'drafted', packageId: 'app.x' })),
+    ).toEqual({ kind: 'drafted', packageId: 'app.x' });
+    expect(
+      detectAuthoringVerdict(JSON.stringify({ status: 'drafted', publishFailed: true })),
+    ).toEqual({ kind: 'failed' });
+    expect(detectAuthoringVerdict(JSON.stringify({ error: 'x' }))).toBeUndefined();
+    expect(detectAuthoringVerdict('plain')).toBeUndefined();
   });
 });

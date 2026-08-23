@@ -164,3 +164,71 @@ describe('ChatbotEnhanced — confirm card replay terminal states (objectui#5695
     expect(screen.getByTestId('proposed-changes-confirm')).toBeInTheDocument();
   });
 });
+
+describe('self-repair supersede (objectui#5695 follow-up)', () => {
+  const dispatchFailedReplay = (): ChatMessage =>
+    replayMessage({
+      kind: 'failed',
+      dispatchError: true,
+      error: 'apply_edit op #1 (add_field): object "task" not found.',
+    });
+
+  it('a dispatch-errored replay with NO later verdict renders the failure state', () => {
+    render(
+      <ChatbotEnhanced messages={[proposalMessage(), dispatchFailedReplay()]} onSendMessage={vi.fn()} />,
+    );
+    expect(screen.getByTestId('proposed-changes-failed')).toBeInTheDocument();
+    expect(screen.getByTestId('proposed-changes-failed-reason')).toHaveTextContent('not found');
+  });
+
+  it("the model's later successful authoring result supersedes the dispatch error — never 未生效 over a landed change", () => {
+    const selfRepair: ChatMessage = {
+      id: 'a3',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 'toolu_selfrepair',
+          toolName: 'add_field',
+          state: 'output-available',
+          result: JSON.stringify({ status: 'published' }),
+        },
+      ],
+    };
+    render(
+      <ChatbotEnhanced
+        messages={[proposalMessage(), dispatchFailedReplay(), selfRepair]}
+        onSendMessage={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('proposed-changes-applied')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-changes-failed')).not.toBeInTheDocument();
+  });
+
+  it('a REAL publish failure (publishFailed envelope) is NOT superseded by later results', () => {
+    const later: ChatMessage = {
+      id: 'a3',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 'toolu_other',
+          toolName: 'list_objects',
+          state: 'output-available',
+          result: JSON.stringify({ status: 'published' }),
+        },
+      ],
+    };
+    render(
+      <ChatbotEnhanced
+        messages={[
+          proposalMessage(),
+          replayMessage({ kind: 'failed', outcome: 'rolled_back', error: 'publish gate refused' }),
+          later,
+        ]}
+        onSendMessage={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId('proposed-changes-failed')).toBeInTheDocument();
+  });
+});
