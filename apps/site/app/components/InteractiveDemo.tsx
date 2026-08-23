@@ -5,6 +5,7 @@ import { SchemaRenderer, SchemaRendererContext, toRenderableSchema } from '@obje
 import { SidebarProvider } from '@object-ui/components';
 // Registers `page-header` & friends — see the module header (objectui#3787).
 import './registerLayoutBlocks';
+import { galleryDataSource } from './galleryDataSource';
 import type { SchemaNode } from '@object-ui/core';
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
 import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
@@ -12,8 +13,24 @@ import { CodeBlock, Pre } from 'fumadocs-ui/components/codeblock';
 // Re-export SchemaNode type for use in MDX files
 export type { SchemaNode } from '@object-ui/core';
 
-/** Minimal provider so plugins can find SchemaRendererContext */
-const defaultCtx = { dataSource: {} };
+/**
+ * The provider the demos render under. `dataSource` is the docs gallery's
+ * stand-in fixture — the SAME module `SchemaThumbnail` supplies to the catalog
+ * gallery, rather than a second one — because a demo whose schema is
+ * object-bound has no other way to reach data: `dataSource` is not a schema
+ * key, it is what the registered renderer pulls off this context
+ * (`packages/plugin-view/src/index.tsx`).
+ *
+ * It was `{}` until objectui#5113, which is why the three `plugin-view`
+ * examples on `content/docs/plugins/plugin-view.mdx` could only be hand-drawn
+ * pictures of a view rather than the view itself.
+ *
+ * Importing the fixture pulls in NO plugin package: this host keeps its plugin
+ * registration lazy through `PluginLoader`, per page — the gallery's eager
+ * block-registration module stays out of here, and `galleryDataSource` imports
+ * nothing at all (objectui#4600/#4616).
+ */
+const defaultCtx = { dataSource: galleryDataSource };
 function DemoProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => defaultCtx, []);
   return (
@@ -71,7 +88,10 @@ export function InteractiveDemo({
                     <DemoProvider>
                       <SidebarProvider className="min-h-0 w-full" defaultOpen={false}>
                         <div className="w-full">
-                          <SchemaRenderer schema={toRenderableSchema(example.schema)} />
+                          <SchemaRenderer
+                          schema={toRenderableSchema(example.schema)}
+                          dataSource={galleryDataSource}
+                        />
                         </div>
                       </SidebarProvider>
                     </DemoProvider>
@@ -116,7 +136,7 @@ export function InteractiveDemo({
             <DemoProvider>
               <SidebarProvider className="min-h-0 w-full" defaultOpen={false}>
                 <div className="w-full">
-                  <SchemaRenderer schema={toRenderableSchema(schema)} />
+                  <SchemaRenderer schema={toRenderableSchema(schema)} dataSource={galleryDataSource} />
                 </div>
               </SidebarProvider>
             </DemoProvider>

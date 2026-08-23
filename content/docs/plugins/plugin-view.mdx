@@ -17,17 +17,27 @@ npm install @object-ui/plugin-view
 
 ## Interactive Examples
 
-### User Directory View
+Each preview below **is** an `object-view` node drawn by this plugin — the JSON
+in the Code tab is the whole example, and the rows on screen came out of a
+`find()` call, not out of that JSON. The records are served by the docs site's
+demo data source, because `dataSource` is not a schema key: it is the prop the
+registered renderer pulls off `SchemaRendererProvider` context (see
+[Schema API](#schema-api) below), so in your own app these same nodes read
+whatever object your data source serves. That fixture answers search and sort
+but not filters, which is the only reason `showFilters: false` is authored
+here.
 
-<SchemaExample id="plugin-view/grid-view-mode" />
+### The list surface
 
-### Record Detail View
+<SchemaExample id="plugin-view/object-view-list" />
 
-<SchemaExample id="plugin-view/detail-view-mode" />
+### Saved views
 
-### Form Create View
+<SchemaExample id="plugin-view/object-view-named-views" />
 
-<SchemaExample id="plugin-view/form-view-mode" />
+### The record surface
+
+<SchemaExample id="plugin-view/object-view-record-surface" />
 
 ## Features
 

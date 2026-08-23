@@ -73,8 +73,13 @@ const REPAIRED: ReadonlyArray<readonly [string, number]> = [
   ['components-layout-page/full-dashboard', 4],
   ['components-layout-page/page-with-header', 3],
   ['forms/contact-form', 2],
+  // Was `plugin-view/form-view-mode` until objectui#5113. The entry is the same
+  // file with the same two-column grid node — it moved out of `plugin-view`
+  // because it is a hand-composed form layout, not an example of that plugin,
+  // whose three entries now author `object-view`. Renamed here rather than
+  // dropped: the repair this row pins is still in the catalog.
+  ['forms/create-user-form', 2],
   ['forms/payment-form', 3],
-  ['plugin-view/form-view-mode', 2],
   ['report/report-header-with-kpis', 4],
   ['theme/semantic-color-palette', 4],
   ['theme/theme-aware-ui-elements', 2],

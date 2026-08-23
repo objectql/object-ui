@@ -36,6 +36,36 @@
       "verification"
     ]
   },
+  "components-layout-card/profile-detail-card": {
+    "title": "Profile Detail Card",
+    "description": "A card that draws one record by hand — avatar header, label/value rows, edit and delete footer. For a record surface bound to an object, see the `plugin-view` examples.",
+    "tags": [
+      "card",
+      "detail",
+      "profile",
+      "avatar"
+    ]
+  },
+  "components-layout-card/user-list-card": {
+    "title": "User List Card",
+    "description": "A card that draws a directory table by hand — header row, striped rows, status badges. For a table bound to an object, see the `plugin-view` / `plugin-grid` examples.",
+    "tags": [
+      "card",
+      "list",
+      "badge",
+      "layout"
+    ]
+  },
+  "forms/create-user-form": {
+    "title": "Create User Form",
+    "description": "Two-column name fields, email, role select and a submit/cancel footer.",
+    "tags": [
+      "form",
+      "create",
+      "select",
+      "grid"
+    ]
+  },
   "plugin-dashboard/filtered-dashboard": {
     "description": "Dashboard-level date + region filters driving multiple charts over different objects"
   },
@@ -58,5 +88,35 @@
   "plugin-dashboard/filtered-dashboard-target-widgets": {
     "title": "Filtered Dashboard — Target Widgets Allow-list",
     "description": "Legacy targetWidgets allow-list: only listed widgets get the default binding; an explicit filterBindings entry still wins"
+  },
+  "plugin-view/object-view-list": {
+    "title": "Object View — List Surface",
+    "description": "object-view rendering the users object: the columns declared in `table`, with search and sort served by the host's data source.",
+    "tags": [
+      "object-view",
+      "grid",
+      "list",
+      "objectql"
+    ]
+  },
+  "plugin-view/object-view-named-views": {
+    "title": "Object View — Saved Views",
+    "description": "Two `listViews` entries over one object, each with its own label and column set; `defaultListView` picks which opens first.",
+    "tags": [
+      "object-view",
+      "listViews",
+      "tabs",
+      "objectql"
+    ]
+  },
+  "plugin-view/object-view-record-surface": {
+    "title": "Object View — Record Surface",
+    "description": "Create, read and edit as one surface: `layout` decides where it opens, `form` decides what it contains, and a row click chooses the record.",
+    "tags": [
+      "object-view",
+      "form",
+      "drawer",
+      "crud"
+    ]
   }
 }

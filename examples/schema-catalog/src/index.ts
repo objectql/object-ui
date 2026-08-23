@@ -253,6 +253,8 @@ import components_layout_aspect_ratio_square from './schemas/components-layout-a
 import components_layout_aspect_ratio_ultrawide from './schemas/components-layout-aspect-ratio/ultrawide.json' with { type: 'json' };
 import components_layout_aspect_ratio_video_aspect_ratio from './schemas/components-layout-aspect-ratio/video-aspect-ratio.json' with { type: 'json' };
 import components_layout_card_basic_card from './schemas/components-layout-card/basic-card.json' with { type: 'json' };
+import components_layout_card_profile_detail_card from './schemas/components-layout-card/profile-detail-card.json' with { type: 'json' };
+import components_layout_card_user_list_card from './schemas/components-layout-card/user-list-card.json' with { type: 'json' };
 import components_layout_card_with_footer from './schemas/components-layout-card/with-footer.json' with { type: 'json' };
 import components_layout_container_basic_container from './schemas/components-layout-container/basic-container.json' with { type: 'json' };
 import components_layout_flex_horizontal_layout from './schemas/components-layout-flex/horizontal-layout.json' with { type: 'json' };
@@ -381,6 +383,7 @@ import fields_user_single_user_selection from './schemas/fields-user/single-user
 import fields_vector_basic_vector_display from './schemas/fields-vector/basic-vector-display.json' with { type: 'json' };
 import fields_vector_high_dimensional_vector from './schemas/fields-vector/high-dimensional-vector.json' with { type: 'json' };
 import forms_contact_form from './schemas/forms/contact-form.json' with { type: 'json' };
+import forms_create_user_form from './schemas/forms/create-user-form.json' with { type: 'json' };
 import forms_newsletter_signup from './schemas/forms/newsletter-signup.json' with { type: 'json' };
 import forms_payment_form from './schemas/forms/payment-form.json' with { type: 'json' };
 import forms_settings_form from './schemas/forms/settings-form.json' with { type: 'json' };
@@ -427,9 +430,9 @@ import plugin_markdown_markdown_tables from './schemas/plugin-markdown/markdown-
 import plugin_timeline_gantt_style_timeline from './schemas/plugin-timeline/gantt-style-timeline.json' with { type: 'json' };
 import plugin_timeline_horizontal_timeline from './schemas/plugin-timeline/horizontal-timeline.json' with { type: 'json' };
 import plugin_timeline_vertical_timeline from './schemas/plugin-timeline/vertical-timeline.json' with { type: 'json' };
-import plugin_view_detail_view_mode from './schemas/plugin-view/detail-view-mode.json' with { type: 'json' };
-import plugin_view_form_view_mode from './schemas/plugin-view/form-view-mode.json' with { type: 'json' };
-import plugin_view_grid_view_mode from './schemas/plugin-view/grid-view-mode.json' with { type: 'json' };
+import plugin_view_object_view_list from './schemas/plugin-view/object-view-list.json' with { type: 'json' };
+import plugin_view_object_view_named_views from './schemas/plugin-view/object-view-named-views.json' with { type: 'json' };
+import plugin_view_object_view_record_surface from './schemas/plugin-view/object-view-record-surface.json' with { type: 'json' };
 import report_report_breakdown_table from './schemas/report/report-breakdown-table.json' with { type: 'json' };
 import report_report_header_with_kpis from './schemas/report/report-header-with-kpis.json' with { type: 'json' };
 import report_report_scheduling from './schemas/report/report-scheduling.json' with { type: 'json' };
@@ -2620,6 +2623,26 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_layout_card_basic_card,
   },
+  'components-layout-card/profile-detail-card': {
+    id: 'components-layout-card/profile-detail-card',
+    meta: {
+      title: "Profile Detail Card",
+      description: "A card that draws one record by hand — avatar header, label/value rows, edit and delete footer. For a record surface bound to an object, see the `plugin-view` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "detail", "profile", "avatar"],
+    },
+    schema: components_layout_card_profile_detail_card,
+  },
+  'components-layout-card/user-list-card': {
+    id: 'components-layout-card/user-list-card',
+    meta: {
+      title: "User List Card",
+      description: "A card that draws a directory table by hand — header row, striped rows, status badges. For a table bound to an object, see the `plugin-view` / `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "list", "badge", "layout"],
+    },
+    schema: components_layout_card_user_list_card,
+  },
   'components-layout-card/with-footer': {
     id: 'components-layout-card/with-footer',
     meta: {
@@ -3772,6 +3795,16 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: forms_contact_form,
   },
+  'forms/create-user-form': {
+    id: 'forms/create-user-form',
+    meta: {
+      title: "Create User Form",
+      description: "Two-column name fields, email, role select and a submit/cancel footer.",
+      category: 'forms',
+      tags: ["form", "create", "select", "grid"],
+    },
+    schema: forms_create_user_form,
+  },
   'forms/newsletter-signup': {
     id: 'forms/newsletter-signup',
     meta: {
@@ -4186,32 +4219,35 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_timeline_vertical_timeline,
   },
-  'plugin-view/detail-view-mode': {
-    id: 'plugin-view/detail-view-mode',
+  'plugin-view/object-view-list': {
+    id: 'plugin-view/object-view-list',
     meta: {
-      title: "Detail View Mode",
-      description: "",
+      title: "Object View — List Surface",
+      description: "object-view rendering the users object: the columns declared in `table`, with search and sort served by the host's data source.",
       category: 'plugin-view',
+      tags: ["object-view", "grid", "list", "objectql"],
     },
-    schema: plugin_view_detail_view_mode,
+    schema: plugin_view_object_view_list,
   },
-  'plugin-view/form-view-mode': {
-    id: 'plugin-view/form-view-mode',
+  'plugin-view/object-view-named-views': {
+    id: 'plugin-view/object-view-named-views',
     meta: {
-      title: "Form View Mode",
-      description: "",
+      title: "Object View — Saved Views",
+      description: "Two `listViews` entries over one object, each with its own label and column set; `defaultListView` picks which opens first.",
       category: 'plugin-view',
+      tags: ["object-view", "listViews", "tabs", "objectql"],
     },
-    schema: plugin_view_form_view_mode,
+    schema: plugin_view_object_view_named_views,
   },
-  'plugin-view/grid-view-mode': {
-    id: 'plugin-view/grid-view-mode',
+  'plugin-view/object-view-record-surface': {
+    id: 'plugin-view/object-view-record-surface',
     meta: {
-      title: "Grid View Mode",
-      description: "",
+      title: "Object View — Record Surface",
+      description: "Create, read and edit as one surface: `layout` decides where it opens, `form` decides what it contains, and a row click chooses the record.",
       category: 'plugin-view',
+      tags: ["object-view", "form", "drawer", "crud"],
     },
-    schema: plugin_view_grid_view_mode,
+    schema: plugin_view_object_view_record_surface,
   },
   'report/report-breakdown-table': {
     id: 'report/report-breakdown-table',

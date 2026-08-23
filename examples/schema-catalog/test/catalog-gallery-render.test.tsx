@@ -270,8 +270,38 @@ const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
  * The gallery's data source, in the shape `SchemaThumbnail` supplies it. Kept
  * as a local literal rather than imported from `apps/site` because `apps/**` is
  * outside every root Vitest project (`vitest.config.mts` `sharedExclude`); the
- * host-parity case at the end guards the two from drifting apart.
+ * host-parity cases at the end guard the two from drifting apart.
+ *
+ * objectui#5113 added the object surface (`getObjectSchema` / `find` / the
+ * writes) to the host fixture, because `object-view` reaches its data through
+ * exactly this context value — `dataSource` is not a schema key. The three
+ * `plugin-view` entries render through it, which is what
+ * `THE PLUGIN-VIEW ENTRIES` below asserts. What the mirror reproduces is the
+ * host's SURFACE and its rows; the query semantics ($search / $orderby /
+ * windowing) are the host's, and the parity case pins the method names rather
+ * than re-deriving them here.
  */
+const USERS_ROWS = [
+  { id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', department: 'Engineering', status: 'active', created_at: '2024-01-14' },
+  { id: '2', name: 'Bob Chen', email: 'bob@example.com', role: 'member', department: 'Design', status: 'active', created_at: '2024-02-03' },
+  { id: '3', name: 'Carla Gómez', email: 'carla@example.com', role: 'member', department: 'Sales', status: 'invited', created_at: '2024-03-21' },
+  { id: '4', name: 'Dan Whitfield', email: 'dan@example.com', role: 'viewer', department: 'Support', status: 'suspended', created_at: '2024-04-09' },
+  { id: '5', name: 'Emily Novak', email: 'emily@example.com', role: 'member', department: 'Engineering', status: 'active', created_at: '2024-05-30' },
+];
+
+const USERS_SCHEMA = {
+  name: 'users',
+  label: 'Users',
+  fields: {
+    name: { label: 'Name', type: 'text' },
+    email: { label: 'Email', type: 'email' },
+    role: { label: 'Role', type: 'select' },
+    department: { label: 'Department', type: 'text' },
+    status: { label: 'Status', type: 'select' },
+    created_at: { label: 'Created', type: 'date' },
+  },
+};
+
 const galleryDataSource = {
   queryDataset: async (
     _dataset: string,
@@ -288,7 +318,29 @@ const galleryDataSource = {
       : [{ [measure]: 69 }];
     return { rows, fields: [] };
   },
+  getObjectSchema: async (objectName: string) =>
+    objectName === 'users' ? USERS_SCHEMA : { name: objectName, label: objectName, fields: {} },
+  find: async (objectName: string) =>
+    objectName === 'users'
+      ? { data: [...USERS_ROWS], total: USERS_ROWS.length }
+      : { data: [], total: 0 },
+  findOne: async (objectName: string, id: string | number) =>
+    (objectName === 'users' ? USERS_ROWS : []).find((row) => String(row.id) === String(id)) ?? null,
+  create: async (_objectName: string, data: Record<string, unknown>) => ({ ...data, id: 'demo' }),
+  update: async (_objectName: string, id: string | number, data: Record<string, unknown>) => ({ ...data, id }),
+  delete: async () => true,
 };
+
+/** The method names the host fixture must expose for the mirror to be one. */
+const GALLERY_DATA_SOURCE_METHODS = [
+  'queryDataset',
+  'getObjectSchema',
+  'find',
+  'findOne',
+  'create',
+  'update',
+  'delete',
+];
 
 /** The two wrapper elements this harness adds around the entry's own root. */
 const WRAPPER_ELEMENTS = 2;
@@ -548,6 +600,105 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
       '%s still does NOT import it (PluginLoader stays lazy there)',
       (host) => {
         expect(read(host)).not.toContain('registerCatalogBlocks');
+      },
+    );
+  });
+});
+
+/**
+ * THE PLUGIN-VIEW ENTRIES ACTUALLY USE THE PLUGIN (objectui#5113).
+ *
+ * The sweep above answers "does every tile draw". It cannot answer the
+ * question objectui#5113 was filed on: whether an example mounted under a
+ * PLUGIN's docs page exercises that plugin. The three `plugin-view` entries
+ * used to be hand-built static card layouts — `card` / `flex` / `text` /
+ * `badge`, no `object-view` node anywhere — sitting on
+ * `content/docs/plugins/plugin-view.mdx` under an "Interactive Examples"
+ * heading and inside a `PluginLoader plugins={['view']}` wrapper none of them
+ * used. Every check in the repo was green on them: the types they named ARE
+ * registered, and the tiles DID draw.
+ *
+ * Two facts are pinned here, and the second is the one that cannot be
+ * satisfied by a picture of a view:
+ *
+ *  1. STRUCTURE — every entry in the category authors an `object-view` node.
+ *  2. RENDER — the tile shows a record that exists only in the gallery's data
+ *     source, so the rows on screen came through `ObjectViewRenderer` →
+ *     `ObjectGrid` → `dataSource.find`, not out of the entry's own JSON. An
+ *     entry that went back to drawing its own table would keep (1) satisfiable
+ *     by a stray node and would fail (2) outright.
+ *
+ * Deliberately scoped to `plugin-view` rather than generalized to every
+ * `plugin-*` category: the general rule needs a per-plugin map of which types
+ * each package registers, and other categories (`plugin-grid`'s two entries,
+ * for one) are hand-built mock-ups of exactly this kind today. That is a
+ * separate card, not a silent exemption list here.
+ */
+describe('objectui#5113 — the plugin-view entries render THROUGH object-view', () => {
+  const pluginViewEntries = entries.filter((e) => e.meta.category === 'plugin-view');
+
+  /** Every `type` string anywhere in a schema tree. */
+  function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
+    if (Array.isArray(node)) {
+      for (const n of node) nodeTypes(n, acc);
+      return acc;
+    }
+    if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if (k === 'type' && typeof v === 'string') acc.add(v);
+        nodeTypes(v, acc);
+      }
+    }
+    return acc;
+  }
+
+  it('the category is populated (guard is not vacuous)', () => {
+    expect(pluginViewEntries.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(pluginViewEntries.map((e) => [e.id, e.schema] as const))(
+    '%s authors an object-view node',
+    (_id, schema) => {
+      expect([...nodeTypes(schema)]).toContain('object-view');
+    },
+  );
+
+  it.each(pluginViewEntries.map((e) => [e.id, e.schema] as const))(
+    '%s puts data from the gallery data source on screen',
+    async (_id, schema) => {
+      const r = await renderEntry(schema);
+      try {
+        // Not authored anywhere in the catalog — it exists only in the fixture.
+        expect(r.text).toContain('Alice Johnson');
+      } finally {
+        teardown(r);
+      }
+    },
+  );
+
+  /**
+   * HOST PARITY for the fixture, same technique and same reason as the
+   * registration-set parity above: the mirror at the top of this file is what
+   * the assertions run against, so a host fixture that lost `find` would leave
+   * this file green while the docs page went back to an empty view.
+   */
+  describe('the docs-site hosts supply the same fixture', () => {
+    const siteDir = path.join(process.cwd(), 'apps/site/app/components');
+    const read = (f: string) => fs.readFileSync(path.join(siteDir, f), 'utf8');
+
+    it('the host fixture exposes every method this mirror implements', () => {
+      const source = read('galleryDataSource.ts');
+      const missing = GALLERY_DATA_SOURCE_METHODS.filter(
+        (method) => !new RegExp(`\\basync ${method}\\s*\\(`).test(source),
+      );
+      expect(missing).toEqual([]);
+    });
+
+    it.each(['SchemaThumbnail.tsx', 'InteractiveDemo.tsx'])(
+      '%s hands it to the renderer',
+      (host) => {
+        expect(read(host)).toMatch(/^import \{ galleryDataSource \} from '\.\/galleryDataSource';$/m);
+        expect(read(host)).toContain('dataSource: galleryDataSource');
       },
     );
   });
