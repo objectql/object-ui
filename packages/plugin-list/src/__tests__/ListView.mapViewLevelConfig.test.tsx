@@ -173,7 +173,7 @@ describe('ListView forwards the view-level `map` block to plugin-map (objectui#5
       expect(Object.prototype.hasOwnProperty.call(schema, 'center')).toBe(false);
     });
 
-    it('CONTROL: a declared camera is forwarded only because the author wrote it', async () => {
+    it('forwards a declared camera, and only the half the author wrote', async () => {
       const schema = await mapSchemaFor({ map: { locationField: 'geo', zoom: 3 } });
 
       expect(schema.zoom).toBe(3);
