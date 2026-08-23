@@ -57,9 +57,25 @@ export type {
 //     The `schema.title || schema.label` read STAYS (documents in the wild).
 //   - `aria`   — spec tombstone (#3896 audit close-out): no dashboard
 //     renderer ever applied it, and this package has no read site either.
-// `name` (document identity; keys the `dashboards.{name}.*` translation
-// lookups) is neither declared nor pinned — raised as the open question on
-// objectui#5742 rather than guessed; see the pin test's docblock.
+//
+// `name` is honoured too (the `schema.name` read keys the
+// `dashboards.{name}.*` translation lookups) and is likewise NOT declared —
+// objectui#5742 ruled it non-author for the INLINE node. Its reason is NOT
+// the one above, and the difference is load-bearing: the spec ACCEPTS
+// `name` — but on the DOCUMENT form, where it is required, not on this
+// inline node. So the "spec accepts + renderer reads" line never fires here
+// at all; its premise is about a different shape. Do not carry `title`'s
+// "the spec rejects it" over to this key — the spec does not reject `name`.
+// The `schema.name` read STAYS untouched.
+// The evidence is the PRODUCER alone — `DashboardView` / the document loader
+// hands the loaded document to the renderer, so an inline author is not the
+// one who writes this key. That makes it a WEAKER exclusion than `title` /
+// `aria`, each of which asserts a spec verdict a reader can re-check, and is
+// why `name` carries no row in the pin test's table: there is no verdict for
+// it to assert. Supporting reason: publishing `name` inline would teach
+// authors — AI authors especially — to fabricate a dashboard identity that
+// resolves NO translations and fails silently, minting a fresh
+// silently-inert key, the exact defect class this card removes.
 ComponentRegistry.register(
   'dashboard',
   DashboardRenderer,

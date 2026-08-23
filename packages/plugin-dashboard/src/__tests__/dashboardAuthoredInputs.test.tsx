@@ -40,18 +40,36 @@
  *     body's listing of `aria` among the honoured reads was wrong on that one
  *     key. The pin is that it stays unpublished and spec-refused.
  *
- * ## The open question this file deliberately does NOT answer
+ * ## The third exclusion: `name` — ruled non-author, on weaker evidence
  *
- * `schema.name` is also read (it keys the `dashboards.{name}.*` translation
- * lookups) and the spec ACCEPTS `name` (requires it, on the document form).
- * But it is a document identity key, written by the stored-dashboard path
- * (`DashboardView` hands the loaded document to the renderer); no docs
- * example authors it inline and no sibling registration declares a `name`
- * input. Whether the INLINE node should publish it is raised as an open
- * question on objectui#5742 rather than guessed — its absence from `inputs`
- * is therefore *pending*, not ruled. If the ruling lands "declare", add it to
- * the registration and to `DECLARED` below; if "non-author", move it into the
- * exclusion pins with the producer evidence above.
+ * `schema.name` is read too (it keys the `dashboards.{name}.*` translation
+ * lookups), and it is NOT declared: objectui#5742 ruled it non-author for
+ * the INLINE node.
+ *
+ * Its reason is NOT `title`'s or `aria`'s, and that difference is the point.
+ * The spec ACCEPTS `name` — but on the DOCUMENT form, where it is REQUIRED,
+ * not on this inline node. So the per-key line above never fires here at
+ * all: its first clause ("the spec accepts it") is about a different shape.
+ * Do not read this exclusion as "the spec rejects `name`" — it does not, and
+ * a reader who sees `name` excluded beside `title` and assumes the same
+ * reason has it wrong.
+ *
+ * The `schema.name` read STAYS untouched, exactly as `title`'s does — the
+ * renderer still resolves `dashboards.{name}.*` through it.
+ *
+ * The evidence is the PRODUCER alone: `DashboardView` / the document loader
+ * hands the loaded document to the renderer, so an inline author is not the
+ * one who writes this key. That is a WEAKER pin than the two in `NON_AUTHOR`
+ * below, each of which asserts a spec verdict a reader can re-check — and it
+ * is why `name` carries no row there: there is no verdict for it to assert.
+ * Its absence from `inputs` is ruled, not merely unexamined; do not read that
+ * silence as the same strength of guarantee the other two carry.
+ *
+ * The supporting reason, had the above not already settled it: publishing
+ * `name` inline would teach authors — AI authors especially — to fabricate a
+ * dashboard identity that resolves NO translations and fails silently. That
+ * is a newly manufactured silently-inert key: the exact defect class this
+ * card removes.
  *
  * ## Why every positive has a control
  *
