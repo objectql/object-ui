@@ -17,8 +17,8 @@ applies them to the DOM.
 The theme system has three parts:
 
 - **`Theme`** (`@object-ui/types`) — the authoring document: colors, typography, border radii,
-  shadows, custom variables, inheritance. `@object-ui/types` owns this vocabulary:
-  `@objectstack/spec` 17.2.0 retired its theme module, and the shapes moved here (objectui#5716).
+  shadows, custom variables, inheritance. `@object-ui/types` owns this vocabulary: the spec
+  retired its theme module, and the shapes moved here (objectui#5716).
 - **ThemeEngine** (`@object-ui/core`) — pure functions that convert a `Theme` into a CSS
   custom-property map (`generateThemeVars`), resolve inheritance (`resolveThemeInheritance`) and
   resolve the effective mode (`resolveMode`).
@@ -220,8 +220,8 @@ const branded: Theme = {
 ```
 
 The former typography scales (`fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`,
-`fontFamily.heading`, `fontFamily.mono`) were retired in `@objectstack/spec` 17.0.0-rc.3
-(objectstack#5021): a theme declaring them is **refused, not accepted-and-stripped**. `customVars`
+`fontFamily.heading`, `fontFamily.mono`) were retired upstream (objectstack#5021): a
+theme declaring them is **refused, not accepted-and-stripped**. `customVars`
 is the declared replacement — an entry is emitted verbatim, so
 `customVars: { 'font-size-lg': '1.125rem' }` puts the same `--font-size-lg` on the document that
 the retired scale used to. The retired keys are typed `never`, which makes the refusal a
