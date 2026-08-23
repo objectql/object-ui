@@ -8,7 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { extractFieldErrors, classifyLoadError } from './error-message';
+import { ApiErrorSchema } from '@objectstack/spec/api';
+
+import { extractFieldErrors, classifyLoadError, declaredUserMessage } from './error-message';
 
 describe('extractFieldErrors', () => {
   // The wire shape the server actually sends: `@objectstack/rest` serves a
@@ -161,5 +163,90 @@ describe('classifyLoadError', () => {
     expect(
       classifyLoadError(Object.assign(new Error('x'), { httpStatus: 403, code: 'INVALID_FILTER' })),
     ).toBe('forbidden');
+  });
+});
+
+/**
+ * `declaredUserMessage` — the producer-side user-facing marking
+ * (objectstack#9934, maintainer ruling 2026-08-19 on objectui#5210).
+ *
+ * The whole value of the channel is that it CANNOT be satisfied by accident:
+ * objectstack#3821's generic substitution stays in force for every refusal the
+ * author did not opt in, so the "unmarked" cases below are not padding — they
+ * are the control that stops this fix from becoming the leak #3821 removed.
+ */
+describe('declaredUserMessage', () => {
+  it('reads the marking off the error, verbatim', () => {
+    const err = Object.assign(new Error('FORBIDDEN: insufficient privileges to update showcase_private_note pi-TgoJ4_DM55Fqz'), {
+      code: 'FORBIDDEN',
+      httpStatus: 403,
+      userMessage: '该记录需要财务审批,请联系你的主管。',
+    });
+    expect(declaredUserMessage(err)).toBe('该记录需要财务审批,请联系你的主管。');
+  });
+
+  it('reads it from `details` — where the adapter parks the whole response body', () => {
+    // `@objectstack/client` sets `details` to the body's `details`, falling
+    // back to the WHOLE body; the same pair `isPermissionError` reads `code`
+    // from. Still the declared key — nothing unmarked can arrive this way.
+    expect(declaredUserMessage({ httpStatus: 403, details: { userMessage: 'Ask the records owner.' } }))
+      .toBe('Ask the records owner.');
+  });
+
+  it('prefers the error-level marking over the one in `details`', () => {
+    expect(declaredUserMessage({ userMessage: 'lifted', details: { userMessage: 'body' } })).toBe('lifted');
+  });
+
+  it('returns null for an unmarked refusal — #3821 keeps the surface', () => {
+    expect(declaredUserMessage(Object.assign(new Error('FORBIDDEN: insufficient privileges'), {
+      code: 'FORBIDDEN',
+      httpStatus: 403,
+    }))).toBeNull();
+  });
+
+  it('never promotes `message` into the marked channel', () => {
+    // The mark and the marked text are ONE value. A boundary that rewraps or
+    // substitutes `message` therefore cannot leak platform prose in here.
+    expect(declaredUserMessage({ message: 'PERMISSION_DENIED: row-level security' })).toBeNull();
+  });
+
+  it('treats a blank or non-string marking as absent', () => {
+    expect(declaredUserMessage({ userMessage: '   ' })).toBeNull();
+    expect(declaredUserMessage({ userMessage: '' })).toBeNull();
+    expect(declaredUserMessage({ userMessage: 42 })).toBeNull();
+    expect(declaredUserMessage({ userMessage: { text: 'nope' } })).toBeNull();
+  });
+
+  it('does not scrape a marking out of the ApiDataSource message tail', () => {
+    // A transport that flattens the envelope into prose should carry the field
+    // instead; guessing one out of a string is the consumer-side heuristic the
+    // ruling rejected.
+    expect(declaredUserMessage(new Error(
+      'ApiDataSource: HTTP 403 Forbidden — {"error":"denied","userMessage":"Ask finance"}',
+    ))).toBeNull();
+  });
+
+  it('returns null for junk input', () => {
+    expect(declaredUserMessage(null)).toBeNull();
+    expect(declaredUserMessage(undefined)).toBeNull();
+    expect(declaredUserMessage('a string')).toBeNull();
+    expect(declaredUserMessage(403)).toBeNull();
+  });
+
+  /**
+   * The key name is NOT hand-typed against a remembered contract: the reader is
+   * typed through `Pick<ApiError, 'userMessage'>` at compile time, and this pins
+   * the same name at RUNTIME against the installed spec's own declaration — a
+   * type-only check is satisfied by a stale `.d.ts`, this one is not.
+   */
+  it('keys off the field the installed @objectstack/spec actually declares', () => {
+    const shape = (ApiErrorSchema as unknown as { shape: Record<string, unknown> }).shape;
+    expect(Object.keys(shape)).toContain('userMessage');
+    // And the marking is what the spec says it is: an OPTIONAL string, so
+    // absence is the default and presence is the opt-in.
+    const parsedMarked = ApiErrorSchema.parse({ code: 'FORBIDDEN', message: 'denied', userMessage: 'Ask finance' });
+    expect(declaredUserMessage(parsedMarked)).toBe('Ask finance');
+    const parsedUnmarked = ApiErrorSchema.parse({ code: 'FORBIDDEN', message: 'denied' });
+    expect(declaredUserMessage(parsedUnmarked)).toBeNull();
   });
 });

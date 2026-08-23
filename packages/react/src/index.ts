@@ -22,7 +22,7 @@ export { resolveKeyedI18nLabel } from './utils/i18n.js';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).
-export { extractWriteErrorMessage, isPermissionError, extractFieldErrors, classifyLoadError } from './utils/error-message.js';
+export { extractWriteErrorMessage, isPermissionError, extractFieldErrors, classifyLoadError, declaredUserMessage } from './utils/error-message.js';
 export type { WriteFieldError, LoadErrorKind } from './utils/error-message.js';
 
 // Built-in i18n support

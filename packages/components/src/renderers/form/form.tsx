@@ -41,7 +41,7 @@ import { FullscreenEditor } from '../../custom/fullscreen-editor';
 import { CharacterCount } from '../../custom/character-count';
 import { cn } from '../../lib/utils';
 import React from 'react';
-import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors } from '@object-ui/react';
+import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors, declaredUserMessage } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
@@ -1809,9 +1809,19 @@ ComponentRegistry.register('form',
         // pi-TgoJ4_DM55Fqz" (objectstack#3821). A permission denial is a
         // condition the UI already knows how to name, so say it in the user's
         // language and keep the server text for the console.
-        const errorMessage = isPermissionError(error)
-          ? t('form.noPermissionToSave')
-          : extractWriteErrorMessage(error) ?? t('form.submitFailed');
+        // …unless the AUTHOR opted in. `userMessage` (objectstack#9934) is the
+        // producer-side marking: a hook sets it at throw time to
+        // say "this text is for the end user". It is a separate field from
+        // `message`, so nothing unmarked can reach here — the substitution above
+        // still governs every platform diagnostic, and #3821 holds by
+        // construction rather than by us guessing what a 403 body contains.
+        // Status-agnostic on purpose: 403 is where this was reported
+        // (objectui#5210), not a fence the contract draws.
+        const errorMessage =
+          declaredUserMessage(error) ??
+          (isPermissionError(error)
+            ? t('form.noPermissionToSave')
+            : extractWriteErrorMessage(error) ?? t('form.submitFailed'));
         if (isPermissionError(error) && typeof console !== 'undefined') {
           console.warn('[form] write denied:', error);
         }
