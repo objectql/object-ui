@@ -498,6 +498,9 @@ export function AppHeader({
           // humanized slug ("Kanban By Status") so the breadcrumb matches the
           // tab label users clicked.
           const viewName = pathParts[4];
+          // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+          // `list_views` leg is a compatibility READ for stored pre-settlement documents
+          // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
           const definedViews = (currentObject as any).listViews || (currentObject as any).list_views || {};
           const viewDef = (definedViews as Record<string, any>)[viewName];
           const fallbackLabel = (viewDef && (viewDef.label || viewDef.title)) || humanizeSlug(viewName);

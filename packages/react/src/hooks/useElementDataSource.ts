@@ -101,6 +101,8 @@ async function fetchSavedViews(
 
   const embedded = canReadObjectDef
     ? dataSource!.getObjectSchema!(object).then(
+        // `listViews` is canonical (#5362); the snake leg is a compatibility READ for
+        // stored pre-settlement documents (never censused: objectstack#7917).
         (def) => (isRecord(def) ? (def.listViews ?? def.list_views) : undefined),
         () => undefined,
       )

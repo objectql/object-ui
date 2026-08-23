@@ -417,6 +417,10 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   return objects.map(obj => {
     const extra = byObject[obj.name];
     if (!extra) return obj;
+    // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+    // `list_views` / `form_views` legs are compatibility READS for stored pre-settlement
+    // documents (that stock has never been censused: objectstack#7917). Never WRITE snake keys
+    // — the merge below emits camelCase only.
     const existingListViews = obj.listViews || obj.list_views || {};
     const existingFormViews = obj.formViews || obj.form_views || {};
     const merged: any = {
