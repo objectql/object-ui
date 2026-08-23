@@ -699,22 +699,29 @@ import type { AppComponentSchema } from './app.js';
 // Phase 2 Schemas - New Additions
 // ============================================================================
 export type {
-  // Theme System (aligned with @objectstack/spec)
+  // Theme System — the document vocabulary is owned HERE since objectui#5716
+  // (maintainer ruling 2026-08-23, option A — localize): the spec retired its
+  // theme module (objectstack#10485) while objectui RETAINED the theme system,
+  // so the types moved into `./theme` with the last-published 17.1.0 shapes as
+  // the blueprint. `Typography` / `BorderRadius` / `Shadow` /
+  // `ThemeDefinition` were DELETED under the same ruling's zero-reader rider
+  // (the first three live on as inline members of `Theme`).
   Theme,
   // `ThemeComponentSchema` RETIRED in objectui#5489 — the `type: 'theme'`
   // component kind no renderer implemented. See `./theme` for the tombstone.
   ThemeMode,
   ColorPalette,
-  Typography,
-  BorderRadius,
-  Shadow,
   // `Animation` / `ZIndex` retired with `theme.animation` / `theme.zIndex` in
   // @objectstack/spec 17.0.0-rc.3 (objectstack#5021) — see `./theme`.
   ThemeSwitcherSchema,
   ThemePreviewSchema,
-  // Legacy aliases
-  ThemeDefinition,
 } from './theme.js';
+
+// Runtime witness for the theme mode vocabulary — a VALUE, so it must not sit
+// inside the `export type` block above (#2561: inside one it is value-erased
+// and resolves to `undefined` at runtime). Same pattern as
+// `SPEC_GESTURE_TYPES` below.
+export { THEME_MODES } from './theme.js';
 
 export type {
   // Report Presentation Layer (ObjectUI-specific UX enhancements:
@@ -972,10 +979,13 @@ export {
  * ```
  */
 export type * as Data from '@objectstack/spec/data';
-// Deliberate public namespace export of the spec vocabulary. Note the #4171
-// caveat: `UI.FormField` erases to `any` until the spec types its unions.
-// eslint-disable-next-line no-restricted-imports
-export type * as UI from '@objectstack/spec/ui';
+// Deliberate public namespace export of the spec vocabulary — via the local
+// shim module since objectui#5716, so the `UI.Theme`-family members are
+// re-pointed at their owner (`./theme.ts`) and survive the spec's theme
+// retirement instead of narrowing silently on the pin refresh. See the shim's
+// header for the full reasoning. The #4171 caveat still applies:
+// `UI.FormField` erases to `any` until the spec types its unions.
+export type * as UI from './spec-ui-namespace.js';
 export type * as System from '@objectstack/spec/system';
 export type * as AI from '@objectstack/spec/ai';
 export type * as API from '@objectstack/spec/api';
