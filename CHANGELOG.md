@@ -1,6 +1,13 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This file is a **hand-curated summary** of notable changes across the monorepo. It is
+updated at release time by whoever cuts the release — it is not generated. The `Auto
+Changelog` workflow (`.github/workflows/changelog.yml`) exists to regenerate it with
+git-cliff, and runs on manual dispatch only.
+
+For granular, always-current history, read the `CHANGELOG.md` published inside each
+`@object-ui/*` package — Changesets writes those on every release commit, and they are
+the source of truth where the two disagree.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

@@ -1,8 +1,21 @@
 name: Auto Changelog
 
+# Dispatch-only, deliberately (objectui#5409).
+#
+# This lane also declared `release: types: [published]` until 2026-08-23. That
+# trigger was dead configuration, not a fallback: every release in this
+# repository is authored by `github-actions[bot]`, created by the Changesets
+# action in `changeset-release.yml` using `secrets.GITHUB_TOKEN`, and GitHub
+# does not start workflow runs from events raised with that token (the
+# recursive-trigger guard). Measured before removal: this workflow had 0 runs
+# across the repository's whole life, against `changeset-release.yml`'s 4049
+# through the identical API call — so the zero was the trigger, not the query.
+#
+# When to run it: at release time, as part of cutting the release. Nothing else
+# invokes this workflow. The root CHANGELOG.md is a periodically hand-curated
+# summary; the per-package CHANGELOG.md files that Changesets writes on the
+# release commit are the source of truth for granular and current history.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -40,5 +53,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add CHANGELOG.md
-          git commit -m "docs: update CHANGELOG.md for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git commit -m "docs: update CHANGELOG.md" || echo "No changes to commit"
           git push

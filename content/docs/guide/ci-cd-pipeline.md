@@ -38,7 +38,7 @@ one has its own section below.
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
 | `changeset-release.yml` | Changeset Release | Push to `main` (publish half); 6-hourly cron `0 */6 * * *`; manual (version-PR refresh half) | n/a |
-| `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
+| `changelog.yml` | Auto Changelog | Manual dispatch only — nothing triggers it automatically | n/a |
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
@@ -933,10 +933,27 @@ surface, and every loud-failure path.
 
 ### Changelog Generation (`changelog.yml`)
 
-**Trigger:** `release` event (when a GitHub Release is published), or manual dispatch.
+**Trigger:** manual dispatch only. Nothing triggers this workflow automatically.
 
-Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to auto-generate `CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
+Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to regenerate the root
+`CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
 moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
+
+**When to run it:** at release time, as part of cutting the release — that is the ritual it
+belongs to, and there is no other owner.
+
+The lane also declared `release: types: [published]` until
+[#5409](https://github.com/objectstack-ai/objectui/issues/5409), and that half never fired once.
+Every release here is authored by `github-actions[bot]`, created by the Changesets action in
+`changeset-release.yml` using `secrets.GITHUB_TOKEN`, and GitHub does not start workflow runs from
+events raised with that token — so the automated release path structurally cannot wake this
+workflow. Measured before the trigger came off: 0 runs across the repository's whole life, against
+`changeset-release.yml`'s 4049 through the identical API call. It was removed rather than left
+implying an automation that cannot happen.
+
+What follows for readers: the root `CHANGELOG.md` is a **periodically hand-curated summary**, not
+an auto-maintained full history. The per-package `CHANGELOG.md` files that Changesets writes on
+each release commit are the source of truth for granular and current history.
 
 ## Repository Maintenance
 

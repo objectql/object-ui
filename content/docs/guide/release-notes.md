@@ -5,9 +5,13 @@ description: "Release notes for ObjectUI — highlights, breaking changes and mi
 
 # Release Notes
 
-This page summarises every released version of ObjectUI. For the granular
-package-level changelog, see the monorepo
-[CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md).
+This page summarises every released version of ObjectUI. For granular, per-release
+detail, read the `CHANGELOG.md` published inside each `@object-ui/*` package —
+Changesets writes those on every release commit, so they are the source of truth
+for current history. The monorepo
+[CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md)
+is a periodically hand-curated summary, not an auto-maintained record, and can lag
+the latest releases.
 
 ## v3.3.0 — 2026-04-17 · First Official Release 🚀
 
@@ -62,4 +66,6 @@ If you were pinning to the earlier `0.x` prerelease tags:
 ## Previous Versions
 
 See the [monorepo CHANGELOG](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md)
-for the full history, including the `0.x` development series.
+for the hand-curated summary of earlier versions, including the `0.x` development
+series. It is maintained by hand rather than generated, so treat each package's own
+`CHANGELOG.md` as authoritative where the two disagree.

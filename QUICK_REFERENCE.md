@@ -103,7 +103,8 @@ pnpm changeset publish         # Publish to npm (CI only)
 ## Key Documents
 
 - [README.md](./README.md) — project overview & quick start
-- [CHANGELOG.md](./CHANGELOG.md) — release notes
+- [CHANGELOG.md](./CHANGELOG.md) — hand-curated release summary; each package's own
+  `CHANGELOG.md` (written by Changesets on every release) is the granular, current history
 - [ROADMAP.md](./ROADMAP.md) — development plan
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution workflow
 - [`content/docs/`](./content/docs/) — full documentation source
