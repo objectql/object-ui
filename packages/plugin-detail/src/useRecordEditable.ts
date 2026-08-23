@@ -13,9 +13,9 @@
  * sharing rule sits inside an object the user may otherwise create and edit
  * freely — so the header offered a primary "Edit" CTA that opened the form, let
  * the user retype a field, and only then bounced with a 403. The server is the
- * authority (the framework's ADR-0057 D10 — framework numbering; this repo's
- * own ADR-0057 is an unrelated document) and stays so; this is the courtesy
- * check that stops the UI from inviting a write it knows will fail.
+ * authority (the framework's ADR-0124 D1 — server enforces, client is
+ * courtesy) and stays so; this is the courtesy check that stops the UI from
+ * inviting a write it knows will fail.
  *
  * The answer comes from the explain engine's record-grained verdict
  * (`POST /api/v1/security/explain` with a `recordId`, ADR-0090 D6 / ADR-0095

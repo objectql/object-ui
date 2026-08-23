@@ -17,8 +17,7 @@
  *
  * Every uncertainty must fail OPEN — a courtesy hint may never be the reason a
  * permitted user cannot act. The server is the authority (the framework's
- * ADR-0057 D10 — framework numbering; this repo's own ADR-0057 is an
- * unrelated document).
+ * ADR-0124 D1 — server enforces, client is courtesy).
  */
 import * as React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

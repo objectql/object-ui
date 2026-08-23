@@ -24,11 +24,10 @@
  *
  * **Fail-OPEN when unknown.** No runner, no user, no `systemPermissions` array:
  * the action shows. Unknown is not denied, the server is the authority
- * (the framework's ADR-0057 D10 — framework numbering; this repo's own
- * ADR-0057 is an unrelated document), and hiding a permitted user's button on
- * missing client data is the worse failure. An EMPTY array is not unknown —
- * it means "holds
- * nothing" and gates normally.
+ * (the framework's ADR-0124 D1 — server enforces, client is courtesy), and
+ * hiding a permitted user's button on missing client data is the worse
+ * failure. An EMPTY array is not unknown — it means "holds nothing" and gates
+ * normally.
  */
 
 import { useCallback, useContext } from 'react';

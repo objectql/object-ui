@@ -87,8 +87,7 @@ export interface PackageOwdOverviewPanelProps {
   onDraftSaved?: () => void;
   /**
    * Courtesy gate: read-only packages render badges only (the framework's
-   * ADR-0057 D10 — framework numbering; this repo's own ADR-0057 is an
-   * unrelated document).
+   * ADR-0124 D1 — server enforces, client is courtesy).
    */
   readOnly?: boolean;
   locale: SupportedLocale;

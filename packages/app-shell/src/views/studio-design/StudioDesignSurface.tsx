@@ -423,12 +423,12 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const tab = params.tab ?? 'interfaces';
   const locale = useMetadataLocale();
 
-  // Courtesy gate (the framework's ADR-0057 D10 — framework numbering; this
-  // repo's own ADR-0057 is an unrelated document): a read-only code/installed
-  // package refuses authoring server-side (ADR-0070), so don't let the user
-  // build up doomed local edits first — disable the authoring affordances up
-  // front. Unknown writability (fetch failed / still loading) stays ungated;
-  // the server gate remains the authority either way.
+  // Courtesy gate (the framework's ADR-0124 D1 — server enforces, client is
+  // courtesy): a read-only code/installed package refuses authoring
+  // server-side (ADR-0070), so don't let the user build up doomed local edits
+  // first — disable the authoring affordances up front. Unknown writability
+  // (fetch failed / still loading) stays ungated; the server gate remains the
+  // authority either way.
   const [pkgWritable, setPkgWritable] = React.useState<boolean | null>(null);
   React.useEffect(() => {
     let cancelled = false;

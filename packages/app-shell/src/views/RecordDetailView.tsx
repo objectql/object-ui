@@ -1062,9 +1062,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // a record the user may only read: the form opened, the user retyped a
   // field, and the server rejected the save with a 403. Ask the explain
   // engine for the row-level verdict (fail-open; the server stays the
-  // authority per the framework's ADR-0057 D10 — framework numbering; this
-  // repo's own ADR-0057 is an unrelated document) and fold it into the same
-  // affordance gates.
+  // authority per the framework's ADR-0124 D1 — server enforces, client is
+  // courtesy) and fold it into the same affordance gates.
   const recordWriteAllowed = useRecordEditable(
     objectDef?.name,
     pureRecordId,
