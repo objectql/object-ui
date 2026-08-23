@@ -154,9 +154,20 @@ describe('schema-catalog — no layout renderer leaks an authored prop to the DO
     // ATTRIBUTE READER, and it must keep working even if every renderer in the
     // repo is fixed. Without it, `illegitimateAttributes` could return `[]`
     // unconditionally and every assertion in this file would still pass.
-    const { container } = render(
-      <div className="c" id="i" data-obj-id="d" align="start" gap={4} content="x" />,
-    );
+    //
+    // The bag is spread rather than written as JSX attributes, which is not a
+    // typing dodge but the defect's own shape: `<div align="start">` does not
+    // type-check, and a bare spread of an untyped record is exactly how these
+    // attributes got onto real elements without anyone hearing about it.
+    const bag: Record<string, unknown> = {
+      className: 'c',
+      id: 'i',
+      'data-obj-id': 'd',
+      align: 'start',
+      gap: 4,
+      content: 'x',
+    };
+    const { container } = render(<div {...bag} />);
     expect(illegitimateAttributes(container.firstElementChild!)).toEqual([
       'align',
       'content',
