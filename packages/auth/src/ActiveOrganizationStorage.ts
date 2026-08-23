@@ -183,16 +183,57 @@ function removePersisted(key: string): boolean {
  * Snapshot the keys first (`Object.keys`) — removing entries during a live
  * index walk shifts the ones behind it and skips half of them. Same idiom as
  * `AuthProvider`'s sign-out purge loop.
+ *
+ * ## The `try` guards the SNAPSHOT, not the walk (objectui#5763)
+ *
+ * `Object.keys(store)` can itself throw — partitioned iframes, some privacy
+ * modes — and that is the reason a guard exists here at all, so it stays.
+ * What it must NOT do is wrap the loop: a `removeItem` that throws on key `n`
+ * would abort the walk, leaving keys `n+1..end` unswept, with the failure
+ * swallowed so the caller believes the purge completed. This is an ALLOWLIST
+ * sweep (see the module doc, part 3) precisely so the next un-namespaced key
+ * cannot re-open the cross-user pollution class — a partial sweep is a
+ * partial allowlist. So each `removeItem` gets its own `try`: one
+ * uncooperative key costs exactly that key.
+ *
+ * ## Reported, not quarantined — unlike {@link ActiveOrganizationStorage.clear}
+ *
+ * `clear()` (objectui#5731) judges a removal by READ-BACK and quarantines a
+ * key that fails, because it owns every future read of that one key through
+ * {@link ActiveOrganizationStorage.get} — the quarantine is what keeps a
+ * failed `clear()` from handing the value straight back. `sweepStore` walks
+ * keys it does not own reads for (another package's recents cache, a
+ * metadata seed) — there is no `get()` here to guard, so there is nothing to
+ * quarantine, and adding a read-back verdict for keys this function does not
+ * otherwise touch would be exactly the "general storage-error-handling
+ * refactor" the card scopes this fix away from. What IS mirrored is the
+ * reporting channel: a key whose `removeItem` throws is named in a
+ * `console.warn`, same as `clear()`, so a partial sweep is discoverable
+ * instead of silent — the caller (`SessionUserScope.adopt`, on the sign-in
+ * path) still cannot act on it and must not throw either.
  */
 function sweepStore(store: Storage | undefined): void {
   if (!store) return;
+  let keys: string[];
   try {
-    for (const key of Object.keys(store)) {
-      if (DEVICE_SCOPED_KEYS.has(key)) continue;
-      store.removeItem(key);
-    }
+    keys = Object.keys(store);
   } catch {
-    /* storage unavailable */
+    return; /* storage unavailable */
+  }
+  const unswept: string[] = [];
+  for (const key of keys) {
+    if (DEVICE_SCOPED_KEYS.has(key)) continue;
+    try {
+      store.removeItem(key);
+    } catch {
+      unswept.push(key);
+    }
+  }
+  if (unswept.length > 0) {
+    console.warn(
+      `[purgePreviousUserClientState] could not remove ${unswept.length} key(s) from storage: ` +
+        `${unswept.join(', ')}. The previous user's state may still be readable under these keys.`,
+    );
   }
 }
 

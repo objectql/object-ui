@@ -305,7 +305,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [navigate]);
 
   // Authenticated fetch for direct backend calls. Declared before apiHandler.
-  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
+  //
+  // `sameOriginOnly` (#2725 mitigation, applied to this lane per the #5702
+  // ruling): an action's `target` comes from author-supplied metadata and may
+  // name an off-origin host. Cross-origin requests pass through to the bare
+  // global fetch — no Authorization, X-Tenant-ID, or Accept-Language — matching
+  // the `provider: 'api'` data-source lane (ConsoleShell). Same-origin actions
+  // are unaffected. An off-origin integration that legitimately needs the
+  // platform bearer declares itself explicitly or proxies same-origin.
+  const authFetch = useMemo(() => createAuthenticatedFetch({ sameOriginOnly: true }), []);
 
   const openEntitlementDialog = useCallback((spec: EntitlementDialogSpec) => {
     setEntitlementDialog({ open: true, spec });
@@ -317,9 +325,12 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       const params = action.params || {};
 
       // Absolute HTTP target — bypass dataSource and call the API directly
-      // through the authenticated fetch wrapper (Bearer + X-Tenant-ID +
-      // same-origin cookies). The canonical path for schema actions on
-      // managed-by tables and global page actions.
+      // through the authenticated fetch wrapper. Same-origin targets get
+      // Bearer + X-Tenant-ID + same-origin cookies; an off-origin target
+      // (the metadata may name a third-party host) goes out through the bare
+      // global fetch with none of them (`sameOriginOnly`, #5702). The
+      // canonical path for schema actions on managed-by tables and global
+      // page actions.
       const targetStr = typeof target === 'string' ? target : '';
       const isAbsolute = targetStr.startsWith('/') || /^https?:\/\//i.test(targetStr);
       if (isAbsolute) {
