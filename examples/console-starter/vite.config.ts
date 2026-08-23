@@ -60,4 +60,24 @@ const workspaceAliases: Record<string, string> = {
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: workspaceAliases },
+  // ONE ORIGIN in dev, proxy for the split host. `.env.development` leaves
+  // VITE_SERVER_URL empty, so every client here builds a RELATIVE `/api/...`
+  // URL and this stanza forwards it to the backend. Without it an empty
+  // VITE_SERVER_URL would make those fetches hit the Vite dev server, which
+  // has no `/api` route and answers with the SPA's index.html fallback.
+  //
+  // Why not just point VITE_SERVER_URL at the backend: a cross-origin value
+  // makes every relative-target `type: 'api'` action resolve off-origin, and
+  // the action runtime does not attach Authorization / X-Tenant-ID /
+  // Accept-Language across origins — a 401 on the standard `pnpm dev` stack.
+  //
+  // `DEV_PROXY_TARGET` and the `/api` prefix mirror `apps/console/vite.config.ts`
+  // deliberately: the two dev stacks are meant to be configured the same way.
+  // No `port` is set — the README documents this example on Vite's default
+  // 5173, and pinning one would only collide with a real fork's choice.
+  server: {
+    proxy: {
+      '/api': { target: process.env.DEV_PROXY_TARGET || 'http://localhost:3000', changeOrigin: true },
+    },
+  },
 });
