@@ -568,6 +568,100 @@ jobs:
       # that; an absent input can.
       #
       # The `id:`s are for the log, nothing reads them.
+      #
+      # ══════════════════════════════════════════════════════════════════════
+      # ⛔ THE `@v1` PIN IS LOAD-BEARING. READ THIS BEFORE BUMPING IT.
+      # ══════════════════════════════════════════════════════════════════════
+      # `changesets/action@v1` is pinned because two lanes in this file are
+      # built on properties asserted against **v1's source**, not because anyone
+      # prefers an old version. Dependabot has proposed the v1 -> v2 bump in both
+      # repositories and it was declined in both, deliberately and on the same
+      # reasoning: objectstack#9208 (closed unmerged 2026-08-19) and
+      # objectui#4945 (closed unmerged 2026-08-23). Neither was merged; both
+      # repositories stay on v1.
+      #
+      # A bump is not forbidden — it is UNVERIFIED. What follows is what a future
+      # upgrade has to re-establish, written here because the next reader stands
+      # here and not in a closed PR.
+      #
+      # THE TWO PROPERTIES AN UPGRADE MUST RE-VERIFY
+      # --------------------------------------------
+      #  (1) THE DISPATCH TABLE. `!hasChangesets && hasPublishScript ->
+      #      runPublish` (quoted in full in this file's header, from v1's
+      #      `src/index.ts`). BOTH the `lane` job's predicate and the "Clear
+      #      pending changesets" step exist only because the action chooses its
+      #      branch from repository state rather than from an input. If v-next
+      #      takes an explicit instruction instead, the clear step is no longer a
+      #      workaround to keep — it is dead weight to delete, and keeping it
+      #      would be the bug.
+      #
+      #  (2) `runPublish` NEVER COMMITS AND NEVER PUSHES A BRANCH. Verified in
+      #      v1's `src/run.ts`: `runPublish` spans lines 83-198 and the only git
+      #      operation inside it is `git.pushTag()` (lines 124 and 146);
+      #      `git.prepareBranch()` (line 290) and `git.pushChanges()` (line 362)
+      #      occur solely inside `runVersion`. THIS is what makes the clear
+      #      step's runner-local deletion safe. ⚠️ If that ever stops holding,
+      #      that step stops being a local trick and becomes a commit that
+      #      DELETES EVERY PENDING CHANGESET IN THE REPOSITORY — ~161 files at
+      #      the time of writing. Re-verify it by reading the source, not by
+      #      reading release notes.
+      #
+      # WHAT v2 ACTUALLY CHANGES (read from its CHANGELOG, not from compiled
+      # source; every item below was checked against the v2.0.0 entry)
+      # ---------------------------------------------------------------------
+      #  - #681 / #668 — INPUTS RENAMED AND KEBAB-CASED: `version` ->
+      #    `version-script`, `publish` -> `publish-script`, `commit` ->
+      #    `commit-message`, `title` -> `pr-title` (also `branch` ->
+      #    `pr-base-branch`, which this file does not use). This file passes all
+      #    four of the old names. Under v2 they are simply unknown inputs, and
+      #    the two failures are both SILENT: the publish lane loses its
+      #    `publish:` and stops publishing, and the refresh lane loses its
+      #    `version:` and falls back to bare `changeset version` — which skips
+      #    `scripts/sync-quick-reference-release.mjs` and breaks objectui#5394.
+      #    (`scripts/__tests__/sync-quick-reference-release.test.ts` pins the
+      #    `version:` line and would catch the rename, so that half fails loudly
+      #    at least in CI.)
+      #  - #692 — RELEASE COMMITS AND TAGS ARE PUSHED VIA THE GitHub API BY
+      #    DEFAULT (`commit-mode` replaced by a boolean `push-with-git-cli`).
+      #    ⚠️ This is the one that undercuts property (2): that verification is
+      #    about v1's git-CLI path. An API-based push is a different code path
+      #    and property (2) must be re-established against it from scratch.
+      #  - #674 — the `GITHUB_TOKEN` ENVIRONMENT VARIABLE IS NO LONGER ACCEPTED;
+      #    a custom token must go through the `github-token` input. Both steps
+      #    below pass it via `env:`.
+      #  - #695 — `.npmrc` HANDLING REMOVED when `NPM_TOKEN` is set; npm auth is
+      #    expected via Trusted Publishing or `actions/setup-node`'s
+      #    `registry-url`. This job does run `actions/setup-node` with
+      #    `registry-url`, so that half may already be satisfied — but it is
+      #    `NODE_AUTH_TOKEN` that such a setup consumes, and the interaction has
+      #    to be checked rather than assumed.
+      #  - #678 — PUBLISHED-PACKAGE DETECTION MOVED off stdout parsing onto a
+      #    shared output file named by a `CHANGESETS_OUTPUT` environment
+      #    variable, which custom scripts must forward to the Changesets CLI.
+      #    `pnpm changeset:publish` is a custom script
+      #    (`check-published-dist-tooling.mjs && changeset publish`), so it would
+      #    have to forward it or git tags and GitHub releases stop being created
+      #    (#697 downgrades that to a warning rather than an error — i.e. it
+      #    fails QUIETLY, which is this card's whole subject matter).
+      #
+      # ⛔ DO NOT WRITE "we are held back by the Changesets CLI generation."
+      # That is the plausible wrong answer. v2's #699 validates that projects use
+      # Changesets CLI v3 and directs CLI **v2** users to `changesets/action@v1`
+      # — and this repository is already on v3: `package.json` declares
+      # `@changesets/cli: ^3.0.0` and `pnpm-lock.yaml` resolves it to 3.0.1
+      # (`../objectstack` declares `^3.0.0` too). Measured, not assumed. The CLI
+      # generation is NOT what pins us; the two properties above are.
+      #
+      # Worth knowing rather than acting on: v2's #656 adds `/select-mode`,
+      # `/version` and `/publish` SUB-ACTIONS. A dedicated publish sub-action is
+      # plausibly the shape that makes the clear step unnecessary — which is an
+      # argument for revisiting the pin eventually, not for bumping it blind.
+      #
+      # Same class of drift, and live under any bump: objectui#5775 records that
+      # the `lane` job's declared mirror of `readChangesetState` already
+      # understates what the installed `@changesets/read` ignores. Any upgrade
+      # re-opens that question, because the mirror tracks a bundled copy this
+      # file does not pin.
 
       # ⚠️ THE STEP THAT LETS THE PREDICATE REACH THE ACTION (objectui#5442).
       #
@@ -731,6 +825,9 @@ jobs:
       # keeps `QUICK_REFERENCE.md` from fossilising at release time
       # (objectui#5394). `scripts/__tests__/sync-quick-reference-release.test.ts`
       # reads this very line and fails if it changes.
+      #
+      # ⛔ `@v1` is pinned deliberately here too — see "THE `@v1` PIN IS
+      # LOAD-BEARING" above the publish step before changing it.
       - name: Refresh the version PR
         id: changesets-version
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
