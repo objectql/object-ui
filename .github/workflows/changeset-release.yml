@@ -440,7 +440,7 @@ jobs:
       - name: Publish to npm
         id: changesets-publish
         if: github.event_name == 'push'
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           publish: pnpm changeset:publish
         env:
@@ -462,7 +462,7 @@ jobs:
       - name: Refresh the version PR
         id: changesets-version
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           version: pnpm changeset:version
           title: 'chore: release packages'
