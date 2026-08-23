@@ -56,7 +56,7 @@ export type BlockTypeId =
   | 'page:accordion' | 'page:card' | 'page:section'
   // record:*
   | 'record:details' | 'record:highlights' | 'record:related_list'
-  | 'record:activity' | 'record:chatter' | 'record:path' | 'record:alert'
+  | 'record:activity' | 'record:discussion' | 'record:path' | 'record:alert'
   | 'record:quick_actions' | 'record:reference_rail' | 'record:history'
   // nav:* — page-content navigation (shell singletons like app:launcher /
   // global:notifications / user:profile are intentionally NOT page blocks)
@@ -100,7 +100,7 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'record:highlights':      { label: 'Highlights',          category: 'record', Icon: Tag },
   'record:related_list':    { label: 'Related list',        category: 'record', Icon: ListChecks },
   'record:activity':        { label: 'Activity timeline',   category: 'record', Icon: Activity },
-  'record:chatter':         { label: 'Chatter feed',        category: 'record', Icon: MessageSquare },
+  'record:discussion':      { label: 'Discussion',          category: 'record', Icon: MessageSquare },
   'record:path':            { label: 'Stage path',          category: 'record', Icon: Compass },
   'record:alert':           { label: 'Alert banner',        category: 'record', Icon: AlertTriangle },
   'record:quick_actions':   { label: 'Quick actions',       category: 'record', Icon: Zap },
@@ -158,19 +158,28 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   'element:text_input': 'no renderer — bare inputs belong to a form, not a page block',
   // Renders fine — excluded to keep ONE palette entry per renderer, not because
   // it is unauthorable. `record:chatter` and `record:discussion` are the same
-  // renderer under two names (plugin-detail/src/index.tsx:589), and the palette
-  // already offers it above as 'Chatter feed'. Entered when `@objectstack/spec`
-  // 17.1.0 added `record:discussion` to `PageComponentType` (objectui#5328);
-  // objectui itself has emitted the type all along
-  // (synth/buildDefaultPageSchema.ts:731), so nothing new became authorable —
-  // only the spec's enum caught up.
+  // renderer under two names: `plugin-detail/src/index.tsx` registers both
+  // against `RecordChatterRenderer`, and the palette offers the CANONICAL one
+  // above as 'Discussion'.
   //
-  // ⚠️ The pair is offered under the LEGACY name: `public-blocks.ts` records
-  // `record:chatter` as "`record:discussion` under a Salesforce-familiar name",
-  // i.e. this exclusion hides the canonical spelling and offers the alias.
-  // Flipping which one the palette offers changes what authors drag, so it is a
-  // decision rather than a pin-bump edit — filed as objectui#5495.
-  'record:discussion': 'same renderer as the offered `record:chatter` — one palette entry per renderer',
+  // ⛔ Excluded from the palette is NOT removed. `record:chatter` stays fully
+  // renderable for schemas already in the wild — this entry changes what Studio
+  // ADVERTISES, not what works. Deleting the registration is a different (and
+  // breaking) change; `palette-discussion-alias.test.tsx` pins both halves so
+  // "not offered" cannot quietly become "not rendered".
+  //
+  // Which of the two the palette advertises was a decision, not a pin-bump edit
+  // (maintainer ruling 2026-08-22, objectui#5495 — Option A, the canonical name).
+  // Everything else already pointed that way: `core/src/registry/public-blocks.ts`
+  // records `record:chatter` as "`record:discussion` under a Salesforce-familiar
+  // name, kept for schemas", objectui's own generator has emitted the canonical
+  // spelling all along (`synth/buildDefaultPageSchema.ts`), and the console's AI
+  // vocabulary leaves the alias uncurated for the same reason
+  // (`apps/console/src/__tests__/public-contract.test.ts`, DELIBERATELY_UNCURATED).
+  // The palette was the last surface still pointing at the alias — it offered it
+  // only because the then-pinned `@objectstack/spec` did not declare the
+  // canonical name yet (objectui#5328); the pinned spec now declares both.
+  'record:chatter': 'compatibility alias — same renderer as the offered canonical `record:discussion`; still renders, just no longer advertised',
 };
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
