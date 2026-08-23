@@ -305,10 +305,15 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('allows access when user has one of the required roles', async () => {
+  it('allows access when user holds one of the required positions', async () => {
+    // Until objectui#5424 this fixture spelled the array `roles`, pinning the
+    // retired dialect: it stayed green precisely because the alias branch this
+    // card deletes still read it. `positions` is the published spelling
+    // (framework ADR-0090 D3); the full admission/refusal matrix lives in
+    // `authGuardPositions-5424.test.tsx`.
     const client = createMockClient({
       getSession: vi.fn().mockResolvedValue({
-        user: { id: '1', name: 'Manager', email: 'mgr@test.com', roles: ['manager', 'viewer'] },
+        user: { id: '1', name: 'Manager', email: 'mgr@test.com', positions: ['manager', 'viewer'] },
         session: { token: 'tok' },
       }),
     });
@@ -323,6 +328,32 @@ describe('AuthGuard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Manager content')).toBeTruthy();
+    });
+  });
+
+  it('does NOT honour the retired `roles` spelling as a second dialect', async () => {
+    // framework ADR-0090 D3 renamed `roles` → `positions` with no deprecation
+    // window and bans resurrecting the old name as a fallback. Before
+    // objectui#5424 this exact fixture was ADMITTED (the gate read
+    // `user.roles` first); a regression that quietly re-reads it turns this
+    // red before it can widen any real gate.
+    const client = createMockClient({
+      getSession: vi.fn().mockResolvedValue({
+        user: { id: '1', name: 'Relic', email: 'relic@test.com', role: 'user', roles: ['admin'] },
+        session: { token: 'tok' },
+      }),
+    });
+
+    render(
+      <AuthProvider authUrl="/api/auth" client={client}>
+        <AuthGuard requiredRoles={['admin']} fallback={<span>Access denied</span>}>
+          <span>Admin content</span>
+        </AuthGuard>
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Access denied')).toBeTruthy();
     });
   });
 });

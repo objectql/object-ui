@@ -1,0 +1,5 @@
+---
+"@object-ui/auth": minor
+---
+
+`AuthGuard`'s `requiredRoles` now matches against `user.positions` — the one published spelling (framework ADR-0090 D3) — keeping the `user.role` scalar fallback only for sessions that carry no `positions` key at all (guest / legacy identities). This restores position-holder admission on protocol-17 deployments (where the retired `roles` key is never emitted) and closes the matching over-admission: a coarse scalar `role` no longer passes a gate whose position the server says the user lacks. Preview mode now emits `positions: [role]` instead of the retired `roles` key — it was the last producer — so preview identities are shaped like protocol-17 sessions for every `positions` consumer. The hand-copied `roles?: string[]` mirror key is removed from the client `AuthUser` type; breaking only for TypeScript consumers that compiled against `AuthUser['roles']` (read `positions` instead — no runtime payload ever carried `roles` at protocol 17). Maintainer ruling 2026-08-22 on objectui#5424.

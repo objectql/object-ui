@@ -247,7 +247,13 @@ export function AuthProvider({
         email: 'preview@preview.local',
         name,
         role,
-        roles: [role],
+        // `positions` is the published spelling (framework ADR-0090 D3); this
+        // line was the LAST producer of the retired `roles` key
+        // (objectui#5424, maintainer ruling 2026-08-22). Emitting the position
+        // keeps every `positions` consumer — `AuthGuard`'s `requiredRoles`,
+        // the approver-identity derivations, workspace-admin leg 3 — seeing a
+        // preview identity shaped like a protocol-17 session.
+        positions: [role],
       });
       setSession({
         token: 'preview-token',
