@@ -7,87 +7,54 @@
  */
 
 /**
- * @object-ui/types/zod - Theme Component Zod Validators
+ * @object-ui/types/zod - Theme Component Zod Validators (all RETIRED)
  *
- * Zod validation schemas for the theme COMPONENT nodes (`theme-switcher` /
- * `theme-preview`) — objectui-local declarations, recorded for triage as
- * objectui#5647.
+ * This module exports NOTHING any more. It is kept as the tombstone for the
+ * theme component-kind validators, and `__tests__/spec-subschema-parity.test.ts`
+ * dynamic-imports it to pin the retired names OUT of it.
  *
- * The six `@objectstack/spec/ui` theme-schema re-exports that used to live
- * here (`ColorPaletteSchema`, `TypographySchema`, `BorderRadiusSchema`,
- * `ShadowSchema`, `ThemeModeSchema`, `ThemeDefinitionSchema` — the spec's
- * `ThemeSchema`) are RETIRED. objectstack#10485 (ADR-0049 enforce-or-remove,
- * PR objectstack#10695) deleted the spec's whole `ui/theme.zod.ts` module —
- * values AND types, `AnimationSchema`/`ZIndexSchema` having gone earlier in
- * 17.0.0-rc.3 (objectstack#5021) — and the maintainer's ruling on
- * objectstack#10856 (2026-08-22, Options A + C) has objectui REMOVE these
- * dangling imports; restoring the spec exports (Option B) was explicitly not
- * taken. Executed as objectui#5710.
+ * Two retirement waves emptied it:
+ *
+ * - The six `@objectstack/spec/ui` theme-schema re-exports
+ *   (`ColorPaletteSchema`, `TypographySchema`, `BorderRadiusSchema`,
+ *   `ShadowSchema`, `ThemeModeSchema`, `ThemeDefinitionSchema` — the spec's
+ *   `ThemeSchema`): objectstack#10485 (ADR-0049 enforce-or-remove, PR
+ *   objectstack#10695) deleted the spec's whole `ui/theme.zod.ts` module —
+ *   values AND types, `AnimationSchema`/`ZIndexSchema` having gone earlier in
+ *   17.0.0-rc.3 (objectstack#5021) — and the maintainer's ruling on
+ *   objectstack#10856 (2026-08-22, Options A + C) had objectui REMOVE these
+ *   dangling imports (executed as objectui#5710); restoring the spec exports
+ *   (Option B) was explicitly not taken.
+ *
+ * - The theme COMPONENT kinds: `ThemeComponentSchema` (`type: 'theme'`)
+ *   RETIRED in objectui#5489 under the 2026-08-21 maintainer ruling on
+ *   objectstack#10485 (option B); then `ThemeSwitcherSchema`
+ *   (`type: 'theme-switcher'`), `ThemePreviewSchema` (`type: 'theme-preview'`)
+ *   and `ThemeUnionSchema` — which after objectui#5489 held only those two
+ *   members — RETIRED in objectui#5647, by inheritance of the same ruling on
+ *   identical evidence. No renderer ever registered any of the three literals:
+ *   absent from every `ComponentRegistry.register(...)` / `registerLazy(...)`
+ *   site under every package's `src/`, from `PROTOCOL_COMPONENTS` /
+ *   `PALETTE_PLACEHOLDER_BLOCKS`
+ *   (`packages/components/src/renderers/placeholders.tsx`), and from every
+ *   fixture — so a page declaring one got the registry's "Unknown component
+ *   type" panel (OBJUI-001), never a rendered component. Declared-but-
+ *   unenforced, the ADR-0049 shape to retire. `AnyComponentSchema`
+ *   (`./index.zod.ts`) now refuses all three kinds, and
+ *   `__tests__/phase2-schemas.test.ts` pins the refusals.
  *
  * The theme SYSTEM is retained by the same rulings: the `Theme` TYPE surface
- * lives in `../theme.ts`, `ThemeEngine` turns a theme document into CSS
- * variables, and `ThemeProvider` applies it — none of them consumed these
- * runtime validators (measured at objectui#5710). Do NOT hand-write local
- * mirrors of the retired schemas here: that localization is a contract
- * decision no ruling has taken, and `__tests__/spec-subschema-parity.test.ts`
- * pins the retired names out of this module.
+ * lives in `../theme.ts` (owned there since objectui#5716), `ThemeEngine`
+ * turns a theme document into CSS variables, and `ThemeProvider` applies it.
+ * Do NOT hand-write local mirrors of any retired schema here: that
+ * localization is a contract decision no ruling has taken, and
+ * `__tests__/spec-subschema-parity.test.ts` pins the retired names out of
+ * this module.
  *
  * @module zod/theme
  * @packageDocumentation
  */
 
-import { z } from 'zod';
-import { BaseSchema } from './base.zod.js';
-
-// `ThemeComponentSchema` (`type: 'theme'`) RETIRED in objectui#5489 — the value
-// side of the interface retired in `../theme.ts`, where the ruling and the
-// unregistered-kind measurement are recorded. Its former retention note kept
-// `ThemeDefinitionSchema` / `ThemeModeSchema` exported here "for the engine and
-// the provider" — measured stale at objectui#5710: the engine and the provider
-// consume the `Theme` / `ThemePreference` TYPES, and no package imported either
-// validator. Both left with the spec's theme module (see the header).
-
-/**
- * Theme Switcher Schema
- */
-export const ThemeSwitcherSchema = BaseSchema.extend({
-  type: z.literal('theme-switcher'),
-  variant: z.enum(['dropdown', 'toggle', 'buttons']).optional().describe('Switcher variant'),
-  showMode: z.boolean().optional().describe('Show mode selector (light/dark)'),
-  showThemes: z.boolean().optional().describe('Show theme selector'),
-  lightIcon: z.string().optional().describe('Icon for light mode'),
-  darkIcon: z.string().optional().describe('Icon for dark mode'),
-});
-
-/**
- * Theme Preview Schema
- *
- * The `theme` / `mode` props RETIRED with the spec's theme module (see the
- * header): their validators (`ThemeDefinitionSchema` / `ThemeModeSchema`) no
- * longer exist upstream, and hand-writing local mirrors is the localization
- * branch the objectstack#10856 ruling left untaken. `BaseSchema` is
- * `.passthrough()`, so an authored `theme:` / `mode:` key now passes through
- * unvalidated rather than being checked — tolerable only because no renderer
- * registers `theme-preview` at all (objectui#5647 measured the kind itself as
- * declared-but-unenforced and holds it for triage).
- */
-export const ThemePreviewSchema = BaseSchema.extend({
-  type: z.literal('theme-preview'),
-  showColors: z.boolean().optional().describe('Show color palette'),
-  showTypography: z.boolean().optional().describe('Show typography samples'),
-  showComponents: z.boolean().optional().describe('Show component samples'),
-});
-
-/**
- * Union of all theme component schemas (for AnyComponentSchema union).
- */
-export const ThemeUnionSchema = z.discriminatedUnion('type', [
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
-]);
-
-/**
- * Export type inference helpers
- */
-export type ThemeSwitcherSchemaType = z.infer<typeof ThemeSwitcherSchema>;
-export type ThemePreviewSchemaType = z.infer<typeof ThemePreviewSchema>;
+// Kept a module on purpose — the parity pin above dynamic-imports this file —
+// with nothing left to export.
+export {};

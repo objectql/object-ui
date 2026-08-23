@@ -10,14 +10,13 @@
  * @object-ui/types - Theme Schema
  *
  * The theme document vocabulary (`Theme`, `ThemeMode`, `ColorPalette`) —
- * owned by this package since objectui#5716 — plus the objectui component
- * schemas that render themes.
+ * owned by this package since objectui#5716. The objectui theme COMPONENT
+ * kinds that used to accompany it are all retired (objectui#5489,
+ * objectui#5647); this module is the theme DOCUMENT only.
  *
  * @module theme
  * @packageDocumentation
  */
-
-import type { BaseSchema } from './base.js';
 
 // ============================================================================
 // Theme Document Vocabulary (formerly `@objectstack/spec/ui`)
@@ -231,54 +230,19 @@ export interface Theme {
 // (`packages/react/src/context/ThemeContext.tsx`) applies it. Retiring the
 // dead component kind is not retiring theming.
 //
-// The two siblings below — `ThemeSwitcherSchema` / `ThemePreviewSchema` — are
-// unregistered in exactly the same way but were NOT named by the ruling; they
-// are recorded as objectui#5647 rather than removed here.
-
-/**
- * Theme Switcher Component Schema
- */
-export interface ThemeSwitcherSchema extends BaseSchema {
-  type: 'theme-switcher';
-
-  /** Switcher variant */
-  variant?: 'dropdown' | 'toggle' | 'buttons';
-
-  /** Show mode selector (light/dark) */
-  showMode?: boolean;
-
-  /** Show theme selector */
-  showThemes?: boolean;
-
-  /** Icon for light mode */
-  lightIcon?: string;
-
-  /** Icon for dark mode */
-  darkIcon?: string;
-}
-
-/**
- * Theme Preview Component Schema
- *
- * The `theme` / `mode` members RETIRED with the spec's theme module
- * (objectstack#10485; removal ruled on objectstack#10856, executed as
- * objectui#5710): their zod validators no longer exist upstream, so keeping
- * the members here while `zod/theme.zod.ts` cannot check them would be
- * declared-without-enforcement. The kind itself is unregistered and held for
- * triage as objectui#5647.
- */
-export interface ThemePreviewSchema extends BaseSchema {
-  type: 'theme-preview';
-
-  /** Show color palette */
-  showColors?: boolean;
-
-  /** Show typography samples */
-  showTypography?: boolean;
-
-  /** Show component samples */
-  showComponents?: boolean;
-}
+// `ThemeSwitcherSchema` (`type: 'theme-switcher'`) and `ThemePreviewSchema`
+// (`type: 'theme-preview'`) — the two sibling component kinds that used to
+// follow this note — RETIRED in objectui#5647, by inheritance of the same
+// ruling (option B) under the standing same-family default: identical
+// evidence, measured with the same sweep and the same positive control.
+// Neither literal appears at any `ComponentRegistry.register(...)` /
+// `registerLazy(...)` site in `packages/*/src`, in `PROTOCOL_COMPONENTS` /
+// `PALETTE_PLACEHOLDER_BLOCKS`, or in any fixture — declared-but-unenforced,
+// the same ADR-0078 class as `'theme'` above. Their Zod objects,
+// `ThemeUnionSchema` (which after objectui#5489 held only these two members),
+// and the `…SchemaType` inference aliases left `zod/theme.zod.ts` in the same
+// change; `AnyComponentSchema` no longer carries a theme member, and the
+// refusals are pinned in `__tests__/phase2-schemas.test.ts`.
 
 // `ThemeDefinition` (the deprecated legacy alias of `Theme`) was DELETED here
 // under the objectui#5716 zero-reader rider — zero in-repo readers (census in

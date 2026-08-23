@@ -7,9 +7,6 @@ import {
   AppComponentSchema,
   AppActionSchema,
   AppMenuItemSchema,
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
-  ThemeUnionSchema,
   ReportComponentSchema,
   ReportBuilderSchema,
   ReportViewerSchema,
@@ -112,23 +109,31 @@ describe('Phase 2: AppComponentSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: Theme component kinds — Zod Validation', () => {
-  // `type: 'theme'` (`ThemeComponentSchema`) was RETIRED in objectui#5489 under
-  // the maintainer ruling of 2026-08-21 on objectstack#10485 (option B). It
-  // declared a theme-manager COMPONENT that no renderer ever implemented. This
-  // is the pin that keeps it retired: the shape the old acceptance test proved
-  // VALID is now proven REFUSED, so a re-added union member fails here rather
-  // than reappearing silently in the published `@object-ui/types/zod` surface.
+describe('Phase 2: Theme component kinds — retirement pins', () => {
+  // ALL theme component kinds are retired:
   //
-  // The control leg this pin used to carry — `themes[0]` still parsing against
-  // `ThemeDefinitionSchema` — left with that validator: objectstack#10485 (PR
-  // objectstack#10695) retired the spec's whole theme module, and the
-  // objectstack#10856 ruling had objectui remove its re-exports rather than
-  // keep a local mirror (objectui#5710). Attribution now reads the refusal
-  // itself: a discriminated union rejecting an unknown `type` reports the
-  // DISCRIMINATOR, so asserting every issue sits on `type` proves the refusal
-  // hit the retired wrapper kind, not the theme document it carried.
-  it('refuses the retired `type: \'theme\'` component kind at the discriminator', () => {
+  // - `type: 'theme'` (`ThemeComponentSchema`) in objectui#5489, under the
+  //   maintainer ruling of 2026-08-21 on objectstack#10485 (option B) — a
+  //   theme-manager COMPONENT no renderer ever implemented.
+  // - `type: 'theme-switcher'` / `'theme-preview'` (`ThemeSwitcherSchema` /
+  //   `ThemePreviewSchema`), and `ThemeUnionSchema` itself, in objectui#5647,
+  //   by inheritance of the same ruling: the sweep that measured `'theme'`
+  //   unregistered measured both siblings identically — zero
+  //   `ComponentRegistry.register(...)` / `registerLazy(...)` sites, zero
+  //   placeholder entries, zero fixtures.
+  //
+  // These pins keep them retired: the shapes the old acceptance tests proved
+  // VALID are now proven REFUSED, so a re-added kind fails here rather than
+  // reappearing silently in the published `@object-ui/types/zod` surface.
+  //
+  // Attribution note: the objectui#5489 pin proved its refusal sat on the
+  // `type` discriminator of `ThemeUnionSchema`; that union is gone with its
+  // last two members, so discriminator-level attribution is no longer
+  // expressible and the refusals below read `AnyComponentSchema` directly.
+  // The control that keeps them meaningful is the positive leg at the end —
+  // a still-declared kind parsing GREEN through the same pipeline — so a
+  // broken `AnyComponentSchema` cannot read as three successful refusals.
+  it('refuses the retired theme component kinds, while a live kind still parses', () => {
     const retiredWrapper = {
       type: 'theme',
       mode: 'dark',
@@ -162,24 +167,12 @@ describe('Phase 2: Theme component kinds — Zod Validation', () => {
       storageKey: 'app-theme',
     };
 
-    // The wrapper: gone from every union that used to carry it.
-    const refusal = ThemeUnionSchema.safeParse(retiredWrapper);
-    expect(refusal.success).toBe(false);
+    // The `type: 'theme'` wrapper: gone from every union that used to carry it.
     expect(AnyComponentSchema.safeParse(retiredWrapper).success).toBe(false);
 
-    // Attribution control (see the block comment above): the refusal must sit
-    // on the `type` discriminator — the retired WRAPPER kind — not somewhere
-    // inside the theme document the fixture carries.
-    if (!refusal.success) {
-      expect(refusal.error.issues.length).toBeGreaterThan(0);
-      for (const issue of refusal.error.issues) {
-        expect(issue.path, `refusal must be at the discriminator, got ${JSON.stringify(issue)}`).toEqual(['type']);
-      }
-    }
-  });
-
-  it('should validate ThemeSwitcherSchema', () => {
-    const switcher = {
+    // The objectui#5647 siblings — these exact shapes are the fixtures the old
+    // acceptance tests proved VALID against the retired Zod objects.
+    const retiredSwitcher = {
       type: 'theme-switcher',
       variant: 'dropdown',
       showMode: true,
@@ -187,9 +180,20 @@ describe('Phase 2: Theme component kinds — Zod Validation', () => {
       lightIcon: 'Sun',
       darkIcon: 'Moon',
     };
+    expect(AnyComponentSchema.safeParse(retiredSwitcher).success).toBe(false);
 
-    const result = ThemeSwitcherSchema.safeParse(switcher);
-    expect(result.success).toBe(true);
+    const retiredPreview = {
+      type: 'theme-preview',
+      showColors: true,
+      showTypography: true,
+      showComponents: true,
+    };
+    expect(AnyComponentSchema.safeParse(retiredPreview).success).toBe(false);
+
+    // Positive control on the same pipeline (see the block comment above): a
+    // still-declared kind parses GREEN, so the three refusals measure the
+    // retirement, not a broken union.
+    expect(AnyComponentSchema.safeParse({ type: 'action', label: 'Control Action' }).success).toBe(true);
   });
 });
 

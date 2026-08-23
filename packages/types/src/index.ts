@@ -713,8 +713,10 @@ export type {
   ColorPalette,
   // `Animation` / `ZIndex` retired with `theme.animation` / `theme.zIndex` in
   // @objectstack/spec 17.0.0-rc.3 (objectstack#5021) — see `./theme`.
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
+  // `ThemeSwitcherSchema` / `ThemePreviewSchema` RETIRED in objectui#5647 —
+  // the `type: 'theme-switcher'` / `'theme-preview'` component kinds no
+  // renderer implemented; same shape, same inherited ruling as
+  // `ThemeComponentSchema` above. See `./theme` for the tombstone.
 } from './theme.js';
 
 // Runtime witness for the theme mode vocabulary — a VALUE, so it must not sit

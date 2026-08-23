@@ -283,17 +283,18 @@ export {
 // ============================================================================
 // Phase 2 Schemas - Theme, Reports, Blocks, and Views
 // ============================================================================
-export {
-  // `ColorPaletteSchema` / `TypographySchema` / `BorderRadiusSchema` /
-  // `ShadowSchema` / `ThemeModeSchema` / `ThemeDefinitionSchema` RETIRED with
-  // the spec's whole `ui/theme.zod.ts` module (objectstack#10485, PR
-  // objectstack#10695; removal ruled on objectstack#10856, executed as
-  // objectui#5710) — see `./theme.zod`.
-  // `ThemeComponentSchema` RETIRED in objectui#5489 — see `./theme.zod`.
-  ThemeUnionSchema,
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
-} from './theme.zod.js';
+// `./theme.zod` exports NOTHING any more — the module is kept only as the
+// tombstone for the retired theme component-kind surface:
+// - `ColorPaletteSchema` / `TypographySchema` / `BorderRadiusSchema` /
+//   `ShadowSchema` / `ThemeModeSchema` / `ThemeDefinitionSchema` RETIRED with
+//   the spec's whole `ui/theme.zod.ts` module (objectstack#10485, PR
+//   objectstack#10695; removal ruled on objectstack#10856, executed as
+//   objectui#5710).
+// - `ThemeComponentSchema` RETIRED in objectui#5489.
+// - `ThemeSwitcherSchema` / `ThemePreviewSchema` / `ThemeUnionSchema` RETIRED
+//   in objectui#5647, by inheritance of the same 2026-08-21 ruling (option B)
+//   on identical evidence — `AnyComponentSchema` below no longer carries a
+//   theme member.
 
 export {
   ReportExportFormatSchema,
@@ -352,7 +353,6 @@ import { NavigationSchema } from './navigation.zod.js';
 import { ComplexSchema } from './complex.zod.js';
 import { ObjectQLComponentSchema } from './objectql.zod.js';
 import { CRUDComponentSchema } from './crud.zod.js';
-import { ThemeUnionSchema } from './theme.zod.js';
 import { ReportUnionSchema } from './reports.zod.js';
 import { BlockComponentSchema } from './blocks.zod.js';
 import { ViewComponentSchema } from './views.zod.js';
@@ -373,7 +373,6 @@ export const AnyComponentSchema = z.union([
   ComplexSchema,
   ObjectQLComponentSchema,
   CRUDComponentSchema,
-  ThemeUnionSchema,
   ReportUnionSchema,
   BlockComponentSchema,
   ViewComponentSchema,
