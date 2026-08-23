@@ -91,7 +91,7 @@ import {
 } from '../metadata-admin/nav-selection.js';
 import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor.js';
 import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
-import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
+import { emitMetadataRefresh, subscribeMetadataRefresh } from '../../assistant/assistantBus.js';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
 import { loadPackageSurfaces } from './packageSurfaces.js';
 import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
@@ -653,23 +653,35 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     [appAddObjects, loadPackageObjects, shellClient, packageId, locale],
   );
 
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const apps = (await shellClient.list('app', { packageId })) as Array<Record<string, unknown>>;
-        const first = (apps || [])
-          .map((a) => ({ name: String(a.name ?? ''), label: String(a.label ?? a.name ?? '') }))
-          .filter((a) => a.name)[0];
-        if (!cancelled) setPackageApp(first ?? null);
-      } catch {
-        if (!cancelled) setPackageApp(null);
+  // objectui#5800 顺手修 — the topbar's app detection used to disagree with the
+  // Interfaces pillar's (published-only read, no draftNonce dep, no refresh
+  // subscription, and never re-run on a pillar switch since /data and /access
+  // share one route element): a deep-link to /access could report 「还没有应用」
+  // while /data showed the app at the same moment. Same resolution as the
+  // pillar now: published first, DRAFT app fallback, re-resolved on draft
+  // saves and on the metadata-refresh pulse.
+  const resolvePackageApp = React.useCallback(async (): Promise<void> => {
+    try {
+      const apps = (await shellClient.list('app', { packageId })) as Array<Record<string, unknown>>;
+      let first = (apps || [])
+        .map((a) => ({ name: String(a.name ?? ''), label: String(a.label ?? a.name ?? '') }))
+        .filter((a) => a.name)[0];
+      if (!first) {
+        const drafts = await shellClient.listDrafts?.({ packageId, type: 'app' });
+        const d = drafts?.[0] as { name?: unknown; label?: unknown } | undefined;
+        if (d?.name) first = { name: String(d.name), label: String(d.label ?? d.name) };
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [shellClient, packageId, publishNonce]);
+      setPackageApp(first ?? null);
+    } catch {
+      setPackageApp(null);
+    }
+  }, [shellClient, packageId]);
+  React.useEffect(() => {
+    void resolvePackageApp();
+    return subscribeMetadataRefresh(() => {
+      void resolvePackageApp();
+    });
+  }, [resolvePackageApp, publishNonce, draftNonce]);
 
   // ADR-0057 P3 — the decided Studio grid: `[left: nav/tree] [center: canvas +
   // properties] [right: chat]`. NOT keyed on the async agent catalog (that
@@ -818,17 +830,10 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
             {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              {packageApp ? (
-                <button
-                  type="button"
-                  onClick={() => window.open(resolveConsoleUrl(`apps/${encodeURIComponent(packageApp.name)}`), '_blank')}
-                  title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  {t('engine.studio.app.open', locale)}
-                </button>
-              ) : appDraftPending ? (
+              {/* objectui#5800 — the 打开应用 teleport is retired: the canvas's 运行
+                  mode IS the way to try the app without leaving the workbench.
+                  The published-app state needs no chrome at all. */}
+              {packageApp ? null : appDraftPending ? (
                 <span
                   title={t('engine.studio.app.willOpenAfterPublish', locale)}
                   className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
@@ -1413,6 +1418,13 @@ export function InterfacesPillar({
   // running app, not an editable draft — schema editing is the Data pillar's
   // job — so those leaves are not draft-editable in this canvas.
   const isEditable = !!Preview && !StudioCanvas;
+  // objectui#5800 — 设计⇄运行: one canvas, two modes (ADR-0080's pivot made
+  // visible). Run mode is pure subtraction: `editing=false` drops the design
+  // overlays (dashboard widget overlays, page block canvas) and the SAME
+  // renderer serves the interactive runtime — click 新建, enter a record.
+  // Selection state is retained so switching back to design keeps context.
+  const [canvasMode, setCanvasMode] = React.useState<'design' | 'run'>('design');
+  const designing = canvasMode === 'design';
   // `kind: 'html'`/`'react'` pages are a `source` string (ADR-0080/0081),
   // rendered by SourcePageEditor as a code-editor + live-preview split — there
   // is no block tree, so `selection` never populates and the generic "click a
@@ -1535,9 +1547,33 @@ export function InterfacesPillar({
   const canvasEl = (
     <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
       <div className="mb-3 flex shrink-0 items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-          <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
-        </span>
+        {/* objectui#5800 — the 设计⇄运行 switch replaces the static 实时预览
+            chip: same renderer either way, the switch only adds/removes the
+            design affordances. */}
+        <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1" data-testid="canvas-mode-toggle">
+          <button
+            type="button"
+            onClick={() => setCanvasMode('design')}
+            aria-pressed={designing}
+            className={
+              'rounded-md px-2.5 py-0.5 text-[11px] transition-all ' +
+              (designing ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+            }
+          >
+            {t('engine.studio.if.modeDesign', locale)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCanvasMode('run')}
+            aria-pressed={!designing}
+            className={
+              'rounded-md px-2.5 py-0.5 text-[11px] transition-all ' +
+              (!designing ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+            }
+          >
+            {t('engine.studio.if.modeRun', locale)}
+          </button>
+        </div>
         {current && (
           <span className="text-[11px] text-muted-foreground">
             {current.type} · {current.name}
@@ -1599,9 +1635,9 @@ export function InterfacesPillar({
             type={current.type}
             name={current.name}
             draft={draft}
-            editing
-            selection={selection}
-            onSelectionChange={setSelection}
+            editing={designing}
+            selection={designing ? selection : null}
+            onSelectionChange={designing ? setSelection : undefined}
             onPatch={onPatch}
             locale={locale}
           />
