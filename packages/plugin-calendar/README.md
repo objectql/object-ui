@@ -130,7 +130,7 @@ import {
 import type {
   ObjectCalendarComponentProps,
   CalendarViewProps,
-  CalendarEvent,
+  CalendarViewEvent,
 } from '@object-ui/plugin-calendar';
 ```
 
@@ -332,15 +332,23 @@ const schema: CalendarViewSchema = {
 };
 ```
 
-> **Two different `CalendarEvent` types, same name.** `@object-ui/types`
-> exports a `CalendarEvent` (`id: string`, `start` / `end` accept ISO strings)
-> — since objectui#5667 it is no longer part of the authored surface (a
-> `calendar-view` node carries `data` records, not events; see
+> **Two calendar event types — pick by which side you are on.**
+> `@object-ui/types` exports **`CalendarEvent`**, the AUTHORING event
+> (`id: string`, `start` / `end` accept ISO strings with `end` required, plus
+> `description`) — since objectui#5667 it is no longer part of the authored
+> surface (a `calendar-view` node carries `data` records, not events; see
 > [Calendar Event Structure](#calendar-event-structure)), but it remains the
 > declared payload type of the host-only `onEventClick` callback. This package
-> also exports a `CalendarEvent` (`CalendarViewProps['events']`), which is the
+> exports **`CalendarViewEvent`** (`CalendarViewProps['events']`), the
 > `CalendarView` **component's runtime** type: `id: string | number` and
-> `start: Date` / `end?: Date`. They are not interchangeable.
+> `start: Date` / `end?: Date`. They are not interchangeable — neither is
+> assignable to the other.
+>
+> Both were spelled `CalendarEvent` until objectui#5044, where IDE auto-import
+> chose between them at random and the wrong pick failed as a remote `TS2322`
+> about `Date`. This package still exports `CalendarEvent` as a **`@deprecated`
+> alias of `CalendarViewEvent`**, so existing importers keep compiling; write
+> `CalendarViewEvent` in new code.
 
 ## Links
 

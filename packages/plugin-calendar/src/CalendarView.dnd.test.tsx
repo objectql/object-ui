@@ -8,11 +8,11 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { CalendarView, type CalendarEvent } from './CalendarView';
+import { CalendarView, type CalendarViewEvent } from './CalendarView';
 
 const baseDate = new Date(2026, 0, 15); // Thu Jan 15, 2026
 
-function makeEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
+function makeEvent(overrides: Partial<CalendarViewEvent> = {}): CalendarViewEvent {
   return {
     id: 'evt-1',
     title: 'Sample Event',

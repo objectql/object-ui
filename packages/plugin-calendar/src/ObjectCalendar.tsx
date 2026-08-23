@@ -24,7 +24,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
-import { CalendarView, type CalendarEvent } from './CalendarView';
+import { CalendarView } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import {
   useNavigationOverlay,

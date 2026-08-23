@@ -489,13 +489,17 @@ function MyObjectCalendar({ dataSource }) {
 ```plaintext
 import type { 
   CalendarViewSchema, 
-  CalendarEvent,
   ObjectGridSchema,
   CalendarConfig 
 } from '@object-ui/types'
+import type { CalendarViewEvent } from '@object-ui/plugin-calendar'
 
-// CalendarView types
-const events: CalendarEvent[] = [
+// CalendarView component events — the RUNTIME shape: `id: string | number`,
+// `start` / `end` are real `Date` objects. `@object-ui/types` exports a
+// separate `CalendarEvent`, the AUTHORING event (`id: string`, ISO strings,
+// `end` required); the two are not interchangeable. Renamed in objectui#5044,
+// which left `CalendarEvent` on this package as a `@deprecated` alias.
+const events: CalendarViewEvent[] = [
   {
     id: 1,
     title: 'Meeting',

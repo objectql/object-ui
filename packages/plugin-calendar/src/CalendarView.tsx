@@ -93,7 +93,27 @@ const DEFAULT_TRANSLATIONS: Record<string, string> = {
  */
 const useCalendarTranslation = createSafeTranslation(DEFAULT_TRANSLATIONS, 'calendar.today')
 
-export interface CalendarEvent {
+/**
+ * The `CalendarView` component's RUNTIME event: what the React component
+ * receives on its `events` prop, already parsed — `start` / `end` are real
+ * `Date` objects, and `id` may be the numeric key a data source returned.
+ *
+ * Renamed from `CalendarEvent` in objectui#5044, following the objectui#4650
+ * precedent (`ObjectCalendarProps` -> `ObjectCalendarComponentProps`).
+ * `@object-ui/types` owns `CalendarEvent`, where it is the AUTHORING event —
+ * `id: string`, `start` / `end` accepting ISO strings with `end` REQUIRED, plus
+ * a `description` this one does not have. The two are structurally
+ * incompatible in BOTH directions (`id` and `start` each conflict), so picking
+ * the wrong one out of IDE auto-import failed as a remote `TS2322` about
+ * `Date`, never as "you imported from the wrong package" — measured on
+ * `README.md`'s own example, which stayed uncompilable through objectui#5010's
+ * import-path fix because both names were real exports.
+ *
+ * `index.tsx` keeps a `@deprecated` `CalendarEvent` alias for this type, so
+ * existing importers keep compiling; the rename is what stops the collision,
+ * not a removal.
+ */
+export interface CalendarViewEvent {
   id: string | number
   title: string
   start: Date
@@ -104,16 +124,16 @@ export interface CalendarEvent {
 }
 
 export interface CalendarViewProps {
-  events?: CalendarEvent[]
+  events?: CalendarViewEvent[]
   view?: "month" | "week" | "day"
   currentDate?: Date
   locale?: string
-  onEventClick?: (event: CalendarEvent) => void
+  onEventClick?: (event: CalendarViewEvent) => void
   onDateClick?: (date: Date) => void
   onViewChange?: (view: "month" | "week" | "day") => void
   onNavigate?: (date: Date) => void
   onAddClick?: () => void
-  onEventDrop?: (event: CalendarEvent, newStart: Date, newEnd?: Date) => void
+  onEventDrop?: (event: CalendarViewEvent, newStart: Date, newEnd?: Date) => void
   /**
    * Fired in WeekView/DayView when the user drags across an empty area of
    * the time grid to select a time range. The default ObjectCalendar
@@ -427,7 +447,7 @@ function isSameDay(date1: Date, date2: Date): boolean {
   )
 }
 
-function getEventsForDate(date: Date, events: CalendarEvent[]): CalendarEvent[] {
+function getEventsForDate(date: Date, events: CalendarViewEvent[]): CalendarViewEvent[] {
   return events.filter((event) => {
     const eventStart = new Date(event.start)
     const eventEnd = event.end ? new Date(event.end) : new Date(eventStart)
@@ -449,11 +469,11 @@ function getEventsForDate(date: Date, events: CalendarEvent[]): CalendarEvent[] 
 
 interface MonthViewProps {
   date: Date
-  events: CalendarEvent[]
+  events: CalendarViewEvent[]
   locale?: string
-  onEventClick?: (event: CalendarEvent) => void
+  onEventClick?: (event: CalendarViewEvent) => void
   onDateClick?: (date: Date) => void
-  onEventDrop?: (event: CalendarEvent, newStart: Date, newEnd?: Date) => void
+  onEventDrop?: (event: CalendarViewEvent, newStart: Date, newEnd?: Date) => void
 }
 
 function MonthView({ date, events, locale = "default", onEventClick, onDateClick, onEventDrop }: MonthViewProps) {
@@ -478,7 +498,7 @@ function MonthView({ date, events, locale = "default", onEventClick, onDateClick
   // days — same as Google/Outlook calendars. Without this, a multi-month
   // event would repeat its title in every single day cell.
   const eventsByDate = React.useMemo(() => {
-    const map = new Map<string, Array<{ event: CalendarEvent; isTitleDay: boolean; isSpanStart: boolean; isSpanEnd: boolean }>>()
+    const map = new Map<string, Array<{ event: CalendarViewEvent; isTitleDay: boolean; isSpanStart: boolean; isSpanEnd: boolean }>>()
     for (const event of events) {
       const eventStart = new Date(event.start)
       const eventEnd = event.end ? new Date(event.end) : new Date(eventStart)
@@ -524,7 +544,7 @@ function MonthView({ date, events, locale = "default", onEventClick, onDateClick
 
   const handleDragStart = (
     e: React.DragEvent,
-    event: CalendarEvent,
+    event: CalendarViewEvent,
     mode: "move" | "resize-end" = "move",
     sourceDay?: Date,
   ) => {
@@ -752,11 +772,11 @@ function MonthView({ date, events, locale = "default", onEventClick, onDateClick
 interface TimeGridViewProps {
   mode: "week" | "day"
   date: Date
-  events: CalendarEvent[]
+  events: CalendarViewEvent[]
   locale?: string
   slotMinutes?: number
-  onEventClick?: (event: CalendarEvent) => void
-  onEventDrop?: (event: CalendarEvent, newStart: Date, newEnd?: Date) => void
+  onEventClick?: (event: CalendarViewEvent) => void
+  onEventDrop?: (event: CalendarViewEvent, newStart: Date, newEnd?: Date) => void
   onTimeRangeSelect?: (start: Date, end: Date) => void
 }
 
@@ -814,7 +834,7 @@ function TimeGridView({
   // start time on the first day to midnight, full-day on intermediate days,
   // and midnight to end time on their last day.
   type Entry = {
-    event: CalendarEvent
+    event: CalendarViewEvent
     startMin: number
     endMin: number
     isStart: boolean // is this the event's first day
@@ -825,7 +845,7 @@ function TimeGridView({
   // start/end land on midnight boundaries (date-only data), or if it spans
   // 24h or more. These render in the all-day row above the time grid
   // instead of filling the whole vertical column.
-  const isAllDayEvent = React.useCallback((ev: CalendarEvent): boolean => {
+  const isAllDayEvent = React.useCallback((ev: CalendarViewEvent): boolean => {
     if (ev.allDay) return true
     const s = new Date(ev.start)
     const e = ev.end ? new Date(ev.end) : new Date(s)
@@ -838,8 +858,8 @@ function TimeGridView({
   }, [])
 
   const { allDayEvents, timedEvents } = React.useMemo(() => {
-    const allDay: CalendarEvent[] = []
-    const timed: CalendarEvent[] = []
+    const allDay: CalendarViewEvent[] = []
+    const timed: CalendarViewEvent[] = []
     for (const ev of events) {
       if (isAllDayEvent(ev)) allDay.push(ev)
       else timed.push(ev)
@@ -849,7 +869,7 @@ function TimeGridView({
 
   // All-day events grouped per visible day (for the all-day row).
   const allDayByDay = React.useMemo(() => {
-    const map = new Map<string, Array<{ event: CalendarEvent; isStart: boolean; isEnd: boolean }>>()
+    const map = new Map<string, Array<{ event: CalendarViewEvent; isStart: boolean; isEnd: boolean }>>()
     for (const d of days) map.set(dayKey(d), [])
     for (const ev of allDayEvents) {
       const s = startOfDay(new Date(ev.start))
