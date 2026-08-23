@@ -57,7 +57,11 @@ import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 import type { Diagnostic, SchemaElement } from '@object-ui/sdui-parser';
-import { ElementButtonPropsSchema, ElementTextPropsSchema } from '@objectstack/spec/ui';
+import {
+  ElementButtonPropsSchema,
+  ElementTextInputPropsSchema,
+  ElementTextPropsSchema,
+} from '@objectstack/spec/ui';
 import '@object-ui/components';
 import '../register-plugins';
 
@@ -345,5 +349,202 @@ describe('objectui#4970 — element:text.content / element:button.label declare 
     // CONTROL
     expect(codesFor({ type: 'element:button', label: true })).toContain('type-mismatch');
     expect(codesFor({ type: 'element:button', label: ['Save'] })).toContain('type-mismatch');
+  });
+});
+
+/**
+ * objectui#5717 — `element:text_input`'s `label` / `placeholder` / `description`,
+ * the trio whose declaration lagged a render site that was never behind.
+ *
+ * Every specimen above earned its object arm in the change that taught its
+ * RENDER SITE to resolve the map: `element:record_picker.emptyText`
+ * (objectui#5590) and that block's `label` / `placeholder` (objectui#5637) each
+ * held `['string']` for exactly as long as their renderer dropped the map. This
+ * block is the INVERSE and the reason it needed its own card:
+ * `text-input.tsx` has resolved all three keys through `pickLocalized` since it
+ * was written, so the map always reached the screen correctly in the viewer's
+ * language — and the declaration still said `'string'`, so `validateTree`
+ * reported `type-mismatch` on a legal write. Measured on `d8afbe519` before the
+ * fix, through this file's own `manifestFromConfigs` + `validateTree` pair:
+ *
+ *     label        declaredArms="string"  ["type-mismatch :: <element:text_input> prop \"label\" expected a string"]
+ *     placeholder  declaredArms="string"  ["type-mismatch :: <element:text_input> prop \"placeholder\" expected a string"]
+ *     description  declaredArms="string"  ["type-mismatch :: <element:text_input> prop \"description\" expected a string"]
+ *
+ * ## Why this file, and not only the block's spec-parity test
+ *
+ * `packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts`
+ * asserts declared-arms == spec-accepted-arms per key, which is the DECLARATION
+ * half. It cannot see the defect: the defect is a DIAGNOSTIC emitted by
+ * `validateTree` over a manifest, and a type-level or declaration-level
+ * assertion never runs that path. This file drives the same pair the JSX-page
+ * compiler (`packages/components/src/renderers/layout/page.tsx:462`) and the
+ * save gate use, which is where the warning was actually reaching authors — so
+ * without a pin here the fix could regress with every parity assertion still
+ * green.
+ *
+ * ## Controls, and the one that is not local to this block
+ *
+ * Each specimen carries a value matching NEITHER arm, for the reason the #3832
+ * block states: "no diagnostic" is also what a silenced check looks like. This
+ * block has a second control that lives one `it` away rather than inside it —
+ * `element:text_input.defaultValue` above, whose spec type is `string | number`
+ * and whose `I18N_MAP` case must STILL report `type-mismatch`. That is the
+ * assertion which makes this widening per-key rather than blanket, and it is on
+ * the same component: had the object arm been applied to the block instead of
+ * to the three keys whose contract admits it, that case is what goes green.
+ */
+describe('objectui#5717 — element:text_input label / placeholder / description declare their real unions', () => {
+  it('the specimen block is registered (reachability before absence)', () => {
+    // Without this, an unregistered or renamed block satisfies every
+    // "no type-mismatch" assertion below by never being validated at all —
+    // an absent block reports `unknown-component`, a different code, and the
+    // filters here are per-code by design.
+    expect(manifest.components['element:text_input'], 'element:text_input is not registered').toBeDefined();
+  });
+
+  it('the installed spec accepts the string and inline-map arms on all three keys, and no others', () => {
+    // Guards the derivation before anything is compared against it: a schema
+    // that rejected every probe (a renamed key, a new sibling required key)
+    // would return `[]` and make the three comparisons below agree vacuously.
+    //
+    // Measured on the `@objectstack/spec` 17.1.0 pin — the same discipline the
+    // #4970 block adopted, and the reason these arms are honest rather than
+    // copied from the card that reported them.
+    expect(specAcceptedArms(ElementTextInputPropsSchema, 'label')).toEqual(['string', 'object']);
+    expect(specAcceptedArms(ElementTextInputPropsSchema, 'placeholder')).toEqual([
+      'string',
+      'object',
+    ]);
+    expect(specAcceptedArms(ElementTextInputPropsSchema, 'description')).toEqual([
+      'string',
+      'object',
+    ]);
+  });
+
+  it('the sibling key whose contract has NO object arm is measured the same way', () => {
+    // The separation asserted from the CONTRACT rather than from the
+    // declaration, so "why is defaultValue different" is answered by evidence
+    // in the same vocabulary. Without this line the per-key control below reads
+    // as a convention; with it, it reads as the contract.
+    expect(specAcceptedArms(ElementTextInputPropsSchema, 'defaultValue')).toEqual([
+      'string',
+      'number',
+    ]);
+  });
+
+  it('`element:text_input.label` accepts the inline translation map', () => {
+    expect([...declaredArms('element:text_input', 'label')].sort()).toEqual(
+      [...specAcceptedArms(ElementTextInputPropsSchema, 'label')].sort(),
+    );
+
+    expect(
+      diagnose({ type: 'element:text_input', label: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // …and the plain-string arm keeps validating clean (that half must not move).
+    expect(
+      diagnose({ type: 'element:text_input', label: 'Workspace' }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // CONTROL — values matching NEITHER arm are still reported. The spec refuses
+    // both (measured above), so the gate must too.
+    expect(codesFor({ type: 'element:text_input', label: 42 })).toContain('type-mismatch');
+    expect(codesFor({ type: 'element:text_input', label: ['Workspace'] })).toContain(
+      'type-mismatch',
+    );
+  });
+
+  it('`element:text_input.placeholder` accepts the inline translation map', () => {
+    expect([...declaredArms('element:text_input', 'placeholder')].sort()).toEqual(
+      [...specAcceptedArms(ElementTextInputPropsSchema, 'placeholder')].sort(),
+    );
+
+    expect(
+      diagnose({ type: 'element:text_input', placeholder: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+    expect(
+      diagnose({ type: 'element:text_input', placeholder: 'acme' }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // CONTROL
+    expect(codesFor({ type: 'element:text_input', placeholder: true })).toContain('type-mismatch');
+    expect(codesFor({ type: 'element:text_input', placeholder: ['acme'] })).toContain(
+      'type-mismatch',
+    );
+  });
+
+  it('`element:text_input.description` accepts the inline translation map', () => {
+    // Declared together with the two label-ish keys although its destination in
+    // the rendered output differs (a `<p>` below the field, not the `<label>`
+    // above it or the native attribute inside it). Destination is not what
+    // decides an arm: `ComponentInput.type`'s two conditions are that the
+    // contract accepts the shape and the renderer resolves it, and this key
+    // satisfies both identically — same `pickLocalized` call site, same
+    // `string | Record<string, string>` contract, both measured per key rather
+    // than inherited from its neighbours.
+    expect([...declaredArms('element:text_input', 'description')].sort()).toEqual(
+      [...specAcceptedArms(ElementTextInputPropsSchema, 'description')].sort(),
+    );
+
+    expect(
+      diagnose({ type: 'element:text_input', description: I18N_MAP }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+    expect(
+      diagnose({ type: 'element:text_input', description: 'We use this to name your workspace.' }).filter(
+        (d) => d.code === 'type-mismatch',
+      ),
+    ).toEqual([]);
+
+    // CONTROL
+    expect(codesFor({ type: 'element:text_input', description: 42 })).toContain('type-mismatch');
+    expect(codesFor({ type: 'element:text_input', description: ['note'] })).toContain(
+      'type-mismatch',
+    );
+  });
+
+  it('all three on ONE node produce no type-mismatch — the authored shape the card reported', () => {
+    // The card's own reproduction: an author writes the map on every key of the
+    // trio at once, which is the write the gate used to answer with three
+    // warnings. Asserted as a whole node because that is the unit an author
+    // saves, and because three keys clean individually would not by itself
+    // prove the node is.
+    const authored = {
+      type: 'element:text_input',
+      id: 'ws_input',
+      label: I18N_MAP,
+      placeholder: I18N_MAP,
+      description: I18N_MAP,
+    };
+    expect(diagnose(authored).filter((d) => d.code === 'type-mismatch')).toEqual([]);
+
+    // CONTROL for the whole-node form: one bad key among three good ones is
+    // still reported, so the assertion above cannot be satisfied by a node that
+    // stopped being validated.
+    expect(
+      codesFor({ ...authored, description: ['note'] }),
+    ).toContain('type-mismatch');
+  });
+
+  it('the widening did NOT reach `defaultValue`, whose contract has no object arm', () => {
+    // The per-key control, restated at this block's own altitude. The `it` above
+    // for `defaultValue` owns the canonical assertion; this one fails for a
+    // DIFFERENT reason — a blanket widening applied to the component rather than
+    // to the three keys — and names #5717 so the next reader of a red here knows
+    // which change to look at.
+    expect(declaredArms('element:text_input', 'defaultValue')).not.toContain('object');
+    expect(codesFor({ type: 'element:text_input', defaultValue: I18N_MAP })).toContain(
+      'type-mismatch',
+    );
   });
 });

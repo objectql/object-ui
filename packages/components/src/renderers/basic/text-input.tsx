@@ -143,8 +143,61 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
   // reverse half of the parity gate in
   // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`.
   inputs: [
-    { name: 'label', type: 'string', label: 'Label' },
-    { name: 'placeholder', type: 'string', label: 'Placeholder' },
+    // ── The `I18nLabel` trio — `label`, `placeholder` and `description` ──────
+    //
+    // TWO arms each, declared in the change that makes the gate agree with the
+    // contract (objectui#5717). The ORDER these were earned in is the inverse
+    // of the rest of the family, and that is the whole point of this block.
+    //
+    // `element:record_picker.emptyText` (objectui#5590) and that block's
+    // `label` / `placeholder` (objectui#5637) each held a single `'string'` arm
+    // while their render site passed the value straight into a text node, and
+    // gained the object arm in the very change that taught the render site to
+    // resolve it — the order `ComponentInput.type` prescribes: never declare an
+    // arm the renderer drops.
+    //
+    // Here the render site was NEVER behind. `pickLocalized(props.label,
+    // language)` and its two siblings above have resolved the inline locale map
+    // since this renderer was written, so the map has always reached the screen
+    // correctly in the viewer's language. Only the declaration stayed at one
+    // arm — which is the SAME rule's other half, and `ComponentInput.type`
+    // states it in those words: withholding an arm the renderer resolves makes
+    // the manifest gate report `type-mismatch` on a legal write, "one platform
+    // authority contradicting itself on the write it just recommended".
+    // Measured before this change, through the same `manifestFromConfigs` +
+    // `validateTree` pair the JSX-page compiler (`renderers/layout/page.tsx`)
+    // and the save gate use:
+    //
+    //     <element:text_input> prop "label" expected a string
+    //     <element:text_input> prop "placeholder" expected a string
+    //     <element:text_input> prop "description" expected a string
+    //
+    // …on `{ en: 'Owner', 'zh-CN': '负责人' }`, a value the contract accepts on
+    // all three keys.
+    //
+    // The arms are MEASURED, never copied from the card: the spec's own
+    // verdicts are what
+    // `packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts`
+    // compares this declaration against, per key, so a spec release that drops
+    // an arm and a declaration that grows one the spec rejects are both red.
+    // `defaultValue` below deliberately does NOT join this trio — its contract
+    // is `string | number` with no object arm, and the console specimen file
+    // keeps that separation as the control that makes this widening per-key
+    // rather than blanket.
+    {
+      name: 'label',
+      type: ['string', 'object'],
+      label: 'Label',
+      description:
+        'Caption rendered ABOVE the input, in a `<label>` element — tied to the field by `htmlFor` when the node carries an `id`, so clicking it focuses the input. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string; because the `required` asterisk is drawn on this element, a required input with no label shows no asterisk at all. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`) — the `I18nLabel` union the contract admits on this key — and the renderer resolves the map against the active language at the read site, falling back through base language, a region-qualified sibling, `default`, then `en`, and finally to any remaining entry.',
+    },
+    {
+      name: 'placeholder',
+      type: ['string', 'object'],
+      label: 'Placeholder',
+      description:
+        'Prompt shown INSIDE the field while it is empty, as the native input\'s `placeholder` attribute — it disappears as the user types and never becomes the input\'s value, so it is never what a bound page variable receives. Display-only, with no renderer default: an absent key means no placeholder, and an authored empty string (or a map no locale limb resolves) drops the attribute altogether rather than setting an empty one. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`.',
+    },
     {
       name: 'inputType',
       type: 'enum',
@@ -180,7 +233,24 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
     },
     { name: 'required', type: 'boolean', label: 'Required' },
     { name: 'disabled', type: 'boolean', label: 'Disabled' },
-    { name: 'description', type: 'string', label: 'Description' },
+    {
+      name: 'description',
+      // The third arm-widening of the trio commented above `label`, and the one
+      // worth saying explicitly travels WITH the other two: its destination in
+      // the rendered output differs (a `<p>` below the field, not the `<label>`
+      // above it or the native attribute inside it), but destination is not
+      // what decides an arm. The two conditions `ComponentInput.type` names are
+      // "the contract accepts it" and "the renderer resolves it", and this key
+      // satisfies both identically to `label` — same `pickLocalized` call, same
+      // `string | Record<string, string>` contract, measured per key. A
+      // destination-based split would have declared an arm on one key and
+      // withheld it on another for a difference neither the gate nor the
+      // contract can see.
+      type: ['string', 'object'],
+      label: 'Description',
+      description:
+        'Helper text rendered BELOW the input, in its own `<p>` — a different destination from `label` (above, in a `<label>`) and `placeholder` (inside the field), reached by the same read path. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`. Presentational only: the renderer renders it as a sibling paragraph and does not tie it to the field with `aria-describedby`, so a screen reader does not announce it together with the input — instructions a user must not miss belong in `label`.',
+    },
   ],
 });
 
