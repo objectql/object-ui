@@ -108,9 +108,10 @@
 /**
  * Every property `ActionDef` declares, in declaration order.
  *
- * Kept as data because TypeScript types do not survive to runtime — and
- * `keyof ActionDef` cannot substitute for this list: the index signature widens
- * it to `string | number`, which is precisely the problem being worked around.
+ * Kept as data because TypeScript types do not survive to runtime — `keyof
+ * ActionDef` is erased along with the interface, so it cannot hand a runtime
+ * classifier a list of anything. `actionKeys.pin.test.ts` re-derives this one
+ * from the interface's AST, which is what keeps the data true.
  */
 export const ACTION_DEF_KEYS = [
   'type',
@@ -405,9 +406,11 @@ const isDev = (): boolean =>
  * Dev-mode only: name the keys an action carries that no reader will ever look
  * at. Non-breaking by construction — it changes no types and rejects nothing.
  *
- * Silently binding no handler is the #2169 "Mark Done does nothing" shape, and
- * the compiler cannot help while the index signature stands. Until it comes
- * down, this is the audible half.
+ * Silently binding no handler is the #2169 "Mark Done does nothing" shape. The
+ * compiler now catches it in action literals AUTHORED IN CODE — objectstack#4075
+ * step 3 closed `ActionDef` — but not in the actions that arrive as DATA, which
+ * reach the runner unparsed and which no compiler ever looked at. This is the
+ * audible half for that population; see this module's header.
  */
 export function warnOnUnknownActionKeys(action: object | null | undefined, where = 'ActionRunner'): void {
   if (!isDev()) return;
@@ -429,8 +432,11 @@ export function warnOnUnknownActionKeys(action: object | null | undefined, where
     `[${where}] action "${String(name)}" carries ${unknown.length === 1 ? 'a key' : 'keys'} no reader ` +
       `recognizes: \`${unknown.join('`, `')}\`. Nothing will read ${unknown.length === 1 ? 'it' : 'them'} — ` +
       'check for a typo, or promote the key to an explicit field on `ActionDef` ' +
-      '(packages/core/src/actions/actionKeys.ts). Warned rather than rejected because `ActionDef` ' +
-      'still carries `[key: string]: any`, so the compiler cannot see this (objectstack#4075).',
+      '(packages/core/src/actions/ActionRunner.ts), adding it to `ACTION_DEF_KEYS` ' +
+      '(packages/core/src/actions/actionKeys.ts) in the SAME commit — the pin test derives one ' +
+      'from the other, so either edit alone goes red. Warned rather than rejected because `tsc` ' +
+      'only sees actions authored in code: this one may have arrived as DATA, and stored ' +
+      '`sys_metadata` rows reach the runner unparsed (objectstack#3903).',
   );
 }
 

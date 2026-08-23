@@ -5,9 +5,9 @@
  *
  * Why a test rather than a comment: a hand-maintained list that silently drifts
  * from the interface it claims to mirror is the exact "declared ≠ enforced"
- * failure this work is about. `ActionDef` cannot be enumerated at runtime — its
- * `[key: string]: any` widens `keyof` to `string | number` — so the list is data,
- * and this file is what makes the data true. Adding a field to `ActionDef`
+ * failure this work is about. `ActionDef` cannot be enumerated at runtime — the
+ * interface and its `keyof` are both erased before anything runs — so the list is
+ * data, and this file is what makes the data true. Adding a field to `ActionDef`
  * without adding it here fails, by name.
  *
  * Discrimination proof for the guard below: with `ACTION_DEF_KEYS` complete these
@@ -193,11 +193,51 @@ describe('unknown-key warning', () => {
   });
 
   it('names a typo that the compiler cannot see', () => {
-    // `targt` type-checks today: ActionDef's index signature accepts it. Nothing
-    // reads it, so the action runs and does nothing — #2169's shape.
+    // `targt` no longer type-checks in an action literal — `actionDef-closed-surface.test.ts`
+    // pins that rejection. It is still invisible to the compiler in the population
+    // THIS warning serves: an action rehydrated from a stored row, which reaches
+    // the runner unparsed (objectstack#3903). Nothing reads it, so the action runs
+    // and does nothing — #2169's shape.
     warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toContain('`targt`');
+  });
+
+  it('sends the author to the interface, and drops the reason step 3 retired', () => {
+    // The message is author-facing prose that PRESCRIBES AN EDIT, and both halves
+    // of it rotted unnoticed (objectui#5642): it claimed `ActionDef` "still
+    // carries `[key: string]: any`" after step 3 deleted it, and it named the
+    // INVENTORY as the place to declare a field that lives on the INTERFACE —
+    // which is exactly the half-change the `missing`/`stale` pins above go red on.
+    // Unpinned prose is how that survived; this is the pin.
+    warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
+    const message = String(warn.mock.calls[0][0]);
+    expect({
+      pointsAtTheInterfaceFile: message.includes('packages/core/src/actions/ActionRunner.ts'),
+      namesTheSecondEdit: message.includes('`ACTION_DEF_KEYS`'),
+      repeatsTheRetiredIndexSignature: message.includes('[key: string]: any'),
+    }).toEqual({
+      pointsAtTheInterfaceFile: true,
+      namesTheSecondEdit: true,
+      repeatsTheRetiredIndexSignature: false,
+    });
+  });
+
+  it('the file path it prints really declares the interface it prescribes', () => {
+    // A fix for a wrong pointer that quietly installs another wrong pointer is
+    // the same defect. So resolve the path OFF THE PRINTED MESSAGE and read the
+    // file: a rename or a move of `ActionRunner.ts` reddens here by name instead
+    // of shipping a second dead prescription.
+    warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
+    const message = String(warn.mock.calls[0][0]);
+    const printed = [...(message.match(/packages\/core\/src\/actions\/[A-Za-z.]+\.ts(?=\))/g) ?? [])];
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
+    const declaringPaths = printed.filter((p) =>
+      readFileSync(join(repoRoot, p), 'utf8').includes('export interface ActionDef {'));
+    expect({ printed, declaringPaths }).toEqual({
+      printed: ['packages/core/src/actions/ActionRunner.ts', 'packages/core/src/actions/actionKeys.ts'],
+      declaringPaths: ['packages/core/src/actions/ActionRunner.ts'],
+    });
   });
 
   it('gives a retired key its rename prescription, not a bare "unknown"', () => {
