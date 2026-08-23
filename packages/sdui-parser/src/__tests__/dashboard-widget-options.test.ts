@@ -99,7 +99,11 @@ describe('the ruled first case: gauge options.invert (objectui#5709)', () => {
   });
 
   it('each warning names the widget, its type, and the FULL consumed set', () => {
-    for (const d of unconsumed(dash(slaGauge))) {
+    const found = unconsumed(dash(slaGauge));
+    // Not vacuous: an emitter that stopped emitting would make the loop below
+    // assert nothing (measured in this card's ablation B).
+    expect(found.length).toBeGreaterThan(0);
+    for (const d of found) {
       expect(d.message).toContain('"sla_compliance_gauge"');
       expect(d.message).toContain('(gauge)');
       // "naming the consumed set" is the ruling's own requirement — derived
