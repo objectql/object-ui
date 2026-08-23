@@ -1805,6 +1805,10 @@ const en = {
       changesConfirmed: 'Confirmed',
       changesConfirm: 'Confirm',
       changesConfirmHint: 'Reply to confirm or adjust this change.',
+      changesApplying: 'Applying…',
+      changesApplied: 'Applied',
+      changesDrafted: 'Saved as draft',
+      changesFailed: 'Not applied',
       // Wording is load-bearing: this is SENT to the agent and must satisfy the
       // cloud confirm gate's English clause `apply (this|the) change`
       // (service-ai-studio confirm-gate.ts APPROVAL_RE). "apply what you just

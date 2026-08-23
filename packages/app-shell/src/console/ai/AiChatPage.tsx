@@ -74,6 +74,7 @@ import {
   detectProposedPlan,
   detectBuilderHandoff,
   detectProposedChanges,
+  detectReplayOutcome,
   buildProgressFromDraftReview,
   // The authoring/honest -> runtime message seam (objectui#4399 / PR #4416),
   // consumed here one hop up from the plugin's own renderers (objectui#4437).
@@ -192,15 +193,21 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         // four; this is its hydration counterpart.
         const builderHandoff = detectBuilderHandoff(result);
         const proposedChanges = detectProposedChanges(result);
+        // objectui#5695 — a confirm-replay result becomes a terminal state on
+        // the original 确认修改 card; it must never rehydrate as an ordinary
+        // draft card (a rolled-back publish would get a live Publish button).
+        // Mirrors the live mapper's suppression exactly.
+        const replayOutcome = detectReplayOutcome(toolCallId, result);
         toolInvocations.push({
           toolCallId,
           toolName,
           ...(state ? { state } : {}),
           ...(result !== undefined ? { result } : {}),
-          ...(draftReview ? { draftReview } : {}),
+          ...(draftReview && !replayOutcome ? { draftReview } : {}),
           ...(proposedPlan ? { proposedPlan } : {}),
           ...(builderHandoff ? { builderHandoff } : {}),
           ...(proposedChanges ? { proposedChanges } : {}),
+          ...(replayOutcome ? { replayOutcome } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
         });
         if (!buildProgress) {
@@ -2278,6 +2285,10 @@ export function ChatPane({
         })}
         changesConfirmMessage={changesConfirmMessage}
         changeVerbLabels={changeVerbLabels}
+        changesApplyingLabel={t('console.ai.changesApplying', { defaultValue: 'Applying…' })}
+        changesAppliedLabel={t('console.ai.changesApplied', { defaultValue: 'Applied' })}
+        changesDraftedLabel={t('console.ai.changesDrafted', { defaultValue: 'Saved as draft' })}
+        changesFailedLabel={t('console.ai.changesFailed', { defaultValue: 'Not applied' })}
         planAnswerMessage={(question, option) =>
           outboundText('planAnswerMessage', { question, option })
         }

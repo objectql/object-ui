@@ -320,6 +320,19 @@ export interface ChatToolInvocation {
     prompt: string;
     packageId?: string;
   };
+  /**
+   * objectui#5695 — the terminal verdict of a confirm-replay (`replay_<id>`
+   * tool results; cloud `runApprovedProposalReplay`). Rendered as a terminal
+   * state on the ORIGINAL 确认修改 card — 已生效 / 已暂存为草稿 / 未生效 — so a
+   * rolled-back publish exists somewhere a USER can see it, independent of
+   * whether the model narrates it honestly.
+   */
+  replayOutcome?: {
+    kind: 'published' | 'drafted' | 'failed';
+    outcome?: string;
+    error?: string;
+    packageId?: string;
+  };
 }
 
 export interface ChatSource {
@@ -718,6 +731,14 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * not supplied, so an unrecognised server-side verb still renders.
    */
   changeVerbLabels?: Record<string, string>;
+  /** In-flight badge while the confirm-replay is applying (default "Applying…"). objectui#5695. */
+  changesApplyingLabel?: string;
+  /** Terminal badge when the replay published the change (default "Applied"). */
+  changesAppliedLabel?: string;
+  /** Terminal badge when the replay staged a draft (default "Saved as draft"). */
+  changesDraftedLabel?: string;
+  /** Terminal badge when the replay's publish did not go live (default "Not applied"). */
+  changesFailedLabel?: string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -1267,6 +1288,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       changesConfirmHintLabel = 'Reply to confirm or adjust this change.',
       changesConfirmMessage = 'Confirm — apply the change you just proposed.',
       changeVerbLabels = DEFAULT_CHANGE_VERB_LABELS,
+      changesApplyingLabel = 'Applying…',
+      changesAppliedLabel = 'Applied',
+      changesDraftedLabel = 'Saved as draft',
+      changesFailedLabel = 'Not applied',
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1599,6 +1624,30 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       },
       [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
     );
+    // objectui#5695 — same optimistic pattern for the 确认修改 card: flip it to
+    // an "Applying…" badge the moment the approval is sent (double-click guard +
+    // immediate feedback); the durable terminal state derives from the replay
+    // envelope in the message stream (replayOutcomeByProposalId). A send that
+    // never left the client rolls the flip back so the buttons return.
+    const [confirmPendingIds, setConfirmPendingIds] = React.useState<ReadonlySet<string>>(
+      () => new Set<string>(),
+    );
+    const lastConfirmedChangeIdRef = React.useRef<string | null>(null);
+    const handleChangesConfirm = React.useCallback(
+      (toolCallId?: string) => {
+        if (toolCallId) {
+          lastConfirmedChangeIdRef.current = toolCallId;
+          setConfirmPendingIds((prev) => {
+            const next = new Set(prev);
+            next.add(toolCallId);
+            return next;
+          });
+        }
+        onSendMessage?.(changesConfirmMessage);
+      },
+      [onSendMessage, changesConfirmMessage],
+    );
+
     // "Adjust" doesn't send anything — it just drops the cursor into the input so
     // the user can describe the change in their own words.
     const handlePlanAdjust = React.useCallback(() => {
@@ -1624,6 +1673,17 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         const failedId = lastApprovedPlanIdRef.current;
         lastApprovedPlanIdRef.current = null;
         setApprovedPlanIds((prev) => {
+          if (!prev.has(failedId)) return prev;
+          const next = new Set(prev);
+          next.delete(failedId);
+          return next;
+        });
+      }
+      // Same rollback for an unsent 确认修改 approval (objectui#5695).
+      if (lastConfirmedChangeIdRef.current) {
+        const failedId = lastConfirmedChangeIdRef.current;
+        lastConfirmedChangeIdRef.current = null;
+        setConfirmPendingIds((prev) => {
           if (!prev.has(failedId)) return prev;
           const next = new Set(prev);
           next.delete(failedId);
@@ -1714,6 +1774,42 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         if (commit !== undefined && commit > p.order) ids.add(p.id);
       }
       return ids;
+    }, [messages]);
+
+    // objectui#5695 — correlate each confirm-replay result back to the 确认修改
+    // card it replays, so the card carries a UI-owned terminal state (已生效 /
+    // 已暂存为草稿 / 未生效) instead of going dark after the click. A replay
+    // re-dispatches the SAME tool, so the match is "latest earlier proposal of
+    // the same tool" — the same positional+per-tool convention as
+    // `confirmedChangeIds` above. A replay invocation still awaiting its result
+    // marks the card 'applying'; later replays of the same card overwrite
+    // earlier ones (an adjusted-and-reconfirmed change reports its LAST run).
+    const replayOutcomeByProposalId = React.useMemo(() => {
+      const byId = new Map<
+        string,
+        NonNullable<ChatToolInvocation['replayOutcome']> | { kind: 'applying' }
+      >();
+      const proposals: Array<{ id: string; toolName: string; order: number }> = [];
+      let order = 0;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.proposedChanges && tool.toolCallId) {
+            proposals.push({ id: tool.toolCallId, toolName: tool.toolName ?? '', order });
+          } else if (tool.toolCallId?.startsWith('replay_')) {
+            let target: { id: string } | undefined;
+            for (const p of proposals) {
+              if (p.order < order && p.toolName === (tool.toolName ?? '')) target = p;
+            }
+            if (target) {
+              if (tool.replayOutcome) byId.set(target.id, tool.replayOutcome);
+              else if (tool.result === undefined && !tool.errorText)
+                byId.set(target.id, { kind: 'applying' });
+            }
+          }
+          order += 1;
+        }
+      }
+      return byId;
     }, [messages]);
 
     const renderToolDetail = (tool: ChatToolInvocation) => {
@@ -2377,22 +2473,110 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </div>
                   ))}
                 </div>
-                {onSendMessage ? (
-                  confirmedChangeIds.has(tool.toolCallId) ? (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
-                      <span
-                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        data-testid="proposed-changes-confirmed"
-                      >
-                        <CheckCircle2 className="size-3.5" />
-                        {changesConfirmedLabel}
+                {(() => {
+                  // objectui#5695 — after 确认修改, the card carries the replay's
+                  // verdict instead of going dark. Terminal states render on
+                  // EVERY surface (incl. the read-only share page): a UI-owned
+                  // failure state is the layer a model cannot narrate over.
+                  const outcome = replayOutcomeByProposalId.get(tool.toolCallId);
+                  if (outcome?.kind === 'published') {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          data-testid="proposed-changes-applied"
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          {changesAppliedLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (outcome?.kind === 'failed') {
+                    return (
+                      <div className="flex flex-col gap-1 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                          data-testid="proposed-changes-failed"
+                        >
+                          <XCircle className="size-3.5" />
+                          {changesFailedLabel}
+                        </span>
+                        {outcome.error ? (
+                          <span className="text-[11px] text-red-700/80 dark:text-red-300/80" data-testid="proposed-changes-failed-reason">
+                            {outcome.error}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  if (outcome?.kind === 'drafted') {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                          data-testid="proposed-changes-drafted"
+                        >
+                          <Clock3 className="size-3.5" />
+                          {changesDraftedLabel}
+                        </span>
+                        {onPublishDrafts && outcome.packageId ? (
+                          <button
+                            type="button"
+                            onClick={() => void handlePublishDrafts(outcome.packageId!)}
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                            data-testid="proposed-changes-publish"
+                          >
+                            <Rocket className="size-3.5" />
+                            {publishDraftsLabel}
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  const applying =
+                    outcome?.kind === 'applying' || confirmPendingIds.has(tool.toolCallId);
+                  if (applying) {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-foreground/70"
+                          data-testid="proposed-changes-applying"
+                        >
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {changesApplyingLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (!onSendMessage) {
+                    return (
+                      <span className="text-[11px] italic text-muted-foreground/80">
+                        {changesConfirmHintLabel}
                       </span>
-                    </div>
-                  ) : (
+                    );
+                  }
+                  if (confirmedChangeIds.has(tool.toolCallId)) {
+                    // Legacy fallback for hosts whose replay envelope predates
+                    // the outcome fields: a later same-tool commit still
+                    // collapses the card, just without a verdict.
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          data-testid="proposed-changes-confirmed"
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          {changesConfirmedLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
                       <button
                         type="button"
-                        onClick={() => onSendMessage(changesConfirmMessage)}
+                        onClick={() => handleChangesConfirm(tool.toolCallId)}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                         data-testid="proposed-changes-confirm"
                       >
@@ -2408,12 +2592,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planAdjustLabel}
                       </button>
                     </div>
-                  )
-                ) : (
-                  <span className="text-[11px] italic text-muted-foreground/80">
-                    {changesConfirmHintLabel}
-                  </span>
-                )}
+                  );
+                })()}
               </div>
             ) : null}
           </ToolContent>

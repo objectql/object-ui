@@ -1562,6 +1562,10 @@ const ar = {
       changesConfirmed: "تم التأكيد",
       changesConfirm: "تأكيد",
       changesConfirmHint: "أجب لتأكيد هذا التغيير أو تعديله.",
+      changesApplying: "جارٍ التطبيق…",
+      changesApplied: "تم التطبيق",
+      changesDrafted: "حُفظ كمسودة",
+      changesFailed: "لم يُطبَّق",
       changeVerb: {
         createObject: "إنشاء كائن",
         addField: "إضافة حقل",

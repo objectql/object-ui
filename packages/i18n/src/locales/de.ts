@@ -1555,6 +1555,10 @@ const de = {
       changesConfirmed: "Bestätigt",
       changesConfirm: "Bestätigen",
       changesConfirmHint: "Antworten Sie, um diese Änderung zu bestätigen oder anzupassen.",
+      changesApplying: "Wird angewendet…",
+      changesApplied: "Angewendet",
+      changesDrafted: "Als Entwurf gespeichert",
+      changesFailed: "Nicht angewendet",
       changeVerb: {
         createObject: "Objekt erstellen",
         addField: "Feld hinzufügen",

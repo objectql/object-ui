@@ -1567,6 +1567,10 @@ const ru = {
       changesConfirmed: "Подтверждено",
       changesConfirm: "Подтвердить",
       changesConfirmHint: "Ответьте, чтобы подтвердить или скорректировать это изменение.",
+      changesApplying: "Применение…",
+      changesApplied: "Применено",
+      changesDrafted: "Сохранено как черновик",
+      changesFailed: "Не применено",
       changeVerb: {
         createObject: "Создать объект",
         addField: "Добавить поле",

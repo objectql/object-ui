@@ -1557,6 +1557,10 @@ const ja = {
       changesConfirmed: "確認済み",
       changesConfirm: "変更を確定",
       changesConfirmHint: "返信してこの変更を確定または調整してください。",
+      changesApplying: "適用中…",
+      changesApplied: "適用済み",
+      changesDrafted: "下書きとして保存",
+      changesFailed: "未適用",
       changeVerb: {
         createObject: "オブジェクトを作成",
         addField: "項目を追加",

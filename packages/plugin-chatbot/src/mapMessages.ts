@@ -325,6 +325,55 @@ export function detectProposedChanges(result: unknown): ProposedChanges | undefi
   return { ...(str(obj.summary) ? { summary: str(obj.summary) } : {}), changes };
 }
 
+/**
+ * objectui#5695 — the terminal verdict of a confirm-replay.
+ *
+ * When the user approves a 确认修改 card, the runtime re-dispatches the
+ * proposal deterministically and appends the result under a synthetic
+ * `replay_<turn>_<i>` tool-call id (cloud `runApprovedProposalReplay`). The
+ * envelope is the ordinary authoring envelope — `status:'published'`,
+ * or `status:'drafted'` optionally stamped `publishFailed:true` +
+ * `publishOutcome`/`publishError` when the in-turn publish rolled back
+ * (cloud#1467). Lifted into a dedicated shape so the confirm card can render
+ * a UI-owned terminal state — the layer a model cannot narrate over.
+ */
+export interface ReplayOutcome {
+  kind: 'published' | 'drafted' | 'failed';
+  /** Machine verdict of a failed publish (`rejected` / `rolled_back` / `nothing_published`). */
+  outcome?: string;
+  /** First line of `publishError`, for the 未生效 headline. */
+  error?: string;
+  /** Owning package of a drafted outcome, for the inline publish affordance. */
+  packageId?: string;
+}
+
+export function detectReplayOutcome(
+  toolCallId: string | undefined,
+  result: unknown,
+): ReplayOutcome | undefined {
+  if (!toolCallId || !toolCallId.startsWith('replay_')) return undefined;
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status === 'published') return { kind: 'published' };
+  if (obj.status !== 'drafted') return undefined;
+  const rawPkg = (obj as { packageId?: unknown }).packageId;
+  const packageId =
+    typeof rawPkg === 'string' && rawPkg ? { packageId: rawPkg } : {};
+  if ((obj as { publishFailed?: unknown }).publishFailed === true) {
+    const rawErr = (obj as { publishError?: unknown }).publishError;
+    const error =
+      typeof rawErr === 'string' && rawErr.trim() ? rawErr.trim().split('\n')[0] : undefined;
+    const rawOutcome = (obj as { publishOutcome?: unknown }).publishOutcome;
+    return {
+      kind: 'failed',
+      ...(typeof rawOutcome === 'string' && rawOutcome ? { outcome: rawOutcome } : {}),
+      ...(error ? { error } : {}),
+      ...packageId,
+    };
+  }
+  return { kind: 'drafted', ...packageId };
+}
+
 export function detectDraftResult(result: unknown): DraftReview | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
@@ -453,9 +502,18 @@ function extractToolInvocations(
           : typeof p.type === 'string'
             ? p.type.replace(/^tool-/, '')
             : 'tool';
+      const toolCallId =
+        p.toolCallId ?? p.id ?? `${p.type ?? 'tool'}-${Math.random().toString(36).slice(2, 8)}`;
       const result = p.output ?? p.result;
       const pending = detectPendingApproval(result);
-      const draftReview = detectDraftResult(result);
+      // A confirm-replay result renders as a terminal state on the ORIGINAL
+      // confirm card, never as its own card — in particular a failed in-turn
+      // publish must NOT surface as an ordinary draft card with a live Publish
+      // button (that is exactly the "narrated success over a rollback" the
+      // card exists to prevent, #5695). So a matched replay suppresses the
+      // draft-review lift for this invocation.
+      const replayOutcome = detectReplayOutcome(toolCallId, result);
+      const draftReview = replayOutcome ? undefined : detectDraftResult(result);
       const proposedPlan = detectProposedPlan(result);
       const proposedChanges = detectProposedChanges(result);
       const builderHandoff = detectBuilderHandoff(result);
@@ -481,8 +539,7 @@ function extractToolInvocations(
       const state: ChatToolInvocation['state'] =
         pending && baseState !== 'output-error' ? 'approval-requested' : baseState;
       return {
-        toolCallId:
-          p.toolCallId ?? p.id ?? `${p.type ?? 'tool'}-${Math.random().toString(36).slice(2, 8)}`,
+        toolCallId,
         toolName,
         args: p.input ?? p.args,
         result,
@@ -493,6 +550,7 @@ function extractToolInvocations(
         proposedPlan,
         proposedChanges,
         builderHandoff,
+        replayOutcome,
       } satisfies ChatToolInvocation;
     });
 }

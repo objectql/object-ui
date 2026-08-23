@@ -1559,6 +1559,10 @@ const es = {
       changesConfirmed: "Confirmado",
       changesConfirm: "Confirmar",
       changesConfirmHint: "Responda para confirmar o ajustar este cambio.",
+      changesApplying: "Aplicando…",
+      changesApplied: "Aplicado",
+      changesDrafted: "Guardado como borrador",
+      changesFailed: "No aplicado",
       changeVerb: {
         createObject: "Crear objeto",
         addField: "Añadir campo",

@@ -1675,6 +1675,10 @@ const zh = {
       changesConfirmed: '已确认',
       changesConfirm: '确认修改',
       changesConfirmHint: '回复以确认或调整该改动。',
+      changesApplying: '应用中…',
+      changesApplied: '已生效',
+      changesDrafted: '已暂存为草稿',
+      changesFailed: '未生效',
       changesConfirmMessage: '确认修改，应用你刚才提议的改动。',
       changeVerb: {
         createObject: '新建对象',

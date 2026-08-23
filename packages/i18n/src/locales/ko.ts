@@ -1555,6 +1555,10 @@ const ko = {
       changesConfirmed: "확인됨",
       changesConfirm: "변경 확정",
       changesConfirmHint: "회신하여 이 변경을 확정하거나 조정하세요.",
+      changesApplying: "적용 중…",
+      changesApplied: "적용됨",
+      changesDrafted: "초안으로 저장됨",
+      changesFailed: "적용되지 않음",
       changeVerb: {
         createObject: "객체 생성",
         addField: "필드 추가",
