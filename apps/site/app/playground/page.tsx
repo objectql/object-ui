@@ -806,9 +806,7 @@ const EXAMPLE_SCHEMAS = {
                     status: "Active",
                     actions: "•••"
                   }
-                ],
-                hoverable: true,
-                striped: true
+                ]
               }
             ]
           }

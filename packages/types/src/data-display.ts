@@ -280,7 +280,111 @@ export interface TableColumn {
 }
 
 /**
- * Simple table component
+ * Column definition for the STATIC `table` renderer (`type: 'table'`) — the
+ * narrow declared subset that renderer actually reads, so declared = enforced
+ * holds per renderer (objectui#5474, maintainer ruling 2026-08-22, Option C:
+ * split the types).
+ *
+ * {@link TableColumn} above remains the rich shared shape that `data-table`
+ * honours (`DataTableSchema`, `CRUDSchema`, detail-view relations) — it is
+ * deliberately NOT narrowed. The static renderer
+ * (`packages/components/src/renderers/complex/table.tsx`) reads exactly five
+ * column keys: `header`, `accessorKey`, `className`, `cellClassName`, `width`
+ * (measured on objectui#5474; every other key was accepted, type-checked, and
+ * did nothing, with no diagnostic).
+ *
+ * The `?: never` members are ADR-0049 retirement tombstones — this package's
+ * convention (see `crud.ts` `confirm` and `complex.ts` `DashboardWidgetSchema`):
+ * authoring one is a tsc error here and a loud parse rejection in the Zod twin
+ * (`zod/data-display.zod.ts` `StaticTableColumnSchema`). Implementing the keys
+ * on this renderer instead (Option A) was considered and NOT chosen — it would
+ * duplicate `data-table`'s capabilities and leave two interactive tables to
+ * maintain. Authors who need the interactive set migrate the node to
+ * `type: 'data-table'`, whose columns keep the rich {@link TableColumn}.
+ */
+export interface StaticTableColumn {
+  /**
+   * Column header text
+   */
+  header: string;
+  /**
+   * Key to access data in row object
+   */
+  accessorKey: string;
+  /**
+   * Header CSS class
+   */
+  className?: string;
+  /**
+   * Cell CSS class
+   */
+  cellClassName?: string;
+  /**
+   * Column width
+   */
+  width?: string | number;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  minWidth?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it; a right-aligned column authored here was
+   * silently inert. Use `data-table`, or a Tailwind `cellClassName` such as
+   * `text-right`, which this renderer does honour.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  align?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  fixed?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  type?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Sorting is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  sortable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Filtering is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  filterable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Resizing is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  resizable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Inline editing is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  editable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Custom cells are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  cell?: never;
+}
+
+/**
+ * Simple STATIC table component — renders inline `data` against `columns`,
+ * nothing more. For hover/stripe styling, sorting, filtering, selection or
+ * inline editing use `data-table` ({@link DataTableSchema}).
  */
 export interface TableSchema extends BaseSchema {
   type: 'table';
@@ -289,9 +393,11 @@ export interface TableSchema extends BaseSchema {
    */
   caption?: string;
   /**
-   * Table columns
+   * Table columns — the narrow static subset ({@link StaticTableColumn}),
+   * split from the rich shared {@link TableColumn} by objectui#5474 so
+   * declared = enforced holds per renderer.
    */
-  columns: TableColumn[];
+  columns: StaticTableColumn[];
   /**
    * Table data rows
    */
@@ -301,15 +407,27 @@ export interface TableSchema extends BaseSchema {
    */
   footer?: SchemaNode | SchemaNode[] | string;
   /**
-   * Whether table has hover effect
-   * @default true
+   * RETIRED (objectui#5474, maintainer ruling 2026-08-22, ADR-0049
+   * enforce-or-remove): the static renderer never implemented row hover
+   * highlighting — the key carried a `@default true` annotation describing
+   * behaviour that did not exist, and the reference page taught it as working.
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`): authoring the key is a tsc error here and a loud parse
+   * rejection in the Zod twin. Row hover styling is `data-table` behaviour —
+   * migrate the node to `type: 'data-table'`.
+   * @deprecated Retired — use `data-table` for interactive row affordances.
    */
-  hoverable?: boolean;
+  hoverable?: never;
   /**
-   * Whether table has striped rows
-   * @default false
+   * RETIRED (objectui#5474, maintainer ruling 2026-08-22, ADR-0049
+   * enforce-or-remove): the static renderer never implemented striped rows —
+   * same tombstone as `hoverable` above. Alternate-row styling can be
+   * expressed today with Tailwind on `className`
+   * (e.g. `[&_tbody_tr:nth-child(even)]:bg-muted/50`), which this renderer
+   * does honour.
+   * @deprecated Retired — style rows via `className`, or use `data-table`.
    */
-  striped?: boolean;
+  striped?: never;
 }
 
 /**

@@ -114,16 +114,52 @@ export const TableColumnSchema = z.object({
 });
 
 /**
- * Table Schema - Simple table component
+ * Static Table Column Schema — the narrow declared subset the static `table`
+ * renderer actually reads (objectui#5474, maintainer ruling 2026-08-22,
+ * Option C: split the types). `TableColumnSchema` above remains the rich
+ * shared shape `data-table` honours and is deliberately NOT narrowed.
+ *
+ * The `z.never().optional()` members are ADR-0049 retirement tombstones (the
+ * convention `crud.zod.ts` `confirm` set): an authored value is REFUSED at
+ * parse time with the key named in the error path, instead of being silently
+ * stripped the way an undeclared key would be. Loud refusal is the ruled
+ * outcome — these keys were accepted-and-inert for as long as the static
+ * table shared the rich column type.
+ */
+export const StaticTableColumnSchema = z.object({
+  header: z.string().describe('Column header text'),
+  accessorKey: z.string().describe('Data accessor key'),
+  className: z.string().optional().describe('Column class name'),
+  cellClassName: z.string().optional().describe('Cell class name'),
+  width: z.union([z.string(), z.number()]).optional().describe('Column width'),
+  minWidth: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  align: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table, or a cellClassName like text-right'),
+  fixed: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  type: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  sortable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  filterable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  resizable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+});
+
+/**
+ * Table Schema - Simple STATIC table component. For hover/stripe styling,
+ * sorting, filtering, selection or inline editing use `data-table`.
+ *
+ * `hoverable` / `striped` are ADR-0049 tombstones (objectui#5474): the static
+ * renderer never implemented either — both carried `@default` annotations and
+ * reference-page teaching describing behaviour that did not exist. An
+ * authored value now fails parse loudly rather than doing nothing silently.
  */
 export const TableSchema = BaseSchema.extend({
   type: z.literal('table'),
   caption: z.string().optional().describe('Table caption'),
-  columns: z.array(TableColumnSchema).describe('Table columns'),
+  columns: z.array(StaticTableColumnSchema).describe('Table columns (static subset — objectui#5474)'),
   data: z.array(z.any()).describe('Table data'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Table footer'),
-  hoverable: z.boolean().optional().describe('Highlight rows on hover'),
-  striped: z.boolean().optional().describe('Striped rows'),
+  hoverable: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented row hover; use data-table'),
+  striped: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented striping; style rows via className, or use data-table'),
 });
 
 /**

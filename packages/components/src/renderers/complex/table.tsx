@@ -8,7 +8,12 @@
 
 // table.tsx implementation
 import { ComponentRegistry } from '@object-ui/core';
-import type { TableColumn, TableSchema } from '@object-ui/types';
+// The NARROW static column subset, not the rich shared `TableColumn` —
+// objectui#5474 split the types so declared = enforced holds per renderer.
+// Every key this file reads off a column must be declared there, and every
+// key declared live there must be read here; the pairing is pinned by
+// `__tests__/table-declared-equals-enforced.test.tsx`.
+import type { StaticTableColumn, TableSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { 
   Table, 
@@ -28,7 +33,7 @@ ComponentRegistry.register('table',
       {schema.caption && <TableCaption>{schema.caption}</TableCaption>}
       <TableHeader>
         <TableRow>
-          {schema.columns?.map((col: TableColumn, index: number) => (
+          {schema.columns?.map((col: StaticTableColumn, index: number) => (
             <TableHead key={index} className={col.className} style={{ width: col.width }}>
                 {col.header}
             </TableHead>
@@ -38,7 +43,7 @@ ComponentRegistry.register('table',
       <TableBody>
         {schema.data?.map((row: any, rowIndex: number) => (
           <TableRow key={rowIndex}>
-            {schema.columns?.map((col: TableColumn, colIndex: number) => (
+            {schema.columns?.map((col: StaticTableColumn, colIndex: number) => (
                 <TableCell key={colIndex} className={col.cellClassName}>
                     {row[col.accessorKey]}
                 </TableCell>
@@ -68,7 +73,7 @@ ComponentRegistry.register('table',
           name: 'columns', 
           type: 'array', 
           label: 'Columns',
-          description: 'Array of { header, accessorKey, className, width }'
+          description: 'Array of { header, accessorKey, className, cellClassName, width }'
       },
        { 
           name: 'data', 

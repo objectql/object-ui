@@ -391,18 +391,20 @@ An interactive button with variants, icons, and loading states.
 
 ### TableSchema
 
-A data table with columns, optional striping, and hover effects.
+A simple static table: it renders inline `data` against `columns`, nothing
+more. For row hover highlighting, striping, sorting, filtering, selection or
+inline editing use the interactive `data-table` — the static `table` deliberately
+does not implement those (objectui#5474 retired the keys that once suggested it
+did; authoring them is now refused by validation instead of silently ignored).
 
 ```json
 {
   "type": "table",
   "caption": "Recent Orders",
-  "hoverable": true,
-  "striped": true,
   "columns": [
     { "accessorKey": "id", "header": "#", "width": 60 },
     { "accessorKey": "customer", "header": "Customer" },
-    { "accessorKey": "amount", "header": "Amount" },
+    { "accessorKey": "amount", "header": "Amount", "cellClassName": "text-right" },
     { "accessorKey": "status", "header": "Status" }
   ],
   "data": [
@@ -416,11 +418,9 @@ A data table with columns, optional striping, and hover effects.
 | Property | Type | Description |
 |----------|------|-------------|
 | `caption` | `string` | Table caption / title text. |
-| `columns` | `TableColumn[]` | Column definitions. `accessorKey` (the row key to read) and `header` (heading text) are required; `width`, `className`, and `cellClassName` are honoured by this renderer. |
+| `columns` | `StaticTableColumn[]` | Column definitions — the static subset: `accessorKey` (the row key to read) and `header` (heading text) are required; `width`, `className`, and `cellClassName` are the only other keys this renderer honours. Interactive column keys (`align`, `sortable`, `filterable`, `resizable`, `editable`, `cell`, `fixed`, `minWidth`, `type`) belong to `data-table`'s rich `TableColumn` and are refused here. |
 | `data` | `any[]` | Array of row data objects. |
 | `footer` | `SchemaNode \| string` | Footer content below the table. |
-| `hoverable` | `boolean` | Highlight rows on hover. |
-| `striped` | `boolean` | Alternate row background colors. |
 
 **Related:** [CRUDSchema](#crudschema), [ObjectGridSchema](#objectgridschema)
 

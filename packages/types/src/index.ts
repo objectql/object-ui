@@ -175,6 +175,7 @@ export type {
   ListSchema,
   ListItem,
   TableColumn,
+  StaticTableColumn,
   TableSortItem,
   TableSchema,
   DataTableSchema,

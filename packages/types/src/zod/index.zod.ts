@@ -133,6 +133,7 @@ export {
   ListItemSchema,
   ListSchema,
   TableColumnSchema,
+  StaticTableColumnSchema,
   TableSchema,
   DataTableSchema,
   MarkdownSchema,
