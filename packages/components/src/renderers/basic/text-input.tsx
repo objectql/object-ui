@@ -97,6 +97,33 @@ function ElementTextInputRenderer({ schema }: { schema: any }) {
   const placeholder = pickLocalized(props.placeholder, language);
   const description = pickLocalized(props.description, language);
 
+  // The description paragraph's id is MINTED HERE, and deliberately NOT derived
+  // from `schema.id` — the two associations in this block need ids on opposite
+  // ends and therefore do not share a dependency:
+  //
+  //  - `label`'s `htmlFor` must name the INPUT, whose id is the author's
+  //    `schema.id` (the same key `usePageVariableBinding` binds on). Only the
+  //    author can supply it, so that wiring can only hold when they did.
+  //  - `aria-describedby` names the PARAGRAPH, an element this renderer wholly
+  //    owns and that no author ever addresses. Nothing about it depends on the
+  //    node carrying an `id`, so the association holds unconditionally.
+  //
+  // Reusing `schema.id` would have imported the label's dependency for no gain
+  // and added a failure the label wiring cannot have: two inputs sharing an id
+  // would publish two paragraphs sharing an id, and both fields'
+  // `aria-describedby` would resolve to whichever came first in the document —
+  // the WRONG helper text announced, which is worse than none. `React.useId()`
+  // is per instance and SSR-stable, and it is the same source `<FormItem>`
+  // mints the form renderer's `…-form-item-description` from (`ui/form.tsx`),
+  // so the standalone element and the form container now reach the same shape
+  // by the same route.
+  const instanceId = React.useId();
+  // Emitted ONLY when a paragraph is actually rendered. An `aria-describedby`
+  // that outlives an absent description is a DANGLING reference — worse than
+  // no attribute, because assistive tech reports the broken id rather than
+  // falling through to whatever else could describe the field.
+  const descriptionId = description ? `${instanceId}-description` : undefined;
+
   return (
     <div
       className={cn('grid w-full max-w-sm items-center gap-1.5', schema?.className)}
@@ -119,9 +146,14 @@ function ElementTextInputRenderer({ schema }: { schema: any }) {
         defaultValue={value === undefined ? (props.defaultValue as any) : undefined}
         required={props.required}
         disabled={props.disabled}
+        aria-describedby={descriptionId}
         onChange={handleChange}
       />
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      {description && (
+        <p id={descriptionId} className="text-sm text-muted-foreground">
+          {description}
+        </p>
+      )}
     </div>
   );
 }
@@ -246,10 +278,23 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
       // destination-based split would have declared an arm on one key and
       // withheld it on another for a difference neither the gate nor the
       // contract can see.
+      //
+      // The a11y sentence at the END of this description is PAIRED with the
+      // render site above and must move with it. It previously documented the
+      // gap ("does not tie it to the field with `aria-describedby`") because
+      // that was true; the wiring landed with objectui#5735 and the sentence
+      // was rewritten in the same change. The trailing "prefer `label`" advice
+      // was kept, not deleted: it was ORIGINALLY true because the text was not
+      // exposed at all, and it is STILL true for a different and weaker reason
+      // — a description is announced after the accessible name and is gated by
+      // AT verbosity settings a user can turn down. That reason is CITED, not
+      // measured here: the tests can prove the accessible description is
+      // computed and non-empty, and no test in this repo can prove what any
+      // screen reader speaks in any given verbosity mode.
       type: ['string', 'object'],
       label: 'Description',
       description:
-        'Helper text rendered BELOW the input, in its own `<p>` — a different destination from `label` (above, in a `<label>`) and `placeholder` (inside the field), reached by the same read path. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`. Presentational only: the renderer renders it as a sibling paragraph and does not tie it to the field with `aria-describedby`, so a screen reader does not announce it together with the input — instructions a user must not miss belong in `label`.',
+        'Helper text rendered BELOW the input, in its own `<p>` — a different destination from `label` (above, in a `<label>`) and `placeholder` (inside the field), reached by the same read path. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`. The paragraph IS tied to the field with `aria-describedby`, so the resolved text is the input’s accessible DESCRIPTION and assistive tech announces it with the field rather than leaving it as unreachable decoration. That association does not depend on the node carrying an `id` (`label`’s `htmlFor` does): the id `aria-describedby` needs sits on the paragraph, which the renderer mints per instance, and it is emitted only when a paragraph is actually rendered — an absent or empty `description` leaves the input with no `aria-describedby` at all. Prefer `label` anyway for an instruction a user MUST NOT miss: a description is announced after the field’s name, and screen readers gate description text behind verbosity settings a user can turn down (NVDA’s “Report object descriptions”, VoiceOver hint verbosity), so it is the half of the announcement most likely to go unheard — the same advice as before, now resting on announcement order and verbosity rather than on the text being unwired.',
     },
   ],
 });
