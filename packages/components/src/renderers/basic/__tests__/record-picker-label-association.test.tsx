@@ -13,8 +13,14 @@
  * the `SelectTrigger` had no `id`. That is a step worse than the sibling gap
  * objectui#5735 closed on `element:text_input` — there the label HALF was
  * already correct and only `description` was adrift; here the caption named
- * nothing at all, and the picker had no accessible name unless a `placeholder`
- * happened to supply one.
+ * nothing at all.
+ *
+ * Measured (not assumed): with no association, the trigger's computed
+ * accessible name is the EMPTY string even when a `placeholder` renders
+ * visible text inside it — `role="combobox"` does not support "name from
+ * content" the way a plain `button`/`link` would, so the rendered placeholder
+ * text is not a fallback name here. The "mints no accessible name … when
+ * `schema.id` is absent" case below pins the measured value directly.
  *
  * ## Pin the RESOLUTION, not the two attributes
  *
@@ -104,27 +110,26 @@ describe('element:record_picker — label→combobox association (objectui#5771)
   it('mints no accessible name from the label when `schema.id` is absent — unchanged, deliberate degradation', () => {
     // The deliberate half of the fix (triage: follow #5735's answer, not a
     // `useId()` fallback that would always name the control). Only the author
-    // can supply `schema.id`, so this wiring can only hold when they did.
+    // can supply `schema.id`, so this wiring can only hold when they did —
+    // this is exactly the defect the issue title describes: "the caption its
+    // own docs advertise names nothing", pinned so a later change cannot
+    // silently start minting an id (or otherwise naming the control) for a
+    // picker whose author never supplied one.
     //
-    // This is the exact defect the issue title describes: "the caption its own
-    // docs advertise names nothing". An explicit `placeholder` is passed so the
-    // trigger's accessible name resolves from the SelectTrigger `button`'s
-    // rendered content (Radix has no native `placeholder` attribute to exempt
-    // here, unlike a plain `<input>`) — proving the authored `label`, not the
-    // placeholder, is what fails to reach the name.
+    // An explicit `placeholder` is passed and confirmed present in the DOM, to
+    // rule out the one alternative source of a name: it does NOT reach the
+    // accessible name either (measured — `role="combobox"` does not support
+    // "name from content"), so the empty name below is not an artifact of
+    // omitting `placeholder`.
     renderPicker({ object: 'account', label: 'Owner', placeholder: 'Select…' });
 
     const trigger = screen.getByTestId('record-picker-trigger');
+    expect(trigger).toHaveTextContent('Select…');
     const label = document.querySelector('label');
     expect(label).not.toBeNull();
     expect(label).not.toHaveAttribute('for');
     expect(trigger).not.toHaveAttribute('id');
-    // Pre-existing behaviour, pinned so a later change cannot silently name
-    // every picker without a `schema.id` — the label text still renders as
-    // caption text, but is not the trigger's accessible name; whatever name
-    // the trigger does resolve to comes from its own rendered content, not
-    // the label.
-    expect(trigger).not.toHaveAccessibleName('Owner');
+    expect(trigger).toHaveAccessibleName('');
   });
 
   it('renders no label element when `label` is absent — the fix cannot be "always associate"', () => {
