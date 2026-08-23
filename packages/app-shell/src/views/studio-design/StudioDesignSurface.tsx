@@ -177,12 +177,17 @@ function useDraftAutoSave(opts: {
     try {
       return JSON.stringify(snapshot ?? null);
     } catch {
-      return String(Date.now()); // unserializable: always distinct, never starves
+      // Unserializable draft (never the case for metadata bodies): a constant
+      // key means one auto-save per dirty period instead of per edit —
+      // degraded but pure (the react compiler forbids impure render calls).
+      return '"__unserializable__"';
     }
   }, [snapshot]);
   const lastAttemptRef = React.useRef<string | null>(null);
   const saveRef = React.useRef(save);
-  saveRef.current = save;
+  React.useEffect(() => {
+    saveRef.current = save;
+  });
   React.useEffect(() => {
     if (!dirty || blocked) return;
     if (lastAttemptRef.current === snapKey) return;
