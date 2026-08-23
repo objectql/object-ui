@@ -170,59 +170,91 @@ export interface CalendarEvent {
 }
 
 /**
- * Calendar view component
+ * Calendar view component.
+ *
+ * The authored surface of the registered `calendar-view` renderer, converged
+ * on the renderer's measured read set (objectui#5667): the calendar's events
+ * are COMPUTED from the node's `data` array plus the five field-name keys
+ * below — there is no authorable `events` key. An authored `events` is dropped
+ * by design (objectui#4433); this repo's action metadata rides
+ * `properties.action`, not a calendar prop.
+ *
+ * Nine formerly declared keys — `events` (the interface's only required key
+ * besides `type`, and the one the renderer refuses), `defaultView`,
+ * `defaultDate`, `date`, `views`, `editable`, `onEventCreate`,
+ * `onEventUpdate`, `onDateChange` — are RETIRED rather than implemented:
+ * none had a read site on the authored-node path, and no measured app authors
+ * any of them (ADR-0049 enforce-or-remove, objectui#5667).
  */
 export interface CalendarViewSchema extends BaseSchema {
   type: 'calendar-view';
   /**
-   * Calendar events
+   * Records to display as events — the renderer computes its events from this
+   * array plus the field-name keys below.
+   *
+   * Redeclared from `BaseSchema` (same `any` type) because a binding
+   * expression string is also legal here and resolves to the array before the
+   * renderer reads it. A non-array value renders an empty calendar.
    */
-  events: CalendarEvent[];
+  data?: any;
   /**
-   * Default view mode
+   * Record field to use for the event title.
+   * @default 'title'
+   */
+  titleField?: string;
+  /**
+   * Record field containing the event start date/time.
+   * @default 'start'
+   */
+  startDateField?: string;
+  /**
+   * Record field containing the event end date/time.
+   * @default 'end'
+   */
+  endDateField?: string;
+  /**
+   * Record field indicating an all-day event.
+   * @default 'allDay'
+   */
+  allDayField?: string;
+  /**
+   * Record field to use for the event color.
+   * @default 'color'
+   */
+  colorField?: string;
+  /**
+   * Calendar view mode.
+   *
+   * The registered renderer renders `'month' | 'week' | 'day'` and falls back
+   * to `'month'` for any other value — including `'agenda'`, which
+   * {@link CalendarViewMode} still names.
    * @default 'month'
-   */
-  defaultView?: CalendarViewMode;
-  /**
-   * Controlled view mode
    */
   view?: CalendarViewMode;
   /**
-   * Default date
+   * Initial calendar date — an ISO date string when authored as JSON; a
+   * `Date` instance is accepted from a React host.
    */
-  defaultDate?: string | Date;
+  currentDate?: string | Date;
   /**
-   * Controlled date
-   */
-  date?: string | Date;
-  /**
-   * Available views
-   * @default ['month', 'week', 'day']
-   */
-  views?: CalendarViewMode[];
-  /**
-   * Enable event creation
+   * Show the "New event" affordance; clicking it dispatches a
+   * `{ type: 'create' }` action on the node's action channel (objectui#4454).
    * @default false
    */
-  editable?: boolean;
+  allowCreate?: boolean;
   /**
-   * Event click handler
+   * Tailwind classes for the calendar container. Redeclared from `BaseSchema`
+   * as part of the converged authored surface.
+   */
+  className?: string;
+  /**
+   * Event click handler — HOST-ONLY. The renderer forwards it only when the
+   * value is a function, which authored JSON can never produce; supply it from
+   * a React host (`<SchemaRenderer ... onEventClick={fn} />`).
    */
   onEventClick?: (event: CalendarEvent) => void;
   /**
-   * Event create handler
-   */
-  onEventCreate?: (start: Date, end: Date) => void;
-  /**
-   * Event update handler
-   */
-  onEventUpdate?: (event: CalendarEvent) => void;
-  /**
-   * Date change handler
-   */
-  onDateChange?: (date: Date) => void;
-  /**
-   * View change handler
+   * View change handler — HOST-ONLY, same rule as {@link CalendarViewSchema.onEventClick}.
    */
   onViewChange?: (view: CalendarViewMode) => void;
 }
