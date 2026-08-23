@@ -1076,7 +1076,7 @@ authored `events` is dropped by design, objectui#4433).
 | `endDateField` | `string` | Record field for the event end date/time. Default `"end"`. |
 | `allDayField` | `string` | Record field for the all-day flag. Default `"allDay"`. |
 | `colorField` | `string` | Record field for the event color. Default `"color"`. |
-| `view` | `CalendarViewMode` | View mode: `"month"`, `"week"`, `"day"`. Any other value falls back to `"month"`. |
+| `view` | `CalendarViewMode` | View mode: `"month"`, `"week"`, `"day"` — the full union. `"agenda"` was retired in objectui#5740 and now fails validation. Default `"month"`. |
 | `currentDate` | `string \| Date` | Initial calendar date — an ISO date string when authored as JSON. |
 | `allowCreate` | `boolean` | Show the "New event" affordance; clicking it dispatches a `create` action. Default `false`. |
 | `onEventClick` | `function` | Host-only: forwarded when a React host supplies a function; authored JSON cannot produce one. |
