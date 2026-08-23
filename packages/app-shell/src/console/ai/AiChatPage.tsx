@@ -1857,6 +1857,57 @@ export function ChatPane({
     onPackageBound?.(boundPackageId);
   }, [isBuildSurface, canBind, boundPackageId, editPackageId, isLoading, onPackageBound]);
 
+  // objectui#5799 — the built-moment transition (cloud#1609 增量一, maintainer
+  // form ruling: cold start keeps the full-page surface; the moment a WHOLE-APP
+  // build exists the conversation lives in the Studio workbench). Derived from
+  // the persisted draftReview envelopes (#2623 lesson: never canvasApp runtime
+  // state), so a REOPENED package conversation transitions too — that is the
+  // card's kill criterion, not an accident. The dock's 以完整页面打开 door sets
+  // a one-shot sessionStorage opt-out so the sanctioned way back to the full
+  // page is not bounced straight to Studio again. The pane remounts per
+  // conversation (its key carries the conversation id), so the fire-once ref
+  // naturally re-arms on a thread switch.
+  const builtPackageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      for (const tool of messages[i].toolInvocations ?? []) {
+        const dr = tool.draftReview;
+        if (dr?.packageId && dr.items?.some((it) => it.type === 'app')) return dr.packageId;
+      }
+    }
+    return undefined;
+  }, [messages]);
+  const builtTransitionFiredRef = useRef(false);
+  const paneNavigate = useNavigate();
+  useEffect(() => {
+    if (!isBuildSurface || isLoading || !canBind || !builtPackageId) return;
+    if (builtTransitionFiredRef.current) return;
+    builtTransitionFiredRef.current = true;
+    // The pane can remount several times for one arrival (pending→resolved id,
+    // re-key refetch), so a one-shot flag would be consumed by the first mount
+    // and the next would bounce anyway. The door's generic flag is converted
+    // into a STICKY per-conversation opt-out on first sight; later mounts of
+    // the same thread honor it, other threads transition normally.
+    let optedOut = false;
+    try {
+      const stickyKey = `objectstack:ai-full-page-opted:${conversationId ?? ''}`;
+      if (sessionStorage.getItem('objectstack:ai-full-page-requested') === '1') {
+        sessionStorage.removeItem('objectstack:ai-full-page-requested');
+        sessionStorage.setItem(stickyKey, '1');
+        optedOut = true;
+      } else if (sessionStorage.getItem(stickyKey) === '1') {
+        optedOut = true;
+      }
+    } catch {
+      /* storage unavailable → no opt-out */
+    }
+    if (optedOut) return;
+    // Bind first (idempotent): rekeyScope writes this conversation under the
+    // app:<pkg>:build cache key — the exact key the Studio dock resolves — so
+    // the workbench's right rail resumes THIS thread (A1.b machinery).
+    onPackageBound?.(builtPackageId);
+    paneNavigate(`/studio/${encodeURIComponent(builtPackageId)}/interfaces`);
+  }, [isBuildSurface, isLoading, canBind, builtPackageId, conversationId, onPackageBound, paneNavigate]);
+
   // objectui#5801 — when a turn that STAGED or PUBLISHED something finishes,
   // announce it on the bus so every pending-drafts surface (Studio topbar,
   // home banner, the bar above this pane) converges immediately — previously

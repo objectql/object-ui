@@ -163,6 +163,15 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
   // returns to THIS Studio surface, not to some console page.
   const openFullPage = React.useCallback(() => {
     rememberDockReturnLocation(`${location.pathname}${location.search}`);
+    // objectui#5799 — the built-moment transition auto-routes package build
+    // conversations into the Studio workbench; this door is the ONE sanctioned
+    // way back to the full page, so it opts the arrival out (read + cleared by
+    // AiChatPage's transition effect).
+    try {
+      sessionStorage.setItem('objectstack:ai-full-page-requested', '1');
+    } catch {
+      /* storage unavailable — the transition will bounce back to Studio */
+    }
     navigate(`/ai/build?package=${encodeURIComponent(packageId)}`);
   }, [location.pathname, location.search, navigate, packageId]);
 
