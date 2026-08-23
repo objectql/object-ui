@@ -2,6 +2,7 @@ export { ConsoleLayout } from './ConsoleLayout.js';
 export { ConsoleNotificationBanners } from './ConsoleNotificationBanners.js';
 export { ImpersonationBanner } from './ImpersonationBanner.js';
 export { AppHeader } from './AppHeader.js';
+/** @deprecated Use `UnifiedSidebar` — see `AppSidebar`'s own JSDoc (objectui#5720, objectui#5817). */
 export { AppSidebar } from './AppSidebar.js';
 export { UnifiedSidebar } from './UnifiedSidebar.js';
 export { AppSwitcher } from './AppSwitcher.js';

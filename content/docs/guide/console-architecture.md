@@ -178,7 +178,10 @@ builder**, and the menu entries that used to launch it are gone. Today:
 
 Do not re-document the old sidebar / command-palette entries: the "Add App" and "Edit App"
 items exist only in `AppSidebar`, which the console no longer mounts (`ConsoleLayout` renders
-`UnifiedSidebar`), and the command palette never registered a create-app command.
+`UnifiedSidebar`), and the command palette never registered a create-app command. `AppSidebar`
+is `@deprecated` as of objectui#5720 — it stays published (for any external consumer of the
+`@object-ui/app-shell` npm package) but is scheduled for removal once its deprecation window
+closes (objectui#5817). New work should target `UnifiedSidebar`.
 
 ### 5. Branding
 

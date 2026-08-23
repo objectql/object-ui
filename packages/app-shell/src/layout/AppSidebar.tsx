@@ -6,6 +6,21 @@
  * @dnd-kit drag-to-reorder and pin/unpin), while keeping Console-specific
  * features: app switcher dropdown, user footer, favorites, recent items,
  * and mobile swipe gesture.
+ *
+ * @deprecated Use `UnifiedSidebar` instead. `ConsoleLayout` — the shell every
+ * app in this repo mounts — renders `UnifiedSidebar`, not this component, and
+ * a census (objectui#5720) found no in-repo mount point and no downstream
+ * consumer visible anywhere across this org's GitHub repositories either.
+ * `AppSidebar` stays exported — from this package's barrel and from the
+ * published `dist/index.d.ts` — only because `@object-ui/app-shell` is a
+ * public npm package (`publishConfig.access: "public"`) and an external
+ * consumer outside this org is structurally invisible to that census; it is
+ * deprecated rather than deleted for that reason. See objectui#5817 for the
+ * removal plan. Its admin nav cluster is a near-duplicate of
+ * `UnifiedSidebar`'s and has already drifted from it — this component gates
+ * only `sys-marketplace` on the workspace-admin flag where `UnifiedSidebar`
+ * gates the whole cluster — so do not treat the two as interchangeable while
+ * both exist; that divergence is not being reconciled here.
  * @module
  */
 
@@ -146,6 +161,11 @@ function useNavOrder(appName: string) {
  */
 const getIcon = resolveIcon;
 
+/**
+ * @deprecated Use `UnifiedSidebar` instead — `ConsoleLayout` mounts that, not
+ * this. See the module-level `@deprecated` note above for the census
+ * (objectui#5720) and the removal plan (objectui#5817).
+ */
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
   const { user, signOut, isAuthEnabled, activeOrganization } = useAuth();
