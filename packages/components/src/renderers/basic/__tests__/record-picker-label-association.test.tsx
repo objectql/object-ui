@@ -137,24 +137,19 @@ describe('element:record_picker — label→combobox association (objectui#5771)
   });
 
   it('resolves the RESOLVED locale value as the accessible name, not the raw map', () => {
+    const C = ComponentRegistry.get('element:record_picker') as React.ComponentType<any>;
     render(
       <I18nProvider
         persistLanguage={false}
         config={{ defaultLanguage: 'zh-CN', detectBrowserLanguage: false }}
       >
-        {/* eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns the registered component (stable), not one created during render */}
-        {(() => {
-          const C = ComponentRegistry.get('element:record_picker') as React.ComponentType<any>;
-          return (
-            <C
-              schema={{
-                type: 'element:record_picker',
-                id: 'owner_picker',
-                properties: { object: 'account', label: { en: 'Owner', 'zh-CN': '负责人' } },
-              }}
-            />
-          );
-        })()}
+        <C
+          schema={{
+            type: 'element:record_picker',
+            id: 'owner_picker',
+            properties: { object: 'account', label: { en: 'Owner', 'zh-CN': '负责人' } },
+          }}
+        />
       </I18nProvider>,
     );
 
