@@ -8,34 +8,13 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
-import { useDataScope, useNavigationOverlay, useObjectLabel } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
 import { useTimelineTranslation } from './useTimelineTranslation';
-
-/**
- * Wrap `useObjectLabel` so the timeline keeps rendering when no
- * I18nProvider is mounted (standalone usage / unit tests).
- *
- * No try/catch: `useObjectLabel` delegates to the provider-safe
- * `useObjectTranslation` and never throws, and wrapping a hook call in
- * try/catch violates rules-of-hooks — a throw after other hooks ran would
- * desync hook order on the next render (objectui#2879, same class as
- * #2595/#2596). The nullish guard is the defensive default, mirroring
- * `useSafeFieldLabel` in `@object-ui/i18n`.
- */
-const OBJECT_LABEL_FALLBACK = {
-  fieldOptionLabel: (_o: string, _f: string, _v: string, fallback: string) => fallback,
-  translateOptions: <T extends { value: string; label: string }>(_o: string, _f: string, opts: T[]) => opts,
-  fieldLabel: (_o: string, _f: string, fallback: string) => fallback,
-} as any;
-
-function useSafeObjectLabel() {
-  return useObjectLabel() ?? OBJECT_LABEL_FALLBACK;
-}
 
 /**
  * Rows fetched when the author declared no `limit`.
@@ -230,7 +209,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
 
   const rawData = (props as any).data || boundData || fetchedData;
   const { t } = useTimelineTranslation();
-  const { fieldOptionLabel } = useSafeObjectLabel();
+  const { fieldOptionLabel } = useSafeFieldLabel();
 
   // Resolve TimelineConfig with backwards-compatible fallbacks (computed
   // outside the items-derivation block so we can also use them for
