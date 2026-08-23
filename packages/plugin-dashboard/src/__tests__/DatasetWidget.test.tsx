@@ -731,9 +731,25 @@ describe('DatasetWidget', () => {
     expect((src.queryDataset.mock.calls[0][1] as any).totals).toEqual({ groupings: [['status'], ['priority'], []] });
   });
 
-  it('does NOT request totals for a flat table', async () => {
+  // objectui#5846 RULED the flat table's own totals row, which this case used
+  // to pin the absence of: a flat table now asks for the GRAND TOTAL alone —
+  // never the cross-tab's row/column subtotals, which have no meaning without a
+  // second axis — and renders it as a `tfoot`. The rendering contract lives in
+  // `DatasetWidget.tableTotalsRow.test.tsx`; what stays here is the shape of
+  // the REQUEST beside the pivot case above.
+  it('requests ONLY the grand-total grouping for a flat table', async () => {
     const src = makeSource(async () => ({ rows: [{ status: 'Open', task_count: 1 }] }));
     render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
+    await waitFor(() => expect(src.queryDataset).toHaveBeenCalled());
+    expect((src.queryDataset.mock.calls[0][1] as any).totals).toEqual({ groupings: [[]] });
+  });
+
+  it('requests no totals at all for a flat table truncated by options.limit', async () => {
+    // A total computed over the whole selection cannot be reconciled against a
+    // top-N list, so the grouping is not requested — and the extra query is not
+    // paid for either.
+    const src = makeSource(async () => ({ rows: [{ status: 'Open', task_count: 1 }] }));
+    render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', dimensions: ['status'], values: ['task_count'], options: { limit: 10 } }} dataSource={src} />);
     await waitFor(() => expect(src.queryDataset).toHaveBeenCalled());
     expect((src.queryDataset.mock.calls[0][1] as any).totals).toBeUndefined();
   });

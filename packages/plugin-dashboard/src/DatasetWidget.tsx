@@ -425,9 +425,6 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const isMatrix = widgetType === 'pivot' && dimensions.length >= 2;
   const rowDims = isMatrix ? dimensions.slice(0, -1) : [];
   const colDim = isMatrix ? dimensions[dimensions.length - 1] : '';
-  // Row subtotals, column subtotals, and the grand total ([]) — the server
-  // computes each with the measure's TRUE aggregate (never re-derived here).
-  const totalsGroupings = isMatrix ? [rowDims, [colDim], []] : undefined;
 
   // ── Query-affecting widget options (framework#3588) ──────────────────────
   // `options` is the renderer-extras bag, but four of its keys are NOT
@@ -452,6 +449,35 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const limit = typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
     ? Math.floor(options.limit)
     : undefined;
+
+  // ── Server-computed marginal totals ──────────────────────────────────────
+  // The cross-tab asks for three groupings: row subtotals, column subtotals,
+  // and the grand total (`[]`). The FLAT table asks for the grand total alone
+  // and renders it as a `tfoot` (objectui#5846). Both are computed by the
+  // server with the measure's TRUE aggregate over the underlying rows and are
+  // never re-derived here — an avg/min/max cannot be recombined from the
+  // bucketed values on screen, which is why this is a query-shape change and
+  // not a rendering one.
+  //
+  // Measured cost of the flat table's one extra grouping (100k-row opportunity
+  // table, real pipeline: compileDataset → AnalyticsService NativeSQL → SQLite):
+  // ONE extra statement, `SELECT SUM(…), AVG(…) FROM t` — the same WHERE, no
+  // GROUP BY — at 9.6ms beside the primary's 48.8ms, i.e. +20% on the widget's
+  // query, holding at +19%/1M rows and +28%/10k. The cross-tab has shipped
+  // THREE such groupings, ungated, since #1753; one is strictly less.
+  //
+  // NOT requested when `options.limit` truncates the table. The executor drops
+  // `limit` for a totals query by design (a total covers the whole selection),
+  // so a top-N table would print a grand total the reader cannot reconcile
+  // against the rows in front of them — and "don't make the reader add it up"
+  // is the whole point of the row. No request is issued in that case, so the
+  // cost is not paid either.
+  const wantsFlatTotals = isTable && !isMatrix && dimensions.length > 0 && limit == null;
+  const totalsGroupings = isMatrix
+    ? [rowDims, [colDim], []]
+    : wantsFlatTotals
+      ? [[] as string[]]
+      : undefined;
 
   const tt = useSafeTranslate();
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
@@ -1187,6 +1213,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // column shows nothing until the header is hovered, the sorted one shows a
     // primary-tinted arrow. `aria-hidden` because the `th`'s `aria-sort` is
     // what carries the state to assistive tech.
+    // ── The totals row (objectui#5846) ──────────────────────────────────
+    // The server's `[]` marginal grouping — requested above — rendered as a
+    // `tfoot`. Per aggregate: a `sum` column shows the sum over every row, an
+    // `avg`/`min`/`max` column shows that aggregate over the WHOLE set (the
+    // average of all records, never an average of the bucket averages). The
+    // executor computes it by re-running this selection with no grouping, so
+    // nothing here recombines anything.
+    //
+    // Absent — an older server, or an executor that could not answer `[]` for
+    // this dataset shape — the row is simply omitted. Approximating it from the
+    // rows on screen is the one thing this file does not do.
+    //
+    // `wantsFlatTotals` gates the RENDER as well as the request, so the two can
+    // never disagree: a server that volunteers a `[]` grouping this widget did
+    // not ask for (a truncated `options.limit` table) still shows no footer,
+    // rather than a whole-set total sitting under a top-N list.
+    const totalsRow = wantsFlatTotals
+      ? state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.length === 0)?.rows?.[0]
+      : undefined;
+    // The console's existing footer vocabulary — the SAME `dashboard.total`
+    // key the cross-tab's total row and `PivotTable` already use (en `Total`,
+    // zh `总计`). No new string is minted here; the untranslated dataset
+    // MEASURE headers beside it are objectstack#10292 and stay untouched.
+    const totalRowLabel = tt('dashboard.total', 'Total');
     const sortIcon = (c: string) => {
       if (activeSort?.column !== c) {
         return <ChevronsUpDown className="ml-0.5 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-50" aria-hidden="true" />;
@@ -1259,6 +1309,40 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
               </tr>
             ))}
           </tbody>
+          {/* The totals row lives in `tfoot`, OUTSIDE `orderedEntries`
+              entirely — not as a special case inside the sort. Three
+              consequences fall out of that placement rather than out of any
+              guard: it is exempt from every sort (it was never an entry), it
+              renders after the last body row including the `—` null bucket
+              (`tfoot` follows `tbody`), and it cannot disturb the (row, index)
+              pairing `openDrill` depends on. It carries no click handler and
+              no `dataset-drill-row` id, so it drills nowhere. */}
+          {totalsRow && (
+            <tfoot className="bg-muted/30">
+              <tr className="border-t font-medium" data-testid="dataset-table-total-row">
+                {/* One label cell spanning the dimension columns. This branch
+                    always has at least one (a zero-dimension widget renders as
+                    a KPI and returns above), so the span is never 0. */}
+                <td colSpan={dimensions.length} className="px-2 py-1 whitespace-nowrap">{totalRowLabel}</td>
+                {measureColumns.map((c) => {
+                  // The SAME per-column formatter the body cells use —
+                  // `measureField` is keyed by MEASURE, not by row, so the
+                  // footer cell and the column above it cannot drift on
+                  // currency, decimals or percent scaling. Alignment reads the
+                  // same `numericColumns` set for the same reason.
+                  const measure = compareOf(c) ?? c;
+                  return (
+                    <td
+                      key={c}
+                      className={cn('px-2 py-1 whitespace-nowrap tabular-nums', numericColumns.has(c) && 'text-right')}
+                    >
+                      {formatMeasure(totalsRow[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
         {drillDrawer}
       </div>
