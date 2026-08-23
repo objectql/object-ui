@@ -40,6 +40,7 @@ const objectDef = {
 };
 
 const mockClient = {
+  save: vi.fn(async () => ({})),
   list: vi.fn(async () => [{ name: 'showcase_task', label: 'Task' }]),
   listDrafts: vi.fn(async () => []),
   layered: vi.fn(async () => ({ effective: objectDef, code: objectDef })),
@@ -60,6 +61,23 @@ vi.mock('./packages-io', async (importOriginal) => {
   return { ...mod, fetchPackages: vi.fn(async () => []) };
 });
 
+
+// objectui#5813 — the advanced tabs live in a Radix DropdownMenu; these suites
+// measure the CEL gate, not radix's open/close machinery, so the menu renders
+// as plain passthroughs (same convention as AppSwitcher.publishState.test.tsx).
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@object-ui/components')>();
+  return {
+    ...mod,
+    DropdownMenu: (p: any) => <div>{p.children}</div>,
+    DropdownMenuTrigger: (p: any) => <div>{p.children}</div>,
+    DropdownMenuContent: (p: any) => <div>{p.children}</div>,
+    DropdownMenuItem: (p: any) => (
+      <button type="button" onClick={() => p.onSelect?.()}>{p.children}</button>
+    ),
+  };
+});
+
 vi.mock('@object-ui/react', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@object-ui/react')>();
   return { ...mod, useAdapter: () => ({}) };
@@ -75,6 +93,7 @@ registerBuiltinInspectors();
 afterEach(() => {
   cleanup();
   __setCelFormulaLoader(undefined);
+  mockClient.save.mockClear();
 });
 
 const DANGLING = /[*+\-/&|=<>]\s*$/;
@@ -94,7 +113,6 @@ function stubEngine() {
   );
 }
 
-const saveDraft = () => screen.getByRole('button', { name: /Save draft/i });
 
 /** Open the Data pillar's form tab and select the formula field. */
 async function openFormulaField() {
@@ -111,46 +129,53 @@ async function openFormulaField() {
   return label.parentElement!.querySelector('[role="combobox"]') as HTMLTextAreaElement;
 }
 
-describe('DataPillar — Save draft is gated on the field inspector’s CEL verdict (#4306)', () => {
-  it("refuses the card's repro: a dangling operator disables Save draft", async () => {
+// objectui#5813 retired the 保存草稿 button for debounced AUTO-save; the CEL
+// gate now guards the TIMER (the objectui#4306 rule verbatim: gating only a
+// button would let the timer persist the malformed definition a second later).
+// The observable is therefore client.save itself.
+describe('DataPillar — auto-save is gated on the field inspector’s CEL verdict (#4306/#5813)', () => {
+  it("refuses the card's repro: a dangling operator blocks the auto-save", async () => {
     const box = await openFormulaField();
 
-    // A valid formula first: this both dirties the draft (so Save is live at
-    // all) and pins the must-not-change half — a good formula never blocks.
+    // A valid formula first: the auto-save fires — pins the must-not-change
+    // half (a good formula never blocks) and clears the dirty window.
     fireEvent.change(box, { target: { value: 'record.est_hours * 2' } });
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 3000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
+    mockClient.save.mockClear();
 
-    // Now the card's exact input.
+    // Now the card's exact input: well past the debounce, still no save.
     fireEvent.change(box, { target: { value: 'record.est_hours *' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 3000 });
-    expect(saveDraft()).toHaveAttribute('title', 'Fix the CEL syntax errors before saving.');
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
   });
 
-  it('re-enables Save draft once the formula parses again', async () => {
+  it('re-arms the auto-save once the formula parses again', async () => {
     const box = await openFormulaField();
 
     fireEvent.change(box, { target: { value: 'record.est_hours *' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
 
     fireEvent.change(box, { target: { value: 'record.est_hours * 2' } });
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 3000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
   });
 
   /**
    * Sub-decision A. Closing the panel unmounts the inspector, so nothing will
-   * ever report `0` for it — the host must drop the count on its own or Save
-   * stays disabled forever with no editor on screen to fix.
+   * ever report `0` for it — the host must drop the count on its own, or the
+   * dirty draft stays wedged UNSAVED forever with no editor on screen to fix.
    */
-  it('drops the count when the inspector closes, so Save cannot wedge shut', async () => {
+  it('drops the count when the inspector closes, so the draft cannot wedge unsaved', async () => {
     const box = await openFormulaField();
 
     fireEvent.change(box, { target: { value: 'record.est_hours *' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
 
     // Two "Close" buttons dismiss the panel — the rail header's and the
-    // inspector shell's own; either clears the selection.
+    // inspector shell's own; either clears the selection (and the block).
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
     await waitFor(() => expect(screen.queryByText('Formula (CEL)')).toBeNull(), { timeout: 3000 });
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 3000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
   });
 });

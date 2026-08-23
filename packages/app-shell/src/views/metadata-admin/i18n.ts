@@ -1476,6 +1476,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.creating': 'Creating…',
   'engine.studio.createDraft': 'Create (save as draft)',
   'engine.studio.saveDraft': 'Save draft',
+  'engine.studio.more': 'More',
+  'engine.studio.autoSaving': 'Saving…',
+  'engine.studio.data.tab.advanced': 'Advanced',
   // Standard create-dialog field labels (shared by object / app / flow / permission).
   'engine.studio.app.nameLabel': 'App name',
   'engine.studio.app.idLabel': 'Identifier',
@@ -3324,6 +3327,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.creating': '创建中…',
   'engine.studio.createDraft': '创建(存为草稿)',
   'engine.studio.saveDraft': '保存草稿',
+  'engine.studio.more': '更多',
+  'engine.studio.autoSaving': '保存中…',
+  'engine.studio.data.tab.advanced': '高级',
   // Standard create-dialog field labels (shared by object / app / flow / permission).
   'engine.studio.app.nameLabel': '应用名称',
   'engine.studio.app.idLabel': '标识',

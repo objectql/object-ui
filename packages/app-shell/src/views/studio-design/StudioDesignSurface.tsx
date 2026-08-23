@@ -31,6 +31,10 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
 } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
@@ -50,7 +54,6 @@ import {
   Code2,
   Eye,
   Loader2,
-  Save,
   Pencil,
   Check,
   Plus,
@@ -152,6 +155,51 @@ const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> =
   { key: 'data', label: 'Data', Icon: Database },
   { key: 'automations', label: 'Automations', Icon: Workflow },
   { key: 'interfaces', label: 'Interfaces', Icon: LayoutDashboard },
+];
+// objectui#5813 — debounced draft auto-save, shared by the pillars' editors.
+// Drafts never touch the live app, so persisting them automatically is
+// zero-risk; the 保存草稿 buttons it replaces were a standing tax on the
+// topbars AND a real loss point (forgot-to-save). Semantics:
+//  - re-arms 1.5s after the LAST edit (the snapshot key changes per edit);
+//  - `blocked` mirrors each site's old disabled-guard — in particular a
+//    CEL-blocking inspector must gate the TIMER, not just a button, or the
+//    timer publishes the malformed definition a second later (objectui#4306);
+//  - a FAILED save does not retry until the user edits again (the snapshot
+//    it attempted is remembered), so an invalid draft can't toast-loop.
+function useDraftAutoSave(opts: {
+  dirty: boolean;
+  blocked: boolean;
+  snapshot: unknown;
+  save: () => void | Promise<void>;
+}): void {
+  const { dirty, blocked, snapshot, save } = opts;
+  const snapKey = React.useMemo(() => {
+    try {
+      return JSON.stringify(snapshot ?? null);
+    } catch {
+      return String(Date.now()); // unserializable: always distinct, never starves
+    }
+  }, [snapshot]);
+  const lastAttemptRef = React.useRef<string | null>(null);
+  const saveRef = React.useRef(save);
+  saveRef.current = save;
+  React.useEffect(() => {
+    if (!dirty || blocked) return;
+    if (lastAttemptRef.current === snapKey) return;
+    const timer = setTimeout(() => {
+      lastAttemptRef.current = snapKey;
+      void saveRef.current();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [dirty, blocked, snapKey]);
+}
+
+// objectui#5813 — Access is a low-frequency ADMIN surface, demoted from the
+// top-level pillar row into the 「更多」 overflow (maintainer ruling
+// 2026-08-24: primary nav aligns with the Data/Automations/Interfaces maker
+// mental model). The PAGE is untouched: the /studio/:pkg/access route, the
+// pillar dispatch and PILLAR_FOR_SURFACE_TYPE all still point here.
+const OVERFLOW_PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'access', label: 'Access', Icon: Shield },
 ];
 
@@ -714,6 +762,53 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                   {t(`engine.studio.pillar.${p.key}`, locale)}
                 </Link>
               ))}
+              {/* objectui#5813 — low-frequency surfaces live in 「更多」. The
+                  trigger takes the active pillar styling when one of them is
+                  open, so the demotion never hides WHERE you are. Each item is
+                  a real router Link carrying the SAME dirty-guard as the
+                  primary pillars — an overflow entry must not become the one
+                  door that silently discards edits. */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    data-testid="studio-nav-more"
+                    className={
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
+                      (OVERFLOW_PILLARS.some((p) => tab === p.key)
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                    }
+                  >
+                    {OVERFLOW_PILLARS.some((p) => tab === p.key)
+                      ? t(`engine.studio.pillar.${tab}`, locale)
+                      : t('engine.studio.more', locale)}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-44 p-1">
+                  {OVERFLOW_PILLARS.map((p) => (
+                    <Link
+                      key={p.key}
+                      to={`/studio/${packageId}/${p.key}`}
+                      onClick={(e) => {
+                        if (tab === p.key) return;
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                        if (!confirmLeavePillar()) e.preventDefault();
+                      }}
+                      className={
+                        'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors ' +
+                        (tab === p.key
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                      }
+                    >
+                      <p.Icon className="h-3.5 w-3.5" />
+                      {t(`engine.studio.pillar.${p.key}`, locale)}
+                    </Link>
+                  ))}
+                </PopoverContent>
+              </Popover>
             </nav>
 
             {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
@@ -1345,6 +1440,7 @@ export function InterfacesPillar({
         const body = extractDraftBody(draftResp);
         setDraft(body ? { ...baseline, ...body } : baseline);
         setHasDraft(!!body);
+        setIfDirty(false);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -1356,8 +1452,14 @@ export function InterfacesPillar({
     };
   }, [client, current, isEditable, publishNonce]);
 
+  // objectui#5813 — a local dirty flag so auto-save only arms after a real
+  // edit, never on the load-effect's own setDraft.
+  const [ifDirty, setIfDirty] = React.useState(false);
   const onPatch = React.useCallback(
-    (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
+    (patch: Record<string, unknown>) => {
+      setDraft((d) => ({ ...d, ...patch }));
+      setIfDirty(true);
+    },
     [],
   );
   const doSave = React.useCallback(async () => {
@@ -1366,6 +1468,7 @@ export function InterfacesPillar({
     try {
       await client.save(current.type, current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
+      setIfDirty(false);
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -1373,6 +1476,12 @@ export function InterfacesPillar({
       setSaving(false);
     }
   }, [client, current, draft, onDraftSaved]);
+  useDraftAutoSave({
+    dirty: ifDirty,
+    blocked: !current || !isEditable || !!saving || readOnly || inspectorBlocking > 0,
+    snapshot: draft,
+    save: doSave,
+  });
 
   // nav editing — patch appDraft.navigation, then save/publish the App overlay
   const onNavPatch = React.useCallback((patch: Record<string, unknown>) => {
@@ -1405,6 +1514,13 @@ export function InterfacesPillar({
       setNavSaving(false);
     }
   }, [client, appName, appDraft, onDraftSaved]);
+  // objectui#5813 — nav edits auto-save while edit mode is open.
+  useDraftAutoSave({
+    dirty: navDirty,
+    blocked: !appName || !editNav || !!navSaving || readOnly,
+    snapshot: appDraft,
+    save: doNavSave,
+  });
 
   // ADR-0057 P3c — the canvas and the inspector are rendered by BOTH layouts
   // below (the classic three-zone row, and the folded center-tabs grid that
@@ -1664,21 +1780,13 @@ export function InterfacesPillar({
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly || inspectorBlocking > 0}
-          title={
-            inspectorBlocking > 0
-              ? t('perm.cel.saveBlocked', locale)
-              : readOnly
-                ? t('engine.studio.pkg.readonlyHint', locale)
-                : undefined
-          }
-          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        {/* objectui#5813 — drafts auto-save; the spinner is the affordance. */}
+        {saving === 'draft' && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="if-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1">
@@ -1732,18 +1840,12 @@ export function InterfacesPillar({
                     {t('engine.studio.unpublished', locale)}
                   </span>
                 )}
-                <button type="button"
-                  onClick={doNavSave}
-                  disabled={!navDirty || !!navSaving}
-                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
-                >
-                  {navSaving === 'draft' ? (
+                {navSaving === 'draft' && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" data-testid="nav-autosaving">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Save className="h-3 w-3" />
-                  )}
-                  {t('engine.studio.saveDraft', locale)}
-                </button>
+                    {t('engine.studio.autoSaving', locale)}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -2339,7 +2441,8 @@ export function DataPillar({
       setHasDraft(true);
       setDirty(false);
       setSavedAt(new Date());
-      toast.success(tFormat('engine.studio.data.savedDraft', locale, { label: current.label }));
+      // No success toast: with auto-save (objectui#5813) it would fire after
+      // every editing pause — the quiet last-saved hint is the affordance.
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -2347,6 +2450,15 @@ export function DataPillar({
       setSaving(false);
     }
   }, [client, current, objDraft, onDraftSaved, packageId, locale]);
+
+  // objectui#5813 — auto-save replaces the 保存草稿 button; the blocked guard
+  // is the button's old disabled-condition verbatim.
+  useDraftAutoSave({
+    dirty,
+    blocked: !current || !!saving || readOnly || saveBlocking > 0,
+    snapshot: objDraft,
+    save: doSave,
+  });
 
   // Drag-reorder columns → reorder the object's `fields` metadata (field display
   // order follows metadata order), saved as a DRAFT. Published later via the
@@ -2388,15 +2500,23 @@ export function DataPillar({
   // recessed `bg-muted` track with an elevated `bg-background` pill on the
   // active segment — the inverse of the old transparent-track/grey-active
   // styling, which read as toolbar chrome rather than a distinct nav layer.
+  // objectui#5813 — the 90% path is 记录/表单 (fields ARE the grid's columns,
+  // with 添加字段 right beside them, so a separate fields tab would ADD a
+  // surface, not remove one). The five power tabs keep their panels untouched
+  // behind one 「高级」 menu — capability stays, the default view stops taxing
+  // every visit with seven choices (maintainer ruling 2026-08-24).
   const dataTabs: ReadonlyArray<{ key: typeof viewMode; label: string }> = [
     { key: 'grid', label: t('engine.studio.data.tab.records', locale) },
     { key: 'form', label: t('engine.studio.data.tab.form', locale) },
+  ];
+  const advancedDataTabs: ReadonlyArray<{ key: typeof viewMode; label: string }> = [
     { key: 'rules', label: t('engine.studio.data.tab.rules', locale) },
     { key: 'hooks', label: t('engine.studio.data.tab.hooks', locale) },
     { key: 'actions', label: t('engine.studio.data.tab.actions', locale) },
     { key: 'api', label: t('engine.studio.data.tab.api', locale) },
     { key: 'settings', label: t('engine.studio.data.tab.settings', locale) },
   ];
+  const activeAdvancedTab = advancedDataTabs.find((tabDef) => tabDef.key === viewMode);
 
   // The selected object's own icon (from its metadata) — prefer the loaded
   // draft body, fall back to the rail header. getIcon degrades to Database.
@@ -2435,31 +2555,21 @@ export function DataPillar({
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
-        {savedAt && !dirty && (
+        {/* objectui#5813 — drafts auto-save (see useDraftAutoSave above); the
+            hint is the whole affordance: saving spinner while in flight, the
+            last-saved time once landed. The old 保存草稿 button is retired. */}
+        {saving === 'draft' ? (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="data-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        ) : savedAt && !dirty ? (
           <span className="ml-auto text-[11px] text-muted-foreground" data-testid="data-saved-at">
             {tFormat('engine.studio.data.lastSaved', locale, {
               time: savedAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
             })}
           </span>
-        )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !dirty || !!saving || readOnly || saveBlocking > 0}
-          title={
-            saveBlocking > 0
-              ? t('perm.cel.saveBlocked', locale)
-              : readOnly
-                ? t('engine.studio.pkg.readonlyHint', locale)
-                : undefined
-          }
-          className={
-            (savedAt && !dirty ? '' : 'ml-auto ') +
-            'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50'
-          }
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        ) : null}
       </div>
 
       <div className="relative flex min-h-0 flex-1">
@@ -2585,6 +2695,40 @@ export function DataPillar({
                       {tab.label}
                     </button>
                   ))}
+                  {/* 「高级」 — the five power panels (objectui#5813). When one
+                      is open the trigger wears its NAME and the active pill, so
+                      the collapsed default never hides where you are. */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="data-tabs-advanced"
+                        aria-pressed={Boolean(activeAdvancedTab)}
+                        className={
+                          'inline-flex items-center gap-1 rounded-md px-3 py-1 text-[13px] transition-all ' +
+                          (activeAdvancedTab
+                            ? 'bg-background font-medium text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground')
+                        }
+                      >
+                        {activeAdvancedTab
+                          ? activeAdvancedTab.label
+                          : t('engine.studio.data.tab.advanced', locale)}
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {advancedDataTabs.map((tab) => (
+                        <DropdownMenuItem
+                          key={tab.key}
+                          onSelect={() => setViewMode(tab.key)}
+                          className={viewMode === tab.key ? 'font-medium text-primary' : undefined}
+                        >
+                          {tab.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 {(viewMode === 'grid' || viewMode === 'form') && !readOnly && (
                   <button
@@ -3139,7 +3283,10 @@ function AutomationsPillar({
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setAutoDirty(false);
+        }
       }
     })();
     return () => {
@@ -3147,8 +3294,13 @@ function AutomationsPillar({
     };
   }, [client, current, publishNonce]);
 
+  // objectui#5813 — local dirty flag: auto-save arms only after a real edit.
+  const [autoDirty, setAutoDirty] = React.useState(false);
   const onPatch = React.useCallback(
-    (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
+    (patch: Record<string, unknown>) => {
+      setDraft((d) => ({ ...d, ...patch }));
+      setAutoDirty(true);
+    },
     [],
   );
   const doSave = React.useCallback(async () => {
@@ -3158,6 +3310,7 @@ function AutomationsPillar({
     try {
       await client.save('flow', current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
+      setAutoDirty(false);
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -3165,6 +3318,12 @@ function AutomationsPillar({
       setSaving(false);
     }
   }, [client, current, draft, onDraftSaved]);
+  useDraftAutoSave({
+    dirty: autoDirty,
+    blocked: !current || !isEditable || !!saving || readOnly,
+    snapshot: draft,
+    save: doSave,
+  });
 
   // Enable/disable persists via the flow's deployment `status` (active = on,
   // obsolete = off) — the engine honors it on the next publish. The switch flips
@@ -3223,15 +3382,13 @@ function AutomationsPillar({
             {flowEnabled ? t('engine.studio.auto.enabled', locale) : t('engine.studio.auto.disabled', locale)}
           </button>
         )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        {/* objectui#5813 — drafts auto-save; the spinner is the affordance. */}
+        {saving === 'draft' && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="auto-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1">

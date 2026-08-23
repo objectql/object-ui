@@ -41,6 +41,7 @@ const objectDef = {
 };
 
 const mockClient = {
+  save: vi.fn(async () => ({})),
   list: vi.fn(async () => [{ name: 'showcase_task', label: 'Task' }]),
   listDrafts: vi.fn(async () => []),
   layered: vi.fn(async () => ({ effective: objectDef, code: objectDef })),
@@ -59,6 +60,23 @@ vi.mock('../metadata-admin/useMetadata', async (importOriginal) => {
 vi.mock('./packages-io', async (importOriginal) => {
   const mod = await importOriginal<typeof import('./packages-io')>();
   return { ...mod, fetchPackages: vi.fn(async () => []) };
+});
+
+
+// objectui#5813 — the advanced tabs live in a Radix DropdownMenu; these suites
+// measure the CEL gate, not radix's open/close machinery, so the menu renders
+// as plain passthroughs (same convention as AppSwitcher.publishState.test.tsx).
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@object-ui/components')>();
+  return {
+    ...mod,
+    DropdownMenu: (p: any) => <div>{p.children}</div>,
+    DropdownMenuTrigger: (p: any) => <div>{p.children}</div>,
+    DropdownMenuContent: (p: any) => <div>{p.children}</div>,
+    DropdownMenuItem: (p: any) => (
+      <button type="button" onClick={() => p.onSelect?.()}>{p.children}</button>
+    ),
+  };
 });
 
 vi.mock('@object-ui/react', async (importOriginal) => {
@@ -93,9 +111,9 @@ beforeEach(stubEngine);
 afterEach(() => {
   cleanup();
   __setCelFormulaLoader(undefined);
+  mockClient.save.mockClear();
 });
 
-const saveDraft = () => screen.getByRole('button', { name: /Save draft/i });
 
 /** Open the pillar's Rules tab and put the selected rule's guard into raw CEL. */
 async function openRuleGuard() {
@@ -109,42 +127,48 @@ async function openRuleGuard() {
   return screen.getAllByRole('combobox').find((el) => el.tagName === 'TEXTAREA') as HTMLTextAreaElement;
 }
 
-describe('DataPillar — Save draft is gated on the validations panel’s CEL verdict (#4527)', () => {
+// objectui#5813 retired the 保存草稿 button for debounced AUTO-save; the gate
+// now guards the TIMER (objectui#4306's own rule), so the observable is
+// client.save itself.
+describe('DataPillar — auto-save is gated on the validations panel’s CEL verdict (#4527/#5813)', () => {
   it('refuses a rule guard that does not parse', async () => {
     const box = await openRuleGuard();
 
-    // A valid guard first — dirties the draft and pins that a good guard never
-    // blocks.
+    // A valid guard first — the auto-save fires; pins that a good guard never
+    // blocks, and clears the dirty window.
     fireEvent.change(box, { target: { value: "record.status == 'open'" } });
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 4000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
+    mockClient.save.mockClear();
 
     fireEvent.change(box, { target: { value: 'record.status ==' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 4000 });
-    expect(saveDraft()).toHaveAttribute('title', 'Fix the CEL syntax errors before saving.');
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
   });
 
-  it('re-enables Save draft once the guard parses again', async () => {
+  it('re-arms the auto-save once the guard parses again', async () => {
     const box = await openRuleGuard();
 
     fireEvent.change(box, { target: { value: 'record.status ==' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 4000 });
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
 
     fireEvent.change(box, { target: { value: "record.status == 'open'" } });
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 4000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
   });
 
   /**
    * The tab stamp. Leaving Rules unmounts the panel, so it can never report
-   * `0`; without deriving the count against the live tab, Save would stay
-   * wedged shut on a surface with no CEL editor on screen at all.
+   * `0`; without deriving the count against the live tab, the dirty draft
+   * would stay wedged UNSAVED on a surface with no CEL editor on screen.
    */
   it('expires the panel count when the author leaves the Rules tab', async () => {
     const box = await openRuleGuard();
 
     fireEvent.change(box, { target: { value: 'record.status ==' } });
-    await waitFor(() => expect(saveDraft()).toBeDisabled(), { timeout: 4000 });
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(mockClient.save).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Form' }));
-    await waitFor(() => expect(saveDraft()).toBeEnabled(), { timeout: 4000 });
+    await waitFor(() => expect(mockClient.save).toHaveBeenCalled(), { timeout: 4000 });
   });
 });
