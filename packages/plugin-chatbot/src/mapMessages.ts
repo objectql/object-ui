@@ -99,15 +99,22 @@ export function parseResultEnvelope(result: unknown): Record<string, unknown> | 
   }
   // Prefer a candidate that carries the framework's `status` discriminator —
   // this peels the Vercel `{ type:'text', value:'…json…' }` wrapper, whose
-  // outer object has no `status`, to the inner envelope that does.
+  // outer object has no `status`, to the inner envelope that does. The
+  // wrapper itself is only ever a LAST-resort fallback: a status-less inner
+  // envelope (e.g. a bare `{error: …}` replay dispatch failure, #5695) must
+  // still win over the wrapper it rode in on, or the error is invisible to
+  // every detector on the rehydration path.
   let fallback: Record<string, unknown> | undefined;
+  let wrapperFallback: Record<string, unknown> | undefined;
   for (const candidate of candidates) {
     const obj = tryParse(candidate);
     if (!obj) continue;
     if (typeof obj.status === 'string') return obj;
-    fallback ??= obj;
+    const isTextWrapper = obj.type === 'text' && 'value' in obj;
+    if (isTextWrapper) wrapperFallback ??= obj;
+    else fallback ??= obj;
   }
-  return fallback;
+  return fallback ?? wrapperFallback;
 }
 
 function detectPendingApproval(
