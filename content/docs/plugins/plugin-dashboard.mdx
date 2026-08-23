@@ -264,6 +264,48 @@ catalog ships runnable variants under `plugin-dashboard/filtered-dashboard*`
 (dynamic options, filter types, dataset widgets, `targetWidgets`, date
 presets).
 
+## Widget `options` — what is actually read
+
+`@objectstack/spec`'s `DashboardWidgetOptionsSchema` declares five keys and
+then rides `.passthrough()` ("declared query keys + open renderer extras"), so
+**any** other key parses and validates cleanly — whether or not anything reads
+it. On a dataset-bound widget (the only spec-legal form: `dataset` is
+required), the renderers read exactly:
+
+| Key | Effect |
+| --- | --- |
+| `dateGranularity` | groups a date dimension by `day` / `week` / `month` / … |
+| `sortBy` / `sortOrder` | orders by a projected dimension or measure |
+| `limit` | caps the row count |
+| `stageOrder` | explicit stage order for `funnel` / `pyramid` |
+| `description` | metric-card sub-caption; the `widgets.{id}.subCaption` translation channel writes this key |
+
+Every other `options` key on a dataset-bound widget **reaches no renderer**.
+The authoring validator (`validateTree` in `@object-ui/sdui-parser`) reports
+each one as a `unconsumed-widget-option` **warning** naming the set above —
+the document still parses, saves and renders; open extras stay open, they just
+stop being silent. A widget with a genuine out-of-band consumer can opt out in
+metadata with the spec's own escape hatch:
+`"suppressWarnings": ["unconsumed-widget-option"]`.
+
+### Gauge / solid-gauge / kpi / bullet render as a metric card
+
+There is no dial/arc/target renderer: the single-value families are routed by
+construction to the metric-card path (objectui#4295) and render as one
+formatted number. The number's format — including percent handling and
+currency — comes from the **dataset measure's own metadata** (the measure's
+`format` / `currency` / `percentScale` returned by the dataset query), not
+from widget `options`. In particular, on a dataset-bound gauge:
+
+- `options.format` is **not read** — declare the format on the dataset
+  measure instead;
+- `options.thresholds` is **not read** — no renderer in this repository reads
+  a `thresholds` key;
+- `options.invert` is **not read** — if a measure needs to be displayed as its
+  complement (e.g. a compliance rate stored as a violation rate), add a
+  derived measure to the dataset (`derived: { op: 'ratio', … }`) and bind the
+  widget to it.
+
 ## TypeScript Support
 
 ```plaintext
