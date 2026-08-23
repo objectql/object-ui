@@ -268,6 +268,41 @@ describe('objectui#5233 WRITE — a system view\'s overlay stores the patch ONLY
         expect(tab.columnState).toEqual(DRAG.columnState);
     });
 
+    it('a reader OUTSIDE objectui — no read-side narrowing — now sees the admin edit too', async () => {
+        // The half the read-side narrowing could never reach, and the reason
+        // the maintainer called the surviving fat write a transition rather
+        // than an end state: `narrowPersonalizationOverlay` lives in objectui's
+        // own merge seam. Studio and the server-side switcher merge the STORED
+        // DOCUMENT over the source view with no such pass, so for them the
+        // frozen copy still won. Modelled as the bare merge those readers do.
+        const { meta } = makeMetaStore();
+        const ds = makeAdapter(meta);
+        const rawMerge = async () => ({
+            ...SOURCE_VIEW_AFTER_ADMIN_EDIT,
+            ...(await ds.listViewOverrides(OBJECT_NAME))[VIEW_ID],
+        });
+
+        // Control first — the SAME reader against a pre-fix row, so the
+        // assertions below are a measurement and not a tautology.
+        await ds.updateViewConfig(OBJECT_NAME, VIEW_ID, { ...SOURCE_VIEW_AT_WRITE_TIME, ...DRAG });
+        const before: any = await rawMerge();
+        expect(before.filter).toEqual(SOURCE_VIEW_AT_WRITE_TIME.filter);
+        expect(before.label).toBe(SOURCE_VIEW_AT_WRITE_TIME.label);
+        expect(before.columns).toEqual(SOURCE_VIEW_AT_WRITE_TIME.columns);
+
+        // The same drag, written the way it is written now.
+        await ds.updateViewConfig(
+            OBJECT_NAME,
+            VIEW_ID,
+            buildPersistedViewBody(ACTIVE_TAB, DRAG, { isSavedView: false }),
+        );
+        const after: any = await rawMerge();
+        expect(after.filter).toEqual(SOURCE_VIEW_AFTER_ADMIN_EDIT.filter);
+        expect(after.label).toBe(SOURCE_VIEW_AFTER_ADMIN_EDIT.label);
+        expect(after.columns).toEqual(SOURCE_VIEW_AFTER_ADMIN_EDIT.columns);
+        expect(after.columnState).toEqual(DRAG.columnState);
+    });
+
     it('the batched multi-key patch is written whole, and still carries nothing else', async () => {
         const { meta } = makeMetaStore();
         const ds = makeAdapter(meta);
