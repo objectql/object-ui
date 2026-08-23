@@ -37,9 +37,9 @@
  *   | plugin-calendar  |       3 |               0 |                 0 |
  *   | plugin-chatbot   |       3 |               0 |                 0 |
  *   | plugin-dashboard |       8 |               2 |             7 / 9 |
- *   | components       |     158 |             119 |          12 .. 15 |
+ *   | components       |     158 |             115 |          12 .. 15 |
  *
- * **121 of 181 targets leak.** The `components` row is objectui#5574 and is
+ * **117 of 181 targets leak.** The `components` row is objectui#5574 and is
  * covered in its own section below; the two `plugin-dashboard` rows are the
  * older tail. Both are in {@link LEAK_LEDGER}:
  * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
@@ -121,14 +121,23 @@
  * have failed. These two differ in exactly one thing: which namespace the extra
  * widget went into.
  *
- * ### The reading — 119 of 158, in eight shapes
+ * ### The reading — 119 of 158 ON ARRIVAL, in eight shapes; 115 today
  *
  * The card named four candidates (`flex`, `stack`, `container`, `text`) and was
- * careful to call them candidates. All four leak. So do 115 others, and the
+ * careful to call them candidates. All four leaked. So did 115 others, and the
  * measurement is in {@link COMPONENTS_LEAK_GROUPS}, grouped by the MECHANISM
  * that produces each shape rather than one hand-written sentence per renderer.
- * `ui:grid` reads clean, which is objectui#4787 / PR #5573's fix now pinned by
+ * `ui:grid` read clean, which is objectui#4787 / PR #5573's fix now pinned by
  * a gate instead of by hand.
+ *
+ * The first four rows have since been DELETED rather than edited: `ui:flex`,
+ * `ui:stack`, `ui:container` and `ui:text` are converged on `toDomProps` and
+ * measure clean, so their rows had to go for the gate to pass — the two-way
+ * expiry below, working exactly once it had something to expire. 115 rows
+ * remain. What the arrival reading measured is preserved here in prose and in
+ * the burn-down note on {@link COMPONENTS_LEAK_GROUPS}; what the gate asserts
+ * is always current truth, which is the whole point of not writing dates into
+ * a ledger.
  *
  * ### Four phantom cleans, which are the finding behind the finding
  *
@@ -857,13 +866,30 @@ interface LedgerEntry {
 /* ── objectui#5574: the `packages/components` reading, as a LEDGER ─────────── */
 
 /**
- * 119 of the 158 `packages/components` targets leak, and they do it in exactly
- * EIGHT shapes. Writing 119 near-identical rows longhand would have buried that
+ * 115 of the 158 `packages/components` targets leak, and they do it in exactly
+ * EIGHT shapes (119 did on arrival; see the burn-down note below). Writing that
+ * many near-identical rows longhand would have buried the shapes
  * — so the rows are GROUPED BY MEASURED SHAPE, and every group names its
  * renderers one by one. Nothing here is a wildcard and nothing here is a
  * prefix: {@link LEAK_LEDGER} below is still a per-target map with exact set
  * equality, so the two-way expiry is unchanged. Fixing one renderer means
  * deleting one name from one list, and the gate stays red until that happens.
+ *
+ * ## The burn-down, so far
+ *
+ * Rows leave this ledger by being DELETED in the change that fixes them, never
+ * by being edited into something looser. The record of what has left:
+ *
+ *   - objectui#5574 (this card's second pass) — `ui:flex`, `ui:stack`,
+ *     `ui:container`, `ui:text`, all four from {@link BARE_SPREAD}. Converged on
+ *     `toDomProps` the way `grid.tsx` was by objectui#4787 / PR #5573. The
+ *     catalog-scale reading that drove it: 248 `flex`, 153 `stack`, 15
+ *     `container` and 699 `text` nodes in `examples/schema-catalog` rendered
+ *     through the real `SchemaRenderer` put 1194 illegitimate attributes on the
+ *     DOM (`text[content]` 522, `flex[align]` 198, `flex[gap]` 193, `stack[gap]`
+ *     153, `flex[justify]` 98, `container[padding]` 14, `container[maxwidth]` 6,
+ *     `flex[direction]` 5, `stack[align]` 4, `text[value]` 1); the same probe
+ *     reads 0 after, with `grid`'s 26 nodes at 0 both times as the control.
  *
  * ## This is a ledger, not an allowlist — the difference, stated once
  *
@@ -874,7 +900,7 @@ interface LedgerEntry {
  * equals the recorded one; if it stops leaking, the gate ALSO fails until the
  * row goes. An allowlist has neither property. Nothing below is skipped,
  * `it.skip`-ed, quarantined or excluded from the sweep — all 158 targets render
- * and all 158 are scanned on every run.
+ * and all 158 are scanned on every run, the 43 clean ones included.
  */
 
 /**
@@ -936,8 +962,8 @@ const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
       'action:bar', 'ui:a', 'ui:abbr', 'ui:accordion', 'ui:address', 'ui:alert', 'ui:app',
       'ui:article', 'ui:aside', 'ui:aspect-ratio', 'ui:avatar', 'ui:b', 'ui:badge',
       'ui:blockquote', 'ui:br', 'ui:breadcrumb', 'ui:button-group', 'ui:card', 'ui:carousel',
-      'ui:cite', 'ui:collapsible', 'ui:command', 'ui:container', 'ui:dd', 'ui:del', 'ui:div',
-      'ui:dl', 'ui:dt', 'ui:em', 'ui:empty', 'ui:figcaption', 'ui:figure', 'ui:flex',
+      'ui:cite', 'ui:collapsible', 'ui:command', 'ui:dd', 'ui:del', 'ui:div',
+      'ui:dl', 'ui:dt', 'ui:em', 'ui:empty', 'ui:figcaption', 'ui:figure',
       'ui:footer', 'ui:h1', 'ui:h2', 'ui:h3', 'ui:h4', 'ui:h5', 'ui:h6', 'ui:header',
       'ui:home', 'ui:hr', 'ui:html', 'ui:i', 'ui:image', 'ui:img', 'ui:ins', 'ui:kbd',
       'ui:label', 'ui:li', 'ui:list', 'ui:loading', 'ui:main', 'ui:mark', 'ui:menubar',
@@ -946,7 +972,7 @@ const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
       'ui:separator', 'ui:sidebar', 'ui:sidebar-content', 'ui:sidebar-footer',
       'ui:sidebar-group', 'ui:sidebar-header', 'ui:sidebar-inset', 'ui:sidebar-menu',
       'ui:sidebar-menu-item', 'ui:sidebar-provider', 'ui:skeleton', 'ui:small', 'ui:span',
-      'ui:stack', 'ui:strong', 'ui:sub', 'ui:sup', 'ui:table', 'ui:tabs', 'ui:text',
+      'ui:strong', 'ui:sub', 'ui:sup', 'ui:table', 'ui:tabs',
       'ui:time', 'ui:toggle-group', 'ui:tree-view', 'ui:u', 'ui:ul', 'ui:utility',
     ],
   },
@@ -1046,7 +1072,7 @@ const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
     issue: 'objectui#4425',
   },
 
-  /* ── packages/components: 119 of 158 targets, in eight measured shapes ──── */
+  /* ── packages/components: 115 of 158 targets, in eight measured shapes ──── */
   ...Object.fromEntries(
     COMPONENTS_LEAK_GROUPS.flatMap((group) =>
       group.targets.map((type) => [
@@ -1346,17 +1372,29 @@ describe('the sweep covers a real, non-empty target set (objectui#4425)', () => 
     ).toEqual([]);
   });
 
-  it('the four renderers objectui#5574 named are all ledgered, and `ui:grid` is NOT', () => {
+  it('the whole `toDomProps` layout family is CLEAN — no row may re-absorb it', () => {
     // The card listed `flex` / `stack` / `container` / `text` as CANDIDATES —
-    // same source shape as `grid`, unverified. This is the verification, and it
-    // is a two-sided pin: the three siblings and `text` carry the leak, while
-    // `ui:grid` — the one already converged by objectui#4787 / PR #5573 — is
-    // absent from the ledger because it is measured CLEAN. If a later change
-    // regresses `grid`, this case names it directly instead of leaving the
-    // reading to be re-derived.
-    const named = ['ui:flex', 'ui:stack', 'ui:container', 'ui:text'];
-    expect(named.filter((type) => !LEAK_LEDGER[type])).toEqual([]);
-    expect(LEAK_LEDGER['ui:grid']).toBeUndefined();
+    // same source shape as `grid`, unverified. The first pass verified them:
+    // all four leaked, and they were ledgered. This is the state AFTER the fix,
+    // and the assertion had to be INVERTED to stay true, which is the two-way
+    // expiry doing its job — a row cannot outlive the defect it records.
+    //
+    // Keeping the case rather than deleting it is the point. The sweep case
+    // above already fails if one of these five regresses; what this one adds is
+    // that the regression cannot be made green by putting the row BACK. That is
+    // the one repair the ledger's shape would otherwise invite, and it converts
+    // a measurement into an allowlist entry. Fix the renderer; never re-ledger
+    // this family.
+    const converged = ['ui:flex', 'ui:stack', 'ui:container', 'ui:text', 'ui:grid'];
+    expect(
+      converged.filter((type) => LEAK_LEDGER[type]),
+      'these renderers are converged on `toDomProps` (objectui#4787 / PR #5573 ' +
+        'for `grid`, objectui#5574 for the other four) and measure clean. A row ' +
+        'here means a regression was re-ledgered instead of fixed.',
+    ).toEqual([]);
+    // …and they are still SWEPT, so "no row" cannot mean "no longer looked at".
+    const sweptTypes = new Set(ALL_TARGETS.map((target) => target.type));
+    expect(converged.filter((type) => !sweptTypes.has(type))).toEqual([]);
   });
 
   it('the ledger is well formed — every row names a swept target, a reason and an issue', () => {

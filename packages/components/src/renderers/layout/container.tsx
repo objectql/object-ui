@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { ContainerSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '../../lib/utils';
@@ -73,21 +73,30 @@ const ContainerRenderer = forwardRef<HTMLDivElement, { schema: ContainerSchema; 
       className
     );
 
-    // Extract designer-related props
-    const { 
-        'data-obj-id': dataObjId, 
-        'data-obj-type': dataObjType,
-        style, 
-        ...containerProps 
-    } = props;
+    // DOM pass-through is a WHITELIST — objectui#3291's discipline, executed by
+    // {@link toDomProps}. Mechanism and full argument: `grid.tsx`'s docblock
+    // (objectui#4787 / PR #5573) and `packages/core/src/utils/dom-props.ts`.
+    //
+    // MEASURED (objectui#5574): every `container` node in
+    // `examples/schema-catalog` rendered through the real `SchemaRenderer` and
+    // read off the DOM — 20 illegitimate attributes across 15 nodes, `padding` 14
+    // and `maxwidth` 6. Both are keys CONSUMED off `schema` above. `maxwidth` is
+    // the one camelCase leak in this family and it is instructive: it reaches the
+    // DOM ALREADY LOWERCASED, because React's own remedy for the unknown-attribute
+    // warning is to spell it lowercase — which silences the warning and keeps the
+    // leak. That is why the pin reads the DOM instead of the console.
+    //
+    // `style` is forwarded by name (the objectui#4435 route) as this container's
+    // designer sizing channel; `data-obj-*` arrive through the open `data-*`
+    // family {@link toDomProps} already forwards.
+    const { style, ...hostProps } = props;
 
     return (
       <div 
         ref={ref}
+        {...toDomProps(hostProps)}
         className={containerClass} 
-        {...containerProps}
-        // Apply designer props
-        {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
+        style={style}
       >
         {schema.children && renderChildren(schema.children)}
       </div>
