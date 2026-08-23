@@ -73,7 +73,7 @@
         {
           "type": "flex",
           "align": "start",
-          "className": "space-x-2",
+          "gap": 2,
           "children": [
             { "type": "checkbox", "id": "terms", "name": "terms", "required": true },
             {

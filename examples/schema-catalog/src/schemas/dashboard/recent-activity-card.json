@@ -38,7 +38,7 @@
                 {
                   "type": "flex",
                   "align": "center",
-                  "className": "space-x-4",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -79,7 +79,7 @@
                 {
                   "type": "flex",
                   "align": "center",
-                  "className": "space-x-4",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -120,7 +120,7 @@
                 {
                   "type": "flex",
                   "align": "center",
-                  "className": "space-x-4",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -161,7 +161,7 @@
                 {
                   "type": "flex",
                   "align": "center",
-                  "className": "space-x-4",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -201,7 +201,7 @@
                 {
                   "type": "flex",
                   "align": "center",
-                  "className": "space-x-4",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",

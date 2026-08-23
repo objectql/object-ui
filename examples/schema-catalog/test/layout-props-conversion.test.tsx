@@ -354,6 +354,29 @@ describe('the recycled documentation-page node still cancels prose\'s max-width 
  * MOBILE-FIRST LADDER (`gap: 3` → `gap-2 sm:gap-3`), while a hand-written
  * `gap-3` is one dead value at every width. That is why the equivalence cases
  * below are split into two kinds instead of asserting one blanket rule.
+ *
+ * THE THIRD PASS (objectui#5690) is the one token #4891 excluded by design.
+ * Nine `flex` nodes across five files spelled horizontal spacing as
+ * `space-x-N`, which is not in #4891's token set — and excluding it is exactly
+ * why that card's headline figure re-measured to the digit. `space-x-N` is not
+ * a second spelling of `gap`: it compiles to a margin on
+ * `& > :not([hidden]) ~ :not([hidden])`, `gap` is the flexbox gap property, and
+ * they diverge wherever a row WRAPS (`space-x` puts no gutter above a wrapped
+ * row) or a child is conditionally absent. So the nine could not be renamed
+ * through; they had to be measured, and both of those divergence axes are
+ * measured per node in the last describe of this file.
+ *
+ * What the measurement turned up, and what nothing before it had noticed: the
+ * nine were rendering BOTH spacings, additively. None of them declared `gap`,
+ * so `flex.tsx`'s `schema.gap ?? 2` was emitting `gap-1.5 sm:gap-2` on every
+ * one of them, and `tailwind-merge` does not collapse that against `space-x-N`
+ * because they are different CSS properties. The shipped gutter on a
+ * `space-x-2` node was therefore gap 0.375rem PLUS margin 0.5rem, not 0.5rem.
+ * The conversion drops the accidental half and lands the number the author
+ * actually wrote: `gap: N` tops its ladder out at exactly `space-x-N`'s value.
+ * That is a real rendering change at every width, which is why these cases are
+ * `ladder` and not `identical`, and why a byte-equivalence claim would have
+ * been false for them in a way it was not false for #4891's.
  */
 
 const ALIGN_VALUES = new Set(['start', 'end', 'center', 'baseline', 'stretch']);
@@ -387,11 +410,34 @@ const CONTAINER_MAX_W = new Set([
  * decorative (`border-b`, `bg-muted`), and everything belonging to a DIFFERENT
  * type (`max-w-md` on a `flex`: a flex node has no `maxWidth` prop, so that
  * class is the only way to say it) or describing this node AS A FLEX ITEM
- * rather than as a container (`flex-shrink-0`, `space-x-2`).
+ * rather than as a container (`flex-shrink-0`).
+ *
+ * `space-x-*` USED TO BE ON THAT LAST LINE, and it was wrong (objectui#5690).
+ * `flex-shrink-0` styles the node itself as somebody else's flex item;
+ * `space-x-N` styles the node's OWN CHILDREN, which makes it a container
+ * utility — and on a row-major node it is a hand-written spelling of that node's
+ * `gap`. Nine catalog nodes sat behind that sentence for two sweeps; the arm
+ * below is what keeps the tenth out.
+ *
+ * DIRECTION DECIDES WHICH AXIS `gap` SPANS, so the `space-x` arm takes it. On a
+ * column-major node `space-x-N` indents the children rather than spacing them,
+ * and `gap` cannot express that — flagging it would demand a conversion that
+ * changes what renders. `direction` is defaulted per renderer (`flex.tsx` →
+ * `row`, `stack.tsx` → `col`), so the arm fires for a bare `flex` and stays
+ * silent on a bare `stack`. The older `space-y` arm below does NOT take
+ * direction: that is #4891's token set, left exactly as it landed, and the card
+ * that added this one was scoped out of re-opening it. The catalog has zero
+ * counter-examples for either arm today (measured: 0 `space-y` on any `stack`,
+ * 0 `space-x` on any column-major node). If one ever appears, make that arm
+ * direction-aware too — never add an exemption entry.
  */
-function ownPropTokens(type: string, className: unknown): string[] {
+function ownPropTokens(type: string, className: unknown, direction?: unknown): string[] {
   if (typeof className !== 'string') return [];
   const hits: string[] = [];
+  // Which axis this node's `gap` spans, defaulted the way each renderer defaults
+  // it. `space-x` is only that node's `gap` when the main axis is horizontal.
+  const dir = typeof direction === 'string' ? direction : type === 'stack' ? 'col' : 'row';
+  const rowMajor = dir === 'row' || dir === 'row-reverse';
   for (const token of className.trim().split(/\s+/).filter(Boolean)) {
     if (token.includes(':')) continue; // breakpoint / state override — stays
     let m: RegExpExecArray | null;
@@ -402,6 +448,12 @@ function ownPropTokens(type: string, className: unknown): string[] {
       if (token === 'flex-wrap') { hits.push(token); continue; }
       if (DIRECTION_TOKENS.has(token)) { hits.push(token); continue; }
       if (type === 'stack' && (m = /^space-y-(\d+)$/.exec(token)) && GAP_LADDER.stack.has(Number(m[1]))) {
+        hits.push(token); continue;
+      }
+      // Gated on the ladder for the same reason the `gap-N` arm is: a step the
+      // renderer does not map emits no gap class at all, so extracting it would
+      // DELETE the spacing rather than move it (objectui#5690).
+      if (rowMajor && (m = /^space-x-(\d+)$/.exec(token)) && GAP_LADDER[type].has(Number(m[1]))) {
         hits.push(token); continue;
       }
     }
@@ -425,7 +477,7 @@ describe('schema-catalog — a layout node configures itself with props (#4891)'
         example.schema,
         (n) => typeof n.type === 'string' && LAYOUT_TYPES.has(n.type as string),
       ).flatMap((n) =>
-        ownPropTokens(String(n.type), n.className).map(
+        ownPropTokens(String(n.type), n.className, n.direction).map(
           (token) => `${example.id} :: ${String(n.type)} :: ${token} (in "${String(n.className)}")`,
         ),
       ),
@@ -442,14 +494,20 @@ describe('schema-catalog — a layout node configures itself with props (#4891)'
 
   it('sees enough layout nodes WITH a className for the ratchet to mean something', () => {
     // The guard is only interesting over nodes that still carry a className at
-    // all — 187 of them after the sweep (252 before; 65 nodes had nothing left
-    // to say once their props were extracted). A floor, so adding examples never
-    // fails this, but a mass deletion of classNames would.
+    // all. The census, re-measured by each sweep rather than carried forward:
+    // 252 before #4891; 187 after it (65 nodes had nothing left to say once
+    // their props were extracted); 178 after #5690, whose nine nodes spelled
+    // `space-x-N` and NOTHING else, so extracting it emptied their className
+    // too. A floor, so adding examples never fails this, but a mass deletion of
+    // classNames would — and it is deliberately TIGHTER than the 7 of headroom
+    // it replaces (178 measured, 175 here). The number moved because a counted,
+    // ruled sweep moved it; the next unexplained drop should be audible sooner,
+    // not later.
     const withClassName = allExamples().flatMap((e) =>
       collect(e.schema, (n) => typeof n.type === 'string' && LAYOUT_TYPES.has(n.type as string))
         .filter((n) => typeof n.className === 'string' && n.className.trim() !== ''),
     );
-    expect(withClassName.length).toBeGreaterThanOrEqual(180);
+    expect(withClassName.length).toBeGreaterThanOrEqual(175);
   });
 });
 
@@ -621,6 +679,34 @@ describe('the swept nodes render what they rendered before (#4891/#4890)', () =>
       after: 'flex flex-col justify-start items-center gap-2 sm:gap-3 text-center p-4',
       kind: 'identical',
     },
+    // ---- objectui#5690: `space-x-N` on a row-major flex WAS that node's gap ----
+    // Sampled the way #4891 sampled: both step values that shipped (2 and 4) and
+    // both prop shapes the nine come in (`align`, `justify`). The `before` here
+    // is the node exactly as it shipped, `space-x-N` and no `gap` — which is why
+    // its spacing group has THREE tokens: the renderer's default `gap ?? 2`
+    // ladder was rendering all along, additively, underneath the hand-written
+    // margin (see the header note).
+    {
+      id: 'auth/login-simple',
+      type: 'flex',
+      before: { align: 'center', className: 'space-x-2' },
+      after: 'flex flex-row justify-start items-center gap-1.5 sm:gap-2',
+      kind: 'ladder',
+    },
+    {
+      id: 'dashboard/recent-activity-card',
+      type: 'flex',
+      before: { align: 'center', className: 'space-x-4' },
+      after: 'flex flex-row justify-start items-center gap-2 sm:gap-3 md:gap-4',
+      kind: 'ladder',
+    },
+    {
+      id: 'forms/settings-form',
+      type: 'flex',
+      before: { justify: 'end', className: 'space-x-2' },
+      after: 'flex flex-row justify-end items-start gap-1.5 sm:gap-2',
+      kind: 'ladder',
+    },
   ];
 
   function renderClass(schema: unknown) {
@@ -629,7 +715,14 @@ describe('the swept nodes render what they rendered before (#4891/#4890)', () =>
     return { className: el.className, innerHTML: el.innerHTML };
   }
 
-  const isSpacingToken = (t: string) => /(^|:)(gap|p)-/.test(t);
+  // The spacing group a `ladder` conversion is allowed to move. `space-x` /
+  // `space-y` join `gap` / `p` here for objectui#5690: `space-x-4` IS the
+  // pre-conversion spelling of the gap on those nodes, so leaving it outside the
+  // group would make the "everything else is untouched" assertion fail on the
+  // one token the conversion exists to move. No pre-#5690 case carries a
+  // `space-*` token on either side, so widening the group changes none of their
+  // verdicts (checked by re-running them: all nine unchanged).
+  const isSpacingToken = (t: string) => /(^|:)(gap|p|space-[xy])-/.test(t);
   const sorted = (s: string) => s.trim().split(/\s+/).filter(Boolean).sort();
 
   it('covers every converted category and both kinds of delta', () => {
@@ -688,4 +781,173 @@ describe('the swept nodes render what they rendered before (#4891/#4890)', () =>
       }
     },
   );
+});
+
+/**
+ * objectui#5690's OPPOSITE ARM, measured rather than assumed.
+ *
+ * The card ruled the nine `space-x-*` nodes drift, and ruled the ruling
+ * checkable: a node that genuinely wants "gutters between siblings but no gutter
+ * above a wrapped row" is asking for `space-x`, and converting THAT node would
+ * be a regression. So the conversion is only honest if every one of the nine was
+ * checked and none of them was that node. All nine were; none was; and the check
+ * lives here rather than in a PR sentence so it cannot quietly stop being true.
+ *
+ * HOW THE WRAP QUESTION IS DECIDED, and why not by sampling pixels. A flex
+ * container wraps if and only if its computed `flex-wrap` is `wrap` or
+ * `wrap-reverse` (CSS Flexible Box, §5.1: a `nowrap` container is single-line).
+ * That is a property of the container, not of the viewport or the content —
+ * children of a `nowrap` container shrink or overflow, they never move to a
+ * second row. `flex.tsx` emits `flex-wrap` only for `wrap: true`, and Tailwind's
+ * `.flex` sets no flex-wrap of its own, so a rendered class list with no
+ * flex-wrap token leaves the CSS initial value standing. Reading that token off
+ * the REAL renderer therefore answers the question at every width at once, which
+ * strictly subsumes any finite sample of viewport widths — and it is the only
+ * honest instrument available here anyway, because happy-dom has no layout
+ * engine (`offsetTop` is 0 for everything, so "did this row wrap" cannot be
+ * observed by measuring boxes in this environment).
+ *
+ * Both sides are read, not just the converted one: if the node as it SHIPPED
+ * could wrap, it is the intent case regardless of what it renders now.
+ *
+ * The second divergence axis is the selector. `space-x` skips hidden siblings
+ * (`> :not([hidden]) ~ :not([hidden])`) and is order-sensitive in a way `gap` is
+ * not, so a node whose child list is not a static row can diverge without ever
+ * wrapping. Each of the nine is a fixed pair — an auth checkbox and its label,
+ * an activity avatar and its name block, a cancel/save button pair — with no
+ * `hidden` / `visible` expression on either child, which is asserted below
+ * rather than described.
+ */
+describe('the nine converted `space-x` nodes were single-line static rows (#5690)', () => {
+  /**
+   * The nine sites, at the paths the card enumerated them by, so this table is
+   * auditable against the card instead of against itself. Third element is the
+   * `gap` that replaced the node's `space-x-N` — the same N.
+   */
+  const SPACE_X_SITES: ReadonlyArray<readonly [string, string, number]> = [
+    ['auth/login-simple', 'children.0.children.2.children.0', 2],
+    ['auth/signup', 'children.0.children.3', 2],
+    ['dashboard/recent-activity-card', 'children.0.children.1.children.0.children.0', 4],
+    ['dashboard/recent-activity-card', 'children.0.children.1.children.1.children.0', 4],
+    ['dashboard/recent-activity-card', 'children.0.children.1.children.2.children.0', 4],
+    ['dashboard/recent-activity-card', 'children.0.children.1.children.3.children.0', 4],
+    ['dashboard/recent-activity-card', 'children.0.children.1.children.4.children.0', 4],
+    ['forms/newsletter-signup', 'children.0.children.2', 2],
+    ['forms/settings-form', 'children.1.children.0.children.3', 2],
+  ];
+
+  const WRAP_TOKEN = /^(.*:)?flex-wrap(-reverse)?$/;
+
+  const at = (schema: unknown, path: string): Node | undefined =>
+    path.split('.').reduce<unknown>(
+      (acc, key) => (acc == null ? undefined : (acc as Node)[key]),
+      schema,
+    ) as Node | undefined;
+
+  /** The node exactly as it shipped before the conversion. */
+  const asShipped = (node: Node): Node => {
+    const before: Node = { ...node, className: `space-x-${String(node.gap)}` };
+    delete before.gap;
+    return before;
+  };
+
+  function renderedClass(schema: unknown): string {
+    const { container } = render(<SchemaRenderer schema={schema as never} />);
+    return (container.firstElementChild as HTMLElement).className;
+  }
+
+  it('covers all nine sites the card enumerated, not a sample', () => {
+    expect(SPACE_X_SITES.length).toBe(9);
+    const missing = SPACE_X_SITES.filter(
+      ([id, path]) => !at(allExamples().find((e) => e.id === id)?.schema, path),
+    ).map(([id, path]) => `${id} :: ${path}`);
+    expect(missing, 'a site no longer resolves — the paths are stale, not the sweep').toEqual([]);
+  });
+
+  it('every site now declares `gap` and has no className left to declare it in', () => {
+    const offenders = SPACE_X_SITES.flatMap(([id, path, gap]) => {
+      const node = at(allExamples().find((e) => e.id === id)?.schema, path);
+      if (!node) return [];
+      const problems: string[] = [];
+      if (node.type !== 'flex') problems.push(`type is ${String(node.type)}, not flex`);
+      if (node.gap !== gap) problems.push(`gap is ${JSON.stringify(node.gap)}, not ${gap}`);
+      if (node.className !== undefined) {
+        problems.push(`className survived as ${JSON.stringify(node.className)}`);
+      }
+      return problems.map((p) => `${id} :: ${path} — ${p}`);
+    });
+    expect(
+      offenders,
+      'each of the nine spelled `space-x-N` and nothing else, so the conversion ' +
+        'moves N into `gap` and leaves the node with no className at all (#5690)',
+    ).toEqual([]);
+  });
+
+  it('not one of the nine could wrap — the place `space-x` and `gap` diverge', () => {
+    const intentCases = SPACE_X_SITES.flatMap(([id, path]) => {
+      const node = at(allExamples().find((e) => e.id === id)?.schema, path);
+      if (!node) return [];
+      const reasons: string[] = [];
+
+      // Read the wrap token off the real renderer, on BOTH sides.
+      for (const [side, schema] of [
+        ['as it shipped', asShipped(node)],
+        ['as converted', node],
+      ] as const) {
+        const wrapTokens = renderedClass(schema).split(/\s+/).filter((t) => WRAP_TOKEN.test(t));
+        if (wrapTokens.length > 0) {
+          reasons.push(`${side} it declares \`${wrapTokens.join(' ')}\``);
+        }
+      }
+
+      // ...and the selector axis: a fixed pair, neither half conditional.
+      const children = Array.isArray(node.children) ? (node.children as Node[]) : [];
+      if (children.length !== 2) {
+        reasons.push(`its child list is ${children.length} long, not the static pair measured`);
+      }
+      if (children.some((c) => c && typeof c === 'object' && ('hidden' in c || 'visible' in c))) {
+        reasons.push('one of its children is conditionally rendered');
+      }
+      return reasons.map((r) => `${id} :: ${path} — ${r}`);
+    });
+
+    expect(
+      intentCases,
+      'THIS NODE IS THE INTENT CASE, not drift: `space-x` and `gap` differ ' +
+        'precisely where a row wraps or a sibling drops out, so a node that can ' +
+        'do either was asking for `space-x` and must be left unconverted, with ' +
+        'the reason recorded in `ownPropTokens()`\'s docblock (#5690, the card\'s ' +
+        'own opposite arm).',
+    ).toEqual([]);
+  });
+
+  it('the ratchet arm refuses a tenth `space-x` node', () => {
+    // Fails on the pre-#5690 helper, which returned [] for every line here:
+    // `space-x-*` was not in its token set, which is how nine of them shipped.
+    expect(ownPropTokens('flex', 'space-x-2 border-b')).toEqual(['space-x-2']);
+    expect(ownPropTokens('flex', 'space-x-4')).toEqual(['space-x-4']);
+    expect(
+      ownPropTokens('stack', 'space-x-2', 'row'),
+      'a row-major stack is a flex row; its `gap` is the horizontal one',
+    ).toEqual(['space-x-2']);
+
+    // ...and the four shapes it must NOT claim, each for a reason that would
+    // otherwise cost a wrong conversion:
+    expect(
+      ownPropTokens('flex', 'space-x-2', 'col'),
+      'column-major: `space-x` indents the children, and `gap` cannot say that',
+    ).toEqual([]);
+    expect(
+      ownPropTokens('stack', 'space-x-2'),
+      'a bare stack is column-major — `stack.tsx` defaults `direction` to col',
+    ).toEqual([]);
+    expect(
+      ownPropTokens('flex', 'sm:space-x-2'),
+      'breakpoint-prefixed tokens stay in className; the props are not responsive',
+    ).toEqual([]);
+    expect(
+      ownPropTokens('flex', 'space-x-9'),
+      '9 is off the flex gap ladder, so extracting it would delete the spacing',
+    ).toEqual([]);
+  });
 });

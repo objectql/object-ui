@@ -222,7 +222,7 @@
             {
               "type": "flex",
               "justify": "end",
-              "className": "space-x-2",
+              "gap": 2,
               "children": [
                 {
                   "type": "button",

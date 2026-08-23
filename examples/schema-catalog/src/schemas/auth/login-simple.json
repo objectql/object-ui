@@ -55,7 +55,7 @@
             {
               "type": "flex",
               "align": "center",
-              "className": "space-x-2",
+              "gap": 2,
               "children": [
                 { "type": "checkbox", "id": "remember", "name": "remember" },
                 { "type": "label", "htmlFor": "remember", "label": "Remember me", "className": "text-sm font-normal" }
