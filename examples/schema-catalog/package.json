@@ -47,6 +47,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/sdui-parser": "workspace:*",
+    "@object-ui/test-support": "workspace:*",
     "typescript": "^6.0.3"
   }
 }

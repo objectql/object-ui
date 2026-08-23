@@ -701,6 +701,9 @@ importers:
       '@object-ui/sdui-parser':
         specifier: workspace:*
         version: link:../../packages/sdui-parser
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../../packages/test-support
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
