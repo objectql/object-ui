@@ -141,10 +141,23 @@ describe('useObjectChat — maxToolRoundtrips is inert and now says so (#5605)',
     // renderer → hook path and then stops. It is on no wire.
     expect(body.maxToolRoundtrips).toBeUndefined();
     expect(serialize(body)).not.toContain('maxToolRoundtrips');
-    expect(serialize(body)).not.toContain('"3"');
   });
 
-  it('still parses: deprecating the key does not break documents that author it', () => {
+  it('is still DECLARED, and the declaration now announces the deprecation', () => {
+    // This is the assertion stage 2 flips. It has to read the SHAPE, not a parse
+    // result: `BaseSchema` is `.passthrough()` (packages/types/src/zod/base.zod.ts),
+    // so an authored `maxToolRoundtrips` survives `safeParse` whether or not it
+    // is declared — measured, by ablating the declaration and watching a
+    // parse-based assertion stay green. Membership in `.shape` is the only
+    // observable that separates "declared authorable" from "gone".
+    expect(Object.keys(ChatbotSchema.shape)).toContain('maxToolRoundtrips');
+
+    const description = ChatbotSchema.shape.maxToolRoundtrips.description ?? '';
+    expect(description).toContain('DEPRECATED');
+    expect(description).toContain('planning.maxIterations');
+  });
+
+  it('does not break documents that already author it (non-discriminating by design)', () => {
     const parsed = ChatbotSchema.safeParse({
       type: 'chatbot',
       messages: [],
@@ -152,11 +165,12 @@ describe('useObjectChat — maxToolRoundtrips is inert and now says so (#5605)',
       maxToolRoundtrips: 3,
     });
 
+    // Recorded as a REGRESSION FLOOR, not as evidence the key is declared: under
+    // `.passthrough()` this passes for any key at all, declared or not. It pins
+    // only that stage 1 broke nothing — and it is worth knowing for stage 2 that
+    // deleting the declaration will NOT make such a document fail; it will keep
+    // passing silently, which is why the runtime notice above is the part that
+    // actually reaches an author.
     expect(parsed.success).toBe(true);
-    // `z.object` STRIPS unknown keys rather than rejecting them, so retention in
-    // the parsed output — not the absence of an `unrecognized_keys` issue — is
-    // what actually discriminates "declared" from "gone". This is the assertion
-    // stage 2 is expected to flip.
-    expect(parsed.success && parsed.data.maxToolRoundtrips).toBe(3);
   });
 });
