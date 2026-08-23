@@ -185,7 +185,7 @@ function findSpecPackageDir(raw: string): string {
  * file a bundler resolves it to.
  *
  * Cross-checked in `scripts/__tests__/vite-objectstack-spec-dist.test.ts`
- * against Node's own resolver (`import.meta.resolve`) for all 18 entries, so
+ * against Node's own resolver (`import.meta.resolve`) for every entry, so
  * this is not a second opinion about the map — it agrees with the algorithm.
  */
 export function readSpecExportTargets(packageDir: string): Map<string, string> {

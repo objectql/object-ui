@@ -145,15 +145,67 @@
  * That is traps 1, 3 and 4 of the list below, at scale, and it is the reason
  * this family's readiness is an AUTHORED `className` ({@link COMPONENTS_READY})
  * rather than 158 transcribed selectors: it proves the widget rendered its own
- * host element on every target, uniformly, and it caught all sixteen. The six
+ * host element on every target, uniformly, and it caught all sixteen. The
  * targets it cannot cover carry their reason in
  * {@link READY_OVERRIDE_REASONS}, pinned two-way so that list cannot grow
  * quietly.
  *
- * Three of those six are swept in a PLACEHOLDER branch — `element:repeater`,
- * `element:definition-list` and `element:metadata_viewer` render an empty state
- * because the sweep's adapter answers with no records by design. Their clean
- * reading covers that branch only, which is recorded rather than implied.
+ * Three of those six were swept in a PLACEHOLDER branch — `element:repeater`,
+ * `element:definition-list` and `element:metadata_viewer` rendered an empty
+ * state because the fixture never gave them enough to reach their real markup.
+ * Their clean reading covered that branch only, and was recorded as such
+ * rather than implied.
+ *
+ * ### objectui#5630 — deepening the three placeholder-branch fixtures
+ *
+ * Fixed by authoring real content for each, and — for the two that need it —
+ * a per-target REACT HOST, the same technique `sidebar` above already uses:
+ *
+ *   - `element:definition-list` — pure schema. Authoring `items` is enough;
+ *     no host needed.
+ *   - `element:repeater` — needs `AdapterCtx` populated with a fixture whose
+ *     `find()` returns a row. Measured first, and worth stating precisely
+ *     because the issue that opened this card described the mechanism as
+ *     "the sweep's `FAKE_ADAPTER` answers with no rows by design" — that undersold
+ *     it: `useAdapter()` reads `AdapterCtx`, a context this suite never wires
+ *     at all (it is normally populated by `app-shell`'s own `AdapterProvider`,
+ *     which dials a real network client this suite has no business importing).
+ *     So `element:repeater` was never actually reading `FAKE_ADAPTER`'s empty
+ *     answer — the renderer's `useEffect` short-circuits on `!adapter` before
+ *     ever calling `.find()`, on ANY fixture. Widening what `FAKE_ADAPTER`
+ *     returns, the naive reading of the issue's own suggested shape, would
+ *     have changed nothing; the fix is a new, additive `AdapterCtx.Provider`
+ *     host (`REPEATER_FAKE_ADAPTER`), scoped to this one target only.
+ *   - `element:metadata_viewer` — needs `MetadataCtx` populated with a
+ *     resolvable `permission` fixture (`METADATA_HOST_CONTEXT`), the third
+ *     data channel this family uses (`useMetadataItem()`), independent of
+ *     both of the above.
+ *
+ * Two of the three dropped their `READY_OVERRIDE_REASONS` entry entirely:
+ * `element:definition-list`'s `<dl>` and `element:repeater`'s `<ul>` both fold
+ * `schema?.className` into their own `cn(...)` once they have real content, so
+ * the shared readiness class reaches the DOM the same as any plain target and
+ * the default {@link COMPONENTS_READY} selector matches. `element:metadata_viewer`
+ * did NOT drop out — measured, not assumed, against an expectation at dispatch
+ * time that it would: its `Shell` wrapper's className is hardcoded in every
+ * branch (`ViewerProps` declares no `className` field), so no fixture depth
+ * changes that. Its entry is rewritten to name the real render instead of the
+ * not-found placeholder, not deleted. Net: `READY_OVERRIDE_REASONS` shrinks
+ * from six entries to four — by TWO, not three.
+ *
+ * All three read CLEAN in the populated branch, same as they did in the
+ * placeholder branch — but now as a measurement of markup that actually
+ * exists, not as a report of nothing having rendered. Traced rather than
+ * inferred: neither `basic/data-list.tsx` nor `basic/metadata-viewer.tsx`
+ * spreads `{...props}` (or any rest of the React props `SchemaRenderer` hands
+ * these components) onto a DOM element anywhere in either file — every host
+ * element they render is hand-built from named fields only. So the canary
+ * families this sweep plants have no path to the DOM in ANY branch of these
+ * three renderers, regardless of fixture depth. The reverse-verification for
+ * each target (a deliberately planted leak on the now-reachable populated-
+ * branch element, confirmed to fail the gate, then reverted) is what turns
+ * that trace into a measurement instead of a prediction; see the PR for the
+ * transcript.
  *
  * ### Why the ledger, and why the renderer fixes are NOT in this change
  *
@@ -278,7 +330,25 @@ import '@object-ui/components';
 // node: that node is itself a swept target carrying the full canary set, so
 // wrapping in it would attribute the wrapper's own leaks to the target inside.
 import { SidebarProvider } from '@object-ui/components';
-import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+// Two more HOSTS, added by objectui#5630 to deepen `element:repeater` and
+// `element:metadata_viewer` past their empty-state branch (see the section
+// below `READY_OVERRIDE_REASONS`). `AdapterCtx` matters because
+// `element:repeater` reads data through `useAdapter()` (`AdapterCtx`), a
+// SEPARATE channel from `SchemaRendererProvider`'s `dataSource` prop below —
+// `FAKE_ADAPTER` on that prop is never even reached by this renderer, so
+// widening what it returns would have done nothing. `AdapterCtx` is normally
+// wired by `app-shell`'s own `AdapterProvider`, which this suite does not
+// import (it dials a real network client); the fake value below duck-types
+// only the `.find()` the renderer calls. `MetadataCtx` is for
+// `element:metadata_viewer`, which resolves its target through
+// `useMetadataItem()` — a third channel again, unrelated to both of the above.
+import {
+  SchemaRenderer,
+  SchemaRendererProvider,
+  AdapterCtx,
+  MetadataCtx,
+  type MetadataContextValue,
+} from '@object-ui/react';
 import '@object-ui/plugin-charts';
 import '@object-ui/plugin-calendar';
 import '@object-ui/plugin-chatbot';
@@ -366,10 +436,13 @@ interface Target {
   readonly omitCanaries?: readonly string[];
   /**
    * A React host this target must render inside, beyond `SchemaRendererProvider`.
-   * Trap 4 again: a host-less render is a different component, and for these
-   * four it is a caught throw — which renders CLEAN markup.
+   * Trap 4 again: a host-less render is a different component. For `sidebar`
+   * it is a caught throw, which renders CLEAN markup; for the two objectui#5630
+   * added it is the opposite direction — without the host the renderer takes
+   * its OWN empty-state branch (no throw), which is exactly the phantom-clean
+   * gap that card closed. See the host constants below `READY_OVERRIDE_REASONS`.
    */
-  readonly host?: 'sidebar';
+  readonly host?: 'sidebar' | 'repeater-adapter' | 'metadata';
 }
 
 const CHART_DATA = [
@@ -454,11 +527,71 @@ const CANARY_ACTIONS = [
 ];
 
 /**
- * Why each of the six targets below cannot use {@link COMPONENTS_READY}, and
+ * objectui#5630 — the two per-target hosts `element:repeater` and
+ * `element:metadata_viewer` need to reach their POPULATED branch, so their
+ * clean reading stops covering the empty-state placeholder only.
+ * `element:definition-list` needed no host: authoring `items` is pure schema,
+ * so it only needed a schemaExtras change (see `COMPONENTS_SPECIAL_TARGETS`).
+ *
+ * Both fixtures are duck-typed to the one method each renderer actually
+ * calls — they are not real adapter/metadata clients, and must not become
+ * one; a richer fixture here would be scope creep past what this card
+ * measures.
+ */
+const REPEATER_FAKE_ADAPTER = {
+  find: async () => [{ id: 'acc-1', name: 'Acme Corp', amount: 4200 }],
+  findOne: async () => null,
+  aggregate: async () => [],
+  count: async () => 1,
+  getObject: async () => null,
+};
+
+/** The one metadata item {@link METADATA_HOST_CONTEXT} resolves. */
+const METADATA_FAKE_PERMISSION = {
+  name: 'sales_permission',
+  label: 'Sales Permission',
+  objects: {
+    accounts: { allowCreate: false, allowRead: true, allowEdit: true, allowDelete: false },
+  },
+};
+
+const METADATA_HOST_CONTEXT: MetadataContextValue = {
+  apps: [],
+  objects: [],
+  dashboards: [],
+  reports: [],
+  pages: [],
+  loading: false,
+  error: null,
+  refresh: async () => {},
+  invalidate: () => {},
+  ensureType: async () => [],
+  getItem: async (type, name) =>
+    type === 'permission' && name === METADATA_FAKE_PERMISSION.name
+      ? METADATA_FAKE_PERMISSION
+      : null,
+  getItemsByType: () => [],
+  getTypeStatus: () => 'ready',
+};
+
+/**
+ * Why each of the four targets below cannot use {@link COMPONENTS_READY}, and
  * what its selector proves instead. Every entry is measured, and the assertion
  * in section 3 makes this map and the overrides EXACTLY each other: an override
  * without a reason fails, and a reason whose target no longer needs one fails
  * too. So this cannot become a place to park an inconvenient target.
+ *
+ * Was six until objectui#5630: `element:definition-list` and `element:repeater`
+ * dropped out because their populated branch DOES carry the authored
+ * `className` — `<dl>` and `<ul>` both fold `schema?.className` into their own
+ * `cn(...)`, so once real content reaches them the shared readiness class
+ * reaches the DOM same as any plain target. `element:metadata_viewer` did NOT
+ * drop out: its `Shell` wrapper's className is fully hardcoded in every branch
+ * (`ViewerProps` has no `className` field at all), so no fixture depth can
+ * make it carry the canary — this is a fact about the renderer, not about how
+ * empty the fixture is, and fixing it is out of this card's scope (test
+ * fixtures only, no renderer edits). Its entry below is REWRITTEN, not
+ * deleted: it still names a real gap, just a different one than before.
  */
 const READY_OVERRIDE_REASONS: Readonly<Record<string, string>> = {
   'ui:header-bar':
@@ -467,12 +600,8 @@ const READY_OVERRIDE_REASONS: Readonly<Record<string, string>> = {
     'Sonner owns the root it renders and takes no `className` from the node; the selector names the live-region `section` Sonner emits.',
   'ui:tooltip':
     'the authored `className` goes to `TooltipContent`, which is not rendered while the tooltip is closed. `[data-state="closed"]` is the state Radix merges onto the TRIGGER, so it proves the `Tooltip` root mounted. Its clean reading is therefore clean-by-no-DOM, not clean-by-filtering — the `{...props}` spread lands on a Radix root that renders no element (see the reading table).',
-  'element:definition-list':
-    'no `items` were authored, so the renderer returns its empty-state `p` BEFORE reaching the element it spreads onto. It is swept in that placeholder state, so its clean reading covers the empty branch only.',
-  'element:repeater':
-    'the same placeholder branch: the sweep`s adapter answers with no records by design (FAKE_ADAPTER), so the repeated list — the markup that spreads — never renders. Swept in the empty state only.',
   'element:metadata_viewer':
-    'the canary node names no resolvable metadata, so it renders its amber not-found placeholder rather than the viewer. Swept in that state only.',
+    'swept with a resolvable `permission` fixture (objectui#5630), so this is no longer the not-found placeholder — but `ElementMetadataViewerRenderer`\'s `Shell` wrapper never merges the authored `className` onto its root in ANY branch (`ViewerProps` carries no `className` field), so the selector instead names the populated `Shell` root by its own hardcoded classes.',
 };
 
 function componentsTarget(
@@ -549,9 +678,57 @@ const COMPONENTS_SPECIAL_TARGETS: readonly Target[] = [
   componentsTarget('ui:sidebar-menu-button', {}, COMPONENTS_READY, 'sidebar'),
   componentsTarget('ui:header-bar', {}, 'header.border-b', 'sidebar'),
   componentsTarget('ui:toaster', {}, 'section[aria-label="Notifications alt+T"]'),
-  componentsTarget('element:definition-list', {}, 'p.text-sm.text-muted-foreground'),
-  componentsTarget('element:repeater', {}, 'p.py-2.text-muted-foreground'),
-  componentsTarget('element:metadata_viewer', {}, 'div.border-amber-300'),
+  // objectui#5630 — deepened past the empty-state placeholder. `items`
+  // authored: pure schema, no host needed, and the populated `<dl>` carries
+  // `schema?.className`, so this reaches the default `COMPONENTS_READY`
+  // selector like any plain target (no more override reason for it).
+  //
+  // Nested under `properties`, not authored at the schema top level like
+  // `OPEN_OVERLAY` above: `basic/data-list.tsx`'s own docblock says so
+  // (`readProps()` reads `schema.properties` with a `schema.props`
+  // fallback) — measured the hard way first (`schema.items` silently did
+  // nothing; the renderer never looks there, so the empty-state branch
+  // rendered regardless of what was authored beside it).
+  componentsTarget('element:definition-list', {
+    properties: {
+      items: [
+        { term: 'Owner', description: 'Ada Lovelace' },
+        { term: 'Region', description: 'EMEA' },
+      ],
+    },
+  }),
+  // objectui#5630 — `useAdapter()` reads `AdapterCtx`, wired here by
+  // `REPEATER_FAKE_ADAPTER`, NOT by `FAKE_ADAPTER` on `SchemaRendererProvider`
+  // (that prop is a different channel this renderer never reads — see the
+  // import-block comment above `AdapterCtx`). Once rows arrive the populated
+  // `<ul>` carries `schema?.className` too, so this also reaches
+  // `COMPONENTS_READY` and needed no override reason either. `properties`
+  // nesting for the same reason as `element:definition-list` above.
+  componentsTarget(
+    'element:repeater',
+    { properties: { object: 'accounts', titleField: 'name', fields: ['amount'] } },
+    COMPONENTS_READY,
+    'repeater-adapter',
+  ),
+  // objectui#5630 — resolved through `MetadataCtx` (`METADATA_HOST_CONTEXT`),
+  // a `permission` fixture with one object entry so `PermissionView` renders
+  // its table rather than the "No object permissions declared" placeholder
+  // (a DIFFERENT, still-placeholder branch inside the real view — the sweep's
+  // `getItem` deliberately returns a non-empty `objects` map to clear it too).
+  // Still overridden: see the reason above — `Shell` never carries the canary
+  // class, in any branch. `type`/`name` MUST go under `properties`, same as
+  // the two targets above — and doubly so here: at the schema TOP level,
+  // `type` is the key `ComponentRegistry` dispatches on (`schemaFor()` spreads
+  // `schemaExtras` after it), so an unnested `type: 'permission'` silently
+  // overwrites `'element:metadata_viewer'` itself and the sweep resolves
+  // "permission" as an unregistered type instead of ever reaching this
+  // renderer — measured (the first attempt did exactly that).
+  componentsTarget(
+    'element:metadata_viewer',
+    { properties: { type: 'permission', name: METADATA_FAKE_PERMISSION.name } },
+    '.rounded-lg.border.bg-card.overflow-hidden',
+    'metadata',
+  ),
 ];
 
 const COMPONENTS_TARGETS: readonly Target[] = [
@@ -911,12 +1088,29 @@ function schemaFor(target: Target): Record<string, unknown> {
  * portal and is invisible to a container-scoped scan (trap 2).
  */
 async function renderTarget(target: Target): Promise<Element> {
+  // `FAKE_ADAPTER` here is the one `SchemaRendererProvider`/`SchemaRenderer`
+  // `dataSource` prop, and it stays exactly as load-bearing for the other 155
+  // targets as it always was (objectui#5630 must not deepen it globally — see
+  // the card). The two hosts below are a SEPARATE channel each: neither
+  // `useAdapter()` (`AdapterCtx`) nor `useMetadataItem()` (`MetadataCtx`) reads
+  // this prop at all, which is why widening it could never have reached
+  // `element:repeater` or `element:metadata_viewer` in the first place.
   const tree = (
     <SchemaRendererProvider dataSource={FAKE_ADAPTER as never}>
       <SchemaRenderer schema={schemaFor(target) as never} dataSource={FAKE_ADAPTER as never} />
     </SchemaRendererProvider>
   );
-  render(target.host === 'sidebar' ? <SidebarProvider>{tree}</SidebarProvider> : tree);
+  const hosted =
+    target.host === 'sidebar' ? (
+      <SidebarProvider>{tree}</SidebarProvider>
+    ) : target.host === 'repeater-adapter' ? (
+      <AdapterCtx.Provider value={REPEATER_FAKE_ADAPTER as never}>{tree}</AdapterCtx.Provider>
+    ) : target.host === 'metadata' ? (
+      <MetadataCtx.Provider value={METADATA_HOST_CONTEXT}>{tree}</MetadataCtx.Provider>
+    ) : (
+      tree
+    );
+  render(hosted);
 
   // Non-vacuity, per target: the REAL markup must exist before anything is
   // scanned. Without this every trap in the docblock reads as a clean sweep.

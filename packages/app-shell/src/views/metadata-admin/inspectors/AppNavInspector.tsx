@@ -63,8 +63,6 @@ interface NavItem {
   [k: string]: unknown;
 }
 
-const ROOT_KEYS = ['nav', 'navigation', 'tabs', 'items', 'menu'];
-
 type Hop = { key: string; index: number };
 
 /** Parse "nav[0].children[2]" → [{key:'nav', index:0}, {key:'children', index:2}]. */
@@ -506,5 +504,3 @@ export function AppNavInspector({ selection, draft, name, onPatch, onClearSelect
     </InspectorShell>
   );
 }
-
-export const APP_NAV_ROOT_KEYS = ROOT_KEYS;

@@ -66,9 +66,13 @@ export const KanbanSchema = BaseSchema.extend({
 });
 
 /**
- * Calendar View Mode
+ * Calendar View Mode — the registered renderer's rendered set.
+ *
+ * `'agenda'` was retired (objectui#5740): no view ever rendered it, and no
+ * measured app authors it. `view` is a DECLARED key, so this retirement is a
+ * new rejection — see the accept-set note on {@link CalendarViewSchema}.
  */
-export const CalendarViewModeSchema = z.enum(['month', 'week', 'day', 'agenda']);
+export const CalendarViewModeSchema = z.enum(['month', 'week', 'day']);
 
 /**
  * Calendar Event Schema
@@ -97,6 +101,12 @@ export const CalendarEventSchema = z.object({
  * `BaseSchema` is `.passthrough()`, so the retired keys are not REJECTED here
  * — they are simply no longer declared or type-checked. The material accept
  * change is that `events` is no longer required.
+ *
+ * Value-level residue (objectui#5740): `'agenda'` left
+ * `CalendarViewModeSchema`. Unlike the key retirements above, this IS a new
+ * rejection — `view` is a declared key, and declared keys are validated even
+ * under `.passthrough()` — so `view: 'agenda'`, which parsed green before,
+ * now fails with an `invalid_value` issue on the `view` path.
  */
 export const CalendarViewSchema = BaseSchema.extend({
   type: z.literal('calendar-view'),
@@ -118,7 +128,7 @@ export const CalendarViewSchema = BaseSchema.extend({
   allDayField: z.string().optional().describe("Record field for the all-day flag (default 'allDay')"),
   colorField: z.string().optional().describe("Record field for the event color (default 'color')"),
   view: CalendarViewModeSchema.optional().describe(
-    "View mode (the renderer renders 'month' | 'week' | 'day'; other values fall back to 'month')",
+    "View mode — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5740)",
   ),
   currentDate: z
     .union([z.string(), z.date()])
