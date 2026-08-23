@@ -98,6 +98,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   evalFieldPredicate,
+  isRuntimeDefault,
   isServerOwnedValue,
   resolveFieldRuleState,
   type FieldRulePredicate,
@@ -888,7 +889,7 @@ export function readLoadedRecord(
  * Three sources, in strictly increasing precedence (#4278 ruling on prefill):
  *
  *  1. the field's `defaultValue` from the object schema — a CREATE-time
- *     proposal;
+ *     proposal, and only when it is a LITERAL one (objectui#5727 — see below);
  *  2. the stored `record`, when this form is editing one. Present-but-null
  *     counts and beats a default: on an edit form the stored value is the
  *     truth, and letting a default paint over a cleared field would silently
@@ -903,6 +904,48 @@ export function readLoadedRecord(
  * narrower, per-field instruction is the more specific one. Fields the params
  * do not name keep their stored values, so the precedence is per FIELD and
  * never wholesale.
+ *
+ * ## A RUNTIME default is not a value, so it is not seeded (objectui#5727)
+ *
+ * Source 1 above admits only LITERAL defaults. A `defaultValue` may instead be
+ * an *instruction* the server resolves per insert — a `DEFAULT_VALUE_TOKENS`
+ * token (`'NOW()'` / `'current_user'`) or a CEL Expression envelope
+ * (`{ dialect: 'cel', source: 'today()' }`). Seeding one of those literally is
+ * worse than leaving the control empty: the text `NOW()` lands in a datetime
+ * input and is then SUBMITTED as that field's value, and
+ * `ObjectQL.applyFieldDefaults` resolves a declared default only for a field
+ * that arrives absent or null — so seeding suppresses the very resolution the
+ * declaration asked for. Omitting the key is what makes the server the single
+ * authority for the value.
+ *
+ * The classifier is `@object-ui/core`'s {@link isRuntimeDefault}, imported —
+ * not re-derived. It is THE published authority for this distinction and this
+ * renderer already reads it once removed, via `isServerOwnedValue` in
+ * {@link resolveRowState}; a second consumer-side copy would be free to
+ * disagree about, say, a CEL envelope, and then this form would seed a field
+ * whose `required` rule it also suppresses. `@object-ui/plugin-form`'s
+ * `schemaDefaults.ts` guards its own seeding with the same call — this is that
+ * settled rule reaching the SECOND form renderer in this repo, which is why
+ * the gap survived (#4047 / #4068 fixed the other chain; #4069 / #4085 carried
+ * the required-ness half here already).
+ *
+ * `isRuntimeDefault` specifically, and not `schemaDefaults.ts`'s
+ * `isSeedableDefault` wrapper around it: that one additionally rejects `null`,
+ * which would quietly change what a declared `defaultValue: null` does on this
+ * route. The card is about runtime instructions; the null contract stays as it
+ * was (`!== undefined`).
+ *
+ * Skipping is deliberately NOT gated on create mode, unlike the sibling
+ * chain's caller-side gate. On an edit form a record that names the field
+ * already outranks any default (source 2), so gating would change nothing
+ * there — while a record that leaves the column UNSET is exactly where the
+ * literal `NOW()` would still reach a control today. One unconditional rule
+ * means "a runtime token never reaches an input on this route", with no mode
+ * for it to leak through.
+ *
+ * The two later sources are untouched: a stored value and an explicit
+ * `prefill_` param are real values a producer supplied, not declarations the
+ * server is waiting to resolve, so both still fill a runtime-default field.
  */
 export function readPrefill(
   fields: RenderableField[],
@@ -911,7 +954,11 @@ export function readPrefill(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
-    if (f.defaultValue !== undefined) out[f.name] = f.defaultValue;
+    // Runtime defaults are the server's to resolve, so the key is left ABSENT
+    // rather than seeded — see the docblock's #5727 section.
+    if (f.defaultValue !== undefined && !isRuntimeDefault(f.defaultValue)) {
+      out[f.name] = f.defaultValue;
+    }
     // `hasOwnProperty` rather than a truthiness/undefined test: a stored null
     // or empty string is a real value on an edit form, and must beat the
     // default.

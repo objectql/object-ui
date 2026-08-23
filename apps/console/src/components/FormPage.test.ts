@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ActionRunner } from '@object-ui/core';
+import { DEFAULT_VALUE_TOKENS, discriminateDefaultValueShape } from '@objectstack/spec/data';
 import {
   buildSections,
   FORM_RECORD_ID_PARAM,
@@ -301,6 +302,123 @@ describe('readPrefill', () => {
       const search = new URLSearchParams('prefill_first_name=Ada');
       expect(readPrefill(fields, search, null)).toEqual(readPrefill(fields, search));
       expect(readPrefill(fields, search, undefined)).toEqual(readPrefill(fields, search));
+    });
+  });
+
+  /**
+   * objectui#5727 — a `defaultValue` that is a runtime INSTRUCTION (a
+   * `DEFAULT_VALUE_TOKENS` token, or a CEL Expression envelope) is the
+   * server's to resolve per insert, so it must never reach the control.
+   *
+   * Seeding one literally puts the text `NOW()` in a datetime input and then
+   * SUBMITS it, and `ObjectQL.applyFieldDefaults` resolves a declared default
+   * only for a field that arrives absent or null — so the seed suppresses the
+   * very resolution the declaration asked for. Hence the assertion below is
+   * that the key is ABSENT, not that it is empty.
+   *
+   * Every specimen is the SPEC's own declaration, and is put through the
+   * spec's own three-way classifier (`discriminateDefaultValueShape`) before
+   * the behaviour is asserted. A hand-typed `'NOW()'` would keep passing after
+   * the token family moved on; a specimen the authority still classifies as a
+   * token cannot.
+   */
+  describe('runtime defaults are left to the server (objectui#5727)', () => {
+    const withDefault = (defaultValue: unknown) => [
+      {
+        name: 'remind_at',
+        label: 'Remind at',
+        type: 'datetime',
+        required: false,
+        readonly: false,
+        hidden: false,
+        colSpan: 1 as const,
+        defaultValue,
+      },
+    ];
+
+    it.each([...DEFAULT_VALUE_TOKENS])('omits the %s token instead of seeding it', (token) => {
+      expect(discriminateDefaultValueShape(token)).toBe('token');
+      const out = readPrefill(withDefault(token), new URLSearchParams());
+      expect(out).not.toHaveProperty('remind_at');
+      expect(out).toEqual({});
+    });
+
+    it('omits a CEL Expression envelope instead of seeding it', () => {
+      const envelope = { dialect: 'cel', source: 'today()' };
+      expect(discriminateDefaultValueShape(envelope)).toBe('expression');
+      const out = readPrefill(withDefault(envelope), new URLSearchParams());
+      expect(out).not.toHaveProperty('remind_at');
+      expect(out).toEqual({});
+    });
+
+    /**
+     * The guard delegates to the classifier's real semantics rather than
+     * comparing against a spelling: the `NOW()` token is case-insensitive and
+     * whitespace-tolerant (the rule the SQL driver has always applied), so
+     * these are the same instruction and are skipped too.
+     */
+    it.each(['now()', '  NOW()  '])('omits the tolerated spelling %j', (spelling) => {
+      expect(discriminateDefaultValueShape(spelling)).toBe('token');
+      expect(readPrefill(withDefault(spelling), new URLSearchParams())).toEqual({});
+    });
+
+    /**
+     * Controls — the other side of the discrimination. If any of these stopped
+     * seeding, the guard would have grown into "skip defaults", which is a
+     * different (and wrong) rule.
+     */
+    describe('controls: what still seeds', () => {
+      it('seeds a literal default', () => {
+        expect(discriminateDefaultValueShape('Acme')).toBe('literal');
+        expect(readPrefill(withDefault('Acme'), new URLSearchParams())).toEqual({
+          remind_at: 'Acme',
+        });
+      });
+
+      it('seeds a near-miss spelling that is NOT a token', () => {
+        // No parentheses — a genuinely intended literal, which the spec's
+        // token predicate deliberately does not widen to cover.
+        expect(discriminateDefaultValueShape('NOW')).toBe('literal');
+        expect(readPrefill(withDefault('NOW'), new URLSearchParams())).toEqual({
+          remind_at: 'NOW',
+        });
+      });
+
+      it('seeds an object default that is NOT an Expression envelope', () => {
+        // Missing `dialect`: the engine falls through and stores it verbatim
+        // as a literal, so this renderer seeds it for the same reason.
+        const notAnEnvelope = { source: 'today()' };
+        expect(discriminateDefaultValueShape(notAnEnvelope)).toBe('literal');
+        expect(readPrefill(withDefault(notAnEnvelope), new URLSearchParams())).toEqual({
+          remind_at: notAnEnvelope,
+        });
+      });
+
+      it('seeds a declared null default (unchanged by this guard)', () => {
+        expect(readPrefill(withDefault(null), new URLSearchParams())).toEqual({
+          remind_at: null,
+        });
+      });
+
+      it('still fills the field from a stored record (edit mode)', () => {
+        // The token was resolved at insert; the persisted value is a real
+        // value and this form must show the row as the server holds it.
+        const out = readPrefill(withDefault('NOW()'), new URLSearchParams(), {
+          remind_at: '2026-08-23T01:13:51Z',
+        });
+        expect(out.remind_at).toBe('2026-08-23T01:13:51Z');
+      });
+
+      it('still honours an explicit prefill_ param', () => {
+        // A producer supplying a value is not a declaration awaiting
+        // resolution, so source 3 outranks the skip exactly as it outranks
+        // a literal default.
+        const out = readPrefill(
+          withDefault('NOW()'),
+          new URLSearchParams('prefill_remind_at=2026-01-01T00:00:00Z'),
+        );
+        expect(out.remind_at).toBe('2026-01-01T00:00:00Z');
+      });
     });
   });
 });
