@@ -301,7 +301,9 @@ export const ChatbotSchema = BaseSchema.extend({
   streamingEnabled: z.boolean().optional().describe('Enable streaming responses'),
   headers: z.record(z.string(), z.string()).optional().describe('Additional API headers'),
   body: z.record(z.string(), z.unknown()).optional().describe('Additional API body params'),
-  maxToolRoundtrips: z.number().optional().describe('Max tool-calling round-trips'),
+  /** @deprecated objectui#5605 — inert; nothing reads it. Cap loops on the agent (`planning.maxIterations`). Slated for removal. */
+  maxToolRoundtrips: z.number().optional()
+    .describe('DEPRECATED (inert, slated for removal) — Max tool-calling round-trips. Nothing reads this; cap tool loops on the agent via planning.maxIterations'),
   onError: z.function().optional().describe('Error callback'),
 });
 

@@ -183,6 +183,59 @@ export function withHandoffContext(
   return { ...body, context: { ...ctx, parentConversationId } };
 }
 
+/**
+ * objectui#5605 — `maxToolRoundtrips` is an authorable, documented key that
+ * reaches nothing, and the measurement says it cannot be made to reach anything
+ * from here.
+ *
+ * The installed chat runtime is `@ai-sdk/react`'s `useChat`, whose options are
+ * `ChatInit` plus `{ throttle, experimental_throttle, resume }`. `ChatInit`
+ * carries exactly one loop control — `sendAutomaticallyWhen`, a boolean
+ * predicate — and no numeric cap of any spelling: `@ai-sdk/react@1.0.0` shipped
+ * "remove deprecated useChat roundtrip options" as a MAJOR, and the successor
+ * `maxSteps` was renamed through `continueUntil` to `stopWhen`/`stepCountIs`,
+ * which the installed `ai` package declares ONLY on `generateText`,
+ * `streamText` and `ToolLoopAgentSettings` — all server-side. This hook also
+ * never passes `sendAutomaticallyWhen`, so the client performs no automatic
+ * tool round-trips at all: there is no client loop here to cap.
+ *
+ * Nor is there a server loop we own. ObjectUI is backend-agnostic — `api` is
+ * whatever endpoint the author names — so shipping the number in the request
+ * body would only move the same dead key one hop further out, onto a wire
+ * contract no backend reads. The platform's own cap is `maxIterations` on the
+ * agent (`planning.maxIterations`), a different key with a different default.
+ *
+ * So the honest state is retirement, and retirement is two-stage (maintainer
+ * ruling, 2026-08-22 item 13). This is STAGE 1: the key keeps parsing and keeps
+ * its declared shape, so nothing an author already wrote breaks — but an author
+ * who actually writes it is now TOLD it is inert, instead of being left
+ * believing the documented cap applies. Stage 2 deletes it.
+ *
+ * Warned once per process: the hook re-runs on every render, and three renderer
+ * call sites feed it. Reset seam for tests, same shape as `plugin-detail`'s
+ * `recordActivityFeed` warnings.
+ */
+const warnedInertMaxToolRoundtrips = new Set<string>();
+
+/** Test seam: forget that the inert-`maxToolRoundtrips` notice has been given. */
+export function resetMaxToolRoundtripsWarning(): void {
+  warnedInertMaxToolRoundtrips.clear();
+}
+
+/** Tell an author once that their authored cap does nothing. See above. */
+function warnMaxToolRoundtripsInert(): void {
+  if (warnedInertMaxToolRoundtrips.has('maxToolRoundtrips')) return;
+  warnedInertMaxToolRoundtrips.add('maxToolRoundtrips');
+  console.warn(
+    '[@object-ui/plugin-chatbot] `maxToolRoundtrips` is deprecated and has no ' +
+      'effect: the installed chat runtime exposes no client-side round-trip cap ' +
+      '(`useChat` dropped the numeric knob, and the surviving `stopWhen` / ' +
+      '`stepCountIs` step cap is server-side only). Cap tool-calling loops on the ' +
+      'agent instead — `planning.maxIterations`. This key is inert and is slated ' +
+      'for removal in a future major (objectui#5605).',
+  );
+}
+
 type InitialMessage = OuiChatMessage & {
   parts?: Array<Record<string, unknown>>;
   reasoning?: string;
@@ -237,7 +290,14 @@ export interface UseObjectChatOptions {
   body?: Record<string, unknown>;
   /**
    * Maximum tool-calling round-trips per message.
-   * @default 5
+   *
+   * @deprecated objectui#5605 — INERT. Nothing reads this value: the installed
+   * chat runtime exposes no client-side round-trip cap, and ObjectUI does not
+   * own the server loop. Setting it has never had an effect, and it does not
+   * acquire one by being set. Cap tool-calling loops on the agent instead
+   * (`planning.maxIterations`). Still accepted so existing documents keep
+   * parsing; authoring it now logs a one-time notice, and it is slated for
+   * removal in a future major. See {@link warnMaxToolRoundtripsInert}.
    */
   maxToolRoundtrips?: number;
   /**
@@ -360,7 +420,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     streamingEnabled = true,
     headers,
     body,
-    maxToolRoundtrips = 5,
+    maxToolRoundtrips,
     onError,
     showTimestamp,
     autoResponse,
@@ -368,6 +428,15 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     autoResponseDelay = 1000,
     onSend,
   } = options;
+
+  // objectui#5605 — an AUTHORED `maxToolRoundtrips` is inert; say so once. The
+  // check is `!== undefined`, not truthiness, so an authored `0` is reported
+  // too (a cap of zero is exactly the author who most needs telling). Declared
+  // here, at the top of the hook, so it runs before the local-mode early return
+  // and stays unconditional under the Rules of Hooks.
+  useEffect(() => {
+    if (maxToolRoundtrips !== undefined) warnMaxToolRoundtripsInert();
+  }, [maxToolRoundtrips]);
 
   // Lock the mode on first render to satisfy the Rules of Hooks.
   // Conditional hook calls would crash if `api` toggled between renders.

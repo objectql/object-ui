@@ -108,7 +108,7 @@ const schema = {
   streamingEnabled?: boolean,
   headers?: Record<string, string>,
   body?: Record<string, unknown>,
-  maxToolRoundtrips?: number,
+  maxToolRoundtrips?: number, // deprecated - inert, see below
   onError?: (error: Error) => void,
 }
 ```
@@ -152,7 +152,7 @@ const schema = {
 | `streamingEnabled` | boolean | `true` | Enable SSE streaming for AI responses |
 | `headers` | object | - | Additional headers for API requests |
 | `body` | object | - | Additional body params for API requests |
-| `maxToolRoundtrips` | number | `5` | Max tool-calling round-trips per message |
+| `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
 | `surface` | `'card' \| 'plain'` | `'card'` | Controls whether the chat renders as a bordered panel or a frameless full-page workspace |
 | `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | Controls how much agent reasoning and tool detail is shown |
 | `onError` | function | - | Error callback for streaming/API errors |

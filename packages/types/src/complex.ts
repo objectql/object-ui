@@ -619,7 +619,21 @@ export interface ChatbotSchema extends BaseSchema {
   requestBody?: Record<string, unknown>;
   /**
    * Maximum number of tool-calling round-trips per user message.
-   * @default 5
+   *
+   * @deprecated objectui#5605 — INERT, and not fixable from here. The renderer
+   * really does thread this value into `useObjectChat`, which then drops it:
+   * the installed chat runtime (`@ai-sdk/react`'s `useChat`) exposes no
+   * client-side round-trip cap — the numeric knob was removed from `useChat`,
+   * and its successor step cap (`stopWhen` / `stepCountIs`) exists only on the
+   * server-side call functions. ObjectUI is backend-agnostic, so it does not
+   * own a server loop to cap either. Setting this has never limited anything.
+   *
+   * Cap tool-calling loops on the agent instead — `planning.maxIterations`,
+   * which the platform spec declares and enforces.
+   *
+   * Still declared and still accepted so documents that already author it keep
+   * parsing; authoring it now logs a one-time notice from the chatbot plugin.
+   * Slated for removal in a future major (ADR-0049 enforce-or-remove, staged).
    */
   maxToolRoundtrips?: number;
   /**
