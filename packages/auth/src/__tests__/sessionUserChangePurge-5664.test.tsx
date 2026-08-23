@@ -304,6 +304,78 @@ describe('a change of session user drops the previous user’s state wholesale (
 
     vi.unstubAllGlobals();
   });
+
+  // -------------------------------------------------------------------------
+  // objectui#5763 — a throwing `removeItem` must cost exactly that key
+  // -------------------------------------------------------------------------
+
+  it('sweeps every other non-device-scoped key when one removeItem throws (#5763)', () => {
+    SessionUserScope.adopt(USER_A);
+    ActiveOrganizationStorage.set('org_a');
+    // Keys on BOTH SIDES of the poisoned one in insertion order, so a green
+    // run proves the walk continues past the throw rather than stopping at
+    // the first non-poisoned key it happens to reach.
+    localStorage.setItem(`objectui-recent-items:u:${USER_A}`, '[{"id":"acct_1"}]');
+    const POISON_KEY = 'objectui-nav-order-crm';
+    localStorage.setItem(POISON_KEY, '["accounts"]');
+    localStorage.setItem('objectui-favorites', '["acct_2"]');
+    sessionStorage.setItem('objectui:metadata:app:org_a:@anon', '[{"name":"crm"}]');
+    // Device-scoped, written for the INCOMING user the same way the passing
+    // sibling case above does it.
+    TokenStorage.set('tok-bob');
+    localStorage.setItem('vite-ui-theme', 'dark');
+
+    const realRemoveItem = localStorage.removeItem.bind(localStorage);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const removeItemSpy = vi.spyOn(localStorage, 'removeItem').mockImplementation((key: string) => {
+      if (key === POISON_KEY) throw new Error('simulated removeItem failure');
+      realRemoveItem(key);
+    });
+
+    try {
+      expect(() => SessionUserScope.adopt(USER_B)).not.toThrow();
+
+      // The poisoned key is the residue the card is about — it survives.
+      expect(localStorage.getItem(POISON_KEY)).toBe('["accounts"]');
+
+      // Everything else non-device-scoped is still swept, in BOTH stores —
+      // this is the pin: one uncooperative key costs one key, not the rest.
+      expect(localStorage.getItem(scopedOrgKey(USER_A))).toBeNull();
+      expect(localStorage.getItem(`objectui-recent-items:u:${USER_A}`)).toBeNull();
+      expect(localStorage.getItem('objectui-favorites')).toBeNull();
+      expect(sessionStorage.getItem('objectui:metadata:app:org_a:@anon')).toBeNull();
+
+      // The device-scoped allowlist is still respected around the failure.
+      expect(TokenStorage.get()).toBe('tok-bob');
+      expect(localStorage.getItem('vite-ui-theme')).toBe('dark');
+      expect(localStorage.getItem('auth-session-user-id')).toBe(USER_B);
+
+      // Discoverable, not silent — the failure is named, not swallowed whole.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain(POISON_KEY);
+    } finally {
+      // Explicit, not left to `afterEach`'s `restoreAllMocks()`: a spy
+      // installed on a jsdom `Storage` instance (rather than a plain object)
+      // has been observed to survive `restoreAllMocks()` across tests — the
+      // NEXT test in this file measured the mock still active on entry. Left
+      // to the shared teardown, this poisoned `removeItem` for every later
+      // case in the file that happens to touch the same key name.
+      removeItemSpy.mockRestore();
+    }
+  });
+
+  it('reports nothing when every removal sticks', () => {
+    // Control on the case above: the warning is a measurement of an actual
+    // failure, not a constant emitted on every purge.
+    SessionUserScope.adopt(USER_A);
+    localStorage.setItem('objectui-nav-order-crm', '["accounts"]');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    SessionUserScope.adopt(USER_B);
+
+    expect(localStorage.getItem('objectui-nav-order-crm')).toBeNull();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
