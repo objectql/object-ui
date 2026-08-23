@@ -57,7 +57,7 @@ import {
   formatPercent,
   formatCurrency,
 } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType } from './GanttView';
 import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
@@ -372,6 +372,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           capacity: schema.capacity,
           quickFilters: schema.quickFilters,
           autoZoomToFilter: schema.autoZoomToFilter,
+          viewMode: schema.viewMode,
           timeSegments: schema.timeSegments,
           interactions: schema.interactions,
           exportFileName: schema.exportFileName,
@@ -1442,11 +1443,17 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             assignee={assigneeAccessor}
             effort={effortAccessor}
             capacity={ganttConfig?.capacity ?? 1}
-            viewMode={((schema as any).viewMode as GanttViewMode) || 'day'}
+            viewMode={ganttConfig?.viewMode || 'day'}
           />
         ) : (
         <GanttView
           tasks={displayTasks}
+          // Authored granularity (objectui#5074) — undefined when the author
+          // omitted it, so GanttView's own seeding order stays intact:
+          // explicit prop → persisted layout (persistLayoutKey) → 'day'.
+          // ⛔ Do not "simplify" this to `|| 'day'`: a default here would defeat
+          // the persisted-layout seeding for every schema that omits the key.
+          viewMode={ganttConfig?.viewMode}
           startDate={lockedRange?.start}
           endDate={lockedRange?.end}
           onTaskClick={(task) => {

@@ -20,6 +20,7 @@ import { z } from 'zod';
 import {
   ListViewSchema as SpecListViewSchema,
   KanbanConfigSchema as SpecKanbanConfigSchema,
+  GanttConfigSchema as SpecGanttConfigSchema,
   CalendarConfigSchema as SpecCalendarConfigSchema,
   GalleryConfigSchema as SpecGalleryConfigSchema,
   TimelineConfigSchema as SpecTimelineConfigSchema,
@@ -604,6 +605,14 @@ export const ObjectGanttSchema = BaseSchema.extend({
   titleField: z.string().optional().describe('Title field'),
   dependencyField: z.string().optional().describe('Dependency field'),
   progressField: z.string().optional().describe('Progress field'),
+  // DERIVED from the spec's `GanttConfigSchema.shape.viewMode` (an optional
+  // enum, deliberately WITHOUT a default) so the member list cannot drift
+  // (objectui#5074). Absence semantics are load-bearing: an omitted `viewMode`
+  // lets a persisted layout seed the timeline granularity before the
+  // renderer's 'day' fallback — do NOT add `.default('day')` here.
+  viewMode: SpecGanttConfigSchema.shape.viewMode.describe(
+    'Initial timeline granularity, honoured by both renderer branches; when omitted, a persisted layout may seed it'
+  ),
 });
 
 /**

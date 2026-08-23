@@ -1962,6 +1962,18 @@ export interface ObjectGanttSchema extends BaseSchema {
   dependencyField?: string;
   /** Field for progress (0-100) */
   progressField?: string;
+  /**
+   * Initial timeline granularity, honoured by BOTH renderer branches (the
+   * timeline and the resource-workload grid). DERIVED from the spec's
+   * `GanttConfigSchema.viewMode` member so the member list cannot drift
+   * (objectui#5074).
+   *
+   * Deliberately NO default: an omitted `viewMode` lets a persisted layout
+   * (保存布局, `persistLayoutKey`) seed the granularity before the renderer's
+   * `'day'` fallback. A default here would arrive downstream as an explicit
+   * author choice and defeat that seeding.
+   */
+  viewMode?: SpecGanttConfig['viewMode'];
 }
 
 /**
