@@ -11,8 +11,41 @@
  * completed (with a check); the current renders as active; subsequent
  * stages render as upcoming.
  *
- * This is a greenfield component (no underlying plugin-detail equivalent),
- * intentionally minimal so it can be styled in line with the host page.
+ * ── This surface is a READOUT, and it must look like one (objectui#5768) ──
+ *
+ * It used to draw each stage as a filled, shadowed, equal-width pill — the
+ * exact shape of a segmented button group — while carrying no handler, no
+ * cursor and no tab stop. Measured in a browser on a shipped build: the
+ * segments were `role="listitem"` with `cursor: auto` and `tabindex` null,
+ * and a full pointer sequence (pointerdown → mousedown → pointerup →
+ * mouseup → click) left the record's status untouched. Users spent clicks
+ * on it before concluding it was decoration.
+ *
+ * There is no write path to spend those clicks on: this renderer's only
+ * channel is `useRecordContext()`, whose value (`RecordContextValue` in
+ * `@object-ui/react`) exposes `data` / `refresh` / `headerSystemActions` /
+ * `onToggleFavorite` and NO record-field mutation. Editing goes through
+ * `record:details`' `<InlineEditProvider>` + `<InlineEditSaveBar>`
+ * (`dataSource.update(..., { ifMatch })`) or an action via
+ * `useActionEngine`; neither reaches here. Click-to-advance is a separate,
+ * approved-on-its-own-appetite feature — until it exists, the pixels must
+ * not promise it.
+ *
+ * So the presentation below is a PROGRESS RAIL: a thin decorative indicator
+ * per stage with the label as plain text beneath it, which is the same
+ * vocabulary app-shell's approval step readout already uses
+ * (`RecordApprovalsPanel` — marker, rail, bare label, weight for "current",
+ * never a filled surface). Deliberately absent: per-stage filled pills,
+ * `shadow`, `ring`, bordered chips, and equal-width tap targets.
+ *
+ * The DOM attributes below carry state that used to live only in colour, so
+ * the classification stays assertable without reading CSS (the test DOM
+ * resolves no Tailwind):
+ *   • `data-stage-state`     — `completed` | `current` | `upcoming`
+ *   • `data-stage-terminal`  — `won` | `lost`, when a stage is classified
+ *   • `data-stage-rail`      — marks the decorative indicator as an element
+ *                              SEPARATE from the label. A rail has one; a
+ *                              pill, which is its own label's surface, cannot.
  */
 
 import React from 'react';
@@ -24,6 +57,8 @@ const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
 };
+
+type StageState = 'completed' | 'current' | 'upcoming';
 
 export interface RecordPathRendererProps {
   schema?: RecordPathComponentProps & Record<string, any>;
@@ -74,8 +109,8 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
   const stageKinds = stages.map(classify);
   // Find the index of the FIRST lost-class stage so we can render it
   // (and any subsequent lost terminals) as a visually separated alt
-  // group. Won-class stages stay inside the forward chevron path —
-  // they're the successful terminus.
+  // group. Won-class stages stay inside the forward path — they're the
+  // successful terminus.
   const firstLostIdx = stageKinds.findIndex((k) => k === 'lost');
   const forwardStages = firstLostIdx === -1 ? stages : stages.slice(0, firstLostIdx);
   const lostStages = firstLostIdx === -1 ? [] : stages.slice(firstLostIdx);
@@ -95,84 +130,104 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
     );
   }
 
-  // iOS-style connected segments (no chevron tessellation): each stage is a
-  // rounded segment in a gapped row — completed = mint, current = accent,
-  // upcoming = muted track.
+  // The rail: a 6px track segment. Completed reads as travelled (emerald,
+  // matching the approvals readout's `done`), current as where the record
+  // sits (accent), upcoming as untravelled track. A `lost` terminal tints
+  // destructive; an unreached `won` terminus stays a faint emerald so the
+  // goal is legible without being a surface you could press.
+  const railClass = (state: StageState, terminal?: 'won' | 'lost') =>
+    cn(
+      'h-1.5 w-full rounded-full',
+      terminal === 'lost' && (state === 'current' ? 'bg-destructive' : 'bg-destructive/25'),
+      terminal !== 'lost' && state === 'current' && 'bg-primary',
+      terminal !== 'lost' && state === 'completed' && 'bg-emerald-500',
+      terminal !== 'lost' && state === 'upcoming' && (terminal === 'won' ? 'bg-emerald-500/30' : 'bg-muted'),
+    );
+
+  // Emphasis by TYPE WEIGHT, not by a filled box — the one cue a readout can
+  // spend without implying it can be pressed.
+  const labelClass = (state: StageState, terminal?: 'won' | 'lost') =>
+    cn(
+      'block min-w-0 text-xs',
+      state === 'current' && (terminal === 'lost' ? 'font-semibold text-destructive' : 'font-semibold text-foreground'),
+      state === 'completed' && 'font-normal text-muted-foreground',
+      state === 'upcoming' && 'font-normal text-muted-foreground',
+    );
+
+  const renderStage = (o: {
+    key: string;
+    stage: { label: string };
+    state: StageState;
+    terminal?: 'won' | 'lost';
+    className?: string;
+    labelClassName?: string;
+  }) => (
+    <div
+      key={o.key}
+      role="listitem"
+      data-stage-state={o.state}
+      data-stage-terminal={o.terminal}
+      aria-current={o.state === 'current' ? 'step' : undefined}
+      className={cn('flex flex-col gap-1.5', o.className)}
+    >
+      <span aria-hidden="true" data-stage-rail="" className={railClass(o.state, o.terminal)} />
+      <span className={cn(labelClass(o.state, o.terminal), o.labelClassName)}>
+        {o.terminal === 'lost' && <span aria-hidden="true" className="mr-1 opacity-70">✗</span>}
+        {o.terminal !== 'lost' && o.state === 'completed' && (
+          <span aria-hidden="true" className="mr-1 text-emerald-600 dark:text-emerald-400 font-semibold">✓</span>
+        )}
+        {o.stage.label}
+      </span>
+    </div>
+  );
 
   const last = forwardStages.length - 1;
 
-  // Mobile shows ALL stages as pills (lost too) — visual separation done
-  // via color, not layout, since there's not enough room to fork the row.
-
   return (
     <div className={cn('w-full', className)} {...designer}>
-      {/* Desktop: chevron path → optional lost-alt group */}
+      {/* Desktop: forward rail → optional lost-alt group */}
       <div
-        className="hidden sm:flex w-full items-stretch gap-2"
+        className="hidden sm:flex w-full items-start gap-2"
         role="list"
         aria-label={(schema.aria as any)?.label || 'Record path'}
       >
-        <div className="flex flex-1 items-stretch gap-1.5">
+        <div className="flex flex-1 items-start gap-1.5">
           {forwardStages.map((stage, idx) => {
             const isCompleted = !currentInLost && currentIdx >= 0 && idx < currentIdx;
             const isCurrent = !currentInLost && idx === currentIdx;
             const isWonTerminus = forwardKinds[idx] === 'won' && idx === last;
-            return (
-              <div
-                key={`${stage.value}-${idx}`}
-                role="listitem"
-                aria-current={isCurrent ? 'step' : undefined}
-                className={cn(
-                  'relative flex-1 min-w-0 px-4 py-2 text-xs font-medium text-center rounded-xl',
-                  isCurrent && 'bg-primary text-primary-foreground shadow-sm',
-                  isCompleted && 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
-                  // Won-terminus reads as "the goal" even before it's reached.
-                  !isCurrent && !isCompleted && isWonTerminus && 'bg-emerald-500/10 text-emerald-700/85 dark:text-emerald-300/85',
-                  !isCurrent && !isCompleted && !isWonTerminus && 'bg-muted text-muted-foreground',
-                )}
-              >
-                <span className="inline-flex items-center justify-center gap-1.5 truncate">
-                  {isCompleted && <span aria-hidden className="text-emerald-600 dark:text-emerald-400 font-semibold">✓</span>}
-                  {isWonTerminus && !isCurrent && <span aria-hidden className="opacity-70">🏆</span>}
-                  {stage.label}
-                </span>
-              </div>
-            );
+            return renderStage({
+              key: `${stage.value}-${idx}`,
+              stage,
+              state: isCurrent ? 'current' : isCompleted ? 'completed' : 'upcoming',
+              terminal: isWonTerminus ? 'won' : undefined,
+              className: 'flex-1 min-w-0',
+              labelClassName: 'text-center truncate',
+            });
           })}
         </div>
         {lostStages.length > 0 && (
-          // Separated alt-terminus group — gap, muted/destructive tint,
-          // pill (not chevron) shape so it doesn't read as "step N+1" in
-          // the forward path. Same affordance that Salesforce/HubSpot use.
-          <div className="flex items-stretch gap-1 pl-2 border-l border-border/40" aria-label="Alternative terminal stages">
+          // Separated alt-terminus group — a gap and a divider, so it does not
+          // read as "step N+1" in the forward path.
+          <div className="flex items-start gap-1.5 pl-2 border-l border-border/40" aria-label="Alternative terminal stages">
             {lostStages.map((stage, lIdx) => {
               const absIdx = firstLostIdx + lIdx;
-              const isCurrent = absIdx === currentIdx;
-              return (
-                <div
-                  key={`${stage.value}-lost-${lIdx}`}
-                  role="listitem"
-                  aria-current={isCurrent ? 'step' : undefined}
-                  className={cn(
-                    'shrink-0 px-3 py-2 text-xs font-medium rounded-md border whitespace-nowrap',
-                    isCurrent && 'bg-destructive text-destructive-foreground border-destructive shadow-sm ring-1 ring-destructive/40',
-                    !isCurrent && 'bg-destructive/5 text-destructive/85 border-destructive/20',
-                  )}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <span aria-hidden className="opacity-70">✗</span>
-                    {stage.label}
-                  </span>
-                </div>
-              );
+              return renderStage({
+                key: `${stage.value}-lost-${lIdx}`,
+                stage,
+                state: absIdx === currentIdx ? 'current' : 'upcoming',
+                terminal: 'lost',
+                className: 'shrink-0',
+                labelClassName: 'text-center whitespace-nowrap',
+              });
             })}
           </div>
         )}
       </div>
 
-      {/* Mobile: horizontally scrollable pill row */}
+      {/* Mobile: horizontally scrollable rail row — same treatment, no chips */}
       <div
-        className="flex sm:hidden w-full items-stretch gap-1 overflow-x-auto pb-1 -mx-1 px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex sm:hidden w-full items-start gap-2 overflow-x-auto pb-1 -mx-1 px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="list"
         aria-label={(schema.aria as any)?.label || 'Record path'}
       >
@@ -181,27 +236,14 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
           const isLost = kind === 'lost';
           const isCompleted = !isLost && !currentInLost && currentIdx >= 0 && idx < currentIdx;
           const isCurrent = idx === currentIdx;
-          return (
-            <div
-              key={`${stage.value}-${idx}-m`}
-              role="listitem"
-              aria-current={isCurrent ? 'step' : undefined}
-              className={cn(
-                'shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap',
-                isLost && isCurrent && 'bg-destructive text-destructive-foreground border-destructive shadow-sm',
-                isLost && !isCurrent && 'bg-destructive/5 text-destructive/85 border-destructive/20',
-                !isLost && isCurrent && 'bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary/40',
-                !isLost && isCompleted && 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/30',
-                !isLost && !isCurrent && !isCompleted && 'bg-background text-foreground/85 border-border/60',
-              )}
-            >
-              <span className="inline-flex items-center gap-1">
-                {isLost && <span aria-hidden className="opacity-70">✗</span>}
-                {!isLost && isCompleted && <span aria-hidden className="text-emerald-600 dark:text-emerald-400 font-semibold">✓</span>}
-                {stage.label}
-              </span>
-            </div>
-          );
+          return renderStage({
+            key: `${stage.value}-${idx}-m`,
+            stage,
+            state: isCurrent ? 'current' : isCompleted ? 'completed' : 'upcoming',
+            terminal: kind,
+            className: 'shrink-0',
+            labelClassName: 'whitespace-nowrap',
+          });
         })}
       </div>
     </div>
