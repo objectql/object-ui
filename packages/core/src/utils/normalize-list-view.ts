@@ -128,6 +128,33 @@ const ARIA_KEY_ALIASES: Record<string, string> = {
 };
 
 /**
+ * Per-view-type config aliases → the spec key each one aliases (#2890, the
+ * phase-3 carry-over).
+ *
+ * Phase 3 derived `kanban` / `gallery` / `timeline` from the spec configs but
+ * kept the pre-#2231 objectui spellings declared alongside the spec keys so
+ * stored view metadata would keep validating
+ * (`packages/types/src/zod/objectql.zod.ts`, each marked `@deprecated legacy
+ * alias for the spec's X`). Folding them here is what lets a read-site stop
+ * carrying its own `canonical || legacy` pair — the same move A1–A5 made for
+ * the top-level vocabulary.
+ *
+ * `calendar` is deliberately absent: its one local key, `defaultView`, is not
+ * an alias of anything. It has no spec counterpart at all, so it wants
+ * PROMOTION upstream, not a rename — folding it would delete an authored value
+ * with nowhere to put it.
+ *
+ * Note `kanban.columns` is the spec's "fields shown on each card", NOT the
+ * table columns that the same word names at the ListView top level. The fold
+ * is scoped to the nested config, so the two never meet.
+ */
+const PER_VIEW_CONFIG_ALIASES: Record<string, Readonly<Record<string, string>>> = {
+  kanban: { groupField: 'groupByField', cardFields: 'columns' },
+  gallery: { imageField: 'coverField' },
+  timeline: { dateField: 'startDateField' },
+};
+
+/**
  * ObjectUI's `list-view` node historically used a different vocabulary from
  * `@objectstack/spec` for the same concepts (`fields` where the spec says
  * `columns`, `viewType` where it says `type`, …). Issue #2231 closed the
@@ -190,6 +217,16 @@ const ARIA_KEY_ALIASES: Record<string, string> = {
  *    breaking change with no inventory. Runs AFTER the `fields` → `columns` fold
  *    above, so a view that spells its column list the legacy way still gets its
  *    entries canonicalized.
+ *  - the four PER-VIEW-TYPE config aliases phase 3 carried over
+ *    ({@link PER_VIEW_CONFIG_ALIASES}): `kanban.groupField` → `groupByField`,
+ *    `kanban.cardFields` → `columns`, `gallery.imageField` → `coverField`,
+ *    `timeline.dateField` → `startDateField`. One read-site changes behaviour
+ *    as a result, and it is a CORRECTION of the same inverted precedence A2
+ *    fixed for `densityMode`: `ListView`'s kanban adapter resolves
+ *    `cardFields || columns`, i.e. legacy over canonical, so a config carrying
+ *    BOTH used to render the legacy value. After the fold the canonical
+ *    `columns` reaches it. Every other reader of these four was already
+ *    canonical-first and is unaffected.
  */
 export function normalizeListViewSchema<T>(schema: T): T {
   if (!schema || typeof schema !== 'object') return schema;
@@ -221,10 +258,22 @@ export function normalizeListViewSchema<T>(schema: T): T {
       : undefined;
   const foldedColumns = normalizeColumnIdentities(columnsSource);
   const foldColumnIdentity = foldedColumns !== columnsSource;
+  // Per-view-type config aliases (#2890 phase-3 carry-over). Collected before
+  // the early return so an otherwise-canonical view carrying only a nested
+  // legacy key still folds — and so a view carrying none still returns by
+  // reference.
+  const perViewFolds = Object.entries(PER_VIEW_CONFIG_ALIASES)
+    .map(([viewKey, aliases]) => {
+      const cfg = isRecord(s[viewKey]) ? s[viewKey] : undefined;
+      if (!cfg) return undefined;
+      const legacyKeys = Object.keys(aliases).filter((legacy) => cfg[legacy] !== undefined);
+      return legacyKeys.length ? { viewKey, aliases, cfg, legacyKeys } : undefined;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
   if (
     !foldColumns && !foldRowHeight && !foldFilter && !legacyFlags.length &&
     !foldDescription && !foldAria && !foldSharing && !defaultViewKind &&
-    !foldColumnIdentity
+    !foldColumnIdentity && !perViewFolds.length
   ) {
     return schema;
   }
@@ -294,6 +343,18 @@ export function normalizeListViewSchema<T>(schema: T): T {
     delete nextSharing.visibility;
     delete nextSharing.enabled;
     next.sharing = nextSharing;
+  }
+  for (const { viewKey, aliases, cfg, legacyKeys } of perViewFolds) {
+    const nextCfg: Record<string, unknown> = { ...cfg };
+    for (const legacy of legacyKeys) {
+      const canonical = aliases[legacy];
+      // Same one-directional shape as every fold above: the canonical key wins
+      // when both are present, and the legacy key is REMOVED so a missed
+      // read-site fails loudly instead of quietly taking the legacy path.
+      if (nextCfg[canonical] === undefined) nextCfg[canonical] = cfg[legacy];
+      delete nextCfg[legacy];
+    }
+    next[viewKey] = nextCfg;
   }
   if (defaultViewKind) next.viewType = 'grid';
   return next as T;

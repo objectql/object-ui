@@ -270,6 +270,127 @@ describe('normalizeListViewSchema (#2890)', () => {
     });
   });
 
+  describe('per-view-type config aliases (#2890 phase-3 carry-over)', () => {
+    it('folds each of the four aliases onto its spec key', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        kanban: { groupField: 'stage', cardFields: ['name', 'amount'] },
+        gallery: { imageField: 'logo' },
+        timeline: { dateField: 'due_date' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.kanban).toEqual({ groupByField: 'stage', columns: ['name', 'amount'] });
+      expect(out.gallery).toEqual({ coverField: 'logo' });
+      expect(out.timeline).toEqual({ startDateField: 'due_date' });
+    });
+
+    it('drops each legacy key so a missed read-site fails loudly', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        kanban: { groupField: 'stage', cardFields: ['name'] },
+        gallery: { imageField: 'logo' },
+        timeline: { dateField: 'due_date' },
+      }) as Record<string, Record<string, unknown>>;
+      expect('groupField' in out.kanban).toBe(false);
+      expect('cardFields' in out.kanban).toBe(false);
+      expect('imageField' in out.gallery).toBe(false);
+      expect('dateField' in out.timeline).toBe(false);
+    });
+
+    it('lets the canonical key win when a config carries both', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        kanban: { groupByField: 'canonical', groupField: 'legacy', columns: ['canonical'], cardFields: ['legacy'] },
+        gallery: { coverField: 'canonical', imageField: 'legacy' },
+        timeline: { startDateField: 'canonical', dateField: 'legacy' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.kanban).toEqual({ groupByField: 'canonical', columns: ['canonical'] });
+      expect(out.gallery).toEqual({ coverField: 'canonical' });
+      expect(out.timeline).toEqual({ startDateField: 'canonical' });
+    });
+
+    it('is what corrects ListView\'s inverted kanban precedence', () => {
+      // `ListView`'s kanban adapter resolves `cardFields || columns` — legacy
+      // over canonical, the same inversion A2 fixed for `densityMode`. The fold
+      // is what makes the canonical value the one that reaches it: after this,
+      // the adapter's `cardFields` term is undefined and `columns` carries the
+      // authored value.
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        kanban: { columns: ['canonical'], cardFields: ['legacy'] },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.kanban.cardFields).toBeUndefined();
+      expect(out.kanban.columns).toEqual(['canonical']);
+    });
+
+    it('folds a view whose ONLY legacy vocabulary is a nested alias', () => {
+      // Guards the early return: every top-level key here is already canonical,
+      // so before this fold existed the schema returned untouched.
+      const out = normalizeListViewSchema({
+        type: 'list-view',
+        viewType: 'kanban',
+        columns: ['name'],
+        kanban: { groupField: 'stage' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.kanban).toEqual({ groupByField: 'stage' });
+    });
+
+    it('leaves `calendar.defaultView` alone — it is a local extension, not an alias', () => {
+      // No spec counterpart, so it wants promotion upstream. Folding it would
+      // delete an authored value with nowhere to put it.
+      const out = normalizeListViewSchema({
+        viewType: 'calendar',
+        calendar: { startDateField: 'starts_at', defaultView: 'week' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.calendar).toEqual({ startDateField: 'starts_at', defaultView: 'week' });
+    });
+
+    it('preserves the renderer-ahead knobs the configs are `.passthrough()` for', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        kanban: { groupField: 'stage', swimlaneField: 'owner' },
+        timeline: { dateField: 'due', endField: 'done' },
+      }) as Record<string, Record<string, unknown>>;
+      expect(out.kanban).toEqual({ groupByField: 'stage', swimlaneField: 'owner' });
+      expect(out.timeline).toEqual({ startDateField: 'due', endField: 'done' });
+    });
+
+    it('does not reach into the legacy `options.*` twin', () => {
+      // `options` is a sanctioned passthrough bag, not the declared per-view
+      // path. ListView merges it UNDER `schema.kanban`, and its readers already
+      // try both nestings, so folding only the declared path changes nothing
+      // there — stated as a test so the boundary is deliberate, not accidental.
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        options: { kanban: { groupField: 'stage' } },
+      }) as Record<string, Record<string, Record<string, unknown>>>;
+      expect(out.options.kanban).toEqual({ groupField: 'stage' });
+    });
+
+    it('does not mutate the nested config object', () => {
+      const kanban = { groupField: 'stage' };
+      const schema = { viewType: 'grid', kanban };
+      normalizeListViewSchema(schema);
+      expect(kanban).toEqual({ groupField: 'stage' });
+    });
+
+    it('returns the input by reference when every nested config is canonical', () => {
+      const schema = {
+        type: 'list-view',
+        viewType: 'grid',
+        columns: ['name'],
+        kanban: { groupByField: 'stage', columns: ['name'] },
+        gallery: { coverField: 'logo' },
+        timeline: { startDateField: 'due' },
+      };
+      expect(normalizeListViewSchema(schema)).toBe(schema);
+    });
+
+    it('ignores a non-object per-view config', () => {
+      const schema = { type: 'list-view', viewType: 'grid', columns: ['name'], kanban: 'nonsense' };
+      expect(normalizeListViewSchema(schema)).toBe(schema);
+    });
+  });
+
   describe('reference stability', () => {
     it('returns the input by reference when there is nothing to fold', () => {
       // Load-bearing: ListView memoizes on this identity, so allocating a fresh
