@@ -246,6 +246,29 @@ describe('a change of session user drops the previous user’s state wholesale (
     expect(localStorage.getItem('objectui-nav-order-crm')).toBe('["accounts"]');
   });
 
+  it('does not purge when the previous owner was never PERSISTED', () => {
+    // The asymmetry `adopt()` is built on, pinned so it is not "tidied" back
+    // into a `current()` call. `current()` is memory-first because it answers
+    // "which key do I use in this tab". The purge decision is storage-only
+    // because it answers "is another user's state sitting in this store" — and
+    // a browser that persisted nothing (Safari private browsing, a quota-
+    // exhausted origin, a store cleared out from under us) has no residue to
+    // drop. Purging on an in-memory id there deletes state written FOR the
+    // arriving user, not by the previous one.
+    SessionUserScope.adopt(USER_A);
+    localStorage.clear();
+    localStorage.setItem('objectui-nav-order-crm', '["accounts"]');
+    // Precondition: memory still names A, so a `current()`-based decision
+    // would read this as a change. This case is not vacuous.
+    expect(SessionUserScope.current()).toBe(USER_A);
+    expect(localStorage.getItem('auth-session-user-id')).toBeNull();
+
+    SessionUserScope.adopt(USER_B);
+
+    expect(localStorage.getItem('objectui-nav-order-crm')).toBe('["accounts"]');
+    expect(SessionUserScope.current()).toBe(USER_B);
+  });
+
   it('nulls the in-memory org BEFORE it touches storage', () => {
     // The ordering property #5703 made load-bearing, restated for this path.
     // `get()` falls through to `_memoryValue` whenever the persisted read is

@@ -220,11 +220,31 @@ export const SessionUserScope = {
    * `AuthProvider` for real sessions only — the synthetic `preview-user` /
    * `guest` identities never reach it, so a preview mount cannot purge a real
    * user's state.
+   *
+   * Because the decision reads the PERSISTED pointer, anything that deletes
+   * that pointer without deleting the state it describes would silently retire
+   * this invariant. `apps/console/src/lib/auth-preflight.ts` is the one place
+   * that sweeps auth keys before render, and it says so in its own comment:
+   * it removes every active-org spelling and leaves `auth-session-user-id`
+   * alone on purpose.
    */
   adopt(userId: string): void {
     if (!userId) return;
-    const previous = this.current();
-    if (previous !== null && previous !== userId) {
+    // Already this page-load's owner. Short-circuits before the storage read
+    // below, which matters in a browser that REJECTS WRITES: there the pointer
+    // write further down silently fails, so every later call would re-read a
+    // stale persisted owner and purge again.
+    if (this._userId === userId) return;
+    // WHOSE RESIDUE IS IN THIS STORE — read from storage, deliberately not
+    // from {@link current}. The two questions are different and take different
+    // authorities. `current()` answers "which key do I use right now", and
+    // memory is this tab's truth for that. This answers "is there another
+    // user's state PERSISTED here", and the persisted pointer is the only
+    // witness to that: a browser that never persisted anything has no residue
+    // to drop, and purging on the strength of an in-memory id would delete
+    // state that was written for the arriving user.
+    const persistedPrevious = readPersisted(SESSION_USER_STORAGE_KEY);
+    if (persistedPrevious !== null && persistedPrevious !== userId) {
       purgePreviousUserClientState();
     }
     this._userId = userId;
