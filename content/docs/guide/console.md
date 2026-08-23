@@ -15,7 +15,7 @@ pnpm install
 pnpm dev            # starts the console dev server (Vite)
 ```
 
-The console opens at **http://localhost:5180** (the port is fixed in `apps/console/vite.config.ts`). There is no bundled mock backend — `apps/console/.env.development` points `VITE_SERVER_URL` at `http://localhost:3000`, so an ObjectStack server has to be listening there. See [Running with a Real Backend](#running-with-a-real-backend) to target a different one.
+The console opens at **http://localhost:5180** (the port is fixed in `apps/console/vite.config.ts`). There is no bundled mock backend — `apps/console/.env.development` ships `VITE_SERVER_URL` **empty** (same origin), and the Vite dev server proxies `/api/*` to `http://localhost:3000` by default, so an ObjectStack server has to be listening there. See [Running with a Real Backend](#running-with-a-real-backend) to point dev at a different one.
 
 ## Key Features
 
@@ -59,8 +59,8 @@ it renders whatever the server it is pointed at publishes. There are only two in
 
 **1. `VITE_SERVER_URL` — which backend to talk to.** A build-time Vite variable, and the only
 setting the console itself owns. It seeds the data adapter's base URL and the runtime-config
-fetch; `apps/console/.env.development` defaults it to `http://localhost:3000`, and an empty
-value means same origin. See [Running with a Real Backend](#running-with-a-real-backend).
+fetch; `apps/console/.env.development` ships it **empty**, which means same origin — the
+Vite dev server proxies `/api/*` to the backend. See [Running with a Real Backend](#running-with-a-real-backend).
 
 **2. Server-pushed runtime config — everything else.** Before React mounts, the console
 resolves `/api/v1/runtime/config` from that server and applies it: product branding, feature
@@ -78,11 +78,13 @@ shape.
 
 `VITE_SERVER_URL` is the setting that decides which backend the console talks to — the data adapter, auth, i18n and action endpoints all hang off it.
 
-1. Point it at your server. An inline value overrides `apps/console/.env.development`:
+1. In dev, leave `VITE_SERVER_URL` empty and point the dev proxy at your server instead.
+   Only `/api/*` is proxied, to `DEV_PROXY_TARGET` when set and `http://localhost:3000`
+   otherwise:
    ```bash
-   VITE_SERVER_URL=http://localhost:3000 pnpm dev
+   DEV_PROXY_TARGET=https://demo.objectstack.ai pnpm dev
    ```
-   Leave it empty (`VITE_SERVER_URL=`) to use the same origin — the right setting when an ObjectStack server serves the console itself.
+   This keeps the page and the API on one origin. Setting `VITE_SERVER_URL` to an absolute origin still works, but it opts dev out of same-origin and into CORS — an absolute `VITE_SERVER_URL` is the right setting for a *built* console deployed apart from its backend.
 2. The console will use the ObjectStack client to discover metadata and perform CRUD operations against the server.
 
 ## Where the Code Lives
