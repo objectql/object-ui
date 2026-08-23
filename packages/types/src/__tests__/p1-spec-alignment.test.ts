@@ -606,17 +606,16 @@ describe('P1.6 i18n & ARIA Protocol Alignment', () => {
     expect(schema.aria?.live).toBe('polite');
   });
 
-  it('should accept ARIA props on DashboardComponentSchema', () => {
-    const schema: DashboardComponentSchema = {
-      type: 'dashboard',
-      widgets: [],
-      aria: {
-        ariaLabel: 'Sales Dashboard',
-        role: 'region',
-      },
-    };
-    expect(schema.aria?.ariaLabel).toBe('Sales Dashboard');
-  });
+  // `should accept ARIA props on DashboardComponentSchema` REMOVED
+  // (objectui#5830): the spec removed `dashboard.aria` at the #3896 audit
+  // close-out — `DashboardSchema.shape.aria` is a tombstone that refuses any
+  // value — and `packages/plugin-dashboard/src` has no `schema.aria` read site
+  // (measured for #5742; pinned by that package's
+  // `dashboardAuthoredInputs.test.tsx`). The declared member is gone from the
+  // TS interface too; had this test stayed, it would have kept passing through
+  // `BaseSchema`'s index signature while asserting the opposite of the
+  // contract. The removal is pinned by
+  // `dashboard-aria-retired-contract-twins.test.ts`.
 
   it('should accept ARIA props on PageNodeSchema', () => {
     const schema: PageNodeSchema = {
