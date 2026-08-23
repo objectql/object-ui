@@ -37,7 +37,7 @@ one has its own section below.
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
 | `dependabot-auto-merge.yml` | Dependabot Auto-merge | PR to `main`/`develop` authored by `dependabot[bot]` | No — but it gates *its own* merge, and goes red instead of merging when the check set is not green |
 | `cross-repo-issue-closer.yml` | Cross-repo Issue Closer | PR `closed` (acts only when merged) | No — runs after merge |
-| `changeset-release.yml` | Changeset Release | Push to `main` | n/a |
+| `changeset-release.yml` | Changeset Release | Push to `main` (publish half); 6-hourly cron `0 */6 * * *`; manual (version-PR refresh half) | n/a |
 | `changelog.yml` | Auto Changelog | GitHub Release published; manual | n/a |
 | `stale.yml` | Stale Issues & PRs | Daily cron `0 0 * * *`; manual | n/a |
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
@@ -709,19 +709,37 @@ Uses [Lychee](https://github.com/lycheeverse/lychee) with configuration from `ly
 
 ### Changeset Release (`changeset-release.yml`)
 
-**Trigger:** Push to `main`.
+**Trigger:** Push to `main` — the **publish** half. Cron `0 */6 * * *` and manual dispatch with
+`refresh_version_pr` — the **version-PR refresh** half.
 
-Uses [Changesets](https://github.com/changesets/changesets) for automated versioning and npm publishing:
-1. Detects pending changesets.
-2. Bumps package versions.
-3. Publishes to npm.
-4. Configures a pnpm-lock.yaml merge driver to prevent lock file conflicts.
+Uses [Changesets](https://github.com/changesets/changesets) for automated versioning and npm
+publishing, in **two lanes that cannot do each other's job**:
 
-Step 3 runs `pnpm changeset:publish`, and that script is
+| Event | `.changeset/` | What runs |
+|---|---|---|
+| Push to `main` | empty | **Publish to npm.** The version PR has just been merged; that merge is the release act. |
+| Push to `main` | changesets pending | **Nothing.** The whole release job is skipped. |
+| Cron `0 */6 * * *` | either | **Refresh the version PR** ([#5400](https://github.com/objectstack-ai/objectui/pull/5400)) — never publishes. |
+| Manual, `refresh_version_pr` checked | either | The same refresh, on demand. |
+| Manual, unchecked | either | Nothing; the run says so with a `::notice::`. |
+
+The refresh used to run on **every** push to `main`, which force-pushed the version PR ~18 times
+a working day while releases are weekly — so its branch CI never converged, and every refresh
+was a CI run spent on bookkeeping nobody reads until release day
+([objectstack#10850](https://github.com/objectstack-ai/objectstack/issues/10850)). A `lane` job
+answers "does this commit carry pending changesets?" from a sparse checkout of `.changeset/`
+before anything installs or builds, so a landing that owes no publish costs one cheap job.
+
+The refresh lane is invoked **without** a `publish:` script and **without** npm credentials, so
+it cannot publish by construction rather than by a condition — the release act in this
+repository stays the human merge of the version PR. Step 3 of the publish lane runs
+`pnpm changeset:publish`, and that script is
 `node scripts/check-published-dist-tooling.mjs && changeset publish` — the **blocking** copy of
 the Published Dist Gate above. A published package whose `dist/` carries tooling material stops
 the publish before a single tarball reaches npm, which is where that defect actually costs
 anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+Both lanes configure a pnpm-lock.yaml merge driver to prevent lock file conflicts.
 
 ### Published Dist Gate (`published-dist-gate.yml`)
 
