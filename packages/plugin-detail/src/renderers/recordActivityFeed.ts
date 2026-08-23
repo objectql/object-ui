@@ -159,13 +159,116 @@ export function normalizeFilterMode(value: unknown): FeedFilterMode {
     : 'all';
 }
 
-/** Keep only the `types` entries the spec actually defines. */
+/**
+ * Warn ONCE per distinct key on a channel, never again for a key already named.
+ *
+ * One plumbing for both diagnostics in this file rather than two conventions.
+ * A page re-runs its filter on every state change and re-maps its rows on every
+ * fetch, but an authoring mistake is ONE mistake however many times React runs
+ * the pipeline — so the dedupe key is the offending value, not the call.
+ *
+ * Each channel keeps its OWN bucket because the two vocabularies overlap:
+ * `crm_task` is a plausible unmapped `sys_activity.type` AND a plausible
+ * unrecognised `types` entry (it is an object name, and naming an object where
+ * a feed kind belongs is exactly how objectui#5841 was found). One channel
+ * having spoken must not silence the other.
+ *
+ * The message is built from the keys that were actually fresh, so a list whose
+ * second render adds one new typo names that typo rather than repeating a
+ * warning the author has already read.
+ */
+function warnOnce(
+  bucket: Set<string>,
+  keys: readonly string[],
+  build: (fresh: readonly string[]) => string,
+): void {
+  const fresh = keys.filter((k) => !bucket.has(k));
+  if (fresh.length === 0) return;
+  for (const k of fresh) bucket.add(k);
+  console.warn(build(fresh));
+}
+
+/** Authored `types` values already named as unrecognised. See {@link warnOnce}. */
+const warnedUnrecognisedFeedTypes = new Set<string>();
+
+/** Test seam: forget which `types` entries have already been named. */
+export function resetUnrecognisedFeedTypeWarnings(): void {
+  warnedUnrecognisedFeedTypes.clear();
+}
+
+/**
+ * Sanitise an authored `types` allow-list. Narrowing or refusal, never widening.
+ *
+ * Three distinct authored intents used to collapse into one rendering
+ * (objectui#5841). They are three again:
+ *
+ * | authored                      | returns     | rendered                       |
+ * | ----------------------------- | ----------- | ------------------------------ |
+ * | absent (`undefined`/`null`)   | `undefined` | every kind — no filter authored |
+ * | `[]`                          | `[]`        | nothing — the author said "no kinds" |
+ * | `['crm_task']` (none known)   | `[]`        | nothing, plus one diagnostic   |
+ * | `['task', 'crm_task']`        | `['task']`  | the recognised members, plus one diagnostic |
+ *
+ * `undefined` now means "no `types` key was authored" and ONLY that. It used to
+ * mean that OR "everything you authored was dropped", and {@link applyFeedConfig}
+ * reads it as "apply no filter" — so a single typo served the author every
+ * activity on the record with nothing said anywhere, and the tell was a
+ * PLAUSIBLE result (a populated timeline) rather than an empty one that gets
+ * investigated. That is the principle this function now holds: a sanitiser may
+ * narrow an author's request or refuse it, but it must never silently widen it,
+ * because widening turns a typo into "show the user everything" — the one
+ * outcome no author asked for.
+ *
+ * `[]` is honoured rather than reinterpreted, and silently: rendering every kind
+ * is the maximally wrong answer to "no kinds", and there is nothing to report
+ * about a request that was carried out exactly.
+ *
+ * Membership is read from `@objectstack/spec`'s `FeedItemType` at runtime, never
+ * re-typed here — see the file header for what a hand copy of a spec enum cost.
+ *
+ * NOT pure: an entry it cannot recognise logs once (see {@link warnOnce}). The
+ * failure being repaired is invisibility, so the diagnostic is the other half of
+ * the fix rather than a nicety.
+ */
 export function normalizeFeedTypes(value: unknown): FeedItemType[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const kept = value.filter(
-    (v): v is FeedItemType => typeof v === 'string' && FEED_ITEM_TYPE_VALUES.includes(v),
-  );
-  return kept.length > 0 ? kept : undefined;
+  // The only shape that means "no filter": the author never wrote the key.
+  if (value === undefined || value === null) return undefined;
+
+  // Authored, but not a list of kinds at all (`types: 'task'` — brackets
+  // dropped). Refused for the same reason an all-unrecognised list is: a filter
+  // that cannot be read is not a request to REMOVE the filter.
+  if (!Array.isArray(value)) {
+    const shown = typeof value === 'string' ? `"${value}"` : typeof value;
+    warnOnce(warnedUnrecognisedFeedTypes, [`non-array ${shown}`], () =>
+      `[record:activity] ignoring an authored \`types\` that is not an array (${shown}). `
+        + '`types` must be a LIST of feed item types. The timeline renders empty rather '
+        + 'than falling back to every kind, because a filter that cannot be read is not a '
+        + 'request to remove the filter. Declared feed item types: '
+        + `${FEED_ITEM_TYPE_VALUES.join(', ')}.`);
+    return [];
+  }
+
+  const kept: FeedItemType[] = [];
+  const unrecognised: string[] = [];
+  for (const entry of value) {
+    if (typeof entry === 'string' && FEED_ITEM_TYPE_VALUES.includes(entry)) {
+      kept.push(entry as FeedItemType);
+    } else {
+      unrecognised.push(typeof entry === 'string' ? entry : String(entry));
+    }
+  }
+
+  if (unrecognised.length > 0) {
+    warnOnce(warnedUnrecognisedFeedTypes, unrecognised, (fresh) =>
+      `[record:activity] ignoring ${fresh.length} unrecognised \`types\` `
+        + `entr${fresh.length === 1 ? 'y' : 'ies'}: ${fresh.map((t) => `"${t}"`).join(', ')}. `
+        + 'No declared feed item type matches, so they select nothing; only the recognised '
+        + 'entries narrow the timeline, and a list with NO recognised entry renders an '
+        + 'EMPTY timeline rather than every kind. Declared feed item types: '
+        + `${FEED_ITEM_TYPE_VALUES.join(', ')}.`);
+  }
+
+  return kept;
 }
 
 /** Coerce `limit` to a positive integer, falling back to the spec default. */
@@ -212,16 +315,13 @@ const warnedUnknownActivityTypes = new Set<string>();
  * diagnostic anywhere.
  */
 function warnUnknownActivityType(type: string): void {
-  if (warnedUnknownActivityTypes.has(type)) return;
-  warnedUnknownActivityTypes.add(type);
-  console.warn(
+  warnOnce(warnedUnknownActivityTypes, [type], () =>
     `[record:activity] dropped a sys_activity row with type "${type}": no feed `
       + 'item type is mapped for it, so it cannot appear on any timeline whatever '
       + 'the page authors. `sys_activity.type` is not validated on write (every '
       + 'field on that object is readonly), so a producer can store a value the '
       + 'platform never declared. Map it in ACTIVITY_TYPE_TO_FEED_TYPE '
-      + '(@object-ui/plugin-detail) if it is record activity.',
-  );
+      + '(@object-ui/plugin-detail) if it is record activity.');
 }
 
 /** Test seam: forget which unknown types have already been warned about. */
@@ -314,12 +414,17 @@ export function applyFeedConfig(
     kept = kept.filter((i) => !COMPLETED_FEED_TYPES.has(i.type));
   }
 
-  // `types` — an explicit allow-list of feed item types. Unknown entries are
-  // dropped by normalizeFeedTypes; an all-unknown list is treated as "not
-  // configured" rather than "show nothing", so a typo cannot empty the feed
-  // silently.
+  // `types` — an explicit allow-list of feed item types.
+  //
+  // The test is `!== undefined`, not truthiness, and the difference is the whole
+  // of objectui#5841: an EMPTY allow-list is a filter that keeps nothing, not an
+  // absent filter. `normalizeFeedTypes` returns `undefined` only when no `types`
+  // key was authored; `[]` means the author wrote one and nothing in it survived
+  // — `types: []`, or a list whose every member is unrecognised. Both filter to
+  // nothing, which is the NARROW answer. Reading either as "no filter" was the
+  // defect: it widened a typo into "show the user every activity on the record".
   const types = normalizeFeedTypes(config.types);
-  if (types) {
+  if (types !== undefined) {
     const allowed = new Set<string>(types);
     kept = kept.filter((i) => allowed.has(i.type));
   }

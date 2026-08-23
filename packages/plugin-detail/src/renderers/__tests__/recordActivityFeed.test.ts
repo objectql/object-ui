@@ -29,6 +29,7 @@ import {
   normalizeFilterMode,
   normalizeLimit,
   resetUnknownActivityTypeWarnings,
+  resetUnrecognisedFeedTypeWarnings,
 } from '../recordActivityFeed';
 
 const item = (over: Partial<FeedItem> & Pick<FeedItem, 'id' | 'type'>): FeedItem => ({
@@ -282,11 +283,32 @@ describe('input normalisation reads its vocabulary from the spec', () => {
     expect(normalizeFilterMode(7)).toBe('all');
   });
 
-  it('keeps only spec feed types in `types`, and treats an all-garbage list as unset', () => {
-    expect(normalizeFeedTypes(['comment', 'not_a_type', 'task'])).toEqual(['comment', 'task']);
-    expect(normalizeFeedTypes(['not_a_type'])).toBeUndefined();
-    expect(normalizeFeedTypes('comment')).toBeUndefined();
+  it('accepts every FeedItemType the spec declares, read from the spec itself', () => {
+    // The allow-list vocabulary is never hand-typed here: a pin that re-states
+    // the enum it is pinning cannot fail when the enum moves.
+    const declared = [...SpecFeedItemType.options];
+    expect(normalizeFeedTypes(declared)).toEqual(declared);
+  });
+
+  it('distinguishes "no `types` authored" from "nothing survived" (objectui#5841)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // `undefined` is now reserved for ONE meaning: the author wrote no filter.
     expect(normalizeFeedTypes(undefined)).toBeUndefined();
+    expect(normalizeFeedTypes(null)).toBeUndefined();
+
+    // Everything else is an authored filter, and an authored filter that keeps
+    // nothing is `[]` — a filter that selects nothing, never "no filter".
+    expect(normalizeFeedTypes([])).toEqual([]);
+    expect(normalizeFeedTypes(['crm_task'])).toEqual([]);
+    expect(normalizeFeedTypes(['comment', 'crm_task', 'task'])).toEqual(['comment', 'task']);
+
+    // Brackets dropped. Also refused rather than ignored: `types` that cannot be
+    // read is not a request to remove the filter.
+    expect(normalizeFeedTypes('comment')).toEqual([]);
+
+    resetUnrecognisedFeedTypeWarnings();
+    warn.mockRestore();
   });
 
   it('coerces `limit` to a positive integer, defaulting to the spec default', () => {
@@ -330,8 +352,14 @@ describe('applyFeedConfig — the declared inputs change what is rendered', () =
     expect(ids(applyFeedConfig(feed, { types: ['comment', 'system'] }, 50))).toEqual(['c1', 's1']);
   });
 
-  it('a `types` list of nothing but typos does not silently empty the feed', () => {
-    expect(ids(applyFeedConfig(feed, { types: ['commnet'] }, 50))).toEqual(['c1', 'f1', 's1']);
+  it('a `types` list of nothing but typos renders nothing, not everything (objectui#5841)', () => {
+    // Replaces the pin that asserted the opposite. That expectation WAS the
+    // defect: `['commnet']` selected no kind, and serving every kind instead is
+    // the one answer the author cannot have meant.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(ids(applyFeedConfig(feed, { types: ['commnet'] }, 50))).toEqual([]);
+    resetUnrecognisedFeedTypeWarnings();
+    warn.mockRestore();
   });
 
   it('limit pages the feed newest-first and reports hasMore', () => {
@@ -365,6 +393,120 @@ describe('applyFeedConfig — the declared inputs change what is rendered', () =
     const source = feed.slice();
     applyFeedConfig(source, { types: ['comment'] }, 1);
     expect(source).toHaveLength(4);
+  });
+});
+
+/**
+ * objectui#5841 — a sanitiser may NARROW an author's request or refuse it, but
+ * it must never silently WIDEN it.
+ *
+ * Three authored intents used to collapse into one rendering, and the collapse
+ * was invisible because its result was PLAUSIBLE: a populated timeline reads as
+ * working, so a page shipped for as long as nobody counted the rows. The table
+ * below is the ruled behaviour, and the two controls are what stop the suite
+ * from passing for the wrong reason — "renders empty" is trivially satisfiable
+ * by a pipeline that has stopped filtering at all, so a run that did not also
+ * pin the unchanged legs would not discriminate.
+ */
+describe('an unusable `types` filter narrows or refuses, never widens (objectui#5841)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetUnrecognisedFeedTypeWarnings();
+  });
+
+  const feed: FeedItem[] = [
+    item({ id: 'c1', type: 'comment', createdAt: '2026-01-01T00:00:00.000Z' }),
+    item({ id: 'f1', type: 'field_change', createdAt: '2026-01-02T00:00:00.000Z' }),
+    item({ id: 's1', type: 'system', createdAt: '2026-01-03T00:00:00.000Z' }),
+  ];
+  const ids = (f: { items: FeedItem[] }) => f.items.map((i) => i.id);
+  const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  /**
+   * An object name where a feed kind belongs — the shape that was measured in a
+   * real app. Its unrecognisedness is DERIVED from the spec, never asserted by
+   * hand: if `crm_task` ever became a declared feed type this guard fails loudly
+   * instead of the suite quietly testing nothing.
+   */
+  const UNRECOGNISED = 'crm_task';
+  it('the value this suite treats as unrecognised is outside the spec vocabulary', () => {
+    expect(SpecFeedItemType.options).not.toContain(UNRECOGNISED);
+    expect(SpecFeedItemType.options).toContain('comment');
+  });
+
+  it('CONTROL — `types` omitted still means no filter: every kind renders', () => {
+    expect(ids(applyFeedConfig(feed, {}, 50))).toEqual(['c1', 'f1', 's1']);
+  });
+
+  it('CONTROL — a recognised list still filters to exactly those kinds', () => {
+    const warn = quiet();
+    expect(ids(applyFeedConfig(feed, { types: ['comment', 'system'] }, 50)))
+      .toEqual(['c1', 's1']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('`types: []` filters to NOTHING — the author said "no kinds"', () => {
+    expect(ids(applyFeedConfig(feed, { types: [] }, 50))).toEqual([]);
+  });
+
+  it('a list whose every member is unrecognised filters to NOTHING', () => {
+    quiet();
+    expect(ids(applyFeedConfig(feed, { types: [UNRECOGNISED] }, 50))).toEqual([]);
+  });
+
+  it('a MIXED list keeps the recognised members and drops the rest', () => {
+    quiet();
+    expect(ids(applyFeedConfig(feed, { types: ['comment', UNRECOGNISED] }, 50)))
+      .toEqual(['c1']);
+  });
+
+  it('`types` that is not a list at all is refused, not ignored', () => {
+    // `types: 'comment'` — brackets dropped. The kind is spelled correctly, so
+    // this cannot be caught by vocabulary alone; ignoring it rendered the whole
+    // audit stream.
+    quiet();
+    expect(ids(applyFeedConfig(feed, { types: 'comment' }, 50))).toEqual([]);
+  });
+
+  it('names the unrecognised kinds, once, however many times the feed re-renders', () => {
+    const warn = quiet();
+    for (let i = 0; i < 5; i += 1) {
+      applyFeedConfig(feed, { types: [UNRECOGNISED] }, 50);
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain(UNRECOGNISED);
+    // The message is actionable: it carries the vocabulary the author needed.
+    expect(String(warn.mock.calls[0][0])).toContain('comment');
+  });
+
+  it('names EVERY unrecognised kind in the list, in one diagnostic', () => {
+    const warn = quiet();
+    applyFeedConfig(feed, { types: [UNRECOGNISED, 'crm_deal', 'comment'] }, 50);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain(UNRECOGNISED);
+    expect(String(warn.mock.calls[0][0])).toContain('crm_deal');
+  });
+
+  it('stays SILENT for a well-formed filter — including the empty one', () => {
+    // `types: []` is honoured exactly, so there is nothing to report. Warning
+    // about a request that was carried out teaches authors to ignore the channel
+    // (same posture the unknown-activity-type warning takes above).
+    const warn = quiet();
+    applyFeedConfig(feed, {}, 50);
+    applyFeedConfig(feed, { types: [] }, 50);
+    applyFeedConfig(feed, { types: [...SpecFeedItemType.options] }, 50);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps the two warning channels apart — one does not silence the other', () => {
+    // The vocabularies overlap: `crm_task` is a plausible unmapped
+    // `sys_activity.type` AND a plausible unrecognised `types` entry. A shared
+    // dedupe bucket would let whichever fired first swallow the other.
+    const warn = quiet();
+    activityRowToFeedItem({ id: 'z', type: UNRECOGNISED }, 'System');
+    applyFeedConfig(feed, { types: [UNRECOGNISED] }, 50);
+    expect(warn).toHaveBeenCalledTimes(2);
+    resetUnknownActivityTypeWarnings();
   });
 });
 

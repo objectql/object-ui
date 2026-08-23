@@ -223,7 +223,7 @@ indistinguishable from no activity at all.
 
 | Input | Effect | Needs |
 |---|---|---|
-| `types` | Allow-list of feed item types. Unrecognised entries are ignored; a list of nothing but typos is treated as unset rather than emptying the feed. | — |
+| `types` | Allow-list of feed item types. Recognised entries narrow the feed; unrecognised ones are dropped and named in one `console.warn`. A list that keeps nothing — `types: []`, or one whose every entry is unrecognised — filters to **nothing** and the panel renders an empty timeline, rather than widening back to every kind. Omit `types` for no filter; that is the only value that means it. | — |
 | `filterMode` | Which slice the filter dropdown opens on (`all` / `comments_only` / `changes_only` / `tasks_only`). The user can still change it. An unrecognised value falls back to `all`. | — |
 | `showFilterToggle` | Shows/hides that dropdown. | — |
 | `limit` | Items per page; also caps the scoped `sys_activity` read. "Load more" grows the window by this much and re-reads. | — |
