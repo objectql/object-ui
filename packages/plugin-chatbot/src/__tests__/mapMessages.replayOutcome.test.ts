@@ -138,3 +138,24 @@ describe('replay dispatch errors + authoring verdicts (objectui#5695 follow-up, 
     expect(detectAuthoringVerdict('plain')).toBeUndefined();
   });
 });
+
+describe('the persisted text-wrapper shape (rehydration path)', () => {
+  it('a dispatch error inside the Vercel {type:"text",value} wrapper is still detected', () => {
+    expect(
+      detectReplayOutcome('replay_t1_0', {
+        type: 'text',
+        value: JSON.stringify({ error: 'apply_edit op #1 (add_field): object "task" not found.' }),
+      }),
+    ).toEqual({
+      kind: 'failed',
+      dispatchError: true,
+      error: 'apply_edit op #1 (add_field): object "task" not found.',
+    });
+  });
+
+  it('an authoring verdict inside the wrapper is still classified', () => {
+    expect(
+      detectAuthoringVerdict({ type: 'text', value: JSON.stringify({ status: 'published' }) }),
+    ).toEqual({ kind: 'published' });
+  });
+});
