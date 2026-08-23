@@ -271,16 +271,20 @@ describe('normalizeListViewSchema (#2890)', () => {
   });
 
   describe('per-view-type config aliases (#2890 phase-3 carry-over)', () => {
+    /** The nested per-view config off a normalized schema, as a plain bag. */
+    const cfg = (out: unknown, key: string): Record<string, unknown> =>
+      (out as Record<string, unknown>)[key] as Record<string, unknown>;
+
     it('folds each of the four aliases onto its spec key', () => {
       const out = normalizeListViewSchema({
         viewType: 'grid',
         kanban: { groupField: 'stage', cardFields: ['name', 'amount'] },
         gallery: { imageField: 'logo' },
         timeline: { dateField: 'due_date' },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.kanban).toEqual({ groupByField: 'stage', columns: ['name', 'amount'] });
-      expect(out.gallery).toEqual({ coverField: 'logo' });
-      expect(out.timeline).toEqual({ startDateField: 'due_date' });
+      });
+      expect(cfg(out, 'kanban')).toEqual({ groupByField: 'stage', columns: ['name', 'amount'] });
+      expect(cfg(out, 'gallery')).toEqual({ coverField: 'logo' });
+      expect(cfg(out, 'timeline')).toEqual({ startDateField: 'due_date' });
     });
 
     it('drops each legacy key so a missed read-site fails loudly', () => {
@@ -289,11 +293,11 @@ describe('normalizeListViewSchema (#2890)', () => {
         kanban: { groupField: 'stage', cardFields: ['name'] },
         gallery: { imageField: 'logo' },
         timeline: { dateField: 'due_date' },
-      }) as Record<string, Record<string, unknown>>;
-      expect('groupField' in out.kanban).toBe(false);
-      expect('cardFields' in out.kanban).toBe(false);
-      expect('imageField' in out.gallery).toBe(false);
-      expect('dateField' in out.timeline).toBe(false);
+      });
+      expect('groupField' in cfg(out, 'kanban')).toBe(false);
+      expect('cardFields' in cfg(out, 'kanban')).toBe(false);
+      expect('imageField' in cfg(out, 'gallery')).toBe(false);
+      expect('dateField' in cfg(out, 'timeline')).toBe(false);
     });
 
     it('lets the canonical key win when a config carries both', () => {
@@ -302,10 +306,10 @@ describe('normalizeListViewSchema (#2890)', () => {
         kanban: { groupByField: 'canonical', groupField: 'legacy', columns: ['canonical'], cardFields: ['legacy'] },
         gallery: { coverField: 'canonical', imageField: 'legacy' },
         timeline: { startDateField: 'canonical', dateField: 'legacy' },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.kanban).toEqual({ groupByField: 'canonical', columns: ['canonical'] });
-      expect(out.gallery).toEqual({ coverField: 'canonical' });
-      expect(out.timeline).toEqual({ startDateField: 'canonical' });
+      });
+      expect(cfg(out, 'kanban')).toEqual({ groupByField: 'canonical', columns: ['canonical'] });
+      expect(cfg(out, 'gallery')).toEqual({ coverField: 'canonical' });
+      expect(cfg(out, 'timeline')).toEqual({ startDateField: 'canonical' });
     });
 
     it('is what corrects ListView\'s inverted kanban precedence', () => {
@@ -317,9 +321,9 @@ describe('normalizeListViewSchema (#2890)', () => {
       const out = normalizeListViewSchema({
         viewType: 'grid',
         kanban: { columns: ['canonical'], cardFields: ['legacy'] },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.kanban.cardFields).toBeUndefined();
-      expect(out.kanban.columns).toEqual(['canonical']);
+      });
+      expect(cfg(out, 'kanban').cardFields).toBeUndefined();
+      expect(cfg(out, 'kanban').columns).toEqual(['canonical']);
     });
 
     it('folds a view whose ONLY legacy vocabulary is a nested alias', () => {
@@ -330,8 +334,8 @@ describe('normalizeListViewSchema (#2890)', () => {
         viewType: 'kanban',
         columns: ['name'],
         kanban: { groupField: 'stage' },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.kanban).toEqual({ groupByField: 'stage' });
+      });
+      expect(cfg(out, 'kanban')).toEqual({ groupByField: 'stage' });
     });
 
     it('leaves `calendar.defaultView` alone — it is a local extension, not an alias', () => {
@@ -340,8 +344,8 @@ describe('normalizeListViewSchema (#2890)', () => {
       const out = normalizeListViewSchema({
         viewType: 'calendar',
         calendar: { startDateField: 'starts_at', defaultView: 'week' },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.calendar).toEqual({ startDateField: 'starts_at', defaultView: 'week' });
+      });
+      expect(cfg(out, 'calendar')).toEqual({ startDateField: 'starts_at', defaultView: 'week' });
     });
 
     it('preserves the renderer-ahead knobs the configs are `.passthrough()` for', () => {
@@ -349,9 +353,9 @@ describe('normalizeListViewSchema (#2890)', () => {
         viewType: 'grid',
         kanban: { groupField: 'stage', swimlaneField: 'owner' },
         timeline: { dateField: 'due', endField: 'done' },
-      }) as Record<string, Record<string, unknown>>;
-      expect(out.kanban).toEqual({ groupByField: 'stage', swimlaneField: 'owner' });
-      expect(out.timeline).toEqual({ startDateField: 'due', endField: 'done' });
+      });
+      expect(cfg(out, 'kanban')).toEqual({ groupByField: 'stage', swimlaneField: 'owner' });
+      expect(cfg(out, 'timeline')).toEqual({ startDateField: 'due', endField: 'done' });
     });
 
     it('does not reach into the legacy `options.*` twin', () => {
@@ -362,8 +366,8 @@ describe('normalizeListViewSchema (#2890)', () => {
       const out = normalizeListViewSchema({
         viewType: 'grid',
         options: { kanban: { groupField: 'stage' } },
-      }) as Record<string, Record<string, Record<string, unknown>>>;
-      expect(out.options.kanban).toEqual({ groupField: 'stage' });
+      });
+      expect(cfg(cfg(out, 'options'), 'kanban') as unknown).toEqual({ groupField: 'stage' });
     });
 
     it('does not mutate the nested config object', () => {
