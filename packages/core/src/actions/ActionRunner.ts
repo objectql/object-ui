@@ -458,6 +458,29 @@ export type ActionRunnerHandler = (
 /**
  * Confirmation handler — replaces window.confirm.
  * Consumers can provide an async implementation (e.g., Shadcn AlertDialog).
+ *
+ * `options` is LIVE, and its producer is not in this file — searching the
+ * runner alone will tell you otherwise. The only call site here passes one
+ * argument (the structured `confirm` arm that used to forward a bag was
+ * retired, objectui#4314), so a runner-scoped sweep reads this parameter as
+ * declared-but-never-produced and files it for removal. That has already
+ * happened once: objectui#5205, ruled KEEP on 2026-08-22.
+ *
+ * The producer bypasses the runner entirely. `handleDeleteView` in
+ * `packages/app-shell/src/views/ObjectView.tsx` — the admin "delete saved
+ * view" confirmation — invokes a `ConfirmationHandler` with all three fields
+ * populated and localized (`console.objectView.deleteViewTitle` / `.delete` /
+ * `.cancel`), and `app-shell`'s `ActionConfirmDialog.tsx` renders them in
+ * place of its generic `actionConfirm.*` fallbacks. Line numbers are left out
+ * on purpose: #5205's pointer had already drifted by the time it was executed.
+ *
+ * So re-measure across the repo, not this package: grep for two-argument
+ * calls of `ConfirmationHandler`-typed values (`confirmHandler(`, `onConfirm(`)
+ * in `app-shell` as well as here. Dropping `options` costs that dialog its
+ * title and both button labels, and narrows a published `.d.ts` against the
+ * natural `(message, options) => …` spelling — which TypeScript rejects
+ * against a one-parameter target unless the second parameter is written
+ * optional.
  */
 export type ConfirmationHandler = (message: string, options?: {
   title?: string;
