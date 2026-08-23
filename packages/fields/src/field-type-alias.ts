@@ -27,14 +27,30 @@ export interface FieldTypeMappingConfig {
  *
  * `select` is the only member, and the narrowness is measured, not assumed. The
  * spec's `MULTI_CAPABLE_TYPES` is larger — select / lookup / file / image, with
- * `radio` on the select branch and `user` storing like `lookup` — but every
- * other member renders both arities INSIDE one widget: `LookupField`,
- * `FileField` and `ImageField` each branch on `multiple` themselves, so their
+ * `radio` on the select branch and `user` storing like `lookup` — and every
+ * member EXCEPT `radio` renders both arities INSIDE one widget: `LookupField`,
+ * `FileField` and `ImageField` each branch on `multiple` themselves, and
+ * `UserField` inherits that branch by delegating to `LookupField`, so their
  * registry id, and with it their `labelling` declaration, is the same either
  * way. A `select` declared `multiple: true` renders `MultiSelectField` instead:
  * a different component, whose labelled surface is a chip row's container that
  * a `<label for>` cannot address (it must be named by IDREF, which is what
  * `field:multiselect`'s `labelling: 'group'` declares — objectui#3975/#3961).
+ *
+ * `radio` is the EXCEPTION, and it is deliberate rather than a gap to be patched
+ * here: `RadioField` reads `multiple` nowhere, so a spec-legal
+ * `{ type: 'radio', multiple: true }` renders an ordinary single-value radio
+ * group — radio is the one `MULTI_CAPABLE_TYPES` member with no multi-arity
+ * renderer at all. Do not paper over that by mapping radio onto a checkbox
+ * group: this repo's emitted value-shape contract pins radio as single-value
+ * (`@object-ui/app-shell`'s `PARAM_VALUE_SHAPES` declares `radio` with
+ * `cardinality: 'scalar'`, drift-tested in `paramValueShape.test.ts`), so a
+ * multi-value rendering would emit `string[]` where that contract says
+ * `string`. The mismatch is being addressed on the PRODUCER side instead: the
+ * maintainer ruling of 2026-08-22 refuses an authored `radio` + `multiple: true`
+ * at the spec's schema/publish entrance, prescribing `checkboxes`/`multiselect`/
+ * `tags`. That work is tracked in objectstack-ai/objectstack#11437 (filed, not
+ * landed as of this comment), with objectui#4015 as the decision anchor.
  *
  * So the widget id has to carry the arity. When it did not, the host label was
  * associated by the declaration registered under `select` — a single-value
