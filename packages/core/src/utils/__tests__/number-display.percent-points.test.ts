@@ -93,8 +93,12 @@ describe('formatDisplayNumber — style: percentPoints (#4576)', () => {
   });
 
   it('keeps the AUTHORED decimal at rounding ties, where the /100 round trip does not', () => {
-    // Measured: 27,581 of 1,200,013 ordinary-magnitude en-US forms differ
-    // between the two routes. These are three of them.
+    // Measured on objectui#4576's tie-dense grid (0.005 steps to 2,000,
+    // precisions 0/1/2) and on `formatDisplayNumber` / `formatMeasure`'s call
+    // shape: 27,581 of 1,200,013 ordinary-magnitude en-US forms differ between
+    // the two routes. These are three of them. (objectui#4590 re-measured the
+    // same route through `formatPercent` and reports 27,577 of 1,200,003 — a
+    // different form set, not a correction of this one.)
     for (const [value, digits, expected] of [
       [0.175, 2, '0.18%'],
       [0.305, 2, '0.31%'],
