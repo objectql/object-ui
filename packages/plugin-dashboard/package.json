@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@object-ui/plugin-charts": "workspace:*",
+    "@object-ui/sdui-parser": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "@types/react-grid-layout": "^2.1.0",
     "@vitejs/plugin-react": "^6.0.5",

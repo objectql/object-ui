@@ -38,11 +38,31 @@ npm install @object-ui/plugin-dashboard
 {
   type: 'dashboard',
   widgets: Widget[],
-  columns?: number,               // Grid columns (default: 3)
-  gap?: number,                   // Gap between widgets
+  label?: string | LocaleMap,       // Header title — spec-canonical spelling; a string or { en, "zh-CN", ... }
+  description?: string | LocaleMap, // Header description, under the title
+  header?: {                        // Header block — strict: exactly these keys
+    showTitle?: boolean,
+    showDescription?: boolean,
+    actions?: { label, actionUrl?, actionType?, icon? }[]
+  },
+  globalFilters?: GlobalFilter[],   // Dashboard-level filter bar — see "Dashboard-level filters"
+  dateRange?: {                     // Built-in date-range filter — see "Dashboard-level filters"
+    field?: string,
+    defaultRange?: string,          // a spec date preset, or 'custom'
+    allowCustomRange?: boolean
+  },
+  refreshInterval?: number,         // Auto-refresh period in seconds; runs only when the host wires onRefresh
+  columns?: number,                 // Grid columns (default: 3)
+  gap?: number,                     // Gap between widgets
   className?: string
 }
 ```
+
+The header renders only when `header` is declared, and costs zero pixels when
+everything it would show is suppressed. The legacy `title` spelling of `label`
+is still *read* (documents in the wild carry it) but is not authoring surface —
+the spec rejects it by name, so new documents author `label`. The retired
+`aria` key is neither read nor authorable.
 
 ### Metric Card
 

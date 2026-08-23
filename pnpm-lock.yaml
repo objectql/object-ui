@@ -1763,6 +1763,9 @@ importers:
       '@object-ui/plugin-charts':
         specifier: workspace:*
         version: link:../plugin-charts
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../sdui-parser
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.2.0(ai@7.0.65(zod@4.4.3))

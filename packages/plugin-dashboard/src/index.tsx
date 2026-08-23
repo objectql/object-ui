@@ -40,6 +40,26 @@ export type {
 } from './dataset-catalog';
 
 // Register dashboard component
+//
+// objectui#5742 — `inputs` is the published authoring surface (serialized into
+// `sdui.manifest.json` and `sdui-intrinsics.d.ts`; `dashboard` is in
+// `PUBLIC_BLOCKS`), and it used to publish only `columns`/`gap`/`className`
+// while `DashboardRenderer` honoured far more, so `validateTree` warned
+// authors off keys that work — `widgets` included, the very key the
+// objectui#5709 unconsumed-options warning descends into. The keys below are
+// the per-key triage (#4668 / #5091 class), each declared because BOTH hold:
+// the renderer reads it AND `@objectstack/spec`'s strict `DashboardSchema`
+// accepts it, so the manifest never offers a key the save gate refuses.
+//
+// Deliberately NOT declared, pinned in
+// `__tests__/dashboardAuthoredInputs.test.tsx`:
+//   - `title`  — legacy spelling of `label`; the spec rejects it by name.
+//     The `schema.title || schema.label` read STAYS (documents in the wild).
+//   - `aria`   — spec tombstone (#3896 audit close-out): no dashboard
+//     renderer ever applied it, and this package has no read site either.
+// `name` (document identity; keys the `dashboards.{name}.*` translation
+// lookups) is neither declared nor pinned — raised as the open question on
+// objectui#5742 rather than guessed; see the pin test's docblock.
 ComponentRegistry.register(
   'dashboard',
   DashboardRenderer,
@@ -49,6 +69,13 @@ ComponentRegistry.register(
     category: 'Complex',
     icon: 'layout-dashboard',
     inputs: [
+      { name: 'widgets', type: 'array', label: 'Widgets', description: 'The widget tree — the spec’s DashboardWidget[]. Each widget binds a dataset (ADR-0021) and may carry a layout ({ x, y, w, h }) and filterBindings. When omitted the dashboard renders an empty grid.' },
+      { name: 'label', type: ['string', 'object'], label: 'Label', description: 'Display name, shown as the header title when `header` is declared — a string or an inline per-locale map such as { en, "zh-CN" }. Spec-canonical spelling; the legacy `title` spelling is not authoring surface.' },
+      { name: 'description', type: ['string', 'object'], label: 'Description', description: 'Header description shown under the title — a string or an inline per-locale map. Rendered only when `header` is declared and `header.showDescription` is not false.' },
+      { name: 'header', type: 'object', label: 'Header', description: 'Header block: { showTitle?, showDescription?, actions? }. Strict — the contract rejects any other key. Renders nothing (zero pixels) when everything it would show is suppressed.' },
+      { name: 'globalFilters', type: 'array', label: 'Global Filters', description: 'Dashboard-level filter bar — the spec’s GlobalFilter[]. Filter values live as dashboard variables (readable in widget expressions as page.<name>) and are AND-merged into each bound widget’s query per its filterBindings.' },
+      { name: 'dateRange', type: 'object', label: 'Date Range', description: 'Built-in date-range filter: { field?, defaultRange?, allowCustomRange? }. `defaultRange` takes the spec’s date presets plus "custom"; the bound field defaults to created_at.' },
+      { name: 'refreshInterval', type: 'number', label: 'Refresh Interval', description: 'Auto-refresh period in seconds. Zero or a negative value disables the timer, and it only runs when the host wires an onRefresh handler.' },
       { name: 'columns', type: 'number', label: 'Columns', defaultValue: 3 },
       { name: 'gap', type: 'number', label: 'Gap', defaultValue: 4 },
       { name: 'className', type: 'string', label: 'CSS Class' }
