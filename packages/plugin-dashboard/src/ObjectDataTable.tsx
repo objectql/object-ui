@@ -17,6 +17,9 @@ import {
   // re-exports the same function object; read here from its home.
   isRetiredFieldType,
   reportRetiredFieldType,
+  // The reference-bearing field family (objectui#5692). Read, never copied —
+  // see the convergence note on `computeLookupExpand`.
+  EXPANDABLE_FIELD_TYPES,
 } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
@@ -173,8 +176,9 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
 /**
  * Compute the list of lookup-typed accessors that should be expanded when
  * fetching rows. Returns column accessors whose object schema field type is
- * a relation (lookup/reference/master_detail/user). Used by the
- * dashboard table widget to ask the data adapter to populate referenced
+ * a relation. Which types those are is NOT restated here: it is
+ * {@link EXPANDABLE_FIELD_TYPES}, the family `@object-ui/core` publishes. Used
+ * by the dashboard table widget to ask the data adapter to populate referenced
  * records (e.g. `account: { id, name }`) so cells don't show raw FK ids.
  *
  * THE GATE (objectui#4914, ruling B) runs ahead of the relation test. Measured
@@ -185,6 +189,28 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
  * show once the spelling stopped being a relation. That the author is TOLD is
  * the whole difference between this and the mechanical deletion the
  * measurement rejected.
+ *
+ * ## The relation test is core's object, not a private copy (objectui#5692)
+ *
+ * It used to be the inline literal
+ * `t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user'`
+ * — one of TWO copies this package held (the other `LOOKUP_TYPES` in
+ * `recordFields.tsx`), neither deriving from nor pinned against the family core
+ * publishes. objectui#5312's claim to have converted "the LAST private copy"
+ * was false by these two; they predate that sweep and were outside its file
+ * surface.
+ *
+ * This is the LIVE half of that convergence — `computeLookupExpand` drives a
+ * real `$expand` on every dashboard table fetch — so both membership deltas are
+ * observable here, and both were decided by measurement (see `isLookupType` in
+ * `recordFields.tsx` for the full record):
+ *
+ *  - a `tree` column now GETS `$expand`-ed, the same treatment the form / grid
+ *    road already gives it;
+ *  - a `reference` column no longer does, and that is a no-op on spec-compliant
+ *    data: the spelling is absent from `@objectstack/spec`'s closed `FieldType`
+ *    and refused by `FieldSchema.safeParse`, so no object schema can declare a
+ *    field whose stored type is `reference`.
  */
 export function computeLookupExpand(
   schema: { columns?: any[]; objectName?: string },
@@ -202,7 +228,10 @@ export function computeLookupExpand(
       reportRetiredFieldType(t);
       return false;
     }
-    return t === 'lookup' || t === 'reference' || t === 'master_detail' || t === 'user';
+    // Never `new Set([...EXPANDABLE_FIELD_TYPES, …])` and never a re-listing of
+    // its members: a copy re-forks the table, which is the defect this removed,
+    // and the identity pin fails on it by design.
+    return EXPANDABLE_FIELD_TYPES.has(t as string);
   };
 
   const cols = Array.isArray(schema.columns) ? schema.columns : [];

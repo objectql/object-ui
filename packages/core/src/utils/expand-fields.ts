@@ -23,10 +23,19 @@ import { columnIdentity } from './column-identity.js';
  * belongs in this set; whether the backend materialises the expanded object
  * for it is a server concern — requesting it is harmless and forward-compatible.
  *
- * ## One family, four consumers
+ * ## One family, many consumers — and NO reliable count of them
+ *
+ * This section used to open "One family, four consumers" and enumerate four.
+ * That count was hand-kept, and hand-kept counts of this table are exactly what
+ * keeps going wrong: it was already stale by two when objectui#5692 measured it
+ * (`paramToField` in `app-shell` had joined with objectui#5312, and
+ * `ListView`'s relational-sort rule reads the set directly), and objectui#5312's
+ * claim to have converted "the LAST private copy" was false by two MORE — see
+ * the falsification note at the end. Read the list below as the lineage of the
+ * conversions, not as a census; the mechanical fact is the identity pins.
  *
  * This is the reference-bearing FAMILY, not the `$expand` builder's private
- * list, and four concerns already read it under three different words:
+ * list, and these concerns read it under several different words:
  *
  *  - `$expand` construction — `buildExpandFields` below ("expandable");
  *  - predicate-record projection — `predicate-record.ts` ("relational");
@@ -37,7 +46,16 @@ import { columnIdentity } from './column-identity.js';
  *  - the grid's bulk-action dialog — `widgetNeedsDataSource` in
  *    `packages/plugin-grid/src/components/bulkParamToField.ts`, which decides
  *    which param widget is handed the grid's `DataSource` and which param field
- *    shape carries `reference_to` / `display_field`.
+ *    shape carries `reference_to` / `display_field`;
+ *  - the action-param dialog — `paramToField` in
+ *    `packages/app-shell/src/utils/paramToField.ts`, which decides which param
+ *    carries a reference target (objectui#5312);
+ *  - the list view's relational-sort rule — `ListView.tsx`, which will not offer
+ *    a server-side sort on a field whose stored value is a foreign key;
+ *  - the dashboard table's `$expand` whitelist — `computeLookupExpand` in
+ *    `packages/plugin-dashboard/src/ObjectDataTable.tsx` (objectui#5692);
+ *  - the dashboard's relation/link test — `isLookupType` in
+ *    `packages/plugin-dashboard/src/recordFields.tsx` (objectui#5692).
  *
  * The third one used to be a second hand-maintained copy, and this comment used
  * to claim the set "mirrors the form layer's `DATA_SOURCE_FIELD_TYPES`
@@ -68,6 +86,29 @@ import { columnIdentity } from './column-identity.js';
  * Neither consumer copies the set — both call `.has()` on THIS object, and both
  * carry an identity pin (a spy on this `has`) so a member-identical private copy
  * fails rather than quietly re-forking the table.
+ *
+ * ## The "LAST private copy" claim was false — objectui#5692
+ *
+ * objectui#5312 converted `paramToField` (`app-shell`) and recorded it as the
+ * fourth and LAST private copy of this rule. `packages/plugin-dashboard` held
+ * two more the whole time — `LOOKUP_TYPES` in `recordFields.tsx` and an inline
+ * disjunction inside `computeLookupExpand` in `ObjectDataTable.tsx` — which
+ * predate that sweep and were outside its file surface, so nothing contradicted
+ * the claim. Both now derive from this set with NO extension and carry the same
+ * identity pin.
+ *
+ * Those two were NOT member-identical to this set, in either direction: they
+ * lacked `tree` and carried a fifth spelling, `reference`. Converging them was
+ * therefore a behaviour change in two directions, and the direction that could
+ * have widened THIS set was settled by measurement rather than by preference:
+ * `reference` is absent from `@objectstack/spec`'s closed `FieldType`
+ * vocabulary and is refused by `FieldSchema.safeParse` — measured with `lookup`
+ * / `master_detail` / `user` / `tree` as live controls and the retired `owner`
+ * plus a nonsense spelling as dead ones — so no spec-compliant object schema can
+ * declare a field whose stored type is `reference`, and the dashboard's copies
+ * were carrying a dead spelling, not a member this set was missing. This set is
+ * unchanged by objectui#5692; the two dashboard faces simply stopped answering
+ * for a type no producer can emit.
  *
  * Stated so it reads as a decision rather than a surprise: **adding a member
  * here also grants that type the form's data-source wiring.** That is the

@@ -35,15 +35,11 @@ import {
   isRetiredFieldType,
   reportRetiredFieldType,
 } from '@object-ui/fields';
-
-/**
- * Field types treated as relations (rendered as links to the related record).
- *
- * `owner` left this set with objectui#4914; {@link isLookupType} refuses every
- * retired spelling ahead of the membership test, so the deletion is lockstep
- * hygiene rather than the behavioural half.
- */
-const LOOKUP_TYPES = new Set(['lookup', 'reference', 'master_detail', 'user']);
+// The reference-bearing field family, read as the object `@object-ui/core`
+// publishes rather than restated here (objectui#5692). Imported from its home
+// package, the way the other converged consumers do, so the identity pin has a
+// single object to spy on.
+import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 
 /**
  * Framework / system audit fields hidden from auto-derived columns and the
@@ -241,14 +237,46 @@ export function renderFieldValue(
  * Whether a field is a relation/lookup (used to drive `$expand`).
  *
  * THE GATE (objectui#4914, ruling B) runs ahead of the membership test.
- * Measured before the ruling: `isLookupType('owner')` was `true`, at exactly
- * the same level as `isLookupType('reference')` — a retired spelling holding
- * first-class relation status. It answers `false` now, and says why once.
+ * Measured before the ruling: `isLookupType('owner')` was `true` — a retired
+ * spelling holding first-class relation status. It answers `false` now, and
+ * says why once.
+ *
+ * The membership half is no longer a private table (objectui#5692). It used to
+ * be `new Set(['lookup', 'reference', 'master_detail', 'user'])`, one of TWO
+ * copies this package held — the other inline in `computeLookupExpand` — and
+ * neither derived from nor pinned against {@link EXPANDABLE_FIELD_TYPES}, the
+ * family `@object-ui/core` publishes for exactly this question. objectui#5312's
+ * claim to have converted "the LAST private copy" was false by these two: they
+ * predate that sweep and were outside its file surface.
+ *
+ * The convergence moved membership in two directions, each decided by
+ * measurement rather than by preference (objectui#5692):
+ *
+ *  - `tree` is GAINED. A self-referencing hierarchy field is reference-bearing,
+ *    it is a member of the spec's closed `FieldType`, and the form / grid road
+ *    already `$expand`s it. The dashboard road giving it the same treatment is
+ *    family behaviour restored, not a new decision.
+ *  - `reference` is DROPPED, and dropping it is a no-op on spec-compliant data.
+ *    The spelling is absent from `@objectstack/spec`'s closed `FieldType`
+ *    vocabulary and is refused by `FieldSchema.safeParse` — measured with
+ *    `lookup` / `master_detail` / `user` / `tree` as live controls and the
+ *    retired `owner` plus a nonsense spelling as dead ones — so no
+ *    spec-compliant object schema can declare a field whose stored type is
+ *    `reference`. Where the spelling IS live it is a legacy DIALECT alias on the
+ *    action-param surface, folded to `lookup` before any field-type data is read
+ *    (`PARAM_TYPE_ALIASES` in `app-shell/src/utils/paramToField.ts`). Keeping it
+ *    here would be a lenient renderer-side alias for off-spec metadata, which is
+ *    what AGENTS.md #0.1 bans.
+ *
+ * Extending this surface later: OR in a second, surface-local set, the way the
+ * object form's `needsDataSourceWiring` does. Never
+ * `new Set([...EXPANDABLE_FIELD_TYPES, …])` — a copy re-forks the table, which
+ * is the defect this change removed, and the identity pin fails on it by design.
  */
 export function isLookupType(t: unknown): boolean {
   if (typeof t === 'string' && isRetiredFieldType(t)) {
     reportRetiredFieldType(t);
     return false;
   }
-  return LOOKUP_TYPES.has(t as string);
+  return EXPANDABLE_FIELD_TYPES.has(t as string);
 }
