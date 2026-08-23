@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
+import { ACTIVITY_TYPE_TO_FEED_TYPE, RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -1543,31 +1543,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // true), so this surface gives us a Salesforce-style "what happened
     // on this record" feed without any per-app glue.
     //
-    // We map sys_activity.type to FeedItemType so the existing icon /
-    // colour map in RecordActivityTimeline keeps working:
-    //   created/updated/deleted/system → 'field_change'
-    //   assigned/shared                → 'field_change'
-    //   completed                      → 'task'
-    //   commented/mentioned            → 'comment'  (but skipped — we
-    //                                    already load these from
-    //                                    sys_comment to get reactions
-    //                                    and threading)
+    // The sys_activity.type -> FeedItemType reading is `record:activity`'s
+    // exported `ACTIVITY_TYPE_TO_FEED_TYPE` (@object-ui/plugin-detail), NOT a
+    // copy of it (objectui#5878). This merge and that block read the SAME rows
+    // of the SAME system table, so two tables can only ever be a bug: until
+    // this import, objectui#5840's `scheduled` -> `event` entry existed in the
+    // renderer and not here, and a scheduled meeting therefore rendered on a
+    // hand-authored record page and vanished on the console record page. The
+    // shared table's docblock carries which types map where and why
+    // `commented` / `mentioned` / `login` / `logout` deliberately map to
+    // nothing; do not restate it here, and never re-declare the table.
     //
     // sys_activity is system-owned so a 404 ("table not provisioned",
     // older schemas without activities) is silently tolerated.
-    const activityTypeToFeed: Record<string, FeedItem['type'] | undefined> = {
-      created:   'field_change',
-      updated:   'field_change',
-      deleted:   'field_change',
-      assigned:  'field_change',
-      shared:    'field_change',
-      system:    'system',
-      completed: 'task',
-      commented: undefined,
-      mentioned: undefined,
-      login:     undefined,
-      logout:    undefined,
-    };
     if (activitiesEnabled) inFlight.push(dataSource.find('sys_activity', {
       $filter: { object_name: objectName, record_id: pureRecordId },
       $orderby: { timestamp: 'asc' },
@@ -1577,7 +1565,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         if (!res?.data?.length) return;
         const mapped: FeedItem[] = [];
         for (const row of res.data) {
-          const feedType = activityTypeToFeed[row.type];
+          const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[row.type];
           if (!feedType) continue;
           // Prefer the explicit `timestamp` column, but tolerate older
           // rows where the driver leaked the literal "NOW()" — fall

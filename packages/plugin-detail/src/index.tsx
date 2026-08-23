@@ -45,6 +45,29 @@ export {
   RecordReferenceRailRenderer,
   RecordAlertRenderer,
 };
+/**
+ * The `sys_activity.type` -> `FeedItem.type` reading, made importable
+ * (objectui#5878).
+ *
+ * It was already exported from `renderers/recordActivityFeed`, but not from
+ * this barrel — so `app-shell`'s `RecordDetailView`, which merges the SAME
+ * `sys_activity` rows into the console record page's feed, carried a
+ * hand-written copy of the table instead. Nothing failed when the two
+ * disagreed, and objectui#5840 made them disagree: `scheduled` -> `event`
+ * landed here and not there, so one row rendered on a hand-authored record
+ * page and vanished on the console one.
+ *
+ * Publishing it is what lets there be ONE reading. Adding a member is now a
+ * single edit at `ACTIVITY_TYPE_TO_FEED_TYPE`; re-forking it is caught by
+ * `RecordDetailView.activityMapIdentity-5878.test.tsx`, which spies on THIS
+ * object rather than comparing values (a member-identical private copy passes
+ * a value check, which is the whole failure mode being closed).
+ *
+ * No new module enters the eager closure: `renderers/record-activity`, already
+ * imported above, pulls `recordActivityFeed` in.
+ */
+export { ACTIVITY_TYPE_TO_FEED_TYPE } from './renderers/recordActivityFeed';
+
 export { RecordDetailDrawer, deriveRecordPageHref } from './RecordDetailDrawer';
 export type { RecordDetailDrawerProps } from './RecordDetailDrawer';
 export {
