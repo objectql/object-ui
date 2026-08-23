@@ -352,16 +352,18 @@ jobs:
   test:
     name: Test (shard ${{ matrix.shard }}/4)
     # Coverage instrumentation (v8 adds 40-100% overhead) is skipped on PRs;
-    # the `test-coverage` job below keeps Codecov current on push.
+    # the `test-coverage` job below runs the coverage lane on push.
     #
     # Written as "not push" rather than "is pull_request" (objectui#3523): the
     # third event this workflow now sees is `merge_group`, and a queue build
     # that runs no tests is the hole this repository just paid for. `push` is
     # still excluded because the coverage lane below is the push lane: it is
     # sharded the same 4 ways since objectui#5403, and its `coverage-report`
-    # job merges the four blob reports so Codecov still receives ONE complete
-    # report. PR and push behaviour is unchanged — only the previously
-    # impossible third case moves.
+    # job merges the four blob reports into ONE complete report, which is where
+    # the coverage thresholds are enforced (and, since objectui#5436, where the
+    # report is published as an artifact rather than uploaded to Codecov). PR
+    # and push behaviour is unchanged — only the previously impossible third
+    # case moves.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
@@ -577,27 +579,51 @@ jobs:
           if-no-files-found: error
 
   # The other half of objectui#5403: merge the four blob reports into ONE
-  # complete coverage report, upload that, and — whatever happens — say out
-  # loud whether Codecov actually received it.
+  # complete coverage report, publish it, and — whatever happens — say out loud
+  # whether this lane actually delivered for the commit.
   #
-  # ## Why this job exists rather than an `if:` on the upload step
+  # ## The Codecov upload is gone (objectui#5436, maintainer ruling 2026-08-22)
   #
-  # `Upload coverage to Codecov` used to carry no `if:` at all, so it inherited
-  # the implicit `success()` and was SKIPPED whenever the suite failed: 311 of
-  # 373 coverage jobs, and 120 of the 121 most recent. From outside, "Codecov
-  # received nothing" and "Codecov received an unchanged report" look identical
-  # — which is how four dark days went unnoticed while the job failed 100% of
-  # the time (objectui#5402). Nothing blocks on this lane, so the fix cannot be
-  # "block on it"; the fix is that the lane STATES its own outcome. This job is
-  # green only when Codecov got a complete report for this commit, and red —
-  # with an error annotation naming the reason — every time it did not.
+  # `CODECOV_TOKEN` was never set on this repository, Codecov no longer accepts
+  # tokenless uploads, and so `Upload coverage to Codecov` failed server-side
+  # (`Token length: 0`, "Token required - not valid tokenless upload") on every
+  # push after #5403 landed. Of the three ways out, the maintainer ruled Option
+  # B: retire the upload rather than set the secret, and keep the merged report
+  # as a build artifact plus the step summary below. What is given up is the
+  # Codecov trend dashboard and its PR comments. What is NOT given up is the
+  # GATE — the thresholds have always been enforced by the merge step, never by
+  # Codecov, and that is untouched here. Making the upload conditional on the
+  # secret being present was rejected: it restores exactly the quiet green that
+  # #5403 removed.
   #
-  # ⛔ The upload is deliberately NOT unconditional. A merged report built from
+  # ## Why this job exists rather than an `if:` on one step
+  #
+  # The upload step used to carry no `if:` at all, so it inherited the implicit
+  # `success()` and was SKIPPED whenever the suite failed: 311 of 373 coverage
+  # jobs, and 120 of the 121 most recent. From outside, a lane that delivered
+  # nothing and a lane that delivered an unchanged number look identical —
+  # which is how four dark days went unnoticed while the job failed 100% of the
+  # time (objectui#5402). Nothing blocks on this lane, so the fix cannot be
+  # "block on it"; the fix is that the lane STATES its own outcome. #5436
+  # carries that guarantee across to the claim that survives the upload's
+  # retirement:
+  #
+  #   this job is green ONLY when all four shards passed, all four blob reports
+  #   arrived, they merged into one report, the configured thresholds were
+  #   enforced over that whole merged map, and the report was published as a
+  #   retrievable artifact — and red, with an error annotation naming which of
+  #   those did not happen, every other time.
+  #
+  # That is a stronger claim than the one it replaces, not a weaker one. The
+  # old red said "the dashboard is stale"; the new red says "the coverage GATE
+  # did not run on this commit" — and since the shard legs override the
+  # thresholds to zero, this job is the only place it can run at all.
+  #
+  # ⛔ The merge is deliberately NOT unconditional. A merged report built from
   # fewer than four shards would understate coverage on every file the missing
-  # shard exercised, and a wrong number on the dashboard is worse than a
-  # missing one. So the merge and the upload run only when all four shards are
-  # green AND all four blobs actually arrived; everything else takes the loud
-  # path.
+  # shard exercised, and a wrong coverage number is worse than a missing one.
+  # So the merge and the publish run only when all four shards are green AND
+  # all four blobs actually arrived; everything else takes the loud path.
   #
   # The job keeps the name `Test (coverage)` the unsharded job had: it is the
   # context that answers "did the coverage lane deliver for this commit", and
@@ -651,6 +677,7 @@ jobs:
       # A zero is not a reading: `--merge-reports` is perfectly happy to merge
       # three blobs and print a confident, wrong total. Count them first.
       - name: Refuse to merge a partial set of shard reports
+        id: blobs
         if: needs.test-coverage.result == 'success'
         run: |
           # `mkdir -p` first, and no `2>/dev/null` anywhere: a missing directory
@@ -661,60 +688,119 @@ jobs:
           ls -la .vitest-reports/
           blobs=$(find .vitest-reports -maxdepth 1 -type f -name 'blob-*-4.json' | wc -l)
           if [ "$blobs" -ne 4 ]; then
-            echo "::error title=Coverage merge::expected 4 shard blob reports, found $blobs — a merged report built from a partial set understates coverage, refusing to upload"
+            echo "::error title=Coverage merge::expected 4 shard blob reports, found $blobs — a merged report built from a partial set understates coverage, refusing to merge"
             exit 1
           fi
           echo "all 4 shard blob reports present"
 
       # No tests run here: `--merge-reports` reads the blobs and produces the
-      # single complete report Codecov gets. It is also where the configured
-      # coverage thresholds are enforced, over the whole map.
+      # one complete report. It is ALSO the gate. The configured
+      # `coverage.thresholds` (vitest.config.mts: lines 40, functions 33,
+      # branches 30, statements 40) are enforced HERE, over the whole merged
+      # map, and a breach exits this step non-zero — the shard legs override
+      # them to zero, so this step is the only place the gate runs at all.
+      #
+      # That the gate fires on a merged report is a code path, not a guess:
+      # `mergeReports()` calls `generateReports(coverageMap, true)`, which ends
+      # in `if (this.options.thresholds) await this.reportThresholds(...)`. It
+      # is also measured end-to-end on the pull request for objectui#5436 —
+      # same blob set, threshold moved across the report's own number, exit 0
+      # one side and exit 1 the other. #5403's CI ablation could not separate
+      # the two (its blobs carried a failing shard, so both legs went red for
+      # that reason), which is why the demonstration was owed.
+      #
+      # `generateReports()` writes the json reporter BEFORE it evaluates the
+      # thresholds, which is what lets the publish step below still capture a
+      # report that breached.
       - name: Merge the shard reports into one coverage report
+        id: merge
         if: needs.test-coverage.result == 'success'
         run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
 
-      # `fail_ci_if_error: true` (it was `false`): an upload that errors is the
-      # same silence this card exists to remove — with `false` the step reports
-      # success and the dashboard quietly keeps last week's number. Nothing
-      # blocks on this lane, so the cost of a Codecov outage showing up red
-      # here is attention, which is the point.
-      - name: Upload coverage to Codecov
-        id: codecov
-        if: needs.test-coverage.result == 'success'
-        uses: codecov/codecov-action@v7
+      # What replaces the Codecov upload (objectui#5436): the merged report is
+      # kept here, on the run, instead of on a third-party dashboard.
+      #
+      # `!cancelled()` plus an explicit `outcome != 'skipped'`, rather than the
+      # implicit `success()` the steps above inherit: when the merge fails on
+      # the THRESHOLDS, the report exists and is precisely the artifact someone
+      # wants to open, so a red gate must still publish its evidence. The job
+      # stays red either way — the verdict step below requires `merge=success`.
+      #
+      # `retention-days: 7` matches the shard blobs deliberately: this report is
+      # derived from them, and outliving its own inputs would leave a number
+      # with nothing left to check it against. `if-no-files-found: error`
+      # because "the merge wrote no report" is a real finding, not a shrug.
+      - name: Publish the merged coverage report
+        id: report
+        if: ${{ !cancelled() && needs.test-coverage.result == 'success' && steps.merge.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
         with:
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: error
 
-      # The loud part. Runs on every path — including the one where every step
-      # above was skipped, which without this step would leave this job GREEN
-      # while Codecov got nothing.
-      - name: Say out loud whether Codecov received this commit
+      # The loud part, inherited from objectui#5403 and re-aimed at the claim
+      # that outlived the upload. Runs on every path — including the one where
+      # every step above was skipped, which without this step would leave this
+      # job GREEN while the coverage gate never ran.
+      - name: Say out loud whether the coverage gate ran on this commit
         if: always()
         env:
           SHARDS: ${{ needs.test-coverage.result }}
-          UPLOAD: ${{ steps.codecov.outcome }}
+          BLOBS: ${{ steps.blobs.outcome }}
+          MERGE: ${{ steps.merge.outcome }}
+          REPORT: ${{ steps.report.outcome }}
         run: |
-          if [ "$SHARDS" = 'success' ] && [ "$UPLOAD" = 'success' ]; then
-            echo "::notice title=Codecov updated::the merged 4-shard report was uploaded for $GITHUB_SHA"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          if [ "$SHARDS" = 'success' ] && [ "$BLOBS" = 'success' ] && [ "$MERGE" = 'success' ] && [ "$REPORT" = 'success' ]; then
+            echo "::notice title=Coverage gate ran::the merged 4-shard report was produced for $GITHUB_SHA, the thresholds passed over the whole map, and the report is attached as the coverage-report artifact"
             {
-              echo "### Coverage: Codecov received a complete report"
+              echo "### Coverage: the gate ran on the complete merged report"
               echo
               echo "- commit: \`$GITHUB_SHA\`"
               echo "- shards: all 4 green, all 4 blob reports merged"
+              echo "- thresholds: enforced over the whole merged map, passed"
+              echo "- report: the \`coverage-report\` artifact on [this run]($run_url), kept 7 days"
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          echo "::error title=Codecov NOT updated::shards=$SHARDS upload=$UPLOAD — no report was uploaded for $GITHUB_SHA, so the coverage number on the dashboard is STALE, not unchanged"
+
+          # The gate RAN and said no. Distinguished from the case below because
+          # they call for opposite actions: this one is a real coverage
+          # regression to fix, that one is a broken lane to repair.
+          if [ "$MERGE" = 'failure' ]; then
+            echo "::error title=Coverage thresholds breached::shards=$SHARDS blobs=$BLOBS merge=failure report=$REPORT — the merged report for $GITHUB_SHA was produced and the configured thresholds were enforced over it, and they FAILED"
+            {
+              echo "### Coverage: the thresholds were enforced and BREACHED"
+              echo
+              echo "- commit: \`$GITHUB_SHA\`"
+              echo "- shards: all 4 green, all 4 blob reports merged"
+              echo "- thresholds: enforced over the whole merged map, **failed**"
+              echo "- report published: \`$REPORT\`"
+              echo
+              echo "This is a coverage regression, not a broken lane. The merged"
+              echo "report is the \`coverage-report\` artifact on [this run]($run_url);"
+              echo "the merge step's log names the metric and the numbers."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "::error title=Coverage gate did NOT run::shards=$SHARDS blobs=$BLOBS merge=$MERGE report=$REPORT — no complete merged report was produced for $GITHUB_SHA, so the coverage thresholds were never evaluated on this commit"
           {
-            echo "### Coverage: Codecov received NOTHING for this commit"
+            echo "### Coverage: the gate did NOT run on this commit"
             echo
             echo "- commit: \`$GITHUB_SHA\`"
             echo "- shard jobs: \`$SHARDS\`"
-            echo "- upload step: \`$UPLOAD\`"
+            echo "- all 4 blobs present: \`$BLOBS\`"
+            echo "- merge + thresholds: \`$MERGE\`"
+            echo "- report published: \`$REPORT\`"
             echo
-            echo "The number on the Codecov dashboard is the one from an earlier"
-            echo "commit. It did not stay the same because coverage did not change."
+            echo "The thresholds are enforced on the MERGED report and nowhere"
+            echo "else — the shard legs override them to zero. So this is not a"
+            echo "missing dashboard number: this commit reached the branch with"
+            echo "its coverage gate unevaluated."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
 

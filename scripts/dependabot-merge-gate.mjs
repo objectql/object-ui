@@ -188,7 +188,7 @@ export const NOT_A_GATE = Object.freeze({
   dependabot:
     'This workflow itself. The gate runs inside this job, so requiring it would deadlock at its own deadline.',
   'Test (coverage)':
-    "ci.yml's push lane (`if: github.event_name == 'push'`), so on a pull request it reports conclusion=skipped by design. Since objectui#5403 this is the job at the END of the coverage lane — it merges the four shard blob reports, uploads the one complete report to Codecov, and goes red whenever Codecov received nothing. The PR lane is the four `Test (shard N/4)` jobs above.",
+    "ci.yml's push lane (`if: github.event_name == 'push'`), so on a pull request it reports conclusion=skipped by design. Since objectui#5403 this is the job at the END of the coverage lane — it merges the four shard blob reports into one complete report, enforces the configured coverage thresholds over it, publishes it as the `coverage-report` artifact, and goes red whenever any of that did not happen (the Codecov upload it also carried was retired by objectui#5436). The PR lane is the four `Test (shard N/4)` jobs above.",
   'Test (coverage shard 1/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Test (coverage shard 2/4)': COVERAGE_SHARD_NOT_A_GATE,
   'Test (coverage shard 3/4)': COVERAGE_SHARD_NOT_A_GATE,
