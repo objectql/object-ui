@@ -1334,17 +1334,36 @@ function isPersonalizationOverlayRow(item: any, spec: any): boolean {
  * production writer of these rows — read off the tree rather than recalled:
  * `rowHeight` (the density toggle, spec-canonical since #2890), `sort`,
  * `hiddenFields`, `columnState` and `inlineEdit`. Nothing else in such a row
- * is an opinion the user expressed; it is a COPY of the source view as it
- * stood at write time, because `persistViewPatch` sends
- * `{ ...baseViewDef, ...patch }` and this adapter persists what it is given.
+ * is an opinion the user expressed; anything else it carries is a COPY of the
+ * source view as it stood at write time, because `persistViewPatch` USED TO
+ * send `{ ...baseViewDef, ...patch }` and this adapter persists what it is
+ * given.
  *
- * That copy is the defect the maintainer ruled on (objectstack#7494, comment
- * 5261754173): an overlay written by a mere column drag freezes the view's
+ * That copy was the defect the maintainer ruled on (objectstack#7494, comment
+ * 5261754173): an overlay written by a mere column drag froze the view's
  * effective `filter` — and its `columns`, `label`, `type`, `isDefault` … — as
  * of that moment, and because the display merge is `{ ...source, ...override }`
- * the frozen copy SHADOWS the source view forever. An admin then edits the
- * view's filter and every user who once resized a column keeps the old one,
+ * the frozen copy SHADOWED the source view forever. An admin then edited the
+ * view's filter and every user who once resized a column kept the old one,
  * with nothing anywhere reporting it.
+ *
+ * Both halves of that ruling have now landed, and this adapter's behaviour is
+ * unchanged by either — it still persists what it is given:
+ *
+ * - **read** (PR #5272, {@link narrowPersonalizationOverlay}): the consumer
+ *   that MERGES an overlay over a source view contributes only these keys, so
+ *   every already-stored fat row stops shadowing its source.
+ * - **write** (objectui#5233, `buildPersistedViewBody` in app-shell's
+ *   `ObjectView`, unblocked by `columnState`'s admission to the view-metadata
+ *   surface as a runtime-only overlay key — objectstack#9933, released in
+ *   `@objectstack/spec` 17.1.0): a *system view's* overlay is now written as
+ *   the patch alone, so no new row freezes anything, and because the write is
+ *   a whole-document PUT the next toggle also strips an old fat row. A *saved
+ *   view's* own row is deliberately still written whole — for it the body IS
+ *   the view, not a copy of one.
+ *
+ * A fat row is therefore a legacy shape, not a shape this product still
+ * produces; the list below is still what a reader is allowed to trust from one.
  *
  * ⛔ Do not grow this list to make some other key "stick" through an overlay.
  * A key that belongs to the view belongs in the view; the overlay is a patch,

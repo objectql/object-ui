@@ -15,9 +15,14 @@
  *
  *  - **Derived** (`ActionParam`, `CreateExportJobRequest`,
  *    `CreateExportJobResult`, `ImportRowResult`, `NavigationArea`,
- *    `NavigationAreaSchema`, `Theme`): the spec now supplies the keys, so the
+ *    `NavigationAreaSchema`): the spec now supplies the keys, so the
  *    risk is no longer drift but a divergence outliving its reason, or a local
  *    key quietly reclaiming a name the spec owns. Asserted in both directions.
+ *    (`Theme` was in this list until `@objectstack/spec` 17.2.0 retired its
+ *    whole theme module — objectstack#10485 / PR objectstack#10695. Under the
+ *    objectui#5716 ruling, option A, this package now OWNS the vocabulary, so
+ *    `Theme`/`ThemeMode`/`ColorPalette` moved to the vacancy-pinned rows
+ *    below, the same road `GestureType`/`GestureConfig` travelled.)
  *  - **Renamed** (`FileMetadata`, `GestureConfig`, `GestureType`,
  *    `OfflineConfig`, `PageRegion`, `PageRegionSchema`, `ResponsiveConfig`,
  *    `WidgetManifest`, `WidgetSource`): nine genuine coincidences — same word,
@@ -50,15 +55,6 @@ import type {
   ActionParamSchema as SpecActionParamSchema,
   I18nLabel as SpecI18nLabel,
   NavigationArea as SpecNavigationArea,
-  // Re-pointed BY SIDE on the rc.6 bump (objectui#4167), not by name.
-  // Up to rc.5 the spec published `Theme` (= `z.infer`) alongside `ThemeInput`
-  // (= `z.input`); rc.6 retired every `…Input` alias and moved the bare name
-  // onto the INPUT side, so `Theme` is now `z.input` and `ThemeParsed` is the
-  // `z.infer` side. Following the old NAMES here would have swapped both pins
-  // silently — which is why `ThemeInput` became `Theme` and `Theme` became
-  // `ThemeParsed`, rather than either binding staying where it was written.
-  Theme as SpecThemeInput,
-  ThemeParsed as SpecThemeParsed,
 } from '@objectstack/spec/ui';
 import { NavigationAreaSchema } from '../zod/app.zod.js';
 import type { NavigationArea, NavigationItem } from '../app.js';
@@ -280,34 +276,23 @@ describe('NavigationArea derives from the spec', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Theme — derived (re-export of the spec's AUTHORING shape)
+// Theme — owned locally since the spec's theme retirement (objectui#5716)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Theme is the spec AUTHORING theme, not the parsed one', () => {
+describe('Theme is the AUTHORING theme document, owned by this package (objectui#5716)', () => {
+  // Until `@objectstack/spec` 17.2.0 this block pinned mutual assignability
+  // with the spec's `Theme` (its `z.input` side) and pinned `ThemeParsed.mode`
+  // required — the two spec legs `theme.ts`'s header predicted would retire on
+  // the pin refresh. 17.2.0 shipped the retirement (objectstack#10485 / PR
+  // objectstack#10695): the spec no longer exports any theme name, so there is
+  // nothing upstream to pin against and the shapes are documented, not pinned
+  // (objectui#5716 ruling, option A — localize). The vacancy itself is pinned
+  // in the renamed-dialects block below. What stays executable here is the
+  // AUTHORING reading the engine depends on: `mode` optional, because
+  // `ThemeEngine` receives stored/authored themes, not parsed ones.
   it('accepts a theme with no `mode` (the authoring side)', () => {
     const authored: Theme = { name: 'acme', label: 'Acme', colors: { primary: '#0af' } };
     expect(authored.mode).toBeUndefined();
-
-    // Mutual assignability with the spec's authoring type: this is what makes
-    // the re-export a re-export rather than a coincidence.
-    const asSpecInput: SpecThemeInput = authored;
-    const back: Theme = asSpecInput;
-    expect(back.name).toBe('acme');
-  });
-
-  it('is NOT the spec parsed theme, whose `mode` is required', () => {
-    // `.default('auto')` has already run in `z.infer`, so the parsed type would
-    // make `mode` mandatory and every stored objectui theme unrepresentable.
-    // If the spec ever drops that default the two collapse and this pin fails,
-    // which is the moment to re-read the derivation comment in `theme.ts`.
-    //
-    // rc.6 spells the `z.infer` side `ThemeParsed`. The pin reads the same fact
-    // it always did — following the NAME `Theme` here instead would have made
-    // this assertion compare the authoring side against itself and go green on
-    // nothing, which is exactly the swap the import comment warns about.
-    type ModeOfParsed = undefined extends SpecThemeParsed['mode'] ? 'optional' : 'required';
-    const parsedModeIs: ModeOfParsed = 'required';
-    expect(parsedModeIs).toBe('required');
 
     type ModeOfLocal = undefined extends Theme['mode'] ? 'optional' : 'required';
     const localModeIs: ModeOfLocal = 'optional';
@@ -691,6 +676,32 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
           `exact name — this is a live collision, not a latent one. Re-triage ` +
           `(objectstack#4115): derive from the spec, or rename the local dialect back.`,
       ).not.toContain(reclaimed);
+    },
+  );
+
+  /**
+   * THE TRIPWIRE'S THIRD FIRING, on the `@objectstack/spec` 17.2.0 refresh
+   * (objectui#5668). 17.2.0 retired the spec's whole theme module
+   * (objectstack#10485 / PR objectstack#10695) while objectui retained the
+   * theme SYSTEM, so under the objectui#5716 ruling (option A — localize)
+   * `@object-ui/types` now OWNS `Theme`, `ThemeMode` and `ColorPalette`,
+   * hand-written in `theme.ts` from the last-published 17.1.0 shapes.
+   *
+   * Unlike the Gesture pair these were never renamed — the local names were
+   * derived from the spec until the retirement — but the pin they need now is
+   * the same one: the names are exported from this package, so the spec
+   * re-publishing any of them is a live collision, not a latent one.
+   */
+  it.each([['Theme'], ['ThemeMode'], ['ColorPalette']])(
+    'the spec no longer owns `%s`, localized under the objectui#5716 ruling',
+    (localized) => {
+      expect(
+        names,
+        `spec owns '${localized}' again — the objectstack#10485 theme retirement has ` +
+          `been undone upstream while @object-ui/types exports that exact name ` +
+          `(theme.ts, objectui#5716). This is a live collision: re-triage against ` +
+          `objectstack#4115 — derive from the spec again, or arbitrate the name.`,
+      ).not.toContain(localized);
     },
   );
 

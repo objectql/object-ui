@@ -8,7 +8,7 @@
  * related data without leaving the Details tab.
  *
  * Each entry renders a tight card with:
- *   - object icon + localized label
+ *   - localized object label
  *   - total related count (badge)
  *   - the top N related records (name only, truncated)
  *
@@ -23,30 +23,22 @@ import { Link, useParams } from 'react-router-dom';
 import { useRecordContext, useSafeFieldLabel } from '@object-ui/react';
 import { cn, Card, CardHeader, CardTitle, CardContent, Badge, Skeleton } from '@object-ui/components';
 import { ChevronRight } from 'lucide-react';
+import type { ReferenceRailEntry } from '@objectstack/spec/ui';
 import { useDetailTranslation } from '../useDetailTranslation';
+
+// `ReferenceRailEntry` is owned by `@objectstack/spec` as of 17.1.0 — re-exported
+// here, never re-declared (objectui#5494; `check:spec-symbols` enforces this).
+// The spec's `ReferenceRailEntrySchema` is `$strict` over
+// {objectName, relationshipField, title?, limit?, displayField?}. The local
+// interface this replaced also declared an `icon` key: no render path ever read
+// it, and the strict schema refuses it at save, so it retired with the
+// derivation rather than surviving either side of the contract.
+export type { ReferenceRailEntry } from '@objectstack/spec/ui';
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
 };
-
-export interface ReferenceRailEntry {
-  /** Related object's API name (e.g. 'opportunity_quote'). */
-  objectName: string;
-  /** FK field on the related object pointing back to the host record. */
-  relationshipField: string;
-  /** Optional override for the rail card title. */
-  title?: string;
-  /** Lucide icon name (defaults vary by object). */
-  icon?: string;
-  /** Top-N preview cap. Defaults to 3. */
-  limit?: number;
-  /**
-   * Canonical field on the related object to render in each preview row.
-   * Falls back to `name / title / subject / label / id` when omitted.
-   */
-  displayField?: string;
-}
 
 export interface RecordReferenceRailRendererProps {
   schema?: {

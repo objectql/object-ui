@@ -325,7 +325,10 @@ export function defaultListColumnsFromObject(
  * Filter entries are matched in both at-rest shapes: spec `ViewFilterRule`
  * objects (`{ field, operator, value }`, what the fold writes) and the legacy
  * runtime triple `[field, operator, value]` a source view may declare and which
- * `persistViewPatch` copies into the overlay along with the rest of the view.
+ * `persistViewPatch` USED TO copy into the overlay along with the rest of the
+ * view — it now stores the patch alone (objectui#5233,
+ * {@link buildPersistedViewBody}), so a triple can only reach this pass from a
+ * row written before that landed, or from a saved view's own body.
  *
  * Whether a matched entry's VALUE counts as supplied is asked of the builder's
  * own {@link isFilterValueComplete}, not of a local predicate (objectstack#8815,
@@ -458,8 +461,11 @@ export async function loadViewOverrides(
  * They disagreed because the metadata side spelled identity `{ id: key,
  * ...body, ...override }` — `id` FIRST, so an `id` key inside the stored body
  * or the stored override silently replaced it. Both are stored documents that
- * really do carry one: `persistViewPatch` writes the whole tab object (its `id`
- * included) back through `updateViewConfig`, and a duplicated view copies its
+ * really do carry one: `persistViewPatch` WROTE the whole tab object (its `id`
+ * included) back through `updateViewConfig` — since objectui#5233 it writes the
+ * patch alone for an overlay ({@link buildPersistedViewBody}) but still the
+ * whole body for a saved view's own row, and every row written before that
+ * landed still carries an `id` — and a duplicated view copies its
  * source artifact's `id` verbatim. `viewEntry` stamps identity LAST at all
  * three sites, so the tab id is now a property of the key the caller looked the
  * view up by, and can never be a property of the data.
@@ -642,6 +648,88 @@ export function dispatchViewPatches(
     );
 }
 
+/**
+ * The body a toolbar toggle persists — **the patch only, for an overlay**
+ * (objectui#5233).
+ *
+ * `persistViewPatch` used to send `{ ...baseViewDef, ...patch }`, so an overlay
+ * written by a mere column drag copied the view's CURRENT effective `filter` —
+ * and its `columns`, `label`, `type`, `isDefault` … — into the stored row. The
+ * display merge is `{ ...source, ...override }`, so that copy then outranked
+ * the source view forever: an admin edited the view's filter and every user who
+ * had once resized a column kept the old one, with nothing reporting it.
+ *
+ * Ruled by the maintainer on 2026-08-12 (objectstack#7494, comment
+ * `5261754173`): 「**`persistViewPatch` 只存 patch,不存 merged base** —— 独立小
+ * 修,现在做:它把写入时的有效 filter 冻进 overlay,导致源视图后续的 filter 变更
+ * 到不了带 overlay 的用户,这与 per-user 之争无关,是纯粹的存储形状错误。」
+ *
+ * ## Why the two branches are not one
+ *
+ * `updateViewConfig` persists through `client.meta.saveItem`, which is a **PUT
+ * of the whole document** — the adapter's own `updateView` reads the current row
+ * and merges onto it precisely because `saveItem` does not ("there is nothing to
+ * merge onto. Fail loudly instead of emitting the partial write"). So what this
+ * function returns is what the row BECOMES, not what is layered onto it:
+ *
+ * - **`isSavedView: false`** — a code-defined *system* view. The row is a
+ *   personalization OVERLAY laid on top of a definition that lives elsewhere;
+ *   nothing in it but the patch is an opinion the user expressed. Store the
+ *   patch. The source view is then free to change under it, which is the card.
+ * - **`isSavedView: true`** — a genuinely user-created *saved* view. The row IS
+ *   the view; there is no source underneath it to shadow, so the ruled harm
+ *   cannot arise here. A patch-only PUT would not narrow this row, it would
+ *   **delete the user's view definition** — its `config`/`columns`/`filter`/
+ *   `label` are not a frozen copy of anything, they are the view. This branch
+ *   therefore still carries the body, byte-identical to the pre-fix write.
+ *
+ * The same `isSavedViewId` classification already decides the switcher's
+ * readonly flag, its five mutating handlers, and whether `updateViewConfig`
+ * stamps the overlay marker — so a row cannot be a saved view for one of them
+ * and an overlay for another.
+ *
+ * ## What the overlay branch keeps besides the patch
+ *
+ * `viewKind` only, and only when the active tab carries one — **identity, not
+ * content**, the same line `VIEW_OVERLAY_IDENTITY_KEYS`
+ * (`@object-ui/data-objectstack`) draws on the read side, so the write now
+ * produces exactly the shape the reader would keep. `object`, `name` and the
+ * overlay marker are stamped by `updateViewConfig` itself; `label` is
+ * deliberately NOT kept (the platform inherits it from the shadowed registry
+ * entry — a stored one is a snapshot of the source view's label at write time,
+ * which is the very class of frozen key this narrowing exists to stop).
+ *
+ * The patch is written verbatim rather than filtered through
+ * `VIEW_OVERLAY_OWNED_KEYS`: every call site passes exactly the one key the
+ * user just changed, and a filter here would SILENTLY drop a sixth key someone
+ * later persists. The ratchet in `ObjectView.overlayPatchOnly.test.ts` is what
+ * makes that drift loud instead.
+ *
+ * ## Consequence for rows written before this shipped
+ *
+ * They are fat at rest and stay that way until touched — already harmless on
+ * read since PR #5272 narrowed the merge (`sanitizeViewOverride` →
+ * `narrowPersonalizationOverlay`). Because this write is a full-document PUT,
+ * the next toolbar toggle on such a view **replaces** the fat row with the thin
+ * one. So the issue's three dispositions land as: tolerate on read (shipped),
+ * strip on next write (here), no migration — and both halves are pinned.
+ *
+ * Extracted from `persistViewPatch` so the write shape is assertable without
+ * mounting the view, the same reason `buildViewTabs`, `setDefaultViewPatches`
+ * and `reorderViewPatches` above are exported.
+ */
+export function buildPersistedViewBody(
+    baseViewDef: Record<string, any> | null | undefined,
+    patch: Record<string, any>,
+    opts: { isSavedView: boolean },
+): Record<string, any> {
+    if (opts.isSavedView) return { ...(baseViewDef || {}), ...patch };
+    const viewKind = (baseViewDef as any)?.viewKind;
+    // Identity is stamped LAST for the same reason `updateViewConfig` stamps
+    // `object`/`name`/the marker last: nothing in the payload can shadow it.
+    return viewKind === undefined ? { ...patch } : { ...patch, viewKind };
+}
+
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
     const { objectName } = useParams();
     const { t } = useObjectTranslation();
@@ -763,11 +851,21 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 // merely toggled its density (objectui#4227 follow-up,
                 // PM review on PR #4713).
                 const targetIsSavedView = isSavedViewId(savedViewsRef.current, viewIdLocal);
+                // objectui#5233 — for a system view's personalization overlay
+                // this is the PATCH ONLY: the row used to be written as
+                // `{ ...baseViewDef, ...merged }`, which froze the source
+                // view's effective `filter` (and `columns`, `label`, `type`,
+                // `isDefault` …) into it as of the drag. See
+                // `buildPersistedViewBody` for why the saved-view branch is
+                // deliberately NOT narrowed — its row IS the view, and
+                // `saveItem` is a whole-document PUT.
                 Promise.resolve(
-                    dataSource.updateViewConfig(objectName, viewIdLocal, {
-                        ...baseViewDef,
-                        ...merged,
-                    }, { isSavedView: targetIsSavedView })
+                    dataSource.updateViewConfig(
+                        objectName,
+                        viewIdLocal,
+                        buildPersistedViewBody(baseViewDef, merged, { isSavedView: targetIsSavedView }),
+                        { isSavedView: targetIsSavedView },
+                    )
                 ).catch((err: any) => {
                     console.error('[ObjectView] Failed to persist view config:', err);
                 });

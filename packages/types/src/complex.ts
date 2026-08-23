@@ -127,9 +127,14 @@ export interface KanbanSchema extends BaseSchema {
 }
 
 /**
- * Calendar view mode
+ * Calendar view mode — the registered `calendar-view` renderer's rendered set.
+ *
+ * `'agenda'` was retired from this union (objectui#5740): no view ever
+ * rendered it — the renderer resolved it to the `'month'` default — and no
+ * measured app authors it (ADR-0049 enforce-or-remove, the value-level
+ * residue of objectui#5667's key-level convergence).
  */
-export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda';
+export type CalendarViewMode = 'month' | 'week' | 'day';
 
 /**
  * Calendar event
@@ -225,9 +230,9 @@ export interface CalendarViewSchema extends BaseSchema {
   /**
    * Calendar view mode.
    *
-   * The registered renderer renders `'month' | 'week' | 'day'` and falls back
-   * to `'month'` for any other value — including `'agenda'`, which
-   * {@link CalendarViewMode} still names.
+   * {@link CalendarViewMode} equals the renderer's rendered set since
+   * objectui#5740 retired `'agenda'`; at runtime the renderer still resolves
+   * any off-union value in raw metadata to the `'month'` default.
    * @default 'month'
    */
   view?: CalendarViewMode;

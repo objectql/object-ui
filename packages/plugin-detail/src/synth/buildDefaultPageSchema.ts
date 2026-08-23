@@ -931,12 +931,14 @@ export function buildDefaultPageSchema(
   if (willEmitAside) {
     const asideComponents: any[] = [];
     if (willEmitRail) {
+      // No `icon` on rail entries: `ReferenceRailEntrySchema` is `$strict`
+      // without it, so emitting `rel.icon` here wrote a key the spec refuses
+      // at save — and no render path ever read it (objectui#5494).
       asideComponents.push(componentNode('record:reference_rail', {
         entries: (options.related as any[]).map((rel) => ({
           objectName: rel.objectName,
           relationshipField: rel.relationshipField,
           title: rel.title,
-          icon: rel.icon,
           displayField: rel.displayField,
           limit: 3,
         })),

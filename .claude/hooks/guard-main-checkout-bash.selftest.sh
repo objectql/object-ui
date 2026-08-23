@@ -142,6 +142,62 @@ expect allow "$(printf "cat > /tmp/notes.md <<'EOF'\nsed -i 's/a/b/' %s/pkg/x.ts
 expect block "$(printf 'cat > %s/notes.md <<EOF\nhello\nEOF\n' "$MAIN")"
 expect allow 'grep -q worktree <<<"$AGENTS"'
 
+echo "== non-ASCII codepoints are never operators; ASCII redirects still are (objectstack#10247) =="
+CWD="$MAIN"
+# A pure-read `node -e` whose string literal carries U+2192. Nothing is redirected: the
+# arrow is a display separator. Every byte of a non-ASCII codepoint is >= 0x80 and `>` is
+# 0x3e, so no arrow can ever reach operator position.
+expect allow "node -e \"console.log(steps.map(st=>st.a).join(' $(printf '\xe2\x86\x92') '))\""
+expect allow "echo 'build $(printf '\xe2\x86\x92') test $(printf '\xe2\x86\x92') ship'"
+expect allow "grep -n '$(printf '\xe2\x86\x92') the URL' AGENTS.md"     # arrows fill this repo's prose
+expect allow "echo 'a $(printf '\xe2\x87\x92') b'"
+# The negative twins: an otherwise-similar command with a REAL ASCII redirect still blocks,
+# so the allow side above is widened for non-ASCII only and not for redirection at large.
+expect block "node -e \"console.log(1)\" > out.log"
+expect block "echo 'build $(printf '\xe2\x86\x92') ship' > steps.txt"
+expect block "echo 'a $(printf '\xe2\x86\x92') b' >> pkg/x.ts"
+
+echo "== \\\" inside a double-quoted word does not end the quote (objectstack#10247 real cause) =="
+CWD="$MAIN"
+# The shape from the card: an escaped \" used to close the string, after which the JS arrow
+# function `st=>` put a real `>` in operator position and the guard named the JS tail that
+# followed it as a write target. Pure read — must be allowed.
+expect allow 'node -e "const j=require(\"./a.json\"); console.log(j.x.map(st=>st.a).join(\" - \"))"'
+expect allow 'node -e "console.log(\"a\", x.map(s=>s.t))"'
+expect allow 'grep -rn "he said \"sed -i\" once" .claude/'
+# Negative twins: a real write is still caught even when an escaped quote precedes it.
+expect block 'node -e "console.log(\"hi\")" > pkg/out.json'
+expect block 'sed -i "s/\"a\"/\"b\"/" pkg/x.ts'
+
+echo "== a shell COMMENT is text, not a command (objectstack#10570) =="
+CWD="$MAIN"
+# The measured false blocks: prose in a comment put a real `>` in operator position and the
+# next word was named as a write target. Nothing in either command writes anything.
+expect allow "$(printf '# rename foo -> bar\necho hello\n')"
+expect allow "$(printf '# sitting 1 landed; card stays open for sitting 2 -> pm:dispatched goes, pm:queue returns\ncurl -s https://example.com/a\ncurl -s https://example.com/b\n')"
+expect allow 'echo hi   # then; tee pkg/x.ts would write it down'
+expect allow "$(printf '# step one; then a -> b\n# 2> is not a redirect here either\ngit status\n')"
+# Recall is untouched: a real redirect on a LATER line still blocks, and so does one on the
+# SAME line ahead of an inline comment.
+expect block "$(printf '# rename foo -> bar\necho x > pkg/x.ts\n')"
+expect block 'echo x > pkg/x.ts   # write it down'
+expect block "$(printf '# a comment; with a separator\nsed -i s/a/b/ pkg/x.ts\n')"
+# Word start is the whole rule: these `#`s are not comments and must not change a verdict.
+expect block 'touch foo#bar'
+expect block 'rm -rf pkg/x.ts#old'
+expect allow 'curl -s "https://example.com/docs#frag"'
+expect allow "curl -s https://example.com/docs#a-real-redirect-would-be > /dev/null"
+expect allow "grep -n '#' README.md"
+expect allow "sed 's/#//' README.md"
+expect allow 'echo "# not a comment > pkg/x.ts"'
+# `${x#y}` / `${#arr[@]}` — a parameter expansion, not a comment. Swallowing the line here
+# would drop the redirect behind it, so the negative twin is the load-bearing case.
+expect allow 'echo ${x#pkg/} '
+expect block 'echo ${#TOK[@]} > pkg/x.ts'
+expect block 'echo ${x#a} > pkg/x.ts'
+# an escaped `\#` outside quotes is a literal, not a comment opener
+expect allow 'echo \# not a comment'
+
 echo "== shapes this guard deliberately does NOT claim (documented fail-open) =="
 CWD="$MAIN"
 expect allow "bash -c \"sed -i s/a/b/ $MAIN/pkg/x.ts\""

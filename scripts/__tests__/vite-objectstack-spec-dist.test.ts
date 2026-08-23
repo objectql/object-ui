@@ -21,7 +21,7 @@ import {
  *
  *   1. **Set → every subpath is mapped.** The client hook this mirrors is one
  *      prefix alias, which is safe only because `@objectstack/client` exports a
- *      single entry. The spec's map has 18 and redirects each into `dist/`, so a
+ *      single entry. The spec's map has 19 and redirects each into `dist/`, so a
  *      copied client line rewrites `@objectstack/spec/ui` to a path that does not
  *      exist — measured as 214 broken import sites for `/ui` alone. The
  *      reconciliation case below therefore checks the derivation against Node's
@@ -46,10 +46,10 @@ import {
  *     `@objectstack/spec/ui -> …/dist/index.mjs/ui` — a path that cannot exist
  *     — so the finding lands in the repo sweep's `unresolved` list, while
  *     `missing` stays empty. The reconciliation case fails one step earlier, on
- *     18-vs-17.
+ *     19-vs-18.
  *   - **Make the hook unconditional** (default the env read to the installed
  *     spec dir) → 2 red, both in the console-config block: the alias table gains
- *     18 `@objectstack` keys, and `optimizeDeps.include` drops from 7 to 3.
+ *     19 `@objectstack` keys, and `optimizeDeps.include` drops from 7 to 3.
  *
  * The real-build cases at the bottom carry their own control rather than a
  * mutation: the same bundle is built a second time through the literal
@@ -141,9 +141,14 @@ describe('objectui#4854: OBJECTSTACK_SPEC_DIST is subpath-aware', () => {
     ) as { exports: Record<string, unknown> };
     const declared = Object.keys(manifest.exports);
 
-    // Anti-vacuity: the map this is reconciled against is the measured 18-entry
+    // Anti-vacuity: the map this is reconciled against is the measured 19-entry
     // one, not an empty object a silently-changed reader would also "cover".
-    expect(declared.length).toBe(18);
+    // 18 -> 19 on the @objectstack/spec 17.2.0 refresh (objectui#5668): the
+    // one added subpath, measured by diffing 17.1.0's exports map against
+    // 17.2.0's, is `./meta-spelling` — nothing was removed. The pin did its
+    // job on that bump: the un-updated 18 turned this red in CI rather than
+    // letting the new entry ride through unreconciled.
+    expect(declared.length).toBe(19);
     expect(Object.keys(injection!.aliases).length).toBe(declared.length);
 
     const missing: string[] = [];
@@ -413,7 +418,7 @@ describe('objectui#4854: the four flagged surfaces in the console config', () =>
     const injectedSpecKeys = Object.keys(injected.resolve.alias).filter((k: string) =>
       k === SPEC_PACKAGE_NAME || k.startsWith(`${SPEC_PACKAGE_NAME}/`)
     );
-    expect(injectedSpecKeys).toHaveLength(18);
+    expect(injectedSpecKeys).toHaveLength(19);
     expect(injectedSpecKeys[injectedSpecKeys.length - 1]).toBe(SPEC_PACKAGE_NAME);
     expect(injected.resolve.alias[`${SPEC_PACKAGE_NAME}/ui`]).toBe(
       path.join(fs.realpathSync(installedSpecDir), 'dist/ui/index.mjs')
@@ -555,7 +560,7 @@ function consoleShapedBundle(
  * (`/…/objectstack/packages/spec`, or `/home/runner/work/objectstack/objectstack/
  * packages/spec` on CI) has no `@objectstack` segment anywhere, and that is the
  * one property this fixture has to reproduce. It stays minimal on purpose: the
- * exports-map derivation is covered above against the real 18-entry map, and
+ * exports-map derivation is covered above against the real 19-entry map, and
  * what these cases need is a legal package at a path of the wrong SHAPE.
  */
 function makeOutOfTreeSpecPackage(): string {
