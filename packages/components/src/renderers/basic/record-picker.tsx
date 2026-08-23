@@ -43,6 +43,7 @@ import {
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import {
+  Label,
   Select,
   SelectTrigger,
   SelectValue,
@@ -242,19 +243,40 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     return <ElementDataSourceLoadingPanel testId="record-picker" />;
   }
 
+  // `label`'s association with the trigger is wired the same way
+  // `element:text_input` wires its own `label`/control pair (objectui#5735):
+  // `htmlFor` on the label names `schema?.id`, and that same id lands on the
+  // CONTROL — here `SelectTrigger`, a `button` with `role="combobox"` and
+  // therefore labelable, so a plain `htmlFor`/`id` pair is the correct
+  // association with no `aria-labelledby` needed (Radix sets none on the
+  // trigger; objectui#3341's landed reasoning transfers verbatim). Only the
+  // author can supply `schema.id`, so — exactly as on `text_input` — the
+  // wiring can only hold when they did; with no `schema.id` the label renders
+  // as unassociated caption text, same as before this change, rather than
+  // reaching for a `useId()` fallback that would always name the control
+  // (objectui#5771 — deliberately following #5735's answer to the same
+  // question on its complement block, not re-opening it).
   return (
     <div
       className={cn('space-y-1.5', schema?.className)}
       data-testid="record-picker"
       data-picker-id={schema?.id}
     >
-      {label && <label className="text-sm font-medium text-foreground">{label}</label>}
+      {label && (
+        <Label htmlFor={schema?.id} className="text-sm font-medium text-foreground">
+          {label}
+        </Label>
+      )}
       <Select
         value={value}
         onValueChange={handleChange}
         disabled={loading || !!error || !object}
       >
-        <SelectTrigger className="w-full max-w-xs" data-testid="record-picker-trigger">
+        <SelectTrigger
+          id={schema?.id}
+          className="w-full max-w-xs"
+          data-testid="record-picker-trigger"
+        >
           <SelectValue
             placeholder={loading ? 'Loading…' : error ? 'Failed to load' : placeholder}
           />
@@ -357,7 +379,7 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
       type: ['string', 'object'],
       label: 'Label',
       description:
-        'Caption rendered above the picker, in a `<label>` element. Display-only — it never reaches the query, and it is OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, with the same fallback chain as `placeholder`. Distinct from `labelField`, which names the RECORD field each offered row is titled by.',
+        'Caption rendered above the picker, in a `<label>` element — tied to the control by `htmlFor` when the node carries an `id`, so clicking it focuses the picker and the text becomes the combobox’s accessible name (objectui#5771). Display-only — it never reaches the query, and it is OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, with the same fallback chain as `placeholder`. Distinct from `labelField`, which names the RECORD field each offered row is titled by.',
     },
     // ── sort / limit / emptyText — declared on the rc.6 bump (objectui#4167) ──
     // `@objectstack/spec` 17.0.0-rc.6 lands objectstack#5775's other half: these
