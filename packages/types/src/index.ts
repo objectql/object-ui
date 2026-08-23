@@ -919,6 +919,16 @@ export type {
   AppPluginContext,
   AppMetadataPlugin,
   ComponentMeta as PluginComponentMeta,
+  /**
+   * @deprecated Use `ComponentInput` instead. Since objectui#4972 converged the
+   * plugin-scoped declaration onto `base.ts`, this alias names the SAME type
+   * under a second name — it carries no information `ComponentInput` does not.
+   * Retiring it is objectui#5674 (maintainer ruling, 2026-08-22: deprecate for a
+   * release, then remove). This deprecation window exists for consumers outside
+   * this repository, which cannot be measured from here; in-repo the name has
+   * zero importers. Removal ships as a `minor` under this repo's version policy
+   * (objectui's own breaking changes never declare `major`).
+   */
   ComponentInput as PluginComponentInput,
   PluginEventHandler,
 } from './plugin-scope.js';

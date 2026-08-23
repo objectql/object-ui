@@ -175,6 +175,15 @@ export interface ComponentMeta {
  * ruling — *a structural copy would reproduce the defect the moment either
  * side moved.* Re-exported under this name so that `index.ts`' public
  * `ComponentInput as PluginComponentInput` alias keeps naming a real export.
+ *
+ * That alias is now `@deprecated` (objectui#5674): with the declaration shared,
+ * the second published name carries no information the first does not.
+ *
+ * Note for whoever completes that retirement: this re-export is a SEPARATE
+ * binding from the `import type { ComponentInput }` at the top of the file.
+ * The import is what types `ComponentMeta.inputs` and stays regardless; this
+ * re-export's only consumer is the aliased specifier in `index.ts`, so it goes
+ * dead the moment that alias is deleted and should be removed with it.
  */
 export type { ComponentInput } from './base.js';
 
