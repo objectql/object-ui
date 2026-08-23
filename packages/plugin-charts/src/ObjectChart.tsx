@@ -1000,7 +1000,14 @@ export const ObjectChart = (props: any) => {
   })() : null;
 
   return (
-    <div className="relative">
+    // `h-full` keeps the height chain intact: a dashboard grid cell declares a
+    // definite height and passes `className: "h-full"` down the schema to
+    // ChartContainer, whose `height: 100%` resolves against THIS div — a plain
+    // auto-height block here computes that to `auto`, recharts measures a
+    // permanent zero, and only the CHART_MIN_HEIGHT floor keeps the chart
+    // visible at all (#5451). Under auto-height parents `h-full` itself
+    // resolves to `auto`, so non-dashboard hosts are unchanged.
+    <div className="relative h-full">
       <RefreshIndicator active={loading && finalData.length > 0} />
       <ChartRenderer {...props} schema={finalSchemaWithColors} onChartClick={onChartClick} />
       {drillDrawer}
