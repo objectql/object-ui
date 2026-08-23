@@ -1909,6 +1909,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../test-support
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types

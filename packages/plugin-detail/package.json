@@ -51,6 +51,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/fields": "workspace:*",
     "@object-ui/permissions": "workspace:*",
+    "@object-ui/test-support": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@types/react": "19.2.18",

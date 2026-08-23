@@ -47,29 +47,20 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
+import {
+  authorableShapeKeys,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  resolvePropsShape,
+} from '@object-ui/test-support';
 import { RecordDetailsProps } from '@objectstack/spec/ui';
 import '../index';
 
 const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-type ShapeCarrier = { shape?: unknown; _def?: { shape?: unknown } };
-
-/** Resolve a Zod object's `.shape` through both spellings, lazy or plain. */
-function shapeKeys(schema: unknown): string[] {
-  const carrier = schema as ShapeCarrier | undefined;
-  const shape = carrier?.shape ?? carrier?._def?.shape;
-  const resolved = typeof shape === 'function' ? (shape as () => object)() : shape;
-  return resolved && typeof resolved === 'object' ? Object.keys(resolved) : [];
-}
-
 /** One entry of `.shape`, unwrapped past `.optional()`. */
 function shapeMember(schema: unknown, key: string): unknown {
-  const carrier = schema as ShapeCarrier | undefined;
-  const shape = carrier?.shape ?? carrier?._def?.shape;
-  const resolved = (typeof shape === 'function' ? (shape as () => object)() : shape) as
-    | Record<string, unknown>
-    | undefined;
-  const member = resolved?.[key] as { unwrap?: () => unknown } | undefined;
+  const member = resolvePropsShape(schema)?.[key] as { unwrap?: () => unknown } | undefined;
   return typeof member?.unwrap === 'function' ? member.unwrap() : member;
 }
 
@@ -84,11 +75,10 @@ function arrayElement(schema: unknown): unknown {
 }
 
 /** Top-level keys of the spec's `RecordDetailsProps`, INCLUDING tombstones. */
-const specTopLevelKeys = (): string[] => shapeKeys(RecordDetailsProps);
+const specTopLevelKeys = (): string[] => listedShapeKeys(RecordDetailsProps);
 
 /**
- * Is this top-level key an ADR-0087 tombstone — declared, but typed `never` so
- * every value is rejected with a named migration message?
+ * Is this top-level key an ADR-0087 tombstone — declared, but rejected by name?
  *
  * This distinction is load-bearing, and objectui#3818 is what proved it. A D2
  * retirement does NOT delete the key from the shape; it REPLACES the member
@@ -99,21 +89,21 @@ const specTopLevelKeys = (): string[] => shapeKeys(RecordDetailsProps);
  * the tombstone said yes, and the manifest kept offering an input the spec
  * rejects on parse. Filtering tombstones out is what makes the gate mean what
  * its name says.
+ *
+ * The criterion itself is NOT written out here (objectui#4947). It is
+ * `@object-ui/test-support`'s shared judge, which OR-s the structural channel
+ * this file used to carry alone with the `[REMOVED]` description channel, so
+ * neither can go quietly permissive on its own.
  */
-const isTombstoned = (key: string): boolean => {
-  const member = shapeMember(RecordDetailsProps, key) as
-    | { _def?: { type?: string }; def?: { type?: string } }
-    | undefined;
-  return (member?._def?.type ?? member?.def?.type) === 'never';
-};
+const isTombstoned = (key: string): boolean =>
+  isShapeKeyTombstoned(RecordDetailsProps, key);
 
 /** Top-level keys the spec actually ACCEPTS — tombstones removed. */
-const specAcceptedTopLevelKeys = (): string[] =>
-  specTopLevelKeys().filter((key) => !isTombstoned(key));
+const specAcceptedTopLevelKeys = (): string[] => authorableShapeKeys(RecordDetailsProps);
 
 /** Member keys of one `sections[]` entry, per the spec. */
 const specSectionKeys = (): string[] =>
-  shapeKeys(arrayElement(shapeMember(RecordDetailsProps, 'sections')));
+  listedShapeKeys(arrayElement(shapeMember(RecordDetailsProps, 'sections')));
 
 /**
  * Section keys `RecordDetailsRenderer` honours beyond the spec's four. Read off
@@ -299,7 +289,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // (`synth/buildDefaultPageSchema.ts:557-562` types it `string[]`), so the
     // tolerant arm is unexercised drift rather than a live dialect.
     const element = arrayElement(shapeMember(RecordDetailsProps, 'hideFields'));
-    expect(shapeKeys(element)).toEqual([]);
+    expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ hideFields: ['phone'] }).success).toBe(true);
 
     const objectForm = RecordDetailsProps.safeParse({ hideFields: [{ name: 'phone' }] });
@@ -377,7 +367,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // publish, and the renderer's tolerance for `{name}` / `{field}` entries is
     // not a second contract to advertise — the spec rejects those values.
     const element = arrayElement(shapeMember(RecordDetailsProps, 'fields'));
-    expect(shapeKeys(element)).toEqual([]);
+    expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ fields: ['phone'] }).success).toBe(true);
     expect(RecordDetailsProps.safeParse({ fields: [{ name: 'phone' }] }).success).toBe(false);
 

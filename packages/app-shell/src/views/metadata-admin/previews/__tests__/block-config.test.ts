@@ -6,6 +6,7 @@ import {
   PageHeaderProps,
   RecordDetailsProps,
 } from '@objectstack/spec/ui';
+import { isShapeKeyTombstoned, listedShapeKeys, shapeMemberTypeName } from '@object-ui/test-support';
 import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
@@ -335,24 +336,17 @@ describe('page:header `icon` — the designer field retired with the spec key (#
   // ADR-0087 D2 retirement REPLACES the member with `z.never()` rather than
   // deleting it, so `icon` is STILL a key of the shape: every "is it declared?"
   // check reads green while the parser rejects every value by name. The
-  // criterion is therefore the unwrapped member's type — the same one
-  // objectui#3809 converges on repo-wide.
+  // criterion is `@object-ui/test-support`'s shared judge (objectui#3809,
+  // converged here by objectui#4947), which OR-s the structural channel this
+  // block used to spell out by hand with the `[REMOVED]` description channel.
   it('the spec tombstones `icon` rather than deleting it', () => {
-    const shape = (PageHeaderProps as unknown as { shape: Record<string, unknown> }).shape;
-    const memberType = (key: string): string | undefined => {
-      const member = shape[key] as { unwrap?: () => unknown } | undefined;
-      const inner = (typeof member?.unwrap === 'function' ? member.unwrap() : member) as
-        | { _def?: { type?: string }; def?: { type?: string } }
-        | undefined;
-      return inner?._def?.type ?? inner?.def?.type;
-    };
-    expect(Object.keys(shape)).toContain('icon');
-    expect(memberType('icon')).toBe('never');
+    expect(listedShapeKeys(PageHeaderProps)).toContain('icon');
+    expect(isShapeKeyTombstoned(PageHeaderProps, 'icon')).toBe(true);
     // Non-vacuity for the probe itself: a Zod-internals change that made every
     // member read `'never'` would make the line above meaningless, and a live
     // key is the only thing that can tell the difference.
-    expect(memberType('title')).not.toBe('never');
-    expect(memberType('title')).toBeTruthy();
+    expect(isShapeKeyTombstoned(PageHeaderProps, 'title')).toBe(false);
+    expect(shapeMemberTypeName(PageHeaderProps, 'title')).toBeTruthy();
   });
 
   // The i18n side, exactly as the retired option above: a key kept past its
