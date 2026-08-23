@@ -72,7 +72,7 @@
  * so the console must not blank) is honoured for free by not adding one.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
 import { AuthProvider } from '../AuthProvider';
@@ -81,6 +81,7 @@ import { useWorkspaceAdminStatus } from '../useWorkspaceAdminStatus';
 import { TokenStorage } from '../createAuthClient';
 import { ActiveOrganizationStorage, SessionUserScope } from '../ActiveOrganizationStorage';
 import type { AuthClient, AuthOrganization, AuthOrganizationMember, AuthUser } from '../types';
+import type { AuthContextValue } from '../AuthContext';
 
 /** The UNSIGNED session token — `sys_session.token`, and `session.token` on the wire. */
 const RAW_TOKEN = 'sess_5719_raw';
@@ -164,12 +165,18 @@ function orgBoundClient(options: ServerOptions) {
   return { client, getSession, setActiveOrganization, getActiveMember, sessionRow };
 }
 
-let switchOrg: ((orgId: string) => Promise<void>) | null = null;
+/**
+ * The live context, captured in an EFFECT rather than during render — a render
+ * write is a side effect (`react-hooks/globals`), and here it would also be
+ * unreliable: these cases switch organizations from outside React.
+ */
+const authRef: { current: AuthContextValue | null } = { current: null };
 
 function Probe() {
-  const { user, activeOrganization, switchOrganization } = useAuth();
+  const auth = useAuth();
+  const { user, activeOrganization } = auth;
   const { isAdmin, isResolved } = useWorkspaceAdminStatus();
-  switchOrg = switchOrganization;
+  useEffect(() => { authRef.current = auth; }, [auth]);
   return (
     <div>
       <span data-testid="org">{activeOrganization?.id ?? 'none'}</span>
@@ -194,7 +201,7 @@ async function bootOnOrgA(client: AuthClient) {
 /** Drive the real `switchOrganization` and let the rotation's fetch settle. */
 async function switchToOrgB() {
   await act(async () => {
-    await switchOrg!(ORG_B.id);
+    await authRef.current!.switchOrganization(ORG_B.id);
     // The rotation listener fires `void loadSession()` — deliberately not
     // awaited by `switchOrganization`. Flush its microtasks.
     await Promise.resolve();
@@ -203,7 +210,7 @@ async function switchToOrgB() {
 }
 
 beforeEach(() => {
-  switchOrg = null;
+  authRef.current = null;
   localStorage.clear();
   sessionStorage.clear();
   TokenStorage.clear();
