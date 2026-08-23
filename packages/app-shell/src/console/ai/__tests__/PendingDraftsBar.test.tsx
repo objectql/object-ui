@@ -19,12 +19,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, fireEvent, cleanup } from '@testing-library/react';
 import { PendingDraftsBar } from '../PendingDraftsBar.js';
 
-const listDrafts = vi.fn();
 const refresh = vi.fn();
+// objectui#5801 — the bar reads its count from the shared `_drafts` fetch;
+// the stub routes by URL: drafts reads answer `draftRows`, publish POSTs 200.
+let draftRows: Array<Record<string, unknown>> = [];
 
-vi.mock('../../../views/metadata-admin/useMetadata.js', () => ({
-  useMetadataClient: () => ({ listDrafts }),
-}));
 vi.mock('../../../providers/MetadataProvider.js', () => ({
   useMetadata: () => ({ refresh }),
 }));
@@ -34,7 +33,16 @@ vi.mock('@object-ui/plugin-chatbot', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ success: true }) })));
+  draftRows = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: unknown) => {
+      if (String(url).includes('/meta/_drafts')) {
+        return { ok: true, status: 200, json: async () => draftRows };
+      }
+      return { ok: true, status: 200, json: async () => ({ success: true }) };
+    }),
+  );
 });
 afterEach(() => {
   cleanup();
@@ -43,9 +51,14 @@ afterEach(() => {
 
 describe('PendingDraftsBar (objectui#5694)', () => {
   it('renders nothing when the package has no pending drafts, and nothing when unbound', async () => {
-    listDrafts.mockResolvedValue([]);
+    draftRows = [];
     const { container, rerender } = render(<PendingDraftsBar packageId="app.k9qk" idle />);
-    await waitFor(() => expect(listDrafts).toHaveBeenCalledWith({ packageId: 'app.k9qk' }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/v1/meta/_drafts?packageId=app.k9qk',
+        expect.objectContaining({ credentials: 'include' }),
+      ),
+    );
     expect(container.querySelector('[data-testid="pending-drafts-bar"]')).toBeNull();
     rerender(<PendingDraftsBar packageId={undefined} idle />);
     expect(container.querySelector('[data-testid="pending-drafts-bar"]')).toBeNull();
@@ -53,14 +66,15 @@ describe('PendingDraftsBar (objectui#5694)', () => {
 
   it('shows the count while drafts are pending, publishes through publish-drafts, then hides', async () => {
     // One pending dashboard draft (the cloud#1584 shape) until published.
-    listDrafts.mockResolvedValue([{ type: 'dashboard', name: 'task_dashboard', packageId: 'app.k9qk' }]);
+    draftRows = [{ type: 'dashboard', name: 'task_dashboard', packageId: 'app.k9qk' }];
     const { container } = render(<PendingDraftsBar packageId="app.k9qk" idle />);
     await waitFor(() =>
       expect(container.querySelector('[data-testid="pending-drafts-bar"]')).toBeTruthy(),
     );
 
-    // Publishing empties the pending set on the post-publish refetch.
-    listDrafts.mockResolvedValue([]);
+    // Publishing empties the pending set on the post-publish refetch (the
+    // bus pulse the publish emits drives it through the shared hook).
+    draftRows = [];
     const bar = container.querySelector('[data-testid="pending-drafts-bar"]') as HTMLElement;
     const button = bar.querySelector('button');
     if (!button) throw new Error('no button. bar html: ' + bar.outerHTML.slice(0, 500));

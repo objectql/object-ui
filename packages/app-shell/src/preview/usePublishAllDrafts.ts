@@ -22,6 +22,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { publishHealthFromResponse, type PublishHealth } from '@object-ui/plugin-chatbot';
 import { useMetadataClient } from '../views/metadata-admin/useMetadata.js';
+import { emitMetadataRefresh } from '../assistant/assistantBus.js';
 import { lintDraftCapabilityReferences } from './capabilityLint.js';
 
 type TranslateFn = (key: string, opts?: Record<string, unknown>) => string;
@@ -127,6 +128,9 @@ export function usePublishAllDrafts(t: TranslateFn) {
           { description: capWarnings[0], duration: 10000 },
         );
       }
+      // objectui#5801 — announce the publish so every pending-drafts surface
+      // (home banner, Studio topbar, chat bar) converges without a reload.
+      emitMetadataRefresh();
       return { ok: true, attempted: pending.length };
     } catch (e) {
       toast.error(

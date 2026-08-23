@@ -87,6 +87,8 @@ import {
   navIdAtPosition,
 } from '../metadata-admin/nav-selection.js';
 import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor.js';
+import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
 import { loadPackageSurfaces } from './packageSurfaces.js';
 import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
@@ -479,26 +481,15 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // one atomic pass (POST /packages/:id/publish-drafts), reviewed as a whole in
   // DraftChangesPanel. There is no per-item publish.
   const [changesOpen, setChangesOpen] = React.useState(false);
-  const [pendingCount, setPendingCount] = React.useState<number | null>(null);
   const [publishing, setPublishing] = React.useState(false);
   const [publishNonce, setPublishNonce] = React.useState(0); // ↑ → pillars re-read the published baseline
   const [draftNonce, setDraftNonce] = React.useState(0); // ↑ → refresh the pending-draft count
 
-  const refreshPending = React.useCallback(async () => {
-    try {
-      const res = await fetch(`/api/v1/meta/_drafts?packageId=${encodeURIComponent(packageId)}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) return setPendingCount(null);
-      const data = (await res.json()) as unknown;
-      const list = (Array.isArray(data) ? data : ((data as { drafts?: unknown[] })?.drafts ?? [])) as unknown[];
-      setPendingCount(list.length);
-    } catch {
-      setPendingCount(null);
-    }
-  }, [packageId]);
+  // objectui#5801 — the shared pending-drafts source: same fetch, same count,
+  // and the assistant bus's metadata-refresh pulse keeps this topbar in step
+  // with every OTHER surface's publishes (chat bar, home banner) — previously
+  // a publish from the right dock never updated this count.
+  const { count: pendingCount, refresh: refreshPending } = usePendingDrafts({ packageId });
 
   React.useEffect(() => {
     void refreshPending();
@@ -535,6 +526,9 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         setChangesOpen(false);
       }
       setPublishNonce((n) => n + 1);
+      // objectui#5801 — announce the publish so the chat bar / home banner /
+      // draft cards converge without their own polling.
+      emitMetadataRefresh();
     } catch (e) {
       toast.error(formatMetadataError(e));
     } finally {

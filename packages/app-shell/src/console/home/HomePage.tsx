@@ -36,7 +36,7 @@ import {
 } from '../../utils/index.js';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
-import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
+import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
 import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
 import { isAiStudioEnabled, isMarketplaceEnabled } from '../../runtime-config.js';
@@ -231,38 +231,22 @@ function pickGreetingKey(hour: number): string {
  * (listDrafts → 0).
  */
 function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) {
-  const client = useMetadataClient();
-  const [drafts, setDrafts] = useState<Array<{ type: string; name: string }>>([]);
   // Shared one-click publish (also used by the ADR-0037 draft-preview bar):
   // packages via the probed publish-drafts path, orphans by reference, health
   // surfaced in toasts. See usePublishAllDrafts for the full story.
   const { publishAll, publishing } = usePublishAllDrafts(t);
-  const count = drafts.length;
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.resolve(client.listDrafts?.({}))
-      .then((rows) => {
-        if (cancelled || !Array.isArray(rows)) return;
-        setDrafts(
-          rows
-            .filter((d: any) => d && typeof d.type === 'string' && typeof d.name === 'string')
-            .map((d: any) => ({ type: d.type, name: d.name })),
-        );
-      })
-      .catch(() => { /* drafts unsupported / error → don't show */ });
-    return () => { cancelled = true; };
-  }, [client]);
+  // objectui#5801 — env-wide scope, from the shared pending-drafts source.
+  // The bus subscription inside the hook replaces both the mount-only fetch
+  // (which never saw later edits) and the post-publish window.location.reload
+  // (publishAll now emits the metadata-refresh pulse; the launcher/nav refresh
+  // through MetadataProvider's subscription to the same pulse).
+  const { count } = usePendingDrafts({});
 
   const publish = async () => {
-    const result = await publishAll();
-    if (!result.ok) return;
-    setDrafts([]);
-    // Surface the now-live app — reload so the populated home shows it.
-    setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 700);
+    await publishAll();
   };
 
-  if (count <= 0) return null;
+  if ((count ?? 0) <= 0) return null;
   return (
     <div className="px-4 sm:px-6 lg:px-8 pt-4">
       <div className="max-w-7xl mx-auto">

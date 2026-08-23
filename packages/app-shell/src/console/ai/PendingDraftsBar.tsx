@@ -34,14 +34,15 @@
  * pending-drafts banner (environment-wide, not package-scoped).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CloudUpload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { publishHealthFromResponse } from '@object-ui/plugin-chatbot';
-import { useMetadataClient } from '../../views/metadata-admin/useMetadata.js';
 import { useMetadata } from '../../providers/MetadataProvider.js';
+import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 
 export interface PendingDraftsBarProps {
   /** The conversation's bound package (ADR-0057 A1.a); undefined = not bound yet. */
@@ -51,39 +52,23 @@ export interface PendingDraftsBarProps {
 }
 
 export function PendingDraftsBar({ packageId, idle }: PendingDraftsBarProps) {
-  const client = useMetadataClient();
   const { refresh } = useMetadata();
   const { t } = useObjectTranslation();
-  const [count, setCount] = useState(0);
   const [publishing, setPublishing] = useState(false);
-  // `useMetadataClient` caches per baseUrl+env, but this bar must not depend
-  // on that: an unstable client identity in the effect deps would refetch on
-  // every render. Read it through a ref; the effect keys on the FACTS that
-  // change the answer (binding, idleness, an explicit post-publish bump).
-  const clientRef = useRef(client);
-  clientRef.current = client;
-  const [version, setVersion] = useState(0);
+  // objectui#5801 — the shared pending-drafts source. The hook's bus
+  // subscription replaces the post-publish `version` bump AND picks up
+  // publishes made from OTHER surfaces (Studio topbar, home banner); the
+  // idle-edge effect below keeps "refetch when the turn finishes" — the agent
+  // may have just staged drafts.
+  const { count, refresh: refreshCount } = usePendingDrafts({
+    packageId,
+    enabled: Boolean(packageId),
+  });
 
   useEffect(() => {
-    if (!packageId) {
-      setCount(0);
-      return;
-    }
-    if (!idle) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const drafts = ((await clientRef.current.listDrafts?.({ packageId })) as unknown[]) || [];
-        if (!cancelled) setCount(Array.isArray(drafts) ? drafts.length : 0);
-      } catch {
-        // An older server without the drafts surface: no signal, no bar.
-        if (!cancelled) setCount(0);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [idle, packageId, version]);
+    if (!packageId || !idle) return;
+    void refreshCount();
+  }, [idle, packageId, refreshCount]);
 
   const publish = useCallback(async () => {
     if (!packageId || publishing) return;
@@ -116,19 +101,21 @@ export function PendingDraftsBar({ packageId, idle }: PendingDraftsBarProps) {
         toast.success(t('console.ai.pendingDrafts.published', { defaultValue: 'All pending changes are live.' }));
       }
       // The launcher/nav may have just gained entries — refresh the shared
-      // metadata so the user's next click finds them.
+      // metadata so the user's next click finds them, and announce the publish
+      // on the bus so every other pending-drafts surface (home banner, Studio
+      // topbar) converges too (objectui#5801).
       try {
         await refresh?.();
       } catch {
         /* metadata refresh is best-effort */
       }
+      emitMetadataRefresh();
     } finally {
       setPublishing(false);
-      setVersion((v) => v + 1);
     }
   }, [packageId, publishing, refresh, t]);
 
-  if (!packageId || count <= 0) return null;
+  if (!packageId || (count ?? 0) <= 0) return null;
 
   return (
     <div

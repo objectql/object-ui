@@ -1857,6 +1857,26 @@ export function ChatPane({
     onPackageBound?.(boundPackageId);
   }, [isBuildSurface, canBind, boundPackageId, editPackageId, isLoading, onPackageBound]);
 
+  // objectui#5801 — when a turn that STAGED or PUBLISHED something finishes,
+  // announce it on the bus so every pending-drafts surface (Studio topbar,
+  // home banner, the bar above this pane) converges immediately — previously
+  // an agent-staged draft lit only the chat bar (its own idle refetch) while
+  // the Studio topbar count stayed dark until a manual draft save. Precise on
+  // purpose: only turns whose tools carried an authoring envelope emit, so an
+  // ordinary Q&A turn does not trigger an env-wide registry refetch.
+  const lastAuthoringEmitRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (isLoading) return;
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (!lastAssistant || lastAssistant.id === lastAuthoringEmitRef.current) return;
+    const authored = (lastAssistant.toolInvocations ?? []).some(
+      (tool) => tool.draftReview || tool.replayOutcome,
+    );
+    if (!authored) return;
+    lastAuthoringEmitRef.current = lastAssistant.id;
+    emitMetadataRefresh();
+  }, [isLoading, messages]);
+
   // A1.b switcher menu: every published app with a package identity, deduped
   // by package (apps sharing a package share the build thread — the scope is
   // per-package). Selecting one navigates to its Edit-with-AI surface, which

@@ -49,6 +49,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 // ⛔ Do not "optimize" this into a local copy of the spelling table: a
 // spec-named local declaration is what `scripts/check-spec-symbol-derivation.mjs`
 // refuses, and a faithful copy is exactly the fork that guard exists to prevent.
+import { fetchPendingDrafts } from './usePendingDrafts.js';
 import { canonicalMetaUrlType } from '@objectstack/spec/shared';
 import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
 // The live `?surface=` channel, and NOT `useSurfaceDeepLink` beside it: this
@@ -75,19 +76,10 @@ export interface DraftChangeEntry {
 
 /** Pending drafts straight from the ADR-0033 `_drafts` endpoint. */
 async function listPendingDrafts(packageId?: string | null): Promise<DraftChangeEntry[]> {
-  const qs = packageId ? `?packageId=${encodeURIComponent(packageId)}` : '';
-  const res = await fetch(`/api/v1/meta/_drafts${qs}`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`_drafts HTTP ${res.status}`);
-  const data = (await res.json()) as
-    | Array<Record<string, unknown>>
-    | { drafts?: Array<Record<string, unknown>> };
-  const list = Array.isArray(data) ? data : data?.drafts ?? [];
-  return list
-    .filter((d) => typeof d?.type === 'string' && typeof d?.name === 'string')
+  // Shared fetch (objectui#5801); the fold below stays HERE because this module
+  // builds `/meta` item URLs from the type.
+  const rows = await fetchPendingDrafts(packageId);
+  return rows
     .map((d) => ({
       // The one fold, at the one boundary where a stored spelling enters this
       // module: the `/meta` type segment is singular, always (objectstack#9180).
@@ -107,9 +99,9 @@ async function listPendingDrafts(packageId?: string | null): Promise<DraftChange
       // `replace(/s$/, '')` emits `capabilitie`. And this is EMIT-side only —
       // residue stored under a plural type stays exactly as it is on the
       // server; nothing here writes, migrates or re-keys anything.
-      type: canonicalMetaUrlType(d.type as string),
-      name: d.name as string,
-      packageId: typeof d.packageId === 'string' && d.packageId ? (d.packageId as string) : null,
+      type: canonicalMetaUrlType(d.type),
+      name: d.name,
+      packageId: d.packageId,
     }));
 }
 
