@@ -142,9 +142,6 @@
       "@radix-ui/react-focus-scope": "patches/@radix-ui__react-focus-scope.patch"
     }
   },
-  "dependencies": {
-    "coverage-v8": "0.0.1-security"
-  },
   "msw": {
     "workerDirectory": [
       "public"

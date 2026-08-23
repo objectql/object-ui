@@ -23,10 +23,6 @@ patchedDependencies:
 importers:
 
   .:
-    dependencies:
-      coverage-v8:
-        specifier: 0.0.1-security
-        version: 0.0.1-security
     devDependencies:
       '@changesets/cli':
         specifier: ^3.0.0
@@ -6819,9 +6815,6 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
-
-  coverage-v8@0.0.1-security:
-    resolution: {integrity: sha512-m5c7m+S22CM+YHALYgqJCL9sBbbSkDWP3cxRAkwRMw+/N7cMwqiQ0FDpKe6LXhLY/QJ8zGaDOwYW74M7j1Wrlw==}
 
   crc-32@1.2.2:
     resolution: {integrity: sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ==}
@@ -15141,8 +15134,6 @@ snapshots:
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 6.0.3
-
-  coverage-v8@0.0.1-security: {}
 
   crc-32@1.2.2: {}
 
