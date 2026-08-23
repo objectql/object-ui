@@ -145,12 +145,36 @@ function writePersisted(key: string, value: string): void {
   }
 }
 
-function removePersisted(key: string): void {
+/**
+ * Remove `key`, and report whether it is gone — `true` when a read-back can no
+ * longer produce a value for it.
+ *
+ * ## Why the verdict is a READ-BACK and not "did `removeItem` throw"
+ * (objectui#5731)
+ *
+ * `get()` can only answer with what `getItem` hands back, so "did this removal
+ * stick" is exactly the question "is the key still readable". Deciding it from
+ * the throw instead would be both too narrow and too wide:
+ *
+ *  - TOO NARROW. A wrapped or proxied `localStorage` — an extension, a
+ *    polyfill — whose `removeItem` is a silent no-op never throws, and leaves
+ *    exactly the residue this guards against. objectui#5731 named the throwing
+ *    variant; the no-op variant is the same defect, and a read-back catches
+ *    both without having to enumerate them.
+ *  - TOO WIDE. In SSR, and in a partitioned iframe where every operation
+ *    throws, there is nothing readable to resurrect and the paths are already
+ *    safe. A throw-based verdict would report those two states as failures,
+ *    which is how a report earns a reputation for crying wolf.
+ *
+ * The throw is therefore still swallowed here: it is not the verdict.
+ */
+function removePersisted(key: string): boolean {
   try {
     safeStore('local')?.removeItem(key);
   } catch {
-    /* storage unavailable */
+    /* not the verdict — the read-back below is */
   }
+  return readPersisted(key) === null;
 }
 
 /**
@@ -305,6 +329,17 @@ export const ActiveOrganizationStorage = {
   _memoryValue: null as string | null,
 
   /**
+   * Keys whose removal by {@link clear} did not stick — the value was still
+   * readable afterwards (objectui#5731).
+   *
+   * {@link get} refuses to answer from the persisted layer for a key in here,
+   * which is the mechanism that keeps a cleared organization cleared. Held in
+   * memory, so it lasts exactly one page-load: a browser that starts fresh
+   * re-measures rather than inheriting a verdict.
+   */
+  _unremovedKeys: new Set<string>(),
+
+  /**
    * The active org id for the CURRENT user, or `null`.
    *
    * READ ORDER — a non-null `localStorage` read wins; anything else falls
@@ -336,7 +371,18 @@ export const ActiveOrganizationStorage = {
    */
   get(): string | null {
     const key = scopedActiveOrgKey();
-    if (key) {
+    // A key {@link clear} could not remove is QUARANTINED for the rest of this
+    // page-load, and skipping the persisted branch is what stops the cleared
+    // org from being handed straight back (objectui#5731). `_memoryValue` then
+    // answers, and for that key it is the only copy this page-load can trust:
+    // `clear()` nulled it, and a later `set()` refills it with the value that
+    // write was meant to persist — so this stays correct in both directions
+    // with no release step of its own. What it gives up is cross-tab freshness
+    // for one key, in a browser that has just demonstrated it cannot delete
+    // from storage. An unstamped `X-Tenant-ID` is a documented state of the
+    // edge contract (see `createAuthenticatedFetch`); a re-stamped signed-out
+    // org is not.
+    if (key && !this._unremovedKeys.has(key)) {
       try {
         const persisted = safeStore('local')?.getItem(key) ?? null;
         if (persisted !== null) return persisted;
@@ -357,6 +403,43 @@ export const ActiveOrganizationStorage = {
     writePersisted(key, orgId);
   },
 
+  /**
+   * Drop the active organization, from memory and from the persisted key.
+   *
+   * POSTCONDITION: {@link get} answers `null` afterwards. Sign-out is one of
+   * the callers, so that is a security-relevant guarantee rather than a
+   * convenience — and before objectui#5731 it was not one, because a
+   * `removeItem` that failed was swallowed and the surviving key won `get()`'s
+   * read order.
+   *
+   * ## Why a failed removal is neither thrown nor returned (objectui#5731)
+   *
+   * Every caller arrives here AFTER the transition it is following up on has
+   * already happened, and not one of them can act on a storage failure:
+   *
+   *  - `AuthProvider`'s `purgeSignedOutClientCaches` — the session is already
+   *    ended. Sign-out cannot be refused because a key would not delete.
+   *  - `switchOrganization` — the server already switched or cleared the
+   *    active org; a throw would report a successful switch as a failure and
+   *    route the caller into its error branch.
+   *  - `deleteOrganization` / `leaveOrganization` — the org is already deleted
+   *    or already left.
+   *  - {@link purgePreviousUserClientState}, via {@link SessionUserScope.adopt}
+   *    — runs on the SIGN-IN path inside an `AuthProvider` effect, where a
+   *    throw breaks the boot of the ARRIVING user.
+   *
+   * A `boolean` return only moves the problem one step: all five call sites
+   * would have nothing to write in the failure branch, and a return value that
+   * every caller ignores reads as handled when it is not. So the invariant is
+   * restored HERE, where it can be, and the failure is reported to the console,
+   * where a human can find it.
+   *
+   * The third shape considered and rejected was re-writing the key with an
+   * empty value. That relocates the fix into every consumer's truthiness test
+   * (`createAuthenticatedFetch` does `if (activeOrgId)`), which is the lenient
+   * consumer AGENTS.md #0.1 forbids, and it leaves a signed-out browser holding
+   * a live key.
+   */
   clear(): void {
     // Nulling the fallback is SECURITY-RELEVANT, not bookkeeping: `get()`
     // falls through to `_memoryValue` whenever the `localStorage` read comes
@@ -366,9 +449,36 @@ export const ActiveOrganizationStorage = {
     // `X-Tenant-ID`. Pinned by `__tests__/activeOrgStorageFallback-5703.test.tsx`.
     this._memoryValue = null;
     const key = scopedActiveOrgKey();
-    if (key) removePersisted(key);
+    if (key) {
+      if (removePersisted(key)) {
+        // Confirmed gone. Recomputed on every call rather than left alone, so
+        // a key quarantined by an earlier failure is RELEASED the moment a
+        // removal sticks: the quarantine describes the last attempt, not a
+        // permanent verdict on the browser.
+        this._unremovedKeys.delete(key);
+      } else {
+        // The removal did not stick and the value is still readable, so
+        // `get()` would hand the signed-out org straight back. Two things
+        // happen here and they are deliberately separable: the stale read is
+        // SUPPRESSED, which restores the postcondition without any caller's
+        // help, and the failure is REPORTED, because "sign-out did not fully
+        // stick" is something whoever is reading a console has to be able to
+        // find. Neither half substitutes for the other — a report alone leaves
+        // the org on the wire, and suppression alone is the same silence this
+        // card was filed about, just with a better outcome.
+        this._unremovedKeys.add(key);
+        console.warn(
+          `[ActiveOrganizationStorage] clear() could not remove "${key}" from localStorage — ` +
+            'it is still readable. Reads for it are answered from memory for the rest of this ' +
+            'page-load, so the cleared organization is not re-stamped as X-Tenant-ID.',
+        );
+      }
+    }
     // Also drop the pre-#5664 bare key, so a `clear()` on a browser upgrading
     // from an older build leaves nothing behind under the retired spelling.
+    // Its verdict is deliberately ignored: `scopedActiveOrgKey()` never returns
+    // the bare spelling, so nothing reads it and a survival here cannot
+    // resurrect an org through `get()`.
     removePersisted(LEGACY_ACTIVE_ORG_KEY);
   },
 };
