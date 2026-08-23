@@ -868,7 +868,6 @@ A complete object management interface combining grid, form, search, filters, an
   "showSearch": true,
   "showFilters": true,
   "showCreate": true,
-  "showRefresh": true,
   "showViewSwitcher": true,
   "operations": {
     "create": true,
@@ -911,7 +910,7 @@ A complete object management interface combining grid, form, search, filters, an
 | `defaultListView` | `string` | Key of the default list view. |
 | `table` | `Partial<ObjectGridSchema>` | Grid configuration overrides. |
 | `form` | `Partial<ObjectFormSchema>` | Form configuration overrides. |
-| `showSearch` / `showFilters` / `showCreate` / `showRefresh` | `boolean` | Toggle toolbar features. |
+| `showSearch` / `showFilters` / `showCreate` | `boolean` | Toggle toolbar features. |
 | `showViewSwitcher` | `boolean` | Show view type toggle (grid, kanban, etc.). |
 | `operations` | `object` | Enabled CRUD operations. |
 | `navigation` | `ViewNavigationConfig` | SPA-aware navigation. |

@@ -133,7 +133,6 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
       showSearch: true,
       showFilters: true,
       showCreate: false,
-      showRefresh: true,
       showViewSwitcher: true,
     }),
     [objectName, defaultViewType, defaultViewId, listViews],

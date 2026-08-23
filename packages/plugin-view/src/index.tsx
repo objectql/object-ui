@@ -78,7 +78,6 @@ ComponentRegistry.register('object-view', ObjectViewRenderer, {
     { name: 'showSearch', type: 'boolean', label: 'Show Search' },
     { name: 'showFilters', type: 'boolean', label: 'Show Filters' },
     { name: 'showCreate', type: 'boolean', label: 'Show Create Button' },
-    { name: 'showRefresh', type: 'boolean', label: 'Show Refresh Button' },
     { name: 'showViewSwitcher', type: 'boolean', label: 'Show View Switcher' },
     { name: 'listViews', type: 'object', label: 'Named List Views' },
     { name: 'navigation', type: 'object', label: 'Navigation Config' },
@@ -91,7 +90,6 @@ ComponentRegistry.register('object-view', ObjectViewRenderer, {
     showSearch: true,
     showFilters: true,
     showCreate: true,
-    showRefresh: true,
     showViewSwitcher: true,
   },
 });

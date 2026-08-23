@@ -2312,7 +2312,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         showFilters: activeView?.showFilters !== false,
         showSort: activeView?.showSort !== false,
         showCreate: false, // We render our own create button in the header
-        showRefresh: true,
         allowCreateView: isAdmin,
         viewActions: isAdmin ? [
             { type: 'settings' as const },
