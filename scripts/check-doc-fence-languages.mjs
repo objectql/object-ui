@@ -20,13 +20,19 @@
  *
  * ⚠️ `plaintext` is not the only spelling of an unhighlighted fence, and until
  * this file landed nothing pinned the vocabulary. Re-running objectui#5867's own
- * derivation on `origin/main` `bfdb9f906` with the fence-language set widened by
- * `text` and `plain`, and nothing else changed, moved the population by exactly
- * one block:
+ * derivation on `origin/main` with the fence-language set widened by `text` and
+ * `plain`, and nothing else changed, moves the population by exactly one block.
+ * Measured twice, because objectui#5867's batches were landing underneath this
+ * card while it was written — the delta is stable, the totals are not:
  *
- *     plaintext                        127 blocks / 91 files
- *     plaintext + text + plain         128 blocks / 92 files
- *     …+ txt + no info string at all   128 blocks / 92 files
+ *                                      at bfdb9f906   at 273537957
+ *     plaintext                        127 / 91       104 / 82
+ *     plaintext + text + plain         128 / 92       105 / 83
+ *     …+ txt + no info string at all   128 / 92       105 / 83
+ *
+ * (blocks / files. The 23 blocks across 9 files that left between those two
+ * readings are objectui#5867 batch 4, PR #6136, plus PR #6137 — which is exactly
+ * what the SHRINK-ONLY baseline below is for, and it caught the drift itself.)
  *
  * The block the wider set adds is `content/docs/components/form/file-upload.mdx:27`,
  * a ```text fence opening `interface FileUploadSchema {`. It had been outside the
@@ -101,8 +107,8 @@
  *     lower or delete the line. No supported route raises a number.
  *
  * The map is not a debt list this gate invented. It IS objectui#5867's remaining
- * population, per file, machine-readable and in the repository — 92 entries and
- * 128 blocks at the commit this landed on, reconciling exactly with that card's
+ * population, per file, machine-readable and in the repository — 83 entries and
+ * 105 blocks at the commit this landed on, reconciling exactly with that card's
  * own derivation. Every batch of that lane now lowers these numbers in the same
  * pull request that re-fences the blocks, which is what stops the lane's
  * arithmetic from being a figure re-derived by hand in each handback and trusted
@@ -184,8 +190,8 @@ export const UNHIGHLIGHTED_SPELLINGS = new Set(['plaintext', 'text', 'plain', 't
  *
  * "First line" is read literally — line 1 of the body, no leading whitespace
  * tolerated — and that is a measurement rather than a preference. A variant that
- * trims first agrees with this one on all 127 `plaintext` blocks and on the
- * `text` one, and disagrees on exactly one block in the tree:
+ * trims first agrees with this one on every `plaintext` block in the tree and on
+ * the `text` one, and disagrees on exactly one block in the tree:
  * `content/docs/guide/architecture-overview.md:123`, an ASCII-art plugin
  * lifecycle diagram whose first line is an INDENTED `import 'plugin-kanban'`
  * inside a box drawing. It is not TypeScript, and the strict reading is the one
@@ -272,7 +278,7 @@ export function census(documents) {
 /**
  * ⛔ SHRINK-ONLY. `path -> number of SYNONYM-mode blocks the file carried when
  * this gate landed` — objectui#5867's remaining population, per file, at
- * `bfdb9f906`: 92 files, 128 blocks. The rationale, and why a COUNT rather than
+ * `273537957`: 83 files, 105 blocks. The rationale, and why a COUNT rather than
  * a bare path, is in the header; the shape is objectui#6133's.
  *
  * The remedy for every line is the same, which is the property that makes a debt
@@ -293,7 +299,6 @@ export function census(documents) {
  * @type {Map<string, number>}
  */
 export const KNOWN_UNHIGHLIGHTED_TS_FENCES = new Map([
-  ['content/docs/blocks/block-schema.mdx', 10],
   ['content/docs/components/basic/button-group.mdx', 1],
   ['content/docs/components/basic/html.mdx', 1],
   ['content/docs/components/basic/icon.mdx', 1],
@@ -367,24 +372,16 @@ export const KNOWN_UNHIGHLIGHTED_TS_FENCES = new Map([
   ['content/docs/components/overlay/sheet.mdx', 1],
   ['content/docs/components/overlay/tooltip.mdx', 1],
   ['content/docs/core/report-schema.mdx', 11],
-  ['content/docs/fields/auto-number.mdx', 2],
-  ['content/docs/fields/object.mdx', 2],
   ['content/docs/layout/app-shell.mdx', 4],
   ['content/docs/layout/page-header.mdx', 3],
   ['content/docs/layout/sidebar-nav.mdx', 5],
   ['content/docs/plugins/plugin-calendar.mdx', 1],
-  ['content/docs/plugins/plugin-charts.mdx', 1],
   ['content/docs/plugins/plugin-chatbot.mdx', 2],
   ['content/docs/plugins/plugin-dashboard.mdx', 3],
-  ['content/docs/plugins/plugin-editor.mdx', 1],
-  ['content/docs/plugins/plugin-form.mdx', 2],
   ['content/docs/plugins/plugin-gantt.mdx', 1],
-  ['content/docs/plugins/plugin-grid.mdx', 2],
   ['content/docs/plugins/plugin-kanban.mdx', 1],
   ['content/docs/plugins/plugin-map.mdx', 1],
-  ['content/docs/plugins/plugin-markdown.mdx', 1],
   ['content/docs/plugins/plugin-timeline.mdx', 1],
-  ['content/docs/plugins/plugin-view.mdx', 2],
 ]);
 
 /** Split observed counts against the baseline. Both directions are failures. */
