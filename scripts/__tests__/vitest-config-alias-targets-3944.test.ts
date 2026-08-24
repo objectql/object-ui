@@ -237,23 +237,22 @@ function resolveTarget(target: string): { abs: string; isPattern: boolean } {
 }
 
 /**
- * objectui#4820 — two entries whose targets do not exist and which #4804
- * deliberately did NOT delete. They are dead for a different reason: they point
- * into `node_modules` for packages that are not dependencies of this workspace
- * at all (`node_modules/@objectstack/` holds only `spec`; neither name appears
- * in any package.json), so no install can ever produce them. Whether the fix is
- * to drop the lines or to add the dependencies AGENTS.md section 7 prescribes
- * is a maintainer call, not a rider on #4804's six-line deletion.
+ * objectui#4820 — RESOLVED, and this ratchet is empty as a result.
  *
- * A shrink-only ratchet, not an exemption. The list may not grow — a NEW dead
- * target is still red — and the pin below asserts each listed entry is still
- * declared AND still missing, so resolving #4820 either way turns this file red
- * until the list is emptied with it.
+ * It briefly carved out `@objectstack/plugin-msw` and `@objectstack/objectql`,
+ * two `paths` entries pointing into `node_modules` for packages that are not
+ * dependencies of this workspace at all, so no install could ever produce them.
+ * #4820 ruled direction A — drop the lines rather than add the dependencies —
+ * on the ground that adding a runtime dependency is a product decision that must
+ * not be back-derived from a dead config line. Both lines are gone from
+ * `tsconfig.json`, so the carve-out went with them.
+ *
+ * A shrink-only ratchet, not an exemption: it may not grow. Empty is its
+ * terminal state — every `paths` entry is now guarded with no exemptions, and
+ * the pin below keeps it that way. Re-adding either specifier needs the package
+ * to be a real dependency first, which the existence check enforces on its own.
  */
-const KNOWN_MISSING_TARGETS: readonly string[] = [
-  '@objectstack/plugin-msw',
-  '@objectstack/objectql',
-];
+const KNOWN_MISSING_TARGETS: readonly string[] = [];
 
 /** The six lines #4804 removed, in both spellings. */
 const REMOVED_BY_4804 = [
@@ -341,7 +340,18 @@ describe('objectui#4804 — root tsconfig.json compilerOptions.paths table', () 
     }
   });
 
-  it('the objectui#4820 carve-out still describes exactly the entries it was written for', () => {
+  it('the objectui#4820 carve-out is empty, so no paths entry is exempt', () => {
+    // #4820 was resolved by deleting both carved-out lines, so this list is
+    // empty and every case above covers the whole table. Asserted rather than
+    // left implicit: with an empty list the two expectations below are vacuous,
+    // and a silently vacuous pin is the exact trap this file guards elsewhere.
+    expect(
+      KNOWN_MISSING_TARGETS,
+      'KNOWN_MISSING_TARGETS is a shrink-only ratchet that reached empty when objectui#4820 ' +
+        'landed. Re-populating it needs a card of its own — a new dead target is meant to go ' +
+        'red here, not to be carved out.'
+    ).toEqual([]);
+
     const declared = pathEntries.filter((e) => KNOWN_MISSING_TARGETS.includes(e.specifier));
 
     expect(

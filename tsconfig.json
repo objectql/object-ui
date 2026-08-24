@@ -31,8 +31,6 @@
       "@object-ui/sdui-parser/*": ["packages/sdui-parser/src/*"],
       "@object-ui/protocol": ["packages/core/src"],
       "@object-ui/protocol/*": ["packages/core/src/*"],
-      "@objectstack/plugin-msw": ["node_modules/@objectstack/plugin-msw/src/index.ts"],
-      "@objectstack/objectql": ["node_modules/@objectstack/objectql/src/index.ts"],
       "@object-ui/console": ["apps/console/plugin.ts"]
     }
   },
