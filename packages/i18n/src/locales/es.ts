@@ -982,6 +982,7 @@ const es = {
     pathStageUpcoming: '{{stage}}, pendiente',
     pathStageLostCurrent: '{{stage}}, perdida, etapa actual',
     pathStageLostUpcoming: '{{stage}}, perdida, no alcanzada',
+    pathStageWonUpcoming: '{{stage}}, etapa objetivo, no alcanzada',
     linkCopied: "Enlace copiado al portapapeles",
     linkCopyFailed: "No se pudo copiar el enlace",
     cancel: "Cancelar",

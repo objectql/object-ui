@@ -984,6 +984,7 @@ const ar = {
     pathStageUpcoming: '{{stage}}، قادمة',
     pathStageLostCurrent: '{{stage}}، خاسرة، المرحلة الحالية',
     pathStageLostUpcoming: '{{stage}}، خاسرة، لم يتم الوصول إليها',
+    pathStageWonUpcoming: '{{stage}}، المرحلة الهدف، لم يتم الوصول إليها',
     linkCopied: "تم نسخ الرابط إلى الحافظة",
     linkCopyFailed: "فشل نسخ الرابط",
     cancel: "إلغاء",

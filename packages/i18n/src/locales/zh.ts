@@ -885,6 +885,7 @@ const zh = {
     pathStageUpcoming: '{{stage}}，未开始',
     pathStageLostCurrent: '{{stage}}，已失败，当前阶段',
     pathStageLostUpcoming: '{{stage}}，已失败，未到达',
+    pathStageWonUpcoming: '{{stage}}，目标阶段，未到达',
     linkCopied: '链接已复制到剪贴板',
     linkCopyFailed: '复制链接失败',
     cancel: '取消',

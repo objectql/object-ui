@@ -245,6 +245,13 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.pathStageUpcoming': '{{stage}}, upcoming',
   'detail.pathStageLostCurrent': '{{stage}}, closed lost, current stage',
   'detail.pathStageLostUpcoming': '{{stage}}, closed lost, not reached',
+  // The GOAL terminus, unreached (objectui#5957). An unreached `won` stage is
+  // painted a faint emerald where a plain upcoming stage is `bg-muted`, and that
+  // was the last distinction this control carried in COLOUR ALONE. Only the
+  // `upcoming` state gets a key: a REACHED `won` terminus paints identically to
+  // any other current/completed stage, so naming it apart would hand a screen
+  // reader a distinction the screen does not make.
+  'detail.pathStageWonUpcoming': '{{stage}}, goal stage, not reached',
 };
 
 /**

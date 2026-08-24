@@ -978,6 +978,7 @@ const de = {
     pathStageUpcoming: '{{stage}}, ausstehend',
     pathStageLostCurrent: '{{stage}}, verloren, aktuelle Phase',
     pathStageLostUpcoming: '{{stage}}, verloren, nicht erreicht',
+    pathStageWonUpcoming: '{{stage}}, Zielphase, nicht erreicht',
     linkCopied: "Link in die Zwischenablage kopiert",
     linkCopyFailed: "Link konnte nicht kopiert werden",
     cancel: "Abbrechen",

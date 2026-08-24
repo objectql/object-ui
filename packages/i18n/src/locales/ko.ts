@@ -978,6 +978,7 @@ const ko = {
     pathStageUpcoming: '{{stage}}, 예정',
     pathStageLostCurrent: '{{stage}}, 실패, 현재 단계',
     pathStageLostUpcoming: '{{stage}}, 실패, 도달하지 않음',
+    pathStageWonUpcoming: '{{stage}}, 목표 단계, 도달하지 않음',
     linkCopied: "링크가 클립보드에 복사됨",
     linkCopyFailed: "링크 복사 실패",
     cancel: "취소",

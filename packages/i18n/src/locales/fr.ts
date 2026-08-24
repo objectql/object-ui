@@ -980,6 +980,7 @@ const fr = {
     pathStageUpcoming: '{{stage}}, à venir',
     pathStageLostCurrent: '{{stage}}, perdue, étape actuelle',
     pathStageLostUpcoming: '{{stage}}, perdue, non atteinte',
+    pathStageWonUpcoming: '{{stage}}, étape objectif, non atteinte',
     linkCopied: "Lien copié dans le presse-papiers",
     linkCopyFailed: "Impossible de copier le lien",
     cancel: "Annuler",

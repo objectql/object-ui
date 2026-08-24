@@ -989,6 +989,7 @@ const ja = {
     pathStageUpcoming: '{{stage}}、未着手',
     pathStageLostCurrent: '{{stage}}、失注、現在のステージ',
     pathStageLostUpcoming: '{{stage}}、失注、未到達',
+    pathStageWonUpcoming: '{{stage}}、目標ステージ、未到達',
     linkCopied: "リンクをクリップボードにコピーしました",
     linkCopyFailed: "リンクのコピーに失敗しました",
     cancel: "キャンセル",

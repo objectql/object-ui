@@ -954,6 +954,7 @@ const en = {
     pathStageUpcoming: '{{stage}}, upcoming',
     pathStageLostCurrent: '{{stage}}, closed lost, current stage',
     pathStageLostUpcoming: '{{stage}}, closed lost, not reached',
+    pathStageWonUpcoming: '{{stage}}, goal stage, not reached',
     linkCopied: 'Link copied to clipboard',
     linkCopyFailed: 'Failed to copy link',
     cancel: 'Cancel',

@@ -997,6 +997,7 @@ const ru = {
     pathStageUpcoming: '{{stage}}, предстоит',
     pathStageLostCurrent: '{{stage}}, проигран, текущий этап',
     pathStageLostUpcoming: '{{stage}}, проигран, не достигнут',
+    pathStageWonUpcoming: '{{stage}}, целевой этап, не достигнут',
     linkCopied: "Ссылка скопирована в буфер обмена",
     linkCopyFailed: "Не удалось скопировать ссылку",
     cancel: "Отмена",
