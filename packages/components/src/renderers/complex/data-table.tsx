@@ -13,7 +13,7 @@ import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem } from '@object-ui/types';
-import { useRowPredicate, usePredicateScope } from '@object-ui/react';
+import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
   Table, 
@@ -1966,15 +1966,36 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     </div>
                     {/* CTA slot — when the schema declares an `emptyAction`,
                         render it as an inviting follow-up instead of leaving
-                        the user at a dead end. The node is resolved via the
-                        component registry so it can be any schema node
-                        (button, link, action) authored in JSON. */}
-                    {schema.emptyAction && (() => {
-                      const node: any = schema.emptyAction;
-                      const Comp = node?.type ? ComponentRegistry.get(node.type) : null;
-                      if (Comp) return <Comp schema={node} />;
-                      return null;
-                    })()}
+                        the user at a dead end. The node can be any schema node
+                        (button, link, action) authored in JSON.
+
+                        Mounted through `SchemaRenderer`, NOT by resolving the
+                        registry here. `visibleWhen` is enforced once and
+                        generically in `packages/react/src/SchemaRenderer.tsx`:
+                        `shouldHide` tests it ahead of the hoisted `visible`
+                        (objectui#5454), sets `_hidden`, and the `_hidden` early
+                        return fires BEFORE the registry dispatches. The direct
+                        `ComponentRegistry.get(node.type)` this replaced skipped
+                        that path entirely, so an authored `visibleWhen` on an
+                        `emptyAction` was accepted by the spec and then never
+                        evaluated — declared-not-enforced (objectui#5926 gap 1),
+                        the same class objectui#5401 / #5505 closed for
+                        `record:alert`, one level down.
+
+                        Routing to the ONE gate rather than adding a local
+                        `visibleWhen` test here is the whole point: a second
+                        check on this slot would be a FOURTH evaluator, which is
+                        exactly the drift `page:tabs`' item-level predicate
+                        already records. Same shape as the `empty` renderer's
+                        `action` slot, which has always mounted its authored
+                        node this way. Consequence worth stating: a node whose
+                        `type` is missing or unregistered now gets the
+                        platform's uniform "unknown component type" report
+                        instead of rendering as silent nothing here — one
+                        answer for malformed metadata, not a private one. */}
+                    {schema.emptyAction && typeof schema.emptyAction === 'object' && (
+                      <SchemaRenderer schema={schema.emptyAction} />
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
