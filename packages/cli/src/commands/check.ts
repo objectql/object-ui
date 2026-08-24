@@ -13,6 +13,7 @@ import { join } from 'path';
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 
 import { isKnownSchemaType } from '../utils/known-schema-types.js';
+import { didYouMeanClause } from '../utils/known-type-case-suggestion.js';
 
 /**
  * Root keys that positively identify a file as an ObjectUI schema node.
@@ -217,7 +218,15 @@ export async function check(cwd: string = process.cwd()) {
               // registration calls (see `packages/cli/src/utils/known-schema-types.ts`
               // and the script that writes it), not typed by hand. The array that
               // used to sit here had drifted both ways at once — objectui#5115.
-              console.log(chalk.yellow(`⚠️ Unknown schema type "${content.type}" in ${file}`));
+              // objectui#5247 — the type is still UNKNOWN and still reported;
+              // the clause only names the spelling that would have resolved,
+              // and is empty whenever no known type differs by case alone.
+              console.log(
+                chalk.yellow(
+                  `⚠️ Unknown schema type "${content.type}" in ${file}` +
+                    didYouMeanClause(content.type)
+                )
+              );
             }
           }
         }
