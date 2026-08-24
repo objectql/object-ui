@@ -460,6 +460,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const DOCS_ROUTE_PREFIX = '/docs';
 const MARKDOWN_LINK_RE = /\[[^\]]+\]\(([^)]+)\)/g;
@@ -967,7 +968,7 @@ export function collectBrokenLinks(repoRoot) {
 // Run only when invoked directly — the test suite imports the helpers above and
 // must not trigger a repo scan (or a `process.exit`) on import. Same guard shape
 // as scripts/check-control-bytes.mjs.
-const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 const HINTS = {
   relative:

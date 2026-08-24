@@ -44,6 +44,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const changesetDir = resolve(root, '.changeset');
@@ -158,6 +159,6 @@ release sets OBJECTUI_ALLOW_MAJOR=1.
 }
 
 // Only run when invoked as a script — the tests import the parser above.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

@@ -54,6 +54,7 @@
     "check:skills-paths": "node scripts/check-skills-paths.mjs",
     "check:doc-types": "node scripts/check-doc-component-types.mjs",
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
+    "check:doc-fences": "node scripts/check-doc-fence-languages.mjs",
     "check:eager-closure": "node scripts/check-eager-closure-budget.mjs",
     "check:entry-guard": "node scripts/check-entry-guard.mjs",
     "cli": "node packages/cli/dist/cli.js",

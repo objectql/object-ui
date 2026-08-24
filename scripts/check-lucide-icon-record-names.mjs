@@ -88,6 +88,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /** This gate's OWN repo — where lucide and typescript are resolved from. */
 const gateRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -599,7 +600,7 @@ export function analyze(root, {
 }
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) {
   const result = analyze(gateRoot);
   const { counters, discovered, errors, violations } = result;

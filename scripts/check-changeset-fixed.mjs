@@ -62,6 +62,7 @@
 import { readFileSync, readdirSync, statSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -229,6 +230,6 @@ function main() {
 }
 
 // Only run when invoked as a script — the tests import the helpers above.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }
