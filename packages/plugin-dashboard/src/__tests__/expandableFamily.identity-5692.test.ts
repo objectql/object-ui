@@ -183,12 +183,21 @@ describe('one relation predicate, not two that agree by coincidence (objectui#58
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/[^\n]*/g, '');
 
-    // Controls — a mis-resolved path or an over-eager stripper fails HERE, as a
-    // broken probe, instead of reporting the subject absent.
+    // Controls — chosen to be INVARIANT under the ablation this pin guards
+    // against, so that a mis-resolved path or an over-eager stripper fails
+    // HERE, as a broken probe, while a genuine revert fails on the subject
+    // lines below with an honest message. (Measured: an earlier draft used the
+    // `isLookupType` call count as its control, and a real revert then reported
+    // itself as "probe stripped the code away" — the two failures were
+    // indistinguishable, which is the whole thing a control exists to prevent.)
     expect(code, 'probe read the wrong file').toContain('export function computeLookupExpand(');
-    expect(code.match(/isLookupType\(/g) ?? [], 'probe stripped the code away').toHaveLength(2);
+    expect(code, 'probe stripped the code away').toContain('out.add(acc)');
 
-    // Subject.
+    // Subject — each of these moves if the local copy comes back.
+    expect(
+      code.match(/isLookupType\(/g) ?? [],
+      'computeLookupExpand stopped calling the shared predicate',
+    ).toHaveLength(2);
     expect(code, 'a second family read lives here').not.toContain('EXPANDABLE_FIELD_TYPES');
     expect(code, 'a second retirement gate lives here').not.toContain('RetiredFieldType');
   });
