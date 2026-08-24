@@ -271,18 +271,23 @@ const DOC_TYPE_EXEMPTIONS = {
       'BlockSchema discriminant — `packages/types/src/blocks.ts` declares `type: \'block\'`, and ' +
       '`packages/types/src/zod/blocks.zod.ts` validates it. A block definition is not a rendered node.',
     'block-instance':
-      'BlockInstanceSchema discriminant — packages/types/src/blocks.ts:357, zod/blocks.zod.ts:130.',
+      'BlockInstanceSchema discriminant — packages/types/src/blocks.ts:357, zod/blocks.zod.ts:130. A ' +
+      'reference to a block is a definition, not a rendered node: it is absent from `AnySchema` ' +
+      '(types/src/index.ts) and nothing resolves its `blockId`.',
     'block-library':
-      'BlockLibrarySchema discriminant — packages/types/src/blocks.ts:263, zod/blocks.zod.ts:100.',
+      'BlockLibrarySchema discriminant — packages/types/src/blocks.ts:263, zod/blocks.zod.ts:100. The ' +
+      'shape of a block-library PAYLOAD, not a browser component: absent from `AnySchema`, and no ' +
+      'renderer reads it.',
     'block-editor':
-      'BlockEditorSchema discriminant — packages/types/src/blocks.ts:315, zod/blocks.zod.ts:116.',
-    slot:
-      'Block slot placeholder inside `BlockSchema.template`, which IS a `SchemaNode` — so unlike its ' +
-      'siblings above this one sits on the render path and nothing registers `slot`. Filed as ' +
-      'objectui#4895: the correct spelling is not one thing (register a slot node, or route the ' +
-      'snippet through the declared `slotContent` key), and objectui#4823 does not pre-decide it. ' +
-      'DELETE this entry when #4895 lands — the gate reports a stale exemption, so it cannot be ' +
-      'forgotten.',
+      'BlockEditorSchema discriminant — packages/types/src/blocks.ts:315, zod/blocks.zod.ts:116. The ' +
+      'shape of an editor CONFIGURATION, not an editor component: absent from `AnySchema`, and no ' +
+      'block editor exists to consume it.',
+    // `slot` was here, exempted pending objectui#4895. That card ruled (maintainer,
+    // 2026-08-19, recorded on the issue): Option B, docs-truth fix — the family stays
+    // type-level, the phantom `type: 'slot'` node is DELETED from the page, and the
+    // page teaches the declared `slotContent` key instead. `slot` is now spelled
+    // nowhere in blocks/block-schema.mdx, so an exemption for it would itself fail as
+    // `stale-exemption`. Nothing to exempt; the entry is gone rather than re-pointed.
     string:
       'BlockVariable.type — a variable declaration\'s data type, next to `defaultValue` / `required`.',
   },
