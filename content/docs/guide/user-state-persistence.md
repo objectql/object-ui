@@ -37,6 +37,8 @@ Three layers, top-down:
 
 `ConsoleShell` wires everything up in this order:
 
+<!-- doc-snippet: fragment — a provider-tree sketch: the `Suspense` fallback is a literal `{...}` ellipsis and the JSX comments stand in for the components' own props, so the block shows nesting order rather than compiling -->
+
 ```tsx
 <ThemeProvider>
   <NavigationProvider>
@@ -60,21 +62,23 @@ Three layers, top-down:
 The companion adapter is shipped in `@object-ui/data-objectstack`:
 
 ```typescript
+import { useEffect } from 'react';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { useAttachUserStateAdapters } from '@object-ui/app-shell';
 import { useAuth } from '@object-ui/auth';
+import type { DataSource } from '@object-ui/types';
 
-function UserStateBridge({ dataSource }) {
+function UserStateBridge({ dataSource }: { dataSource?: DataSource }) {
   const { user } = useAuth();
   const attach = useAttachUserStateAdapters();
 
   useEffect(() => {
     if (!user?.id || !dataSource) return;
     const favorites = createObjectStackUserStateAdapter({
-      dataSource, userId: user.id, kind: 'favorites',
+      dataSource, userId: user.id, key: 'ui.favorites',
     });
     const recent = createObjectStackUserStateAdapter({
-      dataSource, userId: user.id, kind: 'recent',
+      dataSource, userId: user.id, key: 'ui.recent',
     });
     attach('favorites', favorites);
     attach('recent', recent);

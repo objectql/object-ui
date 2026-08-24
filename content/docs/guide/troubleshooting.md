@@ -23,6 +23,8 @@ import '@object-ui/plugin-grid';
 
 If you are using a custom component, register it explicitly:
 
+<!-- doc-snippet: fragment — `./MyCustomWidget` is the reader's own component module, so the import cannot resolve from this repository -->
+
 ```typescript
 import { ComponentRegistry } from '@object-ui/core';
 import { MyCustomWidget } from './MyCustomWidget';
@@ -107,6 +109,8 @@ Available context variables:
 
 Debug expressions by enabling debug mode in `SchemaRendererContext`:
 
+<!-- doc-snippet: fragment — a bare `<SchemaRenderer />` tag shown for the `debug` prop alone; `schema` is the reader's own document -->
+
 ```tsx
 <SchemaRenderer schema={schema} debug={true} />
 ```
@@ -173,6 +177,9 @@ The `@object-ui/types` package exports multiple entry points (`base`, `layout`, 
 
 ```tsx
 import { ThemeProvider } from '@object-ui/react';
+import type { FC } from 'react';
+
+declare const YourApp: FC;
 
 function App() {
   return (
@@ -206,10 +213,16 @@ function App() {
 
 ```tsx
 import { I18nProvider } from '@object-ui/i18n';
+import type { FC } from 'react';
 
-<I18nProvider locale="en" messages={messages}>
+declare const App: FC;
+
+// The app's own packs are merged with the built-in locales.
+const resources = { en: { greeting: 'Hello' }, fr: { greeting: 'Bonjour' } };
+
+<I18nProvider config={{ defaultLanguage: 'en', resources }}>
   <App />
-</I18nProvider>
+</I18nProvider>;
 ```
 
 2. Check that locale files follow the expected structure. Each locale file should export a flat or nested object of key-value pairs.
@@ -232,7 +245,13 @@ For custom views, use the `usePerformance` hook from `@object-ui/react` to monit
 ```typescript
 import { usePerformance } from '@object-ui/react';
 
-const { startMeasure, endMeasure } = usePerformance('MyWidget');
+// Inside your component:
+const { metrics, markRenderStart } = usePerformance({
+  virtualScroll: { enabled: true, itemHeight: 40 },
+});
+
+const stopMeasure = markRenderStart(); // call stopMeasure() once the render settles
+console.log(metrics.lastRenderDuration);
 ```
 
 ## 10. Plugin Conflicts
@@ -244,6 +263,11 @@ const { startMeasure, endMeasure } = usePerformance('MyWidget');
 **Fix:** Always use namespaced registrations:
 
 ```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import type { FC } from 'react';
+
+declare const MyGridComponent: FC;
+
 ComponentRegistry.register('grid', MyGridComponent, {
   namespace: 'my-plugin',  // ← prevents collision
   label: 'Custom Grid',
@@ -339,6 +363,8 @@ what the data layer requested:
 
 ```typescript
 import { columnIdentity } from '@object-ui/core';
+
+declare const column: unknown;
 
 const fieldName = columnIdentity(column); // string | undefined
 ```

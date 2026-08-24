@@ -155,6 +155,8 @@ Disable component when expression is true:
 
 The root data object is available directly:
 
+<!-- doc-snippet: fragment — closes on a bare `<SchemaRenderer />` tag whose `schema` is the reader's own document, so the block is a data shape followed by a tag rather than a program -->
+
 ```tsx
 const data = {
   user: { name: "Alice" },
@@ -469,6 +471,8 @@ Expressions are re-evaluated when data changes. Avoid expensive operations:
 // ✅ Good: Pre-compute in data
 ```
 
+<!-- doc-snippet: fragment — the good half of a bad/good contrast: `users` and `expensiveOperation` are the reader's own rows and function, shown only to place the computation outside the expression -->
+
 ```tsx
 const data = {
   processedUsers: users.map(u => expensiveOperation(u))
@@ -515,6 +519,8 @@ Error: "Cannot read property 'invalidProperty' of undefined"
 ### Debug Mode
 
 Enable debug mode to see expression evaluation:
+
+<!-- doc-snippet: fragment — a bare `<SchemaRenderer />` tag shown for the `debug` prop alone; `schema` and `data` are the reader's own -->
 
 ```tsx
 <SchemaRenderer 
@@ -622,6 +628,8 @@ language's own. A membership test is written with the array method:
 ### 4. Use TypeScript
 
 Define your data types:
+
+<!-- doc-snippet: fragment — the typed data is followed by a bare `<SchemaRenderer />` tag and the literal is written as an elided `{ /* ... */ }`, so the block states a type rather than compiling -->
 
 ```tsx
 interface UserData {
