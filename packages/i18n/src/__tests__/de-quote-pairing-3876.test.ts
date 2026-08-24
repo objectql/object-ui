@@ -257,8 +257,11 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // withheld „Metadaten verwalten“ permission in the gate's reason line,
     // 52 once objectui#5417 added `flowRunner.completed`, which names the flow
     // it just finished — „{{flow}}“, an interpolated span, so the pairing is
-    // asserted around a hole rather than around literal prose.
-    expect(okSpans, 'correctly paired spans').toBe(52);
+    // asserted around a hole rather than around literal prose,
+    // 53 once objectui#5232 added `console.objectView.viewConfigPermissionDenied`,
+    // which names the same withheld „Metadaten verwalten“ permission as
+    // `home.build.noCapability` above — the org-wide view-config gate's refusal.
+    expect(okSpans, 'correctly paired spans').toBe(53);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -275,7 +278,11 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // naive equality was false on the file #3876 left behind — and note that it is
     // now true for a *different* reason (rdq went to zero), which is why the
     // identity below is asserted as arithmetic rather than as `close === open`.
-    expect({ open, close, rdq }).toEqual({ open: 52, close: 52, rdq: 0 });
+    // 53 / 53 / 0 after objectui#5232 added
+    // `console.objectView.viewConfigPermissionDenied`. `rdq` staying at 0 is the
+    // load-bearing half: the new value added a MATCHED „…“ pair, not a stray
+    // closer that would have made `close === open` true for the wrong reason.
+    expect({ open, close, rdq }).toEqual({ open: 53, close: 53, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);
