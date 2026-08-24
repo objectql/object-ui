@@ -32,6 +32,7 @@ one has its own section below.
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
+| `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -672,6 +673,54 @@ script's header states plainly rather than letting a green run imply otherwise.
 at the harness. Either fix what the snippet teaches, or — if the block is genuinely partial — declare
 it with a reason. Run it locally with `pnpm check:doc-snippets` (after building the packages it
 names: `pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter)`).
+
+## Fence Languages (`doc-fence-languages.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — **no path
+filter**, for the same reason as the two sections above. It appears in the checks list as **Doc Fence
+Language Check**.
+
+Runs `scripts/check-doc-fence-languages.mjs`. It answers the question the gate above cannot ask about
+itself: *is every TypeScript block in the documentation actually fenced as TypeScript?*
+`check-doc-snippet-types` reads `ts` / `tsx` / `typescript` fences and nothing else, so a TypeScript
+block fenced any other way is invisible to it —
+[#5867](https://github.com/objectstack-ai/objectui/issues/5867), whose remediation lane collected its
+population from ```plaintext fences only.
+
+**`plaintext` is not the only spelling of an unhighlighted fence.**
+[#6135](https://github.com/objectstack-ai/objectui/issues/6135) measured a ```text block opening
+`interface FileUploadSchema {` sitting outside the gate *and* outside the lane that exists to close
+it, for no reason but how its fence is spelled. Widening the lane's derivation once would fix that
+block; it would not stop a sixth spelling reopening the identical gap.
+
+**So it reads bodies, not a list of languages.** No enumeration of allowed fence languages is on the
+enforcement path — an enumeration is the thing that rots, and it rots silently. Every fence's body is
+put to #5867's own binding triage classifier (*a block whose first line starts with `import` /
+`export` / `interface` / `type X =` / `const x: T` is code*), quoted rather than extended. `txt`,
+`console`, `raw`, or a bare fence with no info string at all therefore cannot hide a block.
+
+**Two failure modes, because only one can be auto-classified.** A *known* spelling of an
+unhighlighted fence (`plaintext`, `text`, `plain`, `txt`, no info string) is #5867's population and
+its remedy is mechanical, so it is the only mode the baseline describes. Any *other* spelling might
+be a sixth synonym or a real highlighter language — that is a human's call, so it is reported
+separately and can **never** be baselined.
+
+**The baseline is #5867's remaining population.** `KNOWN_UNHIGHLIGHTED_TS_FENCES` maps a path to the
+number of hidden blocks it carries, ⛔ **shrink-only** in the shape
+[#6133](https://github.com/objectstack-ai/objectui/issues/6133) landed for
+`KNOWN_HAND_TYPED_GUARDS`: a file not in the map that carries one fails, a file carrying more than
+its number fails, and a file carrying fewer fails as *stale* and names itself. Every #5867 batch now
+lowers these numbers in the same pull request that re-fences the blocks, so the lane's arithmetic
+lives in the repository instead of being re-derived by hand in each handback.
+
+**`--self-test` runs first.** It drives the real scanner over fixture sources — including a
+`text`-fenced, a `txt`-fenced and an info-string-less TypeScript block — and pins the shrink-only
+baseline in every direction it can move. A scanner whose recogniser is broken reports a clean tree,
+which is why the probe runs before the verdict.
+
+**If it fails:** each line is `file:line ```<language> — <first line of the block>`. Re-fence the
+block ```ts (or ```tsx) and fix whatever `check-doc-snippets` then reports, then lower the file's
+number. Run it locally with `pnpm check:doc-fences`; it needs no install and no build.
 
 ## Link Checking (`check-links.yml`)
 

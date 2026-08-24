@@ -546,9 +546,35 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     const yaml = yamlOf('doc-component-types.yml');
     expect(yaml).not.toContain('pnpm install');
     expect(yaml).not.toContain('corepack');
-    const gate = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
-    const imports = [...gate.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1]);
-    expect(imports.every((spec) => spec.startsWith('node:')), `non-builtin import in the gate: ${imports}`).toBe(true);
+
+    // Walk the WHOLE static import graph, not just the gate's own first line.
+    // objectui#6092 converted this gate's entry guard to `./invoked-as.mjs`, a
+    // relative import — install-free, but not spelled `node:`. Asserting on the
+    // gate's own imports alone would have had to be loosened to let that
+    // through, and a loosened one-file assertion is how a relative import that
+    // DOES pull a package in later lands unnoticed. Following the graph keeps
+    // the original claim ("this needs no node_modules") literally true, and
+    // makes it true of every module the gate reaches.
+    const seen = new Set<string>();
+    const external: string[] = [];
+    const walk = (abs: string) => {
+      if (seen.has(abs)) return;
+      seen.add(abs);
+      const source = fs.readFileSync(abs, 'utf8');
+      for (const m of source.matchAll(/^import .* from '([^']+)';$/gm)) {
+        const spec = m[1];
+        if (spec.startsWith('node:')) continue;
+        if (!spec.startsWith('.')) {
+          external.push(`${path.relative(repoRoot, abs)} -> ${spec}`);
+          continue;
+        }
+        walk(path.resolve(path.dirname(abs), spec));
+      }
+    };
+    walk(path.join(repoRoot, SCRIPT));
+
+    expect(seen.size, 'the import walk read only the gate itself — it followed nothing').toBeGreaterThan(1);
+    expect(external, `the gate's import graph reaches a package, so it needs an install: ${external}`).toEqual([]);
   });
 });
 

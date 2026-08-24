@@ -20,27 +20,31 @@ The Text Field component provides a single-line text input for collecting basic 
 ## Read-Only
 
 <SchemaExample id="fields-text/read-only-field" />
-
 ## Field Schema
 
+A text field is authored as `TextFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the
+text-specific validation keys.
+
 ```ts
-interface TextFieldSchema {
-  type: 'text';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  min_length?: number;           // Minimum character length
-  max_length?: number;           // Maximum character length
-  pattern?: string | RegExp;     // Validation pattern
-}
+import type { TextFieldMetadata } from '@object-ui/types';
+
+const productName: TextFieldMetadata = {
+  type: 'text',
+  name: 'product_name',
+  label: 'Product Name',
+  placeholder: 'Enter a product name',
+  help: 'Shown on the storefront and in search results.',
+  required: true,
+  min_length: 2,
+  max_length: 120,
+  pattern: '^[A-Za-z0-9 -]+$',
+  pattern_message: 'Letters, digits, spaces and hyphens only.',
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Use Cases
 

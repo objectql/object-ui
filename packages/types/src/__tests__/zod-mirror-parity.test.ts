@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 163 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 158 entries at once.
  *
  * ## What is registered
  *
@@ -45,9 +45,36 @@
  * directory fails this file until someone registers or excludes it, so an
  * incomplete population reads as a declared decision instead of an oversight.
  *
+ * ## The population, and where each number came from (objectui#6141)
+ *
+ * ⚠️ Every count in this header is READ, not inherited. The three that used to
+ * stand here — "163 pairs" twice and "13 entries" once — were stale, and they were
+ * the numbers other cards quoted as the size of the drift problem (objectui#5927's
+ * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
+ * entire subject is measurement that is worth stating explicitly:
+ *
+ *   - **158 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *     already pins equal to `keyof Declared`. Nothing asserts it against a written
+ *     number, so this line is prose and can rot; the pin that cannot is the one
+ *     comparing the two halves to each other.
+ *   - **12 entries** in `KnownDrift`, **17 keys** across them.
+ *   - **16 entries** in `UnmirroredDeclared`, **121 keys** across them.
+ *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *
+ * ## Two ratchets, because the forward comparison has two halves
+ *
+ * The forward comparison runs over the UNION of the mirror's keys and the
+ * declaration's, and a declared key can fail it in two structurally different ways:
+ * the mirror declares the key and REFUSES its declared type (`NarrowerThanDeclared`
+ * → `KnownDrift`), or the mirror has never heard of the key at all
+ * (`UnmirroredDeclaredKeys` → `UnmirroredDeclared`). The second half was invisible
+ * until objectui#6058 — an unmirrored key did not compare unequal, it left the
+ * comparison entirely — so it is ledgered separately, seeded at its own measured
+ * debt, and `KnownDrift` keeps its meaning and its citable history untouched.
+ *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 13 of the 163 pairs carry drift TODAY (measured, not assumed). Each is
+ * 12 of the 158 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -134,6 +161,111 @@ export type MirroredKeys< M > = Extract< keyof ShapeOf< M >, string >;
 export type NarrowerThanDeclared< M, D > = {
   [K in MirroredKeys< M > & keyof D]: [D[K]] extends [InputOf< ShapeOf< M >[K] >] ? never : K;
 }[MirroredKeys< M > & keyof D];
+
+/**
+ * A declaration's OWN declared members, with any index signature stripped.
+ *
+ * `keyof D` is unusable on this population: most component declarations extend
+ * `BaseSchema`, which carries `[key: string]: any` (objectui#5155), and a string
+ * index signature ABSORBS every literal name — `keyof ObjectGanttSchema` resolves
+ * to bare `string`. Measured, not assumed:
+ *
+ *     declare const bare: keyof ObjectGanttSchema;
+ *     const _: never = bare;
+ *     // -> Type 'keyof ObjectGanttSchema' is not assignable to type 'never'.
+ *     //      Type 'string' is not assignable to type 'never'.
+ *
+ * A homomorphic mapped type is the escape: TypeScript maps declared members and
+ * index signatures SEPARATELY, so remapping the index-signature keys to `never`
+ * leaves the literal members — INCLUDING the ones inherited from `BaseSchema`.
+ * Same probe against this alias resolves the 36 literal names of
+ * `ObjectGanttSchema` and the 20 of `BaseSchema`.
+ *
+ * ⚠️ This lifts the ceiling on what the GUARD can READ, not on what a mirror can
+ * REJECT. #5155's ceiling stands: `BaseSchema` is `.passthrough()`, so declaring a
+ * key still does not buy rejection of a misspelling. The two are different
+ * questions and only the first one is this file's.
+ */
+type WithoutIndexSignature< D > = {
+  [K in keyof D as string extends K ? never : number extends K ? never : K]: D[K];
+};
+
+/** The declaration's DECLARED keys, read without `keyof` on the resolved key set. */
+export type DeclaredKeys< D > = Extract< keyof WithoutIndexSignature< D >, string >;
+
+/**
+ * Declared on the TS side and ABSENT from the mirror's `.shape` entirely.
+ *
+ * This is the half `NarrowerThanDeclared` above cannot see, and the reason is
+ * structural rather than a threshold: that type maps over the INTERSECTION
+ * `MirroredKeys< M > & keyof D`, so a declared key the mirror never mentions is
+ * not compared and found equal — it LEAVES THE COMPARISON. objectui#6058 measured
+ * the blind spot with a two-instruments ablation: ten keys declared on
+ * `ObjectGanttSchema` and stripped from its mirror left both halves of this guard
+ * green (runtime 5 passed EXIT=0, compile-time EXIT=0) while
+ * `gantt-declared-keys.test.ts` over the same tree read 2 failed | 7 passed EXIT=1.
+ *
+ * It is a real defect in the pair, not noise from the instrument: the published
+ * TypeScript invites an author to write the key and the published validator has
+ * never heard of it. Under `.passthrough()` the value rides through UNVALIDATED
+ * (`readOnly: 'yes'` parses green); under a mirror that is not passthrough it is
+ * refused outright. Either way `declared !== enforced`.
+ */
+export type UnmirroredDeclaredKeys< M, D > = Exclude< DeclaredKeys< D >, MirroredKeys< M > >;
+
+/**
+ * Reconcile ONE pair's measured key set against what a ledger records for it:
+ * `never` when they agree, the pair key otherwise.
+ *
+ * Factored out and driven by synthetic pairs below rather than written inline, for
+ * the reason objectui#6133 gives for exporting its `reconcileGuards`: **a run over
+ * TODAY's tree can only ever show that today's tree is green.** A baseline that has
+ * never been shown to FAIL is indistinguishable from no baseline, and no amount of
+ * green CI tells the two apart. Recognition is pinned at
+ * `assertionRatchet…` below, in every direction a ledger can be wrong.
+ */
+export type ReconcileAgainstLedger< K, Measured, Recorded > =
+  Equal< Measured, Recorded > extends true ? never : K;
+
+/* ── Recognition: the ratchet is shown to FAIL, in both directions ──────────── */
+
+/** A pair whose measured set matches its ledger entry stays silent. */
+export type assertionRatchetAcceptsAgreement =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
+
+/** …and so does a clean pair with no entry, which is the case for 142 of the 158. */
+export type assertionRatchetAcceptsCleanPair =
+  Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
+
+/**
+ * ⬆ GROWTH on a CLEAN pair — the property the whole seeding argument rests on. A
+ * NEW declared-but-unmirrored key on a pair the ledger does not mention reddens it
+ * immediately. This is why a seeded baseline is a FLOOR and not a waiver.
+ */
+export type assertionRatchetRejectsFreshDrift =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', never >, 'p' > >;
+
+/**
+ * ⬆ GROWTH on a LEDGERED pair — an entry cannot absorb a second key, so drift
+ * cannot be smuggled into a pair that already owes some. Read the other way round,
+ * this is also the pin that a fact DELETED from the seed is not silently
+ * re-acceptable: deleting `'a'` from a recorded `'a' | 'b'` leaves exactly this
+ * shape, and it fails.
+ */
+export type assertionRatchetRejectsGrowth =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a' | 'b', 'a' >, 'p' > >;
+
+/**
+ * ⬇ SHRINK — a recorded key that has since been MIRRORED fails as STALE and names
+ * its own pair. Without this the ledger rots into an allowlist nobody re-reads, and
+ * the shrink-only promise becomes prose.
+ */
+export type assertionRatchetRejectsStaleKey =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' | 'b' >, 'p' > >;
+
+/** ⬇ SHRINK to nothing — a fully fixed pair fails until its entry is DELETED. */
+export type assertionRatchetRejectsStaleEntry =
+  Expect< Equal< ReconcileAgainstLedger< 'p', never, 'a' >, 'p' > >;
 
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
@@ -461,13 +593,16 @@ interface Declared {
   'views.zod.ts#ViewSwitcherSchema': Ts_ViewSwitcherSchema;
 }
 
-type MirrorKey = keyof typeof MIRRORS;
+export type MirrorKey = keyof typeof MIRRORS;
 
 /** The two halves of the registry must describe the same population. */
 export type assertionRegistryHalvesAgree = Expect< Equal< MirrorKey, keyof Declared > >;
 
-/** The drift on one registered pair. */
-type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K], Declared[K] >;
+/** The TYPE drift on one registered pair: mirrored, but the mirror refuses the declared type. */
+export type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K], Declared[K] >;
+
+/** The other half: declared on the TS side, absent from the mirror's `.shape` entirely. */
+export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeof MIRRORS)[K], Declared[K] >;
 
 /* ── The measured drift ledger ──────────────────────────────────────────────── */
 
@@ -511,16 +646,187 @@ interface KnownDrift {
   'navigation.zod.ts#HeaderBarSchema': 'variant';
 }
 
+/* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
+
+/**
+ * Exact DECLARED-BUT-UNMIRRORED key set per pair: keys the published TypeScript
+ * invites an author to write and the published validator has never heard of.
+ *
+ * ## ⛔ SHRINK-ONLY, and why a seed of 121 is a FLOOR rather than a waiver
+ *
+ * The obvious misreading is that seeding a ledger at 121 facts waives 121 defects.
+ * It is the opposite, and the reason is that **before this ledger the guard saw
+ * ZERO of them**. `NarrowerThanDeclared` maps over the INTERSECTION
+ * `MirroredKeys< M > & keyof D`, so a declared key the mirror never mentions did
+ * not compare unequal — it LEFT THE COMPARISON. Nothing that was previously caught
+ * is being let through, because there was no such thing. Seeding takes the count of
+ * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
+ * grow while the 121 are worked off, and a new declared-but-unmirrored key on any
+ * of the 158 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`).
+ *
+ * Same instrument and same discipline as objectui#6133's `KNOWN_HAND_TYPED_GUARDS`,
+ * which is the landed precedent for this shape in this repo: seed at the measured
+ * debt, fail on growth, fail on staleness, never offer a route that raises a line.
+ *
+ * ## What each entry is, and where the remedy lives
+ *
+ * ⚠️ The remedy is NOT uniformly "mirror the key" — objectui#6058's ruling is
+ * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
+ * are recorded here so whoever works them off does not re-derive them:
+ *
+ *   - **SPEC-DERIVED (3 entries, 14 keys)** — `DashboardComponentSchema`,
+ *     `DashboardWidgetSchema`, `ObjectViewSchema` are in `SPEC_DERIVED_PAIRS` below,
+ *     so their mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
+ *     unmirrored declared key there means the LOCAL declaration carries members the
+ *     spec schema does not model, which is objectui#2231's unification question and
+ *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
+ *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
+ *   - **LOCAL (13 entries, 107 keys)** — plain omissions from a hand-written mirror.
+ *     ⚠️ 23 of the 121 are `on*` props, and for those "mirror it" may well be the
+ *     wrong answer: narrowing the DECLARATION so it stops advertising a runtime
+ *     callback as authorable metadata shrinks this ledger without touching any
+ *     mirror. That is a scope REDUCTION this instrument made visible.
+ *
+ * ## How this was measured, and the trap that makes the number hard to get
+ *
+ * ⚠️ **Do not read the offending set off the compile error.** objectui#6058 lost a
+ * pass to this. The behaviour is not "TypeScript truncates", it is that the two
+ * spellings of the same assertion print DIFFERENTLY, and the worse one gives no
+ * sign that it is incomplete. Both measured:
+ *
+ *   - through a NAMED alias — the spelling `assertionDriftMatchesLedger` uses via
+ *     `LedgerMismatch` — TS prints the ALIAS NAME and elaborates with exactly ONE
+ *     member: `Type 'LedgerMismatch' is not assignable to type 'never'. Type
+ *     '"complex.zod.ts#ChatbotSchema"' is not assignable to type 'never'.` There is
+ *     no ellipsis, so 23 offending pairs read as one. `--noErrorTruncation` does NOT
+ *     expand it, and neither a distributive conditional nor a template-literal
+ *     wrapper forces expansion — both re-associate to the alias.
+ *   - written INLINE, as `assertionUnmirroredMatchesLedger` below is, TS resolves the
+ *     union and prints it WITH a truncation marker: ten neutralised entries printed
+ *     five names, `... 4 more ...`, and the last. Honest about being partial.
+ *
+ * That is the whole reason the new assertion is spelled inline. It is still only a
+ * pointer: the authoritative read is the compiler API — build a Program over
+ * `tsconfig.test.json`, declare one binding per pair, and walk each type's union
+ * members reading `isStringLiteral().value`, bypassing type printing entirely. Its
+ * non-vacuity control on the seeding run: it read all 158 pairs and returned an
+ * EMPTY set for 142 of them, so it is discriminating rather than uniformly silent.
+ */
+interface UnmirroredDeclared {
+  /**
+   * LOCAL. `body` sits in `KnownDrift` above for an unrelated reason (a naming
+   * collision on a key both sides declare); these three the mirror has simply never
+   * heard of.
+   */
+  'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
+  /**
+   * SPEC-DERIVED → objectui#2231. The mirror takes its shape by reference from
+   * `@objectstack/spec`, so `title` is a member the LOCAL declaration carries and the
+   * spec schema does not model. Its three TYPE-drifted keys are in `KnownDrift` above
+   * and route the same way.
+   */
+  'complex.zod.ts#DashboardComponentSchema': 'title';
+  /** SPEC-DERIVED → objectui#2231, same reading as `DashboardComponentSchema`. */
+  'complex.zod.ts#DashboardWidgetSchema': 'pagination' | 'searchable';
+  /** LOCAL. Declared in `../data-display.ts`, absent from the mirror. */
+  'data-display.zod.ts#ChartSchema': 'drillDown';
+  /**
+   * LOCAL, and the largest single entry. TWELVE of the 29 are `on*` props, where the
+   * remedy is genuinely open in the direction described in the header — narrowing the
+   * declaration would shrink this entry without touching the mirror. `rowActions` is
+   * in `KnownDrift` above: the mirror does declare that one, disjointly.
+   */
+  'data-display.zod.ts#DataTableSchema':
+    | 'disableInnerScroll' | 'editable' | 'manualPagination' | 'manualSearch' | 'manualSorting'
+    | 'onAddRecord' | 'onBatchSave' | 'onCellChange' | 'onColumnReorder' | 'onColumnResize'
+    | 'onPageChange' | 'onPageSizeChange' | 'onRowActionDef' | 'onRowClick' | 'onRowSave'
+    | 'onSearchChange' | 'onSortChange' | 'page' | 'rowActionDefs' | 'rowClassName'
+    | 'rowCount' | 'rowStyle' | 'search' | 'selectionResetKey' | 'selectionStyle'
+    | 'showAddRow' | 'showSelectionCount' | 'singleClickEdit' | 'sort';
+  /** LOCAL. */
+  'form.zod.ts#FormFieldSchema': 'field';
+  /**
+   * LOCAL. `fields`/`mode` are in `KnownDrift` above (both mirrored, both drifted in
+   * TYPE); these nine the mirror does not declare at all.
+   */
+  'form.zod.ts#FormSchema':
+    | 'defaultFieldTab' | 'fieldContainerClass' | 'fieldPanes' | 'fieldPanesOrientation'
+    | 'fieldPanesResizable' | 'fieldTabs' | 'fieldTabsPosition' | 'mobileStickyActions'
+    | 'onDirtyChange';
+  /**
+   * LOCAL. Verified by hand against both sources while measuring: declared once in
+   * `../form.ts`, zero occurrences in the mirror.
+   */
+  'form.zod.ts#InputSchema': 'wrapperClass';
+  /** LOCAL. */
+  'form.zod.ts#LabelSchema': 'content';
+  /** LOCAL. */
+  'navigation.zod.ts#PaginationSchema': 'currentPage';
+  /** LOCAL, and the second-largest. Five `on*` props carry the same open remedy. */
+  'objectql.zod.ts#ObjectFormSchema':
+    | 'allowSkip' | 'buttons' | 'defaultTab' | 'defaults' | 'drawerSide' | 'drawerWidth'
+    | 'formType' | 'mobile' | 'modalCloseButton' | 'modalSize' | 'nextText' | 'onCancel'
+    | 'onError' | 'onOpenChange' | 'onStepChange' | 'onSuccess' | 'open' | 'prevText'
+    | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
+    | 'subforms' | 'submitHandler' | 'tabPosition';
+  /** LOCAL. */
+  'objectql.zod.ts#ObjectGridSchema':
+    | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
+    | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'onNavigate' | 'operations'
+    | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
+    | 'singleClickEdit' | 'title';
+  /**
+   * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
+   * objectui#6058 — eleven declared keys the published validator has never heard of,
+   * and the guard reported the pair clean. It is the clearest single instance of the
+   * blind spot this ledger exists to make visible.
+   */
+  'objectql.zod.ts#ObjectViewSchema':
+    | 'allowCreateView' | 'defaultListView' | 'defaultViewType' | 'filterableFields'
+    | 'listViews' | 'navigation' | 'onNavigate' | 'searchableFields' | 'showViewSwitcher'
+    | 'viewActions' | 'viewTabBar';
+  /** LOCAL. */
+  'reports.zod.ts#ReportComponentSchema': 'chartConfig' | 'conditionalFormatting' | 'reportType';
+  /** LOCAL. Three `on*` props, same open remedy. */
+  'views.zod.ts#DetailViewSchema':
+    | 'activities' | 'autoDiscoverRelated' | 'autoTabs' | 'comments' | 'defaultTab'
+    | 'highlightFields' | 'history' | 'onAddComment' | 'onNavigate' | 'onTabChange'
+    | 'primaryField' | 'recordNavigation' | 'sectionGroups' | 'summaryFields';
+  /**
+   * LOCAL. Verified by hand against both sources: declared once in `../views.ts`, zero
+   * occurrences in the mirror.
+   */
+  'views.zod.ts#DetailViewSectionSchema': 'hideEmpty';
+}
+
+/**
+ * Every entry above names a REGISTERED pair.
+ *
+ * A misspelled pair key would otherwise be ignored by the `[K in MirrorKey]` map
+ * below and the real pair would read as having no entry — still red, but pointing at
+ * the wrong thing. This names it directly.
+ */
+export type assertionUnmirroredLedgerKeysAreRegistered =
+  Expect< Equal< Exclude< keyof UnmirroredDeclared, MirrorKey >, never > >;
+
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
 /**
- * Every pair's drift equals what the ledger records for it — `never` for the
- * 146 pairs with no entry.
+ * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
+ * 146 pairs with no entry (158 − 12).
+ *
+ * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
+ * inline. That is a semantics-preserving refactor and nothing else — the type is
+ * literally `Equal< Measured, Recorded > extends true ? never : K`, exactly what
+ * stood here — and it buys one thing: the recognition pins at `assertionRatchet…`
+ * now cover THIS assertion's reconciliation as well as the new one's.
  */
 export type LedgerMismatch = {
-  [K in MirrorKey]: Equal< DriftOf< K >, K extends keyof KnownDrift ? KnownDrift[K] : never > extends true
-    ? never
-    : K;
+  [K in MirrorKey]: ReconcileAgainstLedger<
+    K,
+    DriftOf< K >,
+    K extends keyof KnownDrift ? KnownDrift[K] : never
+  >;
 }[MirrorKey];
 
 /**
@@ -554,7 +860,47 @@ export type LedgerMismatch = {
 export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch;
 
 /**
- * Non-vacuity for all 163 entries at once.
+ * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
+ * key set equals what `UnmirroredDeclared` records for it — `never` for the 142
+ * pairs with no entry (158 − 16).
+ *
+ * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
+ * The exit code is a whole-file verdict, so it moves only while the rest of the
+ * file is green — and objectui#6058 measured the state where it does not move at
+ * all. On the un-seeded tree the comparison was already red on 23 pairs, so
+ * `tsc -p tsconfig.test.json` returned 2 BEFORE and AFTER the card's ablation while
+ * the ablated pair went from clean to ten drifted keys. Seeding this ledger is what
+ * restored the exit code as a usable signal, and it stays usable only while it is
+ * green at rest. To read a change of state, resolve
+ * `UnmirroredOf< '<the named pair>' >` on each side and compare the SETS.
+ *
+ * ⚠️ And it is a COMPILE-TIME assertion. The `describe` block at the bottom of this
+ * file is a population census — it checks that the registry is closed and that
+ * `SPEC_DERIVED_PAIRS` re-derives, and it never compares keys at all. Its
+ * `Tests 5 passed (5)` line does not move when this half reddens, correctly, and it
+ * did not move under the ablation either. Reading the runtime half for evidence
+ * about drift measures the wrong instrument and concludes the guard does nothing.
+ *
+ * When it fires, fix it by MEASURING (the compiler-API recipe and the
+ * error-printing trap are in the ledger's header above):
+ *   1. the message names a pair, possibly with `... N more ...` after it;
+ *   2. resolve `UnmirroredOf< '<pair>' >`;
+ *   3. a key APPEARED — that is a new defect on a published surface; mirror it, or
+ *      narrow the declaration. ⛔ Adding it to the ledger is not a supported route:
+ *      `UnmirroredDeclared` is SHRINK-ONLY;
+ *   4. a key DISAPPEARED — good news, and the entry must be corrected or deleted.
+ *      That is the ratchet doing its job, not a problem.
+ */
+export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
+  [K in MirrorKey]: ReconcileAgainstLedger<
+    K,
+    UnmirroredOf< K >,
+    K extends keyof UnmirroredDeclared ? UnmirroredDeclared[K] : never
+  >;
+}[MirrorKey];
+
+/**
+ * Non-vacuity for all 158 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the

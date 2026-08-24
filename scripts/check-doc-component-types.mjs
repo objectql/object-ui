@@ -137,6 +137,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -995,7 +996,7 @@ const HINTS = {
     'A doc file has an unclosed ``` fence. The scan cannot separate code from prose past that point.',
 };
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const argOf = (name) => {

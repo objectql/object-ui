@@ -26,6 +26,7 @@
     "rich-text",
     "object",
     "vector",
-    "grid"
+    "grid",
+    "widget-props"
   ]
 }

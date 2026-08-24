@@ -75,6 +75,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { deriveRegistryKeys } from './check-doc-component-types.mjs';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const TARGET = 'packages/cli/src/utils/known-schema-types.ts';
@@ -184,6 +185,6 @@ function main() {
   console.log(`wrote ${TARGET}`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isEntrypoint(import.meta.url)) {
   main();
 }
