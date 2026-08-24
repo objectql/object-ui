@@ -277,12 +277,24 @@ export type {
   DashboardWidgetLayout,
   DashboardWidgetSchema,
   DashboardComponentSchema,
+  DashboardComponentWidgetType,
+  DashboardWidgetTypeExtension,
+  DashboardWidgetTypeName,
   ChatMessage,
   ChatMessageSource,
   ChatToolInvocation,
   ChatbotSchema,
   FloatingChatbotConfig,
   ComplexSchema,
+} from './complex.js';
+
+/**
+ * The two CLOSED extension sets a dashboard widget's `type` may draw on beyond
+ * the spec's own families (objectui#4600, maintainer ruling 2026-08-14).
+ */
+export {
+  DASHBOARD_COMPONENT_WIDGET_TYPES,
+  DASHBOARD_WIDGET_TYPE_EXTENSIONS,
 } from './complex.js';
 
 // ============================================================================

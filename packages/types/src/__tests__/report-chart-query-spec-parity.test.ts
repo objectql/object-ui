@@ -36,11 +36,14 @@ import ts from 'typescript';
 import {
   AppContextSelectorSchema as SpecAppContextSelectorSchema,
   GlobalFilterSchema as SpecGlobalFilterSchema,
+  ChartTypeSchema as SpecChartTypeSchema,
   DashboardWidgetSchema as SpecDashboardWidgetSchema,
 } from '@objectstack/spec/ui';
 import type { JoinedReportBlock as SpecJoinedReportBlock } from '@objectstack/spec/ui';
 import { AppContextSelectorSchema } from '../zod/app.zod.js';
-import { DashboardWidgetSchema, GlobalFilterSchema } from '../zod/complex.zod.js';
+import { DashboardWidgetSchema, DashboardWidgetTypeSchema, GlobalFilterSchema } from '../zod/complex.zod.js';
+import { DASHBOARD_COMPONENT_WIDGET_TYPES, DASHBOARD_WIDGET_TYPE_EXTENSIONS } from '../complex.js';
+import { DASHBOARD_WIDGET_TYPES } from '../designer.js';
 import type { DashboardWidgetSchema as DashboardWidgetInterface } from '../complex.js';
 import {
   liftLegacyGlobalFilterDefault,
@@ -500,10 +503,60 @@ describe('DashboardWidgetSchema pinned divergences', () => {
   });
 
   it('widens `type` for the objectui-only `list` / `custom` families', () => {
-    for (const type of ['list', 'custom']) {
+    for (const type of DASHBOARD_WIDGET_TYPE_EXTENSIONS) {
       expect(DashboardWidgetSchema.safeParse({ id: 'w', type }).success).toBe(true);
       // If the spec adopts either family, drop the widening and use its enum.
       expect(SpecDashboardWidgetSchema.safeParse({ id: 'w', type }).success).toBe(false);
+    }
+  });
+
+  it('admits `metric-card` as objectui\'s own COMPONENT extension (ruling 2026-08-14)', () => {
+    // objectstack#8593, maintainer, verbatim: `metric-card` joins objectui's own
+    // CLOSED component enum as an explicitly allowed objectui extension, NOT the
+    // spec widget enum. Both halves are asserted — the second is what keeps this
+    // an objectui-local extension instead of a quiet spec change.
+    for (const type of DASHBOARD_COMPONENT_WIDGET_TYPES) {
+      expect(DashboardWidgetSchema.safeParse({ id: 'w', type }).success).toBe(true);
+      expect(SpecDashboardWidgetSchema.safeParse({ id: 'w', type }).success).toBe(false);
+    }
+  });
+
+  it('CLOSES `type` — the widening is a named set, not an open hatch', () => {
+    // The regression this guards is objectui#4600's: `type` was `z.string()`,
+    // so a typo'd family, a component nothing registers, and a chart type the
+    // spec retired all validated and only surfaced as the renderer's red
+    // OBJUI-001 panel. `examples/schema-catalog` is an AI few-shot retrieval
+    // source, so an accepted-but-unrenderable `type` is copied onward.
+    for (const type of ['zzz-not-a-widget-type', 'metrci-card', 'heatmap', 'sunburst']) {
+      const result = DashboardWidgetSchema.safeParse({ id: 'w', type });
+      expect(result.success, `'${type}' must be refused`).toBe(false);
+    }
+  });
+
+  it('takes the spec half of the vocabulary BY REFERENCE, not as a copy', () => {
+    // Every family the spec models must be accepted here without an edit — the
+    // "narrower than the contract it implements" failure this file records for
+    // `label` and `defaultRange` would otherwise reappear on `type`, and a
+    // family the spec ADDS would be a legal document objectui refuses.
+    for (const type of SpecChartTypeSchema.options) {
+      expect(DashboardWidgetSchema.safeParse({ id: 'w', type }).success, `spec family '${type}'`).toBe(true);
+    }
+    // And the closed enum is EXACTLY the spec's families plus the two declared
+    // objectui sets — no third, undocumented member has crept in.
+    expect(new Set(DashboardWidgetTypeSchema.options)).toEqual(new Set([
+      ...SpecChartTypeSchema.options,
+      ...DASHBOARD_WIDGET_TYPE_EXTENSIONS,
+      ...DASHBOARD_COMPONENT_WIDGET_TYPES,
+    ]));
+  });
+
+  it('keeps the designer\'s offer list inside the closed vocabulary', () => {
+    // `DASHBOARD_WIDGET_TYPES` (designer.ts) is what `WidgetConfigPanel` offers
+    // an author. It is a SEPARATE list from the validation vocabulary and is
+    // deliberately shorter, but it must never offer a type validation refuses —
+    // that would be a designer that saves what the platform rejects.
+    for (const type of DASHBOARD_WIDGET_TYPES) {
+      expect(DashboardWidgetTypeSchema.safeParse(type).success, `designer offers '${type}'`).toBe(true);
     }
   });
 

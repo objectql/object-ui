@@ -699,6 +699,77 @@ export interface FloatingChatbotConfig {
 }
 
 /**
+ * objectui COMPONENT types admitted into a dashboard **widget slot** — the
+ * CLOSED enum the maintainer ruling of 2026-08-14 (objectstack#8593) directs
+ * `metric-card` into, verbatim: *an SDUI dashboard COMPONENT node validates
+ * against objectui's own component schema; the spec's `DashboardSchema` governs
+ * stored dashboard metadata documents only and grows no component projection;
+ * `metric-card` joins objectui's own CLOSED component enum as an explicitly
+ * allowed objectui extension, NOT the spec widget enum.*
+ *
+ * A member here is not a visualization family at all. `classifyWidgetType`
+ * (`@object-ui/plugin-dashboard`'s `widgetDispatch.ts`) returns `passthrough`
+ * for it, and `DashboardRenderer` then hands `{ ...widget }` straight to
+ * `SchemaRenderer`, which resolves it through `ComponentRegistry` — so the
+ * widget slot is holding an ordinary objectui SDUI **component node** whose
+ * other keys are that component's own props (`value` / `icon` / `trend` /
+ * `trendValue` for `metric-card`, declared as registry `inputs` at
+ * `plugin-dashboard/src/index.tsx`). Those props are NOT widget keys and must
+ * not be added to {@link DashboardWidgetSchema}; a member of this list is
+ * validated as a component node against objectui's own passthrough
+ * `BaseSchema`, which is what keeps them.
+ *
+ * ⛔ CLOSED on purpose. The ruling's triage block named an open
+ * "extension allowed" hatch as the thing to avoid: an open hatch re-creates
+ * exactly the hole the catalog gate exists to close, because a typo'd or
+ * retired `type` would keep validating. Adding a member is a deliberate act
+ * with a registration behind it — `examples/schema-catalog/test/
+ * plugin-dashboard-component-schema.test.ts` is the standing gate, and
+ * `__tests__/report-chart-query-spec-parity.test.ts` pins the closure.
+ */
+export const DASHBOARD_COMPONENT_WIDGET_TYPES = ['metric-card'] as const;
+
+/** An objectui component type legal in a dashboard widget slot. */
+export type DashboardComponentWidgetType = (typeof DASHBOARD_COMPONENT_WIDGET_TYPES)[number];
+
+/**
+ * objectui-only widget FAMILIES — visualization families objectui renders that
+ * `@objectstack/spec`'s `ChartTypeSchema` does not model. Distinct from
+ * {@link DASHBOARD_COMPONENT_WIDGET_TYPES} above: these two really are widget
+ * types (`classifyWidgetType` routes `list` to the table family and `custom` to
+ * the author-supplied-`component` branch), they just have no spec counterpart.
+ *
+ * The pre-existing divergence, previously carried only as prose on the `type`
+ * key ("widened off the spec's enum") and enforced nowhere. If the spec adopts
+ * either family, drop it from here and let it flow in from the spec enum.
+ */
+export const DASHBOARD_WIDGET_TYPE_EXTENSIONS = ['list', 'custom'] as const;
+
+/** An objectui-only dashboard widget family. */
+export type DashboardWidgetTypeExtension = (typeof DASHBOARD_WIDGET_TYPE_EXTENSIONS)[number];
+
+/**
+ * The CLOSED vocabulary a dashboard widget's `type` may name.
+ *
+ * The spec half flows in BY REFERENCE (`SpecDashboardWidget['type']`, i.e. the
+ * spec's `ChartTypeSchema`) rather than being restated, so a family the spec
+ * adds or retires lands here with no edit — the same discipline
+ * {@link DashboardWidgetSchema} already uses for its key set. objectui's own
+ * two extension sets are spelled out above, each with its own reason.
+ *
+ * This used to be bare `string`. That was the open hatch: `type: 'metrci-card'`
+ * type-checked, validated, and rendered the registry's red OBJUI-001 panel —
+ * and `examples/schema-catalog` is an AI few-shot retrieval source, so what it
+ * shows is what gets copied.
+ *
+ * Zod twin: `zod/complex.zod.ts` `DashboardWidgetTypeSchema`.
+ */
+export type DashboardWidgetTypeName =
+  | NonNullable<SpecDashboardWidget['type']>
+  | DashboardWidgetTypeExtension
+  | DashboardComponentWidgetType;
+
+/**
  * Dashboard Widget Layout
  */
 export interface DashboardWidgetLayout {
@@ -757,11 +828,16 @@ export interface DashboardWidgetSchema
   component?: SchemaNode;
   layout?: DashboardWidgetLayout;
   /**
-   * Widget visualization type (spec shorthand format).
-   * Widened off the spec's 19-family enum: objectui's `DASHBOARD_WIDGET_TYPES`
-   * also carries `list` and `custom`, which the spec does not model.
+   * Widget visualization type (spec shorthand format), or an objectui component
+   * type the widget slot holds directly.
+   *
+   * CLOSED — see {@link DashboardWidgetTypeName}. The spec's families flow in by
+   * reference; objectui's additions are the two named, closed extension sets.
+   * It was `string` until objectui#4600, which is why a retired family, a typo,
+   * or a component type nothing registers all type-checked here and only
+   * surfaced as the renderer's red OBJUI-001 panel at runtime.
    */
-  type?: string;
+  type?: DashboardWidgetTypeName;
   /** Widget-specific configuration (spec shorthand format). Kept `unknown` — objectui
    *  renderers pass widget-family-specific bags the spec's `options` object does not model. */
   options?: unknown;

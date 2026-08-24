@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema, DashboardWidgetTypeName } from '@object-ui/types';
 import {
   Trash2,
   GripVertical,
@@ -35,7 +35,6 @@ import {
   PieChart,
   TrendingUp,
   Table2,
-  LayoutGrid,
   X,
   Undo2,
   Redo2,
@@ -81,13 +80,36 @@ export interface DashboardEditorProps {
 // Constants
 // ============================================================================
 
-const WIDGET_TYPES = [
+/**
+ * The widget families this editor offers.
+ *
+ * TYPED to `DashboardWidgetTypeName` (objectui#4600): the palette must never
+ * offer a type validation refuses, which is the "designer saves what the server
+ * rejects" failure AGENTS.md #0.1 names. Before that card closed the widget
+ * `type` vocabulary this array was inferred as `string[]`, and it had drifted —
+ * it offered `grid`, which is neither a spec visualization family
+ * (`ChartTypeSchema`) nor a member of objectui's own `DASHBOARD_WIDGET_TYPES`
+ * (`@object-ui/types`' exported list for exactly this purpose, which
+ * `WidgetConfigPanel` already derives its options from). A widget saved as
+ * `type: 'grid'` resolved through `ComponentRegistry` to the VIEW grid — an
+ * empty tile — and was refused at publish. Nothing pinned it: no test in this
+ * package referenced it, and `PageDesigner`'s own `grid` palette entry is a
+ * different surface and is untouched.
+ *
+ * This is a hand-written subset, not the full vocabulary — a designer may offer
+ * fewer families than validation accepts. The direction that must hold is
+ * SUBSET, and `@object-ui/types`' parity suite pins it.
+ */
+const WIDGET_TYPES: ReadonlyArray<{
+  type: DashboardWidgetTypeName;
+  label: string;
+  Icon: typeof TrendingUp;
+}> = [
   { type: 'metric', label: 'KPI Metric', Icon: TrendingUp },
   { type: 'bar', label: 'Bar Chart', Icon: BarChart3 },
   { type: 'line', label: 'Line Chart', Icon: LineChart },
   { type: 'pie', label: 'Pie Chart', Icon: PieChart },
   { type: 'table', label: 'Table', Icon: Table2 },
-  { type: 'grid', label: 'Grid', Icon: LayoutGrid },
 ];
 
 let widgetCounter = 0;
@@ -353,7 +375,14 @@ function WidgetPropertyPanel({
           id="widget-type"
           data-testid="widget-prop-type"
           value={widget.type ?? 'metric'}
-          onChange={(e) => onChange({ type: e.target.value })}
+          onChange={(e) => {
+            // Resolve the DOM string against the very list that rendered the
+            // options, rather than casting it onto the closed type. No cast, no
+            // tolerance: a value not in the palette writes nothing at all,
+            // instead of storing a `type` the platform refuses at publish.
+            const picked = WIDGET_TYPES.find((t) => t.type === e.target.value);
+            if (picked) onChange({ type: picked.type });
+          }}
           disabled={readOnly}
           className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
         >
@@ -511,7 +540,7 @@ export function DashboardEditor({
   const selectedWidget = widgets.find((w) => w.id === selectedWidgetId);
 
   const addWidget = useCallback(
-    (type: string) => {
+    (type: DashboardWidgetTypeName) => {
       const id = createWidgetId();
       const newWidget: DashboardWidgetSchema = {
         id,
