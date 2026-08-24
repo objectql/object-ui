@@ -230,6 +230,49 @@ function extractDraftBody(
 }
 
 /**
+ * The software-package binding this editor is authoring under, read from the
+ * ONE place the save->publish loop states it: `?package=` on the editor URL.
+ *
+ * ## Why this is a function and not two inline reads
+ *
+ * Both steps of the loop send this value — `doSave` binds the draft row to the
+ * package (`PUT ?package=`), and since objectstack#10354 `doPublish` states the
+ * same package on the promotion (`POST .../publish?package=`) so #9612's
+ * package-closure narrowing at the runtime publish gate is reachable from an
+ * HTTP-driven promotion at all. One value, one spelling, both steps — which
+ * means one derivation too. A second inline copy in the publish path would be
+ * free to drift from the save path (most easily on the `'all'` fold below),
+ * and the two calls would then disagree about which package the edit belongs
+ * to while both looking correct in isolation.
+ *
+ * ## The `'all'` fold
+ *
+ * `?package=all` is the metadata list's "show everything" scope, NOT a package
+ * literally named `all`; the framework's normaliser folds `all` and the empty
+ * value together to mean "env-local overlay, no package". Folded here to
+ * `undefined` so both callers OMIT the parameter rather than sending it empty.
+ * The two are the same to that normaliser today, so this is not a behaviour
+ * difference against the current server — omit-when-unbound is simply the
+ * shape this door already had, and the loop's two calls must not disagree.
+ *
+ * Read at call time rather than per render because the editor URL's package
+ * scope can move under the component (`setSearchParams`), and the value that
+ * must be stated is the one in force when the request is issued.
+ *
+ * Deliberately NOT `ownerPackageId` (the router-read `?package=` used to scope
+ * layered/draft READS): that one does not fold `'all'`, so reusing it here
+ * would send `package=all` as if it were a package id.
+ */
+function readActivePackageBinding(): string | undefined {
+  try {
+    const p = new URLSearchParams(window.location.search).get('package');
+    return p && p !== 'all' ? p : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Decide whether the validation-diagnostics banner should render at all.
  *
  * The gate has two reasons to stay hidden:
@@ -1302,14 +1345,7 @@ function MetadataResourceEditPageImpl({
       // real package scope is carried in the URL (`?package=`). The backend
       // stamps it on create and preserves an existing binding on update, so
       // env-local overlays (no `?package=`) are unaffected.
-      const activePackage = (() => {
-        try {
-          const p = new URLSearchParams(window.location.search).get('package');
-          return p && p !== 'all' ? p : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      const activePackage = readActivePackageBinding();
       await client.save<any>(type, savedName, itemToSave, {
         force,
         mode: 'draft',
@@ -1461,7 +1497,16 @@ function MetadataResourceEditPageImpl({
     setPublishing(true);
     setError(null);
     try {
-      await client.publish<any>(type, name);
+      // State the SAME package the save step already stated — read from the
+      // same single source, so the two calls of one loop can never disagree.
+      // Absent (not empty) when the designer holds no binding: the framework
+      // branches on the KEY BEING PRESENT downstream, where a present-but-null
+      // package pins the draft lookup to unbound rows and a packaged draft
+      // stops being found (`no_draft`) — see objectstack#10354's own warning.
+      const activePackage = readActivePackageBinding();
+      await client.publish<any>(type, name, {
+        ...(activePackage ? { packageId: activePackage } : {}),
+      });
       const [lay, draftResp] = await Promise.all([
         client.layered<any>(type, name),
         client.getDraft<any>(type, name).catch(() => null),
