@@ -167,81 +167,69 @@ ComponentRegistry.register('button', MyCustomButton)
 Default components are organized by category:
 
 ### Form Components
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eleven form-component keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- input
-- textarea
-- select
-- checkbox
-- radio
-- switch
-- slider
-- date-picker
-- time-picker
-- file-upload
-- color-picker
-```
+
+- `input`
+- `textarea`
+- `select`
+- `checkbox`
+- `radio`
+- `switch`
+- `slider`
+- `date-picker`
+- `time-picker`
+- `file-upload`
+- `color-picker`
 
 ### Data Display
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the seven data-display keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- table
-- list
-- card
-- tree
-- timeline
-- calendar
-- kanban
-```
+
+- `table`
+- `list`
+- `card`
+- `tree`
+- `timeline`
+- `calendar`
+- `kanban`
 
 ### Layout
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eight layout keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- page
-- container
-- grid
-- flex
-- tabs
-- accordion
-- divider
-- spacer
-```
+
+- `page`
+- `container`
+- `grid`
+- `flex`
+- `tabs`
+- `accordion`
+- `divider`
+- `spacer`
 
 ### Feedback
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the nine feedback keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- alert
-- toast
-- dialog
-- drawer
-- popover
-- tooltip
-- progress
-- skeleton
-- spinner
-```
+
+- `alert`
+- `toast`
+- `dialog`
+- `drawer`
+- `popover`
+- `tooltip`
+- `progress`
+- `skeleton`
+- `spinner`
 
 ### Navigation
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the four navigation keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- menu
-- breadcrumb
-- pagination
-- steps
-```
+
+- `menu`
+- `breadcrumb`
+- `pagination`
+- `steps`
 
 ### Other
-<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eight remaining keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
-```tsx
-- button
-- link
-- text
-- icon
-- image
-- video
-- badge
-- avatar
-```
+
+- `button`
+- `link`
+- `text`
+- `icon`
+- `image`
+- `video`
+- `badge`
+- `avatar`
 
 ## Checking Registered Components
 
