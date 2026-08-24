@@ -18,9 +18,12 @@
 // honest, and the moment the console stops importing one of them it would drop
 // out of every program silently. Covering the whole directory means there is no
 // such question. The cost of the overlap is paid by matching that project's
-// option set (strict, ESNext, bundler resolution, and notably NO
-// `noImplicitReturns`), so a shared file cannot be green in one project and red
-// in the other.
+// option set (strict, ESNext, bundler resolution, `allowImportingTsExtensions`,
+// and notably NO `noImplicitReturns`), so a shared file cannot be green in one
+// project and red in the other. `scripts/__tests__/scripts-type-check.test.ts`
+// asserts this parity against `apps/console/tsconfig.node.json` directly
+// (objectui#4926) — it is what would have caught `allowImportingTsExtensions`
+// missing here.
 //
 // Deliberately NOT `"extends": "./tsconfig.base.json"`: that file is the PACKAGE
 // BUILD config, and its `exclude` lists the test globs. Inheriting it would
@@ -48,6 +51,21 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["node"],
+
+    // Matches `apps/console/tsconfig.node.json`'s option set (see the file
+    // header above) — that project's `vite.config.ts` imports
+    // `../../scripts/vite-crypto-stub.ts` and
+    // `../../scripts/vite-maplibre-worker.ts` with explicit `.ts` extensions
+    // (objectui#3384), which needs `allowImportingTsExtensions`. This project
+    // doesn't itself need it today — the shared files' own imports carry no
+    // `.ts` extension — but without it here, a `.ts`-extension import added to
+    // either shared file, or a widening of `include` below to reach a `.ts`
+    // importer that spells extensions this way, would type-check in one
+    // project and not the other: exactly the gap this file's header says the
+    // matched option set prevents. Legal here because `noEmit` is `true`
+    // (`allowImportingTsExtensions` requires `noEmit` / `emitDeclarationOnly` /
+    // `rewriteRelativeImportExtensions`).
+    "allowImportingTsExtensions": true,
 
     "strict": true,
     "skipLibCheck": true,

@@ -33,6 +33,7 @@ import ts from 'typescript';
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const configPath = path.join(repoRoot, 'tsconfig.scripts.json');
+const consoleNodeConfigPath = path.join(repoRoot, 'apps/console/tsconfig.node.json');
 const scriptsDir = path.join(repoRoot, 'scripts');
 const ciWorkflowPath = path.join(repoRoot, '.github/workflows/ci.yml');
 
@@ -52,6 +53,29 @@ function parsedProject(): ts.ParsedCommandLine {
   ).toBeFalsy();
 
   return ts.parseJsonConfigFileContent(read.config, ts.sys, repoRoot, undefined, configPath);
+}
+
+/**
+ * `apps/console/tsconfig.node.json`, parsed the same way — the other program
+ * that compiles `scripts/vite-crypto-stub.ts` and
+ * `scripts/vite-maplibre-worker.ts` (see this file's header). Used only to
+ * read its `compilerOptions`; its own `include`/`fileNames` are irrelevant
+ * here.
+ */
+function parsedConsoleNodeProject(): ts.ParsedCommandLine {
+  const read = ts.readConfigFile(consoleNodeConfigPath, ts.sys.readFile);
+  expect(
+    read.error && ts.flattenDiagnosticMessageText(read.error.messageText, ' '),
+    'apps/console/tsconfig.node.json must parse as JSON with comments',
+  ).toBeFalsy();
+
+  return ts.parseJsonConfigFileContent(
+    read.config,
+    ts.sys,
+    path.dirname(consoleNodeConfigPath),
+    undefined,
+    consoleNodeConfigPath,
+  );
 }
 
 /** Every TypeScript source on disk under `scripts/`, repo-relative, POSIX-separated. */
@@ -106,6 +130,69 @@ describe('tsconfig.scripts.json — the project itself (objectui#3494)', () => {
     // on the symptom.
     expect(options.composite, 'a composite project may not set "noEmit" (TS6310)').toBeFalsy();
     expect(parsedProject().projectReferences ?? [], 'this project must stay standalone').toEqual([]);
+  });
+});
+
+describe('tsconfig.scripts.json — option parity with apps/console/tsconfig.node.json (objectui#4926)', () => {
+  /**
+   * `scripts/vite-crypto-stub.ts` and `scripts/vite-maplibre-worker.ts` are
+   * compiled by BOTH this project and `apps/console/tsconfig.node.json` (see
+   * this file's header, and that file's own header). This file's header
+   * states the invariant that makes sharing them safe: the two projects'
+   * option sets match on the axes that matter, "so a shared file cannot be
+   * green in one project and red in the other."
+   *
+   * objectui#4926 found that invariant asserted but not enforced:
+   * `allowImportingTsExtensions` diverged (present in the console project,
+   * absent here) with nothing to catch it — the gap stayed latent only
+   * because neither shared file happens to use a `.ts`-extension import
+   * today. This test is what the issue says would have caught it: it reads
+   * both parsed configs and asserts the specific options the header claims
+   * are matched, rather than trusting the prose.
+   *
+   * Scope, deliberately narrow: only the options this file's header names as
+   * matched (strict, module, moduleResolution, allowImportingTsExtensions,
+   * and the absence of noImplicitReturns). The two projects differ on plenty
+   * else by design (`composite`, `outDir`, `rootDir`, `allowJs`, `target`,
+   * emit) — those are NOT part of the stated invariant, and asserting them
+   * equal would just recreate the `extends` trap this file's header
+   * explains at length why it avoids.
+   */
+  it('matches the option set apps/console/tsconfig.node.json compiles the shared files with', () => {
+    const scripts = parsedProject().options;
+    const consoleNode = parsedConsoleNodeProject().options;
+
+    expect(scripts.strict, 'tsconfig.scripts.json').toBe(true);
+    expect(consoleNode.strict, 'apps/console/tsconfig.node.json').toBe(true);
+
+    expect(scripts.module, 'tsconfig.scripts.json "module"').toBe(consoleNode.module);
+    expect(
+      scripts.moduleResolution,
+      'tsconfig.scripts.json "moduleResolution"',
+    ).toBe(consoleNode.moduleResolution);
+
+    // The option objectui#4926 was filed over: `apps/console/vite.config.ts`
+    // imports `../../scripts/vite-crypto-stub.ts` and
+    // `../../scripts/vite-maplibre-worker.ts` with explicit `.ts` extensions
+    // (objectui#3384), which only `allowImportingTsExtensions` accepts.
+    expect(
+      consoleNode.allowImportingTsExtensions,
+      'apps/console/tsconfig.node.json must still set "allowImportingTsExtensions" — if this ' +
+        'assertion is what broke, the fix belongs in tsconfig.scripts.json below, not here.',
+    ).toBe(true);
+    expect(
+      scripts.allowImportingTsExtensions,
+      'tsconfig.scripts.json must set "allowImportingTsExtensions": true to match ' +
+        'apps/console/tsconfig.node.json — otherwise a `.ts`-extension import in a file shared ' +
+        'between the two programs (scripts/vite-crypto-stub.ts, scripts/vite-maplibre-worker.ts) ' +
+        'type-checks in one and not the other (objectui#4926).',
+    ).toBe(true);
+
+    // Both projects deliberately leave `noImplicitReturns` off — see this
+    // file's header. Asserted as an explicit falsy-equality, not just
+    // "both truthy", so a future divergence in either direction is caught.
+    expect(scripts.noImplicitReturns, 'tsconfig.scripts.json "noImplicitReturns"').toBeFalsy();
+    expect(consoleNode.noImplicitReturns, 'apps/console/tsconfig.node.json "noImplicitReturns"').toBeFalsy();
   });
 });
 
