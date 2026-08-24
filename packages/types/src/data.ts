@@ -31,6 +31,7 @@ import type {
   CreateExportJobInput as SpecCreateExportJobInput,
   CreateExportJobResult,
 } from '@objectstack/spec/contracts';
+import type { FilterArray } from '@objectstack/spec/data';
 import type { ValidationError } from '@objectstack/spec/kernel';
 
 export type { ExportJobStatus, ImportJobStatus, ImportWriteMode, ValidationError };
@@ -47,10 +48,39 @@ export interface QueryParams {
   $select?: string[];
 
   /**
-   * Filter expression
+   * Filter expression, in either of the two forms the data sources accept:
+   * the MongoDB-style field-keyed record, or a `FilterArray` — the spec-owned
+   * ObjectQL AST sugar (`@objectstack/spec/data`).
+   *
+   * Both forms are normal here, and the array form is not an edge case: the
+   * repo's own canonical sink `mergeFilterNodes` / `toFilterNode`
+   * (`@object-ui/core`'s `filter-converter.ts`) returns AST nodes, and its two
+   * standing producers — `plugin-list`'s `buildEffectiveFilter` (grid and
+   * export) and `plugin-view`'s `ObjectView` (calendar / kanban / gallery /
+   * timeline) — have fed arrays through this slot all along.
+   *
+   * ⛔ Do not add a "tolerant conversion" in a consumer to cope with the array
+   * path. The array IS legal input; a consumer that needs one shape lowers
+   * through the shared sink rather than widening itself to tolerate the
+   * producer.
+   *
+   * The authoritative acceptable set is the one `translateFilterToAST`
+   * (`@object-ui/data-objectstack`'s `index.ts`) enumerates — five input
+   * shapes, of which the array forms below are three. Read it there rather than
+   * trusting a second list here; a partial restatement is exactly how two
+   * operator vocabularies drifted apart before.
+   *
+   * Note the declaration does not *narrow* anything: `Record<string, any>`
+   * already structurally accepts arrays (they satisfy its string index), so the
+   * union documents the shapes that were always accepted rather than admitting
+   * new ones. It is the description that was wrong, not the runtime.
+   *
    * @example { age: { $gt: 18 }, status: 'active' }
+   * @example ['status', '=', 'active']
+   * @example ['and', ['age', '>=', 18], ['status', '=', 'active']]
+   * @example [['stage', '=', 'won'], ['amount', '>', 1000]]
    */
-  $filter?: Record<string, any>;
+  $filter?: Record<string, any> | FilterArray;
 
   /**
    * Sort order
