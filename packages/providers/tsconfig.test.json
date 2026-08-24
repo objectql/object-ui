@@ -9,9 +9,9 @@
     // The package build emits `dist`; this project emits nothing, so it must
     // not inherit `composite` / `declaration` from the build config.
     "composite": false,
-    // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
-    // `@objectstack/spec` resolve through the workspace dependency's built
-    // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).
+    // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` resolves
+    // through the workspace dependency's built `.d.ts` instead of pulling
+    // sibling sources in as program inputs (TS6059).
     "paths": {}
   },
   "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]
