@@ -73,7 +73,7 @@ turns it into the CSS variables your components already read.
 #### [Enhanced Actions](/docs/core/enhanced-actions)
 Powerful action system with AJAX calls, chaining, conditions, and callbacks.
 
-<!-- doc-snippet: fragment — a shape excerpt: `chain`, `condition`, `onSuccess` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
+<!-- doc-snippet: fragment — a shape excerpt: `chain`, `onSuccess` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
 
 ```typescript
 const action: ActionSchema = {
@@ -81,7 +81,7 @@ const action: ActionSchema = {
   actionType: 'ajax',
   api: '/api/submit',
   chain: [...],
-  condition: { expression: '${...}', then: {...} },
+  condition: '${...}',
   onSuccess: {...},
   tracking: {...}
 };
@@ -94,7 +94,7 @@ const action: ActionSchema = {
 
 **Key Features:**
 - Action chaining (sequential/parallel)
-- Conditional execution (if/then/else)
+- Conditional execution (a `condition` predicate gates whether an action runs)
 - Success/failure callbacks
 - Event tracking
 - Retry logic
