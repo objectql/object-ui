@@ -148,13 +148,15 @@ const REGISTRY_FIXTURES: Record<string, RegistryFixture> = {
     repoPath: 'apps/v4/public/r/styles/default/sheet.json',
     headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
     sha256: '9051eb9d885a18c0521c63c945480effcfca29282d2a342cb3ce7f9d080c6d38',
-    // objectui#4996 measured this: `sheet.tsx` also carries the `hideOverlay`
-    // prop, an UNDECLARED local edit (`shadcn-components.json` documents it and
-    // says outright that, unlike the i18n patch, "it does depend on anyone
-    // remembering it"). So patched upstream is 2 lines short of the shipped
-    // file by design, and byte-equality is not available for this family until
-    // that edit is either declared here or upstreamed.
-    roundTrip: 'ships the undeclared `hideOverlay` prop (shadcn-components.json)',
+    // Promoted to `true` by objectui#6090. It read
+    // `'ships the undeclared `hideOverlay` prop'` until then: that edit was
+    // documented in `shadcn-components.json` but declared nowhere, so patched
+    // upstream came out exactly 3 lines short of the shipped file and equality
+    // was genuinely unavailable. Declaring the `hideOverlay` family closed the
+    // last gap, and this entry is the measurement — `sheet` now accounts for
+    // EVERY way it differs from upstream, which is a strictly stronger gate
+    // than the pinned-inequality branch it used to take.
+    roundTrip: true,
   },
   dialog: {
     url: 'https://ui.shadcn.com/r/styles/default/dialog.json',
@@ -215,9 +217,40 @@ const UPSTREAM_DIALOG = upstreamFor('dialog');
 const UPSTREAM_SLIDER = upstreamFor('slider');
 
 describe('shadcn local patches — application to fresh upstream (objectstack#5505)', () => {
+  /**
+   * Scoped to the close-label family's own `issue`, NOT to every patch declared
+   * for the primitive. `sheet` carries a second family since objectui#6090
+   * (`hideOverlay`), so a whole-list equality here would assert that no
+   * primitive may ever carry more than one — the same over-reach the
+   * `closeLabelComponents` derivation above exists to avoid. Order within the
+   * family still matters and is still asserted: the import must land before the
+   * label swap.
+   */
   it.each(closeLabelComponents)('%s declares the i18n close patch', (name: string) => {
-    const ids = LOCAL_PATCHES[name].map((p: { id: string }) => p.id);
+    const ids = LOCAL_PATCHES[name]
+      .filter((p: { issue: string }) => p.issue === 'objectstack#5505')
+      .map((p: { id: string }) => p.id);
     expect(ids).toEqual([`${name}-i18n-close-import`, `${name}-i18n-close-label`]);
+  });
+
+  /**
+   * The fourth family: sheet's `hideOverlay` prop (objectui#6090).
+   *
+   * All three halves are listed because dropping any one of them leaves a state
+   * that still compiles: without the prop declaration external consumers lose
+   * the API, without the destructure the value leaks to the DOM as
+   * `hideoverlay="true"` and the conditional reads `undefined`, and without the
+   * conditional the prop is accepted and silently ignored.
+   */
+  it('sheet declares the hideOverlay patches', () => {
+    const ids = LOCAL_PATCHES.sheet
+      .filter((p: { issue: string }) => p.issue === 'objectui#6090')
+      .map((p: { id: string }) => p.id);
+    expect(ids).toEqual([
+      'sheet-hide-overlay-prop',
+      'sheet-hide-overlay-destructure',
+      'sheet-hide-overlay-conditional',
+    ]);
   });
 
   /** The other declared family: the sidebar collapse-persistence patch. */

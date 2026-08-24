@@ -269,7 +269,7 @@
         "radix-ui"
       ],
       "registryDependencies": [],
-      "localEdits": "Adds a `hideOverlay` prop that suppresses `<SheetOverlay />`, for sheets that must not dim the page behind them. Upstream renders the overlay unconditionally. Also carries the objectstack#5505 i18n close patch (see `dialog` for the full rationale): `SheetContent`'s auto-rendered close button renders `<CloseSrLabel />` instead of a hardcoded English `sr-only` span. Declared in `scripts/shadcn-local-patches.mjs` and RE-APPLIED automatically by every sync, so unlike the `hideOverlay` edit above it does not depend on anyone remembering it."
+      "localEdits": "Adds a `hideOverlay` prop that suppresses `<SheetOverlay />`, for sheets that must not dim the page behind them. Upstream renders the overlay unconditionally. Also carries the objectstack#5505 i18n close patch (see `dialog` for the full rationale): `SheetContent`'s auto-rendered close button renders `<CloseSrLabel />` instead of a hardcoded English `sr-only` span. BOTH edits are declared in `scripts/shadcn-local-patches.mjs` and RE-APPLIED automatically by every sync; neither depends on anyone remembering it. `hideOverlay` was the exception until objectui#6090 — it was documented here and declared nowhere, and because it is an OPTIONAL prop with no in-repo call site, a `--force` sync that dropped it would have type-checked clean. Declaring it also made `sheet` the second family to regenerate byte-for-byte from registry bytes (`roundTrip: true` in `scripts/__tests__/shadcn-local-patches.test.ts`), which is what now proves nothing else in this file diverges undeclared."
     },
     "sidebar": {
       "source": "https://ui.shadcn.com/r/styles/default/sidebar.json",
