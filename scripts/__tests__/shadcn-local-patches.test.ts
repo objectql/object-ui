@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,7 @@ import {
 // re-typed so the round-trip assertion below strips exactly what the sync adds;
 // importing the CLI module is safe (it only runs `main()` when it IS the
 // process entry point) and `shadcn-sync-fetch-cache.test.ts` already does it.
-import { OBJECTUI_HEADER } from '../shadcn-sync.js';
+import { OBJECTUI_HEADER, rewriteRegistryImports } from '../shadcn-sync.js';
 
 /**
  * objectstack#5505 — the Shadcn `Sheet`/`Dialog` primitives shipped a hardcoded
@@ -37,11 +38,18 @@ import { OBJECTUI_HEADER } from '../shadcn-sync.js';
  * written in), so a test that needed the network could not gate anything. Every
  * assertion below is pure string work over a fixture or over the files on disk.
  *
- * It covers three separate regressions:
+ * It covers four separate regressions:
  *
  *   1. the patch stops being applied to the files we ship  (`describe` #3)
  *   2. the patch engine stops applying it to fresh upstream (`describe` #1)
  *   3. the patch silently no-ops against changed upstream   (`describe` #2)
+ *   4. an anchor was never written from upstream at all     (`describe` #4)
+ *
+ * #4 is the objectui#4976 shape and the youngest of the four: markers present,
+ * `verifyLocalPatches` empty, every other assertion green, and an anchor that
+ * has never matched a registry response. Only applying the declaration to real
+ * registry bytes can see it, which is what the vendored fixtures are for
+ * (objectui#4996).
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -61,83 +69,150 @@ const closeLabelComponents = patchedComponents().filter((name: string) =>
 );
 
 /**
- * A faithful excerpt of what the registry serves for `dialog`, AFTER
- * `rewriteRegistryImports` (so `@/lib/utils` already reads `../lib/utils`).
- * This is the exact shape the patch engine sees during `--update`.
+ * Where the vendored registry fixtures live: one file per patched family,
+ * holding the registry's `files[0].content` VERBATIM, exactly as
+ * `https://ui.shadcn.com/r/styles/default/<name>.json` serves it — before
+ * `rewriteRegistryImports`, so the bytes can be hashed against the provenance
+ * recorded below.
+ *
+ * `.txt`, not `.tsx`, and that is deliberate: this is captured upstream text,
+ * not source this repo owns. ESLint targets `**\/*.{ts,tsx}` and would lint
+ * these as if we had written them; `tsconfig.scripts.json` compiles
+ * `scripts/**\/*.ts`. Neither should have an opinion about upstream's code,
+ * and neither can be made to have one about a `.txt`.
  */
-const UPSTREAM_DIALOG = `"use client"
-
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X } from "lucide-react"
-
-import { cn } from "../lib/utils"
-
-const DialogContent = React.forwardRef((props, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content ref={ref} {...props}>
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-))
-`;
+const registryFixturesDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'fixtures/shadcn-registry',
+);
 
 /**
- * What the registry serves for `slider`, after `rewriteRegistryImports` (so
- * `@/lib/utils` already reads `../lib/utils`) — the exact input the patch engine
- * sees during `--update`.
- *
- * Verbatim and complete, not an excerpt, and that is the whole point: this is
- * the only offline statement of what upstream actually looks like, so the
- * round-trip assertion below can hold it to the shipped primitive byte for
- * byte. Transcribed from `https://ui.shadcn.com/r/styles/default/slider.json`,
- * which shadcn-ui/ui checks in verbatim as
- * `apps/v4/public/r/styles/default/slider.json` — read there at HEAD
- * 8a7701ec27eb9cb8e0377db769fbe6d744113c52, where the sha256 of
- * `files[0].content` is
- * 48bd0ba32cc7f341ecca995374be73111da2f761694cfcf91dbf8d4d9e632c06.
- *
- * objectui#4976: the fixture this replaces was reverse-engineered from the
- * LOCAL file instead, so it carried objectui's own hand-written accessible-name
- * forwarding (commit a014bc00c) as though upstream had shipped it, and trimmed
- * the rest to a sketch. The delivery patch was anchored on that invented line
- * and could not match any real registry response — while this test stayed green,
- * because the fixture agreed with the anchor rather than with upstream.
+ * @property url       The registry endpoint `shadcn-components.json` syncs from.
+ * @property repoPath  Where shadcn-ui/ui checks that same JSON in verbatim.
+ * @property headSha   The commit the fixture was captured at.
+ * @property sha256    Hash of the captured `files[0].content` bytes.
+ * @property roundTrip `true` when patching these bytes reproduces the shipped
+ *                     primitive exactly; otherwise the REASON it cannot, which
+ *                     is always an undeclared local edit (see below).
  */
-const UPSTREAM_SLIDER = `"use client"
+interface RegistryFixture {
+  url: string;
+  repoPath: string;
+  headSha: string;
+  sha256: string;
+  roundTrip: true | string;
+}
 
-import * as React from "react"
-import * as SliderPrimitive from "@radix-ui/react-slider"
+/**
+ * objectui#4996 — provenance for every vendored fixture.
+ *
+ * ## Why a vendored snapshot rather than a live fetch
+ *
+ * Verifying an anchor means applying it to bytes upstream actually served, and
+ * this repo cannot reach upstream from the place the verification has to run:
+ * `ui.shadcn.com` does not resolve from CI or from the sandboxes these tests
+ * are written in (measured again for objectui#4996: the registry host times out
+ * where `raw.githubusercontent.com` answers 200). A test that fetched would
+ * therefore SKIP on every PR — and a gate that skips silently is worse than no
+ * gate, because it reports green for a surface nobody read. The bytes are
+ * vendored instead, so this suite is deterministic, offline, and has no
+ * did-not-run state to confuse with a clean one.
+ *
+ * ## What a green run here does and does NOT mean
+ *
+ * It means: **every declared anchor was written from real registry bytes**, the
+ * property objectui#4976 turned out to lack and the one that cannot be stated
+ * offline any other way. An anchor reverse-engineered from `src/ui/**` matches
+ * the local file happily and cannot match these.
+ *
+ * It does NOT mean upstream still looks like this TODAY. That is a different
+ * question, it needs the network, and it already has an owner: the weekly
+ * `Check Shadcn Components` workflow runs `pnpm shadcn:check` online against all
+ * 46 components, exits non-zero on a patch that no longer re-applies, and —
+ * crucially — distinguishes "registry unreachable" from "registry clean" via
+ * its three-valued cross-run marker steps (objectui#3586). Upstream drift is
+ * that job's reading; anchor provenance is this file's. Neither substitutes for
+ * the other, and this suite must never be described as covering drift.
+ *
+ * ## Refreshing a fixture
+ *
+ * Re-capture `files[0].content` verbatim from the URL below and update `sha256`
+ * (and `headSha`) in the same commit. What a red `sha256` must NEVER mean is
+ * "edit the fixture until it agrees again" — that is precisely the hand-trimmed
+ * "faithful excerpt" objectui#4976 was made of, and the hash exists to make it
+ * impossible to do quietly.
+ */
+const REGISTRY_FIXTURES: Record<string, RegistryFixture> = {
+  sheet: {
+    url: 'https://ui.shadcn.com/r/styles/default/sheet.json',
+    repoPath: 'apps/v4/public/r/styles/default/sheet.json',
+    headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
+    sha256: '9051eb9d885a18c0521c63c945480effcfca29282d2a342cb3ce7f9d080c6d38',
+    // objectui#4996 measured this: `sheet.tsx` also carries the `hideOverlay`
+    // prop, an UNDECLARED local edit (`shadcn-components.json` documents it and
+    // says outright that, unlike the i18n patch, "it does depend on anyone
+    // remembering it"). So patched upstream is 2 lines short of the shipped
+    // file by design, and byte-equality is not available for this family until
+    // that edit is either declared here or upstreamed.
+    roundTrip: 'ships the undeclared `hideOverlay` prop (shadcn-components.json)',
+  },
+  dialog: {
+    url: 'https://ui.shadcn.com/r/styles/default/dialog.json',
+    repoPath: 'apps/v4/public/r/styles/default/dialog.json',
+    headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
+    sha256: '60d5246653c714fc12a67743ee5951331ecd2548cdaef9a599922bcb14da26db',
+    roundTrip: true,
+  },
+  sidebar: {
+    url: 'https://ui.shadcn.com/r/styles/default/sidebar.json',
+    repoPath: 'apps/v4/public/r/styles/default/sidebar.json',
+    headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
+    sha256: 'ad7f3674de583ed57c87413b8434d3428d82f554b7ad3e590df329ed55830bb7',
+    // The expensive fixture the issue flagged (774 lines) — taken in full
+    // anyway, because a trimmed one could not be hashed against its source and
+    // an unhashed excerpt is the objectui#4976 defect wearing a fixture's
+    // clothes. It is static text read once per run; the cost is bytes on disk,
+    // not time.
+    //
+    // `sidebar.tsx` carries three systematic undeclared local edits documented
+    // in `shadcn-components.json` — the Tailwind v4 `[--var]` → `(--var)`
+    // migration (load-bearing: the v3 spelling compiles to invalid CSS on
+    // Tailwind 4.x), `theme(spacing.4)` → `1rem`, and an unconditional
+    // `data-collapsible` — so byte-equality is not available here either.
+    roundTrip: 'ships three undeclared systematic local edits (shadcn-components.json)',
+  },
+  slider: {
+    url: 'https://ui.shadcn.com/r/styles/default/slider.json',
+    repoPath: 'apps/v4/public/r/styles/default/slider.json',
+    headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
+    sha256: '48bd0ba32cc7f341ecca995374be73111da2f761694cfcf91dbf8d4d9e632c06',
+    roundTrip: true,
+  },
+};
 
-import { cn } from "../lib/utils"
+/** The captured registry bytes for `name`, exactly as served (pre-rewrite). */
+function readRegistryFixture(name: string): Buffer {
+  return fs.readFileSync(path.join(registryFixturesDir, `${name}.registry.txt`));
+}
 
-const Slider = React.forwardRef<
-  React.ElementRef<typeof SliderPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <SliderPrimitive.Root
-    ref={ref}
-    className={cn(
-      "relative flex w-full touch-none select-none items-center",
-      className
-    )}
-    {...props}
-  >
-    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
-      <SliderPrimitive.Range className="absolute h-full bg-primary" />
-    </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
-  </SliderPrimitive.Root>
-))
-Slider.displayName = SliderPrimitive.Root.displayName
+/**
+ * The captured bytes after `rewriteRegistryImports` — i.e. the exact input the
+ * patch engine sees during `--update`.
+ *
+ * The rewrite is IMPORTED from the sync rather than re-typed here for the same
+ * reason `OBJECTUI_HEADER` is: a second copy of the transform could drift, and a
+ * drifted copy would make these fixtures agree with this test while disagreeing
+ * with what `pnpm shadcn:update` actually writes.
+ */
+function upstreamFor(name: string): string {
+  return rewriteRegistryImports(readRegistryFixture(name).toString('utf-8'));
+}
 
-export { Slider }
-`;
+/** Registry bytes for `dialog`, the i18n close-label family's worked example. */
+const UPSTREAM_DIALOG = upstreamFor('dialog');
+
+/** Registry bytes for `slider`, the family objectui#4976 was found in. */
+const UPSTREAM_SLIDER = upstreamFor('slider');
 
 describe('shadcn local patches — application to fresh upstream (objectstack#5505)', () => {
   it.each(closeLabelComponents)('%s declares the i18n close patch', (name: string) => {
@@ -376,5 +451,140 @@ describe('shipped primitives still carry every declared patch (objectstack#5505)
   /** The derivation above must never silently select nothing. */
   it('still covers the close-label primitives', () => {
     expect(closeLabelComponents).toEqual(['sheet', 'dialog']);
+  });
+});
+
+describe('declared anchors were written from REGISTRY bytes (objectui#4996)', () => {
+  /**
+   * The gap this suite closes.
+   *
+   * Before it, only `slider` was ever applied to real registry bytes. `sheet`
+   * and `sidebar` were held up by two things that say NOTHING about whether
+   * their anchors match upstream: their ids, and the markers present in the
+   * files on disk. That is exactly the objectui#4976 configuration — markers
+   * complete, `verifyLocalPatches` empty, suite green, and an anchor pinned to
+   * a line the registry has never served. It kept a dead patch alive for four
+   * months.
+   *
+   * Measured for objectui#4996 before writing any of this: all ten declared
+   * anchors across all four families DO apply to real registry bytes, both at
+   * the pinned sha and at shadcn-ui/ui `main` on the day (byte-identical there
+   * — the `default` style registry has not moved for these four). So nothing
+   * was broken; what was missing was anything that would say so when it stops.
+   * These assertions are that thing, and they are why the fixtures exist.
+   */
+  it.each(patchedComponents())('%s has a vendored registry fixture', (name: string) => {
+    // A new patched family with no fixture goes red HERE rather than being
+    // quietly exempt from every assertion below — the failure mode a
+    // hand-maintained fixture list always eventually has.
+    expect(
+      Object.keys(REGISTRY_FIXTURES),
+      `${name} is declared in LOCAL_PATCHES but has no entry in REGISTRY_FIXTURES; ` +
+        'capture files[0].content from its registry URL verbatim into ' +
+        `scripts/__tests__/fixtures/shadcn-registry/${name}.registry.txt`,
+    ).toContain(name);
+
+    expect(
+      fs.existsSync(path.join(registryFixturesDir, `${name}.registry.txt`)),
+      `missing fixture file for ${name}`,
+    ).toBe(true);
+  });
+
+  it.each(patchedComponents())(
+    '%s fixture still hashes to its recorded provenance',
+    (name: string) => {
+      const actual = crypto.createHash('sha256').update(readRegistryFixture(name)).digest('hex');
+
+      // This is what makes the fixture uncheatable. Every assertion below is
+      // only as good as the claim that these bytes are upstream's; a hash
+      // pinned to the capture is the one way to hold that claim offline. Red
+      // here means the file was edited — re-capture and update `sha256` in the
+      // same commit, never trim the file until the anchors agree.
+      expect(actual, `${name}.registry.txt no longer matches its captured sha256`).toBe(
+        REGISTRY_FIXTURES[name].sha256,
+      );
+    },
+  );
+
+  it.each(patchedComponents())(
+    '%s: every declared anchor applies to real registry bytes',
+    (name: string) => {
+      const result = applyLocalPatches(name, upstreamFor(name));
+
+      // The core assertion of objectui#4996. An anchor reverse-engineered from
+      // `src/ui/**` — the objectui#4976 defect — cannot be in `applied` here,
+      // because the line it names does not exist in these bytes.
+      expect(
+        result.failed.map((p: { id: string; found: number }) => `${p.id} (found ${p.found}x)`),
+        `${name}: declared anchor(s) do not match the registry bytes, so the patch would NOT ` +
+          'survive the next `pnpm shadcn:update`. Re-target the anchor against upstream — do not ' +
+          'weaken the fixture.',
+      ).toEqual([]);
+
+      // `already` would mean the fixture arrived carrying our own marker, i.e.
+      // it was captured from the patched local file rather than from upstream.
+      // Distinguishing it from `applied` is the difference between "the anchor
+      // works" and "the fixture was taken from the wrong side".
+      expect(result.already, `${name}: fixture already contains our marker(s)`).toEqual([]);
+      expect(result.applied).toHaveLength(LOCAL_PATCHES[name].length);
+
+      // And the result actually carries every declared patch.
+      expect(verifyLocalPatches(name, result.content)).toEqual([]);
+    },
+  );
+
+  it.each(patchedComponents())(
+    '%s: byte round-trip holds, or its unavailability is pinned with a reason',
+    (name: string) => {
+      const patched = applyLocalPatches(name, upstreamFor(name));
+      const shipped = fs
+        .readFileSync(path.join(uiDir, `${name}.tsx`), 'utf-8')
+        // Added on write, downstream of the patch engine — stripped rather than
+        // baked into the fixture, which must stay byte-faithful to upstream.
+        .replace(OBJECTUI_HEADER, '');
+
+      const { roundTrip } = REGISTRY_FIXTURES[name];
+
+      if (roundTrip === true) {
+        // The strongest available statement: patching real upstream reproduces
+        // the shipped primitive exactly, so the declaration accounts for EVERY
+        // way this file differs from upstream.
+        expect(patched.content, `${name}.tsx no longer regenerates from registry bytes`).toBe(
+          shipped,
+        );
+        return;
+      }
+
+      // The other families ship local edits that are documented in
+      // `shadcn-components.json` but not declared in `shadcn-local-patches.mjs`,
+      // so equality is genuinely unavailable and claiming it would be a lie.
+      // Pinning the inequality is still worth doing: if it starts holding —
+      // upstream adopted the edit, or someone declared it — this goes red and
+      // the family should be promoted to `roundTrip: true`, which is a strictly
+      // better gate than the one below.
+      expect(typeof roundTrip).toBe('string');
+      expect(
+        patched.content,
+        `${name} now regenerates byte-for-byte from registry bytes — promote its ` +
+          "REGISTRY_FIXTURES entry to `roundTrip: true` (recorded reason: " +
+          `${roundTrip})`,
+      ).not.toBe(shipped);
+    },
+  );
+
+  /**
+   * The provenance record must not outlive the declarations it describes: a
+   * family removed from `LOCAL_PATCHES` should take its fixture with it, or the
+   * directory silently accumulates snapshots nothing reads.
+   */
+  it('records no fixture for a family that is no longer patched', () => {
+    expect(Object.keys(REGISTRY_FIXTURES).sort()).toEqual([...patchedComponents()].sort());
+
+    const onDisk = fs
+      .readdirSync(registryFixturesDir)
+      .filter((f: string) => f.endsWith('.registry.txt'))
+      .map((f: string) => f.replace(/\.registry\.txt$/, ''))
+      .sort();
+    expect(onDisk).toEqual([...patchedComponents()].sort());
   });
 });

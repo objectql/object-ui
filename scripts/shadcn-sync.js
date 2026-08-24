@@ -1067,8 +1067,12 @@ if (invokedAsCli()) {
 // Exported for scripts/__tests__/shadcn-sync-fetch-cache.test.ts and
 // scripts/__tests__/shadcn-local-patches.test.ts (OBJECTUI_HEADER, so the
 // round-trip assertion strips the header this script prepends rather than
-// keeping a second spelling of it). The CLI is the only production consumer;
-// nothing else imports this module.
+// keeping a second spelling of it; `rewriteRegistryImports`, so the vendored
+// registry fixtures are transformed by the SAME code the sync runs — a test
+// that re-typed the rewrite table would be asserting against its own copy of
+// the transform, and a drift between the two would make the fixtures agree
+// with the test while disagreeing with what `--update` actually writes).
+// The CLI is the only production consumer; nothing else imports this module.
 export {
   fetchUrl,
   fetchRegistry,
@@ -1078,4 +1082,5 @@ export {
   bodySnippet,
   CACHE_TTL_MS,
   OBJECTUI_HEADER,
+  rewriteRegistryImports,
 };
