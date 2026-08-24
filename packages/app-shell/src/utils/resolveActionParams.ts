@@ -33,7 +33,7 @@ import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import type { ActionParamDef, ActionParamOption } from '@object-ui/core';
 // The fold from a PARAM type spelling to the widget key that renders it —
 // the one alias table, read rather than restated. See `isLookupResolvedType`.
-import { resolveParamWidgetType } from './paramToField';
+import { resolveParamWidgetType } from './paramToField.js';
 import type { I18nLabel } from '@objectstack/spec/ui';
 // Aliased per PR #4169's convention — app-shell has its OWN `resolveI18nLabel`
 // (renamed `resolveKeyedI18nLabel` by objectui#4167) over the translation-KEY
