@@ -179,6 +179,12 @@ export function PublicFormsPage() {
     }
   };
 
+  // `load` is intentionally omitted from the dependency array: this effect is a
+  // mount-once fetch. Refresh is driven by the explicit Refresh button
+  // (`onClick={load}` below) and by explicit `await load()` calls after
+  // publish/save (see the file-level doc comment), not by re-running on every
+  // `load` identity change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';

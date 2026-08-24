@@ -411,6 +411,7 @@ export interface SchemaRendererProps {
  * and `packages/react/README.md` documents callers relying on it. The `any` is
  * the point: this is a pass-through channel, not a typed prop.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see doc comment above: the forwarded value is opaque to this component by construction.
 type ForwardedProps = Record<string, any>;
 
 /**
