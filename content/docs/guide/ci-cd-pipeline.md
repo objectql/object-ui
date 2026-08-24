@@ -45,6 +45,7 @@ one has its own section below.
 | `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
 | `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
+| `hook-selftests.yml` | Hook Self-Tests | PR / push touching `.claude/hooks/**` or the workflow | **Yes** |
 
 The path filters explain most "why did nothing run on my PR?" questions:
 
@@ -1047,6 +1048,41 @@ so that predicate would report the convention rather than a defect and bury ever
 The rendered summary says that surface is **UNREAD**, never that it is clean
 ([#5791](https://github.com/objectstack-ai/objectui/issues/5791)).
 
+### Hook Self-Tests (`hook-selftests.yml`)
+
+**Trigger:** PR to `main`/`develop`, and push to `main`, **when `.claude/hooks/**` or this
+workflow file changes**. **Blocks a PR:** yes.
+
+Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` (100 cases) and
+`.claude/hooks/guard-shared-stash.selftest.sh` (32 cases) — the hermetic self-test matrices for
+the two PreToolUse guards behind the rule both `CLAUDE.md` files state as binding: worktree-first,
+and never `git stash` (AGENTS.md §9). Each self-test builds its own throwaway git fixture and
+needs only `jq` and `git`, both preinstalled on `ubuntu-latest` — no install, no build.
+
+Before this workflow ([#5754](https://github.com/objectstack-ai/objectui/issues/5754)), nothing
+ran either matrix automatically: a hook is not imported by any package, so no unit test, type
+check, or lint reaches it (`eslint.config.js` is scoped to `**/*.{ts,tsx}` throughout, and there
+is no `shellcheck` anywhere in this repo), and both self-tests' own headers only say to run them
+*after touching the hook* — an instruction with no gate behind it. The failure mode is asymmetric
+and both halves are bad: a fail-open regression silently stops guarding the shared checkout, and
+a fail-closed regression (a false block) trains an operator onto `OS_ALLOW_MAIN_EDITS=1` /
+`OS_ALLOW_STASH=1`, switching the guard off for the whole command. Neither shows up in a PR
+without a caller.
+
+**This job is a runner, not a rewrite.** It does not modify the hooks or their self-tests —
+`.claude/**` is governed surface. It only gives the existing matrices a caller that fails the
+build the moment either one goes red, the same way any other required check does.
+
+**Path-filtered, unlike `control-bytes.yml`.** That gate carries no `paths` filter because a raw
+control byte can land in a markdown-only PR just as easily as a TypeScript one. That reasoning
+does not transfer here: both self-tests assert the CURRENT hook script's behaviour against a
+fixture they build themselves, so nothing about a docs-only or dependency-bump PR can move the
+result. This workflow instead mirrors `changeset-guard.yml`'s inverse-filter shape, firing only
+on a PR that touches `.claude/hooks/**` — which is also why `scripts/dependabot-merge-gate.mjs`
+classifies **Hook Self-Tests** as `OPTIONAL_CONTEXTS` (present → must be `success`; absent → a
+Dependabot bump never touches `.claude/hooks/**`, so it is never waited for) rather than
+`REQUIRED_CONTEXTS`, following the same rule `Changeset Bump Policy` and `Bundle Analysis` do.
+
 ### Dependabot Auto-Merge (`dependabot-auto-merge.yml`)
 
 **Trigger:** PRs on `main`/`develop` authored by `dependabot[bot]`.
@@ -1073,8 +1109,8 @@ So the wait is now explicit and this workflow owns it
 every context it declares has reported `success`, and only then may the two mutations — approve,
 enqueue — run. The declared set is the unfiltered blocking contexts (all four shards, **Type
 Check**, **Lint**, **Build & E2E**, **Build Docs** and the five one-`node`-call gates); the
-path-filtered ones (**Bundle Analysis**, **Changeset Bump Policy**) must be green *if they
-reported*; everything else is listed with the reason it cannot gate. A context that is missing,
+path-filtered ones (**Bundle Analysis**, **Changeset Bump Policy**, **Hook Self-Tests**) must be
+green *if they reported*; everything else is listed with the reason it cannot gate. A context that is missing,
 still running at the deadline, or anything other than `success` is **not** green: nothing merges,
 the job goes red, and a comment on the PR names what refused.
 

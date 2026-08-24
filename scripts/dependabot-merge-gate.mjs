@@ -166,6 +166,8 @@ export const OPTIONAL_CONTEXTS = Object.freeze({
     "performance-budget.yml filters on paths: packages/**, apps/console/**, pnpm-lock.yaml. Blocking when it runs (console gzip budget); absent on a PR that touches none of them.",
   'Changeset Bump Policy':
     'changeset-guard.yml filters on paths: .changeset/**. A Dependabot PR carries no changeset, so it normally does not report at all.',
+  'Hook Self-Tests':
+    'hook-selftests.yml filters on paths: .claude/hooks/**, plus the workflow file itself (objectui#5754). Blocking when it runs (the two PreToolUse guard self-test matrices must pass); a Dependabot dependency bump never touches .claude/hooks/**, so it normally does not report at all.',
 });
 
 /**
