@@ -274,12 +274,13 @@ const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
  *
  * objectui#5113 added the object surface (`getObjectSchema` / `find` / the
  * writes) to the host fixture, because `object-view` reaches its data through
- * exactly this context value — `dataSource` is not a schema key. The three
- * `plugin-view` entries render through it, which is what
- * `THE PLUGIN-VIEW ENTRIES` below asserts. What the mirror reproduces is the
- * host's SURFACE and its rows; the query semantics ($search / $orderby /
- * windowing) are the host's, and the parity case pins the method names rather
- * than re-deriving them here.
+ * exactly this context value — `dataSource` is not a schema key. The same is
+ * true of `object-grid`, which is how objectui#5856 could give `plugin-grid`
+ * real entries without touching the fixture at all. Both categories' entries
+ * render through it, which is what `CATEGORY_OWN_TYPE` below asserts. What the
+ * mirror reproduces is the host's SURFACE and its rows; the query semantics
+ * ($search / $orderby / windowing) are the host's, and the parity case pins the
+ * method names rather than re-deriving them here.
  */
 const USERS_ROWS = [
   { id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', department: 'Engineering', status: 'active', created_at: '2024-01-14' },
@@ -606,100 +607,152 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
 });
 
 /**
- * THE PLUGIN-VIEW ENTRIES ACTUALLY USE THE PLUGIN (objectui#5113).
+ * THESE PLUGIN CATEGORIES' ENTRIES ACTUALLY USE THEIR PLUGIN
+ * (objectui#5113 for `plugin-view`, objectui#5856 for `plugin-grid`).
  *
  * The sweep above answers "does every tile draw". It cannot answer the
  * question objectui#5113 was filed on: whether an example mounted under a
- * PLUGIN's docs page exercises that plugin. The three `plugin-view` entries
- * used to be hand-built static card layouts — `card` / `flex` / `text` /
- * `badge`, no `object-view` node anywhere — sitting on
- * `content/docs/plugins/plugin-view.mdx` under an "Interactive Examples"
+ * PLUGIN's docs page exercises that plugin. Both categories below failed it in
+ * exactly the same way, one card apart.
+ *
+ * `plugin-view`'s three entries used to be hand-built static card layouts —
+ * `card` / `flex` / `text` / `badge`, no `object-view` node anywhere — sitting
+ * on `content/docs/plugins/plugin-view.mdx` under an "Interactive Examples"
  * heading and inside a `PluginLoader plugins={['view']}` wrapper none of them
- * used. Every check in the repo was green on them: the types they named ARE
- * registered, and the tiles DID draw.
+ * used. `plugin-grid`'s two were the same defect on
+ * `content/docs/plugins/plugin-grid.mdx` under `PluginLoader plugins={['grid']}`
+ * — measured on this card's own merge-base, both authored exactly
+ * `badge button card flex stack text` and no `object-grid`. Every check in the
+ * repo was green on all five: the types they named ARE registered
+ * (`check-doc-component-types` asks only that), and the tiles DID draw (the
+ * sweep above asks only that). Neither gate can see this defect, which is why
+ * this one exists.
  *
- * Two facts are pinned here, and the second is the one that cannot be
- * satisfied by a picture of a view:
+ * Two facts are pinned per category, and the second is the one that cannot be
+ * satisfied by a picture of the component:
  *
- *  1. STRUCTURE — every entry in the category authors an `object-view` node.
+ *  1. STRUCTURE — every entry in the category authors a node of the type its
+ *     own package registers.
  *  2. RENDER — the tile shows a record that exists only in the gallery's data
- *     source, so the rows on screen came through `ObjectViewRenderer` →
- *     `ObjectGrid` → `dataSource.find`, not out of the entry's own JSON. An
- *     entry that went back to drawing its own table would keep (1) satisfiable
- *     by a stray node and would fail (2) outright.
+ *     source, so the rows on screen came through the registered renderer →
+ *     `dataSource.find`, not out of the entry's own JSON. An entry that went
+ *     back to drawing its own table would keep (1) satisfiable by a stray node
+ *     and would fail (2) outright.
  *
- * Deliberately scoped to `plugin-view` rather than generalized to every
- * `plugin-*` category: the general rule needs a per-plugin map of which types
- * each package registers, and other categories (`plugin-grid`'s two entries,
- * for one) are hand-built mock-ups of exactly this kind today. That is a
- * separate card, not a silent exemption list here.
+ * (2) is the half that does the work, and it is discriminating rather than
+ * incidental: an `object-grid` node whose rows come from an inline
+ * `data: { provider: 'value', items: [...] }` satisfies (1), renders a
+ * perfectly good table — measured, 51 elements — and contains no gallery
+ * record at all, so it fails (2). A grid wired to nothing cannot pass here.
+ *
+ * ## Why an explicit two-entry map and not a rule over `plugin-*`
+ *
+ * `CATEGORY_OWN_TYPE` is enumerated, not derived. objectui#5113 scoped its pin
+ * to one category because the general rule needs a per-plugin map of which
+ * types each package registers, and it named `plugin-grid`'s two entries as
+ * the specific reason the rule could not simply be turned on for everything.
+ * objectui#5856 removed that obstacle — `plugin-grid` was the last `plugin-*`
+ * category whose entries were pictures of the component rather than the
+ * component — so generalizing is now possible and is deliberately left to its
+ * own card. Adding a category here is a two-line change; what a reader must
+ * NOT do is convert this into a loop over every `plugin-*` category with an
+ * exemption list, which would turn each remaining gap into a silent entry in a
+ * table rather than a card someone owns.
+ *
+ * The types are asserted to be REGISTERED first, separately from the render,
+ * because the gallery's registration of `object-grid` is transitive: the host
+ * list (`HOST_PACKAGES`) does not name `@object-ui/plugin-grid`, and the type
+ * arrives because `@object-ui/plugin-view` imports `ObjectGrid` from it, which
+ * runs that package's `register` calls. That is load-bearing and invisible, so
+ * it gets its own assertion — a `plugin-view` that stopped importing
+ * `ObjectGrid` would otherwise turn the render case red with "Unknown
+ * component type" and no explanation of why.
  */
-describe('objectui#5113 — the plugin-view entries render THROUGH object-view', () => {
-  const pluginViewEntries = entries.filter((e) => e.meta.category === 'plugin-view');
+const CATEGORY_OWN_TYPE: ReadonlyArray<
+  readonly [category: string, ownType: string, minEntries: number]
+> = [
+  ['plugin-view', 'object-view', 3],
+  ['plugin-grid', 'object-grid', 2],
+];
 
-  /** Every `type` string anywhere in a schema tree. */
-  function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
-    if (Array.isArray(node)) {
-      for (const n of node) nodeTypes(n, acc);
+describe.each(CATEGORY_OWN_TYPE)(
+  'objectui#5113/#5856 — the %s entries render THROUGH %s',
+  (category, ownType, minEntries) => {
+    const categoryEntries = entries.filter((e) => e.meta.category === category);
+
+    /** Every `type` string anywhere in a schema tree. */
+    function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
+      if (Array.isArray(node)) {
+        for (const n of node) nodeTypes(n, acc);
+        return acc;
+      }
+      if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+          if (k === 'type' && typeof v === 'string') acc.add(v);
+          nodeTypes(v, acc);
+        }
+      }
       return acc;
     }
-    if (node && typeof node === 'object') {
-      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-        if (k === 'type' && typeof v === 'string') acc.add(v);
-        nodeTypes(v, acc);
-      }
-    }
-    return acc;
-  }
 
-  it('the category is populated (guard is not vacuous)', () => {
-    expect(pluginViewEntries.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it.each(pluginViewEntries.map((e) => [e.id, e.schema] as const))(
-    '%s authors an object-view node',
-    (_id, schema) => {
-      expect([...nodeTypes(schema)]).toContain('object-view');
-    },
-  );
-
-  it.each(pluginViewEntries.map((e) => [e.id, e.schema] as const))(
-    '%s puts data from the gallery data source on screen',
-    async (_id, schema) => {
-      const r = await renderEntry(schema);
-      try {
-        // Not authored anywhere in the catalog — it exists only in the fixture.
-        expect(r.text).toContain('Alice Johnson');
-      } finally {
-        teardown(r);
-      }
-    },
-  );
-
-  /**
-   * HOST PARITY for the fixture, same technique and same reason as the
-   * registration-set parity above: the mirror at the top of this file is what
-   * the assertions run against, so a host fixture that lost `find` would leave
-   * this file green while the docs page went back to an empty view.
-   */
-  describe('the docs-site hosts supply the same fixture', () => {
-    const siteDir = path.join(process.cwd(), 'apps/site/app/components');
-    const read = (f: string) => fs.readFileSync(path.join(siteDir, f), 'utf8');
-
-    it('the host fixture exposes every method this mirror implements', () => {
-      const source = read('galleryDataSource.ts');
-      const missing = GALLERY_DATA_SOURCE_METHODS.filter(
-        (method) => !new RegExp(`\\basync ${method}\\s*\\(`).test(source),
-      );
-      expect(missing).toEqual([]);
+    it('the category is populated (guard is not vacuous)', () => {
+      expect(categoryEntries.length).toBeGreaterThanOrEqual(minEntries);
     });
 
-    it.each(['SchemaThumbnail.tsx', 'InteractiveDemo.tsx'])(
-      '%s hands it to the renderer',
-      (host) => {
-        expect(read(host)).toMatch(/^import \{ galleryDataSource \} from '\.\/galleryDataSource';$/m);
-        expect(read(host)).toContain('dataSource: galleryDataSource');
+    it(`${ownType} is registered in the gallery's registration set`, () => {
+      expect(
+        ComponentRegistry.get(ownType),
+        `${ownType} resolves to no renderer, so the render case below would fail ` +
+          'with the OBJUI-001 panel rather than with anything about the entries. ' +
+          'For `object-grid` this is transitive — see the header.',
+      ).toBeTruthy();
+    });
+
+    it.each(categoryEntries.map((e) => [e.id, e.schema] as const))(
+      `%s authors a ${ownType} node`,
+      (_id, schema) => {
+        expect([...nodeTypes(schema)]).toContain(ownType);
       },
     );
+
+    it.each(categoryEntries.map((e) => [e.id, e.schema] as const))(
+      '%s puts data from the gallery data source on screen',
+      async (_id, schema) => {
+        const r = await renderEntry(schema);
+        try {
+          // Not authored anywhere in the catalog — it exists only in the fixture.
+          expect(r.text).toContain('Alice Johnson');
+        } finally {
+          teardown(r);
+        }
+      },
+    );
+  },
+);
+
+/**
+ * HOST PARITY for the fixture, same technique and same reason as the
+ * registration-set parity above: the mirror at the top of this file is what
+ * the assertions run against, so a host fixture that lost `find` would leave
+ * this file green while the docs page went back to an empty view.
+ */
+describe('objectui#5113 — the docs-site hosts supply the same fixture', () => {
+  const siteDir = path.join(process.cwd(), 'apps/site/app/components');
+  const read = (f: string) => fs.readFileSync(path.join(siteDir, f), 'utf8');
+
+  it('the host fixture exposes every method this mirror implements', () => {
+    const source = read('galleryDataSource.ts');
+    const missing = GALLERY_DATA_SOURCE_METHODS.filter(
+      (method) => !new RegExp(`\\basync ${method}\\s*\\(`).test(source),
+    );
+    expect(missing).toEqual([]);
   });
+
+  it.each(['SchemaThumbnail.tsx', 'InteractiveDemo.tsx'])(
+    '%s hands it to the renderer',
+    (host) => {
+      expect(read(host)).toMatch(/^import \{ galleryDataSource \} from '\.\/galleryDataSource';$/m);
+      expect(read(host)).toContain('dataSource: galleryDataSource');
+    },
+  );
 });

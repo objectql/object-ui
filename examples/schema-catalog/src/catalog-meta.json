@@ -36,6 +36,16 @@
       "verification"
     ]
   },
+  "components-layout-card/inventory-table-card": {
+    "title": "Inventory Table Card",
+    "description": "A card that draws a product inventory table by hand — toolbar buttons, header row, stock-status badges. For a table bound to an object, see the `plugin-grid` examples.",
+    "tags": [
+      "card",
+      "table",
+      "badge",
+      "layout"
+    ]
+  },
   "components-layout-card/profile-detail-card": {
     "title": "Profile Detail Card",
     "description": "A card that draws one record by hand — avatar header, label/value rows, edit and delete footer. For a record surface bound to an object, see the `plugin-view` examples.",
@@ -44,6 +54,16 @@
       "detail",
       "profile",
       "avatar"
+    ]
+  },
+  "components-layout-card/team-roster-card": {
+    "title": "Team Roster Card",
+    "description": "A card that draws a team roster table by hand — invite action, header row, presence badges. For a table bound to an object, see the `plugin-grid` examples.",
+    "tags": [
+      "card",
+      "table",
+      "badge",
+      "roster"
     ]
   },
   "components-layout-card/user-list-card": {
@@ -88,6 +108,26 @@
   "plugin-dashboard/filtered-dashboard-target-widgets": {
     "title": "Filtered Dashboard — Target Widgets Allow-list",
     "description": "Legacy targetWidgets allow-list: only listed widgets get the default binding; an explicit filterBindings entry still wins"
+  },
+  "plugin-grid/object-grid-columns": {
+    "title": "Object Grid — Column Definitions",
+    "description": "object-grid rendering the users object: `ListColumn` objects carrying label, width, align, cell `type` and `link`, with `sort`, `searchableFields` and `pagination` shaping the query the host's data source answers.",
+    "tags": [
+      "object-grid",
+      "columns",
+      "sort",
+      "objectql"
+    ]
+  },
+  "plugin-grid/object-grid-selection-summaries": {
+    "title": "Object Grid — Selection, Row Actions and Summaries",
+    "description": "The same object with multi-row `selection`, named `rowActions` / `bulkActions`, and per-column footer `summary` roll-ups computed over the rows the data source returns.",
+    "tags": [
+      "object-grid",
+      "selection",
+      "rowActions",
+      "summary"
+    ]
   },
   "plugin-view/object-view-list": {
     "title": "Object View — List Surface",

@@ -17,9 +17,23 @@ npm install @object-ui/plugin-grid
 
 ## Interactive Examples
 
-<SchemaExample id="plugin-grid/product-inventory-grid" />
+Each preview below **is** an `object-grid` node drawn by this plugin — the JSON
+in the Code tab is the whole example, and the rows on screen came out of a
+`find()` call, not out of that JSON. The records are served by the docs site's
+demo data source, because `dataSource` is not a schema key: it is the prop the
+registered renderer pulls off `SchemaRendererProvider` context (see
+[ObjectQL Integration](#objectql-integration) below), so in your own app these
+same nodes read whatever object your data source serves. That fixture answers
+search and sort but not filters, which is the only reason no `filter` is
+authored here.
 
-<SchemaExample id="plugin-grid/team-members-grid" />
+### Columns, sort and search
+
+<SchemaExample id="plugin-grid/object-grid-columns" />
+
+### Selection, row actions and column summaries
+
+<SchemaExample id="plugin-grid/object-grid-selection-summaries" />
 
 ## Features
 

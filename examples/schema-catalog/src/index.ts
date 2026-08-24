@@ -253,7 +253,9 @@ import components_layout_aspect_ratio_square from './schemas/components-layout-a
 import components_layout_aspect_ratio_ultrawide from './schemas/components-layout-aspect-ratio/ultrawide.json' with { type: 'json' };
 import components_layout_aspect_ratio_video_aspect_ratio from './schemas/components-layout-aspect-ratio/video-aspect-ratio.json' with { type: 'json' };
 import components_layout_card_basic_card from './schemas/components-layout-card/basic-card.json' with { type: 'json' };
+import components_layout_card_inventory_table_card from './schemas/components-layout-card/inventory-table-card.json' with { type: 'json' };
 import components_layout_card_profile_detail_card from './schemas/components-layout-card/profile-detail-card.json' with { type: 'json' };
+import components_layout_card_team_roster_card from './schemas/components-layout-card/team-roster-card.json' with { type: 'json' };
 import components_layout_card_user_list_card from './schemas/components-layout-card/user-list-card.json' with { type: 'json' };
 import components_layout_card_with_footer from './schemas/components-layout-card/with-footer.json' with { type: 'json' };
 import components_layout_container_basic_container from './schemas/components-layout-container/basic-container.json' with { type: 'json' };
@@ -417,8 +419,8 @@ import plugin_form_contact_form from './schemas/plugin-form/contact-form.json' w
 import plugin_gantt_construction_project_phases from './schemas/plugin-gantt/construction-project-phases.json' with { type: 'json' };
 import plugin_gantt_project_timeline_with_dependencies from './schemas/plugin-gantt/project-timeline-with-dependencies.json' with { type: 'json' };
 import plugin_gantt_sprint_development_timeline from './schemas/plugin-gantt/sprint-development-timeline.json' with { type: 'json' };
-import plugin_grid_product_inventory_grid from './schemas/plugin-grid/product-inventory-grid.json' with { type: 'json' };
-import plugin_grid_team_members_grid from './schemas/plugin-grid/team-members-grid.json' with { type: 'json' };
+import plugin_grid_object_grid_columns from './schemas/plugin-grid/object-grid-columns.json' with { type: 'json' };
+import plugin_grid_object_grid_selection_summaries from './schemas/plugin-grid/object-grid-selection-summaries.json' with { type: 'json' };
 import plugin_kanban_advanced_kanban_with_badges_and_limits from './schemas/plugin-kanban/advanced-kanban-with-badges-and-limits.json' with { type: 'json' };
 import plugin_kanban_basic_kanban_board from './schemas/plugin-kanban/basic-kanban-board.json' with { type: 'json' };
 import plugin_map_event_venue_finder from './schemas/plugin-map/event-venue-finder.json' with { type: 'json' };
@@ -2623,6 +2625,16 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_layout_card_basic_card,
   },
+  'components-layout-card/inventory-table-card': {
+    id: 'components-layout-card/inventory-table-card',
+    meta: {
+      title: "Inventory Table Card",
+      description: "A card that draws a product inventory table by hand — toolbar buttons, header row, stock-status badges. For a table bound to an object, see the `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "table", "badge", "layout"],
+    },
+    schema: components_layout_card_inventory_table_card,
+  },
   'components-layout-card/profile-detail-card': {
     id: 'components-layout-card/profile-detail-card',
     meta: {
@@ -2632,6 +2644,16 @@ const REGISTRY: Record<string, Example> = {
       tags: ["card", "detail", "profile", "avatar"],
     },
     schema: components_layout_card_profile_detail_card,
+  },
+  'components-layout-card/team-roster-card': {
+    id: 'components-layout-card/team-roster-card',
+    meta: {
+      title: "Team Roster Card",
+      description: "A card that draws a team roster table by hand — invite action, header row, presence badges. For a table bound to an object, see the `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "table", "badge", "roster"],
+    },
+    schema: components_layout_card_team_roster_card,
   },
   'components-layout-card/user-list-card': {
     id: 'components-layout-card/user-list-card',
@@ -4102,23 +4124,25 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_gantt_sprint_development_timeline,
   },
-  'plugin-grid/product-inventory-grid': {
-    id: 'plugin-grid/product-inventory-grid',
+  'plugin-grid/object-grid-columns': {
+    id: 'plugin-grid/object-grid-columns',
     meta: {
-      title: "Product Inventory Grid",
-      description: "",
+      title: "Object Grid — Column Definitions",
+      description: "object-grid rendering the users object: `ListColumn` objects carrying label, width, align, cell `type` and `link`, with `sort`, `searchableFields` and `pagination` shaping the query the host's data source answers.",
       category: 'plugin-grid',
+      tags: ["object-grid", "columns", "sort", "objectql"],
     },
-    schema: plugin_grid_product_inventory_grid,
+    schema: plugin_grid_object_grid_columns,
   },
-  'plugin-grid/team-members-grid': {
-    id: 'plugin-grid/team-members-grid',
+  'plugin-grid/object-grid-selection-summaries': {
+    id: 'plugin-grid/object-grid-selection-summaries',
     meta: {
-      title: "Team Members Grid",
-      description: "",
+      title: "Object Grid — Selection, Row Actions and Summaries",
+      description: "The same object with multi-row `selection`, named `rowActions` / `bulkActions`, and per-column footer `summary` roll-ups computed over the rows the data source returns.",
       category: 'plugin-grid',
+      tags: ["object-grid", "selection", "rowActions", "summary"],
     },
-    schema: plugin_grid_team_members_grid,
+    schema: plugin_grid_object_grid_selection_summaries,
   },
   'plugin-kanban/advanced-kanban-with-badges-and-limits': {
     id: 'plugin-kanban/advanced-kanban-with-badges-and-limits',
