@@ -45,13 +45,66 @@ on:
   # on a queue build is the queue's own generation — measured on objectstack,
   # `gh-readonly-queue/main/pr-6594-251e888ac9ace8226f3a8450951e5b40a0a84c2c`.
   # It can collide with neither a pull-request group (a bare PR number) nor a
-  # push group (`refs/heads/main`), so a queue build and the PR build it came
-  # from never cancel each other.
+  # push group (a commit sha since objectui#5422), so a queue build and the PR
+  # build it came from never cancel each other.
   merge_group:
     types: [checks_requested]
 
+# ── Concurrency (objectui#5422) ───────────────────────────────────
+# On `pull_request` the group is the PR number and `cancel-in-progress` cancels
+# that PR's previous run. That is correct and is deliberately UNCHANGED here: a
+# superseded PR push has nothing left to deliver.
+#
+# On `push` the group now carries `github.sha`, so every merge to `main` gets a
+# group of its own and no merge can cancel another merge's run. Until #5422 the
+# push branch of this expression fell back to `github.ref` — `refs/heads/main`
+# for EVERY merge — so each merge cancelled the previous merge's still-running
+# CI.
+#
+# That matters because the push lane is the only lane that runs the coverage
+# gate (`test-coverage` + `coverage-report` below are push-only), and the merged
+# 4-shard report is what enforces `coverage.thresholds` for a commit. Measured
+# on this repository over the 64 completed push-lane runs on `main` between
+# 2026-08-23T06:34Z and 2026-08-24T13:56Z: the merged report was produced for
+# 20, five lost it to a red suite, and 39 — 61% — lost it to CANCELLATION.
+# Over the 30 strictly consecutive push runs of 2026-08-24 alone it is 15 of 28
+# completed (54%). The lane needs ~13.5 min end to end while the median
+# inter-merge interval is 8.8 min, so most merges are overtaken before the gate
+# can report at all.
+#
+# ⚠️ This has to live at WORKFLOW level, not on the coverage jobs. A job-level
+# `concurrency:` only decides whether a job waits for another job in the same
+# group; it grants no exemption from the workflow-level `cancel-in-progress`,
+# which cancels the whole run and every job in it. A per-sha group on
+# `test-coverage` alone would therefore NOT have protected it.
+#
+# ⛔ Not `cancel-in-progress: false` on a `github.ref` group: that does not
+# serialise. With `cancel-in-progress` unset GitHub holds ONE pending run per
+# group and DISCARDS the rest — measured on this repository's release lane at
+# 95 of 200 runs never executing at all (objectui#5395). It would trade
+# cancellation for silent dropping, which is strictly worse.
+#
+# The cost is the one option A named on #5422: a burst of merges no longer
+# collapses into a single surviving run, so the push lane's other jobs also run
+# to completion and runner minutes rise. Nothing is weakened by that — every
+# merged commit now gets its own verdict, which is the only post-merge signal
+# this repository has while the merge queue validates nothing (objectui#4986).
+#
+# Trigger by trigger:
+#   pull_request  `github.event.pull_request.number` is set, so the chain stops
+#                 there                                       => ci-CI-<number>
+#   push          the number is null and `github.event_name == 'push'` is true,
+#                 so `&&` yields the sha                       => ci-CI-<sha>
+#   merge_group   the number is null and the `push` test is false, so `&&`
+#                 yields false and the chain falls through to `github.ref`,
+#                 which on a queue build is the queue's own generation ref
+#                 (`gh-readonly-queue/main/pr-<n>-<sha>`) — colliding with
+#                 neither a PR group nor a push group, exactly as before.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    ci-${{ github.workflow }}-${{ github.event.pull_request.number
+    || (github.event_name == 'push' && github.sha)
+    || github.ref }}
   cancel-in-progress: true
 
 jobs:
