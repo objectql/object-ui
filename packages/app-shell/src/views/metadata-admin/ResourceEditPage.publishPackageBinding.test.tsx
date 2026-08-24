@@ -56,15 +56,31 @@ const PAGE = {
   regions: [{ name: 'main', components: [{ type: 'text', id: 'b1' }] }],
 };
 
+/**
+ * The two option bags this suite reads. Spelled out (rather than letting
+ * `vi.fn(async () => ...)` infer a zero-argument mock) because the assertions
+ * index into `mock.calls[0]` — an inferred zero-arg mock types that as `[]`,
+ * and every index into it is a compile error the vitest run would never show.
+ */
+type SaveOpts = { force?: boolean; mode?: string; packageId?: string };
+type PublishOpts = { message?: string; packageId?: string };
+
 const mockClient = {
   list: vi.fn(async () => []),
   listDrafts: vi.fn(async () => []),
-  layered: vi.fn(async () => ({ effective: PAGE, code: PAGE, editable: true })),
+  layered: vi.fn(async (_type: string, _name: string, _opts?: { packageId?: string }) => ({
+    effective: PAGE,
+    code: PAGE,
+    editable: true,
+  })),
   // A pending draft is what makes the Publish button exist at all.
-  getDraft: vi.fn(async () => ({ item: PAGE })),
+  getDraft: vi.fn(async (_type: string, _name: string, _opts?: { packageId?: string }) => ({ item: PAGE })),
   get: vi.fn(async () => null),
-  save: vi.fn(async () => ({})),
-  publish: vi.fn(async () => ({ success: true, version: 4 })),
+  save: vi.fn(async (_type: string, _name: string, _item: unknown, _opts?: SaveOpts) => ({})),
+  publish: vi.fn(async (_type: string, _name: string, _opts?: PublishOpts) => ({
+    success: true,
+    version: 4,
+  })),
   reset: vi.fn(async () => ({})),
   references: vi.fn(async () => []),
 };
@@ -105,7 +121,7 @@ function atPackageScope(search: string) {
 }
 
 beforeEach(() => {
-  for (const fn of Object.values(mockClient)) (fn as { mockClear: () => void }).mockClear();
+  for (const fn of Object.values(mockClient)) (fn as unknown as { mockClear: () => void }).mockClear();
   registerMetadataPreview('page', StubPageCanvas as never);
 });
 
@@ -147,22 +163,18 @@ describe('MetadataResourceEditPage — save and publish state ONE package (#5420
     await waitFor(() => expect(publishButton()).toBeInTheDocument(), { timeout: 8000 });
 
     await saveOnce();
-    const saveOpts = mockClient.save.mock.calls[0]![3] as Record<string, unknown>;
+    const saveOpts = mockClient.save.mock.calls[0]![3];
     expect(saveOpts).toMatchObject({ mode: 'draft', packageId: 'com.example.showcase' });
 
     await waitFor(() => expect(publishButton()).toBeEnabled(), { timeout: 8000 });
     fireEvent.click(publishButton());
     await waitFor(() => expect(mockClient.publish).toHaveBeenCalled(), { timeout: 8000 });
 
-    const [type, name, publishOpts] = mockClient.publish.mock.calls[0] as unknown as [
-      string,
-      string,
-      Record<string, unknown>,
-    ];
+    const [type, name, publishOpts] = mockClient.publish.mock.calls[0]!;
     expect([type, name]).toEqual(['page', 'home']);
     // One value, one spelling: byte-identical to what the save stated.
     expect(publishOpts).toEqual({ packageId: 'com.example.showcase' });
-    expect(publishOpts.packageId).toBe(saveOpts.packageId);
+    expect(publishOpts?.packageId).toBe(saveOpts?.packageId);
   });
 
   it('unbound: no package on the URL — the key is ABSENT on the publish, not empty', async () => {
@@ -173,7 +185,7 @@ describe('MetadataResourceEditPage — save and publish state ONE package (#5420
     fireEvent.click(publishButton());
     await waitFor(() => expect(mockClient.publish).toHaveBeenCalled(), { timeout: 8000 });
 
-    const publishOpts = mockClient.publish.mock.calls[0]![2] as Record<string, unknown> | undefined;
+    const publishOpts = mockClient.publish.mock.calls[0]![2];
     // Revert-sensitive half: reverted, there is no third argument at all.
     expect(publishOpts).toBeTypeOf('object');
     // Always-send-sensitive half: the key must be absent, never `''`.
@@ -194,7 +206,7 @@ describe('MetadataResourceEditPage — save and publish state ONE package (#5420
     fireEvent.click(publishButton());
     await waitFor(() => expect(mockClient.publish).toHaveBeenCalled(), { timeout: 8000 });
 
-    const publishOpts = mockClient.publish.mock.calls[0]![2] as Record<string, unknown> | undefined;
+    const publishOpts = mockClient.publish.mock.calls[0]![2];
     expect(publishOpts).toBeTypeOf('object');
     expect(publishOpts).not.toHaveProperty('packageId');
   });
