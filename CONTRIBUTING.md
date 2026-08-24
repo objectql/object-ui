@@ -388,8 +388,9 @@ The project enforces minimum test coverage thresholds to maintain code quality:
 These thresholds are intentionally set just below current coverage levels to prevent CI failures from minor fluctuations while we improve test coverage. New code should aim for higher coverage than these minimums.
 
 #### Security Scans
-- **CodeQL**: Scans for security vulnerabilities in code
-- **Dependency Scanning**: Checks for known vulnerabilities in dependencies
+- **Dependabot**: Opens weekly dependency-update PRs for npm and GitHub Actions (configured in `.github/dependabot.yml`), and GitHub's Dependabot alerts report known vulnerabilities in dependencies. Unlike the checks above, this runs on a schedule against the default branch rather than on your PR.
+
+This repository does **not** run static-analysis security scanning of its own source code (CodeQL or equivalent) -- do not assume code you push is scanned for vulnerabilities beyond its dependencies.
 
 #### PR Automation
 - **Auto-labeling**: Automatically labels PRs based on changed files
