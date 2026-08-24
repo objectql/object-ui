@@ -105,6 +105,7 @@ import {
   type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
 import { useRecordReadability } from './recordReadability';
+import { useHiddenFields } from './hiddenFields';
 import { holdsStudioAccess } from '../../components/studioEntry';
 
 type TabKey = 'pending' | 'submitted' | 'all';
@@ -313,6 +314,18 @@ const OPAQUE_ID_RE = /^[A-Za-z0-9_-]{15,}$/;
  * card. Lookup foreign keys render their server-resolved record title
  * (`payload_display`); an unresolved opaque id is dropped rather than shown —
  * a business reader gets nothing from `dpOfPMy7cbeEL1jk`.
+ *
+ * `hiddenKeys` carries the object's `hidden: true` declarations (objectui#5565)
+ * and is dropped BEFORE the `max` cut, not after: this card is default UI, so a
+ * field the author hid must not occupy one of its slots — and the field that
+ * would have been seventh is promoted into the freed slot rather than the card
+ * simply rendering one row shorter. That ordering is what makes this a filter
+ * rather than a reshuffle; see `ApprovalsInboxPage.hiddenFieldTrim.test.tsx`,
+ * which pins both halves.
+ *
+ * An empty `hiddenKeys` means "nothing known to be hidden" — including the case
+ * where the metadata read has not answered — and renders today's card. See
+ * `hiddenFields.ts` on why this presentation filter fails open.
  */
 function payloadSummary(
   payload: unknown,
@@ -320,11 +333,13 @@ function payloadSummary(
   labels?: Record<string, string>,
   max = 6,
   excludeKey?: string,
+  hiddenKeys?: ReadonlySet<string>,
 ): Array<[string, string]> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const out: Array<[string, string]> = [];
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (hiddenKeys?.has(k)) continue; // author declared `hidden: true` (#5565)
     if (excludeKey && k === excludeKey) continue; // shown as the lead amount
     if (v == null || typeof v === 'object') continue;
     if (String(v).trim() === '') continue;
@@ -355,11 +370,13 @@ const AMOUNT_KEY_RE = /(amount|total|price|value|cost|sum|budget|salary|fee|reve
  */
 function decisionAmountEntry(
   r: ApprovalRequestRow,
+  hiddenKeys?: ReadonlySet<string>,
 ): { key: string; label: string; value: number; display: string } | null {
   const payload = r.payload;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (hiddenKeys?.has(k)) continue; // author declared `hidden: true` (#5565)
     if (!AMOUNT_KEY_RE.test(k)) continue;
     const num = typeof v === 'number'
       ? v
@@ -689,6 +706,19 @@ export function ApprovalsInboxPage() {
     [rows, selected],
   );
   const readability = useRecordReadability(readabilityTargets);
+
+  /**
+   * objectui#5565 — the fields the open request's object declares
+   * `hidden: true`. The drawer's business summary card is default UI, and
+   * `hidden` is a UI contract (objectstack#10749: "`hidden: true` stays
+   * UI-only; `internal: true` is the serialization primitive"), so the card
+   * must honour it. Scoped to the OPEN request's object: the queue rows are a
+   * different surface with a different cost model, and are not trimmed here.
+   *
+   * One cached metadata read per object per mount, empty until it answers —
+   * see `hiddenFields.ts` for the cost model and why this fails open.
+   */
+  const hiddenPayloadKeys = useHiddenFields(selected?.object_name);
   // Approve/reject/reassign/send-back/… are server-declared actions rendered by
   // DeclaredActionsBar (objectui#2697 + framework#3300); their param dialog
   // collects the comment and — since the shared upload-widget renderer (#2700/
@@ -1808,8 +1838,12 @@ export function ApprovalsInboxPage() {
               // Decision-critical amount leads the card (#2762 P2) — a filled
               // figure at the top instead of a value buried bottom-right in the
               // generic field grid. Excluded from that grid below so it shows once.
-              const drawerAmount = decisionAmountEntry(selected);
-              const summary = payloadSummary(selected.payload, selected.payload_display, selected.payload_labels, 6, drawerAmount?.key);
+              // Both halves of this card read the same snapshot, so both take
+              // the same `hidden` trim (objectui#5565) — otherwise a hidden
+              // amount-like field would simply move from the field grid to the
+              // bold lead figure at the top of the very card being fixed.
+              const drawerAmount = decisionAmountEntry(selected, hiddenPayloadKeys);
+              const summary = payloadSummary(selected.payload, selected.payload_display, selected.payload_labels, 6, drawerAmount?.key, hiddenPayloadKeys);
               return (
               <Card>
                 <CardContent className="p-4 space-y-3">
