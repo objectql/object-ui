@@ -42,12 +42,44 @@ name: Hook Self-Tests
 # `changeset-guard.yml`'s shape instead: it fires only on a PR (or push to `main`)
 # that touches `.claude/hooks/**` or this workflow file itself.
 #
-# ── Cost ─────────────────────────────────────────────────────────────────────
+# ── Cost — a dated measurement, not a live claim ─────────────────────────────
 #
-# Measured on `origin/main` @ 53dc89db8: `guard-main-checkout-bash.selftest.sh`
-# (100 cases) ~3.2s wall, `guard-shared-stash.selftest.sh` (32 cases) ~0.6s wall.
-# Both need only `jq` and `git`, both preinstalled on `ubuntu-latest` — no
-# `setup-node`, no install, no build.
+# Measured 2026-08-24 on `origin/main` @ 53dc89db8:
+# `guard-main-checkout-bash.selftest.sh` (100 cases) ~3.2s wall,
+# `guard-shared-stash.selftest.sh` (32 cases) ~0.6s wall. Both need only `jq`
+# and `git`, both preinstalled on `ubuntu-latest` — no `setup-node`, no
+# install, no build.
+#
+# Those counts stay, and the distinction is deliberate (objectui#6089): a
+# measurement is HISTORY. It is read together with its date and its sha, and a
+# matrix that grows afterwards does not make it false — it makes it older. A
+# step NAME is a LIVE CLAIM about the run it labels, so it carries no count at
+# all. See the next section.
+#
+# ── Why the step names carry no case counts ──────────────────────────────────
+#
+# Each `run:` step below is named for the self-test it calls and nothing else.
+# Do not add "(N cases)" back to either name — this file used to do exactly
+# that, and it was the declared≠actual shape:
+#
+#   - Nothing derived those numbers and nothing re-checked them. A step name
+#     has no runtime behaviour, so a wrong count never turns a check red; it
+#     just shows a wrong number on the checks page, which is the one place a
+#     reviewer actually looks.
+#   - The number is already published by the only thing that cannot get it
+#     wrong: each run's own tail prints `N passed, N failed`, produced by the
+#     matrix being counted.
+#   - Where a count belongs beside prose, the hook header owns it WITH the
+#     recipe to re-derive it: `guard-shared-stash.sh` states its total, how to
+#     re-derive it (`grep -c '^expect ' <selftest>` plus the inline specials)
+#     and that it must equal the run's tail. `guard-main-checkout-bash.sh`
+#     describes its matrix with no count at all. A second copy here would be a
+#     second thing to keep in sync, and the one with no recipe behind it.
+#
+# The drift was structural, not carelessness: this file is a RUNNER, so the
+# matrices it calls are meant to grow in `.claude/**` WITHOUT this file being
+# touched (both #6042 / PR #6087 and #5789 / PR #6046 do exactly that, and are
+# right to). Dropping the duplicate is what makes that independence safe.
 #
 # ── Fail-closed, deliberately ────────────────────────────────────────────────
 #
@@ -89,9 +121,9 @@ jobs:
 
       # Hermetic: builds its own throwaway git repo, worktree and non-repo
       # directory under $TMPDIR. Exits non-zero on any failing case.
-      - name: guard-main-checkout-bash self-test (100 cases)
+      - name: guard-main-checkout-bash self-test
         run: .claude/hooks/guard-main-checkout-bash.selftest.sh
 
       # Hermetic in the same sense. Exits non-zero on any failing case.
-      - name: guard-shared-stash self-test (32 cases)
+      - name: guard-shared-stash self-test
         run: .claude/hooks/guard-shared-stash.selftest.sh
