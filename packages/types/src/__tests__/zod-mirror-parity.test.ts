@@ -647,6 +647,8 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'complex.zod.ts#CalendarViewModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
+  'complex.zod.ts#DashboardWidgetTypeSchema':
+    "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it — `DashboardWidgetSchema.type` (objectui#4600), whose TS twin `DashboardWidgetTypeName` is a union, not a key set",
   'complex.zod.ts#FilterOperatorSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'complex.zod.ts#FilterBuilderConditionSchema':

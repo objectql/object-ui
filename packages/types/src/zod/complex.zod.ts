@@ -330,8 +330,8 @@ export const DashboardWidgetLayoutSchema = z.object({
  * Composed of three sets, each reached the way its own provenance demands:
  *
  *  - the spec's 20 visualization families, BY REFERENCE off
- *    `ChartTypeSchema.options` — the same enum `SpecDashboardWidgetSchema.shape
- *    .type` wraps in a `.default()`. Restating them here would be the
+ *    `ChartTypeSchema.options` — the same enum the spec's own
+ *    `DashboardWidgetSchema.shape.type` wraps in a `.default()`. Restating them here would be the
  *    "narrower than the contract it implements" shape this file already
  *    records twice (`label`, `defaultRange`): a family the spec ADDS would be a
  *    legal document objectui refuses.
