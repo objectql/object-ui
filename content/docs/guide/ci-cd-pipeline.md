@@ -81,11 +81,14 @@ checks it requires are green **on that rebuilt commit**. Those runs are a distin
 `merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
 to that event simply does not run there.
 
-Which workflows subscribe is deliberately not listed here. `MUST_SUBSCRIBE_MERGE_GROUP` in
-`scripts/__tests__/merge-queue-reporting.test.ts` is the maintained list, and the only copy
-anything reads — it records why each entry is on it, and an assertion fails when one of them drops
-the trigger. A copy of it on this page would be right the day it was written and quietly wrong
-after the next subscriber landed, which is exactly what this paragraph used to do
+Which workflows subscribe is deliberately not listed here, and is not maintained by hand anywhere
+either: `scripts/__tests__/merge-queue-reporting.test.ts` derives the floor from
+`REQUIRED_CONTEXTS` — every workflow producing a check that list declares blocking must subscribe,
+and an assertion fails the moment one of them does not. `MUST_SUBSCRIBE_MERGE_GROUP` in the same
+file records *why* particular members are requirable; a further assertion holds it to being a
+subset of the derived floor, so the two cannot drift apart. A copy of the list on this page would
+be right the day it was written and quietly wrong after the next subscriber landed, which is
+exactly what this paragraph used to do
 ([#4154](https://github.com/objectstack-ai/objectui/issues/4154)). What is worth knowing here is
 the rule that decides membership, not the instances: a gate that carries no path filter reports on
 every pull request and is therefore requirable — and a requirable context that skips the queue
@@ -115,11 +118,14 @@ queued PR burns an hour and fails, with nothing red to point at.
 
 Two things follow for anyone editing this directory:
 
-- **A workflow producing a context that could ever be required must subscribe `merge_group`**,
-  and takes an entry in `MUST_SUBSCRIBE_MERGE_GROUP` (above) naming the context it produces. That
-  entry is what fails the build if the workflow later drops the trigger; nothing derives the set,
-  because "may this context be required?" is a property of the repository's settings, which no
-  test here can read.
+- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
+  Nothing has to be added to a list for that to be enforced: name the context in
+  `REQUIRED_CONTEXTS` (`scripts/dependabot-merge-gate.mjs`), which is where this repository already
+  writes down that a check is blocking and reports on every pull request, and the workflow is
+  inside the derived floor from that moment. "May this context be required?" is still a property of
+  the repository's settings that no test here can read — `REQUIRED_CONTEXTS` is a human's answer to
+  it, and deriving from that answer beats writing it down a second time and watching the copies
+  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)).
 - **Some contexts can never be required, structurally**, and no amount of triggering changes
   that. Each line below is blocked by a *different* property, which is why they are all worth
   reading; they are examples rather than a census, so a further workflow carrying any of these
