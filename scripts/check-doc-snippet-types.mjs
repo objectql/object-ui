@@ -722,7 +722,12 @@ export function deriveDeclaredDependencyPaths(root = repoRoot, importedPackages 
       declaredBy[specifier] = owner;
     }
   }
-  return { paths, declaredBy, untyped };
+  // `seen` is exactly the set of non-workspace specifiers the imported packages
+  // DECLARE, whether or not each one could be mapped. The UNDECLARED control
+  // reads it to tell its two failure modes apart: a control specifier that has
+  // become a declared dependency (pick another) is a different fact from one
+  // that resolves without any manifest declaring it (resolution has widened).
+  return { paths, declaredBy, untyped, declared: [...seen].sort() };
 }
 
 /**
@@ -890,6 +895,7 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
     paths: dependencyPaths,
     declaredBy: dependencyDeclaredBy,
     untyped: untypedDependencies,
+    declared: declaredSpecifiers,
   } = deriveDeclaredDependencyPaths(root, neededPackages, packageDirOf);
   // Workspace entries win every collision: a workspace package is mapped from
   // its own `exports`, and one deliberately left unmapped stays unmapped.
@@ -906,13 +912,14 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
     dependencyPaths,
     dependencyDeclaredBy,
     untypedDependencies,
+    declaredSpecifiers,
     neededPackages,
     scans,
   };
 }
 
 /** Phase 1 (syntax) and phase 2 (semantics), kept apart on purpose. */
-export function compileSnippets({ root = repoRoot, compiled, paths }) {
+export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpecifiers = [] }) {
   const parseFailures = [];
   const virtual = new Map();
   const owners = new Map();
@@ -999,7 +1006,7 @@ export function compileSnippets({ root = repoRoot, compiled, paths }) {
     sentinelDiagnostics,
     positiveDiagnostics,
     undeclaredDiagnostics,
-    undeclaredMapped: UNDECLARED_CONTROL_PACKAGE in paths,
+    undeclaredDeclared: declaredSpecifiers.includes(UNDECLARED_CONTROL_PACKAGE),
     undeclaredInstalledAt: findInstalledCopy(root, UNDECLARED_CONTROL_PACKAGE),
   };
 }
@@ -1042,7 +1049,12 @@ function main() {
     return 1;
   }
 
-  const run = compileSnippets({ root: repoRoot, compiled: state.compiled, paths: state.paths });
+  const run = compileSnippets({
+    root: repoRoot,
+    compiled: state.compiled,
+    paths: state.paths,
+    declaredSpecifiers: state.declaredSpecifiers,
+  });
 
   // ── controls, before any verdict about the documents ──────────────────────
   const controlFailures = [];
@@ -1082,7 +1094,7 @@ function main() {
   console.log(
     `  undeclared   importing '${UNDECLARED_CONTROL_PACKAGE}' (installed at ${run.undeclaredInstalledAt ?? '(NOT INSTALLED)'}, declared by no imported package) produced ${run.undeclaredDiagnostics.length} diagnostic(s)${undeclaredCodes.length ? ` (TS${undeclaredCodes.join(', TS')})` : ''}`,
   );
-  if (run.undeclaredMapped) {
+  if (run.undeclaredDeclared) {
     controlFailures.push(
       `'${UNDECLARED_CONTROL_PACKAGE}' is now a DECLARED dependency of a package a covered document imports, so it can no longer show that resolution stayed narrow — pick a control specifier no imported package declares`,
     );
