@@ -122,12 +122,16 @@ The object field stores data as parsed JSON:
 
 ## Cell Renderer
 
-In tables/grids, displays formatted JSON preview:
+In tables/grids, an `object` value is rendered by the JSON cell renderer —
+`getCellRenderer('object')` resolves to this same component, shared with `json`,
+`composite` and `record`:
 
-```plaintext
-import { ObjectCellRenderer } from '@object-ui/fields';
+```ts
+import { JsonCellRenderer } from '@object-ui/fields';
 
-// Shows: [Object] or truncated JSON in read-only mode
+// <JsonCellRenderer value={specs} field={field} /> renders single-line JSON,
+// truncated to the column width with the full text in the cell's `title`.
+// A null or empty value renders an em-dash instead.
 ```
 
 ## Schema Validation

@@ -158,12 +158,16 @@ const gridValue = [
 
 ## Cell Renderer
 
-In tables/grids, displays row count:
+In tables/grids, a `grid` value is shown as a compact placeholder, not as a
+nested table. It has no named renderer export of its own — the component is
+resolved by field type, which is the supported path for every type:
 
-```plaintext
-import { GridCellRenderer } from '@object-ui/fields';
+```ts
+import { getCellRenderer } from '@object-ui/fields';
 
-// Renders: "5 rows"
+const GridCell = getCellRenderer('grid');
+
+// <GridCell value={rows} field={field} /> renders: [Grid]
 ```
 
 ## Full Grid Functionality

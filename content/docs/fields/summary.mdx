@@ -99,12 +99,15 @@ interface SummaryFieldSchema {
 
 ## Cell Renderer
 
-In tables/grids, displays with tabular numbers:
+In tables/grids, a `summary` value is rendered by the formula cell renderer —
+`getCellRenderer('summary')` resolves to this same component:
 
-```plaintext
-import { SummaryCellRenderer } from '@object-ui/fields';
+```ts
+import { FormulaCellRenderer } from '@object-ui/fields';
 
-// Renders: 15,750.50 (formatted with proper precision)
+// <FormulaCellRenderer value={15750.5} field={field} /> renders the computed
+// value as monospace text: 15750.5
+// A null or empty value renders an em-dash instead.
 ```
 
 ## Backend Implementation

@@ -67,12 +67,16 @@ const embedding: number[] = [
 
 ## Cell Renderer
 
-In tables/grids, displays compact preview:
+In tables/grids, a `vector` value is shown as a compact placeholder, not as its
+components. It has no named renderer export of its own — the component is
+resolved by field type, which is the supported path for every type:
 
-```plaintext
-import { VectorCellRenderer } from '@object-ui/fields';
+```ts
+import { getCellRenderer } from '@object-ui/fields';
 
-// Renders: [0.1234, -0.5678, 0.9012...] (768D)
+const VectorCell = getCellRenderer('vector');
+
+// <VectorCell value={embedding} field={field} /> renders: [Vector]
 ```
 
 ## Vector Operations
