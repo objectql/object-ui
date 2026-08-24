@@ -314,10 +314,16 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * in this program. Hoisting a package to the repo root to buy a doc snippet
  * coverage is a real dependency edge, so those blocks are declared instead, with
  * what sits underneath them measured (via a shimmed icon import) rather than left
- * unknown. `guide/component-registry`'s six category lists are markdown BULLET
- * LISTS inside `tsx` fences — the fence language is the defect there, and
- * correcting it is a change to the page's rendering rather than to a snippet, so it
- * is declared here and left to its own change.
+ * unknown. `guide/component-registry`'s six category lists were markdown BULLET
+ * LISTS inside `tsx` fences — the fence language was the defect there rather
+ * than anything in the blocks, so they were declared here and left to their own
+ * change. objectui#5997 (PR #6056) then made that change: the six fences are
+ * plain markdown bullet lists on the page now, which takes those blocks out of
+ * the ts/tsx population this gate collects at all, so the six `FRAGMENT_MARKER`
+ * declarations came out with them — a marker on a block the gate no longer
+ * collects is debt nothing would ever fail to prompt the removal of. The entry
+ * stays here because this ledger keeps the record of why each declaration
+ * existed, not because the page still carries them.
  *
  * objectui#5343 then read that list back and cleared it for the getting-started
  * pages: no entry for `content/docs/guide/**` or for
