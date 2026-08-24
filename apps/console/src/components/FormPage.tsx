@@ -91,6 +91,16 @@
  * values, exactly as a hidden field's do (triage ruling, 2026-08-22, following
  * #5594 and the plugin-form chain). Nothing in this file makes visibility a
  * submit-payload rule, at either granularity.
+ *
+ * ## The one thing that IS a submit-payload rule (objectui#5883)
+ *
+ * A field whose declared `defaultValue` is an instruction the SERVER resolves
+ * per insert is left out of a create payload when the control is empty — see
+ * {@link omitServerOwnedBlanks}. That is not a visibility rule wearing a
+ * different hat: the key is withheld precisely so the producer supplies the
+ * value, which is the whole meaning of the declaration. It is the submit half
+ * of the fence {@link readPrefill} put on seeding for objectui#5727, and the
+ * sibling of `@object-ui/plugin-form`'s `omitServerResolvedDefaults`.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -98,6 +108,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   evalFieldPredicate,
+  isMissingForRequired,
   isRuntimeDefault,
   isServerOwnedValue,
   resolveFieldRuleState,
@@ -971,6 +982,93 @@ export function readPrefill(
   return out;
 }
 
+/**
+ * Drop the keys a CREATE payload must leave to the producer (objectui#5883).
+ *
+ * ## The other half of {@link readPrefill}'s #5727 fence
+ *
+ * #5727 stopped this renderer from SEEDING a runtime default, so such a control
+ * opens empty and its key never enters `values` from the declaration. That is
+ * the half that handles a form nobody touched. This is the half that handles a
+ * key the USER put there: a rendered control writes back through its `onChange`
+ * the moment it is touched, so a submitter who types into a server-owned field
+ * and then clears it puts the key back — holding a blank.
+ *
+ * `ObjectQL.applyFieldDefaults` resolves a declared default only for a field
+ * that arrives ABSENT or NULL. A blank string is neither, so submitting one
+ * stores `''` and silently defeats the declaration — the same suppression
+ * #5727 closed, reached by the other door. Omitting the key is what makes the
+ * server the single authority for the value.
+ *
+ * ## What "empty" means here, and why it is not spelled out
+ *
+ * The arms of {@link FieldInput} do not agree on what a cleared control writes,
+ * and the filter's notion of empty is the whole fix. Measured on this
+ * renderer's own controls: the text / email / url / date / time / datetime /
+ * textarea / select arms write `''`; the number family writes `null` (the arm
+ * spells `e.target.value === '' ? null : Number(...)`, so no `NaN` is
+ * reachable); the boolean and radio arms have no "cleared" state at all —
+ * `false` and a picked option are real values. A filter testing for `''` would
+ * therefore have left the number arm behind.
+ *
+ * So emptiness is `@object-ui/core`'s {@link isMissingForRequired} — the same
+ * PRESENCE predicate the `required` rule reads, which covers `undefined`,
+ * `null`, a blank string and an empty array while deliberately keeping `false`
+ * and `0` as values. "Left empty" cannot come to mean two different things in
+ * the two halves of this fix, and it cannot come to mean something narrower
+ * here than it does on the sibling chain.
+ *
+ * ## Why the two predicates rather than the sibling function
+ *
+ * `@object-ui/plugin-form`'s `omitServerResolvedDefaults`
+ * (`src/schemaDefaults.ts`) is this rule on the OTHER form chain and states the
+ * pairing outright — "excusing a server-owned field from `required` is only
+ * half an answer if the form then submits the key anyway". Calling it from here
+ * is not available: that package's `exports` map publishes `.` alone, and its
+ * root (`src/index.tsx`) does not re-export `schemaDefaults`, so the function
+ * has no spelling a consumer can import.
+ *
+ * What matters is that the CLASSIFIERS are not copied, and they are not: both
+ * are imported from `@object-ui/core`, which is where they live precisely so
+ * every layer that decides server-ownership reads one answer
+ * (`validation/server-owned-value.ts` says so, and lists this renderer's
+ * `resolveFieldRuleState` among the consumers). `omitServerResolvedDefaults` is
+ * itself only such a local application of the same two calls. This file already
+ * reads `isRuntimeDefault` directly for #5727's seeding fence, and
+ * `plugin-kanban` and `@object-ui/components`' form renderer read
+ * `isMissingForRequired` the same way. Publishing the sibling helper from
+ * plugin-form's root would let this call site shrink to one line; that is a
+ * change to another package's published surface, not to this one.
+ *
+ * ## The two boundaries
+ *
+ * - **CREATE only.** On an edit form the token was resolved at insert, so a
+ *   cleared column is a deliberate removal and dropping the key would silently
+ *   discard the user's edit. `isCreateForm` is the caller's fact, read off the
+ *   same URL switch `resolveRowState` uses.
+ * - **Runtime defaults only.** A field with no default, or with a STATIC one
+ *   (which #4068 says IS seeded into the control), keeps its blank: the user
+ *   cleared something that was there, or is expressing "leave this empty", and
+ *   either way that `''` is intent the form must carry.
+ */
+export function omitServerOwnedBlanks(
+  values: Record<string, unknown>,
+  fields: RenderableField[],
+  isCreateForm: boolean,
+): Record<string, unknown> {
+  if (!isCreateForm) return values;
+  const serverOwned = new Set(
+    fields.filter((f) => isRuntimeDefault(f.defaultValue)).map((f) => f.name),
+  );
+  if (serverOwned.size === 0) return values;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (serverOwned.has(key) && isMissingForRequired(value)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 /** Authed/anonymous fetch — credentials included so cookies (auth) flow. */
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {
@@ -1534,10 +1632,19 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     setSubmitting(true);
     setError(null);
     try {
+      // A server-owned field the user touched and cleared must not travel as a
+      // blank — that stores `''` and defeats the declaration the empty control
+      // was honouring (objectui#5883). Both routes, because `/f/:slug` is a
+      // create by construction and its payload reaches the same insert path.
+      const payload = omitServerOwnedBlanks(
+        values,
+        sections.flatMap((s) => s.fields),
+        isCreateForm,
+      );
       const result =
         mode === 'public'
-          ? await submitPublic(identifier, values)
-          : await submitInternal(loaded.object, values, editingId);
+          ? await submitPublic(identifier, payload)
+          : await submitInternal(loaded.object, payload, editingId);
       toast.success('Submitted');
       // Behaviour after submit
       switch (behavior.kind) {
@@ -1582,7 +1689,13 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
           const written = unwrapTransportEnvelope(result)?.record;
           const writtenId = editingId ?? readCreatedRecordId(result);
           const verdict = resolveSubmitRedirect(behavior.url, {
-            ...values,
+            // `payload`, not `values` — "the values as SUBMITTED" is what this
+            // scope has always claimed to be, and since objectui#5883 the two
+            // differ: a key the submit deliberately withheld is not part of the
+            // record it wrote, so resolving `{{record.x}}` from it would put
+            // the very blank we refused to send into a URL. The server echo
+            // below still supplies the value the producer resolved.
+            ...payload,
             ...(written && typeof written === 'object' ? (written as Record<string, unknown>) : {}),
             ...(writtenId ? { id: writtenId } : {}),
           });
