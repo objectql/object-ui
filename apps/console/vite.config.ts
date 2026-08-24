@@ -292,7 +292,40 @@ function emitEagerClosureReport(reportFileName = 'eager-closure.json'): Plugin {
       }
 
       const files = [...eager].sort().map((fileName) => {
-        const raw = fs.readFileSync(path.join(outDir, fileName));
+        const filePath = path.join(outDir, fileName);
+
+        // A closure member with no file on disk is not a missing build output —
+        // it is an UNRESOLVED BARE IMPORT that the walk above swept in. Rolldown
+        // lists a chunk's EXTERNAL imports in `chunk.imports` beside the file
+        // names of real chunks, and the walk follows that array without asking
+        // whether the name is in `chunks`, so a specifier vite could not resolve
+        // joins `eager` under its own name and is then read as a path. Left
+        // unguarded that is a bare `ENOENT` from `node:fs`, several frames from
+        // the cause and naming neither this plugin nor the import (objectui#5996).
+        if (!fs.existsSync(filePath)) {
+          const importers = [...chunks.values()]
+            .filter((chunk) => (chunk.imports ?? []).includes(fileName))
+            .map((chunk) => chunk.fileName);
+          this.error(
+            `[emit-eager-closure-report] eager-closure member \`${fileName}\` has no file in ` +
+              `\`${outDir}\`, so its bytes cannot be weighed. It is almost certainly an ` +
+              `UNRESOLVED BARE IMPORT, not a missing build output: rolldown lists a chunk's ` +
+              `EXTERNAL imports in \`chunk.imports\` beside the file names of real chunks, and ` +
+              `the walk above follows that array, so a specifier vite could not resolve enters ` +
+              `the closure under its own name and is then read as a path. The name is the tell — ` +
+              `a real chunk here is \`assets/<name>-<hash>.js\`, and this one is not a key of the ` +
+              `output bundle map at all. (imported by: ${importers.join(', ') || 'NONE'}) ` +
+              `Fix the import rather than skipping the member here: a bare specifier the browser ` +
+              `cannot load is a broken bundle, not a measurement gap, and dropping it from the ` +
+              `walk would make this report under-count — the one direction the counter-probes ` +
+              `above exist to refuse. The known source is an out-of-tree override whose own ` +
+              `dependencies do not resolve from where it lives: check \`OBJECTSTACK_CLIENT_DIST\` ` +
+              `and \`OBJECTSTACK_SPEC_DIST\`, and vite's own "could not be resolved" warnings ` +
+              `earlier in this build.`,
+          );
+        }
+
+        const raw = fs.readFileSync(filePath);
         // Level 6 — zlib's default, and the level `gzip -c` uses in the
         // workflow's entry-chunk check, so the two numbers in one PR comment
         // are measured the same way.
