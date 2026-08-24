@@ -19,7 +19,7 @@ The Location Field component provides an input for geographic coordinates, stori
 
 ## Field Schema
 
-```plaintext
+```ts
 interface LocationFieldSchema {
   type: 'location';
   name: string;                  // Field name/ID
@@ -76,26 +76,46 @@ Examples:
 
 ## Integration with Maps
 
-For full map functionality, consider integrating with map services:
+For full map functionality, consider integrating with map services. The example
+below has two halves: the **input** that captures a coordinate pair, and the **map
+node** that plots what it stored.
 
-```plaintext
+**1. The input.** `LocationField` is the widget behind the `location` field type.
+Render it directly when you build the form yourself:
+
+```tsx
+import { useState } from 'react';
 import { LocationField } from '@object-ui/fields';
+import type { LocationFieldMetadata } from '@object-ui/types';
 
-// Basic coordinates input
-<LocationField {...props} />
+const field: LocationFieldMetadata = {
+  type: 'location',
+  name: 'location',
+  label: 'Store location',
+};
 
-// With map visualization (using map plugin)
-// Keys sit on the node — a `props` envelope is never read by the renderer
+export function StoreLocationInput() {
+  const [value, setValue] = useState<{ latitude: number; longitude: number } | null>(null);
+  return <LocationField field={field} value={value} onChange={setValue} />;
+}
+```
+
+**2. The map over the same field.** With the map plugin installed, an `object-map`
+node reads that field off every record. It is a metadata node, not a component
+call — the keys sit on the node itself, and a `props` envelope is never read by
+the renderer:
+
+```jsonc
 {
-  type: 'object-map',           // the registered type name — there is no `plugin:map`
-  objectName: 'store',          // the records to plot
-  map: {                        // the declared config input; markers are derived from the data
-    locationField: 'location',  // this page's field, read as { latitude, longitude }
-    titleField: 'name',         // field used as the marker label
-    zoom: 12,                   // initial zoom level
+  "type": "object-map",          // the registered type name — there is no `plugin:map`
+  "objectName": "store",         // the records to plot
+  "map": {                       // the declared config input; markers are derived from the data
+    "locationField": "location", // this page's field, read as { latitude, longitude }
+    "titleField": "name",        // field used as the marker label
+    "zoom": 12,                  // initial zoom level
     // Initial centre as [latitude, longitude]. Used only when no record
     // matches — with records the view fits to their bounds instead.
-    center: [37.7749, -122.4194]
+    "center": [37.7749, -122.4194]
   }
 }
 ```
