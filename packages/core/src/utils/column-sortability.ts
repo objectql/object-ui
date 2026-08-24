@@ -69,35 +69,24 @@
  * the caveat is an open affordance question, not something to settle here.
  */
 
-/** The one refusal-backed reason the platform serves (`sortable: false`). */
-export const FIELD_UNSORTABLE_VIRTUAL_TYPE = 'virtual-type';
+/**
+ * The served shape is the SPEC's, re-exported rather than restated.
+ *
+ * `FIELD_UNSORTABLE_VIRTUAL_TYPE` / `FIELD_SORTABLE_UNPROVISIONED_ANCHOR` are
+ * the two string literals the projection can carry, and `FieldSortability` /
+ * `ObjectSortability` are the wire types themselves (`z.input` of the
+ * schemas the REST layer answers with). Re-exporting is the point of a
+ * contract-first consumer: a local declaration under a spec export's name is
+ * read by the next agent as the spec's own definition, and then drifts from
+ * it — which is what `check:spec-symbols` guards, and what it caught here.
+ */
+export {
+  FIELD_UNSORTABLE_VIRTUAL_TYPE,
+  FIELD_SORTABLE_UNPROVISIONED_ANCHOR,
+} from '@objectstack/spec/api';
+export type { FieldSortability, ObjectSortability } from '@objectstack/spec/api';
 
-/** The one advisory caveat the platform serves (only with `sortable: true`). */
-export const FIELD_SORTABLE_UNPROVISIONED_ANCHOR = 'unprovisioned-anchor';
-
-/** Served sortability verdict for ONE field of an object document. */
-export interface FieldSortability {
-  /**
-   * Whether the platform honors an `ORDER BY` over this field. A DERIVED
-   * verdict computed at serve time from the platform's own storage predicates
-   * — never recompute it from the field's `type`.
-   */
-  sortable: boolean;
-  /** Present exactly when `sortable` is false. */
-  reason?: string;
-  /** Present only with `sortable: true`; accepted but possibly degrading. */
-  caveat?: string;
-}
-
-/** The served per-column sortability projection for ONE object. */
-export interface ObjectSortability {
-  /**
-   * Verdict per sortable-addressable column, keyed by field name. The domain
-   * is the served field map plus `id`; a name absent from this map has no
-   * platform sort behind it.
-   */
-  fields: Record<string, FieldSortability>;
-}
+import type { FieldSortability, ObjectSortability } from '@objectstack/spec/api';
 
 /**
  * Where the projection rides on the client-side object schema.
@@ -127,11 +116,17 @@ function asFieldSortability(value: unknown): FieldSortability | undefined {
   if (typeof sortable !== 'boolean') return undefined;
   const reason = (value as { reason?: unknown }).reason;
   const caveat = (value as { caveat?: unknown }).caveat;
+  // `reason` / `caveat` are typed as closed literal unions by the spec, and
+  // this is unparsed input off the wire. Preserve whatever string arrived
+  // rather than dropping an annotation a NEWER platform added — the verdict
+  // this module acts on is `sortable`, and an unrecognised advisory string is
+  // strictly better carried than silently erased. The assertion is the
+  // boundary cast that admission implies, and it is confined to this function.
   return {
     sortable,
     ...(typeof reason === 'string' ? { reason } : {}),
     ...(typeof caveat === 'string' ? { caveat } : {}),
-  };
+  } as FieldSortability;
 }
 
 /**
