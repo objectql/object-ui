@@ -332,10 +332,16 @@ describe('GridField / LineItemsField — editable line items', () => {
 
       // The `zh` half of this — the sub-grid following the SESSION locale
       // (objectui#4468) — lives in `__tests__/date-locale-channel.test.tsx`,
-      // not here. Mounting an `I18nProvider` anywhere in THIS file changes what
-      // the provider-less renders further down resolve, and the file-columns
-      // chip test reads a translated `aria-label`; keeping the provider in its
-      // own file keeps that coupling out of the way.
+      // grouped with the rest of the locale cases.
+      //
+      // It used to be a HAZARD rather than a preference: mounting an
+      // `I18nProvider` anywhere in this file left react-i18next's global on
+      // that provider's instance, so the file-columns chip test ~200 lines
+      // down read a Chinese `aria-label` and went red. objectui#4514 fixed
+      // that in the harness — `installI18nGlobalReset()` in
+      // `vitest.setup.base.ts` restores the global after every test, and
+      // `packages/i18n/src/__tests__/global-instance-reset.test.tsx` fails if
+      // it stops. A provider is safe to mount here now.
     });
   });
 

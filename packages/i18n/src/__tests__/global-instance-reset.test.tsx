@@ -22,10 +22,14 @@
  *
  * ── The ordering is the assertion ────────────────────────────────────────
  * Every case below is written provider-LESS *after* a case that mounted a
- * provider, which is exactly the arrangement that used to be unsafe. Delete
- * the `afterEach` and the cases marked "the pin" go red — verified by
- * reverse-verification, which measured 3 failed / 4 passed with the reset
- * removed and 7 passed with it in place.
+ * provider, which is exactly the arrangement that used to be unsafe.
+ *
+ * Reverse-verified by ablating the `installI18nGlobalReset()` call in
+ * `vitest.setup.base.ts` and re-running this file together with its `unit`
+ * sibling: 5 failed / 7 passed (12), against 12 passed with the call in place.
+ * The five are the four cases marked "THE PIN" plus the provider-safe-fallback
+ * case — which is the point: without the reset that fallback resolves whatever
+ * the previous case installed, not `'en'`.
  */
 
 import { describe, it, expect } from 'vitest';

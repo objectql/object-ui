@@ -12,13 +12,16 @@
  *
  * ── Why this file mounts nothing ─────────────────────────────────────────
  * There is no React here at all — no `render`, no provider, not even an import
- * of one. That is deliberate (objectui#4514): the sibling
+ * of one. That began as a workaround: the sibling
  * `timeline-scale-vocabulary.test.tsx` mounts an `I18nProvider` in every case,
- * and every mounted provider leaves react-i18next's GLOBAL instance on the
- * language it was given, so a provider-less assertion sharing that file would
- * resolve `'zh'` and pin test ordering instead of the fallback. Keeping the
- * pure-function cases in their own file makes the separation structural rather
- * than a comment someone has to remember.
+ * and a mounted provider used to leave react-i18next's GLOBAL instance on its
+ * own instance, so a provider-less assertion sharing that file resolved `'zh'`
+ * and pinned test ordering instead of the fallback.
+ *
+ * objectui#4514 fixed the harness — `installI18nGlobalReset()` in
+ * `vitest.setup.base.ts` restores the global after every test — so the split is
+ * no longer load-bearing. It stays because a pure-function file that imports no
+ * React is worth having on its own merits.
  *
  * ── What the seam is ─────────────────────────────────────────────────────
  * `generateTimeScaleHeaders` is a pure exported function, so it cannot host a
