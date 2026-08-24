@@ -1153,6 +1153,21 @@ ComponentRegistry.register('form',
     // cannot each answer the mode differently.
     const isCreateForm = previousRecord === undefined;
 
+    // Global predicate scope (from the host shell's ExpressionProvider) — carries
+    // `current_user` (plus the ADR-0068 D1 `user` / `ctx.user` / `os.user` aliases,
+    // `app`, `data`, `features`) so a `visibleWhen` can gate on role/context in
+    // addition to sibling field values. Empty object when no provider is mounted.
+    //
+    // ⛔ Declared HERE, above `readonlyFieldNames`, and not at its historical spot
+    // ~75 lines down (#6010). It used to sit below, which is exactly why the
+    // field-rule call sites could not have it: `readonlyFieldNames`' `useMemo`
+    // factory runs SYNCHRONOUSLY during this render, so a `predicateScope`
+    // declared after it is in the temporal dead zone at that point and reading it
+    // there is a `ReferenceError` on the first render, not a missing binding. The
+    // hook is still called unconditionally and exactly once per render — only its
+    // position among this component's hooks moved, which React does not constrain.
+    const predicateScope = usePredicateScope();
+
     const ruleRecord = React.useMemo(() => {
       // Seed every declared field to `null` so a predicate referencing a field
       // that's absent / not-yet-registered evaluates against a present-null
@@ -1211,7 +1226,7 @@ ComponentRegistry.register('form',
             serverOwnedValue: isServerOwnedValue(f, isCreateForm),
           },
           previousRecord,
-          undefined,
+          predicateScope,
           // Same locator as the render path (#5149). A failure here reports the
           // field, not a bare rule kind; `warnPredicateFailure` dedupes by
           // predicate source, so re-evaluating a rule the renderer already
@@ -1221,7 +1236,7 @@ ComponentRegistry.register('form',
         if (st.readonly) locked.add(name);
       }
       return locked;
-    }, [fields, ruleRecord, previousRecord, isCreateForm]);
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
 
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
@@ -1247,14 +1262,14 @@ ComponentRegistry.register('form',
             serverOwnedValue: isServerOwnedValue(f, isCreateForm),
           },
           previousRecord,
-          undefined,
+          predicateScope,
           `field '${name}'`,
         );
         // View-level FormField.visibleOn hides the field the same way a
         // field-level visibleWhen does (#2212) — fold it into the verdict.
         const viewVisible =
           (f as any).visibleOn == null ||
-          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, previousRecord, undefined, {
+          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, previousRecord, predicateScope, {
             context: `visibleOn of field '${name}'`,
           });
         // A hidden field shows no errors at all; an un-required field clears
@@ -1262,18 +1277,18 @@ ComponentRegistry.register('form',
         const errType = (errs[name] as { type?: string } | undefined)?.type;
         if (!st.visible || !viewVisible || (!st.required && errType === 'required')) form.clearErrors(name);
       }
+      // `predicateScope` joins `ruleRecord` here for the same reason it is passed
+      // above (#6010): a scope change — the host swapping organisations, so
+      // `current_user.positions` changes — can flip a `visibleWhen` to FALSE just
+      // as a keystroke can, and a stale required-error on the field it just hid
+      // must clear on that transition too.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ruleRecord]);
+    }, [ruleRecord, predicateScope]);
 
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
     const schemaCtx = React.useContext(SchemaRendererContext);
     const contextDataSource = schemaCtx?.dataSource ?? null;
-
-    // Global predicate scope (from the host shell's ExpressionProvider) — carries
-    // `current_user` etc. so per-option `visibleWhen` can gate on role/context in
-    // addition to sibling field values. Empty object when no provider is mounted.
-    const predicateScope = usePredicateScope();
 
     // Field name → label, for the "select the parent first" gate hint (#2284).
     const fieldLabelByName = React.useMemo(() => {
@@ -1927,6 +1942,13 @@ ComponentRegistry.register('form',
       // live record (issue #1584), so it agrees with `visibleWhen` and
       // the server. Fail-open (a broken predicate shows the field),
       // matching the CEL rules below.
+      //
+      // Deliberately still `undefined` for `scope` while the two CEL faces below
+      // now receive `predicateScope` (#6010): this predicate is not authored, it
+      // is SYNTHESISED here from a structured `{ field, equals/notEquals/in }`
+      // object, so its text can only ever name `record.<field>`. There is no
+      // authoring path by which it could reference `current_user`, so binding a
+      // scope it cannot read would buy nothing and widen the surface.
       const legacyConditionCel = legacyConditionToCel(condition);
       if (
         legacyConditionCel &&
@@ -1958,7 +1980,14 @@ ComponentRegistry.register('form',
           serverOwnedValue: isServerOwnedValue(field, isCreateForm),
         },
         previousRecord,
-        undefined,
+        // The host shell's predicate scope — `current_user` and friends (#6010).
+        // The SAME bag `resolveCascadingOptions` below already receives, so one
+        // authored predicate text means one thing on every `visibleWhen` surface
+        // (ADR-0068 D1 / ADR-0089 D1: runtime record surfaces bind `record` +
+        // `current_user`). Before this it was `undefined`, and a form-field gate
+        // naming `current_user` named an UNBOUND root — which fails OPEN below,
+        // i.e. showed the field to everyone.
+        predicateScope,
         `field '${name}'`,
       );
       if (!ruleState.visible) return null;
@@ -1971,7 +2000,7 @@ ComponentRegistry.register('form',
       // #5149 (#2212).
       if (
         visibleOn != null &&
-        !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord, undefined, {
+        !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord, predicateScope, {
           context: `visibleOn of field '${name}'`,
         })
       ) {
