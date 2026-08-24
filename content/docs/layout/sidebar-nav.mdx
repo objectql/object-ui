@@ -76,6 +76,7 @@ The SidebarNav automatically highlights the active route based on the current UR
 Add Lucide icons to navigation items:
 
 ```tsx
+import { SidebarNav } from '@object-ui/layout';
 import { 
   LayoutDashboard, 
   Users, 
@@ -246,6 +247,7 @@ The SidebarNav is designed to work with AppShell:
 
 ```tsx
 import { AppShell, SidebarNav } from '@object-ui/layout';
+import { Home, Info } from 'lucide-react';
 
 <AppShell
   sidebar={
@@ -258,7 +260,7 @@ import { AppShell, SidebarNav } from '@object-ui/layout';
     />
   }
 >
-  {/* Your content */}
+  <div>Your content</div>
 </AppShell>
 ```
 

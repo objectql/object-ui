@@ -33,6 +33,8 @@ const navItems: NavItem[] = [
 ## Component Props
 
 ```ts
+import type { AppShellBranding } from '@object-ui/layout';
+
 interface AppShellProps {
   sidebar?: React.ReactNode;     // Sidebar content (usually SidebarNav)
   navbar?: React.ReactNode;      // Top navbar content (logo, search, user menu)
@@ -113,12 +115,16 @@ The AppShell renders no toggle button of its own. What it does give you is the
 
 ```tsx
 import { SidebarTrigger } from '@object-ui/components';
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+
+// The items defined under "Basic Usage" above.
+declare const navItems: NavItem[];
 
 <AppShell
   navbar={<SidebarTrigger />}
   sidebar={<SidebarNav items={navItems} />}
 >
-  {/* Your page content */}
+  <div>Your page content</div>
 </AppShell>
 ```
 
