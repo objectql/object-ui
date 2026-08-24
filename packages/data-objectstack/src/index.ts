@@ -796,28 +796,82 @@ export class AnalyticsQueryRejectedError extends Error {
  *
  * `@objectstack/client`'s fetch wrapper throws on a non-2xx, decorating the
  * error with the semantic `code` string and the numeric `httpStatus` (the
- * ADR-0112 / framework#3842 shape this repo already reads elsewhere). Two
- * outcomes must NOT be conflated:
+ * ADR-0112 / framework#3842 shape this repo already reads elsewhere).
  *
- *   - **`not-installed`** — the deployment has no analytics service. Since
- *     framework#3891 retired the degraded in-kernel shim, that is a 404 (the
- *     routes aren't mounted at all, framework#4019) or a 501 `NOT_IMPLEMENTED`
- *     (REST's dataset route with no service behind it). Degrading to a
- *     client-side aggregate over a scoped `find()` is CORRECT here.
- *   - **`rejected`** — the server refused OUR body (400 `VALIDATION_FAILED`;
- *     framework#4010 validates `/analytics/query` at the entry). Degrading
- *     would answer our own contract violation with plausible numbers from a
- *     different code path and bury it — the misdirection framework#3878
- *     documented. It must be surfaced.
+ * ## The `code` is the contract; the status is a transport fact (objectui#5721)
  *
- * Anything else (5xx, network) is `unknown`: degrade, but silently — it is a
- * transient failure, not a deployment that is missing a capability.
+ * What stood here tested `status === 404 || status === 501` BEFORE the code
+ * operands that followed them, so the status short-circuited every one of
+ * them: any 404 on this face was `not-installed` whatever code it carried, and
+ * `NOT_IMPLEMENTED` / `ROUTE_NOT_FOUND` were unreachable for the very
+ * conditions they name. Three unrelated conditions answer 404 on this url —
+ *
+ *   route absent    404 `ROUTE_NOT_FOUND`  (runtime dispatcher, framework#4019)
+ *   cube unknown    404 `CUBE_NOT_FOUND`   (service-analytics' inference gate)
+ *   object unknown  404 `OBJECT_NOT_FOUND` (the `/data` fallback's own answer)
+ *
+ * — so a misspelled cube read as "this deployment has no analytics", told the
+ * operator to install a server plugin, and re-answered the chart from a
+ * different code path. Same defect as objectui#5663, arrived at from the other
+ * direction: the mapping read a field it did not quote. Branch on the `code`;
+ * consult the status only as a residual, when the answer declared no code at
+ * all. Comparisons go through `errorCodeIs`/`errorCodeIsAnyOf` — the pre- and
+ * post-ADR-0112 spellings both have to match (`@object-ui/types`).
+ *
+ * ### Both envelope families reach this function already decorated (MEASURED)
+ *
+ * `/analytics/query` exits through `@objectstack/runtime`'s
+ * `dispatcher-plugin.errorResponseBase`, i.e. the **wrapped** `{ success:
+ * false, error: { code, message } }` shape — not the flat one the dataset
+ * route writes — and its 401 is `enforceAuth`'s **flat** `ANONYMOUS_DENY_BODY`.
+ * The client's fetch wrapper flattens BOTH before throwing:
+ * `errorBody?.code ?? errorBody?.error?.code` → `error.code`, plus
+ * `error.httpStatus = res.status`. So no envelope reading belongs here; unlike
+ * `queryDataset` (which owns its `fetch` and must read the body itself), this
+ * function is handed the already-flattened error and reads one field.
+ *
+ * ## Each branch names ONE of the three outcomes the caller can take
+ *
+ *   - **`not-installed`** — *degrade LOUDLY*. The deployment has no analytics
+ *     service: 501 `NOT_IMPLEMENTED` (route mounted, nothing behind it) or 404
+ *     `ROUTE_NOT_FOUND` (framework#4019 stops mounting the routes at all).
+ *     A client-side aggregate over a scoped `find()` answers the chart
+ *     correctly, and the operator is told once that the semantic layer is off.
+ *   - **`rejected`** — *THROW*. The server refused OUR body (400
+ *     `VALIDATION_FAILED`; framework#4010 validates `/analytics/query` at the
+ *     entry). Degrading would answer our own contract violation with plausible
+ *     numbers from a different code path and bury it — the misdirection
+ *     framework#3878 documented.
+ *   - **`unauthenticated`** — *THROW*. 401 `UNAUTHENTICATED`: the request was
+ *     refused before it ran, so it is evidence about the SESSION and none at
+ *     all about the capability. Degrading is not merely misleading here, it is
+ *     futile: the fallback's `find()` carries the same lapsed token and is
+ *     refused the same way, so the chart cannot be answered either. "Sign in
+ *     again" is an action; "install @objectstack/service-analytics" is not.
+ *   - **`cube-not-found`** — *THROW*. 404 `CUBE_NOT_FOUND`
+ *     (`analytics-service.assertInferableCube`, framework#3867): analytics IS
+ *     installed and answering — the NAME does not exist. That gate throws only
+ *     when the name is neither a registered cube nor a registered object, and
+ *     the fallback asks `/data/<the same name>`, which objectql's
+ *     `assertObjectRegistered` (framework#3770) answers 404 `OBJECT_NOT_FOUND`.
+ *     So degrading cannot produce numbers; it can only swap a message that
+ *     names the fix ("Define a Cube in your stack, or check the object name")
+ *     for a distant one, behind a warning that instructs the wrong repair.
+ *   - **`unknown`** — *degrade SILENTLY*. Anything else (5xx, network, a code
+ *     this consumer does not know): a transient failure, not a deployment
+ *     missing a capability and not a request that named something absent.
  */
 export function classifyAnalyticsFailure(
   error: unknown,
-): { kind: 'not-installed' | 'rejected' | 'unknown'; code?: string; message?: string } {
+): {
+  kind: 'not-installed' | 'rejected' | 'unauthenticated' | 'cube-not-found' | 'unknown';
+  code?: string;
+  message?: string;
+} {
   const err = (error ?? {}) as Record<string, unknown>;
-  const code = typeof err.code === 'string' ? err.code : undefined;
+  // An empty-string `code` is "the producer declared nothing", not a code —
+  // otherwise it would block the residual below while matching no branch.
+  const code = typeof err.code === 'string' && err.code.length > 0 ? err.code : undefined;
   const message = typeof err.message === 'string' ? err.message : undefined;
   const status =
     typeof err.httpStatus === 'number' ? err.httpStatus
@@ -825,10 +879,33 @@ export function classifyAnalyticsFailure(
     : typeof err.statusCode === 'number' ? err.statusCode
     : undefined;
 
-  if (code === 'VALIDATION_FAILED' || status === 400) return { kind: 'rejected', code, message };
-  if (status === 404 || status === 501 || code === 'NOT_IMPLEMENTED' || code === 'ROUTE_NOT_FOUND') {
+  // ① The capability really is absent, from either of its two producers.
+  if (errorCodeIsAnyOf({ code }, ['NOT_IMPLEMENTED', 'ROUTE_NOT_FOUND'])) {
     return { kind: 'not-installed', code, message };
   }
+
+  // ② The server refused the body WE sent.
+  if (errorCodeIs({ code }, 'VALIDATION_FAILED')) return { kind: 'rejected', code, message };
+
+  // ③ The request never ran — the session is anonymous or its token lapsed.
+  if (errorCodeIs({ code }, 'UNAUTHENTICATED')) return { kind: 'unauthenticated', code, message };
+
+  // ④ Analytics answered; the cube this query named is the thing that is missing.
+  if (errorCodeIs({ code }, 'CUBE_NOT_FOUND')) return { kind: 'cube-not-found', code, message };
+
+  // ⑤ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
+  //   wrote it (a proxy, a gateway, a host with no API mounted). Only here is
+  //   the bare status the best signal available, and only because every code
+  //   branch has already declined: this face's own 404s all ship a `code`, so a
+  //   code-less 404 cannot be the unknown-cube case.
+  if (code === undefined) {
+    if (status !== undefined && ANALYTICS_ABSENT_STATUSES.includes(status)) {
+      return { kind: 'not-installed', code, message };
+    }
+    if (status === 400) return { kind: 'rejected', code, message };
+    if (status === 401) return { kind: 'unauthenticated', code, message };
+  }
+
   return { kind: 'unknown', code, message };
 }
 
@@ -4319,10 +4396,37 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         throw new AnalyticsQueryRejectedError(failure.message, failure.code);
       }
 
-      // The capability is absent (404 — framework#4019 stops mounting the
-      // routes when no analytics service is registered — or 501). Say so ONCE
-      // so an operator sees a missing capability rather than charts that
-      // quietly read from a slower path forever.
+      // The session, not the deployment (401 `UNAUTHENTICATED`). Reusing the
+      // error the dataset face already throws, because the sentence is the
+      // same one on both faces: the request was refused before it ran, so it
+      // says nothing about whether the capability is installed. The fallback
+      // would send the SAME lapsed token to `find()` and be refused again, so
+      // this is a chart that cannot be answered — not one that degrades.
+      if (failure.kind === 'unauthenticated') {
+        throw new AnalyticsUnauthenticatedError({
+          serverCode: failure.code,
+          serverMessage: failure.message,
+        });
+      }
+
+      // Analytics answered; the cube this query named does not exist
+      // (framework#3867). Rethrown VERBATIM, deliberately: the producer's own
+      // message already names both repairs ("Define a Cube in your stack, or
+      // check the object name"), and rethrowing keeps `code` =
+      // `CUBE_NOT_FOUND` on the error so a caller can still branch on the
+      // contract field — a wrapper of ours would restate the server's words
+      // less well and add a published error type nothing has asked for. The
+      // fallback is not an option to weigh here: it re-reads the SAME name
+      // through `/data`, which framework#3770 answers 404 `OBJECT_NOT_FOUND`.
+      if (failure.kind === 'cube-not-found') {
+        throw e;
+      }
+
+      // The capability is absent (`ROUTE_NOT_FOUND` — framework#4019 stops
+      // mounting the routes when no analytics service is registered — or
+      // `NOT_IMPLEMENTED`, or a code-less 404/501 no ObjectStack route wrote).
+      // Say so ONCE so an operator sees a missing capability rather than
+      // charts that quietly read from a slower path forever.
       if (failure.kind === 'not-installed') {
         this.warnAnalyticsCapabilityOnce(failure.message);
       }
