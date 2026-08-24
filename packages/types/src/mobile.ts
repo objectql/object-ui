@@ -69,21 +69,25 @@ export interface MobileResponsiveConfig {
   showOnly?: BreakpointName[];
 }
 
-/** Mobile-specific component overrides */
-export interface MobileOverrides {
-  /** Simplified layout for mobile */
-  layout?: 'stack' | 'tabs' | 'accordion' | 'carousel';
-  /** Reduced columns for forms */
-  columns?: number;
-  /** Whether to use bottom sheet instead of modal */
-  useBottomSheet?: boolean;
-  /** Whether to use full-screen mode */
-  fullScreen?: boolean;
-  /** Touch-friendly sizing */
-  touchTarget?: 'default' | 'large' | 'xlarge';
-  /** Simplified navigation */
-  navigation?: 'bottom-tabs' | 'hamburger' | 'drawer';
-}
+// RETIRED (objectui#4919, maintainer ruling 2026-08-19, ADR-0049
+// enforce-or-remove): the mobile component-override surface and its mount
+// point on `MobileComponentConfig` are gone, not narrowed. Every member was
+// declaration-only — nothing in this repo, the example apps, or the
+// `objectstack` sibling checkout ever read the property, so all six keys
+// behaved identically (they did nothing), and the navigation vocabulary's
+// three values were three spellings of the same no-op. Removal rather than a
+// `?: never` tombstone follows this package's own discriminator: a tombstone
+// exists to steer authors to a named live replacement (`crud.ts` `confirm` →
+// `confirmText`; `data-display.ts` `hoverable`/`striped` → `data-table`),
+// and there is no replacement here — the same zero-pull/no-successor shape as
+// the retired `AccordionItem.icon` / `ToggleGroupItem.icon`, which were
+// likewise removed outright rather than tombstoned.
+//
+// Reopen condition, recorded on objectui#4919: real mobile-override renderer
+// work re-enters as designed product surface on its own card, with the
+// renderer landing in the same change as the declaration. Re-adding the
+// declaration alone is the declare-without-enforce shape this removal exists
+// to close.
 
 // ============================================================================
 // PWA Support
@@ -279,8 +283,6 @@ export interface GestureContext {
 export interface MobileComponentConfig {
   /** Responsive configuration */
   responsive?: MobileResponsiveConfig;
-  /** Mobile-specific overrides */
-  mobileOverrides?: MobileOverrides;
   /** Touch gesture handlers */
   gestures?: GestureConfig[];
   /** Pull-to-refresh configuration */

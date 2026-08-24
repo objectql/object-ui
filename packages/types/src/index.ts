@@ -582,7 +582,6 @@ export type {
   BreakpointName,
   ResponsiveValue,
   MobileResponsiveConfig,
-  MobileOverrides,
   PWAConfig,
   PWAIcon,
   FetchCacheStrategy,
