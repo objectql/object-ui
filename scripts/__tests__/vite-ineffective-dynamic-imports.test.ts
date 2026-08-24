@@ -5,7 +5,9 @@ import {
   DEFEATED_LAZY_FIELD_WIDGETS,
   diffIneffectiveDynamicImports,
   formatIneffectiveDynamicImportFailure,
+  formatIneffectiveDynamicImportStandDown,
   toRepoRelativeModuleId,
+  viteIneffectiveDynamicImports,
 } from '../vite-ineffective-dynamic-imports.ts';
 
 /**
@@ -14,10 +16,16 @@ import {
  * than filtered away, so the signal survives and drift in EITHER direction
  * fails the build.
  *
- * This file tests the policy half. The graph half lives in the plugin's
- * `onLog`/`closeBundle` hooks and is only exercisable by a real console build,
- * exactly as `scripts/check-eager-closure-budget.mjs` splits policy from
+ * This file tests the policy half. The graph half — which module ids rolldown
+ * actually reports — is only exercisable by a real console build, exactly as
+ * `scripts/check-eager-closure-budget.mjs` splits policy from
  * `emitEagerClosureReport`'s graph walk in `apps/console/vite.config.ts`.
+ *
+ * The plugin's hooks are ordinary functions on the returned object, though, so
+ * the DECISION they make is driven directly here against a stub context (see
+ * `drive` below). objectui#6093 turned that from a nicety into a requirement:
+ * whether `closeBundle` throws is now conditional, and the condition has three
+ * outcomes that a five-minute console build is a terrible way to check.
  */
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
@@ -128,5 +136,171 @@ describe('formatIneffectiveDynamicImportFailure', () => {
 
   it('says nothing at all when there is no drift', () => {
     expect(formatIneffectiveDynamicImportFailure({ unpinned: [], missing: [] })).toBe('');
+  });
+});
+
+describe('formatIneffectiveDynamicImportStandDown', () => {
+  it('says the ledger was NOT checked, so silence cannot read as a pass', () => {
+    const text = formatIneffectiveDynamicImportStandDown({ unpinned: [], missing: ['a.tsx'] });
+    expect(text).toContain('NOT checked');
+    expect(text).toContain('objectui#6093');
+  });
+
+  it('is one line and does not repeat the module list', () => {
+    // The defect this stand-down exists for is 45 lines of field widgets landing
+    // on top of a real build error. A stand-down that reprinted them would have
+    // fixed nothing.
+    const text = formatIneffectiveDynamicImportStandDown({
+      unpinned: [],
+      missing: [...DEFEATED_LAZY_FIELD_WIDGETS],
+    });
+    expect(text).not.toContain('\n');
+    expect(text).not.toContain('packages/fields/src/widgets/GridField.tsx');
+    expect(text).toContain(`${DEFEATED_LAZY_FIELD_WIDGETS.length} did not fire`);
+  });
+});
+
+/**
+ * objectui#6093 — `closeBundle` runs on a FAILED build too, and an error thrown
+ * from it replaces that build's own error in `vite build`'s output. These drive
+ * the plugin's hooks directly and assert the three states the fix is defined by;
+ * the third is the control, because a "fix" that simply stopped the probe from
+ * ever throwing would pass the first two.
+ */
+describe('the counter-probe on a build that did not finish', () => {
+  const pinned = ['a.tsx', 'b.tsx'];
+
+  /** A stub of the bits of rolldown's plugin context these hooks touch. */
+  function drive(
+    run: (hooks: Record<string, any>) => void,
+  ): { errors: string[]; infos: string[] } {
+    const errors: string[] = [];
+    const infos: string[] = [];
+    const ctx = {
+      error(message: string) {
+        errors.push(message);
+        // The real `this.error` throws; a stub that returned would let the code
+        // under test run on past a failure it never survives in production.
+        throw new Error(message);
+      },
+      info(message: string) {
+        infos.push(message);
+      },
+    };
+    const plugin = viteIneffectiveDynamicImports(pinned) as unknown as Record<string, any>;
+    const hooks = {
+      configResolved: (write: boolean) => plugin.configResolved.call(ctx, { build: { write } }),
+      buildEnd: (error?: Error) => plugin.buildEnd.call(ctx, error),
+      renderError: () => plugin.renderError.call(ctx),
+      writeBundle: () => plugin.writeBundle.handler.call(ctx),
+      sight: (id: string) =>
+        plugin.onLog.call(ctx, 'warn', { code: 'INEFFECTIVE_DYNAMIC_IMPORT', id, ids: [] }),
+      closeBundle: () => {
+        try {
+          plugin.closeBundle.call(ctx);
+        } catch {
+          // recorded in `errors` above; swallowed so the assertions can read it
+        }
+      },
+    };
+    run(hooks);
+    return { errors, infos };
+  }
+
+  it('declares `writeBundle` at `order: post` so a LATER plugin cannot arm it', () => {
+    // With the default order this hook runs before a later plugin's
+    // `writeBundle`, so that plugin's failure would leave the marker set and the
+    // probe would mask it — the very defect, one plugin further down the array.
+    const plugin = viteIneffectiveDynamicImports(pinned) as unknown as Record<string, any>;
+    expect(plugin.writeBundle.order).toBe('post');
+    expect(typeof plugin.writeBundle.handler).toBe('function');
+  });
+
+  it('STATE 1 — build failed before output was written: silent, so the real error stands', () => {
+    // `writeBundle` never runs. This is the failure objectui#6093 was measured
+    // on: `emit-eager-closure-report` throwing from its own `writeBundle`.
+    const { errors, infos } = drive((h) => {
+      h.configResolved(true);
+      h.buildEnd();
+      h.closeBundle();
+    });
+    expect(errors).toEqual([]);
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toContain('NOT checked');
+  });
+
+  it('STATE 1b — a build-phase error reaches `buildEnd`, and that alone stands it down', () => {
+    const { errors } = drive((h) => {
+      h.configResolved(true);
+      h.buildEnd(new Error('16 MISSING_EXPORT errors'));
+      h.writeBundle();
+      h.closeBundle();
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('STATE 1c — a render-phase error reaches `renderError`, and stands it down too', () => {
+    const { errors } = drive((h) => {
+      h.configResolved(true);
+      h.renderError();
+      h.writeBundle();
+      h.closeBundle();
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('STATE 2 — build succeeded and every pinned entry fired: silent, no drift', () => {
+    const { errors, infos } = drive((h) => {
+      h.configResolved(true);
+      h.sight('a.tsx');
+      h.sight('b.tsx');
+      h.buildEnd();
+      h.writeBundle();
+      h.closeBundle();
+    });
+    expect(errors).toEqual([]);
+    // The one summary line the plugin prints in place of the pinned warnings.
+    expect(infos.join('\n')).toContain('all pinned');
+  });
+
+  it('STATE 3 (the control) — build SUCCEEDED and nothing fired: still errors', () => {
+    // Without this, the fix above is indistinguishable from switching the gate
+    // off. This is the case the counter-probe was written for.
+    const { errors } = drive((h) => {
+      h.configResolved(true);
+      h.buildEnd();
+      h.writeBundle();
+      h.closeBundle();
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('2 pinned ineffective dynamic import(s) did NOT fire');
+    expect(errors[0]).toContain('distrust is the zero');
+  });
+
+  it('STATE 3b (the other direction) — an UNPINNED sighting on a finished build still fails', () => {
+    const { errors } = drive((h) => {
+      h.configResolved(true);
+      h.sight('a.tsx');
+      h.sight('b.tsx');
+      h.sight('c.tsx');
+      h.buildEnd();
+      h.writeBundle();
+      h.closeBundle();
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('+ c.tsx');
+  });
+
+  it('keeps the probe ARMED on a `write: false` build, which never calls `writeBundle`', () => {
+    // The one build that legitimately reaches `closeBundle` with no
+    // `writeBundle`. Reading it as "did not finish" would disarm the probe with
+    // no witness — the failure mode with no symptom, so it is refused.
+    const { errors } = drive((h) => {
+      h.configResolved(false);
+      h.buildEnd();
+      h.closeBundle();
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('did NOT fire');
   });
 });

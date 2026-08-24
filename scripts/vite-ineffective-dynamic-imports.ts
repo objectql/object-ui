@@ -4,7 +4,7 @@ import path from 'node:path';
 // contextually infer parameters across such a union — same reason
 // `scripts/vite-crypto-stub.ts` and `scripts/vite-maplibre-worker.ts` spell
 // their types out.
-import type { Plugin, Rollup } from 'vite';
+import type { Plugin, ResolvedConfig, Rollup } from 'vite';
 
 /**
  * Pins rolldown's `INEFFECTIVE_DYNAMIC_IMPORT` warnings to a checked ledger.
@@ -99,6 +99,55 @@ import type { Plugin, Rollup } from 'vite';
  * `MISSING_EXPORT` errors reported `0` `INEFFECTIVE_DYNAMIC_IMPORT` warnings,
  * which reads identically to "fixed" if nothing demands a positive sighting.
  * With `missing` checked, a blind build fails with 43 named absences instead.
+ *
+ * ## Why the counter-probe stands down when the build has already failed
+ *
+ * `closeBundle` runs even when the build has ALREADY errored, and an error
+ * thrown from it REPLACES the build's own error in `vite build`'s output — not
+ * appended, not printed above it, gone. So every console build that died before
+ * the warnings could be emitted reported 43 named absences instead of its own
+ * cause, and the `did NOT fire` wording sends the reader straight at
+ * {@link DEFEATED_LAZY_FIELD_WIDGETS}, which is the one edit that would break
+ * the ledger for real (objectui#6093).
+ *
+ * The condition to detect is the one this file's own message already names —
+ * "this build never got far enough to emit them". `closeBundle` cannot tell
+ * that from "zero because they were all fixed" on its own, so the plugin
+ * collects the missing input from the hooks that ARE told, and the probe stands
+ * down when any of them fired. Measured on vite 8.2.1 + rolldown 1.2.3, because
+ * the hooks do NOT all report a failure and the gaps decide the design:
+ *
+ * | build dies in    | `buildEnd(error)` | `renderError` | our `writeBundle` |
+ * |------------------|-------------------|---------------|-------------------|
+ * | `transform`      | ERROR             | not called    | not called        |
+ * | `renderChunk`    | no argument       | called        | not called        |
+ * | `generateBundle` | no argument       | not called    | not called        |
+ * | `writeBundle`    | no argument       | not called    | not called        |
+ * | nothing (green)  | no argument       | not called    | CALLED            |
+ *
+ * `buildEnd`/`renderError` alone therefore cover only the top two rows — and
+ * the failure objectui#6093 was measured on is the bottom one, a `writeBundle`
+ * error from `emit-eager-closure-report`. The third signal closes it: this
+ * plugin's own `writeBundle` runs only when nothing before it threw, so
+ * "`closeBundle` reached, `writeBundle` never ran" IS "this build did not
+ * finish". It is declared `order: 'post'` so the marker does not depend on
+ * where this plugin sits in the array — a plugin ordered AFTER it that throws
+ * in `writeBundle` still leaves the marker unset (measured; with default order
+ * it does not).
+ *
+ * Two things this deliberately does NOT do. It does not weaken the check on a
+ * build that SUCCEEDS: output written and zero sightings still fails, with the
+ * same message, which is the case the probe was written for and the control
+ * that proves this change turned nothing off. And it does not swallow the
+ * finding silently — a stand-down prints one line saying the ledger was not
+ * checked and why, because a gate that produces no output at all on a failed
+ * build is indistinguishable from a gate that passed.
+ *
+ * `build.write === false` is the one build that legitimately reaches
+ * `closeBundle` with no `writeBundle` (measured), so the marker is only read as
+ * failure evidence when this build was going to write at all. That direction is
+ * chosen on purpose: an unwritten build there keeps the probe ARMED rather than
+ * standing it down, since a silent probe is the failure mode with no witness.
  *
  * ## What is pinned, and what is deliberately not
  *
@@ -245,9 +294,33 @@ export function formatIneffectiveDynamicImportFailure(
 }
 
 /**
+ * Build the ONE line a stand-down prints. Separate from the plugin for the same
+ * reason the failure text is: this sentence is what a developer reads when the
+ * gate did not run, and "no output at all" would read as "the gate passed".
+ *
+ * It is deliberately a single line and deliberately does not repeat the module
+ * list — the whole point of objectui#6093 is that 45 lines of field widgets
+ * above a real build error are worse than no lines at all.
+ */
+export function formatIneffectiveDynamicImportStandDown(
+  diff: IneffectiveDynamicImportDiff,
+): string {
+  return (
+    'ineffective-dynamic-import ledger NOT checked: this build failed before its output ' +
+    `was written, so its sightings are not a measurement (${diff.unpinned.length} unpinned, ` +
+    `${diff.missing.length} did not fire). Standing down instead of reporting that drift, ` +
+    'because an error thrown from `closeBundle` REPLACES the build\'s own error and would ' +
+    'hide the real failure in this log (objectui#6093). Fix that failure and rebuild — the ' +
+    'ledger is checked again then, and a genuine drift still fails the build.'
+  );
+}
+
+/**
  * The Vite plugin. Collects `INEFFECTIVE_DYNAMIC_IMPORT` warnings, keeps the
  * pinned ones off the console, prints one summary line in their place, and
- * fails the build on drift in either direction.
+ * fails the build on drift in either direction — unless the build has already
+ * failed, in which case it stands down rather than replacing that failure's
+ * error with its own (see the header section on the stand-down).
  */
 export function viteIneffectiveDynamicImports(
   pinned: readonly string[] = DEFEATED_LAZY_FIELD_WIDGETS,
@@ -255,11 +328,55 @@ export function viteIneffectiveDynamicImports(
   /** module id -> its static importers, both repo-relative. */
   const seen = new Map<string, string[]>();
 
+  // The three inputs `closeBundle` is missing. See the header section on the
+  // stand-down for the measured table behind each one.
+  /** A hook was handed this build's error, so the build is already failing. */
+  let buildFailed = false;
+  /** This build writes output at all — `build.write !== false`. */
+  let writesOutput = true;
+  /** Our own `writeBundle` ran, so output generation got past every plugin. */
+  let outputWritten = false;
+
+  /**
+   * "Did this build finish?" — the input `closeBundle` cannot derive alone.
+   * The `writesOutput` guard keeps a legitimate `write: false` build from
+   * reading as a failure and silently disarming the probe.
+   */
+  const buildDidNotFinish = (): boolean => buildFailed || (writesOutput && !outputWritten);
+
   return {
     name: 'ineffective-dynamic-import-ledger',
     // Build only. A dev server does no chunk assignment, so it never emits
     // this warning, and `closeBundle` never runs there anyway.
     apply: 'build',
+
+    configResolved(config: ResolvedConfig): void {
+      // `write: false` never calls `writeBundle`, so without this the marker
+      // below would read a perfectly healthy generate-only build as a failure.
+      writesOutput = config.build.write !== false;
+    },
+
+    // Only the BUILD phase hands its error to a hook; the render/generate/write
+    // phases do not (measured — see the header table), which is why this flag
+    // is not the whole answer on its own.
+    buildEnd(error?: Error): void {
+      if (error) buildFailed = true;
+    },
+
+    renderError(): void {
+      buildFailed = true;
+    },
+
+    // The marker for "output generation completed". `order: 'post'` is
+    // load-bearing: with the default order this hook runs before a later
+    // plugin's `writeBundle`, so that plugin's failure would leave the marker
+    // SET and the probe would mask it exactly as objectui#6093 describes.
+    writeBundle: {
+      order: 'post' as const,
+      handler(): void {
+        outputWritten = true;
+      },
+    },
 
     onLog(level: Rollup.LogLevel, log: Rollup.RollupLog): false | undefined {
       if (log.code !== 'INEFFECTIVE_DYNAMIC_IMPORT') return undefined;
@@ -277,7 +394,20 @@ export function viteIneffectiveDynamicImports(
 
     closeBundle() {
       const diff = diffIneffectiveDynamicImports(seen.keys(), pinned);
-      if (diff.unpinned.length > 0 || diff.missing.length > 0) {
+      const drifted = diff.unpinned.length > 0 || diff.missing.length > 0;
+
+      // Stand down BEFORE anything is thrown or summarised. `closeBundle` runs
+      // on a failed build too, and whatever it throws replaces that build's own
+      // error, so on a build that did not finish there is no reading of `seen`
+      // worth reporting — including an `unpinned` one, whose original rolldown
+      // warning was passed through to this log already and which fires again on
+      // the next build anyway.
+      if (buildDidNotFinish()) {
+        if (drifted) this.info(formatIneffectiveDynamicImportStandDown(diff));
+        return;
+      }
+
+      if (drifted) {
         this.error(formatIneffectiveDynamicImportFailure(diff));
       }
       // `FieldEditWidget.tsx` is the inline cell editor; its static imports are
