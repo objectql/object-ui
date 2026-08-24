@@ -33,7 +33,8 @@
 //
 // - **Loud, never lenient.** Every way the override can be wrong — path absent,
 //   not the spec package, an exports entry naming a file the built package does
-//   not contain — throws with the offending value named. A tolerant fallback to
+//   not contain, one of its own declared dependencies unresolvable from where it
+//   sits — throws with the offending value named. A tolerant fallback to
 //   the installed spec would silently rebuild the exact skew the hook exists to
 //   kill, and the framework guard could not tell the difference.
 // - **Inert when unset.** `resolveSpecDistInjection(undefined, …)` returns
@@ -227,6 +228,83 @@ export function readSpecExportTargets(packageDir: string): Map<string, string> {
 }
 
 /**
+ * Whether an ancestor `node_modules` of `startDir` contains a directory named
+ * `name` — the same upward walk `findSpecPackageDir` does for `package.json`,
+ * aimed at `node_modules/<name>` instead.
+ *
+ * Deliberately NOT `require.resolve(name, { paths: [startDir] })`, though that
+ * reads as the obvious tool for the job. Measured against this monorepo's own
+ * `apps/console/node_modules/.bin/vite` shim: it exports `NODE_PATH` pointing
+ * at pnpm's flat `.pnpm/node_modules` hoist directory, and Node's `paths`
+ * option does not suppress `NODE_PATH` — `Module.globalPaths` is consulted
+ * REGARDLESS of an explicit `paths` list. Every workspace dependency pnpm has
+ * ever hoisted lives there, `zod` included, so `require.resolve` reported the
+ * override's own missing `zod` as resolved — checked from `packageDir`,
+ * skipped straight over the failure this function exists to catch, silently,
+ * every time this hook runs through the real `vite` CLI rather than a bare
+ * `node` invocation. A plain directory walk consults nothing global.
+ */
+function packageResolvesFrom(startDir: string, name: string): boolean {
+  let dir = startDir;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, 'node_modules', name))) return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
+/**
+ * Confirms the override's own `dependencies` resolve from `packageDir` —
+ * the check `readSpecExportTargets` does NOT do.
+ *
+ * That function validates the override's own files: every exports entry
+ * names something the built package contains. It says nothing about what
+ * those files `import`. A spec dist built without a reachable `node_modules`
+ * passes it cleanly and only fails once a consuming bundler tries to resolve
+ * a bare specifier deep inside the injected build — a build-length after the
+ * override was read, in an error that names the missing package (`zod`,
+ * observed) and never `OBJECTSTACK_SPEC_DIST`.
+ *
+ * Checked with `packageResolvesFrom`'s directory walk, not `require.resolve`
+ * — see that function's own comment for why the obvious choice is wrong here.
+ * Either way the cost is the same: directory-existence checks, no module
+ * evaluation, nowhere near the cost of a bundler resolve pass.
+ *
+ * Deliberately narrow: only the manifest's own `dependencies` are checked —
+ * not transitive dependencies (this is not a dependency-graph validator, and
+ * a broken transitive package fails the same way, just one frame further
+ * into that package's own resolution — still at build time, still before any
+ * bundling), and not `peerDependencies`. A peer dependency is BY DESIGN
+ * supplied by the consuming app rather than living inside the override's own
+ * tree, so requiring it to resolve from `packageDir` would fail a correctly
+ * built override and misreport a non-problem as one.
+ */
+function assertSpecDependenciesResolve(packageDir: string): void {
+  const manifestPath = path.join(packageDir, 'package.json');
+  // Already proven to be valid JSON at this exact path by `findSpecPackageDir`
+  // (the caller of this function), so — matching `readSpecExportTargets` next
+  // to it — this re-read does not repeat that try/catch.
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { dependencies?: unknown };
+  const dependencies = manifest.dependencies;
+  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) return;
+
+  const unresolved = Object.keys(dependencies as Record<string, unknown>).filter(
+    (name) => !packageResolvesFrom(packageDir, name)
+  );
+  if (unresolved.length > 0) {
+    const isSingular = unresolved.length === 1;
+    fail(
+      `\`${manifestPath}\` declares ${isSingular ? 'a dependency' : 'dependencies'} that ` +
+        `${isSingular ? 'does' : 'do'} not resolve from \`${packageDir}\`: ${unresolved.join(', ')} — ` +
+        `the override points at a spec dist with no reachable \`node_modules\` for ` +
+        `${isSingular ? 'it' : 'them'}. Install the override's own dependencies (or point at a build ` +
+        `where they are reachable) before setting \`OBJECTSTACK_SPEC_DIST\``
+    );
+  }
+}
+
+/**
  * Resolve the override, or `null` when it is unset.
  *
  * @param raw            the `OBJECTSTACK_SPEC_DIST` value, unset or empty for none
@@ -242,6 +320,7 @@ export function resolveSpecDistInjection(
   if (!raw || !raw.trim()) return null;
 
   const packageDir = findSpecPackageDir(raw.trim());
+  assertSpecDependenciesResolve(packageDir);
   const targets = readSpecExportTargets(packageDir);
 
   // Subpaths first (sorted for a stable, reviewable table), bare specifier last

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   SPEC_PACKAGE_NAME,
+  escapeRegExp,
   readSpecExportTargets,
   resolveSpecDistInjection,
 } from '../vite-objectstack-spec-dist';
@@ -350,6 +351,187 @@ describe('objectui#4854: the override fails loudly, never leniently', () => {
   it('never picks the `types` condition, which sits first in the real map', () => {
     for (const target of readSpecExportTargets(installedSpecDir).values()) {
       expect(target.endsWith('.d.ts') || target.endsWith('.d.mts')).toBe(false);
+    }
+  });
+});
+
+/**
+ * objectui#5391 — `readSpecExportTargets` validates the override's own FILES;
+ * it says nothing about what those files `import`. A spec dist built without
+ * a reachable `node_modules` passed cleanly and only failed once a consuming
+ * bundler tried to resolve a bare specifier deep inside the injected build —
+ * measured (module header, `assertSpecDependenciesResolve`) as a rolldown
+ * `failed to resolve zod` a build-length after the override was read, in an
+ * error naming `zod` and never `OBJECTSTACK_SPEC_DIST`.
+ */
+describe('objectui#5391: the override validates its own dependencies too', () => {
+  /** A minimal, legally-shaped spec package with a declared `dependencies` entry. */
+  function makeFixtureWithDependency(dependencies: Record<string, string>): string {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-dist-5391-'));
+    fs.mkdirSync(path.join(fixture, 'dist'));
+    fs.writeFileSync(path.join(fixture, 'dist/index.mjs'), 'export {};\n');
+    fs.writeFileSync(
+      path.join(fixture, 'package.json'),
+      JSON.stringify({
+        name: SPEC_PACKAGE_NAME,
+        exports: { '.': './dist/index.mjs' },
+        dependencies,
+      })
+    );
+    return fixture;
+  }
+
+  it('throws, naming the override and the unresolvable dependency, when a declared dependency has no reachable `node_modules`', () => {
+    const fixture = makeFixtureWithDependency({ zod: '^4.0.0' });
+    try {
+      // The override (packageDir/manifest path) AND the missing dependency
+      // must both be in the message — a fail-fast that only says "validation
+      // failed" reproduces the original diagnosis problem one step earlier.
+      expect(() => inject(fixture)).toThrow(/OBJECTSTACK_SPEC_DIST/);
+      expect(() => inject(fixture)).toThrow(new RegExp(escapeRegExp(fs.realpathSync(fixture))));
+      expect(() => inject(fixture)).toThrow(/does not resolve.*zod/s);
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('names every unresolvable dependency, not just the first', () => {
+    const fixture = makeFixtureWithDependency({ zod: '^4.0.0', 'pg-connection-string': '^2.0.0' });
+    try {
+      expect(() => inject(fixture)).toThrow(/zod, pg-connection-string/);
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('passes once the declared dependency is reachable from the package directory', () => {
+    const fixture = makeFixtureWithDependency({ zod: '^4.0.0' });
+    try {
+      fs.mkdirSync(path.join(fixture, 'node_modules'));
+      // A minimal but real package at the expected location — the fixture
+      // does not need the REAL zod, only something a directory walk finds.
+      fs.mkdirSync(path.join(fixture, 'node_modules/zod'));
+      fs.writeFileSync(
+        path.join(fixture, 'node_modules/zod/package.json'),
+        JSON.stringify({ name: 'zod', version: '0.0.0-fixture' })
+      );
+      expect(inject(fixture)).not.toBeNull();
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('finds a dependency hoisted to an ANCESTOR `node_modules`, not only the package\'s own', () => {
+    // pnpm/npm both routinely hoist a dependency above the package that
+    // declares it; the check has to walk up, not just look inside `packageDir`.
+    //
+    // The whole fixture tree lives under its OWN `mkdtempSync` root — never at
+    // `os.tmpdir()` itself — because that directory is shared with every other
+    // process on the machine (parallel test runs, other agents' worktrees); a
+    // `node_modules` planted directly there would be both a collision risk and
+    // stray shared state this suite has no business creating.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-dist-5391-'));
+    try {
+      const fixture = path.join(root, 'workspace', SPEC_PACKAGE_NAME.split('/')[1]);
+      fs.mkdirSync(path.join(fixture, 'dist'), { recursive: true });
+      fs.writeFileSync(path.join(fixture, 'dist/index.mjs'), 'export {};\n');
+      fs.writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({
+          name: SPEC_PACKAGE_NAME,
+          exports: { '.': './dist/index.mjs' },
+          dependencies: { zod: '^4.0.0' },
+        })
+      );
+      // Hoisted to `root/workspace/node_modules` — an ANCESTOR of `fixture`,
+      // not `fixture`'s own `node_modules` (which does not exist here at all).
+      fs.mkdirSync(path.join(root, 'workspace/node_modules/zod'), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, 'workspace/node_modules/zod/package.json'),
+        JSON.stringify({ name: 'zod', version: '0.0.0-fixture' })
+      );
+      expect(inject(fixture)).not.toBeNull();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does NOT require `peerDependencies` to resolve from the package directory', () => {
+    // A peer dependency is supplied by the CONSUMING app, not the override's
+    // own tree — requiring it here would fail a correctly built override.
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-dist-5391-'));
+    try {
+      fs.mkdirSync(path.join(fixture, 'dist'));
+      fs.writeFileSync(path.join(fixture, 'dist/index.mjs'), 'export {};\n');
+      fs.writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({
+          name: SPEC_PACKAGE_NAME,
+          exports: { '.': './dist/index.mjs' },
+          peerDependencies: { ai: '^7.0.0' },
+        })
+      );
+      expect(inject(fixture)).not.toBeNull();
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('is inert when `dependencies` is absent', () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'spec-dist-5391-'));
+    try {
+      fs.mkdirSync(path.join(fixture, 'dist'));
+      fs.writeFileSync(path.join(fixture, 'dist/index.mjs'), 'export {};\n');
+      fs.writeFileSync(
+        path.join(fixture, 'package.json'),
+        JSON.stringify({ name: SPEC_PACKAGE_NAME, exports: { '.': './dist/index.mjs' } })
+      );
+      expect(inject(fixture)).not.toBeNull();
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it('the REAL installed spec — measured to declare `zod` and `pg-connection-string` — passes', () => {
+    // Anti-vacuity: this only means something if the installed package
+    // actually declares dependencies for the check to walk.
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(installedSpecDir, 'package.json'), 'utf8')
+    ) as { dependencies?: Record<string, string> };
+    expect(Object.keys(manifest.dependencies ?? {}).length).toBeGreaterThan(0);
+    expect(manifest.dependencies).toHaveProperty('zod');
+    expect(inject(installedSpecDir)).not.toBeNull();
+  });
+
+  /**
+   * The regression this hook exists to catch, in a form that pins the FIX
+   * rather than only the symptom.
+   *
+   * `apps/console/node_modules/.bin/vite` — pnpm's own shim — exports
+   * `NODE_PATH` pointing at pnpm's flat `.pnpm/node_modules` hoist directory,
+   * which holds a copy of nearly every package the workspace has ever
+   * installed. Node's module resolution consults `NODE_PATH`
+   * (`Module.globalPaths`) REGARDLESS of an explicit `paths` option, so a
+   * dependency check built on `require.resolve(name, { paths: [packageDir] })`
+   * silently passed for ANY package name that happens to be hoisted anywhere
+   * in the workspace — which, for a real npm package name like `typescript`,
+   * is every one of them. Measured: that version of this check never caught
+   * anything when run through the real `vite` CLI, only through a bare `node`
+   * invocation that never set `NODE_PATH` — the one path this hook actually
+   * runs on in production. `typescript` here stands in for that failure mode:
+   * a name this repository has installed SOMEWHERE, but not inside this
+   * fixture's own tree, which is the only tree that should count.
+   */
+  it('is not fooled by a dependency name that resolves globally but not from the package directory', () => {
+    // Anti-vacuity: `typescript` really is reachable from somewhere ordinary
+    // in this repo — the failure mode under test is specifically that
+    // reachability elsewhere must NOT count as reachability from `packageDir`.
+    expect(() => require_.resolve('typescript')).not.toThrow();
+    const fixture = makeFixtureWithDependency({ typescript: '^5.0.0' });
+    try {
+      expect(() => inject(fixture)).toThrow(/does not resolve.*typescript/s);
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
     }
   });
 });
