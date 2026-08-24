@@ -31,6 +31,22 @@ import ts from 'typescript';
  * spelling would be satisfied by a config that compiles nothing, which is the
  * failure mode it exists to prevent.
  *
+ * objectui#4477 is the same statement one directory UP. The four root
+ * `playwright*.config.ts` files sit beside `tsconfig.e2e.json` rather than under
+ * `e2e/`, so #4471's glob did not reach them and nothing else compiled them
+ * either — yet they decide which specs run, where they run, and what
+ * `webServer` command builds the app under test. Widening the include cost zero
+ * errors (measured on both sides of the twelve days between filing and landing),
+ * so what this half pins is the GATE, not a fix: `testIgnore` or a `projects`
+ * entry misspelled into `undefined` is invisible to Playwright, which transpiles
+ * the config and reads the result as intent.
+ *
+ * Both halves are asserted the same way, and it is the way that matters: by
+ * discovering what is on disk and asking whether the program resolves it, never
+ * by naming the files. A four-name list would pass on the day it is written and
+ * be wrong the day a fifth config lands — which is precisely the defect both
+ * cards are about.
+ *
  * The one structural difference from `scripts-type-check.test.ts`: that gate is
  * a direct step in ci.yml's `type-check` job, this one is a turbo ROOT TASK
  * (`//#type-check:e2e`) that the `type-check` task `dependsOn` — the shape
@@ -80,6 +96,22 @@ function typeScriptSourcesOnDisk(): string[] {
   return out.sort();
 }
 
+/**
+ * Every root-level `playwright*.config.ts` on disk, repo-relative.
+ *
+ * A faithful translation of the config's second `include` pattern: `*` in a
+ * tsconfig glob does not cross a path separator, so the pattern matches files
+ * directly at the repo root and this walk must not descend either. Discovered,
+ * not listed — see the header.
+ */
+function rootPlaywrightConfigsOnDisk(): string[] {
+  return fs
+    .readdirSync(repoRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /^playwright.*\.config\.ts$/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+}
+
 /** Repo-relative, POSIX-separated program root files. */
 function programFiles(): Set<string> {
   return new Set(
@@ -107,6 +139,34 @@ function diagnosticsFor(source: string): string[] {
       .getPreEmitDiagnostics(program)
       .filter((d) => d.file?.fileName === file.split(path.sep).join('/'))
       .map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Parse the REAL config against a throwaway tree that holds one root config
+ * which does not exist in this repo, and return the program root set.
+ *
+ * This is how the glob-not-a-list doctrine is asked as a question rather than
+ * asserted as a spelling. An `include` of four literal filenames satisfies every
+ * on-disk sweep in this file on the day it is written; only a config that
+ * resolves a name nobody has typed yet can answer for the fifth one. The tree is
+ * throwaway rather than the repo root because a transient `.ts` file appearing
+ * at the real root would be visible to every other guard that enumerates it.
+ */
+function programFilesWithSyntheticRootConfig(name: string): Set<string> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-type-check-fifth-'));
+  try {
+    const copied = path.join(dir, path.basename(configPath));
+    fs.copyFileSync(configPath, copied);
+    fs.writeFileSync(path.join(dir, name), 'export default {};\n');
+    fs.mkdirSync(path.join(dir, 'e2e'));
+    fs.writeFileSync(path.join(dir, 'e2e', 'placeholder.spec.ts'), 'export {};\n');
+
+    const read = ts.readConfigFile(copied, ts.sys.readFile);
+    const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, dir, undefined, copied);
+    return new Set(parsed.fileNames.map((f) => path.relative(dir, f).split(path.sep).join('/')));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -254,6 +314,62 @@ describe('tsconfig.e2e.json — coverage of e2e/ (objectui#4471)', () => {
         'turbo does not build anything for it. Give the task `dependsOn: ["^build"]` (and check ' +
         'that a ROOT task can express what you need), or drop the import.',
     ).toEqual([]);
+  });
+});
+
+describe('tsconfig.e2e.json — coverage of the root playwright configs (objectui#4477)', () => {
+  it('resolves every root playwright*.config.ts on disk, with none left out', () => {
+    const onDisk = rootPlaywrightConfigsOnDisk();
+
+    // Non-vacuity first, for the same reason as the sweep above: the set
+    // difference below is satisfied by a discovery that finds nothing. Four
+    // configs exist today. If one is genuinely retired, lower this floor — but
+    // never satisfy it by narrowing the pattern in `rootPlaywrightConfigsOnDisk`,
+    // which would be this gate reporting green about files it stopped looking at.
+    expect(
+      onDisk.length,
+      'no playwright*.config.ts found at the repo root — the discovery is broken',
+    ).toBeGreaterThanOrEqual(4);
+
+    const inProject = programFiles();
+    const uncovered = onDisk.filter((f) => !inProject.has(f));
+
+    expect(
+      uncovered,
+      'These root Playwright configs are not in tsconfig.e2e.json’s program, so nothing ' +
+        'type-checks them:\n' +
+        uncovered.map((f) => `  - ${f}`).join('\n') +
+        '\n\nWiden the "include" globs in tsconfig.e2e.json. These files decide which specs ' +
+        'run, where they run, and what `webServer` command builds the app under test — and ' +
+        'Playwright transpiles a config rather than checking it, so a `defineConfig` option ' +
+        'misspelled into `undefined` is read as intent and surfaces only as a confusing ' +
+        'runtime failure in the e2e job (objectui#4477).',
+    ).toEqual([]);
+  });
+
+  it('would resolve a FIFTH root config that nobody has written yet', () => {
+    // The assertion above is a set difference over what exists. It would stay
+    // green under an `include` that names today's four files outright, and then
+    // the next config to land would sit outside every program again — the exact
+    // shape of objectui#4471 and objectui#4477. So ask the real config about a
+    // name it cannot have been written against.
+    const resolved = programFilesWithSyntheticRootConfig('playwright.not-yet-written.config.ts');
+
+    expect(
+      [...resolved].sort(),
+      'tsconfig.e2e.json no longer picks up a NEW root playwright config. Its second ' +
+        '"include" entry must stay a glob (`playwright*.config.ts`); an enumeration of the ' +
+        'configs that exist today passes every other assertion in this file and still lets ' +
+        'the next one land in no tsc program at all.',
+    ).toContain('playwright.not-yet-written.config.ts');
+
+    // …and that the throwaway tree really was parsed like the real project,
+    // rather than the assertion above passing on an empty or defaulted program.
+    expect(
+      [...resolved].sort(),
+      'the throwaway tree did not resolve like the real project — the probe is broken, ' +
+        'not the config',
+    ).toContain('e2e/placeholder.spec.ts');
   });
 });
 
