@@ -23,7 +23,7 @@ The Object Field component provides a JSON editor for storing and editing struct
 
 ## Field Schema
 
-```plaintext
+```ts
 interface ObjectFieldSchema {
   type: 'object';
   name: string;                  // Field name/ID
@@ -199,33 +199,36 @@ For typed object fields, you can define a schema in two formats:
 
 ## Backend Validation
 
-Example backend validation:
+ObjectUI does not enforce `schema`. `ObjectField` checks JSON **syntax** only —
+it accepts any value `JSON.parse` accepts, and simply declines to propagate a
+draft it cannot parse — so nothing on the client rejects a well-formed object
+whose shape is wrong. Structural validation belongs on the server.
 
-```plaintext
-import Ajv from 'ajv';
+The `schema` you author is carried on the field metadata untouched, and in the
+JSON Schema Format above it is an ordinary JSON Schema document. That is the
+whole integration point: the server validates the incoming value against the
+very same object, using whichever JSON Schema validator it already has (Ajv,
+for instance — ObjectUI ships none and names none).
 
-const ajv = new Ajv();
+```ts
+import type { ObjectFieldMetadata } from '@object-ui/types';
 
-const validateObjectField = (value: any, schema: any) => {
-  if (!schema) return { valid: true };
-  
-  const validate = ajv.compile(schema);
-  const valid = validate(value);
-  
-  return {
-    valid,
-    errors: validate.errors
-  };
-};
-
-// Example schema
-const configSchema = {
+const apiConfig: ObjectFieldMetadata = {
   type: 'object',
-  properties: {
-    api_key: { type: 'string', minLength: 1 },
-    timeout: { type: 'number', minimum: 0 },
-    enabled: { type: 'boolean' }
+  name: 'api_config',
+  label: 'API Configuration',
+  schema: {
+    type: 'object',
+    properties: {
+      api_key: { type: 'string', minLength: 1 },
+      timeout: { type: 'number', minimum: 0 },
+      enabled: { type: 'boolean' },
+    },
+    required: ['api_key'],
   },
-  required: ['api_key']
 };
 ```
+
+One caveat when you do: the Simplified Format above is
+documentation for a reader, not a validator input — only the JSON Schema Format
+can be handed to a JSON Schema validator as-is.
