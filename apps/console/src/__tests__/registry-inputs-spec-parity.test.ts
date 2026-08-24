@@ -221,7 +221,7 @@ function offSpecInputs(type: string): string[] {
  * Only `aria` qualifies, and only because the reason is genuinely uniform: it is
  * an accessibility escape hatch, not a layout choice, and the blocks that omit
  * it say so in the same words at their registration sites
- * (`plugin-detail/src/index.tsx:335-337`, verbatim: "`aria` is omitted for the
+ * (`plugin-detail/src/index.tsx:554-556`, verbatim: "`aria` is omitted for the
  * same reason it is omitted on `record:details` above"). Publishing it would put
  * an `aria` object in every designer panel and every generated `.d.ts` as though
  * hand-writing ARIA were the normal way to configure a block, when the renderers
@@ -229,7 +229,7 @@ function offSpecInputs(type: string): string[] {
  * reason is per-block belongs in `UNPUBLISHED_EXEMPTIONS` below, not here.
  */
 const GLOBALLY_UNPUBLISHED_SPEC_KEYS: Record<string, string> = {
-  aria: 'Accessibility escape hatch, not a layout choice — renderers derive accessible names from labels and object metadata, and every block omits it for this one reason (plugin-detail/src/index.tsx:335-337). objectui#3808.',
+  aria: 'Accessibility escape hatch, not a layout choice — renderers derive accessible names from labels and object metadata, and every block omits it for this one reason (plugin-detail/src/index.tsx:554-556). objectui#3808.',
 };
 
 /**
