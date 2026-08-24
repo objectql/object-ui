@@ -1,5 +1,5 @@
 ---
-title: "Application Schema (AppSchema)"
+title: "Application Schema (AppComponentSchema)"
 description: "Configure your entire application with navigation, branding, and global settings"
 ---
 
@@ -7,11 +7,11 @@ import { SchemaExample } from '@/app/components/ComponentDemo';
 
 # Application Schema
 
-The `AppSchema` defines the top-level configuration for your entire ObjectUI application, including navigation menus, branding, layout strategies, and global actions.
+The `AppComponentSchema` defines the top-level configuration for your entire ObjectUI application, including navigation menus, branding, layout strategies, and global actions.
 
 ## Overview
 
-AppSchema provides a declarative way to configure:
+AppComponentSchema provides a declarative way to configure:
 - **Navigation menus** - Hierarchical menu structures with icons and badges
 - **Branding** - Logo, title, favicon
 - **Layout strategies** - Sidebar, header, or empty layout
@@ -29,10 +29,10 @@ AppSchema provides a declarative way to configure:
 
 ## Basic Usage
 
-```plaintext
-import type { AppSchema } from '@object-ui/types';
+```ts
+import type { AppComponentSchema } from '@object-ui/types';
 
-const app: AppSchema = {
+const app: AppComponentSchema = {
   type: 'app',
   name: 'my-crm',
   title: 'My CRM Application',
@@ -87,7 +87,7 @@ const app: AppSchema = {
 
 The `menu` property accepts an array of `MenuItem` objects:
 
-```plaintext
+```ts
 interface MenuItem {
   type?: 'item' | 'group' | 'separator';
   label?: string;
@@ -137,7 +137,9 @@ interface MenuItem {
 
 The `actions` property defines global toolbar buttons:
 
-```plaintext
+```ts
+import type { MenuItem } from '@object-ui/types';
+
 interface AppAction {
   type: 'button' | 'dropdown' | 'user';
   label?: string;
@@ -154,8 +156,10 @@ interface AppAction {
 
 ## Complete Example
 
-```plaintext
-const crm: AppSchema = {
+```ts
+import type { AppComponentSchema } from '@object-ui/types';
+
+const crm: AppComponentSchema = {
   type: 'app',
   name: 'acme-crm',
   title: 'Acme CRM',
@@ -274,10 +278,16 @@ const crm: AppSchema = {
 
 Use Zod validation to ensure your app configuration is correct:
 
-```plaintext
-import { AppSchema } from '@object-ui/types/zod';
+```ts
+import { AppComponentSchema } from '@object-ui/types/zod';
 
-const result = AppSchema.safeParse(myAppConfig);
+const myAppConfig = {
+  type: 'app',
+  name: 'my-crm',
+  title: 'My CRM Application',
+};
+
+const result = AppComponentSchema.safeParse(myAppConfig);
 
 if (result.success) {
   console.log('Valid app configuration');
@@ -301,7 +311,7 @@ Use expression syntax to show/hide menu items based on user permissions:
 
 ## Use Cases
 
-AppSchema is ideal for:
+AppComponentSchema is ideal for:
 
 - **Multi-page applications** - Configure complex application structures with multiple routes
 - **Admin dashboards** - Create comprehensive admin panels with role-based navigation
