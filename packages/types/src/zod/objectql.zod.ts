@@ -613,6 +613,35 @@ export const ObjectGanttSchema = BaseSchema.extend({
   viewMode: SpecGanttConfigSchema.shape.viewMode.describe(
     'Initial timeline granularity, honoured by both renderer branches; when omitted, a persisted layout may seed it'
   ),
+  // objectui#5903 — ten keys `ObjectGantt` reads and this mirror did not
+  // declare. They were reachable only through `(schema as any).K`, so nothing
+  // connected the read to a declaration. Mirrored here at the SAME requiredness
+  // as `../objectql.ts` (all optional) so the zod-mirror-parity ratchet stays at
+  // zero drift for this pair. `label` is NOT among them: `BaseSchema` already
+  // declares it, so that read only needed its cast dropped.
+  //
+  // What declaring buys under `.passthrough()`: an undeclared key is still waved
+  // through (objectui#5155's structural ceiling), but a DECLARED key is now
+  // type-validated — `readOnly: 'yes'` is refused where it used to parse green.
+  skipWeekends: z.boolean().optional().describe('Skip weekends in duration / auto-schedule math (working calendar)'),
+  holidays: z.array(z.string()).optional().describe("Non-working dates for the working calendar, ISO 'yyyy-mm-dd' (UTC)"),
+  persistLayout: z.boolean().optional().describe('Opt OUT of layout persistence — only an explicit false disables it'),
+  viewName: z.string().optional().describe("Layout-persistence scope; storage key is `objectName:viewName` (default 'default')"),
+  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
+  markers: z
+    .array(
+      z.object({
+        date: z.string().describe('Marker position, ISO date or datetime string'),
+        label: z.string().optional().describe('Text drawn against the line'),
+        color: z.string().optional().describe('Line colour — any CSS colour'),
+      })
+    )
+    .optional()
+    .describe('Extra vertical reference lines drawn like the Today marker'),
+  criticalPath: z.boolean().optional().describe('Seed the critical-path highlight ON (toolbar toggle stays available)'),
+  showBaselines: z.boolean().optional().describe('Render planned-vs-actual baseline bars — defaults ON, only an explicit false disables'),
+  readOnly: z.boolean().optional().describe('Disable every write path and lock the record drawer'),
+  mobileReadOnly: z.boolean().optional().describe('Auto read-only on narrow viewports — defaults ON, only an explicit false disables'),
 });
 
 /**

@@ -24,7 +24,7 @@
 
 import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
+import type { ObjectGanttSchema, ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
@@ -274,7 +274,22 @@ export function normalizeDependencies(raw: unknown): GanttDependency[] {
 }
 
 export interface ObjectGanttProps {
-  schema: ObjectGridSchema;
+  /**
+   * The gantt node. Typed as {@link ObjectGanttSchema} (objectui#5903) — the
+   * declaration this component's schema reads actually resolve against.
+   *
+   * It used to be `ObjectGridSchema`, and that is why ten genuine reads had to
+   * be spelled `(schema as any).K`: the keys are not grid keys, so the only
+   * thing that admitted them was `BaseSchema`'s index signature, under a cast
+   * that hid even that. Removing the casts without moving the type would have
+   * changed nothing — the reads would still land on the index signature.
+   *
+   * The grid-style `{ gantt: { … } }` block keeps working exactly as before:
+   * `getGanttConfig` reads it through the same index signature, and the
+   * registered renderer (`index.tsx`) passes `schema: any`, so no runtime shape
+   * is turned away.
+   */
+  schema: ObjectGanttSchema;
   dataSource?: DataSource;
   className?: string;
   onTaskClick?: (record: any) => void;
@@ -296,7 +311,7 @@ export interface ObjectGanttProps {
 /**
  * Helper to get data configuration from schema
  */
-function getDataConfig(schema: ObjectGridSchema): ViewData | null {
+function getDataConfig(schema: ObjectGanttSchema): ViewData | null {
   if (schema.data) {
     return schema.data;
   }
@@ -888,8 +903,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // holiday list, duration/reschedule math is measured in working days. The
   // holidays array (ISO yyyy-mm-dd strings) becomes a Set for O(1) lookups.
   const workingCalendar = useMemo<WorkingCalendar | undefined>(() => {
-    const sw = (schema as any).skipWeekends;
-    const hol = (schema as any).holidays as string[] | undefined;
+    const sw = schema.skipWeekends;
+    const hol = schema.holidays;
     if (!sw && (!hol || hol.length === 0)) return undefined;
     return {
       skipWeekends: !!sw,
@@ -1020,9 +1035,9 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // snapshot under persistLayoutKey and fires onLayoutChange; the chips live up
   // here, so they get a sibling localStorage key and restore on mount.
   const persistLayoutKey =
-    (schema as any).persistLayout === false
+    schema.persistLayout === false
       ? undefined
-      : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`;
+      : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${schema.viewName || 'default'}`;
   const filtersStorageKey = persistLayoutKey ? `gantt-layout:${persistLayoutKey}:filters` : null;
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>(() => {
     if (!filtersStorageKey || typeof window === 'undefined') return {};
@@ -1129,7 +1144,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // providing its own `navigation` config (e.g., page mode).
   // detail panel inline (no full-page navigation). Schema can override by
   // providing its own `navigation` config (e.g., page mode).
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
+  const navConfig = schema.navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
@@ -1468,15 +1483,15 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
           onDependencyDelete={ganttConfig?.dependenciesField ? handleDependencyDelete : undefined}
-          markers={(schema as any).markers}
+          markers={schema.markers}
           autoSchedule={!!ganttConfig?.dependenciesField}
           rescheduleOnConflict={!!ganttConfig?.dependenciesField}
-          criticalPathDefault={!!(schema as any).criticalPath}
+          criticalPathDefault={!!schema.criticalPath}
           workingCalendar={workingCalendar}
           shiftSegments={shiftSegments}
-          showBaselines={(schema as any).showBaselines !== false}
-          readOnly={!!(schema as any).readOnly}
-          mobileReadOnly={(schema as any).mobileReadOnly !== false}
+          showBaselines={schema.showBaselines !== false}
+          readOnly={!!schema.readOnly}
+          mobileReadOnly={schema.mobileReadOnly !== false}
           persistLayoutKey={persistLayoutKey}
           onLayoutChange={filtersStorageKey ? persistFilters : undefined}
           groupBy={groupByAccessor}
@@ -1491,7 +1506,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             // `label` off the schema it hands us — then the bound object's
             // label, then its API name.
             String(
-              ganttConfig?.exportFileName ?? (schema as any).label ?? objectSchema?.label ?? schema.objectName ?? ''
+              ganttConfig?.exportFileName ?? schema.label ?? objectSchema?.label ?? schema.objectName ?? ''
             ) || undefined
           }
           inlineEdit
@@ -1520,7 +1535,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         // Row-level lock (lockField) and global readOnly must also lock the
         // drawer: omitting onFieldSave/onDelete renders it strictly read-only.
         const recLocked =
-          !!(schema as any).readOnly ||
+          !!schema.readOnly ||
           (ganttConfig?.lockField ? !!rec[ganttConfig.lockField] : false);
         // #2473: prefer the fetched business record + schema over the raw row
         // payload (see the drawerFetch effect above for why they can differ).

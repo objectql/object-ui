@@ -1974,6 +1974,104 @@ export interface ObjectGanttSchema extends BaseSchema {
    * author choice and defeat that seeding.
    */
   viewMode?: SpecGanttConfig['viewMode'];
+  /**
+   * Skip weekends in duration / auto-schedule math (objectui#5903).
+   *
+   * When true (or when `holidays` is non-empty) `ObjectGantt` builds a
+   * `WorkingCalendar` and `GanttView` measures durations, cascades and the
+   * critical path in WORKING days — weekends are stepped over rather than
+   * consumed. Read at `plugin-gantt/src/ObjectGantt.tsx` (`workingCalendar`).
+   *
+   * Declared here rather than derived: the spec's `GanttConfigSchema` models no
+   * working-calendar member, so this is objectui's own display extension — the
+   * same standing `timeSegments` has on {@link GanttConfig}.
+   */
+  skipWeekends?: boolean;
+  /**
+   * Non-working dates for the same working calendar as {@link skipWeekends} —
+   * ISO `yyyy-mm-dd` (UTC) keys, e.g. `['2024-06-05']`. Non-empty enables the
+   * working calendar on its own. Read at `ObjectGantt.tsx` (`workingCalendar`).
+   */
+  holidays?: string[];
+  /**
+   * Opt OUT of layout persistence. `false` disables it; any other value (and
+   * omission) keeps it on, which is why this is not spelled as an enable flag.
+   *
+   * `GanttView` persists its column/zoom snapshot and `ObjectGantt` persists the
+   * quick-filter chips under a sibling localStorage key, both derived from
+   * `persistLayoutKey`. Read at `ObjectGantt.tsx` (`persistLayoutKey`).
+   */
+  persistLayout?: boolean;
+  /**
+   * Layout-persistence scope. Distinguishes two gantts bound to the SAME object
+   * so they keep separate saved layouts; the storage key is
+   * `objectName:viewName` and defaults to `objectName:default`. Read at
+   * `ObjectGantt.tsx` (`persistLayoutKey`).
+   */
+  viewName?: string;
+  /**
+   * Record navigation behaviour when a bar is clicked (drawer / dialog / page).
+   * Defaults to an inline right-side drawer; set `{ mode: 'page' }` to route to
+   * the standalone detail page instead. Read at `ObjectGantt.tsx`
+   * (`navConfig`).
+   *
+   * The spec owns the member list — `mode`, `view`, `preventNavigation`,
+   * `openNewTab`, `size`, `width` — and its schema REFUSES anything else. In
+   * particular there is no `basePath`: the package README shows one, and no read
+   * site in this repo consumes it (filed separately). Do not restate the
+   * vocabulary here; that is the drift this derivation exists to prevent.
+   *
+   * Same spec type as {@link ObjectGridSchema.navigation} and
+   * {@link ObjectViewSchema.navigation} — aligned with `@objectstack/spec`
+   * `ListView.navigation` rather than restated, so the vocabulary cannot fork.
+   */
+  navigation?: ViewNavigationConfig;
+  /**
+   * Extra vertical reference lines drawn like the Today marker (deadline,
+   * sprint boundary, release…). Forwarded to `GanttView`'s `markers` prop and
+   * read at `ObjectGantt.tsx`.
+   *
+   * `date` is declared as a STRING here, not `Date | string` like the runtime
+   * `GanttMarker` this feeds: a schema is serialisable authored metadata and a
+   * `Date` instance cannot survive JSON. The renderer keeps accepting both,
+   * because a narrower authoring surface is assignable to the wider prop.
+   */
+  markers?: Array<{
+    /** Marker position, ISO date or datetime string (e.g. `'2024-06-05'`). */
+    date: string;
+    /** Text drawn against the line. */
+    label?: string;
+    /** Line colour — any CSS colour. */
+    color?: string;
+  }>;
+  /**
+   * Start with the critical-path highlight enabled. The toolbar toggle stays
+   * available either way — this only seeds its initial state. Read at
+   * `ObjectGantt.tsx` (`criticalPathDefault`).
+   */
+  criticalPath?: boolean;
+  /**
+   * Render planned-vs-actual baseline bars when tasks carry baseline dates.
+   * Defaults to ON — only an explicit `false` turns them off, which is why the
+   * read site compares against `false` rather than coercing. Read at
+   * `ObjectGantt.tsx`.
+   */
+  showBaselines?: boolean;
+  /**
+   * Read-only mode. Disables every write path — bar drag / resize / progress
+   * handle, inline edit, delete, dependency-link drag, row reorder,
+   * auto-schedule and the Undo/Redo buttons — and locks the record drawer.
+   * Clicking a task and switching granularity still work. Read at
+   * `ObjectGantt.tsx` (`readOnly`, and the drawer's `recLocked`).
+   */
+  readOnly?: boolean;
+  /**
+   * Auto-enter read-only mode on narrow viewports (< 640px) so touch users get
+   * a scrollable thumbnail instead of error-prone drag editing. Defaults to ON;
+   * only an explicit `false` turns it off. Independent of (and OR-combined
+   * with) {@link readOnly}. Read at `ObjectGantt.tsx`.
+   */
+  mobileReadOnly?: boolean;
 }
 
 /**
