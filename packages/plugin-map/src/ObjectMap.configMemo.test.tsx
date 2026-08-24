@@ -101,6 +101,9 @@ const baseSchema = (map: Record<string, unknown>): any => ({
   data: ROWS,
 });
 
+/** `Array.prototype.at` is outside this package's configured `lib` target. */
+const lastCamera = (): unknown => probe.viewStates[probe.viewStates.length - 1];
+
 const settle = async () => {
   await waitFor(() => expect(screen.queryByText('Loading map...')).toBeNull());
   await waitFor(() => expect(screen.getAllByTestId('map-marker')).toHaveLength(2));
@@ -133,7 +136,7 @@ describe('ObjectMap — `mapConfig` identity (objectui#5976)', () => {
     const { rerender } = render(<ObjectMap schema={schema} />);
     await settle();
 
-    const cameraAtRest = probe.viewStates.at(-1);
+    const cameraAtRest = lastCamera();
     expect(cameraAtRest).toBeDefined();
 
     rerender(<ObjectMap schema={schema} />);
@@ -141,7 +144,7 @@ describe('ObjectMap — `mapConfig` identity (objectui#5976)', () => {
     // `markers` → `filteredMarkers` → `markerBounds` → `initialViewState`:
     // a fresh `mapConfig` invalidates every link, so this identity is a read
     // of the entire chain.
-    expect(probe.viewStates.at(-1)).toBe(cameraAtRest);
+    expect(lastCamera()).toBe(cameraAtRest);
   });
 
   it('holds the marker memo across a state-driven re-render (search typing)', async () => {
@@ -191,12 +194,12 @@ describe('ObjectMap — `mapConfig` identity (objectui#5976)', () => {
     const { rerender } = render(<ObjectMap schema={baseSchema({ titleField: 'name' })} />);
     await settle();
 
-    const cameraBefore = probe.viewStates.at(-1) as Record<string, unknown>;
+    const cameraBefore = lastCamera() as Record<string, unknown>;
 
     rerender(<ObjectMap schema={baseSchema({ titleField: 'name', center: [10, 20], zoom: 7 })} />);
     await waitFor(() => expect(screen.getAllByTestId('map-marker')).toHaveLength(2));
 
-    const cameraAfter = probe.viewStates.at(-1) as Record<string, unknown>;
+    const cameraAfter = lastCamera() as Record<string, unknown>;
     expect(cameraAfter).not.toBe(cameraBefore);
     expect(cameraAfter).toMatchObject({ latitude: 10, longitude: 20, zoom: 7 });
   });
