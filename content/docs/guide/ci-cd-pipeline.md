@@ -44,6 +44,7 @@ one has its own section below.
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
 | `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
+| `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
 
 The path filters explain most "why did nothing run on my PR?" questions:
 
@@ -1006,6 +1007,45 @@ neither is a subset of the other: `critical`, `bug` and `enhancement` exempt iss
 `in-progress` and `blocked` exempt pull requests only. This page used to state one merged list
 — `pinned`, `security`, `critical`, `in-progress` — which was wrong in both directions for
 both resources ([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
+
+### Half-State Patrol (`half-state-patrol.yml`)
+
+**Trigger:** Four times a day at `:37` past the hour (cron `37 1,7,13,19 * * *`), manual dispatch,
+or a pull request touching `scripts/pm/check-half-states.mjs`, `scripts/invoked-as.mjs` or the
+workflow itself.
+
+Runs `scripts/pm/check-half-states.mjs` against **this** repository's issue board and rewrites one
+pinned anchor issue's body with what it found. The sweeper carries a family of predicates over the
+dispatch protocol's label/assignee/PR invariants — a `pm:dispatched` card with no assignee, a card
+carrying both `pm:queue` and `pm:dispatched`, a merged PR whose card still says it is in flight, a
+`Blocked-by:` block whose blocker already closed, and so on.
+
+**Report-only, and this is a rule rather than a description.** The job never writes a label, never
+closes a card, never fixes a state, and no finding fails anything: a completed sweep exits 0 whether
+it found 0 half-states or 40. Its one write is the anchor issue's body, and `permissions:` grants
+nothing beyond `contents: read` + `issues: write`. A pull-request run proves the sweep on a real
+runner but skips the anchor write entirely, publishing the rendered body to the run summary instead.
+
+The run *does* go red when the sweep could not run or its report could not be delivered — that is
+the patrol reporting its own death, not a gate on the board. A workflow that quietly does nothing
+because a credential lapsed would leave a stale anchor body that reads exactly like a clean board.
+For the same reason the `Swept` timestamp is refreshed even when the findings are unchanged: a
+timestamp that stops advancing is how a reader learns the standing caller died.
+
+**One manual setup step.** The anchor issue is named by the repository *variable*
+`HALF_STATE_ANCHOR_ISSUE` (Settings → Secrets and variables → Actions → Variables). Until it is set
+the job fails loudly *after* sweeping, with the findings preserved in the run summary — it will not
+guess an issue number and rewrite an unrelated card.
+
+**Ported from objectstack, with the divergences listed in the workflow header.** The pair
+(`scripts/pm/check-half-states.mjs` + this workflow) is adopted from `objectstack-ai/objectstack`
+and is meant to stay re-syncable, so this install keeps its differences in one place. The
+behavioural one: the sweeper's closed-card reader (`pm:*` labels left on cards that already closed)
+is switched **off** here via `PM_SWEEP_CLOSED_WINDOW_PAGES: '0'`. Stripping `pm:*` on close was
+never this repo's practice — 815 closed cards carry `pm:dispatched`, ~87% of the reader's window —
+so that predicate would report the convention rather than a defect and bury every other finding.
+The rendered summary says that surface is **UNREAD**, never that it is clean
+([#5791](https://github.com/objectstack-ai/objectui/issues/5791)).
 
 ### Dependabot Auto-Merge (`dependabot-auto-merge.yml`)
 

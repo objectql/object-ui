@@ -197,6 +197,8 @@ export const NOT_A_GATE = Object.freeze({
     'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header and runs `continue-on-error: true`; ci-cd-pipeline.md says in as many words not to add it to required checks.',
   label:
     'labeler.yml applies labels. It is a mutation, not a verdict — nothing about the change is judged by it.',
+  'Live half-state sweep':
+    'half-state-patrol.yml is REPORT-ONLY by ruling (objectui#5791): a completed sweep exits 0 whether it found 0 half-states or 40, and the job gates no branch and blocks no queue. It goes red only when the sweep could not RUN — the patrol reporting its own death, which is a fact about the patrol, not a verdict on the pull request. Its pull_request trigger is also path-filtered to the sweeper and the workflow, so a Dependabot bump never produces this check at all.',
 });
 
 /**
