@@ -126,7 +126,7 @@ export const TaskSchema = {
   icon: 'check-circle-2',
   titleFormat: '{title}',
   fields,
-  list_views: {
+  listViews: {
     all: {
       label: 'All Tasks',
       columns: ['title', 'status', 'priority', 'assignee', 'due_date'],
@@ -317,7 +317,7 @@ composes that view's `filter` and `sort` onto the query for you:
 ```tsx
 const [activeView, setActiveView] = useState('all');
 
-// View switcher buttons — the names match the `list_views` keys from Step 3.
+// View switcher buttons — the names match the `listViews` keys from Step 3.
 <button onClick={() => setActiveView('all')}>All Tasks</button>
 <button onClick={() => setActiveView('active')}>Active</button>
 
@@ -334,7 +334,7 @@ Selecting **Active** re-queries with the `active` view's `filter`
 (`status != Done`) and `sort` (`priority asc`) applied — you never assemble
 `$filter` / `$orderby` by hand. A view name your backend does not publish is
 reported, not silently ignored: swap `activeView` for a name outside
-`list_views` and the grid renders a configuration-error panel in place of the
+`listViews` and the grid renders a configuration-error panel in place of the
 table, the same way an unresolved `objectName` does (Step 5). A page that
 instead fell back to the object's full, unfiltered scope would look like it
 worked while returning every record regardless of which button was pressed —

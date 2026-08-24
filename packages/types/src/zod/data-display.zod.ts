@@ -110,6 +110,7 @@ export const TableColumnSchema = z.object({
   sortable: z.boolean().optional().describe('Whether column is sortable'),
   filterable: z.boolean().optional().describe('Whether column is filterable'),
   resizable: z.boolean().optional().describe('Whether column is resizable'),
+  editable: z.boolean().optional().describe('Whether column is editable (for inline editing)'),
   cell: z.function().optional().describe('Custom cell renderer'),
 });
 

@@ -454,6 +454,7 @@ export type {
   FieldMetadata,
   ObjectTrigger,
   ObjectSchemaMetadata,
+  ObjectSchemaClientExtensions,
   ObjectIndex,
   ObjectRelationship,
 } from './field-types.js';

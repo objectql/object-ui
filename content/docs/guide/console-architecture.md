@@ -152,7 +152,7 @@ The `ActionRunner` supports:
 The shell's `ObjectView` — the one exported by `@object-ui/app-shell` and bound to the routes
 above — is a **thin wrapper** around `@object-ui/plugin-view`'s `ObjectView`:
 
-- Resolves views from the object definition's `list_views`
+- Resolves views from the object definition's `listViews`
 - Passes a `renderListView` callback for multi-view rendering (kanban, calendar, chart)
 - Handles shell-level concerns: URL routing, MetadataInspector, record detail overlay
 

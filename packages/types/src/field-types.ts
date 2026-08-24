@@ -6,8 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ManagedByBucket } from './managed-by.js';
-
 /**
  * @object-ui/types - Field Type Definitions
  * 
@@ -847,75 +845,48 @@ export interface ObjectTrigger {
 }
 
 /**
- * Object schema definition
- * Phase 3.1: Enhanced with inheritance, triggers, permissions, and caching
+ * Object document type — derived from `@objectstack/spec/data` rather than
+ * restated (objectui#5362; maintainer ruling 2026-08-20: the object document
+ * type belongs to `@objectstack/spec`, objectui derives rather than
+ * hand-copies — the same layer split objectui#3074 applied to
+ * `PageNodeSchema` and objectstack#4115 applied to `ObjectIndex` below).
+ *
+ * The hand-written interface this replaces had drifted in both directions:
+ *
+ * - It declared NONE of `titleFormat`, `listViews`, `icon` — three keys the
+ *   shipped runtime reads (objectui#5362 lists the read sites), so a document
+ *   annotated with this type got excess-property errors on keys the renderer
+ *   then happily consumed.
+ * - It declared nine members no objectui runtime code reads and the spec's
+ *   object document does not know: `extends`, `triggers`, `primary_key`,
+ *   `relationships`, `name_field` (the spec key is `nameField`),
+ *   `soft_delete`, `audit_trail`, `version`, `cache`.
+ *
+ * Spelling (objectui#5362): the spec declares only camelCase `listViews`;
+ * `list_views` appears nowhere in `@objectstack/spec` 17.2.0's `dist/`. The
+ * runtime keeps a snake-spelling READ fallback for stored app data published
+ * before this settlement (that stock has never been censused —
+ * objectstack#7917); the tolerance lives at the read sites, deliberately not
+ * in this type: new documents must author `listViews`.
+ *
+ * `ServiceObject` is the AUTHORING shape (`z.input` — pre-parse, defaults
+ * not yet applied), which is what a hand-authored or served object document
+ * is before validation. The post-parse shape is the spec's
+ * `ServiceObjectParsed`.
  */
-export interface ObjectSchemaMetadata {
-  /**
-   * Object name
-   */
-  name: string;
-  
-  /**
-   * Display label
-   */
-  label?: string;
-  
-  /**
-   * Object description
-   */
-  description?: string;
-  
-  /**
-   * Fields definition
-   */
-  fields: Record<string, FieldMetadata>;
-  
-  /**
-   * Parent object to inherit from (Phase 3.1.2)
-   */
-  extends?: string;
-  
-  /**
-   * Triggers configuration (Phase 3.1.3)
-   */
-  triggers?: ObjectTrigger[];
-  
-  /**
-   * Primary key field
-   */
-  primary_key?: string;
-  
-  /**
-   * Indexes for optimization
-   */
-  indexes?: ObjectIndex[];
-  
-  /**
-   * Relationships with other objects
-   */
-  relationships?: ObjectRelationship[];
-  
-  /**
-   * Record naming pattern
-   */
-  name_field?: string;
-  
-  /**
-   * Soft delete configuration
-   */
-  soft_delete?: boolean;
-  
-  /**
-   * Audit trail configuration
-   */
-  audit_trail?: boolean;
-  
-  /**
-   * Schema version
-   */
-  version?: string;
-  
+import type { ServiceObject } from '@objectstack/spec/data';
+
+/**
+ * Client-side members the objectui runtime reads on the object document but
+ * `@objectstack/spec` does not declare. Every member here must cite a live
+ * runtime read — this interface is the measured client DELTA on top of the
+ * spec document, not a place to restate spec keys (restating them would
+ * recreate the hand-written fork objectui#5362 retired). The member list is
+ * pinned by `__tests__/object-schema-metadata-spec-derivation.test.ts`, so
+ * growing it is a conscious decision: promote the key upstream to the spec,
+ * or add it here with the runtime read that justifies it.
+ */
+export interface ObjectSchemaClientExtensions {
   /**
    * Default UI mode for record create/edit interactions.
    *
@@ -930,54 +901,21 @@ export interface ObjectSchemaMetadata {
    *   shareable links to the create/edit form.
    *
    * The host application reads this flag in its central `handleEdit`
-   * dispatcher (see `@object-ui/app-shell` `AppContent`) — switching the
-   * value requires no code changes.
+   * dispatcher (see `@object-ui/app-shell` `AppContent` and
+   * `utils/recordFormNavigation.ts`) — switching the value requires no code
+   * changes.
    *
    * @default 'modal'
    */
   editMode?: 'modal' | 'page';
-
-  /**
-   * Object lifecycle bucket — sets the default CRUD affordances and the write
-   * policy (ADR-0103). The enforced policy is the *resolved affordance*
-   * (bucket default + `userActions`), computed by `resolveCrudAffordances`
-   * in `@object-ui/core` — not the bare bucket.
-   *
-   * - `'platform'` (default) — ObjectStack-owned business data; full CRUD.
-   * - `'config'` — admin-authored configuration; New / Edit / Delete, no import.
-   * - `'system-data'` — platform-defined schema holding admin/user-writable
-   *   DATA (RBAC links, prefs, messaging config); full CRUD by default,
-   *   `userActions` NARROWS. Renamed from the residual `'system'` in protocol
-   *   17 (objectstack#3355).
-   * - `'engine-owned'` — runtime rows a platform service owns end to end; no
-   *   user writes.
-   * - `'append-only'` — immutable audit trail; View + Export only.
-   * - `'better-auth'` — identity tables owned by the auth driver; generic
-   *   user-context writes are suppressed (they bypass password hashing,
-   *   session validation, audit hooks) and flow through the auth API instead.
-   *
-   * @default 'platform'
-   */
-  managedBy?: ManagedByBucket;
-
-  /**
-   * Cache configuration (Phase 3.1.5)
-   */
-  cache?: {
-    /**
-     * Enable metadata caching
-     */
-    enabled?: boolean;
-    /**
-     * Cache TTL in seconds
-     */
-    ttl?: number;
-    /**
-     * Cache invalidation strategy
-     */
-    invalidation?: 'time' | 'event' | 'manual';
-  };
 }
+
+/**
+ * Object schema definition — the object document a data source's
+ * `getObjectSchema(objectName)` serves, in its authoring shape, plus the
+ * measured objectui client extensions above.
+ */
+export type ObjectSchemaMetadata = ServiceObject & ObjectSchemaClientExtensions;
 
 /**
  * Object index configuration — re-exported from `@objectstack/spec/data`

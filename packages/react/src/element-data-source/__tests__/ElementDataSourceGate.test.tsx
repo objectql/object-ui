@@ -168,6 +168,28 @@ describe('useElementDataSourceSchema — binding with a saved view', () => {
     expect(bound.viewType).toBe('kanban');
   });
 
+  it('still resolves a view served under snake `list_views` (stored-data compatibility, #5362)', async () => {
+    // `listViews` (camelCase) is the canonical spelling — @objectstack/spec
+    // declares nothing else, and every fixture above uses it. This pin is the
+    // OTHER half of that settlement: stored app data published before the
+    // canonization has never been censused (objectstack#7917), so the snake
+    // READ fallback in `useElementDataSource` must survive until that census
+    // exists. If this test is failing because the fallback was removed, the
+    // removal needs the census as evidence, not a cleanup rationale.
+    const snakeAdapter = {
+      find: vi.fn(),
+      getObjectSchema: vi.fn().mockResolvedValue({ name: 'account', list_views: { hot: HOT_VIEW } }),
+    };
+    const result = await resolved(
+      { type: 'list-view', dataSource: { object: 'account', view: 'hot' } },
+      FULL,
+      snakeAdapter,
+    );
+    expect(result.current.status).toBe('resolved');
+    expect(result.current.schema.columns).toEqual(['name', 'rating']);
+    expect(result.current.schema.filter).toEqual([['rating', '=', 'hot']]);
+  });
+
   it('lets an authored key win over the same key from the view', async () => {
     const result = await resolved(
       {

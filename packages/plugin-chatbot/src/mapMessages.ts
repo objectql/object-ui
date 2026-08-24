@@ -420,6 +420,29 @@ export function detectAuthoringVerdict(
   return { kind: 'drafted', ...packageId };
 }
 
+/**
+ * objectui#5799 — did this tool result finish a WHOLE-APP build, and for which
+ * package? Posture-independent on purpose: an auto-publish environment
+ * rewrites the apply_blueprint envelope to `status:'published'` (keeping
+ * `drafted[]` + `packageId`), so keying the built-moment transition on
+ * `draftReview` (drafted-only) missed every staging/cloud build — measured
+ * live: reopening a built conversation stayed on the full page.
+ */
+export function detectBuiltAppPackage(result: unknown): string | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status !== 'drafted' && obj.status !== 'published') return undefined;
+  const pkg = (obj as { packageId?: unknown }).packageId;
+  if (typeof pkg !== 'string' || !pkg) return undefined;
+  const drafted = (obj as { drafted?: unknown }).drafted;
+  const hasApp =
+    Array.isArray(drafted) &&
+    drafted.some(
+      (d) => d && typeof d === 'object' && (d as { type?: unknown }).type === 'app',
+    );
+  return hasApp ? pkg : undefined;
+}
+
 export function detectDraftResult(result: unknown): DraftReview | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;

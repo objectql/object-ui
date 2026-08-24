@@ -2,7 +2,7 @@
  * Console ObjectView
  *
  * Thin wrapper around the plugin-view ObjectView that adds:
- * - Multi-view resolution from objectDef.list_views
+ * - Multi-view resolution from objectDef.listViews
  * - MetadataInspector toggle
  * - Drawer for record detail preview
  * - useObjectActions for toolbar create button
@@ -1298,6 +1298,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             setViewOverrides({});
             return;
         }
+        // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+        // `list_views` leg is a compatibility READ for stored pre-settlement documents
+        // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
         const definedViews = (objectDef.listViews || objectDef.list_views || {}) as Record<string, any>;
         const ids = Object.keys(definedViews);
         // Include the primary view id so overrides apply to it too. Its identity

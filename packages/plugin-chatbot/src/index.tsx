@@ -361,6 +361,7 @@ export {
   detectProposedChanges,
   detectReplayOutcome,
   detectAuthoringVerdict,
+  detectBuiltAppPackage,
   buildProgressFromDraftReview,
 } from './mapMessages';
 export type {

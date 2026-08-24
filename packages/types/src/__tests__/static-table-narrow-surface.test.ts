@@ -91,6 +91,28 @@ const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   cell: () => 'x',
 };
 
+/** Every key the rich `TableColumn` interface declares. `satisfies` keeps the
+ *  list honest against renames; the `Equal` pin keeps it EXHAUSTIVE — a key
+ *  added to the interface without a deliberate mirror decision fails
+ *  type-check here before the zod parity test can even run (objectui#5821). */
+const RICH_COLUMN_KEYS = [
+  'header',
+  'accessorKey',
+  'className',
+  'cellClassName',
+  'width',
+  'minWidth',
+  'align',
+  'fixed',
+  'type',
+  'sortable',
+  'filterable',
+  'resizable',
+  'editable',
+  'cell',
+] as const satisfies readonly (keyof TableColumn)[];
+type _RichKeyListExhaustive = Expect<Equal<(typeof RICH_COLUMN_KEYS)[number], keyof TableColumn>>;
+
 const STATIC_TABLE = {
   type: 'table',
   caption: 'Recent Orders',
@@ -173,19 +195,33 @@ describe('static `table` — the narrow zod surface refuses the retired keys (ob
 
 describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, objectui#5474)', () => {
   it('the rich zod column still accepts every interactive key it declares', () => {
-    // `editable` is absent here on purpose: the rich ZOD mirror has never
-    // declared it (the TS interface does) — a pre-existing drift on the rich
-    // surface, outside this card's scope and tracked separately. Feeding it
-    // here would test the drift, not the split.
-    const richKeys = Object.fromEntries(
-      Object.entries(RETIRED_COLUMN_KEYS).filter(([k]) => k !== 'editable'),
-    );
+    // `editable` included since objectui#5821: the rich ZOD mirror declares
+    // it now, closing the drift the split had to leave tracked separately.
     const result = TableColumnSchema.safeParse({
       header: 'Amount',
       accessorKey: 'amount',
-      ...richKeys,
+      ...RETIRED_COLUMN_KEYS,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('`editable: false` SURVIVES the rich parse — a locked column stays locked (objectui#5821)', () => {
+    // Acceptance alone cannot pin this: a non-strict z.object() ACCEPTS an
+    // undeclared key and silently STRIPS it, and the renderer treats absence
+    // as editable (`col.editable !== false`, data-table.tsx) — so before the
+    // mirror declared `editable`, this exact parse succeeded green while
+    // re-opening the locked column. The pin is the key surviving into the
+    // parsed OUTPUT, not the parse succeeding.
+    const result = TableColumnSchema.safeParse({
+      header: 'Amount',
+      accessorKey: 'amount',
+      editable: false,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect('editable' in result.data).toBe(true);
+      expect(result.data.editable).toBe(false);
+    }
   });
 
   it('`data-table` columns still parse with the rich keys authored', () => {
@@ -212,6 +248,10 @@ describe('the split itself — narrow = rich key set, live = the measured read s
     expect(tombstonedKeys(StaticTableColumnSchema).sort()).toEqual(
       Object.keys(RETIRED_COLUMN_KEYS).sort(),
     );
+  });
+
+  it('the rich zod mirror declares exactly the interface key set — nothing silently strippable (objectui#5821)', () => {
+    expect(Object.keys(shapeOf(TableColumnSchema)).sort()).toEqual([...RICH_COLUMN_KEYS].sort());
   });
 
   it('the static table zod tombstones exactly `hoverable` and `striped`', () => {

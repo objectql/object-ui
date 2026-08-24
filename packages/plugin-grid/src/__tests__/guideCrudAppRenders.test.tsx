@@ -58,7 +58,9 @@ import '../index';
 
 const GUIDE = path.resolve(__dirname, '../../../../content/docs/guide/building-crud-app.md');
 
-// `list_views` mirrors the guide's own Step 3 `TaskSchema.list_views` exactly
+// `listViews` mirrors the guide's own Step 3 `TaskSchema.listViews` exactly
+// (canonical camelCase since #5362; the runtime's snake fallback is pinned by
+// `ElementDataSourceGate.test.tsx`, not by this guide transcription)
 // (same two ids, same `active` filter/sort) — the fourth axis below measures
 // whether Step 7's `dataSource: { object, view }` binding resolves against a
 // backend that publishes what the guide instructs the reader to declare, not
@@ -73,7 +75,7 @@ const TASK_SCHEMA = {
     assignee: { name: 'assignee', type: 'text', label: 'Assignee' },
     due_date: { name: 'due_date', type: 'date', label: 'Due Date' },
   },
-  list_views: {
+  listViews: {
     all: {
       label: 'All Tasks',
       columns: ['title', 'status', 'priority', 'assignee', 'due_date'],
@@ -343,7 +345,7 @@ describe('object-grid — Step 7’s rewritten dataSource binding actually chang
 
   it('a view name the backend does not publish renders a configuration-error panel, not a silently unfiltered grid', async () => {
     // The behavioural trade the maintainer ruled acceptable (2026-08-22):
-    // `archived` is not one of `TASK_SCHEMA.list_views`'s keys.
+    // `archived` is not one of `TASK_SCHEMA.listViews`'s keys.
     const [step7] = guideSchemas('object-grid').slice(2);
     const unpublished = { ...step7, dataSource: { ...step7.dataSource, view: 'archived' } };
 

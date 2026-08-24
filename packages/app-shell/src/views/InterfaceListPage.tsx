@@ -53,6 +53,9 @@ function hasColumns(v: any): boolean {
 }
 
 function resolveSourceView(objectDef: any, sourceView?: string): any | undefined {
+  // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+  // `list_views` leg is a compatibility READ for stored pre-settlement documents
+  // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
   const views: Record<string, any> = objectDef?.listViews || objectDef?.list_views || {};
   // ADR-0017 expansion can serve a default-view item with an empty config
   // while the full body lives on `objectDef.list` — prefer candidates that

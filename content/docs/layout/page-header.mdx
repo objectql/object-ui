@@ -3,6 +3,33 @@ title: "PageHeader"
 description: "Page header component with title, subtitle, and actions"
 ---
 
+> **Canonical author key: `page:header`. This page's key, `page-header`, is a legacy alias
+> — and it resolves to a different renderer.**
+>
+> Measured against the `@objectstack/spec` build this repo installs, `page:header` is the
+> only spelling the contract knows: it is the `PageComponentType` value, and it is the
+> `ComponentPropsMap` row that binds `PageHeaderProps` — whose own rejection messages name
+> the surface `page:header`. Neither `page-header` nor `layout:page-header` appears in
+> either place.
+>
+> The alias is **still accepted** — not retired, and not silently dropped.
+> `registerLayout()` registers `page-header` (plus its namespaced form
+> `layout:page-header`), so a node written that way renders today: it resolves to the
+> `@object-ui/layout` component documented below, which is also what the demo on this page
+> renders. What the alias does not carry is a contract. A node's props are validated by
+> dispatching its `type` through `ComponentPropsMap`, `page-header` has no row there, and
+> `PageComponentSchema.properties` is an open `z.record(z.string(), z.unknown())` bag — so
+> a misspelled or retired key written under the alias is neither rejected nor reported.
+> Under `page:header` the same key is refused by name.
+>
+> Author metadata pages against `page:header`. The canonical node is the record-aware
+> renderer in `@object-ui/components`; [Slotted pages](/docs/guide/slotted-pages) shows it
+> in place. Its props are **not** the props below — `icon`, `action` and `showBack` are this
+> component's own, and `icon` is retired on the canonical node (Component Props, below).
+> Everything on this page — Props, Styling, Examples, demo — is measured against this
+> component, the alias's renderer; converting the page to the canonical node is tracked in
+> objectui#3906.
+
 The PageHeader component provides a consistent header for pages with title, subtitle, and action buttons.
 
 ## Basic Usage
