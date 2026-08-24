@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 import {
   ALL_FIELDS,
@@ -187,6 +188,98 @@ type T = import('theta').Thing;
     const found = moduleSpecifiers("\n\nimport x from 'alpha';\n", 'probe.ts');
     expect(found).toHaveLength(1);
     expect(found[0].line).toBe(3);
+  });
+});
+
+describe('setParentNodes is OFF, because nothing here reads a parent (objectui#5410)', () => {
+  it('the parser call spells it out as a deliberate `false`, not a bare positional', () => {
+    // Regression pin on the source text itself. A silent flip back to `true`
+    // would cost every one of this file's callers a full linking pass over the
+    // parsed tree for a pointer nothing here follows, and would do it invisibly
+    // — the CLI's output does not change either way (see the next test).
+    const gate = fs.readFileSync(path.join(repoRoot, GATE), 'utf8');
+    expect(gate).toMatch(
+      /ts\.createSourceFile\(\s*fileName,\s*text,\s*ts\.ScriptTarget\.Latest,\s*\/\*\s*setParentNodes\s*\*\/\s*false,\s*ts\.ScriptKind\.TSX\s*\)/,
+    );
+  });
+
+  it('a tree parsed with setParentNodes: false has no `.parent`, and getStart(source) still works', () => {
+    // Demonstrates the mechanism the comment in the gate claims, rather than
+    // trusting the claim: with parent nodes off, `.parent` is genuinely absent
+    // on every node this walk visits, and `getStart(source)` — called with the
+    // source file passed EXPLICITLY, as moduleSpecifiers() does — still resolves
+    // a position without needing to climb to `.parent` to find it.
+    const source = ts.createSourceFile('probe.ts', "import a from 'alpha';\n", ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX);
+    let importNode: ts.Node | undefined;
+    ts.forEachChild(source, (node) => {
+      if (ts.isImportDeclaration(node)) importNode = node;
+    });
+    expect(importNode).toBeDefined();
+    expect((importNode as ts.Node & { parent?: ts.Node }).parent).toBeUndefined();
+    expect(() => importNode!.getStart(source)).not.toThrow();
+  });
+
+  it('moduleSpecifiers() output is unaffected — pinned against the true/false parity measured for objectui#5410', () => {
+    // Not a re-measurement of the ~3,300-file repository corpus (that lives in
+    // the PR that closed objectui#5410, run once as a manual check, not as a
+    // per-commit test); this is the same claim on a fixture small enough to
+    // pin: every form moduleSpecifiers() recognizes, parsed both ways, must
+    // produce byte-identical findings.
+    const src = `import a from 'alpha';
+import type { B } from 'beta';
+export { c } from 'gamma';
+export type { D } from 'delta';
+import epsilon = require('epsilon');
+const z = require('zeta');
+const lazy = () => import('eta');
+type T = import('theta').Thing;
+import './local';
+`;
+    const withParents = moduleSpecifiers(src, 'probe.ts');
+
+    // The reference computed independently, with the flag pinned to `true`
+    // rather than imported from the gate, so this test cannot pass merely
+    // because both sides read the same (possibly-regressed) constant.
+    function moduleSpecifiersWithParents(text: string, fileName: string) {
+      const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      const found: { specifier: string; kind: string; typeOnly: boolean; line: number; column: number }[] = [];
+      const push = (node: ts.Node, specifier: string, kind: string, typeOnly: boolean) => {
+        const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
+        found.push({ specifier, kind, typeOnly, line: line + 1, column: character + 1 });
+      };
+      const visit = (node: ts.Node) => {
+        if (ts.isImportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+          push(node, node.moduleSpecifier.text, 'import', Boolean(node.importClause?.isTypeOnly));
+        } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+          push(node, node.moduleSpecifier.text, 'export', Boolean(node.isTypeOnly));
+        } else if (
+          ts.isImportEqualsDeclaration(node) &&
+          ts.isExternalModuleReference(node.moduleReference) &&
+          ts.isStringLiteral(node.moduleReference.expression)
+        ) {
+          push(node, node.moduleReference.expression.text, 'import=', false);
+        } else if (
+          ts.isImportTypeNode(node) &&
+          ts.isLiteralTypeNode(node.argument) &&
+          ts.isStringLiteral(node.argument.literal)
+        ) {
+          push(node, node.argument.literal.text, 'import()-type', true);
+        } else if (ts.isCallExpression(node)) {
+          const argument = node.arguments[0];
+          if (argument && ts.isStringLiteral(argument)) {
+            if (node.expression.kind === ts.SyntaxKind.ImportKeyword) push(node, argument.text, 'dynamic import()', false);
+            else if (ts.isIdentifier(node.expression) && node.expression.text === 'require') {
+              push(node, argument.text, 'require()', false);
+            }
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+      return found;
+    }
+
+    expect(withParents).toEqual(moduleSpecifiersWithParents(src, 'probe.ts'));
   });
 });
 

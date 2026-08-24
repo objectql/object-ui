@@ -362,7 +362,18 @@ export function listSourceFiles(dir, found = []) {
  * @returns {{ specifier: string, kind: string, typeOnly: boolean, line: number, column: number }[]}
  */
 export function moduleSpecifiers(text, fileName = 'file.tsx') {
-  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // setParentNodes is false BY DESIGN, not by oversight: this walk only ever
+  // descends (`ts.forEachChild`, never `.parent`), and the one position lookup
+  // below calls `node.getStart(source)` with the source file passed EXPLICITLY —
+  // exactly the form that skips TypeScript's own `.parent`-walking fallback
+  // (`getTokenPosOfNode`'s `sourceFile ?? getSourceFileOfNode(node)`). `source`
+  // is local to this function and never escapes to a caller who might walk
+  // upward, so no consumer of `moduleSpecifiers()` can read a parent either.
+  // Setting the flag costs TypeScript a full second linking pass over the
+  // parsed tree for a pointer this parser never follows — confirmed unused by
+  // running both settings over every file in this repository and diffing the
+  // JSON output byte-for-byte (objectui#5410).
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, /* setParentNodes */ false, ts.ScriptKind.TSX);
   const found = [];
   const push = (node, specifier, kind, typeOnly) => {
     const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
