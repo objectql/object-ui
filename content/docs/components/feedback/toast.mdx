@@ -31,9 +31,11 @@ interface ToastSchema {
   description?: string;           // Toast message
   variant?: 'default' | 'destructive';
   
-  // Action
-  actionLabel?: string;           // Action button label
-  onAction?: string | ActionConfig;
+  // Action button
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
   
   // Timing
   duration?: number;              // Auto-dismiss time in ms

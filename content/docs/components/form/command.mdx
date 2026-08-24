@@ -31,7 +31,7 @@ interface CommandSchema {
   emptyText?: string;             // Text when no results
   
   // Events
-  onSelect?: string | ActionConfig;
+  onChange?: (value: string) => void;
   
   // Styling
   className?: string;
