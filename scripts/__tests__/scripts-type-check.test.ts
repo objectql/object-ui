@@ -88,9 +88,12 @@ function parsedConsoleNodeProject(): ts.ParsedCommandLine {
  * by a sibling text-level gate). Walking
  * `ImportDeclaration`/`ExportDeclaration`/`ImportEqualsDeclaration` nodes
  * instead makes the check ask "is this a module edge" rather than "does this
- * text look like one", which also means `import type { … }` and
- * `export { … } from '…'` are covered for free — the regex covered the first
- * only by accident and the second not at all.
+ * text look like one". The regex matched any `from '…'` token sequence, so
+ * it already caught `import type { … }` and `export { … } from '…'`
+ * incidentally, along with static imports — it did not understand statement
+ * kinds, only that shape. What it missed entirely was
+ * `import core = require('…')` (`ImportEqualsDeclaration`), which has no
+ * `from` token at all; this walk covers that form deliberately instead.
  */
 function workspaceImportSpecifiers(fileName: string, sourceText: string): string[] {
   const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, false);
