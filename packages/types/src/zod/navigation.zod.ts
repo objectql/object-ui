@@ -154,8 +154,8 @@ export const ButtonGroupButtonSchema = z.object({
 export const ButtonGroupSchema = BaseSchema.extend({
   type: z.literal('button-group'),
   buttons: z.array(ButtonGroupButtonSchema).optional().describe('Group buttons'),
-  variant: z.enum(['default', 'outline']).optional().describe('Button group variant'),
-  size: z.enum(['default', 'sm', 'lg']).optional().describe('Button group size'),
+  variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link']).optional().describe('Button group variant'),
+  size: z.enum(['default', 'sm', 'lg', 'icon']).optional().describe('Button group size'),
 });
 
 /**

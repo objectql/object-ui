@@ -47,13 +47,22 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 17 of the 163 pairs carry drift TODAY (measured, not assumed). Each is
+ * 13 of the 163 pairs carry drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
- * quietly. Correcting them is not one change: the pairs below split into strict
- * widenings, DISJOINT vocabularies where one side is dead, and at least one
- * DELIBERATE divergence that must stay expressible (`PageNodeSchema.pageType`).
- * Each carries its measurement and its reason inline.
+ * quietly. Correcting them is not one change: the pairs below split into DISJOINT
+ * vocabularies where one side is dead, required-vs-optional mismatches, structural
+ * pairs that ride @objectstack/spec unification (objectui#2231), and one DELIBERATE
+ * divergence that must stay expressible (`PageNodeSchema.pageType`). Each carries
+ * its measurement and its reason inline.
+ *
+ * It was 17 until objectui#5927 landed the seven STRICT WIDENINGS (group A of that
+ * card's grouping) — the class where the TS side is simply a superset and the
+ * renderer was measured to implement the missing spellings. Four entries left the
+ * ledger outright (`SelectSchema`, `ButtonGroupSchema`, `ObjectChartSchema`,
+ * `ViewSwitcherSchema`) and two shrank to the keys that are NOT widenings
+ * (`DataTableSchema` kept `rowActions`, `FormSchema` kept `fields`/`mode`). The
+ * remaining classes are rulings, not edits, and are deliberately still here.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -498,28 +507,20 @@ interface KnownDrift {
   'complex.zod.ts#FilterFieldSchema': 'operators';
   /** TS declares an index signature whose value type includes `undefined`; the mirror`s `z.record` value type does not. The mirror refuses `{ create: undefined }` only. */
   'crud.zod.ts#CRUDSchema': 'operations';
-  /** `selectable`: TS `boolean | 'single' | 'multiple'` vs mirror `boolean` (strict widening). `rowActions`: TS `boolean` vs mirror `any[]` — DISJOINT, a ruling. */
-  'data-display.zod.ts#DataTableSchema': 'selectable' | 'rowActions';
+  /** DISJOINT: TS declares `rowActions?: boolean` (show the column or not), the mirror declares `any[]` (the actions themselves). One of the two is dead; which is a ruling. (`selectable` was a second drifted key here until objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` — `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements `'single'` as a real mode.) */
+  'data-display.zod.ts#DataTableSchema': 'rowActions';
   /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
   /** OPTIONALITY: TS declares `options?`, the mirror REQUIRES it. Whether authoring a combobox without options is legal is a ruling. */
   'form.zod.ts#ComboboxSchema': 'options';
   /** OPTIONALITY: TS declares `groups?`, the mirror REQUIRES it. */
   'form.zod.ts#CommandSchema': 'groups';
-  /** DISJOINT on `mode`: TS `disabled|read|edit`, mirror `create|edit|view`. `validationMode` is a strict widening (`onTouched`, `all` missing from the mirror). `fields` is inherited element drift. */
-  'form.zod.ts#FormSchema': 'fields' | 'mode' | 'validationMode';
-  /** strict widening: TS `string | number | boolean`, mirror `string | number` — the mirror refuses a boolean option value. */
-  'form.zod.ts#SelectSchema': 'defaultValue' | 'value';
+  /** DISJOINT on `mode`: TS `disabled|read|edit`, mirror `create|edit|view`. `fields` is inherited element drift. (`validationMode` was a third drifted key until objectui#5927 widened it to react-hook-form's full `mode` vocabulary — `useForm({ mode })` in `renderers/form/form.tsx` forwards it verbatim and RHF implements `onTouched`/`all` as real branches.) */
+  'form.zod.ts#FormSchema': 'fields' | 'mode';
   /** `pageType` is a DELIBERATE divergence, documented at `PageVisualizationAlias` (`../layout.ts`): the TS side retains five visualization names as a sanctioned local extension while the mirror takes the spec's vocabulary by reference, which repudiates them. Widening the mirror would re-add spellings the spec rejects. */
   'layout.zod.ts#PageNodeSchema': 'slots' | 'pageType';
-  /** strict widening: the mirror is missing `link`/`secondary`/`destructive`/`ghost` on `variant` and `icon` on `size`. */
-  'navigation.zod.ts#ButtonGroupSchema': 'variant' | 'size';
   /** DISJOINT: TS declares `floating`, the mirror declares `transparent`. One of the two renders nothing. */
   'navigation.zod.ts#HeaderBarSchema': 'variant';
-  /** strict widening: the mirror is missing `column`, `horizontal-bar` and `donut`. */
-  'objectql.zod.ts#ObjectChartSchema': 'chartType';
-  /** strict widening: `ViewType` (`../views.ts`) carries `chart`, which the mirror`s inline vocabulary omits. `views` is the same omission inside the element type. */
-  'views.zod.ts#ViewSwitcherSchema': 'defaultView' | 'views' | 'activeView';
 }
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */

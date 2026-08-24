@@ -177,7 +177,7 @@ export const DataTableSchema = BaseSchema.extend({
   pageSize: z.number().optional().describe('Default page size'),
   pageSizeOptions: z.array(z.number()).optional().describe('Options for the rows-per-page selector (defaults to 5/10/20/50/100).'),
   searchable: z.boolean().optional().describe('Enable search'),
-  selectable: z.boolean().optional().describe('Enable row selection'),
+  selectable: z.union([z.boolean(), z.enum(['single', 'multiple'])]).optional().describe('Enable row selection — `true`/`multiple` = multi-select, `single` = replace-on-select with no select-all'),
   sortable: z.boolean().optional().describe('Enable sorting'),
   exportable: z.boolean().optional().describe('Enable data export'),
   rowActions: z.array(z.any()).optional().describe('Row action buttons'),

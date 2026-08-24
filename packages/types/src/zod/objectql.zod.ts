@@ -668,7 +668,7 @@ export const ObjectChartSchema = BaseSchema.extend({
   // Legacy inline path (objectName + aggregate). Optional now that a chart may
   // instead bind to a semantic-layer dataset (ADR-0021, #1890).
   objectName: z.string().optional().describe('ObjectQL object name (legacy inline path)'),
-  chartType: z.enum(['bar', 'line', 'pie', 'area', 'scatter']).describe('Chart type'),
+  chartType: z.enum(['bar', 'column', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'scatter']).describe('Chart type'),
   xAxisField: z.string().optional().describe('X axis field (legacy inline path)'),
   yAxisFields: z.array(z.string()).optional().describe('Y axis fields (legacy)'),
   aggregation: z.enum(['cardinality', 'sum', 'avg', 'min', 'max']).optional().describe('Aggregation (legacy)'),
