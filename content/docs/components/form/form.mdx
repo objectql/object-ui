@@ -47,7 +47,7 @@ interface FormSchema {
   };
   
   // Events
-  onSubmit?: string | ActionConfig;
+  onSubmit?: (data: Record<string, any>) => void | Promise<void>;
   
   // Layout
   columns?: number;               // Grid layout

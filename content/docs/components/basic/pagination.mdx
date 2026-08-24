@@ -24,7 +24,7 @@ interface PaginationSchema {
   totalItems?: number;            // Total number of items
   
   // Events
-  onPageChange?: string | ActionConfig;
+  onPageChange?: (page: number) => void;
   
   // Styling
   className?: string;

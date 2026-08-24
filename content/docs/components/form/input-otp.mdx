@@ -32,8 +32,8 @@ interface InputOTPSchema {
   separator?: boolean;            // Show visual separator
   
   // Events
-  onChange?: string | ActionConfig;
-  onComplete?: string | ActionConfig;
+  onChange?: (value: string) => void;
+  onComplete?: (value: string) => void;
   
   // States
   disabled?: boolean;
