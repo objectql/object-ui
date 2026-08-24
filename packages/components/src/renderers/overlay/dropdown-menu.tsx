@@ -53,7 +53,6 @@ const renderMenuItems = (items: any[]) => {
         return (
             <DropdownMenuSub key={i}>
                 <DropdownMenuSubTrigger inset={item.inset}>
-                    {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
                     {Icon && <Icon className="mr-2 h-4 w-4" />}
                     {item.label}
                 </DropdownMenuSubTrigger>
@@ -66,7 +65,6 @@ const renderMenuItems = (items: any[]) => {
     
     return (
       <DropdownMenuItem key={i} disabled={item.disabled} inset={item.inset} onSelect={item.onSelect}>
-        {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
         {Icon && <Icon className="mr-2 h-4 w-4" />}
         {item.label}
         {item.shortcut && <span className="ml-auto text-xs tracking-widest opacity-60">{item.shortcut}</span>}
