@@ -228,6 +228,18 @@ Available values:
 The `PageHeader` provides consistent page headers with a title, an optional subtitle,
 an icon chip, and an action row.
 
+> **The canonical author key is `page:header`; `page-header` is a legacy alias.** The
+> snippets in this section are the `@object-ui/layout` component, which `registerLayout()`
+> registers as `page-header` (plus its namespaced form `layout:page-header`) — that node
+> still renders, so metadata already written this way is not stranded. The contract knows
+> only `page:header`, though: that is the `PageComponentType` value and the
+> `ComponentPropsMap` row binding `PageHeaderProps`, and it resolves to a different,
+> record-aware renderer in `@object-ui/components`. Props written under the alias have no
+> `ComponentPropsMap` row to dispatch, so nothing validates them — a misspelling there is
+> neither rejected nor reported. Author metadata pages against `page:header`
+> ([Slotted pages](/docs/guide/slotted-pages)); its props are not the ones below — see the
+> [PageHeader reference](/docs/layout/page-header).
+
 ### Usage
 
 ```json
