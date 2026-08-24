@@ -75,6 +75,7 @@ import {
   detectBuilderHandoff,
   detectProposedChanges,
   detectReplayOutcome,
+  detectBuiltAppPackage,
   buildProgressFromDraftReview,
   // The authoring/honest -> runtime message seam (objectui#4399 / PR #4416),
   // consumed here one hop up from the plugin's own renderers (objectui#4437).
@@ -1886,6 +1887,12 @@ export function ChatPane({
   const builtPackageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       for (const tool of messages[i].toolInvocations ?? []) {
+        // Posture-independent: read the raw envelope, not draftReview — an
+        // auto-publish env rewrites the build envelope to status:'published'
+        // and the drafted-only lift never fires there (measured live on
+        // staging: reopening a built conversation stayed on the full page).
+        const pkg = detectBuiltAppPackage(tool.result);
+        if (pkg) return pkg;
         const dr = tool.draftReview;
         if (dr?.packageId && dr.items?.some((it) => it.type === 'app')) return dr.packageId;
       }

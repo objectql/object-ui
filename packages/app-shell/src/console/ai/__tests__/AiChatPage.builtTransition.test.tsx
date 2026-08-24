@@ -207,6 +207,16 @@ describe('AiChatPage — built-moment transition (objectui#5799)', () => {
     });
   });
 
+  it("an AUTO-PUBLISH environment's published envelope transitions too (the staging posture)", async () => {
+    serverTurns = JSON.parse(
+      JSON.stringify(BUILT_TURNS).replace('"status":"drafted"', '"status":"published"'),
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('studio-page')).toBeInTheDocument(), {
+      timeout: 4000,
+    });
+  });
+
   it('a conversation with no whole-app build stays on the full page', async () => {
     serverTurns = UNBUILT_TURNS;
     renderPage();
