@@ -10,9 +10,11 @@ import {
   collectEnKeys,
   collectSourceFiles,
   EXCLUDED_TRANSLATORS,
+  DYNAMIC_KEY_FAMILIES,
   EXTERNALLY_INTERPOLATED_HOLES,
   holesOf,
   PACK_HOOK,
+  readVocabulary,
   RESERVED_OPTION_NAMES,
 } from '../check-i18n-call-site-keys.mjs';
 
@@ -149,9 +151,17 @@ const EN_FIXTURE = `const en = {
 export default en;
 `;
 
+/**
+ * The registry's own element and vocabulary-spec types, taken from the module
+ * rather than restated here — a restated shape is a second declaration free to
+ * drift from the one the gate actually enforces.
+ */
+type Family = (typeof DYNAMIC_KEY_FAMILIES)[number];
+type Spec = Parameters<typeof readVocabulary>[1];
+
 /** Findings of `reason` produced for a synthetic repo, as `key@file:line`. */
-function findingsOf(root: string, reason: string): string[] {
-  return analyze(root)
+function findingsOf(root: string, reason: string, families: Family[] = []): string[] {
+  return analyze(root, { families })
     .findings.filter((f: { reason: string }) => f.reason === reason)
     .map((f: { detail: string; file: string; line: number }) => `${f.detail}@${f.file}:${f.line}`)
     .sort();
@@ -287,7 +297,11 @@ describe('dynamic keys: counted, never failed — except when the whole family i
 export const A = (c: string) => { const { t } = useObjectTranslation(); return t(\`grid.column.\${c}\`); };
 `,
     });
-    const { findings, counters } = analyze(root);
+    // `families: []` — this case is about the PREFIX rule, so the registry is
+    // emptied rather than left pointing at the real repo's 25 heads, none of
+    // which exist in a synthetic root. The registry's own rules get their own
+    // describe below.
+    const { findings, counters } = analyze(root, { families: [{ head: 'grid.column.', enumerable: false, why: 'runtime-data', reason: 'fixture' }] });
     expect(findings).toEqual([]);
     expect(counters.dynamicKeySites).toBe(1);
   });
@@ -302,6 +316,22 @@ export const A = (c: string) => { const { t } = useObjectTranslation(); return t
     expect(findingsOf(root, 'missing-prefix')).toEqual(['gantt.linkEnd.@packages/x/src/A.tsx:2']);
   });
 
+  it('the prefix rule still fires on a head the registry DECLARES — the two rules stack, they do not replace each other', () => {
+    // objectui#4964's guard against the failure this lane keeps hitting: a
+    // stricter-looking gate that silently covers less. Declaring a family must
+    // never buy it out of `missing-prefix`.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (c: string) => { const { t } = useObjectTranslation(); return t(\`nowhere.\${c}\`); };
+`,
+      'packages/x/src/vocab.ts': `export type Nowhere = 'a' | 'b';\n`,
+    });
+    const families: Family[] = [{ head: 'nowhere.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'Nowhere', kind: 'union' } }];
+    const reasons = analyze(root, { families }).findings.map((f: { reason: string }) => f.reason).sort();
+    expect(reasons).toEqual(['missing-member', 'missing-member', 'missing-prefix']);
+  });
+
   it('a fully computed key is counted and left alone — there is no head to judge', () => {
     const root = repoWith({
       'packages/i18n/src/locales/en.ts': EN_FIXTURE,
@@ -309,9 +339,12 @@ export const A = (c: string) => { const { t } = useObjectTranslation(); return t
 export const A = (k: string) => { const { t } = useObjectTranslation(); return t(k); };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.dynamicKeySites).toBe(1);
+    // No static head at all, so it is not a family either — neither rule can
+    // reach it, and the counter is the only trace it leaves.
+    expect(counters.headlessDynamicKeySites).toBe(1);
   });
 });
 
@@ -334,7 +367,7 @@ export const A = () => {
       'packages/i18n/src/locales/en.ts': EN_FIXTURE,
       'packages/anything/src/Probe.tsx': probeFile,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.probeSites).toBe(1);
   });
@@ -361,7 +394,7 @@ export const Page = () => t('engine.directory.title');
       [`${localScope}Child.tsx`]: `export const Child = ({ t }: { t: (key: string) => string }) => t('engine.edit.layers');
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.skippedLocalTable).toBeGreaterThanOrEqual(2);
     expect(counters.packCallSites).toBe(0);
@@ -385,7 +418,7 @@ export const Page = () => t('engine.directory.title');
 export const Page = () => t('engine.directory.title');
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.skippedLocalTable).toBeGreaterThanOrEqual(1);
   });
@@ -427,7 +460,7 @@ export const A = () => { const { t } = copy(); return t('common.save'); };
 };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.skippedNotATranslator).toBe(1);
   });
@@ -464,7 +497,7 @@ export function describe(t: TranslateFn): string { return t('legacy.helper'); }
 describe('an inline defaultValue on a key that EXISTS must match the en value (objectui#3810)', () => {
   /** Findings of `reason`, rendered as `key: expected -> actual`. */
   function driftOf(root: string): string[] {
-    return analyze(root)
+    return analyze(root, { families: [] })
       .findings.filter((f: { reason: string }) => f.reason === 'default-value-drift')
       .map((f: { detail: string; expected: string; actual: string }) => `${f.detail}: ${f.expected} -> ${f.actual}`)
       .sort();
@@ -477,7 +510,7 @@ describe('an inline defaultValue on a key that EXISTS must match the en value (o
 export const A = () => { const { t } = useObjectTranslation(); return t('common.save', { defaultValue: 'Save' }); };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.matchingDefaultValues).toBe(1);
   });
@@ -530,7 +563,7 @@ export const A = () => {
 export const A = () => { const { t } = useObjectTranslation(); return t('common.reset', { defaultValue: 'Reset' }); };
 `,
     });
-    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+    expect(analyze(root, { families: [] }).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
   });
 
   it('counts rather than judges a computed default — there is no text to compare', () => {
@@ -543,7 +576,7 @@ export const A = (label: string) => {
 };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.computedDefaultValues).toBe(2);
     expect(counters.literalDefaultValues).toBe(0);
@@ -565,7 +598,7 @@ export const A = (flag: boolean) => {
 };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.unjudgedDefaultValues).toBe(3);
   });
@@ -597,7 +630,7 @@ export const A = (flag: boolean) => {
 describe('what a call site passes must be what the en value has holes for (objectui#3845)', () => {
   /** Parity findings as `key: inert=[…] unfilled=[…]` — both directions visible. */
   function parityOf(root: string): string[] {
-    return analyze(root)
+    return analyze(root, { families: [] })
       .findings.filter((f: { reason: string }) => f.reason === 'interpolation-parity')
       .map(
         (f: { detail: string; inert: string[]; unfilled: string[] }) =>
@@ -621,7 +654,7 @@ export const A = (name: string, n: number, idx: number) => {
 
   it('is silent when the argument set is exactly the hole set', () => {
     const root = repoWith(callSite("[t('interp.greet', { name }), t('interp.both', { name, n }), t('interp.bare')]"));
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     // Shorthand properties (`{ name }`) are names too — the AST form differs from
     // `{ name: name }` and reading only one of them would make the rule blind to
@@ -663,7 +696,7 @@ export const A = (name: string, n: number, idx: number) => {
     // 2 hits where there was 1. This is that exact shape, and both calls are
     // correct — so the whole thing must be silent.
     const root = repoWith(callSite("t('interp.enlarge', { name: name || t('interp.imageAlt', { index: idx + 1 }) })"));
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     expect(findings).toEqual([]);
     expect(counters.judgedInterpolation).toBe(2);
   });
@@ -703,7 +736,7 @@ export const A = (name: string, n: number, idx: number) => {
 
   it('never judges a plural family, where there is no single value to read holes off', () => {
     const root = repoWith(callSite("t('detail.showEmptyRelated', { count: n, thing: name })"));
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     // `detail.showEmptyRelated` resolves through `_one`/`_other`; picking one
     // form's holes as the answer would be an invention, so `thing` goes
     // unreported rather than being called inert on a guess.
@@ -726,7 +759,7 @@ export const A = (rest: Record<string, unknown>, key: string, opts: Record<strin
 };
 `,
     });
-    const { findings, counters } = analyze(root);
+    const { findings, counters } = analyze(root, { families: [] });
     // A spread, a computed name and an opaque bag genuinely hide the set. The
     // fourth is different in kind and the same in verdict: `replace` REDIRECTS
     // where i18next takes interpolation data from, so the top-level names stop
@@ -741,7 +774,7 @@ export const A = (rest: Record<string, unknown>, key: string, opts: Record<strin
     // "and its arguments do not match" about it would be noise on top of the one
     // fact that matters, and false besides.
     const root = repoWith(callSite("t('nowhere.key', { name })"));
-    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+    expect(analyze(root, { families: [] }).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
   });
 
   it('reads a formatter, an unescape marker and a keypath as the option they name', () => {
@@ -849,7 +882,7 @@ export const A = () => { const { t } = useObjectTranslation(); return t('auth.fo
 describe('a literal fallback beside the call is dead on every path (objectui#4117)', () => {
   /** Sibling findings as `key@line: <op> <dead operand>` — position and text both visible. */
   function siblingsOf(root: string): string[] {
-    return analyze(root)
+    return analyze(root, { families: [] })
       .findings.filter((f: { reason: string }) => f.reason === 'dead-sibling-fallback')
       .map((f: { detail: string; line: number; operator: string; actual: string }) =>
         `${f.detail}@${f.line}: ${f.operator} ${f.actual}`,
@@ -923,7 +956,7 @@ export const A = (name: string, label: string, n: number) => {
     // fallback, which is the healthy arrangement and nothing to report.
     const root = repoWith(callSite("[label || t('common.save'), name ?? t('common.cancel')]"));
     expect(siblingsOf(root)).toEqual([]);
-    expect(analyze(root).counters.siblingFallbacks).toBe(0);
+    expect(analyze(root, { families: [] }).counters.siblingFallbacks).toBe(0);
   });
 
   it('counts rather than judges a non-literal fallback — there is no copy to delete', () => {
@@ -932,7 +965,7 @@ export const A = (name: string, label: string, n: number) => {
     // computed `defaultValue` in objectui#3810.
     const root = repoWith(callSite("t('common.save') || label"));
     expect(siblingsOf(root)).toEqual([]);
-    expect(analyze(root).counters.computedSiblingFallbacks).toBe(1);
+    expect(analyze(root, { families: [] }).counters.computedSiblingFallbacks).toBe(1);
   });
 
   it('counts rather than judges an OPTIONAL call, where the fallback is live', () => {
@@ -948,7 +981,7 @@ export const A = (name: string, label: string, n: number) => {
 `,
     });
     expect(siblingsOf(root)).toEqual([]);
-    const { counters } = analyze(root);
+    const { counters } = analyze(root, { families: [] });
     expect(counters.optionalCallFallbacks).toBe(1);
     // And the file was SCANNED at all: its only spelling is `t?.(`, which the
     // pre-filter used to drop — silently, out of all five classes at once.
@@ -960,7 +993,7 @@ export const A = (name: string, label: string, n: number) => {
     // leaf today; the abstention is what stops the first one being a wrong red.
     const root = repoWith(callSite("t('edge.blank') || 'Something'"));
     expect(siblingsOf(root)).toEqual([]);
-    expect(analyze(root).counters.unjudgedSiblingFallbacks).toBe(1);
+    expect(analyze(root, { families: [] }).counters.unjudgedSiblingFallbacks).toBe(1);
   });
 
   it('counts rather than judges a plural family and a dynamic key', () => {
@@ -968,7 +1001,7 @@ export const A = (name: string, label: string, n: number) => {
     // to read, and a dynamic key denotes no one key at all.
     const root = repoWith(callSite("[t('detail.showEmptyRelated', { count: n }) || 'more', t(`grid.column.${name}`) || 'Label']"));
     expect(siblingsOf(root)).toEqual([]);
-    const { counters } = analyze(root);
+    const { counters } = analyze(root, { families: [] });
     expect(counters.siblingFallbacks).toBe(2);
     expect(counters.unjudgedSiblingFallbacks).toBe(2);
   });
@@ -978,7 +1011,7 @@ export const A = (name: string, label: string, n: number) => {
     // claim this rule can make about it — and objectui#3546 spent months in
     // exactly that transition, where the fallback is the only English there is.
     const root = repoWith(callSite("t('nowhere.key') || 'English'"));
-    expect(analyze(root).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
+    expect(analyze(root, { families: [] }).findings.map((f: { reason: string }) => f.reason)).toEqual(['missing-key']);
   });
 
   it('main carries no literal fallback beside a call, which is why this rule has no baseline', () => {
@@ -1034,6 +1067,256 @@ export const A = (name: string, label: string, n: number) => {
     );
     expect(selectors).toContain("t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel");
     expect(selectors).toContain('}) ?? `Select ${label}…`');
+  });
+});
+
+describe('a declared dynamic family is checked MEMBER by member (objectui#4964)', () => {
+  /**
+   * The class the prefix rule structurally cannot reach: the head resolves, so
+   * `missing-prefix` is satisfied, and one member of the vocabulary the call
+   * site iterates has no leaf in `en`. Ten packs missing it identically is full
+   * parity, so no pack gate sees it either.
+   *
+   * Every case below carries a NON-VACUITY half: a family whose members are all
+   * present must produce no finding *while the checker is demonstrably reading
+   * them*, because "found nothing" and "checked nothing" are the same output.
+   * `counters.checkedMembers` is what tells them apart, and it is asserted on
+   * every green case rather than only on the reds.
+   */
+  const enWithFamily = `const en = {
+  common: { save: 'Save' },
+  mode: { day: 'Day', week: 'Week' },
+  badge: { alpha: { short: 'A', title: 'Alpha' }, beta: { short: 'B', title: 'Beta' } },
+} as const;
+export default en;
+`;
+  const callSite = (template: string) => `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (x: string) => { const { t } = useObjectTranslation(); return t(\`${template}\`); };
+`;
+
+  it('reports the member `en` lacks, and only that one', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': enWithFamily,
+      'packages/x/src/A.tsx': callSite('mode.${x}'),
+      'packages/x/src/vocab.ts': `export type Mode = 'day' | 'week' | 'month';\n`,
+    });
+    const families: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'Mode', kind: 'union' } }];
+    const { findings, counters } = analyze(root, { families });
+    expect(findings.map((f: { reason: string; detail: string }) => `${f.reason}:${f.detail}`)).toEqual([
+      'missing-member:mode.month',
+    ]);
+    expect(counters.checkedMembers).toBe(3);
+  });
+
+  it('is silent when every member resolves — and proves it looked', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': enWithFamily,
+      'packages/x/src/A.tsx': callSite('mode.${x}'),
+      'packages/x/src/vocab.ts': `export type Mode = 'day' | 'week';\n`,
+    });
+    const families: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'Mode', kind: 'union' } }];
+    const { findings, counters } = analyze(root, { families });
+    expect(findings).toEqual([]);
+    // The non-vacuity half. Without this, a reader that silently returned no
+    // members would produce exactly the same empty finding list.
+    expect(counters.checkedMembers).toBe(2);
+    expect(counters.enumerableFamilies).toBe(1);
+  });
+
+  it('expands the template TAIL, so a member is checked as the leaf the call site renders', () => {
+    // `t(`badge.${k}.short`)` asks for `badge.alpha.short`, not `badge.alpha` —
+    // which is a BRANCH, and a branch resolves for the wrong reason.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': enWithFamily,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (k: string) => {
+  const { t } = useObjectTranslation();
+  return [t(\`badge.\${k}.short\`), t(\`badge.\${k}.body\`)];
+};
+`,
+      'packages/x/src/vocab.ts': `export type Badge = 'alpha' | 'beta';\n`,
+    });
+    const families: Family[] = [{ head: 'badge.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'Badge', kind: 'union' } }];
+    const { findings, counters } = analyze(root, { families });
+    expect(findings.map((f: { detail: string }) => f.detail).sort()).toEqual(['badge.alpha.body', 'badge.beta.body']);
+    // Two tails x two members: the `.short` pair resolves, the `.body` pair does not.
+    expect(counters.checkedMembers).toBe(4);
+  });
+
+  it('declines to expand a MULTI-substitution template, and counts it instead of guessing', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': enWithFamily,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (a: string, b: string) => { const { t } = useObjectTranslation(); return t(\`mode.\${a}.\${b}\`); };
+`,
+      'packages/x/src/vocab.ts': `export type Mode = 'day' | 'week';\n`,
+    });
+    const families: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'Mode', kind: 'union' } }];
+    const { findings, counters } = analyze(root, { families });
+    expect(findings).toEqual([]);
+    expect(counters.unexpandableFamilySites).toBe(1);
+    expect(counters.checkedMembers).toBe(0);
+  });
+
+  it('a family declared `enumerable: false` keeps its prefix check and gains nothing else', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': enWithFamily,
+      'packages/x/src/A.tsx': callSite('mode.${x}'),
+    });
+    const families: Family[] = [{ head: 'mode.', enumerable: false, why: 'runtime-data', reason: 'server-supplied' }];
+    const { findings, counters } = analyze(root, { families });
+    expect(findings).toEqual([]);
+    expect(counters.notEnumerableFamilies).toBe(1);
+    expect(counters.checkedMembers).toBe(0);
+  });
+});
+
+describe('the family registry is a ratchet in both directions (objectui#4964)', () => {
+  const EN_MODE = `const en = { mode: { day: 'Day' } } as const;\nexport default en;\n`;
+  const CALL = `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (x: string) => { const { t } = useObjectTranslation(); return t(\`mode.\${x}\`); };
+`;
+
+  it('an UNDECLARED family fails — a new template family cannot land unguarded', () => {
+    const root = repoWith({ 'packages/i18n/src/locales/en.ts': EN_MODE, 'packages/x/src/A.tsx': CALL });
+    expect(findingsOf(root, 'undeclared-dynamic-family')).toEqual(['mode.@packages/x/src/A.tsx:2']);
+  });
+
+  it('a STALE entry fails too, so the registry can only describe families that exist', () => {
+    const root = repoWith({ 'packages/i18n/src/locales/en.ts': EN_MODE });
+    const families: Family[] = [{ head: 'gone.', enumerable: false, why: 'runtime-data', reason: 'x' }];
+    const reasons = analyze(root, { families }).findings.map((f: { reason: string }) => f.reason);
+    expect(reasons).toEqual(['stale-dynamic-family']);
+  });
+
+  it('two entries for one head fail rather than letting the second sit dead', () => {
+    const root = repoWith({ 'packages/i18n/src/locales/en.ts': EN_MODE, 'packages/x/src/A.tsx': CALL });
+    const families: Family[] = [
+      { head: 'mode.', enumerable: false, why: 'runtime-data', reason: 'first' },
+      { head: 'mode.', enumerable: false, why: 'runtime-data', reason: 'second' },
+    ];
+    expect(analyze(root, { families }).findings.map((f: { reason: string }) => f.reason)).toEqual(['duplicate-family']);
+  });
+
+  it('a vocabulary that resolves to NOTHING fails — vacuous and passing read identically', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_MODE,
+      'packages/x/src/A.tsx': CALL,
+      'packages/x/src/vocab.ts': `export const MODES: string[] = [];\n`,
+    });
+    const families: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'MODES', kind: 'array' } }];
+    expect(findingsOf(root, 'empty-vocabulary', families)).toEqual(['mode.@packages/x/src/A.tsx:2']);
+  });
+
+  it('a vocabulary that moved, was renamed, or changed shape fails instead of degrading to zero members', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_MODE,
+      'packages/x/src/A.tsx': CALL,
+      'packages/x/src/vocab.ts': `export const MODES = buildModes();\n`,
+    });
+    // A module that is not there at all, and a declaration whose initializer is
+    // a call rather than a literal — both are "cannot read", never "read as none".
+    const missing: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/nope.ts', name: 'MODES', kind: 'array' } }];
+    expect(analyze(root, { families: missing }).findings.map((f: { reason: string }) => f.reason)).toEqual([
+      'unreadable-vocabulary',
+    ]);
+    const derived: Family[] = [{ head: 'mode.', vocabulary: { module: 'packages/x/src/vocab.ts', name: 'MODES', kind: 'array' } }];
+    expect(analyze(root, { families: derived }).findings.map((f: { reason: string }) => f.reason)).toEqual([
+      'unreadable-vocabulary',
+    ]);
+  });
+});
+
+describe('readVocabulary reads each declared shape, and refuses what it cannot read', () => {
+  const shapes: Array<[string, string, Omit<Spec, 'module'>, string[]]> = [
+    ['union', "export type X = 'a' | 'b';", { kind: 'union', name: 'X' }, ['a', 'b']],
+    ['single-member union', "export type X = 'a';", { kind: 'union', name: 'X' }, ['a']],
+    ['array', "export const X = ['a', 'b'] as const;", { kind: 'array', name: 'X' }, ['a', 'b']],
+    ['set', "export const X = new Set(['a', 'b']);", { kind: 'set', name: 'X' }, ['a', 'b']],
+    ['objectKeys', "export const X = { a: 1, 'b': 2 };", { kind: 'objectKeys', name: 'X' }, ['a', 'b']],
+    ['arrayField', "export const X = [{ value: 'a' }, { value: 'b' }];", { kind: 'arrayField', name: 'X', field: 'value' }, ['a', 'b']],
+    ['objectField', "export const X = { one: { k: 'a' }, two: { k: 'b' } };", { kind: 'objectField', name: 'X', field: 'k' }, ['a', 'b']],
+    ['interfaceField', "export interface X { f: 'a' | 'b'; g: string }", { kind: 'interfaceField', name: 'X', field: 'f' }, ['a', 'b']],
+    ['type-literal field', "export type X = { f: 'a' | 'b' };", { kind: 'interfaceField', name: 'X', field: 'f' }, ['a', 'b']],
+  ];
+  for (const [label, source, spec, expected] of shapes) {
+    it(`reads a ${label}`, () => {
+      const root = repoWith({ 'packages/x/src/v.ts': `${source}\n` });
+      expect(readVocabulary(root, { module: 'packages/x/src/v.ts', ...spec })).toEqual(expected);
+    });
+  }
+
+  const refusals: Array<[string, string, Omit<Spec, 'module'>]> = [
+    ['a union with a non-literal arm', 'export type X = "a" | number;', { kind: 'union', name: 'X' }],
+    ['an array holding a non-literal', 'export const X = ["a", other];', { kind: 'array', name: 'X' }],
+    ['an object built by spread', 'export const X = { ...base, a: 1 };', { kind: 'objectKeys', name: 'X' }],
+    ['a name that is not declared here', 'export const Y = ["a"];', { kind: 'array', name: 'X' }],
+    ['an interface field that is not a literal union', 'export interface X { f: string }', { kind: 'interfaceField', name: 'X', field: 'f' }],
+  ];
+  for (const [label, source, spec] of refusals) {
+    it(`refuses ${label} rather than reading it as empty`, () => {
+      const root = repoWith({ 'packages/x/src/v.ts': `${source}\n` });
+      expect(readVocabulary(root, { module: 'packages/x/src/v.ts', ...spec })).toBeNull();
+    });
+  }
+});
+
+describe('the checked-in registry describes this repo (objectui#4964)', () => {
+  it('every family declares exactly one of a vocabulary or a reason it has none', () => {
+    const WHY = new Set(['runtime-data', 'external-vocabulary', 'unnamed-union', 'open-forwarder']);
+    for (const family of DYNAMIC_KEY_FAMILIES) {
+      expect(family.head, 'a head must end at a member boundary').toMatch(/\.$/);
+      if (family.enumerable === false) {
+        expect(WHY, `${family.head}: unknown \`why\``).toContain(family.why);
+        expect(family.reason!.length, `${family.head}: a reason must actually say something`).toBeGreaterThan(40);
+        expect(family.vocabulary).toBeUndefined();
+      } else {
+        expect(family.vocabulary, `${family.head}: neither a vocabulary nor \`enumerable: false\``).toBeTruthy();
+      }
+    }
+  });
+
+  it('every declared vocabulary resolves to a NON-EMPTY member set on this checkout', () => {
+    // The registry-wide non-vacuity assertion. A vocabulary that stopped
+    // resolving would leave the gate green while checking less, which is the
+    // one regression this class could introduce.
+    for (const family of DYNAMIC_KEY_FAMILIES) {
+      if (family.enumerable === false) continue;
+      const spec = family.vocabulary!;
+      const members = readVocabulary(repoRoot, spec);
+      expect(members, `${family.head}: ${spec.name} is unreadable`).not.toBeNull();
+      expect((members as string[]).length, `${family.head}: resolved to zero members`).toBeGreaterThan(0);
+    }
+  });
+
+  it('the split is what the report says it is, and the check is not vacuous on `main`', () => {
+    const { counters, findings } = analyze(repoRoot);
+    expect(counters.declaredFamilies).toBe(DYNAMIC_KEY_FAMILIES.length);
+    expect(counters.enumerableFamilies + counters.notEnumerableFamilies).toBe(counters.declaredFamilies);
+    // Measured on `main`: 18 of 25 families are exactly checkable. The number is
+    // pinned low rather than exactly so paying off a `unnamed-union` or
+    // `external-vocabulary` entry raises coverage without failing this test —
+    // but LOSING coverage does fail it.
+    expect(counters.enumerableFamilies).toBeGreaterThanOrEqual(18);
+    expect(counters.checkedMembers).toBeGreaterThanOrEqual(112);
+    // Neither ratchet direction may be firing on a clean checkout.
+    const ratchet = findings.filter((f: { reason: string }) =>
+      ['undeclared-dynamic-family', 'stale-dynamic-family', 'duplicate-family', 'empty-vocabulary', 'unreadable-vocabulary'].includes(
+        f.reason,
+      ),
+    );
+    expect(ratchet, 'the registry no longer describes the repo').toEqual([]);
+  });
+
+  it('finds a known-PRESENT member — the positive control for every "not found" above', () => {
+    // Proves the expansion reaches real `en` leaves. `gantt.viewMode.day` is
+    // defined; if the checker could not see it, every green family above would
+    // be green for the wrong reason.
+    const { leaves } = collectEnKeys(repoRoot);
+    expect(leaves.has('gantt.viewMode.day'), 'the fixture key this control rests on has moved').toBe(true);
+    const viewMode = DYNAMIC_KEY_FAMILIES.find((f) => f.head === 'gantt.viewMode.');
+    expect(readVocabulary(repoRoot, viewMode!.vocabulary!)).toContain('day');
+    expect(analyze(repoRoot).findings.filter((f: { detail: string }) => f.detail === 'gantt.viewMode.day')).toEqual([]);
   });
 });
 

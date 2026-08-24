@@ -7,14 +7,33 @@
     "here; all-locales-key-parity.test.ts then demands the same key in the other nine",
     "packs. Adding an inline defaultValue is NOT a fix -- that is the mechanism that hid",
     "these for months (objectui#3517).",
-    "BOTH LISTS ARE NOW EMPTY -- the 258-key stock objectui#3546 opened with was paid off",
-    "across seven slices, the last of them the two template families below. Keep the file:",
-    "empty is its terminal, load-bearing state. Any NEW unresolved call-site key is",
-    "`unexpected` against an empty baseline and fails the build, which is the point."
+    "missingKeys AND missingPrefixes ARE EMPTY -- the 258-key stock objectui#3546 opened with",
+    "was paid off across seven slices, the last of them two template families. Keep both lists:",
+    "empty is their terminal, load-bearing state. Any NEW unresolved call-site key is",
+    "`unexpected` against an empty baseline and fails the build, which is the point.",
+    "missingMembers is the third list (objectui#4964) and is NOT empty: it holds debt the",
+    "exact-member check MEASURED on its first run, not debt this repo took on."
   ],
 
   "missingKeys": {},
 
   "//": "Template keys whose static head matches no en key at all, so every expansion misses.",
-  "missingPrefixes": {}
+  "missingPrefixes": {},
+
+  "//missingMembers": [
+    "objectui#4964 -- a template family whose HEAD resolves (so missingPrefixes is satisfied)",
+    "and whose declared vocabulary names a member `en` does not define. Ten packs missing it",
+    "identically is full parity, so no pack gate can see it; this is the class that check found.",
+    "Same ratchet rules as the two lists above: an entry that no longer fires fails the build.",
+    "Fix by adding the key to packages/i18n/src/locales/en.ts (which then makes",
+    "all-locales-key-parity.test.ts demand it in the other nine packs) and deleting the line",
+    "here -- NOT by narrowing the vocabulary the family declares, which would shrink the check",
+    "rather than pay off the debt.",
+    "Both entries below were measured by the check's first run, not created by it."
+  ],
+
+  "missingMembers": {
+    "home.recentApps.itemType.metadata": "objectui#6023",
+    "home.recentApps.itemType.report": "objectui#6023"
+  }
 }
