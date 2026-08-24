@@ -155,6 +155,68 @@
  *               types, unbuilt tree) turns every document red at once and reads
  *               as "the docs are full of defects".
  *
+ *   UNDECLARED  a synthetic module importing `@floating-ui/react-dom` MUST produce
+ *               TS2307. That package IS installed in this workspace — Radix's
+ *               popper pulls it in, under `@object-ui/components`'s declared
+ *               `@radix-ui/react-popover` — and NO package a covered document
+ *               imports declares it, so no reader of the documented packages can
+ *               import it either. It is the control on the third-party rule
+ *               below: the moment resolution widens past what the imported
+ *               packages declare, this control goes green and the gate has become
+ *               a rubber stamp no snippet can fail — invisibly, because every
+ *               document stays green while it happens. It also fails loudly if
+ *               the specifier ever BECOMES a declared dependency (pick another),
+ *               or is not installed at all (a specifier that resolves nowhere
+ *               proves nothing about how far resolution reaches).
+ *
+ * ## Third-party specifiers resolve exactly as far as the imported packages declare
+ *
+ * A snippet that imports `@object-ui/layout` may also import `lucide-react`,
+ * because `@object-ui/layout` DECLARES `lucide-react`: a reader who installs that
+ * package gets it in their `node_modules`, and `SidebarNav`'s `NavItem.icon`
+ * genuinely takes a lucide icon. This program compiles every block at the
+ * repository ROOT, where under pnpm a workspace package's own dependency is not
+ * hoisted and so does not resolve — five correct blocks across
+ * `content/docs/layout` failed TS2307 on nothing but that (objectui#6120). The
+ * snippets were right; the resolution environment was the gap.
+ *
+ * The rule, stated here because its EDGES are the whole of its value:
+ *
+ *     For every workspace package a COVERED document imports, each specifier that
+ *     package declares in its own `dependencies` is mapped to the types a
+ *     consumer of that package would resolve — resolved from inside that
+ *     package's own directory, exactly the way that package's own code resolves
+ *     it.
+ *
+ * Four edges, each deliberate:
+ *
+ *   - **Declared, never merely installed.** The set comes from `dependencies` in
+ *     the imported packages' manifests, never from a walk of `node_modules`. A
+ *     blanket mapping would let a snippet import a transitive package no consumer
+ *     can reach and still pass green, which is strictly worse than the gap it
+ *     would close: the gate's whole value is that it fails where a reader fails.
+ *   - **`dependencies` only** — not `peerDependencies`, not `devDependencies`. A
+ *     dependency is what the package installs FOR its consumer; a peer is a
+ *     requirement ON the consumer that may be unmet; a devDependency reaches no
+ *     consumer at all. A snippet importing a peer therefore still fails here.
+ *     That is the conservative direction on purpose: this rule fails CLOSED, and
+ *     widening it later is a visible edit with a reason, not a silent drift.
+ *   - **Imported packages only.** A package no covered document imports
+ *     contributes nothing, so this map grows only as coverage grows — the same
+ *     property `--build-filter` has, for the same reason.
+ *   - **The bare specifier only, no subpath wildcard.** `lucide-react` is mapped;
+ *     `lucide-react/dynamic` is not, and fails closed. Mapping `<pkg>/*` would
+ *     reach past the package's own `exports`, and `exports` is precisely the
+ *     boundary a reader hits.
+ *
+ * ⛔ What this rule exists INSTEAD of: declaring `lucide-react` at the repository
+ * root. That would put an entry in this repository's dependency graph that exists
+ * only to make a checker pass — changing what the repo claims to need in order to
+ * satisfy a tool. The 2026-08-24 ruling on objectui#6120 rejected that route by
+ * name, alongside objectui#5329 (minting a `$schema` URL because prose named one)
+ * and objectui#6107 (minting exports because docs imported them). A manifest is a
+ * claim about what a package needs; a doc gate's convenience is not that claim.
+ *
  * ## Coverage is declared, never assumed — and the scan surface is stated here
  *
  * A document is covered unless it is named in `UNGATED_DOCS` with a reason. The
@@ -597,6 +659,94 @@ export function derivePackageTypePaths(root = repoRoot) {
   return { paths, packageDirOf, sourceTyped };
 }
 
+/** A declaration file, in any of the three spellings a package may ship. */
+const DECLARATION_FILE = /\.d\.(ts|mts|cts)$/;
+/** Any path inside a workspace package's `src/` — never a surface a reader gets. */
+const WORKSPACE_SRC = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/;
+/** Never written to disk: only a location to resolve FROM, inside a package. */
+const DEPENDENCY_PROBE_FILE = '__doc-snippet-dependency-probe__.ts';
+
+/**
+ * `paths` for the THIRD-PARTY specifiers a covered snippet may legitimately
+ * import: for each workspace package a covered document imports, every specifier
+ * that package DECLARES in its own `dependencies`, resolved from inside that
+ * package's directory — which is exactly what the package's own code resolves,
+ * and exactly what a consumer who installs it gets.
+ *
+ * The rule and its four edges are stated in this file's header; the two things
+ * enforced right here are that the set is read from MANIFESTS (never from a walk
+ * of `node_modules`) and that a mapping may only ever land on a declaration file
+ * outside any package's `src/`. A specifier that ships no types is left
+ * unresolvable and reported as such, never mapped to something approximate: the
+ * snippet importing it then fails, which is the honest answer.
+ */
+export function deriveDeclaredDependencyPaths(root = repoRoot, importedPackages = [], packageDirOf = {}) {
+  const paths = {};
+  const declaredBy = {};
+  const untyped = [];
+  const seen = new Set();
+  const options = {
+    module: COMPILER_OPTIONS.module,
+    moduleResolution: COMPILER_OPTIONS.moduleResolution,
+  };
+  const host = ts.createCompilerHost(options, false);
+  // Sorted, so which package wins a specifier two of them declare is decided by
+  // name rather than by walk order — a run must not depend on readdir.
+  for (const owner of [...importedPackages].sort()) {
+    const dir = packageDirOf[owner];
+    if (!dir) continue;
+    const manifestPath = join(root, dir, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    for (const specifier of Object.keys(manifest.dependencies || {}).sort()) {
+      // A workspace package is mapped from its OWN `exports` by
+      // `derivePackageTypePaths`, and one deliberately left unmapped there
+      // (source-typed) must STAY unmapped — routing it through a node_modules
+      // symlink would judge a snippet against a package's `src/`, the exact
+      // substitution this gate exists to make impossible.
+      if (specifier in packageDirOf) continue;
+      if (seen.has(specifier)) continue;
+      seen.add(specifier);
+      const resolved = ts.resolveModuleName(
+        specifier,
+        join(root, dir, DEPENDENCY_PROBE_FILE),
+        options,
+        host,
+      );
+      const file = resolved.resolvedModule ? resolved.resolvedModule.resolvedFileName : null;
+      if (!file || !DECLARATION_FILE.test(file) || WORKSPACE_SRC.test(file)) {
+        untyped.push({ specifier, owner, resolved: file });
+        continue;
+      }
+      paths[specifier] = [file];
+      declaredBy[specifier] = owner;
+    }
+  }
+  return { paths, declaredBy, untyped };
+}
+
+/**
+ * Where a package is physically installed in this workspace, found WITHOUT
+ * assuming it resolves from anywhere in particular: pnpm's virtual store holds
+ * one directory per (package, version, peer-set), named with `/` replaced by `+`.
+ * Used only by the UNDECLARED control, which must never confuse "this specifier
+ * does not resolve" with "this package is not installed" — the second proves
+ * nothing about how far resolution reaches.
+ */
+export function findInstalledCopy(root = repoRoot, specifier = '') {
+  const storeDir = join(root, 'node_modules', '.pnpm');
+  if (!existsSync(storeDir)) return null;
+  const prefix = `${specifier.replace(/\//g, '+')}@`;
+  for (const entry of readdirSync(storeDir).sort()) {
+    if (!entry.startsWith(prefix)) continue;
+    const candidate = join(storeDir, entry, 'node_modules', ...specifier.split('/'));
+    if (existsSync(join(candidate, 'package.json'))) {
+      return relative(root, candidate).split(sep).join('/');
+    }
+  }
+  return null;
+}
+
 /** Workspace package specifiers a document imports (bare specifier root only). */
 function importedSpecifiers(body) {
   const out = new Set();
@@ -617,6 +767,18 @@ function importedSpecifiers(body) {
 const SENTINEL_EXPORT = 'ThisNameIsDefinitelyNotExported';
 const CONTROL_PACKAGE = '@object-ui/types';
 const CONTROL_REAL_EXPORT = 'ComponentSchema';
+
+/**
+ * The UNDECLARED control's specifier (see the header). Three properties make it
+ * the right one, and all three are ASSERTED at run time rather than trusted:
+ * it is installed in this workspace (a transitive of `@radix-ui/react-popover`,
+ * which `@object-ui/components` declares), it is declared by no package in this
+ * repository at all, and it ships real `.d.ts` files — so if resolution ever did
+ * widen to reach it, the control module would compile CLEANLY rather than fail
+ * for some unrelated reason. It is the difference between "the rule is narrow"
+ * and "we hope the rule is narrow".
+ */
+const UNDECLARED_CONTROL_PACKAGE = '@floating-ui/react-dom';
 
 const COMPILER_OPTIONS = {
   target: ts.ScriptTarget.ES2020,
@@ -723,7 +885,30 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
     }
   }
 
-  return { documents, covered, compiled, declaredFragments, findings, paths, neededPackages, scans };
+  // ── and what THOSE packages declare resolves too, exactly that far ────────
+  const {
+    paths: dependencyPaths,
+    declaredBy: dependencyDeclaredBy,
+    untyped: untypedDependencies,
+  } = deriveDeclaredDependencyPaths(root, neededPackages, packageDirOf);
+  // Workspace entries win every collision: a workspace package is mapped from
+  // its own `exports`, and one deliberately left unmapped stays unmapped.
+  const mergedPaths = { ...dependencyPaths, ...paths };
+
+  return {
+    documents,
+    covered,
+    compiled,
+    declaredFragments,
+    findings,
+    paths: mergedPaths,
+    workspacePaths: paths,
+    dependencyPaths,
+    dependencyDeclaredBy,
+    untypedDependencies,
+    neededPackages,
+    scans,
+  };
 }
 
 /** Phase 1 (syntax) and phase 2 (semantics), kept apart on purpose. */
@@ -763,6 +948,14 @@ export function compileSnippets({ root = repoRoot, compiled, paths }) {
     positiveFile,
     `import type { ${CONTROL_REAL_EXPORT} } from '${CONTROL_PACKAGE}';\nexport type Control = ${CONTROL_REAL_EXPORT};\n`,
   );
+  // A namespace import, so that ANY successful resolution reports zero
+  // diagnostics: the control must distinguish "did not resolve" from "resolved",
+  // never "resolved but the name I picked happened to be missing".
+  const undeclaredFile = join(root, VIRTUAL_DIR, '__control_undeclared.ts');
+  virtual.set(
+    undeclaredFile,
+    `import * as undeclared from '${UNDECLARED_CONTROL_PACKAGE}';\nexport type Undeclared = typeof undeclared;\n`,
+  );
 
   const options = { ...COMPILER_OPTIONS, baseUrl: root, paths, types: [] };
   const host = ts.createCompilerHost(options, true);
@@ -795,6 +988,7 @@ export function compileSnippets({ root = repoRoot, compiled, paths }) {
 
   const sentinelDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(sentinelFile))];
   const positiveDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(positiveFile))];
+  const undeclaredDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(undeclaredFile))];
 
   return {
     parseFailures,
@@ -804,6 +998,9 @@ export function compileSnippets({ root = repoRoot, compiled, paths }) {
     srcLeaks,
     sentinelDiagnostics,
     positiveDiagnostics,
+    undeclaredDiagnostics,
+    undeclaredMapped: UNDECLARED_CONTROL_PACKAGE in paths,
+    undeclaredInstalledAt: findInstalledCopy(root, UNDECLARED_CONTROL_PACKAGE),
   };
 }
 
@@ -849,6 +1046,11 @@ function main() {
 
   // ── controls, before any verdict about the documents ──────────────────────
   const controlFailures = [];
+  // Printed BEFORE the controls: it says how far this run's resolution reaches,
+  // which is the thing the UNDECLARED control then bounds.
+  console.log(
+    `Third-party resolution: ${Object.keys(state.dependencyPaths).length} specifier(s) mapped from the declared dependencies of ${state.neededPackages.size} imported package(s); ${state.untypedDependencies.length} declared specifier(s) ship no types here and stay unresolvable.`,
+  );
   console.log('Controls:');
   console.log(
     `  resolution   Module name '${CONTROL_PACKAGE}' was successfully resolved to '${run.resolvedFileName ?? '(unresolved)'}'`,
@@ -874,6 +1076,23 @@ function main() {
   if (run.positiveDiagnostics.length > 0) {
     controlFailures.push(
       `the positive control failed (${ts.flattenDiagnosticMessageText(run.positiveDiagnostics[0].messageText, ' ')}) — the harness is broken, not the documents`,
+    );
+  }
+  const undeclaredCodes = run.undeclaredDiagnostics.map((d) => d.code);
+  console.log(
+    `  undeclared   importing '${UNDECLARED_CONTROL_PACKAGE}' (installed at ${run.undeclaredInstalledAt ?? '(NOT INSTALLED)'}, declared by no imported package) produced ${run.undeclaredDiagnostics.length} diagnostic(s)${undeclaredCodes.length ? ` (TS${undeclaredCodes.join(', TS')})` : ''}`,
+  );
+  if (run.undeclaredMapped) {
+    controlFailures.push(
+      `'${UNDECLARED_CONTROL_PACKAGE}' is now a DECLARED dependency of a package a covered document imports, so it can no longer show that resolution stayed narrow — pick a control specifier no imported package declares`,
+    );
+  } else if (!run.undeclaredInstalledAt) {
+    controlFailures.push(
+      `'${UNDECLARED_CONTROL_PACKAGE}' is not installed in this workspace, so its failure to resolve proves nothing about how far resolution reaches — pick an installed specifier no imported package declares`,
+    );
+  } else if (!undeclaredCodes.includes(2307)) {
+    controlFailures.push(
+      `a specifier NO imported package declares now resolves — third-party resolution has widened past the imported packages' own dependencies, so a snippet may import what no reader of these packages can get, and every document would stay green while it does`,
     );
   }
   console.log('');
@@ -935,4 +1154,4 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   process.exit(main());
 }
 
-export { UNGATED_DOCS, TS_FENCE_LANGUAGES, FRAGMENT_MARKER, main };
+export { UNGATED_DOCS, TS_FENCE_LANGUAGES, FRAGMENT_MARKER, UNDECLARED_CONTROL_PACKAGE, main };
