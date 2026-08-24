@@ -110,9 +110,15 @@ describe('FieldsListEditor — a spec-refused column names itself positionally',
   });
 
   it('lets a declared identity outrank a stray undeclared alias', () => {
-    mount([{ field: 'amount', label: 'Amount', header: 'STRAY' }]);
+    // The column carries NO `label`, which is the shape the inverted chain
+    // actually bit on: `label ?? header ?? field` reached `header` before
+    // `field`, so this row read `STRAY` instead of its own declared field.
+    // Measured: with `label` also present the old chain returns `label` too,
+    // so a `{field, label, header}` row cannot reverse-verify this leg at all
+    // — it is green against both sources and would have been a phantom pin.
+    mount([{ field: 'amount', header: 'STRAY' }]);
 
-    expect(screen.getByText('Amount')).toBeInTheDocument();
+    expect(screen.getByText('amount')).toBeInTheDocument();
     expect(screen.queryByText('STRAY')).not.toBeInTheDocument();
   });
 });
