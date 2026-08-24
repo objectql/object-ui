@@ -123,6 +123,57 @@
  * contract, and the same one this gate exists to close one level up. Note the
  * direction: for a filter deciding whether to RUN work, "cannot tell" means run;
  * here the work IS the decision, so "cannot tell" means fail.
+ *
+ * ## A withdrawn sentence that survives in five released CHANGELOGs (objectui#5913)
+ *
+ * Recorded here once, because the five copies cannot be corrected in place and
+ * this header is where findings of this shape live. objectui#4580's changeset —
+ * the `SchemaNode` de-duplication — closed with:
+ *
+ *     Core's entry surface is unchanged: `dist/index.d.ts` is byte-identical
+ *     across the change.
+ *
+ * That sentence is a VACUOUS MEASUREMENT. objectui#5673 withdrew it from the
+ * source docstring it was also written into
+ * (`packages/core/src/types/index.ts`), which now carries the full account and
+ * the calibration recipe; this is the pointer for anyone who arrives from a
+ * CHANGELOG instead.
+ *
+ * It is vacuous because `core/dist/index.d.ts` is emitted from a barrel that
+ * only FORWARDS the symbol, and forwarding never restates a shape — not
+ * `export` of everything, and not the named `export type { SchemaNode, … } from
+ * './types/index.js'` line either. Only the module that DECLARES the symbol can
+ * move. So that file is byte-identical under ANY change to a re-exported
+ * declaration's shape, including one that breaks every consumer, and a gauge
+ * that cannot fail for the change class it is quoted against has discharged
+ * nothing. #5673's PR measured exactly that: a probe key added to the declaring
+ * module moved `@object-ui/types`' `dist/base.d.ts` and brought it back, while
+ * `core/dist/index.d.ts` and `core/dist/types/index.d.ts` held one hash across
+ * all three legs. The withdrawn sentence was watching the two files that cannot
+ * move.
+ *
+ * The five copies are NOT edited, and that is a ruling (maintainer, 2026-08-24),
+ * not an omission. The release tooling composes CHANGELOGs from `.changeset/*.md`
+ * at release time, so hand-editing the compiled artifact leaves the pipeline
+ * this gate exists to protect; and the same text is already published to npm on
+ * five packages, where a repo-side edit recalls nothing and only makes the
+ * repository disagree with what shipped. The withdrawal is therefore recorded
+ * once, here.
+ *
+ * Where the copies are, verified at `8d3a5294a`:
+ *
+ *     packages/components/CHANGELOG.md:1472
+ *     packages/core/CHANGELOG.md:1021
+ *     packages/plugin-dashboard/CHANGELOG.md:581
+ *     packages/react/CHANGELOG.md:450
+ *     packages/types/CHANGELOG.md:705
+ *
+ * CHANGELOGs are append-heavy and those line numbers move; the sentence does
+ * not. Re-derive them with
+ * `git grep -nI "is byte-identical across the change"`, which is a search and
+ * its own control at once: the phrase is known-present, and it returned these
+ * five plus one unrelated i18n test under `packages/fields`. Six files means the
+ * search worked; zero means it broke, not that the copies are gone.
  */
 
 import { execFileSync } from 'node:child_process';
