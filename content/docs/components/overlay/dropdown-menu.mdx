@@ -13,13 +13,21 @@ The Dropdown Menu component displays a list of actions or options when triggered
 
 <SchemaExample id="components-overlay-dropdown-menu/with-icons" />
 
+## Icons
+
+An item's `icon` is a **kebab-case Lucide icon name**, resolved against lucide's
+runtime `icons` record — the same surface `ui:button` and the `action:*` family
+resolve against. A name that is not a live key of that record (an unknown or a
+retired spelling such as `edit`) renders **no glyph**, never a fallback glyph
+and never the literal name as text.
+
 ## Schema
 
 ```plaintext
 interface DropdownMenuItem {
   label?: string;
   value?: string;
-  icon?: string;
+  icon?: string;                  // kebab-case Lucide icon name (e.g. "square-pen")
   variant?: 'default' | 'destructive';
   type?: 'separator';
   disabled?: boolean;

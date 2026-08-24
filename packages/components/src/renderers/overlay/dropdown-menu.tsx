@@ -26,6 +26,18 @@ import {
   DropdownMenuSubContent
 } from '../../ui';
 import { renderChildren } from '../../lib/utils';
+// Same-package sibling import, the path `renderers/complex/data-table.tsx`
+// already uses. `icon` on a menu item is an authored lucide NAME, and it was
+// rendered as a raw text node here — the fixture named `with-icons.json` drew
+// the words "edit"/"copy"/"trash" beside its labels (objectui#5930).
+//
+// Routed through the RECORD surface (`icons` from 'lucide-react'), which is
+// what `action:*` and `ui:button` next door resolve against, so a retired
+// spelling renders NOTHING rather than a word. The dynamic surface
+// (`LazyIcon`) is deliberately NOT used: it degrades an unknown name to the
+// `Database` glyph, trading a no-icon failure for a WRONG-icon one, recorded
+// as ruled out for authored icon fields by objectui#5622 and #5633.
+import { resolveIcon } from '../action/resolve-icon';
 
 // Helper for recursive menu items
 const renderMenuItems = (items: any[]) => {
@@ -33,11 +45,16 @@ const renderMenuItems = (items: any[]) => {
   return items.map((item: any, i: number) => {
     if (item.type === 'separator') return <DropdownMenuSeparator key={i} />;
     if (item.type === 'label') return <DropdownMenuLabel key={i}>{item.label}</DropdownMenuLabel>;
+    // Resolved once per item and read by BOTH arms below. The submenu-trigger
+    // arm carried the identical defect; repairing only the leaf would be a
+    // narrower version of the same bug (objectui#5930).
+    const Icon = resolveIcon(item.icon);
     if (item.children) {
         return (
             <DropdownMenuSub key={i}>
                 <DropdownMenuSubTrigger inset={item.inset}>
-                    {item.icon && <span className="mr-2">{item.icon}</span>}
+                    {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
+                    {Icon && <Icon className="mr-2 h-4 w-4" />}
                     {item.label}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
@@ -49,7 +66,8 @@ const renderMenuItems = (items: any[]) => {
     
     return (
       <DropdownMenuItem key={i} disabled={item.disabled} inset={item.inset} onSelect={item.onSelect}>
-        {item.icon && <span className="mr-2">{item.icon}</span>}
+        {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
+        {Icon && <Icon className="mr-2 h-4 w-4" />}
         {item.label}
         {item.shortcut && <span className="ml-auto text-xs tracking-widest opacity-60">{item.shortcut}</span>}
       </DropdownMenuItem>
@@ -96,7 +114,7 @@ ComponentRegistry.register('dropdown-menu',
         name: 'items', 
         type: 'array', 
         label: 'Items',
-        description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, disabled, children: [] }'
+        description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, disabled, children: [] }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
     ],
