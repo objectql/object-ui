@@ -943,6 +943,16 @@ const en = {
     cancelApprovalTooltipUnlocked: 'Recall the pending approval request',
     cancelApprovalFailed: 'Failed to recall approval',
     cancelApprovalUnavailable: 'Recalling approvals is not supported on this data source',
+    // objectui#5916 — `record:path` stage state in the ACCESSIBLE NAME.
+    // Each stage is a `role="listitem"`, which is name-from-AUTHOR only, so
+    // visually-hidden text inside it computes to an EMPTY name; these compose
+    // the stage's own (already picklist-localized) label with its state into the
+    // `aria-label`. The ✓/✗ glyphs stay `aria-hidden` decoration.
+    pathStageCompleted: '{{stage}}, completed',
+    pathStageCurrent: '{{stage}}, current stage',
+    pathStageUpcoming: '{{stage}}, upcoming',
+    pathStageLostCurrent: '{{stage}}, closed lost, current stage',
+    pathStageLostUpcoming: '{{stage}}, closed lost, not reached',
     linkCopied: 'Link copied to clipboard',
     linkCopyFailed: 'Failed to copy link',
     cancel: 'Cancel',

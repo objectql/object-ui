@@ -229,6 +229,16 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.cancelApprovalTooltipUnlocked': 'Recall the pending approval request',
   'detail.cancelApprovalFailed': 'Failed to recall approval',
   'detail.cancelApprovalUnavailable': 'Recalling approvals is not supported on this data source',
+  // `record:path` stage state, composed into each stage's accessible name
+  // (objectui#5916). A `role="listitem"` takes its name from the AUTHOR only —
+  // visually-hidden text inside one computes to an empty accessible name — so the
+  // state cannot ride along as content and is composed into `aria-label` instead.
+  // `{{stage}}` is the stage's own label, already localized via `translateOptions`.
+  'detail.pathStageCompleted': '{{stage}}, completed',
+  'detail.pathStageCurrent': '{{stage}}, current stage',
+  'detail.pathStageUpcoming': '{{stage}}, upcoming',
+  'detail.pathStageLostCurrent': '{{stage}}, closed lost, current stage',
+  'detail.pathStageLostUpcoming': '{{stage}}, closed lost, not reached',
 };
 
 /**

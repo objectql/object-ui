@@ -46,12 +46,17 @@
  *   • `data-stage-rail`      — marks the decorative indicator as an element
  *                              SEPARATE from the label. A rail has one; a
  *                              pill, which is its own label's surface, cannot.
+ *
+ * Those are TEST instruments, not accessibility: a `data-*` attribute is not in
+ * the accessibility tree. The same state reaches a screen reader through each
+ * stage's composed `aria-label` (objectui#5916) — see `stageAriaLabel` below.
  */
 
 import React from 'react';
 import { useRecordContext, useSafeFieldLabel } from '@object-ui/react';
 import type { RecordPathComponentProps } from '@object-ui/types';
 import { cn } from '@object-ui/components';
+import { useDetailTranslation } from '../useDetailTranslation';
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
@@ -73,6 +78,7 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
 }) => {
   const ctx = useRecordContext();
   const { translateOptions } = useSafeFieldLabel();
+  const { t } = useDetailTranslation();
   const { designer } = splitDesigner(props);
 
   const rawStages: Array<{ value: any; label: string; terminal?: 'won' | 'lost' }> = Array.isArray(schema.stages)
@@ -154,6 +160,32 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
       state === 'upcoming' && 'font-normal text-muted-foreground',
     );
 
+  // ── The stage's STATE, in its ACCESSIBLE NAME (objectui#5916) ──────────────
+  //
+  // Travelled / upcoming / lost used to reach a screen reader through colour and
+  // a glyph, and the glyph is `aria-hidden` decoration, so a rejected stage
+  // announced exactly like an unreached one — WCAG 2.2 SC 1.4.1. `aria-current`
+  // marked the current stage and nothing else.
+  //
+  // Shape: an `aria-label` on the listitem, NOT visually-hidden text inside it.
+  // That is a measurement, not a preference — `listitem` takes its name from the
+  // AUTHOR only (it is not a name-from-contents role), so `sr-only` text placed
+  // in the item computes to an EMPTY accessible name and would satisfy a DOM
+  // assertion while delivering nothing to the accessibility tree. The composed
+  // label re-states `stage.label` — the same already-picklist-localized variable
+  // the visible text renders — so the name can never drift from what is on
+  // screen, and the ✓/✗ stay decorative.
+  const stageAriaLabel = (label: string, state: StageState, terminal?: 'won' | 'lost'): string => {
+    if (terminal === 'lost') {
+      return state === 'current'
+        ? t('detail.pathStageLostCurrent', { stage: label })
+        : t('detail.pathStageLostUpcoming', { stage: label });
+    }
+    if (state === 'current') return t('detail.pathStageCurrent', { stage: label });
+    if (state === 'completed') return t('detail.pathStageCompleted', { stage: label });
+    return t('detail.pathStageUpcoming', { stage: label });
+  };
+
   const renderStage = (o: {
     key: string;
     stage: { label: string };
@@ -168,6 +200,7 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
       data-stage-state={o.state}
       data-stage-terminal={o.terminal}
       aria-current={o.state === 'current' ? 'step' : undefined}
+      aria-label={stageAriaLabel(o.stage.label, o.state, o.terminal)}
       className={cn('flex flex-col gap-1.5', o.className)}
     >
       <span aria-hidden="true" data-stage-rail="" className={railClass(o.state, o.terminal)} />
