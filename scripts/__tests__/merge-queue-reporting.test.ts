@@ -74,6 +74,13 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'entire scan surface is markdown, so it carries no path filter, reports on every pull ' +
       'request, and is therefore requirable',
   ],
+  [
+    'pre-install-import-graph.yml',
+    'produces Pre-Install Import Graph Check — added by objectui#6148. What it judges is the ' +
+      'arrangement of the workflows themselves, so it carries no path filter, reports on every ' +
+      'pull request, and is requirable; `scripts/dependabot-merge-gate.mjs` already classifies ' +
+      'it as a required context',
+  ],
 ]);
 
 /** Workflows whose path filtering had to move from the trigger into the jobs. */

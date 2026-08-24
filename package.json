@@ -56,6 +56,7 @@
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
     "check:eager-closure": "node scripts/check-eager-closure-budget.mjs",
     "check:entry-guard": "node scripts/check-entry-guard.mjs",
+    "check:pre-install-import-graph": "node scripts/check-pre-install-import-graph.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",

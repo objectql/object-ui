@@ -32,6 +32,7 @@ one has its own section below.
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
+| `pre-install-import-graph.yml` | Pre-Install Import Graph Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a gate a workflow runs *before* `pnpm install` reaches a package anywhere in its import graph |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -672,6 +673,60 @@ script's header states plainly rather than letting a green run imply otherwise.
 at the harness. Either fix what the snippet teaches, or — if the block is genuinely partial — declare
 it with a reason. Run it locally with `pnpm check:doc-snippets` (after building the packages it
 names: `pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter)`).
+
+## Pre-Install Import Graphs (`pre-install-import-graph.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. What this gate judges is the arrangement of the workflows themselves, so its
+input is `.github/workflows/**` plus the `scripts/` files those workflows name, and the change most
+likely to break it is a workflow edit. It appears in the checks list as **Pre-Install Import Graph
+Check**.
+
+Runs `scripts/check-pre-install-import-graph.mjs`. Several gates in this repository deliberately run
+**before any `pnpm install`** — that is what lets them run unfiltered on every pull request shape for
+the price of a checkout plus one `node` call. The property that arrangement silently depends on is
+that each of those scripts' *whole static import graph* is node builtins plus repo-relative modules,
+with nothing in it needing `node_modules`.
+
+**Why it needed a gate.** A violation is invisible everywhere it could be caught cheaply: it is not a
+type error (`tsc` is happy with a package import), not a lint error (the package is a real dependency
+of the repo), not a local failure (locally `node_modules` exists), and — until
+[#6148](https://github.com/objectstack-ai/objectui/issues/6148) — not a test failure, because exactly
+one of the pre-install scripts had a test asserting it. It surfaces only as `ERR_MODULE_NOT_FOUND`
+inside one CI job, on whichever pull request happens to touch the file; and for the gates that carry
+no path filter *precisely so they see every PR shape*, that is a gate which **stops running** rather
+than one that fails loudly.
+
+**The population is derived, never listed.** On every run the gate parses every workflow and, per
+job, compares each step's index against the index of the first `pnpm install` step **in that same
+job**. Move a step above an install and the population grows on the next run; move one below and it
+shrinks. A hard-coded list would break silently the first time someone moved a step across an
+install, which is exactly the edit that needs catching. Two anchoring decisions the derivation
+depends on, each with a case in this repository: `pnpm exec playwright install chromium` installs a
+browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"` in
+`dependabot-auto-merge.yml` *configures* a driver in a job that never installs — reading either as an
+install would move a boundary and silently drop a script out of the population.
+
+**It walks the graph, not the entry file.** Requiring each of the entry's own imports to start with
+`node:` is too narrow in one direction (a relative import of a builtins-only local module is fine,
+and two of these scripts spell their builtins bare as `from "fs"`, which is equally install-free) and
+too weak in the other, because it cannot see a package pulled in **one hop away**. Since
+[#6092](https://github.com/objectstack-ai/objectui/issues/6092) every one of these scripts imports
+`scripts/invoked-as.mjs`, so one hop away is exactly where the next breach comes from. The check is
+static rather than a runtime resolver hook because a hook *executes* module top level, and these
+files are CI gates that spawn `git`, read the whole tree and call `process.exit`.
+
+**It is in its own population.** The step above runs a `scripts/` file before any install, in a job
+that never installs, so the gate walks its own import graph on every run. A floor that exempted its
+own enforcer would be the first thing to rot.
+
+**If it fails:** it prints the offending chain — `scripts/some-gate.mjs -> scripts/invoked-as.mjs ->
+typescript` — rather than a bare verdict, so the hop that introduced the package is named. Repairing
+the import is deliberately *not* this gate's job: either drop the package, or move the step below
+`pnpm install` in its workflow and accept the install cost. Run it locally with
+`pnpm check:pre-install-import-graph`, `node scripts/check-pre-install-import-graph.mjs --list` to see
+the derived population and every module walked, or `--self-test` to exercise the parser and the walk
+against fixtures.
 
 ## Link Checking (`check-links.yml`)
 

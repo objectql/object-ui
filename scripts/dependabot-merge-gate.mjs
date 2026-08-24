@@ -125,6 +125,7 @@ import { pathToFileURL } from 'node:url';
  *   changeset-presence.yml   Changeset Declaration
  *   doc-component-types.yml  Doc Component Type Check
  *   doc-snippet-types.yml    Doc Snippet Type Check
+ *   pre-install-import-graph.yml  Pre-Install Import Graph Check
  *
  * The four shards are spelled out individually on purpose. A single `Test`
  * entry, or any pattern match, would be satisfied by whichever shard happened
@@ -146,6 +147,7 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Changeset Declaration',
   'Doc Component Type Check',
   'Doc Snippet Type Check',
+  'Pre-Install Import Graph Check',
 ]);
 
 /**
