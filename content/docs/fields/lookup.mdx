@@ -15,55 +15,60 @@ The Lookup Field component provides a reference field for creating relationships
 
 ## Field Schema
 
+A lookup field is authored as `LookupFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the reference
+target, the display and id fields, an optional static option list, and the Record
+Picker's column and paging configuration. Static options are `SelectOptionMetadata`,
+and picker columns are `LookupColumnDef` — both exported, both checked here.
+
 ```ts
-import type { DataSource } from '@object-ui/types';
+import type { LookupFieldMetadata } from '@object-ui/types';
 
-interface LookupFieldSchema {
-  type: 'lookup' | 'master_detail';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string | string[];     // Default value(s)
-  multiple?: boolean;            // Allow multiple selections
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Reference Configuration
-  reference_to: string;          // Referenced object/table name
-  reference_field?: string;      // Field to display (default: 'name')
-  description_field?: string;    // Secondary field shown below label
-  id_field?: string;             // ID field on records (default: '_id')
-  options?: LookupOption[];      // Available options (if static)
-  
-  // Data Source (automatic via SchemaRendererContext, or explicit)
-  // When a DataSource is available, the popup dynamically loads
-  // records from the referenced object on open, with debounced search.
-  dataSource?: DataSource;
-
-  // Quick-create callback (shown when no results found)
-  onCreateNew?: (searchQuery: string) => void;
-
-  // === Record Picker Configuration (Enterprise) ===
-  
-  // Columns to show in the Record Picker dialog table.
-  // Accepts field names or { field, label, width } objects.
-  // When omitted, auto-infers from reference_field.
-  lookup_columns?: Array<string | { field: string; label?: string; width?: string }>;
-
-  // Custom page size for the Record Picker dialog (default: 10)
-  lookup_page_size?: number;
-}
-
-interface LookupOption {
-  label: string;                 // Display label
-  value: string;                 // Record ID
-  description?: string;          // Secondary text below label
-  _id?: string;                  // Alternative ID field
-  name?: string;                 // Alternative label field
-}
+const accountId: LookupFieldMetadata = {
+  type: 'lookup',
+  name: 'account_id',
+  label: 'Account',
+  placeholder: 'Search accounts…',
+  required: true,
+  reference_to: 'accounts',
+  reference_field: 'name',
+  description_field: 'industry',
+  id_field: '_id',
+  multiple: false,
+  searchable: true,
+  allow_create: true,
+  // Record Picker dialog (Enterprise): columns accept a field name or a descriptor.
+  lookup_columns: ['name', { field: 'industry', label: 'Industry', width: '160px' }],
+  lookup_page_size: 10,
+  lookup_filters: [{ field: 'active', operator: 'eq', value: true }],
+};
 ```
+
+When no data source is available the field falls back to a static option list:
+
+```ts
+import type { LookupFieldMetadata } from '@object-ui/types';
+
+const priority: LookupFieldMetadata = {
+  type: 'lookup',
+  name: 'priority',
+  label: 'Priority',
+  reference_to: 'priorities',
+  options: [
+    { label: 'High', value: 'high' },
+    { label: 'Normal', value: 'normal' },
+  ],
+};
+```
+
+The picker also searches a `description` on a static option, but
+`SelectOptionMetadata` does not declare that key; the gap is tracked as
+[objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153). The
+`dataSource` a host injects and the `onCreateNew` callback it passes are widget props,
+not metadata.
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Dynamic Data Source
 

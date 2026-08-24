@@ -1,0 +1,85 @@
+name: Doc Fence Languages
+
+# Why this is its own workflow rather than a step in `ci.yml` or `lint.yml`: the
+# defect it exists for arrives in a DOCS-ONLY pull request, and that is exactly
+# the shape both of those workflows skip — their "does this change need a full
+# run" diff excludes `content/**` and `'**/*.md'`, which is the entire surface
+# this gate reads. `doc-component-types.yml`'s header records the reasoning in
+# full; this is the sixth instance of the same shape, and `control-bytes.yml`'s
+# header names the consequence of getting it wrong: a gate that cannot see a
+# markdown-only change "rebuilds the hole it exists to close".
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-doc-fence-languages.test.ts` fails if either is ever
+# added, and fails too if a second workflow starts running the same script — one
+# gate, one home.
+#
+# It needs no install and no build. The script reads the checkout with `node:fs`
+# only — the same 222 documents `check-doc-snippet-types` covers — and it
+# deliberately re-implements that gate's document walk rather than importing it,
+# because that gate imports `typescript` and an install-gated docs check is one
+# a docs-only pull request skips. The copy is held to the original by the pin
+# test above, which imports BOTH walks and compares them. Keep this job
+# install-free: the moment it needs `pnpm install` it stops being cheap enough
+# to run unfiltered, and the filter is the hole.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that could become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: doc-fence-languages-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  doc-fence-languages:
+    name: Doc Fence Language Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # `check-doc-snippet-types` compiles `ts` / `tsx` / `typescript` fences and
+      # nothing else, so a TypeScript block fenced any other way is invisible to
+      # it — objectui#5867, whose remediation lane collected its population from
+      # ```plaintext fences only. `plaintext` is not the only spelling of an
+      # unhighlighted fence: objectui#6135 measured a ```text block opening
+      # `interface FileUploadSchema {` sitting outside the gate AND outside the
+      # lane that exists to close it, for no reason but how its fence is spelled.
+      #
+      # This gate reads block BODIES with objectui#5867's own triage classifier,
+      # so no list of languages is on the enforcement path and `txt`, `console`,
+      # `raw` or a bare fence with no info string at all cannot reopen the gap.
+      # Today's residue is declared, SHRINK-ONLY, and is that lane's remaining
+      # population per file.
+      #
+      # `--self-test` runs FIRST and is the half that stops the gate rotting into
+      # decoration: it drives the real scanner over fixture sources, including
+      # the three spellings named on objectui#6135, and pins the shrink-only
+      # baseline in every direction it can move. A scanner whose recogniser is
+      # broken reports a clean tree.
+      - name: Check that no fence spelling hides a TypeScript block
+        run: |
+          node scripts/check-doc-fence-languages.mjs --self-test
+          node scripts/check-doc-fence-languages.mjs

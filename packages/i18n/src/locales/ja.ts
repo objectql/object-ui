@@ -2304,7 +2304,9 @@ const ja = {
         object: "オブジェクト",
         dashboard: "ダッシュボード",
         page: "ページ",
+        report: "レポート",
         record: "レコード",
+        metadata: "メタデータ",
       },
     },
     starredApps: {

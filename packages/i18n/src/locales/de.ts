@@ -2302,7 +2302,9 @@ const de = {
         object: "Objekt",
         dashboard: "Dashboard",
         page: "Seite",
+        report: "Bericht",
         record: "Datensatz",
+        metadata: "Metadaten",
       },
     },
     starredApps: {

@@ -23,29 +23,32 @@ it display-only.
 
 ## Field Schema
 
-```ts
-interface UserFieldSchema {
-  type: 'user';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: User | User[];         // Selected user(s)
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // User Options
-  multiple?: boolean;            // Allow multiple users
-}
+A user field is authored as `UserFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the picker style,
+the subtitle fields, the avatar field and the candidate filters. `user` is a lookup
+specialised to the `sys_user` system object, so its filters are `LookupFilterDef`.
 
-interface User {
-  id: string;                    // User ID
-  name?: string;                 // Display name
-  username?: string;             // Username
-  email?: string;                // Email address
-  avatar?: string;               // Avatar URL
-}
+```ts
+import type { UserFieldMetadata } from '@object-ui/types';
+
+const owner: UserFieldMetadata = {
+  type: 'user',
+  name: 'owner_id',
+  label: 'Owner',
+  required: true,
+  multiple: false,
+  picker: 'search',
+  subtitle: ['primary_business_unit_id.name', 'email'],
+  avatar_field: 'image',
+  lookup_filters: [{ field: 'banned', operator: 'ne', value: true }],
+};
 ```
+
+The field stores the selected user's id (or an array of ids when `multiple` is set),
+not a user object; the picker resolves names and avatars from `sys_user` itself.
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## User vs Owner
 

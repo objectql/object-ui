@@ -2306,7 +2306,9 @@ const es = {
         object: "Objeto",
         dashboard: "Panel",
         page: "Página",
+        report: "Informe",
         record: "Registro",
+        metadata: "Metadatos",
       },
     },
     starredApps: {

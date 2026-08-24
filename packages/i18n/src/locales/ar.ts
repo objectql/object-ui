@@ -2309,7 +2309,9 @@ const ar = {
         object: "كائن",
         dashboard: "لوحة تحكم",
         page: "صفحة",
+        report: "تقرير",
         record: "سجل",
+        metadata: "البيانات الوصفية",
       },
     },
     starredApps: {

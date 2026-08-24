@@ -58,7 +58,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * How many consecutive unreachable runs escalate into the issue channel.
@@ -605,8 +605,7 @@ export async function main({ api } = {}) {
   return { alarm, reasons, checkClass, analyzeClass, registryState, streak };
 }
 
-const invokedDirectly =
-  process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) {
   await main();
 }
