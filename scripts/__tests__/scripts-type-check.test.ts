@@ -78,6 +78,45 @@ function parsedConsoleNodeProject(): ts.ParsedCommandLine {
   );
 }
 
+/**
+ * Every `@object-ui/*` module specifier a source file actually imports or
+ * re-exports, read from the AST rather than grepped from the file's text
+ * (objectui#4902). A textual `from\s+'...'` match cannot tell a real import
+ * edge apart from the same shape sitting inside a line comment, a block
+ * comment, or a JSDoc `@example` — this repo has hit that exact false
+ * positive (a comment explaining "there is no such import" was read as one
+ * by a sibling text-level gate). Walking
+ * `ImportDeclaration`/`ExportDeclaration`/`ImportEqualsDeclaration` nodes
+ * instead makes the check ask "is this a module edge" rather than "does this
+ * text look like one", which also means `import type { … }` and
+ * `export { … } from '…'` are covered for free — the regex covered the first
+ * only by accident and the second not at all.
+ */
+function workspaceImportSpecifiers(fileName: string, sourceText: string): string[] {
+  const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, false);
+  const specifiers: string[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      specifiers.push(node.moduleReference.expression.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return specifiers.filter((specifier) => specifier.startsWith('@object-ui/'));
+}
+
 /** Every TypeScript source on disk under `scripts/`, repo-relative, POSIX-separated. */
 function typeScriptSourcesOnDisk(): string[] {
   const out: string[] = [];
@@ -289,14 +328,65 @@ describe('the gate is actually wired up (objectui#3494)', () => {
     // an @object-ui/* package, so unlike `pnpm type-check` (which dependsOn
     // `^build`) it needs no built .d.ts files. If that stops being true the
     // step has to move below the build, so pin the premise.
-    const workspaceImports = parsedProject()
-      .fileNames.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/from\s+'(@object-ui\/[^']+)'/g)])
-      .map((m) => m[1]);
+    const workspaceImports = parsedProject().fileNames.flatMap((f) =>
+      workspaceImportSpecifiers(f, fs.readFileSync(f, 'utf8')),
+    );
 
     expect(
       [...new Set(workspaceImports)],
-      'tsconfig.scripts.json’s program now imports workspace packages, so it needs their built ' +
-        'declaration files. Move the ci.yml step below the build, or drop the import.',
+      'tsconfig.scripts.json’s program now imports a workspace package (found via the AST, not a ' +
+        'comment or example), so it needs their built declaration files. Move the ci.yml step below ' +
+        'the build, or drop the import.',
+    ).toEqual([]);
+  });
+});
+
+describe('workspaceImportSpecifiers() — the matcher behind the workspace-import check (objectui#4902)', () => {
+  // Non-vacuity first: prove the walk can find a real import edge at all,
+  // before trusting any test below that asserts it finds nothing. A matcher
+  // that always returns [] would make every "not caught" case beneath it
+  // pass for the wrong reason.
+  it('finds a real static import', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "import { widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  it('finds a real `import type` import', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "import type { Widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  it('finds a real `export … from` re-export', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "export { widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  // The direction this file's fix is for: the same specifier text, but never
+  // reachable by the compiler, must not be reported.
+  it('does not find the specifier inside a line comment (objectui#4902)', () => {
+    expect(
+      workspaceImportSpecifiers(
+        'probe.ts',
+        "// rewrite of this gate breaks on a documented `import … from '@object-ui/core'`\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not find the specifier inside a block comment (objectui#4902)', () => {
+    expect(
+      workspaceImportSpecifiers(
+        'probe.ts',
+        "/**\n * @example\n * import { widget } from '@object-ui/core';\n */\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not find the specifier inside a string that is not a module specifier', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "const doc = \"see '@object-ui/core' for details\";\n"),
     ).toEqual([]);
   });
 });
