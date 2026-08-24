@@ -192,23 +192,47 @@ describe('precedence is unchanged by the lowering', () => {
 });
 
 describe('the census the card asked for: no spelling regressed on the way in', () => {
-  it('leaves the `views` prop spelling exactly where it already was — objectui#5293', async () => {
-    // ⚠️ NOT this card's defect and NOT fixed here. `ObjectViewProps.views[]`
-    // declares `sort?: Array<{ field, direction }>` while every consumer reads
-    // `order`, so the direction is dropped. Measured BOTH ways: unlowered, the
-    // adapter's `shorthand(field, undefined)` sent ascending `name`; lowered,
-    // the sink's `entry.order === 'desc'` is equally false and sends
-    // `{ name: 'asc' }`. Same answer before and after — the lowering neither
-    // fixes objectui#5293 nor makes it worse. Pinned so that whoever DOES fix
-    // that card is told this site exists.
+  it("carries a `views` prop sort through to the sink, DESCENDING — objectui#5293", async () => {
+    // This assertion is the fix. It replaces a pin that asserted
+    // `{ name: 'asc' }` for a `direction: 'desc'` fixture — green not because
+    // anything worked but because NOTHING read the key, which is exactly the
+    // silent wrong answer objectui#5293 was filed about. `ObjectViewProps`
+    // now declares `sort?: Array<{ field, order }>`, the one spelling every
+    // consumer and the shared sink already read, so the authored direction
+    // survives to `$orderby` instead of being dropped on the way in.
     const ds = mockDataSource();
     render(
       <ObjectView
         schema={{ type: 'object-view', objectName: 'task' } as ObjectViewSchema}
-        views={[{ id: 'v1', label: 'V1', type: 'calendar', sort: [{ field: 'name', direction: 'desc' }] }] as any}
+        views={[{ id: 'v1', label: 'V1', type: 'calendar', sort: [{ field: 'name', order: 'desc' }] }]}
         dataSource={ds as any}
       />,
     );
+    await waitFor(() => expect(ds.find).toHaveBeenCalled());
+    expect(ds.find.mock.calls[0][1].$orderby).toEqual({ name: 'desc' });
+  });
+
+  it('the old `direction` spelling is refused by the declaration, not silently dropped', async () => {
+    // The other half of objectui#5293, and the reason the break is worth
+    // shipping: a host that still writes the retired spelling must FAIL, and
+    // fail at the type boundary rather than by rendering an ascending list.
+    // The `@ts-expect-error` IS the assertion — it turns red if the excess
+    // property is ever admitted again, which is precisely what a tolerant
+    // dual-read (`direction ?? order`) would do. ⛔ objectui#4869 ruled that
+    // tolerance layer out; this line is the guard that keeps it out.
+    const ds = mockDataSource();
+    render(
+      <ObjectView
+        schema={{ type: 'object-view', objectName: 'task' } as ObjectViewSchema}
+        // @ts-expect-error — `direction` is not a key of the sort entry (objectui#5293)
+        views={[{ id: 'v1', label: 'V1', type: 'calendar', sort: [{ field: 'name', direction: 'desc' }] }]}
+        dataSource={ds as any}
+      />,
+    );
+    // Runtime behaviour of the retired spelling is unchanged and deliberately
+    // still asserted: it orders ascending. That is what makes the type error
+    // the ONLY failure signal a host gets, and why the changeset names the
+    // old key so the break is searchable.
     await waitFor(() => expect(ds.find).toHaveBeenCalled());
     expect(ds.find.mock.calls[0][1].$orderby).toEqual({ name: 'asc' });
   });

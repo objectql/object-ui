@@ -242,13 +242,28 @@ export interface ObjectViewProps {
    * Views available for the ViewSwitcher.
    * Each view defines a type (grid, kanban, calendar, etc.) and display columns/config.
    * If not provided, uses schema.listViews or falls back to default grid view.
+   *
+   * `sort` spells its direction key `order`, like every other sort surface in
+   * the repo (`SortConfig`, `NamedListView.sort`, `ObjectGridSchema.sort` /
+   * `.defaultSort`) and like the shared sink `convertSortToQueryParams` reads
+   * it. It used to be declared as `direction` (objectui#5293), which NO reader
+   * ever knew: all three consumers of the resolved `activeView.sort` read
+   * `order`, so a host writing `direction: 'desc'` got a SILENTLY ascending
+   * list — the sink's `entry.order === 'desc'` is false for a missing key, the
+   * grid built the wire string `name undefined`, and `parseSchemaSort` drew an
+   * ascending arrow above it. The rename does not remove a working feature;
+   * it converts that silent wrong answer into a loud type error.
+   *
+   * ⛔ Deliberately NOT a tolerant dual-read (`direction ?? order`) — that is
+   * the tolerance layer objectui#4869 ruled against, and re-adding it here
+   * would restore the very spelling drift this declaration now closes.
    */
   views?: Array<{
     id: string;
     label: string;
     type: ViewType;
     columns?: string[];
-    sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
+    sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
     filter?: any[];
     [key: string]: any;
   }>;
