@@ -92,14 +92,35 @@ export const DEFAULT_ACTIVITY_LIMIT = 20;
  * `showCompleted`; a not-yet-held meeting is `scheduled` → `event`, shown,
  * because an upcoming meeting is the part of a timeline you still act on.
  *
- * Whether the upstream enum should GAIN `scheduled` is a platform ruling, not
- * this block's to make — filed as objectstack#11424. Until it is ruled, the
- * honest statement of this table is the one the test now pins: the upstream
- * declaration PLUS the values a shipped producer measurably writes.
+ * ## The vocabulary is OPEN — ruled. Do NOT restore set-equality.
  *
- * Values outside BOTH groups are still dropped — see
- * {@link activityRowToFeedItem}, which now says so out loud instead of
- * silently.
+ * Maintainer ruling of 2026-08-24 on objectstack#11507, **direction 4**:
+ * `sys_activity.type` is AUTHOR-EXTENSIBLE. The declared select options are the
+ * platform's BUILT-IN set, not the column's domain, and the two facts above are
+ * why — readonly fields are never validated on write, and ADR-0052 §5b.2
+ * forwards an author's `activityMilestones[].type` into the column verbatim.
+ *
+ * So the relation this table stands in is a SUPERSET, in one direction only:
+ *
+ *  - **map ⊇ built-ins** — every value the platform declares has an entry here,
+ *    either a feed type or a deliberate `undefined` exclusion. A new built-in
+ *    with no entry is a gap, and objectui#5969's pin turns red for it.
+ *  - **NOT built-ins ⊇ map**, and NOT set-equality in either spelling. An
+ *    author-extended value legitimately exists outside the declaration, so a
+ *    pin that required the two sets to match would be false by construction.
+ *
+ * ⛔ A reader who finds no equality check here is looking at a DECISION, not an
+ * omission: objectui#5840 removed the old set-equality pin on purpose, because
+ * pinning to the closed declaration meant dropping stored rows, and
+ * objectui#5969 replaced it with the two-directional pin under this ruling.
+ *
+ * (`scheduled` — the value #5840 was about — has since been declared upstream
+ * by objectstack#11522, superseding objectstack#11424. That is precisely the
+ * drift a hand-maintained equality pin cannot survive, and the reason the pin
+ * is a superset assertion plus a fallback rather than a census of two groups.)
+ *
+ * A value outside this table is NO LONGER DROPPED: it renders through
+ * {@link UNMAPPED_ACTIVITY_FEED_TYPE}. See {@link activityRowToFeedItem}.
  */
 export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | undefined>> = {
   created: 'field_change',
@@ -115,6 +136,30 @@ export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | 
   login: undefined,
   logout: undefined,
 };
+
+/**
+ * The presentation an `sys_activity.type` value outside
+ * {@link ACTIVITY_TYPE_TO_FEED_TYPE} renders through.
+ *
+ * The second half of the objectstack#11507 direction-4 ruling (2026-08-24): if
+ * the column is author-extensible, then a value this map has never heard of is
+ * REAL RECORD ACTIVITY that an author extended the platform with — not a
+ * mistake — and dropping it is the objectui#5840 failure mode reappearing for
+ * every author who ever writes one. Stored, queryable, invisible.
+ *
+ * `system` is the generic bucket rather than a new feed type because
+ * `FeedItemType` is a CLOSED spec enum owned by `@objectstack/spec` — minting a
+ * kind for "we don't know" is a platform change, not this block's.
+ *
+ * ⚠️ This is a FLOOR under the map, never a substitute for it. objectui#5840
+ * rejected a catch-all *offered as the fix* — an unmeasured type rendering as
+ * `system` is not the same data as a type someone read and mapped. What makes
+ * the catch-all safe here is that it does not stand alone: the superset pin
+ * above forces every built-in to keep its OWN presentation, so the fallback can
+ * only ever receive values nobody has ruled on yet, and the diagnostic below
+ * names each one so somebody can.
+ */
+export const UNMAPPED_ACTIVITY_FEED_TYPE: FeedItemType = 'system';
 
 /**
  * The feed types a COMPLETED activity produces.
@@ -305,23 +350,29 @@ export function activityTimestamp(row: SysActivityRow): string {
 const warnedUnknownActivityTypes = new Set<string>();
 
 /**
- * Say out loud that a row was dropped for having a type nothing maps.
+ * Say out loud that a row reached the timeline through the generic fallback.
  *
  * Deliberately NOT fired for a type this map knows and deliberately drops
  * (`commented` / `mentioned` / `login` / `logout` → `undefined`): those are
  * decisions, and a warning about a decision is noise that teaches authors to
- * ignore the channel. It fires only for a value outside the table entirely —
- * which is the objectui#5840 failure mode: written, stored, invisible, no
- * diagnostic anywhere.
+ * ignore the channel. It fires only for a value outside the table entirely.
+ *
+ * Since objectui#5969 that value is RENDERED rather than dropped
+ * ({@link UNMAPPED_ACTIVITY_FEED_TYPE}), so the diagnostic no longer reports
+ * lost data — it reports a MISSING DECISION, which is the thing that is still
+ * wrong. The row is visible; what it is missing is the specific icon and colour
+ * a mapped type gets. That is the channel by which an author-extended value
+ * becomes a mapping somebody made on purpose.
  */
 function warnUnknownActivityType(type: string): void {
   warnOnce(warnedUnknownActivityTypes, [type], () =>
-    `[record:activity] dropped a sys_activity row with type "${type}": no feed `
-      + 'item type is mapped for it, so it cannot appear on any timeline whatever '
-      + 'the page authors. `sys_activity.type` is not validated on write (every '
-      + 'field on that object is readonly), so a producer can store a value the '
-      + 'platform never declared. Map it in ACTIVITY_TYPE_TO_FEED_TYPE '
-      + '(@object-ui/plugin-detail) if it is record activity.');
+    `[record:activity] rendered a sys_activity row with type "${type}" through the `
+      + `generic "${UNMAPPED_ACTIVITY_FEED_TYPE}" presentation: no feed item type is `
+      + 'mapped for it. `sys_activity.type` is author-extensible (objectstack#11507, '
+      + 'ruled 2026-08-24) and is not validated on write, so a producer can store a '
+      + 'value the platform never declared — the row is shown rather than dropped. '
+      + 'Map it in ACTIVITY_TYPE_TO_FEED_TYPE (@object-ui/plugin-detail) to give it '
+      + 'its own presentation.');
 }
 
 /** Test seam: forget which unknown types have already been warned about. */
@@ -333,20 +384,27 @@ export function resetUnknownActivityTypeWarnings(): void {
  * One `sys_activity` row → one {@link FeedItem}, or `null` when the row is not
  * record activity (see {@link ACTIVITY_TYPE_TO_FEED_TYPE}).
  *
- * Two different `null`s, and the difference is the point: a type the table
- * maps to `undefined` is a deliberate exclusion and returns quietly; a type the
- * table does not contain at all is an unmapped producer and says so once.
+ * Three outcomes, and the difference between the last two is the whole of the
+ * objectstack#11507 direction-4 ruling (2026-08-24):
+ *
+ *  - a type mapped to a feed type renders with THAT presentation;
+ *  - a type the table maps to `undefined` is a DELIBERATE exclusion — `null`,
+ *    quietly, because a warning about a decision teaches authors to ignore the
+ *    channel;
+ *  - a type the table does not contain at all is an AUTHOR-EXTENDED value under
+ *    the ruled open vocabulary. It renders through
+ *    {@link UNMAPPED_ACTIVITY_FEED_TYPE} and says so once. It used to return
+ *    `null` here, which made every extended value invisible — the same outcome
+ *    objectui#5840 was filed for, reached by a different route.
  */
 export function activityRowToFeedItem(
   row: SysActivityRow,
   systemActorLabel: string,
 ): FeedItem | null {
   const rawType = String(row?.type);
-  if (!Object.prototype.hasOwnProperty.call(ACTIVITY_TYPE_TO_FEED_TYPE, rawType)) {
-    warnUnknownActivityType(rawType);
-    return null;
-  }
-  const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[rawType];
+  const known = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPE_TO_FEED_TYPE, rawType);
+  if (!known) warnUnknownActivityType(rawType);
+  const feedType = known ? ACTIVITY_TYPE_TO_FEED_TYPE[rawType] : UNMAPPED_ACTIVITY_FEED_TYPE;
   if (!feedType) return null;
   return {
     id: row.id as string | number,

@@ -75,7 +75,7 @@ import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zo
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
 import { BlockEditorSchema, BlockInstanceSchema, BlockLibraryItemSchema, BlockLibrarySchema, BlockMetadataSchema, BlockSchema, BlockSlotSchema, BlockVariableSchema, ComponentSchema } from '../zod/blocks.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
-import { ActionCallbackSchema, CRUDDialogSchema, CRUDFilterSchema, CRUDOperationSchema, CRUDPaginationSchema, CRUDSchema, CRUDToolbarSchema, DetailSchema } from '../zod/crud.zod.js';
+import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
@@ -92,7 +92,7 @@ import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig
 import type { BlockEditorSchema as Ts_BlockEditorSchema, BlockInstanceSchema as Ts_BlockInstanceSchema, BlockLibraryItem as Ts_BlockLibraryItem, BlockLibrarySchema as Ts_BlockLibrarySchema, BlockMetadata as Ts_BlockMetadata, BlockSchema as Ts_BlockSchema, BlockSlot as Ts_BlockSlot, BlockVariable as Ts_BlockVariable, ComponentSchema as Ts_ComponentSchema } from '../blocks';
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
-import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, CRUDFilter as Ts_CRUDFilter, CRUDOperation as Ts_CRUDOperation, CRUDPagination as Ts_CRUDPagination, CRUDSchema as Ts_CRUDSchema, CRUDToolbar as Ts_CRUDToolbar, DetailSchema as Ts_DetailSchema } from '../crud';
+import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
@@ -176,11 +176,6 @@ const MIRRORS = {
   'complex.zod.ts#KanbanSchema': KanbanSchema,
   'crud.zod.ts#ActionCallbackSchema': ActionCallbackSchema,
   'crud.zod.ts#CRUDDialogSchema': CRUDDialogSchema,
-  'crud.zod.ts#CRUDFilterSchema': CRUDFilterSchema,
-  'crud.zod.ts#CRUDOperationSchema': CRUDOperationSchema,
-  'crud.zod.ts#CRUDPaginationSchema': CRUDPaginationSchema,
-  'crud.zod.ts#CRUDSchema': CRUDSchema,
-  'crud.zod.ts#CRUDToolbarSchema': CRUDToolbarSchema,
   'crud.zod.ts#DetailSchema': DetailSchema,
   'data-display.zod.ts#AlertSchema': AlertSchema,
   'data-display.zod.ts#AvatarSchema': AvatarSchema,
@@ -343,11 +338,6 @@ interface Declared {
   'complex.zod.ts#KanbanSchema': Ts_KanbanSchema;
   'crud.zod.ts#ActionCallbackSchema': Ts_ActionCallback;
   'crud.zod.ts#CRUDDialogSchema': Ts_CRUDDialogSchema;
-  'crud.zod.ts#CRUDFilterSchema': Ts_CRUDFilter;
-  'crud.zod.ts#CRUDOperationSchema': Ts_CRUDOperation;
-  'crud.zod.ts#CRUDPaginationSchema': Ts_CRUDPagination;
-  'crud.zod.ts#CRUDSchema': Ts_CRUDSchema;
-  'crud.zod.ts#CRUDToolbarSchema': Ts_CRUDToolbar;
   'crud.zod.ts#DetailSchema': Ts_DetailSchema;
   'data-display.zod.ts#AlertSchema': Ts_AlertSchema;
   'data-display.zod.ts#AvatarSchema': Ts_AvatarSchema;
@@ -505,8 +495,6 @@ interface KnownDrift {
   'complex.zod.ts#FilterBuilderSchema': 'fields';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** TS declares an index signature whose value type includes `undefined`; the mirror`s `z.record` value type does not. The mirror refuses `{ create: undefined }` only. */
-  'crud.zod.ts#CRUDSchema': 'operations';
   /** DISJOINT: TS declares `rowActions?: boolean` (show the column or not), the mirror declares `any[]` (the actions themselves). One of the two is dead; which is a ruling. (`selectable` was a second drifted key here until objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` — `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements `'single'` as a real mode.) */
   'data-display.zod.ts#DataTableSchema': 'rowActions';
   /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. */

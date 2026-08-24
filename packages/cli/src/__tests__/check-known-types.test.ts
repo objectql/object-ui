@@ -81,9 +81,26 @@ afterEach(() => {
 });
 
 describe('objectui check — unknown schema types', () => {
-  it('warns about `crud`, which four declaration faces describe and no renderer registers', async () => {
+  it('warns about `crud`, a RETIRED spelling that must never re-enter the key set', async () => {
     // The defect objectui#5115 was filed for: this file passed in silence, and
     // then rendered the OBJUI-001 "Unknown component type" panel in the browser.
+    //
+    // This pin was flipped by objectui#5373, which retired `CRUDSchema` under
+    // ADR-0049. Its old name said `crud` was a type "four declaration faces
+    // describe and no renderer registers" — true when it was written, false
+    // now: the interface, the zod mirror, the validator branch and the builder
+    // are all gone, and `type: 'crud'` is refused BY NAME by
+    // `validateSchema` in `@object-ui/core`.
+    //
+    // What this pin can and cannot witness, stated so the next reader does not
+    // over-read it: `KNOWN_SCHEMA_TYPES` is derived from the REGISTRATION calls,
+    // and `crud` never had one — so this assertion held before the retirement
+    // and holds after it, and would keep holding if the retirement were
+    // reverted. It is a regression pin against `crud` being REGISTERED back
+    // into the key set, not a witness of the declarations being gone. The
+    // witnesses that do distinguish those two worlds are the refusal test in
+    // `@object-ui/core`'s `schema-validator.test.ts` and the union/barrel pins
+    // in `@object-ui/types`' `crud-retirement-5373.test.ts`.
     writeSchema('crud-page.json', { type: 'crud', resource: '/api/accounts' });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([

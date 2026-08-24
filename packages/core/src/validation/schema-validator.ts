@@ -127,61 +127,66 @@ function validateBaseSchema(schema: any, path: string = 'schema'): SchemaNodeVal
 }
 
 /**
- * Validate CRUD schema specific properties
+ * TOMBSTONE table — node `type` spellings this renderer has RETIRED, mapped to
+ * the prescription an author must follow instead (ADR-0049 enforce-or-remove).
+ *
+ * A retired spelling is not merely absent from this file. Absence here means
+ * {@link validateSchema} runs `validateBaseSchema` — which only asks that
+ * `type` be a non-empty string — finds nothing type-specific to say, and
+ * returns `valid: true`. That silence is the failure mode this table exists to
+ * prevent: the author is told their schema is fine and then gets the OBJUI-001
+ * "Unknown component type" panel at render time, one layer too late to act on.
+ * So a retired spelling is refused BY NAME, with the migration in the message.
+ *
+ * `crud` (objectui#5373, maintainer ruling of 2026-08-20): `CRUDSchema` carried
+ * FOUR declaration faces — the TS interface, the zod mirror, a dedicated branch
+ * in this very function, and `CRUDBuilder` — and never once had a registered
+ * renderer, for the whole life of the key. Every face taught an author (and an
+ * AI author reading the published reference page) that the type existed. The
+ * branch that used to sit here is what made this validator the loudest of the
+ * four lies: it read `schema.type === 'crud'`, checked that `columns` was an
+ * array, and returned no error — an affirmative "your CRUD schema is valid"
+ * for a node that renders nothing.
+ *
+ * Keyed by the authored spelling, and quantified over the table rather than
+ * written per spelling, so the next retirement closes this face the day it
+ * lands here.
  */
-function validateCRUDSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
-  const errors: SchemaNodeValidationError[] = [];
+const RETIRED_NODE_TYPES: Readonly<Record<string, string>> = Object.freeze({
+  crud:
+    "Node type `crud` was RETIRED (objectui#5373, ADR-0049 enforce-or-remove). " +
+    "`CRUDSchema` declared it in four places and no renderer ever registered it, " +
+    "so a node spelling it painted the OBJUI-001 \"Unknown component type\" panel. " +
+    "Compose the shapes that DO render instead: `object-grid` for the record " +
+    "table with its toolbar, filters, pagination and row/batch actions, " +
+    "`object-form` for the create/edit form, and `detail` for the record view.",
+});
 
-  if (schema.type === 'crud') {
-    // Check required properties for CRUD
-    if (!schema.columns || !Array.isArray(schema.columns)) {
-      errors.push({
-        path: `${path}.columns`,
-        message: 'CRUD schema requires columns array',
-        type: 'error',
-        code: 'MISSING_COLUMNS'
-      });
-    }
-
-    if (!schema.api && !schema.dataSource) {
-      errors.push({
-        path: `${path}.api`,
-        message: 'CRUD schema requires api or dataSource',
-        type: 'warning',
-        code: 'MISSING_DATA_SOURCE'
-      });
-    }
-
-    // Validate columns
-    if (schema.columns && Array.isArray(schema.columns)) {
-      schema.columns.forEach((column: any, index: number) => {
-        if (!column.name) {
-          errors.push({
-            path: `${path}.columns[${index}]`,
-            message: 'Column requires name property',
-            type: 'error',
-            code: 'MISSING_COLUMN_NAME'
-          });
-        }
-      });
-    }
-
-    // Validate fields if present
-    if (schema.fields && Array.isArray(schema.fields)) {
-      schema.fields.forEach((field: any, index: number) => {
-        if (!field.name) {
-          errors.push({
-            path: `${path}.fields[${index}]`,
-            message: 'Field requires name property',
-            type: 'error',
-            code: 'MISSING_FIELD_NAME'
-          });
-        }
-      });
-    }
-  }
-
-  return errors;
+/**
+ * Refuse a retired node-type spelling by name.
+ *
+ * Severity is `error`, not `warning`, and that is the whole point of the
+ * retirement: a warning leaves `result.valid === true`, so `assertValidSchema`
+ * would still not throw and `isValidSchema` would still answer `true` — the
+ * same silence, one console line louder.
+ *
+ * `hasOwnProperty` rather than a plain index read: a `type` of `'constructor'`
+ * or `'toString'` reaches `Object.prototype` and would answer truthy.
+ *
+ * Reached for every node in the tree, not just the root — {@link validateSchema}
+ * is what `validateChildren` recurses with, so a retired spelling nested inside
+ * a `children` array is refused with its own path.
+ */
+function validateRetiredNodeType(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const type = schema?.type;
+  if (typeof type !== 'string') return [];
+  if (!Object.prototype.hasOwnProperty.call(RETIRED_NODE_TYPES, type)) return [];
+  return [{
+    path: `${path}.type`,
+    message: RETIRED_NODE_TYPES[type],
+    type: 'error',
+    code: 'RETIRED_TYPE'
+  }];
 }
 
 /**
@@ -402,7 +407,7 @@ export function validateSchema(
   allErrors.push(...validateBaseSchema(schema, path));
 
   // Validate type-specific schemas
-  allErrors.push(...validateCRUDSchema(schema, path));
+  allErrors.push(...validateRetiredNodeType(schema, path));
   allErrors.push(...validateFormSchema(schema, path));
 
   // Validate children recursively

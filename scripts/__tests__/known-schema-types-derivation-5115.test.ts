@@ -79,11 +79,12 @@ describe('KNOWN_SCHEMA_TYPES equals the registered universe', () => {
 });
 
 describe('the two drifted types objectui#5115 was filed for', () => {
-  it('rejects `crud` — four declaration faces, no renderer', () => {
-    // `CRUDSchema` still has its interface, zod mirror, validator branch and
-    // builder. What it has never had is a registration, so the CLI must not
-    // claim the type exists. Whether CRUDSchema itself should survive is a
-    // separate question, deliberately untouched here.
+  it('rejects `crud` — retired under ADR-0049, and never registered before that', () => {
+    // `CRUDSchema` had an interface, a zod mirror, a validator branch and a
+    // builder when objectui#5115 was filed. What it never had is a
+    // registration, so the CLI must not claim the type exists. objectui#5373
+    // resolved the open question this comment used to defer — the maintainer
+    // ruled retirement, and all four declaration faces are gone.
     expect(derived.keys.has('crud')).toBe(false);
     expect(isKnownSchemaType('crud')).toBe(false);
   });

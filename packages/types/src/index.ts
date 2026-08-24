@@ -354,11 +354,6 @@ export type {
 // ============================================================================
 export type {
   ActionSchema,
-  CRUDOperation,
-  CRUDFilter,
-  CRUDToolbar,
-  CRUDPagination,
-  CRUDSchema,
   DetailSchema,
   CRUDDialogSchema,
   CRUDComponentSchema,

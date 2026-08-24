@@ -30,6 +30,7 @@ import {
   normalizeLimit,
   resetUnknownActivityTypeWarnings,
   resetUnrecognisedFeedTypeWarnings,
+  UNMAPPED_ACTIVITY_FEED_TYPE,
 } from '../recordActivityFeed';
 
 const item = (over: Partial<FeedItem> & Pick<FeedItem, 'id' | 'type'>): FeedItem => ({
@@ -39,76 +40,112 @@ const item = (over: Partial<FeedItem> & Pick<FeedItem, 'id' | 'type'>): FeedItem
 });
 
 /**
- * The two vocabularies this map has to cover (objectui#5840).
+ * The platform's BUILT-IN `sys_activity.type` set.
  *
- * They are LITERALS on purpose, in both groups, for the reason plugin-audit's
- * own `sys-activity-type-vocabulary.test.ts` gives: a pin that read its
- * expectation out of the thing it is pinning cannot fail. The cost is that a
- * human redoes the census when either group moves, which is the point.
+ * ## Provenance — read this before editing the list
+ *
+ * Source: objectstack `packages/plugins/plugin-audit/src/objects/sys-activity.object.ts`,
+ * the `type: Field.select([...])` declaration. Read at objectstack commit
+ * `91b1342` ("declare sys_activity.type 'scheduled' and record its writer",
+ * objectstack#11522) on 2026-08-24. That file is the ONLY declaration of this
+ * vocabulary in the platform — `@objectstack/spec` declares `FeedItemType`, the
+ * vocabulary this map's VALUES come from, and never the keys.
+ *
+ * ## Why it is a hand census and not a live read
+ *
+ * There is no live source for it in reach: `@objectstack/plugin-audit` is a
+ * server plugin, and the packages this repo depends on (`@objectstack/spec`,
+ * `client`, `formula`, `lint`) do not carry the declaration. Reading it live
+ * would mean a UI package taking a dependency on a services plugin.
+ *
+ * ⚠️ So this list CAN go stale, and measurably has: `scheduled` was declared
+ * upstream on 2026-08-24 and the previous census still had it filed as
+ * "undeclared but written". Two things keep that from being a data loss rather
+ * than a labelling one, and both are load-bearing:
+ *
+ *  1. the fallback below — an undeclared or newly-declared value RENDERS, so a
+ *     stale census costs a specific icon, never a vanished row; and
+ *  2. objectstack#11807 — the platform-side ask to publish this vocabulary
+ *     where a UI package can read it, which is what would let this list be
+ *     deleted.
+ *
+ * ⛔ Do not derive this list from `ACTIVITY_TYPE_TO_FEED_TYPE`. A pin that reads
+ * its expectation out of the thing it is pinning cannot fail.
  */
-
-/**
- * plugin-audit's declared `sys_activity.type` select options
- * (`sys-activity.object.ts`). A new option added upstream should show up here
- * as a DECISION rather than as a row that silently renders nothing.
- */
-const DECLARED_UPSTREAM_TYPES = [
-  'assigned', 'commented', 'completed', 'created', 'deleted',
-  'login', 'logout', 'mentioned', 'shared', 'system', 'updated',
+const PLATFORM_BUILTIN_ACTIVITY_TYPES = [
+  'assigned', 'commented', 'completed', 'created', 'deleted', 'login',
+  'logout', 'mentioned', 'scheduled', 'shared', 'system', 'updated',
 ] as const;
 
 /**
- * Values a shipped producer measurably WRITES while being undeclared upstream.
+ * A value no built-in declares — what an author extends the column with.
  *
- * This group exists because the declaration is not a contract: every field on
- * `sys_activity` is `readonly: true` and objectql's `validateRecord` skips
- * readonly fields, so an undeclared value is stored silently. The second
- * element names the producer — add the producer before adding the row.
- *
- * Whether the upstream enum should absorb these is a platform ruling, not this
- * block's; until it is made, rendering them is what stops a stored row from
- * being invisible.
+ * `sys_activity.type` is author-extensible (objectstack#11507, ruled direction
+ * 4 on 2026-08-24): every field on the object is `readonly: true`, objectql's
+ * `validateRecord` skips readonly fields on both write branches, and ADR-0052
+ * §5b.2 forwards an author's `activityMilestones[].type` into the column
+ * verbatim. So a value like this is STORED, queryable, and legitimate.
  */
-const UNDECLARED_BUT_WRITTEN_TYPES: ReadonlyArray<readonly [type: string, writer: string]> = [
-  [
-    'scheduled',
-    'hotcrm/src/actions/global.actions.ts — schedule_meeting: '
-      + "type: EVENT_STATUS === 'held' ? 'completed' : 'scheduled'; registered for "
-      + 'crm_lead / crm_contact / crm_account / crm_opportunity / crm_case',
-  ],
-];
+const AUTHOR_EXTENDED_TYPE = 'crm_contract_signed';
 
 describe('sys_activity row → FeedItem', () => {
-  it('covers the declared vocabulary AND the values producers actually write', () => {
-    expect(Object.keys(ACTIVITY_TYPE_TO_FEED_TYPE).sort()).toEqual(
-      [...DECLARED_UPSTREAM_TYPES, ...UNDECLARED_BUT_WRITTEN_TYPES.map(([t]) => t)].sort(),
-    );
+  /**
+   * SUPERSET, one direction only: **the map covers every built-in**.
+   *
+   * In words, because the direction is easy to get backwards: every value the
+   * platform DECLARES must have an entry in `ACTIVITY_TYPE_TO_FEED_TYPE` — a
+   * feed type, or a deliberate `undefined` exclusion. A new built-in with no
+   * entry turns this red, which is what forces the map to keep up.
+   *
+   * ⛔ The converse — every map key must be declared upstream — is NOT asserted,
+   * and neither is set equality in any spelling. Under the objectstack#11507
+   * direction-4 ruling (2026-08-24) `sys_activity.type` is author-extensible,
+   * so map keys outside the declaration are legitimate by construction.
+   * objectui#5840 removed the old equality pin because pinning to the closed
+   * declaration meant dropping stored rows; ⛔ do not put it back. What replaces
+   * it is this leg plus the fallback leg below — either alone is worse than
+   * neither: a superset pin on its own re-creates the closed-vocabulary
+   * failure slowly, and a fallback on its own lets the map fall behind.
+   */
+  it('covers every BUILT-IN type — superset, not equality (objectstack#11507)', () => {
+    for (const type of PLATFORM_BUILTIN_ACTIVITY_TYPES) {
+      expect(
+        Object.prototype.hasOwnProperty.call(ACTIVITY_TYPE_TO_FEED_TYPE, type),
+        `'${type}' is declared by plugin-audit's sys_activity.type and has no entry in `
+          + 'ACTIVITY_TYPE_TO_FEED_TYPE. Every built-in needs a decision here: a feed '
+          + 'type, or an explicit `undefined` that says the exclusion was meant.',
+      ).toBe(true);
+    }
     for (const mapped of Object.values(ACTIVITY_TYPE_TO_FEED_TYPE)) {
       if (mapped) expect(SpecFeedItemType.options).toContain(mapped);
     }
   });
 
-  it.each(UNDECLARED_BUT_WRITTEN_TYPES)(
-    'renders %s — it is stored by a real producer, so dropping it loses data',
-    (type, writer) => {
-      expect(
-        activityRowToFeedItem({ id: 'x', type }, 'System'),
-        `'${type}' must keep reaching the feed: it is written by ${writer}. `
-          + 'It is absent from plugin-audit\'s declared options and lands anyway, '
-          + 'because readonly fields are never validated on write — so the enum '
-          + 'cannot be used as the list of what this map has to handle.',
-      ).not.toBeNull();
-    },
-  );
+  it('does NOT require the map to be contained by the declaration', () => {
+    // The other direction, stated as an assertion rather than as a comment so
+    // that "re-add the equality check" has to delete a passing test to happen.
+    // An author-extended value has no entry and still renders (see the fallback
+    // leg), and a mapped key that upstream later drops is not an error here.
+    const declared = new Set<string>(PLATFORM_BUILTIN_ACTIVITY_TYPES);
+    expect(declared.has(AUTHOR_EXTENDED_TYPE)).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(
+      ACTIVITY_TYPE_TO_FEED_TYPE, AUTHOR_EXTENDED_TYPE,
+    )).toBe(false);
+    expect(activityRowToFeedItem({ id: 'ext', type: AUTHOR_EXTENDED_TYPE }, 'System'))
+      .not.toBeNull();
+  });
 
   /**
-   * Regression control for the #5840 change: the entries that existed before
-   * `scheduled` was added still resolve exactly as they did. Written as the
-   * whole table rather than as "not broken" so a future edit that RE-points an
-   * existing type has to say so here.
+   * Regression control on the map's OWN table, not on the platform's.
+   *
+   * This is `toEqual` over the map and it is deliberately not the pin the
+   * ruling forbids: it compares the map to the readings this repo recorded, so
+   * a future edit that RE-POINTS or drops an existing type has to say so here.
+   * It says nothing about which values the platform declares — that is the
+   * superset leg above, and only that leg moves when upstream moves.
    */
-  it('leaves every previously-mapped type pointing where it did', () => {
-    expect({ ...ACTIVITY_TYPE_TO_FEED_TYPE, scheduled: undefined }).toEqual({
+  it('leaves every mapped type pointing where it did', () => {
+    expect({ ...ACTIVITY_TYPE_TO_FEED_TYPE }).toEqual({
       created: 'field_change',
       updated: 'field_change',
       deleted: 'field_change',
@@ -116,11 +153,11 @@ describe('sys_activity row → FeedItem', () => {
       shared: 'field_change',
       system: 'system',
       completed: 'task',
+      scheduled: 'event',
       commented: undefined,
       mentioned: undefined,
       login: undefined,
       logout: undefined,
-      scheduled: undefined,
     });
   });
 
@@ -178,6 +215,16 @@ describe('sys_activity row → FeedItem', () => {
  * not recovered data). So the unknown-type leg below is not decoration: it is
  * what makes the pair discriminate between the fix that was made and the fix
  * that was rejected.
+ *
+ * ⚠️ objectui#5969 changed what that unknown-type leg asserts, and the reason
+ * the sentence above survives is that the objection it records still stands.
+ * Under the objectstack#11507 direction-4 ruling an unknown value now renders
+ * through a defined FALLBACK rather than being dropped — but a catch-all is
+ * still not a substitute for reading a type and mapping it, which is why the
+ * superset leg exists and why `scheduled` keeps its own `event` presentation
+ * here instead of landing in the bucket. The pair still discriminates; what it
+ * discriminates between is now "mapped on purpose" and "shown pending a
+ * decision", rather than "mapped on purpose" and "invisible".
  */
 describe('a scheduled activity reaches the feed (objectui#5840)', () => {
   afterEach(() => {
@@ -244,20 +291,71 @@ describe('a scheduled activity reaches the feed (objectui#5840)', () => {
     expect(applyFeedConfig([scheduledItem], { types: ['comment'] }, 50).items).toEqual([]);
   });
 
-  it('still DROPS a type nothing maps — the fix is an addition, not a catch-all', () => {
+  /**
+   * FALLBACK leg of the objectstack#11507 pin — the second half of the ruling.
+   *
+   * The observable is POSITIVE, not "did not throw": the row is present, it
+   * carries its own summary and actor, and its feed type is the declared
+   * fallback. "Unknown types do not crash" would also be true of a feed that
+   * drops every row, which is exactly what this replaces.
+   *
+   * The counter-probe rides in the same run: a built-in with its own reading
+   * still gets THAT reading, not the bucket. Without it, a map replaced
+   * wholesale by the fallback would read as green here.
+   */
+  it('RENDERS an author-extended type through the fallback presentation', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    expect(activityRowToFeedItem({ id: 'z', type: 'teleported' }, 'System')).toBeNull();
-    expect(activityRowToFeedItem({ id: 'z2' }, 'System')).toBeNull();
-    expect(warn).toHaveBeenCalledTimes(2);
-    expect(String(warn.mock.calls[0][0])).toContain('teleported');
+    const mapped = activityRowToFeedItem(
+      {
+        id: 'ext-1',
+        type: AUTHOR_EXTENDED_TYPE,
+        summary: 'Contract countersigned',
+        timestamp: '2026-05-06T07:08:09.000Z',
+        actor_name: 'Grace',
+      },
+      'System',
+    );
+    // Present, and carrying the row — not a husk, and not `null`.
+    expect(mapped).not.toBeNull();
+    expect(mapped).toMatchObject({
+      id: 'ext-1',
+      type: UNMAPPED_ACTIVITY_FEED_TYPE,
+      actor: 'Grace',
+      body: 'Contract countersigned',
+      createdAt: '2026-05-06T07:08:09.000Z',
+    });
+
+    // COUNTER-PROBE — a built-in keeps its own presentation, so "everything
+    // renders" cannot be reached by pointing the whole map at the fallback.
+    expect(activityRowToFeedItem({ id: 'b1', type: 'created' }, 'System')?.type)
+      .toBe('field_change');
+    expect(activityRowToFeedItem({ id: 'b2', type: 'scheduled' }, 'System')?.type)
+      .toBe('event');
+    // ...and the fallback is DISTINGUISHABLE from the one it was compared with.
+    expect(UNMAPPED_ACTIVITY_FEED_TYPE).not.toBe('field_change');
+
+    // Shown, but not silently: the missing decision is still announced once.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain(AUTHOR_EXTENDED_TYPE);
+  });
+
+  it('renders a row whose type is missing entirely rather than dropping it', () => {
+    // A stored row with no `type` is still a stored row. Same posture: visible
+    // through the fallback, announced once.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(activityRowToFeedItem({ id: 'z2', summary: 'no type' }, 'System'))
+      .toMatchObject({ id: 'z2', type: UNMAPPED_ACTIVITY_FEED_TYPE, body: 'no type' });
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('warns once per unknown type, not once per row', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (let i = 0; i < 5; i += 1) {
-      activityRowToFeedItem({ id: `z${i}`, type: 'teleported' }, 'System');
+      expect(activityRowToFeedItem({ id: `z${i}`, type: 'teleported' }, 'System'))
+        .not.toBeNull();
     }
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('teleported');
   });
 
   it('stays SILENT for the types it deliberately drops', () => {

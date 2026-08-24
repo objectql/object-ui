@@ -114,92 +114,6 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
 }));
 
 /**
- * CRUD Operation Schema
- */
-export const CRUDOperationSchema = z.object({
-  type: z.enum(['create', 'read', 'update', 'delete', 'export', 'import', 'custom']).describe('Operation type'),
-  label: z.string().optional().describe('Operation label'),
-  icon: z.string().optional().describe('Operation icon'),
-  enabled: z.boolean().optional().default(true).describe('Whether operation is enabled'),
-  api: z.string().optional().describe('API endpoint for this operation'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().describe('HTTP method'),
-  confirmText: z.string().optional().describe('Confirmation message'),
-  successMessage: z.string().optional().describe('Success message'),
-  visibleOn: z.string().optional().describe('Visibility condition'),
-  disabledOn: z.string().optional().describe('Disabled condition'),
-});
-
-/**
- * CRUD Filter Schema
- */
-export const CRUDFilterSchema = z.object({
-  name: z.string().describe('Filter name (field name)'),
-  label: z.string().optional().describe('Filter label'),
-  type: z.enum(['input', 'select', 'date-picker', 'date-range', 'number-range']).optional().describe('Filter type'),
-  operator: z.enum(['equals', 'contains', 'startsWith', 'endsWith', 'gt', 'gte', 'lt', 'lte', 'between', 'in']).optional().default('equals').describe('Filter operator'),
-  options: z.array(z.object({ label: z.string(), value: z.union([z.string(), z.number()]) })).optional().describe('Options for select filter'),
-  placeholder: z.string().optional().describe('Placeholder text'),
-  defaultValue: z.any().optional().describe('Default value'),
-});
-
-/**
- * CRUD Toolbar Schema
- */
-export const CRUDToolbarSchema = z.object({
-  showCreate: z.boolean().optional().default(true).describe('Show create button'),
-  showRefresh: z.boolean().optional().default(true).describe('Show refresh button'),
-  showExport: z.boolean().optional().default(false).describe('Show export button'),
-  showImport: z.boolean().optional().default(false).describe('Show import button'),
-  showFilter: z.boolean().optional().default(true).describe('Show filter toggle'),
-  showSearch: z.boolean().optional().default(true).describe('Show search box'),
-  actions: z.array(ActionSchema).optional().describe('Custom actions'),
-});
-
-/**
- * CRUD Pagination Schema
- */
-export const CRUDPaginationSchema = z.object({
-  enabled: z.boolean().optional().default(true).describe('Whether pagination is enabled'),
-  pageSize: z.number().optional().default(10).describe('Default page size'),
-  pageSizeOptions: z.array(z.number()).optional().default([10, 20, 50, 100]).describe('Page size options'),
-  showTotal: z.boolean().optional().default(true).describe('Show total count'),
-  showSizeChanger: z.boolean().optional().default(true).describe('Show page size selector'),
-});
-
-/**
- * CRUD Schema
- */
-export const CRUDSchema = BaseSchema.extend({
-  type: z.literal('crud'),
-  title: z.string().optional().describe('CRUD title'),
-  resource: z.string().optional().describe('Resource name (singular)'),
-  api: z.string().optional().describe('API endpoint for list/search'),
-  columns: z.array(z.any()).describe('Table columns configuration'),
-  fields: z.array(z.any()).optional().describe('Form fields for create/edit'),
-  operations: z.record(z.string(), z.union([z.boolean(), CRUDOperationSchema])).optional().describe('Enabled operations'),
-  toolbar: CRUDToolbarSchema.optional().describe('Toolbar configuration'),
-  filters: z.array(CRUDFilterSchema).optional().describe('Filter configuration'),
-  pagination: CRUDPaginationSchema.optional().describe('Pagination configuration'),
-  defaultSort: z.string().optional().describe('Default sort field'),
-  defaultSortOrder: z.enum(['asc', 'desc']).optional().default('asc').describe('Default sort order'),
-  selectable: z.union([z.boolean(), z.enum(['single', 'multiple'])]).optional().describe('Row selection mode'),
-  batchActions: z.array(ActionSchema).optional().describe('Batch actions for selected rows'),
-  rowActions: z.array(ActionSchema).optional().describe('Row actions (displayed in each row)'),
-  emptyState: SchemaNodeSchema.optional().describe('Custom empty state'),
-  loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
-  loadingComponent: SchemaNodeSchema.optional().describe('Custom loading component'),
-  mode: z.enum(['table', 'grid', 'list', 'kanban']).optional().default('table').describe('Table layout mode'),
-  gridColumns: z.number().optional().default(3).describe('Grid columns (for grid mode)'),
-  cardTemplate: SchemaNodeSchema.optional().describe('Card template (for grid/list mode)'),
-  kanbanColumns: z.array(z.object({
-    id: z.string(),
-    title: z.string(),
-    color: z.string().optional(),
-  })).optional().describe('Kanban columns (for kanban mode)'),
-  kanbanGroupField: z.string().optional().describe('Kanban group field'),
-});
-
-/**
  * Detail Schema
  */
 export const DetailSchema = BaseSchema.extend({
@@ -251,7 +165,6 @@ export const CRUDDialogSchema = BaseSchema.extend({
  */
 export const CRUDComponentSchema = z.union([
   ActionSchema,
-  CRUDSchema,
   DetailSchema,
   CRUDDialogSchema,
 ]);
@@ -262,10 +175,5 @@ export const CRUDComponentSchema = z.union([
 export type ActionExecutionModeSchemaType = z.infer<typeof ActionExecutionModeSchema>;
 export type ActionCallbackSchemaType = z.infer<typeof ActionCallbackSchema>;
 export type ActionSchemaType = z.infer<typeof ActionSchema>;
-export type CRUDOperationSchemaType = z.infer<typeof CRUDOperationSchema>;
-export type CRUDFilterSchemaType = z.infer<typeof CRUDFilterSchema>;
-export type CRUDToolbarSchemaType = z.infer<typeof CRUDToolbarSchema>;
-export type CRUDPaginationSchemaType = z.infer<typeof CRUDPaginationSchema>;
-export type CRUDSchemaType = z.infer<typeof CRUDSchema>;
 export type DetailSchemaType = z.infer<typeof DetailSchema>;
 export type CRUDDialogSchemaType = z.infer<typeof CRUDDialogSchema>;
