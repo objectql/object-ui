@@ -239,22 +239,14 @@ const OPEN_REGISTRATION_SITES = {
 const DOC_TYPE_EXEMPTIONS = {
   'content/docs/api/schema-reference.md': {
     action:
-      'ActionSchema discriminant under a CRUD schema\'s ACTION LISTS, never a rendered child — ' +
-      '`toolbar.actions[]`, `rowActions[]`, `batchActions[]` and a detail page\'s `actions[]` are ' +
-      'each typed `ActionSchema[]` (packages/types/src/crud.ts:175, 379, 480, 484, 561, 612), and ' +
-      'that interface declares `type: \'action\'` at crud.ts:89. Same vocabulary as the ' +
-      '`core/enhanced-actions.mdx` entry below.',
-    crud:
-      'CRUDSchema discriminant — packages/types/src/crud.ts:418 declares it, zod/crud.zod.ts:158 ' +
-      'validates it, core/src/validation/schema-validator.ts:135 has a branch for it and ' +
-      'builder/schema-builder.ts:170 constructs it. FOUR declaration faces and NO registered ' +
-      'renderer, and unlike its siblings in this table it IS on the render path (CRUDComponentSchema ' +
-      'is in the node union at types/src/index.ts:852), so a node spelling it paints OBJUI-001. ' +
-      'Ledgered rather than re-spelled because there is no registered spelling to move to: register ' +
-      'a renderer / retire CRUDSchema under ADR-0049 / demote it off the node union are three ' +
-      'different edits to this page, and picking one is a contract decision objectui#5115 left open ' +
-      'after PR objectui#5128 closed only its CLI half. Filed as objectui#5373. DELETE this entry ' +
-      'when that lands — the gate reports a stale exemption, so it cannot be forgotten.',
+      'ActionSchema discriminant under an ACTION LIST, never a rendered child — an action\'s own ' +
+      '`dialog.actions[]` and `chain[]`, a detail page\'s `actions[]` and a CRUD dialog\'s ' +
+      '`actions[]` are each typed `ActionSchema[]` (packages/types/src/crud.ts:154, 175, 290, 341), ' +
+      'and that interface declares `type: \'action\'` at crud.ts:68. Same vocabulary as the ' +
+      '`core/enhanced-actions.mdx` entry below. (This reason used to cite `CRUDSchema`\'s ' +
+      '`toolbar.actions[]` / `rowActions[]` / `batchActions[]` as the carriers; those keys were ' +
+      'retired with `CRUDSchema` in objectui#5373, and the sites this exemption covers on the page ' +
+      'now sit under ActionSchema and DetailSchema.)',
     string:
       'PageNodeSchema variable declaration\'s data type inside `variables[]`, next to `name` / ' +
       '`defaultValue` — `PageVariable` (packages/types/src/layout.ts:566, re-exported from ' +

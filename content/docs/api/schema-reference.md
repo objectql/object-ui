@@ -424,7 +424,7 @@ did; authoring them is now refused by validation instead of silently ignored).
 | `data` | `any[]` | Array of row data objects. |
 | `footer` | `SchemaNode \| string` | Footer content below the table. |
 
-**Related:** [CRUDSchema](#crudschema), [ObjectGridSchema](#objectgridschema)
+**Related:** [ObjectGridSchema](#objectgridschema)
 
 ---
 
@@ -523,88 +523,33 @@ A hierarchical tree component for nested data with expand/collapse and selection
 
 ## CRUD Schemas
 
-### CRUDSchema
+### CRUDSchema — retired
 
-A complete CRUD (Create, Read, Update, Delete) interface with table, toolbar, filters, pagination, and batch/row actions.
+`CRUDSchema` and the `crud` node type were **removed** in objectui#5373 under
+ADR-0049 (enforce-or-remove). The type had four declaration faces — a TypeScript
+interface, a zod mirror, a branch in the schema validator and a `CRUDBuilder` —
+and no registered renderer, for the whole life of the key. A node that spelled it
+painted the OBJUI-001 "Unknown component type" panel, so this page was teaching a
+shape that could not render.
 
-```json
-{
-  "type": "crud",
-  "title": "Products",
-  "resource": "products",
-  "api": "/api/products",
-  "selectable": "multiple",
-  "defaultSort": "name",
-  "defaultSortOrder": "asc",
-  "columns": [
-    { "name": "name", "label": "Product Name", "sortable": true },
-    { "name": "price", "label": "Price", "align": "right" },
-    { "name": "stock", "label": "Stock", "sortable": true },
-    { "name": "status", "label": "Status" }
-  ],
-  "fields": [
-    { "name": "name", "label": "Product Name", "type": "text", "required": true },
-    { "name": "price", "label": "Price", "type": "number", "required": true },
-    { "name": "stock", "label": "Stock", "type": "number" },
-    { "name": "status", "label": "Status", "type": "select", "options": [
-      { "label": "Active", "value": "active" },
-      { "label": "Draft", "value": "draft" }
-    ]}
-  ],
-  "operations": {
-    "create": true,
-    "read": true,
-    "update": true,
-    "delete": true,
-    "export": true
-  },
-  "toolbar": {
-    "showSearch": true,
-    "showFilters": true,
-    "showExport": true,
-    "actions": [
-      { "type": "action", "label": "Add Product", "level": "primary", "icon": "Plus" }
-    ]
-  },
-  "filters": [
-    { "name": "status", "label": "Status", "type": "select", "options": [
-      { "label": "Active", "value": "active" },
-      { "label": "Draft", "value": "draft" }
-    ]}
-  ],
-  "pagination": {
-    "pageSize": 20,
-    "pageSizeOptions": [10, 20, 50, 100]
-  },
-  "rowActions": [
-    { "type": "action", "label": "Edit", "icon": "Pencil", "actionType": "dialog" },
-    { "type": "action", "label": "Delete", "icon": "Trash2", "level": "danger", "actionType": "confirm" }
-  ],
-  "batchActions": [
-    { "type": "action", "label": "Delete Selected", "level": "danger", "actionType": "confirm" }
-  ]
-}
-```
+There is no drop-in replacement, because a CRUD screen is a composition rather
+than one node. Build it from the shapes that do render:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `title` | `string` | CRUD view title. |
-| `resource` | `string` | Resource identifier for API calls. |
-| `api` | `string` | Base API endpoint URL. |
-| `columns` | `TableColumn[]` | **Required.** Column definitions for the table view. |
-| `fields` | `FormField[]` | Field definitions for create/edit forms. |
-| `operations` | `object` | Toggle CRUD operations: `create`, `read`, `update`, `delete`, `export`, `import`. |
-| `toolbar` | `CRUDToolbar` | Toolbar configuration with search, filters, and custom actions. |
-| `filters` | `CRUDFilter[]` | Filter definitions. |
-| `pagination` | `CRUDPagination` | Pagination settings with `pageSize` and `pageSizeOptions`. |
-| `selectable` | `boolean \| "single" \| "multiple"` | Row selection mode. |
-| `rowActions` | `ActionSchema[]` | Actions available on each row. |
-| `batchActions` | `ActionSchema[]` | Actions for selected rows. |
-| `defaultSort` / `defaultSortOrder` | `string` / `"asc" \| "desc"` | Default sort field and direction. |
-| `mode` | `"table" \| "grid" \| "list" \| "kanban"` | Display mode for the CRUD view. |
-| `emptyState` | `SchemaNode` | Custom empty state content. |
+| What `CRUDSchema` promised | What to author instead |
+|---|---|
+| The record table, with toolbar, filters, pagination and row/batch actions | [ObjectGridSchema](#objectgridschema) |
+| The create/edit form | [ObjectFormSchema](#objectformschema) |
+| The single-record read view | [DetailSchema](#detailschema) / [DetailViewSchema](#detailviewschema) |
+| Whole-object screens that bundle the above | [ObjectViewSchema](#objectviewschema) |
 
-**Related:** [ActionSchema](#actionschema), [TableSchema](#tableschema), [ObjectGridSchema](#objectgridschema)
+The `defaultSort` and `defaultSortOrder` keys documented here were `CRUDSchema`'s
+own — a flat field name plus a separate direction. They are gone with it.
+[ObjectGridSchema](#objectgridschema) declares its own, differently shaped
+`defaultSort` (an object with `field` and `order`); that key is unaffected.
+
+Authoring `crud` is now refused by name: `validateSchema` from `@object-ui/core`
+returns a `RETIRED_TYPE` error on `schema.type` naming the migration above, and
+`objectui check` reports the type as unknown.
 
 ---
 
@@ -661,7 +606,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
 | `redirect` | `string` | URL to navigate to after action. |
 | `retry` | `object` | Retry config with `maxAttempts` and `delay`. |
 
-**Related:** [CRUDSchema](#crudschema), [ButtonSchema](#buttonschema)
+**Related:** [DetailSchema](#detailschema), [ButtonSchema](#buttonschema)
 
 ---
 
@@ -722,7 +667,7 @@ A single-record detail view with grouped fields, actions, and tabs.
 | `showBack` | `boolean` | Show a back navigation button. |
 | `loading` | `boolean` | Show loading state. |
 
-**Related:** [DetailViewSchema](#detailviewschema), [CRUDSchema](#crudschema)
+**Related:** [DetailViewSchema](#detailviewschema), [ObjectGridSchema](#objectgridschema)
 
 ---
 
@@ -790,7 +735,7 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
 | `frozenColumns` | `number` | Number of columns frozen on scroll. |
 | `navigation` | `ViewNavigationConfig` | SPA navigation configuration. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [CRUDSchema](#crudschema), [TableSchema](#tableschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [TableSchema](#tableschema)
 
 ---
 
@@ -966,7 +911,7 @@ A drag-and-drop Kanban board with columns and cards.
 | `onColumnAdd` | `function` | Callback when a new column is added. |
 | `onCardAdd` | `function` | Callback when a new card is added to a column. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [CRUDSchema](#crudschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 
 ---
 
@@ -1300,7 +1245,7 @@ import type { FormSchema, InputSchema, SelectSchema, ButtonSchema } from '@objec
 import type { TableSchema, ChartSchema, TreeViewSchema } from '@object-ui/types';
 
 // CRUD
-import type { CRUDSchema, ActionSchema, DetailSchema } from '@object-ui/types';
+import type { ActionSchema, DetailSchema } from '@object-ui/types';
 
 // ObjectQL
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
