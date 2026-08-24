@@ -47,7 +47,7 @@ interface RadioGroupSchema {
   direction?: 'vertical' | 'horizontal';
   
   // Events
-  onValueChange?: string | ActionConfig;
+  onChange?: (value: string | number) => void;
   
   // States
   disabled?: boolean;
