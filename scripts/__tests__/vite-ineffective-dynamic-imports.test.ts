@@ -170,9 +170,35 @@ describe('formatIneffectiveDynamicImportStandDown', () => {
 describe('the counter-probe on a build that did not finish', () => {
   const pinned = ['a.tsx', 'b.tsx'];
 
+  /**
+   * The plugin's hooks, as this file needs to CALL them. Vite's `Plugin` types
+   * every hook as `ObjectHook<Fn>` — a function-or-object union — which is
+   * unusable for a direct call, so the shape is restated here. `writeBundle` is
+   * spelled in its object form on purpose: that this hook is `order: 'post'` is
+   * load-bearing, not incidental, and a test below pins it.
+   */
+  type LedgerHooks = {
+    configResolved: (config: { build: { write: boolean } }) => void;
+    buildEnd: (error?: Error) => void;
+    renderError: () => void;
+    writeBundle: { order?: string; handler: () => void };
+    onLog: (level: string, log: { code: string; id: string; ids: string[] }) => unknown;
+    closeBundle: () => void;
+  };
+
+  const hooksOf = (): LedgerHooks =>
+    viteIneffectiveDynamicImports(pinned) as unknown as LedgerHooks;
+
   /** A stub of the bits of rolldown's plugin context these hooks touch. */
   function drive(
-    run: (hooks: Record<string, any>) => void,
+    run: (hooks: {
+      configResolved: (write: boolean) => void;
+      buildEnd: (error?: Error) => void;
+      renderError: () => void;
+      writeBundle: () => void;
+      sight: (id: string) => void;
+      closeBundle: () => void;
+    }) => void,
   ): { errors: string[]; infos: string[] } {
     const errors: string[] = [];
     const infos: string[] = [];
@@ -187,14 +213,15 @@ describe('the counter-probe on a build that did not finish', () => {
         infos.push(message);
       },
     };
-    const plugin = viteIneffectiveDynamicImports(pinned) as unknown as Record<string, any>;
+    const plugin = hooksOf();
     const hooks = {
       configResolved: (write: boolean) => plugin.configResolved.call(ctx, { build: { write } }),
       buildEnd: (error?: Error) => plugin.buildEnd.call(ctx, error),
       renderError: () => plugin.renderError.call(ctx),
       writeBundle: () => plugin.writeBundle.handler.call(ctx),
-      sight: (id: string) =>
-        plugin.onLog.call(ctx, 'warn', { code: 'INEFFECTIVE_DYNAMIC_IMPORT', id, ids: [] }),
+      sight: (id: string) => {
+        plugin.onLog.call(ctx, 'warn', { code: 'INEFFECTIVE_DYNAMIC_IMPORT', id, ids: [] });
+      },
       closeBundle: () => {
         try {
           plugin.closeBundle.call(ctx);
@@ -211,7 +238,7 @@ describe('the counter-probe on a build that did not finish', () => {
     // With the default order this hook runs before a later plugin's
     // `writeBundle`, so that plugin's failure would leave the marker set and the
     // probe would mask it — the very defect, one plugin further down the array.
-    const plugin = viteIneffectiveDynamicImports(pinned) as unknown as Record<string, any>;
+    const plugin = hooksOf();
     expect(plugin.writeBundle.order).toBe('post');
     expect(typeof plugin.writeBundle.handler).toBe('function');
   });
