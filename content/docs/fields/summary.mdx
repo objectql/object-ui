@@ -19,21 +19,29 @@ The Summary Field component displays aggregated values from related records. Thi
 
 ## Field Schema
 
+A summary field is authored as `SummaryFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the related
+object, the aggregated field, the aggregation and its filter. `summary_type` is a
+closed union — `'count' | 'sum' | 'avg' | 'min' | 'max' | 'first' | 'last'`.
+
 ```ts
-interface SummaryFieldSchema {
-  type: 'summary';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: number;                // Computed value (read-only)
-  readonly: true;                // Always read-only
-  className?: string;            // Additional CSS classes
-  
-  // Summary Configuration
-  summary_object?: string;       // Related object name
-  summary_field?: string;        // Field to aggregate
-  summary_type?: 'count' | 'sum' | 'avg' | 'min' | 'max';
-}
+import type { SummaryFieldMetadata } from '@object-ui/types';
+
+const totalRevenue: SummaryFieldMetadata = {
+  type: 'summary',
+  name: 'total_revenue',
+  label: 'Total Revenue',
+  readonly: true,
+  summary_object: 'opportunities',
+  summary_field: 'amount',
+  summary_type: 'sum',
+  summary_filter: { stage: 'closed_won' },
+  auto_update: true,
+};
 ```
+
+The computed value, and the `className` a host supplies, are **not** metadata keys —
+they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Summary Types
 

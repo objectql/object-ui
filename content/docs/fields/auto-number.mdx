@@ -19,20 +19,26 @@ The AutoNumber Field component displays auto-generated sequence numbers. This is
 
 ## Field Schema
 
+An auto-number field is authored as `AutoNumberFieldMetadata` (`@object-ui/types`),
+which is the source of truth for the key set: it extends `BaseFieldMetadata` with the
+sequence format and its starting point.
+
 ```ts
-interface AutoNumberFieldSchema {
-  type: 'auto_number';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: string | number;       // Generated value (read-only)
-  readonly: true;                // Always read-only
-  className?: string;            // Additional CSS classes
-  
-  // AutoNumber Configuration
-  format?: string;               // Number format template
-  starting_number?: number;      // Starting sequence number
-}
+import type { AutoNumberFieldMetadata } from '@object-ui/types';
+
+const invoiceNumber: AutoNumberFieldMetadata = {
+  type: 'auto_number',
+  name: 'invoice_number',
+  label: 'Invoice Number',
+  help: 'Assigned by the platform when the record is created.',
+  readonly: true,
+  format: 'INV-{0000}',
+  starting_number: 1000,
+};
 ```
+
+The generated value, and the `className` a host supplies, are **not** metadata keys —
+they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Format Templates
 

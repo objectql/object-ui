@@ -23,24 +23,26 @@ The Percent Field component provides a percentage input that automatically conve
 
 ## Field Schema
 
+A percent field is authored as `PercentFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the decimal
+precision and the two bounds.
+
 ```ts
-interface PercentFieldSchema {
-  type: 'percent';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: number;                // Default value (0-1 decimal)
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  precision?: number;            // Decimal places (default: 2)
-  min?: number;                  // Minimum value (0-1)
-  max?: number;                  // Maximum value (0-1)
-}
+import type { PercentFieldMetadata } from '@object-ui/types';
+
+const discountRate: PercentFieldMetadata = {
+  type: 'percent',
+  name: 'discount_rate',
+  label: 'Discount Rate',
+  placeholder: '0%',
+  precision: 2,
+  min: 0,
+  max: 1,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Value Conversion
 

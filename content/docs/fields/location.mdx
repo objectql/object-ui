@@ -19,27 +19,30 @@ The Location Field component provides an input for geographic coordinates, stori
 
 ## Field Schema
 
-```ts
-interface LocationFieldSchema {
-  type: 'location';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: LocationValue;         // Default coordinates
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Map Options
-  default_zoom?: number;         // Default map zoom level
-}
+A location field is authored as `LocationFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the map's
+default zoom level.
 
-interface LocationValue {
-  latitude: number;              // -90 to 90
-  longitude: number;             // -180 to 180
-}
+```ts
+import type { LocationFieldMetadata } from '@object-ui/types';
+
+const officeLocation: LocationFieldMetadata = {
+  type: 'location',
+  name: 'office_location',
+  label: 'Office Location',
+  placeholder: 'latitude, longitude',
+  required: false,
+  default_zoom: 12,
+};
 ```
+
+The coordinates themselves are the field's **value**, not metadata: the widget stores
+an object carrying a `latitude` and a `longitude` and displays it as a comma-separated
+pair. No exported type declares that value shape today, which is tracked as
+[objectui#6154](https://github.com/objectstack-ai/objectui/issues/6154).
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Data Format
 

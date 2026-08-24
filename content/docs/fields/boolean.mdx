@@ -19,19 +19,25 @@ The Boolean Field component provides a switch or checkbox input for collecting t
 
 ## Field Schema
 
+A boolean field is authored as `BooleanFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set. It adds nothing of its own to
+`BaseFieldMetadata` beyond the discriminant — a checkbox needs no extra configuration.
+
 ```ts
-interface BooleanFieldSchema {
-  type: 'boolean';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  description?: string;          // Helper text
-  value?: boolean;               // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-}
+import type { BooleanFieldMetadata } from '@object-ui/types';
+
+const isActive: BooleanFieldMetadata = {
+  type: 'boolean',
+  name: 'is_active',
+  label: 'Active',
+  description: 'Inactive records stay searchable but are excluded from lists.',
+  required: false,
+  defaultValue: true,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Use Cases
 

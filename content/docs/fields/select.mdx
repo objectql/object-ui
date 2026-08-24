@@ -90,40 +90,40 @@ candidate query is filtered server-side and paginated. See
 
 ## Field Schema
 
+A select field is authored as `SelectFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the option list
+and the multiple/searchable switches. Each option is a `SelectOptionMetadata`, so the
+options are checked by the same compiler that checks the field.
+
 ```ts
-interface SelectFieldSchema {
-  type: 'select';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string | string[];     // Default value(s)
-  multiple?: boolean;            // Allow multiple selections
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
+import type { SelectFieldMetadata } from '@object-ui/types';
 
-  // Options
-  options: SelectOption[];       // Available options
-
-  // Cascading: sibling field(s) whose value drives this option list. While any
-  // is empty the field is gated ("Select <parent> first"); it re-evaluates as
-  // they change. Same knob dependent lookups use.
-  dependsOn?: string | string[];
-}
-
-interface SelectOption {
-  label: string;                 // Display label
-  value: string;                 // Option value
-  color?: string;                // Badge color (gray, red, blue, etc.)
-  disabled?: boolean;            // Disable specific option
-
-  // Per-option visibility predicate (CEL). The option is offered only when TRUE,
-  // evaluated against the live record + current_user (same engine/env as a
-  // field-level visibleWhen). Omit = always available.
-  visibleWhen?: string;
-}
+const status: SelectFieldMetadata = {
+  type: 'select',
+  name: 'status',
+  label: 'Status',
+  placeholder: 'Select a status',
+  required: true,
+  multiple: false,
+  searchable: true,
+  options: [
+    { label: 'Draft', value: 'draft', color: 'gray' },
+    { label: 'Active', value: 'active', color: 'blue' },
+    // Offered only when the predicate is true, evaluated against the live record.
+    { label: 'Archived', value: 'archived', color: 'red', visibleWhen: "current_user.is_admin" },
+    { label: 'Locked', value: 'locked', disabled: true },
+  ],
+};
 ```
+
+Cascading option lists are driven by a sibling field's value. The widget reads a
+camelCase `dependsOn` off the metadata, but no exported metadata type declares it —
+`BaseFieldMetadata` declares the snake_case `depends_on` instead — so the two
+spellings disagree and the gap is tracked as
+[objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153).
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Available Colors
 
