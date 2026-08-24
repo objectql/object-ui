@@ -815,36 +815,6 @@ export type FieldMetadata =
   | MasterDetailFieldMetadata;
 
 /**
- * Object trigger configuration (Phase 3.1.3)
- */
-export interface ObjectTrigger {
-  /**
-   * Trigger name
-   */
-  name: string;
-  /**
-   * When to execute the trigger
-   */
-  when: 'before' | 'after';
-  /**
-   * Which operation triggers this
-   */
-  on: 'create' | 'update' | 'delete' | 'read';
-  /**
-   * Trigger condition (optional)
-   */
-  condition?: string;
-  /**
-   * Action to execute
-   */
-  action: 'validation' | 'workflow' | 'notification' | 'calculation' | 'custom';
-  /**
-   * Action configuration
-   */
-  config?: Record<string, any>;
-}
-
-/**
  * Object document type — derived from `@objectstack/spec/data` rather than
  * restated (objectui#5362; maintainer ruling 2026-08-20: the object document
  * type belongs to `@objectstack/spec`, objectui derives rather than
@@ -929,29 +899,3 @@ export type ObjectSchemaMetadata = ServiceObject & ObjectSchemaClientExtensions;
  */
 import type { ObjectIndex } from '@objectstack/spec/data';
 export type { ObjectIndex };
-
-/**
- * Object relationship configuration
- */
-export interface ObjectRelationship {
-  /**
-   * Relationship name
-   */
-  name: string;
-  /**
-   * Related object
-   */
-  object: string;
-  /**
-   * Relationship type
-   */
-  type: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
-  /**
-   * Foreign key field
-   */
-  foreign_key?: string;
-  /**
-   * Cascade delete
-   */
-  cascade_delete?: boolean;
-}

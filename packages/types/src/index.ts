@@ -474,11 +474,9 @@ export type {
   RatingFieldMetadata,
   MasterDetailFieldMetadata,
   FieldMetadata,
-  ObjectTrigger,
   ObjectSchemaMetadata,
   ObjectSchemaClientExtensions,
   ObjectIndex,
-  ObjectRelationship,
 } from './field-types.js';
 
 // System / audit / ownership field classification — runtime helper + name set,
