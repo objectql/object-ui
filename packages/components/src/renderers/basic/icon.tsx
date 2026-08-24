@@ -92,16 +92,31 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
       className
     );
 
-    // ⚠️ This renderer still reads the SDUI IDENTITY key `name` as its glyph
-    // name. That collision IS objectui#5631, and the ruling's answer to it is
-    // `schema.icon` — but the migration is not landed here; see the
-    // `inputs` note on the registration below for what is still owed and why.
+    // The glyph key is `icon` (objectui#5631, maintainer rulings 2026-08-22
+    // option A and 2026-08-24 「5631 A′」). It used to be `name` — the SDUI
+    // IDENTITY key every authored node carries — so an ordinary
+    // `{ type:'icon', id:'save_icon', name:'save_icon' }` asked lucide for
+    // `SaveIcon`, missed, and rendered nothing at all.
     //
-    // `schema.name` is typed `string` but arrives from authored JSON, so it can
+    // ⛔ There is NO `schema.icon ?? schema.name` here, and there must not be.
+    // The ruling excluded that shape by name, twice: it is the tolerant-consumer
+    // pattern this family is migrating away from, and it would make `name` mean
+    // "identity" or "glyph" depending on whether a lucide lookup happened to
+    // hit. A node that still authors `name` is REFUSED by `IconSchema`, and if
+    // it reaches this renderer unvalidated it lands in the placeholder branch
+    // below — loud in both directions, silent in neither.
+    //
+    // `schema.icon` is typed `string` but arrives from authored JSON, so it can
     // be absent at runtime. It used to reach `toPascalCase` unguarded, where
     // `undefined.split` threw and the SchemaErrorBoundary swallowed it — a
     // third way for this renderer to fail without saying so.
-    const requested = typeof schema.name === 'string' ? schema.name : '';
+    const requested = typeof schema.icon === 'string' ? schema.icon : '';
+    // Read ONLY to make the migration diagnostic below specific. ⛔ Never a
+    // fallback glyph source: it is not consulted by the lookup, and a node
+    // carrying it still renders the placeholder.
+    const legacyGlyphName = typeof schema.name === 'string' && schema.name.length > 0
+      ? schema.name
+      : '';
     // Convert icon name to PascalCase for Lucide lookup
     const iconName = toPascalCase(requested);
     // Apply icon name mapping for renamed icons
@@ -112,9 +127,18 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
       console.warn(
         `ui:icon: no lucide glyph resolves for ${requested ? `"${requested}"` : 'an absent icon name'}` +
           `${requested ? ` (lookup: "${iconName}"${mappedIconName !== iconName ? ` -> "${mappedIconName}"` : ''})` : ''}. ` +
-          `Rendering a visible placeholder instead of nothing (objectui#5631). ` +
-          `Note: this renderer reads the SDUI identity key \`name\` as its glyph name, ` +
-          `so an ordinary authored identity such as "save_icon" lands here.`
+          `Rendering a visible placeholder instead of nothing (objectui#5631).` +
+          // The migration half. An author looking at a placeholder on a node
+          // that used to work needs to be told the key moved — saying only
+          // "no glyph resolves" would make a mechanical rename look like a
+          // missing icon. Named separately from the generic case so it cannot
+          // be mistaken for one.
+          (!requested && legacyGlyphName
+            ? ` This node names its glyph with the SDUI identity key \`name\`` +
+              ` ("${legacyGlyphName}"), which is no longer read as a glyph name.` +
+              ` Rename it: \`icon: "${legacyGlyphName}"\`. Stored metadata converts in` +
+              ` bulk with \`migrateIconNodeKeys\` from \`@object-ui/types\`.`
+            : '')
       );
 
       // Same host element and the same authored box as a resolved icon, so the
@@ -126,7 +150,13 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
         <SquareDashed
           ref={ref}
           role="img"
-          aria-label={requested ? `Unresolved icon: ${requested}` : 'Unresolved icon'}
+          aria-label={
+            requested
+              ? `Unresolved icon: ${requested}`
+              : legacyGlyphName
+                ? `Unresolved icon: \`name\` is no longer the icon key, rename it to \`icon\` (${legacyGlyphName})`
+                : 'Unresolved icon'
+          }
           className={mergedClassName}
           style={{ ...sizeStyle, ...style }}
           {...iconProps}
@@ -135,6 +165,12 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
             'data-obj-id': dataObjId,
             'data-obj-type': dataObjType,
             'data-objectui-icon-unresolved': requested || '(none)',
+            // Present ONLY on the legacy shape, so a gate (and a designer) can
+            // tell "author wrote a glyph name that does not resolve" apart from
+            // "author has not migrated this node yet" (objectui#5631).
+            ...(!requested && legacyGlyphName
+              ? { 'data-objectui-icon-legacy-name-key': legacyGlyphName }
+              : {}),
           }}
         />
       );
@@ -177,17 +213,19 @@ ComponentRegistry.register('icon',
     icon: 'face-slightly-smiling',
     category: 'basic',
     inputs: [
-      // ⚠️ objectui#5631 — this entry STILL declares `name`, and that is
-      // deliberate in this change rather than an oversight.
+      // objectui#5631 — this entry declares `icon`, and it moved in the SAME
+      // change as the resolver above, by construction.
       //
-      // The 2026-08-22 ruling is that `icon` is the glyph key and `name` is
-      // identity always, which makes this entry owed a rename to `icon`. It is
-      // NOT renamed here because the resolver above still reads `name`, and a
-      // declared input list that advertises a key the resolver does not read is
-      // the same defect this card is about, pointing the other way. The two
-      // must move together, with the corpus migration — see the PR body's sweep
-      // reading for the measured population that blocks it.
-      { name: 'name', type: 'string', label: 'Icon Name', defaultValue: 'face-slightly-smiling' },
+      // It advertised `name` up to PR #5959, deliberately: renaming it while
+      // the resolver still read `name` would have been this card's own defect
+      // pointing the other way — a declared input list naming a key nothing
+      // reads. That note retires here, under the 2026-08-24 ruling
+      // 「5631 A′，按一次正经的契约迁移立项。」, because the contract, the
+      // resolver, the corpus and this list all move together.
+      //
+      // The `name:` on the left is the INPUT DESCRIPTOR's own key — which
+      // schema property this input edits. Its value is what changed.
+      { name: 'icon', type: 'string', label: 'Icon Name', defaultValue: 'face-slightly-smiling' },
       { name: 'size', type: 'number', label: 'Size (px)' },
       { name: 'color', type: 'string', label: 'Color Class' },
       { name: 'className', type: 'string', label: 'CSS Class' }

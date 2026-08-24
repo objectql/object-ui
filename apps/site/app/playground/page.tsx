@@ -271,7 +271,7 @@ const EXAMPLE_SCHEMAS = {
                   },
                   {
                     type: "icon",
-                    name: "DollarSign",
+                    icon: "DollarSign",
                     className: "h-4 w-4 text-muted-foreground"
                   }
                 ]
@@ -314,7 +314,7 @@ const EXAMPLE_SCHEMAS = {
                   },
                   {
                     type: "icon",
-                    name: "Users",
+                    icon: "Users",
                     className: "h-4 w-4 text-muted-foreground"
                   }
                 ]
@@ -357,7 +357,7 @@ const EXAMPLE_SCHEMAS = {
                   },
                   {
                     type: "icon",
-                    name: "CreditCard",
+                    icon: "CreditCard",
                     className: "h-4 w-4 text-muted-foreground"
                   }
                 ]
@@ -400,7 +400,7 @@ const EXAMPLE_SCHEMAS = {
                   },
                   {
                     type: "icon",
-                    name: "Activity",
+                    icon: "Activity",
                     className: "h-4 w-4 text-muted-foreground"
                   }
                 ]
@@ -583,7 +583,7 @@ const EXAMPLE_SCHEMAS = {
                                 children: [
                                   {
                                     type: "icon",
-                                    name: "Smartphone",
+                                    icon: "Smartphone",
                                     className: "h-5 w-5 text-blue-600 dark:text-blue-400"
                                   }
                                 ]
@@ -626,7 +626,7 @@ const EXAMPLE_SCHEMAS = {
                                 children: [
                                   {
                                     type: "icon",
-                                    name: "Laptop",
+                                    icon: "Laptop",
                                     className: "h-5 w-5 text-purple-600 dark:text-purple-400"
                                   }
                                 ]
@@ -669,7 +669,7 @@ const EXAMPLE_SCHEMAS = {
                                 children: [
                                   {
                                     type: "icon",
-                                    name: "Headphones",
+                                    icon: "Headphones",
                                     className: "h-5 w-5 text-green-600 dark:text-green-400"
                                   }
                                 ]
@@ -878,7 +878,7 @@ const EXAMPLE_SCHEMAS = {
                 children: [
                   {
                     type: "icon",
-                    name: "Smartphone",
+                    icon: "Smartphone",
                     className: "h-20 w-20 text-blue-600 dark:text-blue-400"
                   }
                 ]
@@ -935,27 +935,27 @@ const EXAMPLE_SCHEMAS = {
                     children: [
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 text-gray-300"
                       },
                       {
@@ -985,7 +985,7 @@ const EXAMPLE_SCHEMAS = {
                 children: [
                   {
                     type: "icon",
-                    name: "Laptop",
+                    icon: "Laptop",
                     className: "h-20 w-20 text-purple-600 dark:text-purple-400"
                   }
                 ]
@@ -1037,27 +1037,27 @@ const EXAMPLE_SCHEMAS = {
                     children: [
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
@@ -1087,7 +1087,7 @@ const EXAMPLE_SCHEMAS = {
                 children: [
                   {
                     type: "icon",
-                    name: "Headphones",
+                    icon: "Headphones",
                     className: "h-20 w-20 text-green-600 dark:text-green-400"
                   }
                 ]
@@ -1139,27 +1139,27 @@ const EXAMPLE_SCHEMAS = {
                     children: [
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {
                         type: "icon",
-                        name: "Star",
+                        icon: "Star",
                         className: "h-4 w-4 fill-yellow-400 text-yellow-400"
                       },
                       {

@@ -98,9 +98,40 @@ export interface ImageSchema extends BaseSchema {
 export interface IconSchema extends BaseSchema {
   type: 'icon';
   /**
-   * Icon name (lucide-react icon name)
+   * The lucide-react glyph to render, kebab-case (`check`, `arrow-right`).
+   *
+   * ## Why this key is `icon` and not `name` (objectui#5631)
+   *
+   * It used to be `name`, and `name` is not this node's private prop — it is
+   * the SDUI IDENTITY key every authored node carries from
+   * {@link BaseSchema.name}, alongside `id`. So an ordinary authored node like
+   * `{ type: 'icon', id: 'save_icon', name: 'save_icon' }` asked lucide for a
+   * glyph called `SaveIcon`, missed, and rendered NOTHING — silent at runtime
+   * and clean-looking to a DOM gate, because a renderer that renders nothing
+   * spreads no attributes to find.
+   *
+   * The maintainer ruled the contract question twice: 2026-08-22 (option A —
+   * "`icon` is the icon key; `name` is identity, always") and again 2026-08-24
+   * ("5631 A′，按一次正经的契约迁移立项。") at the full measured price,
+   * once it was established that the renderer alone could not carry it: the
+   * published mirror REQUIRED `name`, so the ruled shape was refused by the
+   * contract while the renderer read a key the contract never declared.
+   *
+   * `action:*` already reads `icon`, so this is the vocabulary's existing
+   * answer rather than a new one — and it leaves no node type on which the
+   * identity key is unavailable.
+   *
+   * ⚠️ REQUIRED, exactly as `name` was required before it. A stored node that
+   * still names its glyph with `name` is REFUSED by the zod mirror with a
+   * message that names the migration, and renders the visible placeholder from
+   * PR #5959 if it reaches the renderer unvalidated. Both are loud on purpose;
+   * ⛔ there is no tolerant `icon ?? name` read anywhere — that shape was ruled
+   * out explicitly, and it would make `name` mean two things depending on
+   * whether a lookup happened to hit. To convert stored metadata, see
+   * `migrateIconNodeKeys` in `./icon-key-migration.ts` — an explicit one-shot
+   * conversion, never a read-path fallback.
    */
-  name: string;
+  icon: string;
   /**
    * Icon size in pixels
    * @default 24

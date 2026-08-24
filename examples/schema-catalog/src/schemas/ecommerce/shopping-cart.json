@@ -43,7 +43,7 @@
                   "children": [
                     {
                       "type": "icon",
-                      "name": "smartphone",
+                      "icon": "smartphone",
                       "className": "h-8 w-8 text-muted-foreground"
                     }
                   ]
@@ -127,7 +127,7 @@
                   "children": [
                     {
                       "type": "icon",
-                      "name": "headphones",
+                      "icon": "headphones",
                       "className": "h-8 w-8 text-muted-foreground"
                     }
                   ]

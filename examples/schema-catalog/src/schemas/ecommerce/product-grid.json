@@ -43,7 +43,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "smartphone",
+                  "icon": "smartphone",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
@@ -86,7 +86,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "watch",
+                  "icon": "watch",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
@@ -129,7 +129,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "laptop",
+                  "icon": "laptop",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
@@ -172,7 +172,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "headphones",
+                  "icon": "headphones",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]

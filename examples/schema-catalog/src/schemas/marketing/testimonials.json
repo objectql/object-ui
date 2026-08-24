@@ -41,27 +41,27 @@
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]
@@ -117,27 +117,27 @@
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]
@@ -193,27 +193,27 @@
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]

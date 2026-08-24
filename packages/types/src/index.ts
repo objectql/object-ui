@@ -78,6 +78,16 @@ export {
   liftLegacyDashboardFilterDefaults,
 } from './dashboard-filter-alias.js';
 
+// `ui:icon` glyph-key conversion (objectui#5631) — stored `{ type:'icon',
+// name:'check' }` -> `{ type:'icon', icon:'check' }`. A one-shot converter a
+// deployer runs over stored metadata; ⛔ NOT a read-path fallback, which the
+// ruling excluded by name. Zod-free, so it belongs on the main entry.
+export { migrateIconNodeKeys } from './icon-key-migration.js';
+export type {
+  IconKeyMigrationResult,
+  IconKeyMigrationWarning,
+} from './icon-key-migration.js';
+
 // ============================================================================
 // Base Types - The Foundation
 // ============================================================================

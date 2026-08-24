@@ -9,7 +9,7 @@
       "children": [
         {
           "type": "icon",
-          "name": "clock",
+          "icon": "clock",
           "className": "h-5 w-5 text-primary"
         },
         {
