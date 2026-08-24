@@ -591,7 +591,34 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     return rawDataConfig;
   }, [JSON.stringify(rawDataConfig)]);
   
-  const mapConfig = getMapConfig(schema);
+  /**
+   * Memoized on the ONE value `getMapConfig` reads, and nothing else
+   * (objectui#5976). This call used to sit bare in the render body, so
+   * `mapConfig` carried a fresh object identity on every render — and the
+   * marker transform below names it in its dependency array, so that `useMemo`
+   * recomputed on every single render while declaring that it does not. The
+   * invalidation cascaded from there: `filteredMarkers` → `clusteredData` /
+   * `markerBounds` → `initialViewState` all key on the array it produces.
+   *
+   * `[schema]` is the whole dependency, not a shorthand for one: `getMapConfig`
+   * is a pure function of `schema` and reads nothing else. No deep-compare key
+   * is needed to make that identity hold, because the identity that reaches
+   * this component is ALREADY stable across the renders that matter — every
+   * re-render `ObjectMap` causes itself (data landing, the object definition
+   * landing, search typing, zoom, selection, geolocation) leaves the prop
+   * untouched by construction, and the three callers upstream each hand over a
+   * memoized node: `SchemaRenderer`'s `evaluatedSchema`, the gate's `mapped`
+   * in `useElementDataSourceSchema`, and `ListView`'s `viewComponentSchema`.
+   *
+   * So this deliberately does NOT copy the `JSON.stringify` dep key the
+   * `dataConfig` line above uses. That idiom buys stability by paying a
+   * serialize on every render, and it is also key-order sensitive and drops
+   * `undefined` values — an equality this config cannot afford, since an
+   * ABSENT `titleField` is load-bearing here (objectui#5953) and must never
+   * compare equal to a present one. Identity is enough; nothing here needs
+   * value equality.
+   */
+  const mapConfig = useMemo(() => getMapConfig(schema), [schema]);
   const hasInlineData = dataConfig?.provider === 'value';
 
   // Fetch data based on provider
