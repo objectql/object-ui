@@ -390,10 +390,56 @@
  *
  * ### Still not bought
  *
- * The non-README markdown inside packages and apps: each `CHANGELOG.md`,
- * `TESTING.md`, `MIGRATION.md`, and the per-package `docs/` trees. Same one-row
- * price, same caveat — measure the surface first, pay its backlog separately,
- * then add the row.
+ * The list that stood here — each `CHANGELOG.md`, `TESTING.md`, `MIGRATION.md`,
+ * and the per-package `docs/` trees — is bought, minus `CHANGELOG.md`, by
+ * objectui#4938 below.
+ *
+ * ## Why this file changed again (objectui#4938): the rest of each package/app
+ *
+ * The surface named above, priced. `packages/*` and `apps/*` walk everything
+ * under each package/app directory that the `README.md` rows above do not
+ * already cover — `TESTING.md`, `MIGRATION.md`, a `docs/` tree, a nested
+ * component doc, whatever markdown a package happens to carry — with two
+ * filenames left out:
+ *
+ *   - **`CHANGELOG.md`.** Changesets output, not authored prose; the root one
+ *     already has its own row (objectui#4148) for the same reason every other
+ *     root file does, but a *per-package* changelog is generated fresh on
+ *     every release and carries no link a person wrote on purpose. Buying it
+ *     would gate machine output, not documentation.
+ *   - **`README.md`, at every depth.** Not only the top-level file the row
+ *     above already scans — a NESTED `README.md`
+ *     (`packages/core/src/adapters/README.md`,
+ *     `packages/plugin-gantt/docs/verification/README.md`,
+ *     `packages/components/src/__tests__/README.md`,
+ *     `packages/types/src/zod/README.md`, four found while measuring this row)
+ *     is excluded too, on purpose: it IS a README by name, so it falls outside
+ *     what objectui#4938 measured and priced ("non-README markdown"), even
+ *     though nothing scans it either. That is a real, still-open gap — filed
+ *     as its own card rather than folded in here uninvited, per this file's
+ *     own one-expansion-one-card practice (objectui#3536 → #3572 → #3603/#3622
+ *     → #4148, each its own PR against its own measured price).
+ *
+ * `exclude` on a `SCAN_ROOTS` row (see `collectFiles()`) is the mechanism: a
+ * set of basenames `walk()` leaves out at every depth, so the row can sit on
+ * top of an existing single-file row without re-judging that file, and without
+ * pulling in the nested-README class above.
+ *
+ * **Price: 15 files, 4 decidable relative markdown links, 1 dead** —
+ * `packages/components/src/renderers/complex/TIMELINE.md:349`, pointing at
+ * `../../examples/prototype/src/App.tsx`. That example app was deleted whole in
+ * `3aa84cee0` with no successor at the same path; the link sat dead with no
+ * gate able to see it. Repointed, in the same PR as this row, at the live
+ * interactive demo the docs site now serves for the same three timeline
+ * variants the prose describes (`https://www.objectui.org/docs/plugins/
+ * plugin-timeline`) — a page, not a path, because `TESTING.md` and its
+ * siblings are `disk`-rule files read on GitHub, the same reason every other
+ * disk-rule row here links the docs site by its full origin rather than a
+ * root-relative `/docs/...` spelling.
+ *
+ * Rule: `disk`, for the same reason as every row above it back to
+ * objectui#3536 — these files are read on GitHub (and, for a published
+ * package, on npm), never served by the site.
  *
  * ## Code spans are stripped before scanning
  *
@@ -442,6 +488,8 @@ const SELF_REPO_BLOB_RE = /^https:\/\/github\.com\/objectstack-ai\/objectui\/(?:
 const SITE_ORIGIN_RE = /^https?:\/\/(?:www\.)?objectui\.org(\/[^\s]*)?$/i;
 /** Never markdown sources of ours, and huge — walking them wastes the scan. */
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
+/** Shared empty exclude set — a fresh `Set()` per call would work identically, this just avoids allocating one on every `walk()`/`collectFiles()` call that has no row-level `exclude`. */
+const EMPTY_EXCLUDE = new Set();
 
 /**
  * The scan surfaces, and the link semantics each one actually has.
@@ -476,6 +524,11 @@ export const SCAN_ROOTS = [
   { path: 'docs', rule: 'disk' },
   { path: 'packages/*/README.md', rule: 'disk' },
   { path: 'apps/*/README.md', rule: 'disk' },
+  // The rest of each package/app directory tree, minus the two rows already
+  // above it and the one filename that is never authored prose (objectui#4938).
+  // See "Why this file changed again (objectui#4938)" in the header.
+  { path: 'packages/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
+  { path: 'apps/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
   // The rest of the root-level markdown, completing that surface (objectui#4148).
   // `README.md`, `CONTRIBUTING.md` and `ROADMAP.md` are already above, in the
   // positions the rows that bought them left them in.
@@ -488,7 +541,7 @@ export const SCAN_ROOTS = [
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
 
-export function walk(dir, files = []) {
+export function walk(dir, files = [], exclude = EMPTY_EXCLUDE) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -498,10 +551,10 @@ export function walk(dir, files = []) {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!UNSCANNED_DIRS.has(entry.name)) walk(fullPath, files);
+      if (!UNSCANNED_DIRS.has(entry.name)) walk(fullPath, files, exclude);
       continue;
     }
-    if (/\.(md|mdx)$/.test(entry.name)) {
+    if (/\.(md|mdx)$/.test(entry.name) && !exclude.has(entry.name)) {
       files.push(fullPath);
     }
   }
@@ -548,15 +601,23 @@ function expandWildcard(pattern) {
 /**
  * One scan root, which may be a directory to walk, a single markdown file, or a
  * wildcard pattern standing for one path per directory at that level.
+ *
+ * `exclude` (objectui#4938) names BASENAMES to leave out at every depth under a
+ * directory root — `README.md` and `CHANGELOG.md` for the two package/app
+ * "everything else" rows below, so a directory walk can be added on top of the
+ * single-file README row it duplicates without re-judging the same file twice
+ * or pulling in a nested `README.md` this card never measured (see the
+ * header). It has no effect on a single-file root: a row names its own file
+ * outright, not by basename, so there is nothing for `exclude` to filter.
  */
-export function collectFiles(root) {
-  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded));
+export function collectFiles(root, exclude = EMPTY_EXCLUDE) {
+  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded, exclude));
   try {
     if (statSync(root).isFile()) return /\.(md|mdx)$/.test(root) ? [root] : [];
   } catch {
     return [];
   }
-  return walk(root);
+  return walk(root, [], exclude);
 }
 
 /**
@@ -884,7 +945,8 @@ export function collectBrokenLinks(repoRoot) {
   const site = collectSiteRoutes(path.join(repoRoot, 'apps', 'site'));
 
   for (const scanRoot of SCAN_ROOTS) {
-    for (const file of collectFiles(path.join(repoRoot, scanRoot.path))) {
+    const exclude = scanRoot.exclude ? new Set(scanRoot.exclude) : undefined;
+    for (const file of collectFiles(path.join(repoRoot, scanRoot.path), exclude)) {
       const source = stripCode(readFileSync(file, 'utf8'));
       MARKDOWN_LINK_RE.lastIndex = 0;
       let match;
