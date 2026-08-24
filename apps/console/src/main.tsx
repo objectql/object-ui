@@ -19,10 +19,6 @@ import { preflightAuth } from './lib/auth-preflight';
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
-// Kick off Sentry init in the background (no-op if VITE_SENTRY_DSN is unset).
-// Not awaited — observability must never block first paint.
-void initSentry();
-
 // ────────────────────────────────────────────────────────────────────────────
 // Plugin registration
 // ────────────────────────────────────────────────────────────────────────────
@@ -79,6 +75,21 @@ Promise.all([
   preflightAuth(AUTH_URL),
   seedTenantLanguage(SERVER_BASE),
 ]).finally(() => {
+  // Kick off Sentry init (no-op unless a DSN was injected at build time AND
+  // this runtime granted `telemetry.allowClientErrorReporting`). Still not
+  // awaited — observability must never block first paint.
+  //
+  // ⛔ Ordering is load-bearing, not stylistic: this call used to run at
+  // module-eval time, BEFORE `initRuntimeConfig()` was even started. The
+  // server-pushed telemetry permission fails closed, so from there it would
+  // read DENIED on every boot and memoize that verdict — turning the switch
+  // objectui#5522 asked for into a permanent removal, silently, including for
+  // the hosted console. Reading a server value requires waiting for the
+  // server. `.finally()` (not `.then()`) keeps the pre-existing guarantee that
+  // a failed config fetch never blocks boot — and on that path the permission
+  // is denied, so the failure direction is silence.
+  void initSentry();
+
   // Apply runtime branding before React mounts — avoids a flash of the
   // static defaults for operators who configure OS_PRODUCT_NAME etc.
   document.title = getProductName();

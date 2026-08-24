@@ -98,6 +98,66 @@ export interface RuntimeBranding {
 }
 
 /**
+ * The runtime's post-build permission for SPA client telemetry
+ * (objectui#5522 / objectstack#10805, upstream half of cloud#1508).
+ *
+ * Its OWN namespace on the payload, deliberately NOT a member of
+ * {@link RuntimeFeatures}. That map is open-ended — a host's `resolveFeatures`
+ * hook merges arbitrary keys into it verbatim — so putting the permission
+ * there would let a distribution grant it from code whose subject is billing
+ * tiers. A security permission has exactly one author. The producer
+ * (`RuntimeConfigPlugin` in `@objectstack/cloud-connection`) pins the same
+ * separation from its side.
+ */
+export interface RuntimeTelemetry {
+  /**
+   * May the SPA send client error reports to the sink its build was compiled
+   * with? `false` unless a runtime positively granted it.
+   *
+   * A PERMISSION, not a source: the server supplies no DSN and cannot turn
+   * telemetry on for a build that carries none. `true` says only "this
+   * deployment does not object to the sink you were built with", so the
+   * composed decision is `Boolean(buildTimeDsn) && thisPermission`.
+   */
+  allowClientErrorReporting: boolean;
+}
+
+/**
+ * The canonical fail-closed reading of a `/api/v1/runtime/config` payload's
+ * telemetry permission.
+ *
+ * ⚠️ **A MIRROR, and the mirror is the whole risk.** This repo has no
+ * dependency on `@objectstack/cloud-connection` (the package that serves the
+ * payload and owns the shape) — measured, not assumed: no `package.json` here
+ * names it, and neither `@objectstack/spec` nor `@objectstack/client`, which we
+ * do pin, re-export it. So no version bump can deliver this key to us and no
+ * pin lag can withhold it; the shape reaches us only by being retyped here, the
+ * way `branding` and `features` above already are. What CAN go wrong is drift,
+ * so this function is a deliberate line-for-line mirror of
+ * `isClientErrorReportingAllowed` exported from
+ * `@objectstack/cloud-connection/telemetry-posture`, and
+ * `runtime-config.test.ts` pins it in both directions.
+ *
+ * The test is `=== true`, not truthiness: `'true'`, `1` and `'yes'` are
+ * payloads a consumer should not teach itself to accept. On the wire the
+ * producer emits a real boolean.
+ *
+ * Every "cannot determine the answer" state — a non-object body, an absent
+ * `telemetry` block, an absent key, a payload from an older ObjectStack or a
+ * third-party host — collapses onto `false`. That is the point of phrasing the
+ * key as a positive PERMISSION rather than a negative kill switch: a
+ * `telemetry: { disabled: true }` spelling would read `undefined` (falsy,
+ * therefore "not disabled", therefore SEND) on exactly the legacy runtimes that
+ * are leaking today.
+ */
+function grantsClientErrorReporting(payload: unknown): boolean {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const telemetry = (payload as { telemetry?: unknown }).telemetry;
+  if (typeof telemetry !== 'object' || telemetry === null) return false;
+  return (telemetry as { allowClientErrorReporting?: unknown }).allowClientErrorReporting === true;
+}
+
+/**
  * The SPA's server-pushed runtime configuration — which cloud to talk to, which
  * features are on, and how the product is branded.
  *
@@ -121,6 +181,12 @@ export interface AppShellRuntimeConfig {
   defaultEnvironmentId?: string | null;
   features: RuntimeFeatures;
   branding: RuntimeBranding;
+  /**
+   * The runtime's post-build permission for client telemetry. Always present
+   * on the singleton (defaulting to denied) so consumers never have to spell
+   * the absent case themselves.
+   */
+  telemetry: RuntimeTelemetry;
 }
 
 const defaults: AppShellRuntimeConfig = {
@@ -132,6 +198,11 @@ const defaults: AppShellRuntimeConfig = {
   // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
   // out of the box on any runtime that hasn't sent an explicit stage yet.
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview', brandColor: '#4F46E5', pwaThemeColor: '#4f46e5' },
+  // ⛔ Denied until a runtime positively grants it — including before
+  // `initRuntimeConfig()` has ever run. This default IS the fail-closed
+  // guarantee for the two states no payload can speak for: "the config has
+  // not arrived yet" and "the fetch failed".
+  telemetry: { allowClientErrorReporting: false },
 };
 
 /** Valid {@link PlatformStage} values, for validating server-pushed config. */
@@ -157,6 +228,11 @@ function applyUpdate(patch: Partial<AppShellRuntimeConfig>): void {
       ...current.branding,
       ...(patch.branding ?? {}),
     },
+    // NOT merged like `features`/`branding`: a security permission is
+    // re-derived from each payload in full, so a grant can never outlive the
+    // response that carried it (a later re-fetch against a runtime that
+    // withdrew it must withdraw it here too).
+    telemetry: patch.telemetry ? { ...patch.telemetry } : current.telemetry,
   };
 }
 
@@ -206,6 +282,11 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           sso: body.features.sso === true,
         }
         : current.features,
+      // Read off the RAW body, not off `body.telemetry`: the mirrored reader
+      // owns every malformed/absent shape in one place, and handing it the
+      // whole payload is what keeps this call site from growing its own
+      // `?.` dialect.
+      telemetry: { allowClientErrorReporting: grantsClientErrorReporting(body) },
       branding: body.branding
         ? {
           productName:
@@ -379,12 +460,43 @@ export function isAiStudioEnabled(): boolean {
   return current.features?.aiStudio !== false;
 }
 
+/**
+ * May this deployment's Console send client error reports to the telemetry
+ * sink its bundle was compiled with? (objectui#5522)
+ *
+ * The post-build off switch cloud#1508 asked for: an air-gapped on-premises EE
+ * Console was measured sending 14 Sentry envelopes per session to `sentry.io`
+ * carrying IP + User-Agent PII, and could not be silenced because every knob in
+ * `observability/sentry.ts` is a Vite build-time variable that Vite inlines as
+ * a frozen literal. `@object-ui/console` publishes ONE pre-built SPA that the
+ * hosted SaaS console and the on-prem/air-gapped EE images both embed, so the
+ * artifact cannot tell those postures apart and editing env vars on the
+ * deployed host does nothing. This value comes from the server on every boot,
+ * so it CAN.
+ *
+ * ⛔ Fails CLOSED (`=== true`), the opposite direction from
+ * {@link isMarketplaceEnabled} and {@link isAiStudioEnabled} above — do not
+ * "make it consistent" with them. Those withhold a working capability on an
+ * unanswered question, which is the worse direction for a feature; here an
+ * unreported error is recoverable and PII leaving an air-gapped deployment is
+ * not, so every unanswered question must land on silence. Concretely: a runtime
+ * predating the key, a third-party host, a 404 and a network failure all read
+ * as DENIED, which is exactly the set of runtimes leaking today.
+ *
+ * A conjunct, never a source — it cannot start telemetry on a build that
+ * carries no DSN. See `observability/sentry.ts` for the composition.
+ */
+export function isClientErrorReportingAllowed(): boolean {
+  return current.telemetry?.allowClientErrorReporting === true;
+}
+
 /** Test/dev helper. */
 export function resetRuntimeConfigForTesting(): void {
   current = {
     ...defaults,
     features: { ...defaults.features },
     branding: { ...defaults.branding },
+    telemetry: { ...defaults.telemetry },
   };
   initialised = false;
 }

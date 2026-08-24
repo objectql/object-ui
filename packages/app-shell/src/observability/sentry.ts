@@ -31,16 +31,41 @@
  * commits NO DSN; deployments that want reporting inject one in their own
  * deploy environment (a ratchet test keeps it that way).
  *
- * ⚠️ Known limitation, deliberately not worked around here: a build that DID
- * opt in still has no post-build off switch, because the only server→SPA
- * channel is `/api/v1/runtime/config` and a telemetry key on that payload is
- * an objectstack contract change, not objectui's to make. Filed upstream; see
- * the issue for the fork. Until it lands, "do not inject a DSN" is the
- * off switch, and it is now a real one because none is committed.
+ * ## The post-build off switch (the second conjunct)
+ *
+ * The limitation this module used to record here — "a build that DID opt in
+ * still has no post-build off switch" — is now closed. The upstream contract
+ * change it was waiting on landed as objectstack#11382, so
+ * `/api/v1/runtime/config` carries `telemetry.allowClientErrorReporting`, and
+ * {@link initSentry} reads it through
+ * {@link isClientErrorReportingAllowed}.
+ *
+ * That makes the shipped decision a CONJUNCTION of two independent grants:
+ *
+ * ```
+ * send  ⇔  a DSN was injected at BUILD time  ∧  the RUNTIME granted permission
+ * ```
+ *
+ * Both are opt-in and either one denies alone, which is what finally lets one
+ * artifact serve every posture: the hosted SaaS console injects a DSN *and*
+ * runs on a runtime that grants, while the identical bundle inside an
+ * air-gapped EE image meets a runtime that grants nothing and stays silent —
+ * with no rebuild, and without anyone editing files inside a published SPA.
+ *
+ * The server half is a PERMISSION, never a source: it supplies no DSN and
+ * cannot switch telemetry ON for a build that carries none. A server able to
+ * *start* a third-party data flow in someone's browser would be a strictly
+ * worse surface than the one this card fixes.
+ *
+ * Runtime config consumed:
+ *  - `telemetry.allowClientErrorReporting` on `/api/v1/runtime/config` — the
+ *    deployment's permission. Absent/denied/unreachable ⇒ do not send.
  *
  * Env vars consumed (all optional):
  *  - `VITE_SENTRY_DSN`         — DSN; absent disables the integration entirely.
- *    Presence IS the opt-in — there is no separate "enable" flag to forget.
+ *    Presence is the BUILD-time half of the opt-in — there is no separate
+ *    "enable" flag to forget — but it no longer suffices on its own: the
+ *    runtime must also grant permission (see above).
  *  - `VITE_SENTRY_ENABLED`     — set to `"false"` to force-disable reporting
  *    even when a DSN was injected. An ADDITIONAL off switch for a pipeline
  *    that wants to keep the DSN in its environment but stop reporting; it is
@@ -57,6 +82,8 @@
  * @module
  */
 
+import { isClientErrorReportingAllowed } from '../runtime-config.js';
+
 type SentryModule = typeof import('@sentry/react');
 
 let sentryModule: SentryModule | null = null;
@@ -67,7 +94,7 @@ export interface SentryGateDecision {
   /** Whether reporting may start at all. */
   enabled: boolean;
   /** Why — useful in tests and when explaining a silent deployment. */
-  reason: 'no-dsn' | 'forced-off' | 'opted-in';
+  reason: 'no-dsn' | 'forced-off' | 'runtime-denied' | 'opted-in';
   /** The trimmed DSN, or `''` when there is none. */
   dsn: string;
   /** Whether IP address + User-Agent may be attached to events. */
@@ -75,7 +102,8 @@ export interface SentryGateDecision {
 }
 
 /**
- * The whole telemetry decision, as a pure function of the build-time env.
+ * The whole telemetry decision, as a pure function of its two inputs: what the
+ * build was compiled with, and what the runtime permits.
  *
  * Split out from {@link initSentry} deliberately. The decision is the part
  * with the security consequence, and leaving it inline made it unreachable
@@ -84,11 +112,24 @@ export interface SentryGateDecision {
  * WITHOUT reaching `import.meta.env` (measured — a suite that stubbed a DSN
  * and asserted "enabled" failed, because the module never saw it). An
  * untestable gate is how the previous one stayed broken; this one is pinned
- * case by case in `sentry.test.ts`.
+ * case by case in `sentry.test.ts`. Keeping the runtime permission INSIDE this
+ * function rather than adding a second gate at the call site is the same
+ * argument applied once more: one decision, one place, one suite.
+ *
+ * `runtimeAllowsClientErrorReporting` is REQUIRED, not an optional argument
+ * defaulting to `false`. Both spellings fail closed, but only a required
+ * parameter makes the compiler refuse a caller that never considered the
+ * question — and "a caller that never considered the question" is this card's
+ * entire defect class. Callers read it from
+ * {@link isClientErrorReportingAllowed}, which owns the fail-closed reading of
+ * the payload.
  *
  * Fails CLOSED in every branch that is not an affirmative opt-in.
  */
-export function resolveSentryGate(env: Record<string, unknown> | null | undefined): SentryGateDecision {
+export function resolveSentryGate(
+  env: Record<string, unknown> | null | undefined,
+  runtimeAllowsClientErrorReporting: boolean,
+): SentryGateDecision {
   const rawDsn = env?.VITE_SENTRY_DSN;
   const dsn = typeof rawDsn === 'string' ? rawDsn.trim() : '';
 
@@ -103,6 +144,17 @@ export function resolveSentryGate(env: Record<string, unknown> | null | undefine
   // so it cannot rescue an artifact that was already built.
   if (env?.VITE_SENTRY_ENABLED === 'false') {
     return { enabled: false, reason: 'forced-off', dsn, sendDefaultPii: false };
+  }
+
+  // The runtime's post-build permission — the one input here that a shipped
+  // artifact cannot have frozen into itself. A deployment that declines beats
+  // a DSN someone compiled in, which is the whole point: the air-gapped EE
+  // image runs the SAME bundle as the hosted console, so the build-time
+  // signals cannot tell them apart and only the server can.
+  //
+  // `!== true`, not `!`: a truthy non-boolean must not be able to grant.
+  if (runtimeAllowsClientErrorReporting !== true) {
+    return { enabled: false, reason: 'runtime-denied', dsn, sendDefaultPii: false };
   }
 
   return {
@@ -134,7 +186,13 @@ export function initSentry(): Promise<boolean> {
 
   initPromise = (async () => {
     const env = (import.meta as any).env ?? {};
-    const gate = resolveSentryGate(env);
+    // Read at init time, not at module-eval time: this is a server-pushed
+    // value, so it is only meaningful once `initRuntimeConfig()` has settled.
+    // Until then — and if the fetch failed, or the runtime predates the key —
+    // it reads DENIED, so an `initSentry()` that runs too early withholds
+    // telemetry rather than granting it. Ordering is the caller's to get
+    // right; the failure mode of getting it wrong is silence, not a leak.
+    const gate = resolveSentryGate(env, isClientErrorReportingAllowed());
     // Returning BEFORE the dynamic import is load-bearing, not an early-exit
     // micro-optimisation: it keeps the vendor-sentry chunk unfetched, so a
     // deployment that never opted in issues no third-party request at all —

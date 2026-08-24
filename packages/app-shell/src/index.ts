@@ -146,9 +146,13 @@ export {
   getPwaDescription,
   getPwaThemeColor,
   isRuntimeConfigInitialised,
+  // The fail-closed reading of the runtime's client-telemetry permission.
+  // Exported so no consumer has to write its own `?.` chain against the
+  // payload — one `!== false` dialect is all it takes to re-open objectui#5522.
+  isClientErrorReportingAllowed,
   resetRuntimeConfigForTesting,
 } from './runtime-config.js';
-export type { AppShellRuntimeConfig, RuntimeFeatures, RuntimeBranding, PlatformStage } from './runtime-config.js';
+export type { AppShellRuntimeConfig, RuntimeFeatures, RuntimeBranding, RuntimeTelemetry, PlatformStage } from './runtime-config.js';
 
 // Standard inner-SPA views
 export {
