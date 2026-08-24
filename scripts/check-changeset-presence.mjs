@@ -82,14 +82,81 @@
  * in neither `fixed` nor `ignore` — so the two gates compose into "every package
  * is classified, and every classified-as-released package's source is declared".
  *
- * Two deliberate boundaries, stated so they are not mistaken for oversights:
+ * ## Which files count as a package's source — the POPULATION (objectui#5733)
  *
- *   - **`src/**` only.** A dependency bump in a package's `package.json` can be
- *     just as user-visible, and this gate does not see it. Widening to whole
- *     package directories would demand a changeset for `README` edits and test
- *     fixtures outside `src`, which is friction with no release meaning.
+ * `<pkg>/src/` is where nearly all of a package's published source is. It is not
+ * all of it, and the difference was measured rather than argued. On `a1c41c516`,
+ * a change confined to `apps/console/index.html` — the console's HTML entry,
+ * which is compiled into the published `dist/` and carries two inline classic
+ * scripts that run in every user's browser during parse (the pre-boot
+ * branding/`runtime/config` script and the `crypto.randomUUID` shim for insecure
+ * origins, both graded by tests in `apps/console/src/__tests__/` precisely
+ * because they are shipped behaviour) — produced this verdict:
+ *
+ *     Compared the working tree with a1c41c516 (merge-base with origin/main):
+ *     1 file(s) changed, 0 of them under the src/ of a package the release
+ *     covers, 0 under a package changesets ignores, 0 changeset(s) added.
+ *     ✅  No source of a released package changed in this range, so no changeset
+ *     is owed.
+ *
+ * That verdict is quoted as it READ THEN. The summary line's wording moved with
+ * this fix — it now says `published source of a package the release covers` —
+ * so a grep for the old phrase finds this quotation and nothing else, which is
+ * the intended result rather than a leftover.
+ *
+ * ### The rule this file implements
+ *
+ * A changed file counts when it is that package's **published, executable**
+ * source. Concretely, it counts when ANY of these holds:
+ *
+ *   (a) it is under `<pkg>/src/`; or
+ *   (b) it is `<pkg>/index.html` — the bundler's HTML entry, whose content
+ *       (inline scripts included) is compiled into the published `dist/`; or
+ *   (c) the package's own `package.json` `files` list publishes it verbatim —
+ *       `apps/console`'s root `plugin.ts`, which is that package's `main`.
+ *
+ * …minus **documentation and licences** (`*.md`, `LICENSE*`), which do ship in
+ * the tarball but are not behaviour. `<pkg>/src/` is exempt from that
+ * subtraction: it keeps its existing all-of-it reading, unchanged, so nothing
+ * that was guarded before is guarded less now.
+ *
+ * `isPublishedSource` below is that rule as code, in the same clause order.
+ *
+ * On this tree the widening adds exactly three files — `apps/console/index.html`,
+ * `apps/console/plugin.ts`, `packages/runner/index.html` — and that number is the
+ * point rather than a footnote. The population has a wrong answer in each
+ * direction: too narrow and shipped executable code changes with nothing said, so
+ * consumers get a release that does not mention it; too wide and every incidental
+ * file in a package directory demands a declaration, the gate becomes noise, and
+ * people answer it with empty changesets they did not read — which is how a gate
+ * stops being read at all. "Published AND executable" is the line, and both words
+ * are load-bearing.
+ *
+ * Deliberate boundaries, stated so they are not mistaken for oversights:
+ *
+ *   - **`package.json` itself never counts.** Clause (c) reads that file; it does
+ *     not match it. A dependency bump can be just as user-visible, and this gate
+ *     still does not see it. That was the first draft's trade and it is kept.
+ *   - **`<pkg>/public/` does not count.** Vite copies it verbatim into the
+ *     published `dist/`, so it genuinely IS published — a favicon, a logo, a PWA
+ *     manifest. None of it is executable, and demanding a declaration for a logo
+ *     swap is exactly the friction that teaches authors to silence this gate.
+ *     Published-but-not-code sits with the READMEs.
+ *   - **`<pkg>/*-preview.html` and `<pkg>/demo/` do not count**, because they are
+ *     not build inputs. Vite's build entry is `index.html` alone unless
+ *     `rollupOptions.input` names more, and neither `apps/console`'s five preview
+ *     pages nor `plugin-grid`/`plugin-gantt`'s demo pages are named. They are
+ *     dev-server pages that reach no tarball.
+ *   - **Clause (b) tests the NAME, not the bundler config.** A package-root
+ *     `index.html` in this repository is always the build entry — `apps/console`
+ *     (`tsc && vite build && pnpm build:plugin`) and `packages/runner`
+ *     (`vite build`) are the only two, and both are. If one ever is not, the cost
+ *     is a single empty-frontmatter changeset. The other direction — deriving it
+ *     from a build script's spelling — fails SILENTLY the day the spelling
+ *     changes, and a silent narrowing of this population is the exact defect
+ *     objectui#5733 reported.
  *   - **No carve-out for test files under `src/`.** A change confined to
- *     `src/__tests__/**` is answered by the empty-frontmatter exemption, in one
+ *     `src/__tests__/` is answered by the empty-frontmatter exemption, in one
  *     line. The alternative — teaching the gate which files "don't count" — is
  *     where the holes live, and this gate asks for a sentence, not a release.
  *
@@ -407,12 +474,33 @@ export function readReleaseConfig(root) {
 }
 
 /**
- * `directory -> { name, versioned }` for every workspace package.
+ * The package's own `files` list, normalised to repo-shaped relative paths.
+ *
+ * `['./plugin.ts', 'dist/']` and `['plugin.ts', 'dist']` describe the same
+ * tarball, and npm accepts both spellings; clause (c) of the population rule
+ * compares changed paths against these entries, so the two spellings must not
+ * produce two different guarded surfaces.
+ *
+ * A package with NO `files` field publishes its whole directory. That is not read
+ * as "everything counts": the one such package here (`packages/vscode-extension`)
+ * is `private: true` and reaches no registry, and taking the absent field as a
+ * blanket would guard every tsconfig and doc page in it. Absent means clause (c)
+ * matches nothing, and clauses (a) and (b) still apply.
+ */
+function publishedEntries(manifest) {
+  const files = Array.isArray(manifest.files) ? manifest.files : [];
+  return files
+    .map((entry) => (typeof entry === 'string' ? entry.replace(/^\.\//, '').replace(/\/+$/, '') : ''))
+    .filter((entry) => entry !== '');
+}
+
+/**
+ * `directory -> { name, versioned, ignored, files }` for every workspace package.
  *
  * Scans the same roots as `scripts/check-changeset-fixed.mjs` — one package per
  * immediate subdirectory — so the two gates agree about what a package is.
  *
- * @returns {Map<string, { name: string, versioned: boolean, ignored: boolean }>}
+ * @returns {Map<string, { name: string, versioned: boolean, ignored: boolean, files: string[] }>}
  */
 export function discoverPackages(root, { versioned, isIgnored }) {
   const packages = new Map();
@@ -430,16 +518,64 @@ export function discoverPackages(root, { versioned, isIgnored }) {
       } catch {
         continue;
       }
-      const name = JSON.parse(readFileSync(manifest, 'utf8')).name;
+      const parsed = JSON.parse(readFileSync(manifest, 'utf8'));
+      const name = parsed.name;
       if (!name) continue;
       packages.set(`${parent}/${entry}`, {
         name,
         versioned: versioned.has(name),
         ignored: isIgnored(name),
+        files: publishedEntries(parsed),
       });
     }
   }
   return packages;
+}
+
+/**
+ * The package-root HTML file a bundler compiles into the published `dist/`.
+ *
+ * Vite's build entry is this file and no other unless `rollupOptions.input` names
+ * more, and nothing in this repository does. Sibling HTML at a package root
+ * (`apps/console`'s `*-preview.html` pages) and HTML one level down
+ * (`packages/plugin-grid/demo/index.html`) are dev-server pages that reach no
+ * tarball, and neither is matched by an equality test on this exact name.
+ */
+export const HTML_ENTRY = 'index.html';
+
+/**
+ * Documentation and licences: published in the tarball, but not behaviour.
+ *
+ * Subtracted from clauses (b) and (c) of the population rule — never from (a).
+ * `<pkg>/src/` keeps its all-of-it reading, so this predicate cannot narrow what
+ * the gate guarded before objectui#5733.
+ */
+export function isDocumentation(relative) {
+  const name = relative.slice(relative.lastIndexOf('/') + 1);
+  return /^LICEN[SC]E/i.test(name) || /\.md$/i.test(name);
+}
+
+/**
+ * Does `relative` — a path INSIDE `directory`, with the package directory already
+ * stripped — count as that package's published, executable source?
+ *
+ * The three clauses are the ones the header states, in the same order:
+ *
+ *   (a) under `src/`;
+ *   (b) the bundler's HTML entry;
+ *   (c) published verbatim by the package's own `files` list.
+ *
+ * Clause (a) answers first and unconditionally, so the documentation subtraction
+ * that (b) and (c) are subject to can never remove a file `src/` already covered.
+ *
+ * @param {string} relative
+ * @param {{ files: string[] }} pkg
+ */
+export function isPublishedSource(relative, pkg) {
+  if (relative.startsWith('src/')) return true;
+  if (isDocumentation(relative)) return false;
+  if (relative === HTML_ENTRY) return true;
+  return (pkg.files ?? []).some((entry) => relative === entry || relative.startsWith(`${entry}/`));
 }
 
 /**
@@ -464,7 +600,7 @@ export function classifyChangedPaths(paths, packages) {
   for (const path of paths) {
     let owner = null;
     for (const [directory, pkg] of packages) {
-      if (path.startsWith(`${directory}/src/`)) {
+      if (path.startsWith(`${directory}/`) && isPublishedSource(path.slice(directory.length + 1), pkg)) {
         owner = { directory, pkg };
         break;
       }
@@ -638,8 +774,8 @@ if (invokedDirectly) {
 
   console.log(
     `Compared ${head ?? 'the working tree'} with ${base.ref.slice(0, 9)} (${base.how}): ` +
-      `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them under the ` +
-      `src/ of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
+      `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them published ` +
+      `source of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
       `ignores, ${analysis.declarations.length} changeset(s) added.`,
   );
 
