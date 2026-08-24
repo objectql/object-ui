@@ -8,6 +8,28 @@
  */
 
 import { vi } from 'vitest';
+import { installI18nGlobalReset } from './vitest.setup.i18n-global';
+
+// objectui#4514 — put react-i18next's GLOBAL default-instance pointer back
+// after every test, so a provider-less render resolves the same way whether it
+// sits above or below an `I18nProvider` in the same file.
+//
+// It lives HERE, in the one file every project's setup leads back to (`unit`
+// directly; `dom` via vitest.setup.dom-light.tsx; `dom-heavy` and apps/console
+// via vitest.setup.dom.tsx), rather than in the two DOM setups, for two
+// measured reasons:
+//
+//   1. Both DOM setups already import this file, so one call covers them; two
+//      calls would be two places for a third DOM project to forget.
+//   2. The `unit` project needs it MORE, not less. It runs `isolate: false`, so
+//      its module graph — including react-i18next's module-level pointer — is
+//      shared across FILES in a worker. `packages/i18n/src/__tests__/i18n.test.ts`
+//      alone calls `createI18n()` a dozen times, and each call installs a new
+//      global. There the leak outlives the file that caused it.
+//
+// Cost of the import here is bounded by the same `isolate: false`: the unit
+// project pays react-i18next once per worker, not once per file.
+installI18nGlobalReset();
 
 // Polyfill ResizeObserver (Radix UI / Shadcn components reference it even in
 // node-env unit tests that import components transitively).
