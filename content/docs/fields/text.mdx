@@ -23,7 +23,7 @@ The Text Field component provides a single-line text input for collecting basic 
 
 ## Field Schema
 
-```plaintext
+```ts
 interface TextFieldSchema {
   type: 'text';
   name: string;                  // Field name/ID
@@ -53,7 +53,7 @@ interface TextFieldSchema {
 
 When used in data tables or grids, the text field is rendered as simple truncated text:
 
-```plaintext
+```ts
 import { TextCellRenderer } from '@object-ui/fields';
 
 // Automatically used for type: 'text' in grids/tables

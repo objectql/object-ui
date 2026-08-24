@@ -23,7 +23,7 @@ The Percent Field component provides a percentage input that automatically conve
 
 ## Field Schema
 
-```plaintext
+```ts
 interface PercentFieldSchema {
   type: 'percent';
   name: string;                  // Field name/ID
@@ -61,7 +61,7 @@ Example:
 
 In tables/grids, values are formatted with percentage symbol:
 
-```plaintext
+```ts
 import { PercentCellRenderer } from '@object-ui/fields';
 
 // Renders: 85.50%

@@ -19,7 +19,7 @@ The Number Field component provides a numeric input for collecting integer or de
 
 ## Field Schema
 
-```plaintext
+```ts
 interface NumberFieldSchema {
   type: 'number';
   name: string;                  // Field name/ID
@@ -50,7 +50,7 @@ interface NumberFieldSchema {
 
 In tables/grids, numbers are displayed with tabular formatting:
 
-```plaintext
+```ts
 import { NumberCellRenderer } from '@object-ui/fields';
 
 // Renders with precision and tabular-nums font

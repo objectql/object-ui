@@ -15,7 +15,7 @@ The Phone Field component provides a text input optimized for phone number entry
 
 ## Field Schema
 
-```plaintext
+```ts
 interface PhoneFieldSchema {
   type: 'phone';
   name: string;                  // Field name/ID
@@ -33,7 +33,7 @@ interface PhoneFieldSchema {
 
 In tables/grids, phone numbers are clickable tel: links:
 
-```plaintext
+```ts
 import { PhoneCellRenderer } from '@object-ui/fields';
 
 // Renders as: <a href="tel:+15551234567">+1 (555) 123-4567</a>

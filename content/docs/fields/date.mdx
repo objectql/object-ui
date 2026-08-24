@@ -15,7 +15,7 @@ The Date Field component provides a date picker for selecting dates and optional
 
 ## Field Schema
 
-```plaintext
+```ts
 interface DateFieldSchema {
   type: 'date' | 'datetime';
   name: string;                  // Field name/ID
@@ -55,7 +55,7 @@ The date field supports various display formats:
 
 In tables/grids, dates are formatted consistently:
 
-```plaintext
+```ts
 import { DateCellRenderer } from '@object-ui/fields';
 
 // Renders: Dec 31, 2024

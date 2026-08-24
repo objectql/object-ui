@@ -19,7 +19,7 @@ The Boolean Field component provides a switch or checkbox input for collecting t
 
 ## Field Schema
 
-```plaintext
+```ts
 interface BooleanFieldSchema {
   type: 'boolean';
   name: string;                  // Field name/ID
@@ -45,7 +45,7 @@ interface BooleanFieldSchema {
 
 In tables/grids, boolean values are displayed as badges:
 
-```plaintext
+```ts
 import { BooleanCellRenderer } from '@object-ui/fields';
 
 // Renders:

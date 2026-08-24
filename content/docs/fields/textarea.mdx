@@ -19,7 +19,7 @@ The TextArea Field component provides a multi-line text input for collecting lon
 
 ## Field Schema
 
-```plaintext
+```ts
 interface TextAreaFieldSchema {
   type: 'textarea';
   name: string;                  // Field name/ID
@@ -49,7 +49,7 @@ interface TextAreaFieldSchema {
 
 When displayed in tables or grids, long text is truncated:
 
-```plaintext
+```ts
 import { TextCellRenderer } from '@object-ui/fields';
 
 // Same renderer as text field - truncates long content
