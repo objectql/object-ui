@@ -251,6 +251,25 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:action-forward-parity
 
+      # A field designer offering a control that writes a key `FieldSchema`
+      # refuses BY NAME is a save-blocking 422 (`INVALID_METADATA`) that blocks
+      # EVERY later save of the object, and the author cannot tell from the UI
+      # which key did it. It had been filed three times — objectui#4644
+      # `indexed`, #4687 `distance_metric`, #4676 `placeholder` — each closed
+      # with a per-key tombstone written AFTER the instance was found in
+      # production, and nothing detected the next one (objectui#5761). This gate
+      # compares the designers' statically declared payload shapes against the
+      # installed `FieldSchema`'s own accept set. Reads sources with `typescript`
+      # and the installed spec, so it needs the install and nothing built — same
+      # placement rationale as the step above. It covers a documented SUBSET of
+      # the write path (keys reaching the payload only via a `patchDef` spread
+      # are outside its reach); the boundary is stated in the script's docblock,
+      # and its draft-I/O half runs in the test suite as
+      # `object-fields-io.spec-keys.test.ts`.
+      - name: Verify designer field payloads declare only keys FieldSchema accepts
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:designer-field-key-parity
+
       # lucide retires a spelling by DROPPING IT FROM the runtime `icons` record
       # while keeping it as a deprecated named export. A retired name therefore
       # still imports, still type-checks and still renders wherever it is used as
