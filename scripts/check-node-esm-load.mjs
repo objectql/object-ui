@@ -87,14 +87,18 @@
  *     specifiers seen by the mask, 2133 by the parser, the missing one a real
  *     `import`. Leg 1 now reads the file as written and asks the shared
  *     TypeScript scanner what the module edges are (objectui#5382); see
- *     `relativeSpecifiers`. `readTsconfig` below is the same class, still open
- *     as objectui#5367.
+ *     `relativeSpecifiers`. `readTsconfig` below was the same class in the same
+ *     file — three regexes over a tsconfig's raw text, blind to JSON strings,
+ *     throwing on 61 of the repository's 91 configs — and took the same remedy
+ *     under objectui#5367: TypeScript's own tsconfig reader.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import ts from 'typescript';
 
 import { SKIP_DIRS, TOOLING_FILE, discoverPackages, moduleSpecifiers } from './check-phantom-dependencies.mjs';
 
@@ -120,13 +124,52 @@ export const MIN_LOADED = 3;
 
 // ── which builds preserve specifiers ─────────────────────────────────────────
 
-/** Parse a tsconfig, tolerating the comments this repository writes in them. */
+/**
+ * Parse a tsconfig, tolerating the comments this repository writes in them.
+ *
+ * ## Why this asks TypeScript rather than blanking comments (objectui#5367)
+ *
+ * It used to be three ordered `replace` calls over the raw text — blank block
+ * comments, blank whole-line comments, drop trailing commas — feeding
+ * `JSON.parse`. None of them knew what a JSON string was, so a slash-star
+ * sequence written INSIDE a string opened a "block comment" that ran to the
+ * next star-slash anywhere in the file and deleted every line between them.
+ *
+ * That is not exotic: `"@/*"` in a `paths` map and `"**\/*.test.ts"` in an
+ * `exclude` list are the two commonest lines in this repository's tsconfigs,
+ * and they are a matched opener and closer. Measured on `main` at ed35c23bb
+ * over the 91 tsconfigs tracked by git: **61 of them threw**, not the two the
+ * card was filed for. Every one of those throws was absorbed by
+ * `effectiveNoEmit`'s catch, which grades an unreadable config as emitting — so
+ * the gate's scope was being decided by a fallback rather than by a reading,
+ * with no signal that it had happened.
+ *
+ * This is the same class as the specifier mask objectui#5382 retired further
+ * down, and it takes the same remedy: ask the parser instead of pattern-
+ * matching around it. `ts.parseConfigFileTextToJson` is TypeScript's own
+ * tsconfig reader — comments, trailing commas and BOMs stop being questions
+ * this gate has an opinion about, and the answer is by construction the one
+ * `tsc` itself would compute. Re-measured with it: **0 of 91 throw**.
+ *
+ * No new dependency edge: `typescript` is a root devDependency and this module
+ * already loads it on every run, transitively through the shared scanner it
+ * imports from `check-phantom-dependencies.mjs`.
+ *
+ * Still THROWS on a genuinely unparseable config, deliberately — that is the
+ * contract `effectiveNoEmit`'s conservative catch is written against, and the
+ * contract `scripts/__tests__/check-node-esm-load.test.ts` asserts over every
+ * tsconfig in the repository so this class cannot come back silently.
+ *
+ * @param {string} path absolute path to a tsconfig
+ * @returns {Record<string, unknown>} the parsed config (`{}` for an empty file,
+ *   which is what TypeScript reads it as: inherit everything)
+ */
 export function readTsconfig(path) {
-  const raw = readFileSync(path, 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^[ \t]*\/\/.*$/gm, '')
-    .replace(/,(\s*[}\]])/g, '$1');
-  return JSON.parse(raw);
+  const parsed = ts.parseConfigFileTextToJson(path, readFileSync(path, 'utf8'));
+  if (parsed.error) {
+    throw new Error(`${path}: ${ts.flattenDiagnosticMessageText(parsed.error.messageText, ' ')}`);
+  }
+  return parsed.config ?? {};
 }
 
 /**
@@ -146,6 +189,13 @@ export function effectiveNoEmit(configPath, seen = new Set()) {
   } catch {
     // An unreadable config is graded as emitting, so a parse failure widens the
     // scan rather than silently dropping a package out of it.
+    //
+    // This is the fallback for a config nobody can read, and until objectui#5367
+    // it was the NORMAL path: the regex strip `readTsconfig` used threw on 61 of
+    // this repository's 91 tsconfigs, so most of this gate's scope came from
+    // here instead of from a reading. With a real JSONC parse the branch is
+    // reached by nothing in the repository today, which is what it was always
+    // meant to be — a margin, not the mechanism.
     return false;
   }
   if (typeof config.compilerOptions?.noEmit === 'boolean') return config.compilerOptions.noEmit;
@@ -176,10 +226,38 @@ export function effectiveNoEmit(configPath, seen = new Set()) {
  * the artifact comes from the two steps after it. Grading it on the command
  * alone reported 124 findings against a package that emits none of them.
  *
- * A pipeline that runs an EMITTING `tsc` and a bundler (`@object-ui/fields`)
- * counts as preserving: the `tsc` half still writes files, and judging it is the
- * conservative direction — a false positive lands in the ledger with a reason, a
- * false negative ships.
+ * A pipeline that runs an EMITTING `tsc` and a bundler counts as preserving: the
+ * `tsc` half still writes files, and judging it is the conservative direction —
+ * a false positive lands in the ledger with a reason, a false negative ships.
+ * No published package matches that shape today; the rule is kept because the
+ * shape is legal, not because something wears it.
+ *
+ * ## `@object-ui/fields` used to be this paragraph's example, and it was wrong
+ *
+ * It was named here as the emitting-tsc-plus-bundler case, and it is the
+ * opposite: `packages/fields/tsconfig.json` inherits the root's `noEmit: true`
+ * and its own comment says so in as many words — `tsc` CHECKS, `dist` is written
+ * by vite-plugin-dts. The example survived only because `readTsconfig` could not
+ * parse that file at all (objectui#5367): the throw hit `effectiveNoEmit`'s
+ * catch, the catch answered "emitting", and the wrong answer got written down as
+ * a fact about the package.
+ *
+ * Fixing the parse therefore MOVES this gate's scope, once, in one place:
+ * `@object-ui/fields` leaves the specifier leg, 13 published specifier-
+ * preserving ESM packages become 12. It is the only membership change in the
+ * repository — `@object-ui/auth`'s config throws today too, but it declares
+ * `"noEmit": false` outright, so its verdict is unchanged and merely stops being
+ * an accident.
+ *
+ * Letting it drop is deliberate, and it costs no coverage. Measured at ed35c23bb:
+ * `fields`' sources carry 0 extensionless relative specifiers, so no live finding
+ * leaves with it; its built `dist` carries 0 extensionless out of 155 relative
+ * specifiers, because rolldown resolves them while bundling, so the property this
+ * leg ratchets is not observable in what `fields` publishes. And the sources keep
+ * a STRICTER guard than this heuristic: that tsconfig pins `"moduleResolution":
+ * "nodenext"`, under which a missing relative extension is TS2835 and a bare
+ * directory import is TS2834 — the compiler rejects in `fields`' own build step
+ * what this leg would only have reported.
  *
  * @param {string} buildScript the package's `scripts.build`, or ''
  * @param {string} pkgDir absolute path to the package, for resolving `-p`
@@ -400,9 +478,10 @@ export const ESM_MODULE_EDGE = new Set(['import', 'export', 'dynamic import()', 
  * comment", and the two `replace` calls whose ORDER decided the answer were the
  * defect. Asking the parser removes the whole class at once: comments, strings,
  * template literals and regex literals stop being questions this gate has an
- * opinion about. `readTsconfig()` above still strips comments with regexes and
- * is a SEPARATE live instance of the same class — objectui#5367, deliberately
- * not touched here.
+ * opinion about. `readTsconfig()` above was a SEPARATE live instance of the same
+ * class — regexes over a tsconfig's raw text, deliberately left for its own card
+ * — and it is closed the same way, by TypeScript's own tsconfig reader
+ * (objectui#5367).
  *
  * ## Why the sibling gate's scanner rather than a second parser
  *

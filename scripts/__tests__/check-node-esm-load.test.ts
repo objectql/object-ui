@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   ESM_MODULE_EDGE,
@@ -16,10 +17,12 @@ import {
   emittedSources,
   esmEntryOf,
   importEntry,
+  readTsconfig,
   relativeSpecifiers,
   resolvesToModule,
   scanSpecifiers,
 } from '../check-node-esm-load.mjs';
+import { SKIP_DIRS } from '../check-phantom-dependencies.mjs';
 
 /**
  * objectui#4538 — a published entry plain Node ESM cannot load.
@@ -196,6 +199,182 @@ describe('scope — which builds preserve specifiers', () => {
     fs.writeFileSync(path.join(dir, 'src/__tests__/b.ts'), "import '../index';\n");
 
     expect(emittedSources(path.join(dir, 'src'))).toEqual([path.join(dir, 'src/index.ts')]);
+  });
+});
+
+/**
+ * objectui#5367 — the tsconfig reader was the same class as the specifier mask.
+ *
+ * `readTsconfig` stripped comments with three ordered regexes and handed the
+ * result to `JSON.parse`. None of them knew what a JSON string was, so the
+ * slash-star inside a `paths` key opened a "block comment" that ran to the next
+ * star-slash — typically the test glob in `exclude` at the bottom of the same
+ * file — and deleted everything between. Measured before the fix: 61 of this
+ * repository's 91 tsconfigs threw, and every throw was swallowed by
+ * `effectiveNoEmit`'s catch, which grades an unreadable config as emitting.
+ *
+ * The gate's verdict happened to be safe. It was also never computed, which is
+ * the property this block exists to keep from coming back.
+ */
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const TSCONFIG_NAME = /^tsconfig(\..+)?\.json$/;
+
+/**
+ * The slice of a parsed tsconfig these assertions read.
+ *
+ * `readTsconfig` returns arbitrary JSON, so the narrowing is written down here
+ * once rather than asserted inline at every call — and it stays `unknown` at the
+ * leaves, so a wrong assumption about a value's shape is still a type error.
+ */
+type ParsedTsconfig = {
+  compilerOptions?: Record<string, unknown>;
+  extends?: unknown;
+  include?: unknown;
+  exclude?: unknown;
+};
+
+const parseTsconfig = (file: string) => readTsconfig(file) as ParsedTsconfig;
+
+/**
+ * Every tsconfig in the repository, walked rather than listed.
+ *
+ * A hand-maintained list would answer "the files someone remembered", which is
+ * exactly the reading that let two poisoned configs sit unnoticed. `SKIP_DIRS`
+ * is the sibling gates' own exclusion set, so `node_modules` and build output
+ * are out for the same reason they are out everywhere else.
+ */
+function everyTsconfig(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
+      everyTsconfig(path.join(dir, entry.name), out);
+    } else if (TSCONFIG_NAME.test(entry.name)) {
+      out.push(path.join(dir, entry.name));
+    }
+  }
+  return out;
+}
+
+describe('readTsconfig reads tsconfigs rather than pattern-matching around them', () => {
+  it('round-trips EVERY tsconfig in the repository without throwing', () => {
+    const configs = everyTsconfig(REPO_ROOT);
+
+    // The size assertion is the same doctrine the gate applies to itself: a walk
+    // that found nothing would throw nothing and report success. 91 exist today;
+    // 60 is a floor that a real collapse trips and ordinary churn does not.
+    expect(configs.length).toBeGreaterThanOrEqual(60);
+
+    const threw: string[] = [];
+    for (const file of configs) {
+      try {
+        readTsconfig(file);
+      } catch (error) {
+        threw.push(`${path.relative(REPO_ROOT, file)}: ${(error as Error).message}`);
+      }
+    }
+    expect(threw).toEqual([]);
+  });
+
+  it('keeps a `paths` key whose value opens a comment, and the keys after it', () => {
+    // The exact two lines that poisoned `packages/auth/tsconfig.json`: the
+    // slash-star in the paths key, and the test glob in `exclude` that closed
+    // the comment it opened. The old strip returned a config with no `paths`,
+    // no `include`, and a truncated `exclude`.
+    const dir = tmpdir();
+    fs.writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      [
+        '{',
+        '  "compilerOptions": {',
+        '    "baseUrl": ".",',
+        '    "paths": { "@/*": ["src/*"] },',
+        '    "noEmit": false',
+        '  },',
+        '  "include": ["src"],',
+        '  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    const config = parseTsconfig(path.join(dir, 'tsconfig.json'));
+    expect(config.compilerOptions?.paths).toEqual({ '@/*': ['src/*'] });
+    expect(config.include).toEqual(['src']);
+    expect(config.exclude).toEqual(['node_modules', 'dist', '**/*.test.ts', '**/*.test.tsx']);
+    expect(config.compilerOptions?.noEmit).toBe(false);
+  });
+
+  it('keeps the config below a line comment whose prose contains a slash-star', () => {
+    // `packages/fields/tsconfig.json`'s shape: a `//` comment naming a package
+    // glob. The block-comment pass ran first and had no notion of being inside a
+    // line comment, so the glob opened a comment that ate the rest of the file —
+    // which is how a config that plainly inherits `noEmit: true` was graded as
+    // emitting for as long as this gate has existed.
+    const dir = tmpdir();
+    fs.writeFileSync(path.join(dir, 'base.json'), JSON.stringify({ compilerOptions: { noEmit: true } }));
+    fs.writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      [
+        '{',
+        '  "extends": "./base.json",',
+        '  "compilerOptions": {',
+        '    // maps siblings to their packages/*/src trees',
+        '    "outDir": "dist"',
+        '  },',
+        '  "exclude": ["**/*.test.ts"]',
+        '}',
+        '',
+      ].join('\n'),
+    );
+
+    expect(parseTsconfig(path.join(dir, 'tsconfig.json')).compilerOptions?.outDir).toBe('dist');
+    expect(effectiveNoEmit(path.join(dir, 'tsconfig.json'))).toBe(true);
+  });
+
+  it('still THROWS on a config nobody can read, which is what the catch is for', () => {
+    // `effectiveNoEmit` is written against this contract: a genuinely unreadable
+    // config widens the scan rather than dropping a package out of it. The fix
+    // narrows what counts as unreadable; it does not remove the margin.
+    const dir = tmpdir();
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{ "compilerOptions": }\n');
+    expect(() => readTsconfig(path.join(dir, 'tsconfig.json'))).toThrow();
+    expect(effectiveNoEmit(path.join(dir, 'tsconfig.json'))).toBe(false);
+  });
+});
+
+describe('the scope this gate ratchets, now that the emit question is answered', () => {
+  // Fixing the parse moves the specifier leg's membership exactly once, and the
+  // two packages below are both halves of that move. Pinned here so the change
+  // is a decision on the record rather than a side effect nobody measured — the
+  // failure objectui#5367 was filed to end.
+
+  it('reads `@object-ui/fields` as NOT specifier-preserving, so it leaves the leg', () => {
+    // Its `tsc` step inherits the root's `noEmit: true` and only type-checks;
+    // `dist` is written by vite-plugin-dts, which resolves relative specifiers
+    // while bundling. Measured at the time this landed: 0 extensionless of 155
+    // relative specifiers in its built `dist`, and 0 extensionless in its
+    // sources — so nothing live left the leg with it. The sources keep a
+    // STRICTER guard than this heuristic: that config pins `nodenext`, under
+    // which a missing relative extension is TS2835 in the package's own build.
+    const dir = path.join(REPO_ROOT, 'packages/fields');
+    const build = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts.build;
+
+    expect(effectiveNoEmit(path.join(dir, 'tsconfig.json'))).toBe(true);
+    expect(buildPreservesSpecifiers(build, dir)).toBe(false);
+    expect(parseTsconfig(path.join(dir, 'tsconfig.json')).compilerOptions?.noEmit).toBeUndefined();
+  });
+
+  it('keeps `@object-ui/auth` in the leg on its DECLARED noEmit, not on a catch', () => {
+    // Its config throws under the old reader too, so it was in the leg by
+    // accident. It declares `"noEmit": false` outright, so the verdict is
+    // unchanged — what changes is that it is now a reading.
+    const dir = path.join(REPO_ROOT, 'packages/auth');
+    const build = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts.build;
+
+    expect(parseTsconfig(path.join(dir, 'tsconfig.json')).compilerOptions?.noEmit).toBe(false);
+    expect(effectiveNoEmit(path.join(dir, 'tsconfig.json'))).toBe(false);
+    expect(buildPreservesSpecifiers(build, dir)).toBe(true);
   });
 });
 
