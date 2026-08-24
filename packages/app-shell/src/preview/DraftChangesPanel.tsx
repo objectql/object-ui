@@ -35,16 +35,34 @@ import {
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 // The `/meta` URL-spelling fold (objectstack#7894, #8424), applied once in
-// `listPendingDrafts` below. Measured cost of this import on the console's
-// EAGER graph — the panel is reached statically from ConsoleLayout through
-// DraftPreviewBar — is +213.4 KB minified / +60.1 KB gzipped, on a graph that
-// already holds the spec entries app-shell imports statically (`/ui`,
-// `/kernel`): each published spec subpath is a self-contained bundle and
-// nothing tree-shakes it (`@objectstack/spec` declares no `sideEffects`).
-// Lazy-loading it here would NOT move those bytes — the console's
+// `listPendingDrafts` below.
+//
+// CORRECTED, and the correction matters more than the number. An earlier
+// version of this comment stated that this import puts `@objectstack/spec/shared`
+// on the console's EAGER graph, at +213.4 KB minified / +60.1 KB gzipped. The
+// attribution is false: that cost was never this import's. Measured by ablation
+// on `origin/main` at 0fce2ef81 (2026-08-24) — delete this import, rebuild
+// `apps/console`, read the `eagerGzipBytes` in `dist/eager-closure.json` — the
+// eager closure moves +285 bytes gzipped, i.e. minifier noise. Read that figure
+// as what it is, one tree on one day; the full measurement, with the
+// counter-probes that discriminate it, is recorded on objectui#5359.
+//
+// The MECHANISM is the part that survives the next release. `/shared` is held on
+// the eager graph by an edge upstream of this repo: `@objectstack/core`, shipped
+// inside `@objectstack/client` and a direct dependency of `apps/console`, has a
+// runtime `import { pluralToSingular } from '@objectstack/spec/shared'`. Every
+// OTHER importer of `/shared` in objectui's own source is type-only and erased
+// at build, so ablating this one still leaves the subpath in the eagerly loaded
+// `vendor-objectstack` chunk. Deferring or deleting this import therefore moves
+// ~nothing while that edge stands, and the lever lives at the producer — it is
+// tracked in objectstack#11503.
+//
+// Still true, and still why laziness is not the local answer: each published
+// spec subpath is a self-contained bundle and nothing tree-shakes it
+// (`@objectstack/spec` declares no `sideEffects`), and the console's
 // `vendor-objectstack` chunk group claims every `@objectstack/*` module except
-// `@objectstack/lint`, and that group's chunk is a static import of the app
-// entry (objectui#5266). Tracked in objectui#5359.
+// `@objectstack/lint`, that group's chunk being a static import of the app entry
+// (objectui#5266). So an `await import()` here would relocate nothing either.
 //
 // ⛔ Do not "optimize" this into a local copy of the spelling table: a
 // spec-named local declaration is what `scripts/check-spec-symbol-derivation.mjs`
