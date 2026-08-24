@@ -149,7 +149,19 @@
  *
  *   - 12 rendered no element at all: the overlays are closed until
  *     `defaultOpen`, `action:*` return `null` with no actions, and `ui:icon`
- *     returns `null` because the canary node's `name` is not a lucide icon.
+ *     returned `null` because the canary node's `name` is not a lucide icon.
+ *
+ *     ⚠️ `ui:icon` is the one of those twelve that has since been FIXED at the
+ *     renderer rather than worked around here (objectui#5631). It used to need
+ *     a forced `schemaExtras: { name: 'check' }` to render at all; it now
+ *     renders a visible placeholder for an unresolvable glyph, so it is swept
+ *     as an ordinary plain target on the node this file actually authors —
+ *     identity `name: 'canary_node'` and nothing else. Its
+ *     {@link BARE_SPREAD_ON_SVG} row was re-measured on that node as the
+ *     ruling required and is UNCHANGED: the placeholder is the same bare
+ *     spread onto the same SVG host, so it leaks the same fourteen. That the
+ *     row did not move is the point — the reading no longer depends on a
+ *     workaround that hid whether the renderer rendered.
  *   - 4 threw `useSidebar must be used within a SidebarProvider` and were
  *     caught by `SchemaErrorBoundary`, whose markup is attribute-clean.
  *
@@ -649,7 +661,8 @@ const COMPONENTS_PLAIN_TYPES: readonly string[] = [
   'ui:date-picker', 'ui:dd', 'ui:del', 'ui:div', 'ui:dl', 'ui:dt', 'ui:em', 'ui:email',
   'ui:empty', 'ui:figcaption', 'ui:figure', 'ui:file-upload', 'ui:filter-builder', 'ui:flex',
   'ui:footer', 'ui:form', 'ui:grid', 'ui:h1', 'ui:h2', 'ui:h3', 'ui:h4', 'ui:h5', 'ui:h6',
-  'ui:header', 'ui:home', 'ui:hr', 'ui:html', 'ui:i', 'ui:image', 'ui:img', 'ui:input',
+  'ui:header', 'ui:home', 'ui:hr', 'ui:html', 'ui:i', 'ui:icon', 'ui:image', 'ui:img',
+  'ui:input',
   'ui:input-otp', 'ui:ins', 'ui:kbd', 'ui:label', 'ui:li', 'ui:list', 'ui:loading',
   'ui:main', 'ui:mark', 'ui:menubar', 'ui:nav', 'ui:navigation-menu', 'ui:ol', 'ui:p',
   'ui:page', 'ui:pagination', 'ui:password', 'ui:pre', 'ui:progress', 'ui:q',
@@ -673,11 +686,6 @@ const COMPONENTS_SPECIAL_TARGETS: readonly Target[] = [
   componentsTarget('ui:dropdown-menu', { ...OPEN_OVERLAY, items: [{ label: 'a', value: 'a' }] }),
   componentsTarget('ui:hover-card', OPEN_OVERLAY),
   componentsTarget('ui:tooltip', { trigger: CLEAN_SLOT, content: 'tip' }, '[data-state="closed"]'),
-  // `IconRenderer` returns `null` when `schema.name` is not a lucide icon, and
-  // the canary node's `name` is `canary_node` — so the default node rendered
-  // NOTHING and read clean. (That collision is itself worth knowing: this
-  // renderer reads the SDUI identity key `name` as an icon name.)
-  componentsTarget('ui:icon', { name: 'check' }),
   // `action:*` return `null` with no actions (see CANARY_ACTIONS).
   componentsTarget('action:bar', { actions: CANARY_ACTIONS }),
   componentsTarget('action:group', { actions: CANARY_ACTIONS }),
@@ -977,6 +985,13 @@ const BARE_SPREAD_MINUS_NAME: readonly string[] = [
  * camelCase canaries survive exactly as authored (`ariaLabel`, not
  * `arialabel`). A ledger keyed on the lowercased spelling would have silently
  * failed to match these two.
+ *
+ * `ui:icon`'s membership here was re-measured under objectui#5631, on the
+ * ordinary canary node rather than the forced-resolvable one the old entry
+ * needed, and came back identical — see the `ui:icon` note in this file's
+ * "four phantom cleans" section. `name` stays in this list: the renderer still
+ * spreads the authored identity onto the SVG, and closing that is the
+ * objectui#5632 burn-down, deliberately NOT folded in here.
  */
 const BARE_SPREAD_ON_SVG: readonly string[] = [
   'ariaDescribedBy', 'ariaLabel', 'bind', 'colorVariant', 'dataSource', 'events', 'name',
