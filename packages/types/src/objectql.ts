@@ -843,6 +843,29 @@ export interface ObjectGridSchema extends BaseSchema {
   /**
    * Callback for page-level navigation (used by 'page' mode).
    * Called with recordId and action ('view' | 'edit').
+   *
+   * PROGRAMMATIC ONLY — not authoring surface. Deliberately absent from
+   * `GRID_QUERY_INPUTS` (`@object-ui/plugin-grid`'s `index.tsx`), so the
+   * manifest, the designer panel and the generated `sdui-intrinsics.d.ts` do
+   * not offer it; maintainer ruling of 2026-08-19 on objectui#5234.
+   *
+   * The reason is the value, not the declaration: this is a FUNCTION VALUE and
+   * a schema is a SERIALISABLE DOCUMENT. `(recordId, action) => void` cannot
+   * survive a metadata round-trip whatever declares it, so no author writing
+   * JSON or YAML — and no AI emitting a schema document — can express this
+   * key. Writing it into a stored document does nothing at all.
+   *
+   * Programmatic callers should prefer `ObjectGridComponentProps`
+   * (`@object-ui/plugin-grid`), where the nine sibling callbacks —
+   * `onRowClick`, `onRowSelect`, `onCellChange`, `onRowSave`, `onBatchSave`,
+   * `onEdit`, `onDelete`, `onBulkDelete`, `onAddRecord` — live and only live,
+   * for exactly this reason.
+   *
+   * The declaration is kept rather than removed: with the key explicitly
+   * published, removing it is a breaking public type change plus a deprecation
+   * cycle, for zero measured harm. The exemption comment at the read site
+   * (`plugin-grid/src/ObjectGrid.tsx`) carries the same statement, and both are
+   * pinned by `plugin-grid/src/__tests__/gridNonAuthorKeys.test.tsx`.
    */
   onNavigate?: (recordId: string | number, action?: string) => void;
 
