@@ -550,6 +550,12 @@ export type LedgerMismatch = {
  *   3. correct its `KnownDrift` entry to the measured set — or delete the entry
  *      if the drift is gone, which is the whole point of the ratchet.
  *
+ * If the named pair is in `SPEC_DERIVED_PAIRS` below, one side of its comparison
+ * comes from `@objectstack/spec`, so a spec bump is a candidate cause and the
+ * lockfile is the thing to check first. (It was NOT the cause of the firing
+ * described below: the lockfile pinned one spec version across every commit
+ * involved and the merge did not touch it.)
+ *
  * Its first real firing was direction (3): objectui#5855 retired
  * `DashboardComponentSchema.aria` on `main` while this branch was open, so a key
  * this ledger recorded as drifted had been corrected elsewhere and the entry went
@@ -727,6 +733,36 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a version string, not a schema",
 };
 
+/* ── Which pairs depend on @objectstack/spec ────────────────────────────────── */
+
+/**
+ * Registered mirrors built FROM a spec schema (`Spec…` appears in the definition),
+ * so one side of their comparison moves when `@objectstack/spec` moves.
+ *
+ * This is a real property of the ledger and it is written down rather than left to
+ * be rediscovered: for these pairs a spec bump can change the measured drift set
+ * with nothing in this repo changing, and `assertionDriftMatchesLedger` will fire.
+ * That is correct behaviour — a vocabulary the spec widened or withdrew is exactly
+ * what wants triage — but the failure should not read as a mystery. Three of the
+ * ledgered pairs are in here: `DashboardComponentSchema`, `DashboardWidgetSchema`
+ * and `PageNodeSchema`.
+ *
+ * Kept honest by the test below, which re-derives this set from the mirror sources
+ * instead of trusting the list.
+ */
+const SPEC_DERIVED_PAIRS: readonly string[] = [
+  'app.zod.ts#AppComponentSchema',
+  'app.zod.ts#NavigationAreaSchema',
+  'base.zod.ts#BaseSchema',
+  'complex.zod.ts#DashboardComponentSchema',
+  'complex.zod.ts#DashboardWidgetSchema',
+  'form.zod.ts#SelectOptionSchema',
+  'layout.zod.ts#PageNodeSchema',
+  'objectql.zod.ts#ObjectGanttSchema',
+  'objectql.zod.ts#ObjectMapSchema',
+  'objectql.zod.ts#ObjectViewSchema',
+];
+
 /* ── Runtime: the population is closed ──────────────────────────────────────── */
 
 const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
@@ -765,6 +801,24 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
     const found = exportedConsts();
     expect(found.length).toBeGreaterThan(200);
     expect(found).toContain('base.zod.ts#BaseSchema');
+  });
+
+  it('SPEC_DERIVED_PAIRS matches what the mirror sources actually do', () => {
+    // Re-derived, not trusted: a mirror that starts referencing a `Spec…` schema
+    // joins the spec-sensitive set whether or not anyone updates the list.
+    const derived: string[] = [];
+    for (const key of Object.keys(MIRRORS)) {
+      const [file, name] = key.split('#');
+      const src = readFileSync(join(ZOD_DIR, file), 'utf8');
+      const at = src.search(new RegExp(`^export const ${name}\\b`, 'm'));
+      if (at < 0) continue;
+      const rest = src.slice(at);
+      const next = rest.slice(10).search(/\n(?=export (const|type|function))/);
+      const body = next < 0 ? rest : rest.slice(0, next + 10);
+      if (/\bSpec[A-Z]\w*/.test(body)) derived.push(key);
+    }
+    expect(derived.sort(), 'a mirror gained or lost a spec dependency — update SPEC_DERIVED_PAIRS')
+      .toEqual([...SPEC_DERIVED_PAIRS].sort());
   });
 
   it('every exclusion carries a reason', () => {
