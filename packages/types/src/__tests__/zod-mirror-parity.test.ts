@@ -687,16 +687,30 @@ interface KnownDrift {
  *     callback as authorable metadata shrinks this ledger without touching any
  *     mirror. That is a scope REDUCTION this instrument made visible.
  *
- * Measured with the TypeScript compiler API rather than by reading the compile
- * error, and that detour is worth recording because it is the trap that makes this
- * number hard to get: `assertionUnmirroredMatchesLedger` names only its FIRST
- * offending pair, and `--noErrorTruncation` does NOT expand it — TS prints the
- * `UnmirroredOf` alias name rather than the resolved union, and neither a
- * distributive conditional nor a template-literal wrapper forces expansion (both
- * re-associate to the alias). The measurement builds a Program over
- * `tsconfig.test.json`, declares one binding per pair, and walks each type's union
+ * ## How this was measured, and the trap that makes the number hard to get
+ *
+ * ⚠️ **Do not read the offending set off the compile error.** objectui#6058 lost a
+ * pass to this. The behaviour is not "TypeScript truncates", it is that the two
+ * spellings of the same assertion print DIFFERENTLY, and the worse one gives no
+ * sign that it is incomplete. Both measured:
+ *
+ *   - through a NAMED alias — the spelling `assertionDriftMatchesLedger` uses via
+ *     `LedgerMismatch` — TS prints the ALIAS NAME and elaborates with exactly ONE
+ *     member: `Type 'LedgerMismatch' is not assignable to type 'never'. Type
+ *     '"complex.zod.ts#ChatbotSchema"' is not assignable to type 'never'.` There is
+ *     no ellipsis, so 23 offending pairs read as one. `--noErrorTruncation` does NOT
+ *     expand it, and neither a distributive conditional nor a template-literal
+ *     wrapper forces expansion — both re-associate to the alias.
+ *   - written INLINE, as `assertionUnmirroredMatchesLedger` below is, TS resolves the
+ *     union and prints it WITH a truncation marker: ten neutralised entries printed
+ *     five names, `... 4 more ...`, and the last. Honest about being partial.
+ *
+ * That is the whole reason the new assertion is spelled inline. It is still only a
+ * pointer: the authoritative read is the compiler API — build a Program over
+ * `tsconfig.test.json`, declare one binding per pair, and walk each type's union
  * members reading `isStringLiteral().value`, bypassing type printing entirely. Its
- * non-vacuity control: it read all 158 pairs and returned an EMPTY set for 135.
+ * non-vacuity control on the seeding run: it read all 158 pairs and returned an
+ * EMPTY set for 142 of them, so it is discriminating rather than uniformly silent.
  */
 interface UnmirroredDeclared {
   /**
@@ -850,24 +864,26 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
  * key set equals what `UnmirroredDeclared` records for it — `never` for the 142
  * pairs with no entry (158 − 16).
  *
- * ⚠️ **Read the failure carefully; the global exit code is not the signal.** This
- * assertion is one of many in a file that type-checks as a whole, so
- * `tsc -p tsconfig.test.json` returning 2 says only that SOMETHING is red. What
- * discriminates is the PER-PAIR set: resolve `UnmirroredOf< '<the named pair>' >`
- * and compare it to the entry. objectui#6058's ablation is the worked example —
- * stripping ten keys from `ObjectGanttSchema`'s mirror moved that pair's set from
- * `[]` to exactly those ten while the file's exit code was 2 in BOTH states.
+ * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
+ * The exit code is a whole-file verdict, so it moves only while the rest of the
+ * file is green — and objectui#6058 measured the state where it does not move at
+ * all. On the un-seeded tree the comparison was already red on 23 pairs, so
+ * `tsc -p tsconfig.test.json` returned 2 BEFORE and AFTER the card's ablation while
+ * the ablated pair went from clean to ten drifted keys. Seeding this ledger is what
+ * restored the exit code as a usable signal, and it stays usable only while it is
+ * green at rest. To read a change of state, resolve
+ * `UnmirroredOf< '<the named pair>' >` on each side and compare the SETS.
  *
  * ⚠️ And it is a COMPILE-TIME assertion. The `describe` block at the bottom of this
  * file is a population census — it checks that the registry is closed and that
  * `SPEC_DERIVED_PAIRS` re-derives, and it never compares keys at all. Its
- * `5 passed` line does not move when this half reddens, correctly. Reading the
- * runtime half for evidence about drift measures the wrong instrument.
+ * `Tests 5 passed (5)` line does not move when this half reddens, correctly, and it
+ * did not move under the ablation either. Reading the runtime half for evidence
+ * about drift measures the wrong instrument and concludes the guard does nothing.
  *
- * When it fires, fix it by MEASURING (the compiler-API recipe is in the ledger's
- * header — the error names only the FIRST offending pair and `--noErrorTruncation`
- * does not expand it):
- *   1. the message names a pair;
+ * When it fires, fix it by MEASURING (the compiler-API recipe and the
+ * error-printing trap are in the ledger's header above):
+ *   1. the message names a pair, possibly with `... N more ...` after it;
  *   2. resolve `UnmirroredOf< '<pair>' >`;
  *   3. a key APPEARED — that is a new defect on a published surface; mirror it, or
  *      narrow the declaration. ⛔ Adding it to the ledger is not a supported route:
