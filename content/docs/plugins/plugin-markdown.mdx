@@ -55,7 +55,13 @@ const schema = {
 }
 ```
 
-### Properties
+### MarkdownSchema
+
+Declared by `@object-ui/plugin-markdown`
+(`packages/plugin-markdown/src/types.ts`) — the plugin ships its own copy of
+this name, so read it there rather than the same-named interface in
+`@object-ui/types`. It extends `BaseSchema`, so the shared component properties
+are available on a `markdown` node as well as the ones below.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|

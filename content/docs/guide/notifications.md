@@ -183,7 +183,9 @@ would be the same "validates, then does nothing" shape this whole area is about.
 
 ## Configuring the system
 
-`NotificationProvider`'s `config` is the spec `NotificationConfigSchema`:
+`NotificationProvider`'s `config` is `NotificationSystemConfig`, declared by
+`@object-ui/react` (`packages/react/src/context/NotificationContext.tsx`) and
+normalized by `resolveNotificationConfig`:
 
 | Key | Default | Effect |
 |---|---|---|
