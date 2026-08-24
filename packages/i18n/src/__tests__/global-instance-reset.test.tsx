@@ -34,23 +34,36 @@
 
 import { describe, it, expect } from 'vitest';
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { getI18n } from 'react-i18next';
 import { I18nProvider, useObjectTranslation } from '../index';
 
-/** Captured from a render so a provider-less resolution can be asserted on. */
-let seen: { language: string; save: string; missing: string } | null = null;
-
+/**
+ * Renders what it resolved instead of assigning to a module variable — writing
+ * to one during render is a side effect in render, which `react-hooks/globals`
+ * rejects (and would be a real hazard the moment React re-rendered this twice).
+ */
 function Probe() {
   const { t, language } = useObjectTranslation();
-  seen = {
-    language,
-    save: t('common.save'),
-    // A key no pack defines: pins the `defaultValue` path, which is what a
-    // provider-less host actually renders (FileField's `aria-label` etc.).
-    missing: t('probe.no.such.key', { defaultValue: 'INLINE-DEFAULT' }),
+  return (
+    <dl>
+      <dd data-testid="probe-language">{language}</dd>
+      <dd data-testid="probe-save">{t('common.save')}</dd>
+      {/* A key no pack defines: pins the `defaultValue` path, which is what a
+          provider-less host actually renders (FileField's `aria-label` etc.). */}
+      <dd data-testid="probe-missing">
+        {t('probe.no.such.key', { defaultValue: 'INLINE-DEFAULT' })}
+      </dd>
+    </dl>
+  );
+}
+
+function readProbe() {
+  return {
+    language: screen.getByTestId('probe-language').textContent,
+    save: screen.getByTestId('probe-save').textContent,
+    missing: screen.getByTestId('probe-missing').textContent,
   };
-  return null;
 }
 
 /** The value a provider-less render resolves in a pristine file. */
@@ -71,12 +84,12 @@ describe('objectui#4514 — the react-i18next global does not leak between tests
   it('baseline: with no provider anywhere, the global is unset', () => {
     expect(getI18n()).toBeUndefined();
     render(<Probe />);
-    expect(seen).toEqual(PRISTINE);
+    expect(readProbe()).toEqual(PRISTINE);
   });
 
   it('a mounted zh provider translates inside its own subtree', () => {
     renderZhProvider(<Probe />);
-    expect(seen).toEqual({ language: 'zh', save: '保存', missing: 'INLINE-DEFAULT' });
+    expect(readProbe()).toEqual({ language: 'zh', save: '保存', missing: 'INLINE-DEFAULT' });
     // ...and it really did install itself as the global while mounted. This is
     // the deliberate design (direction 2 of the card, NOT taken): the global
     // fallback is what makes `useObjectTranslation()` provider-safe.
@@ -89,7 +102,7 @@ describe('objectui#4514 — the react-i18next global does not leak between tests
     // was left in by the case above, ~1 screen up. That is the whole defect.
     expect(getI18n()).toBeUndefined();
     render(<Probe />);
-    expect(seen).toEqual(PRISTINE);
+    expect(readProbe()).toEqual(PRISTINE);
   });
 
   it('THE PIN: more than the language is restored', () => {
@@ -118,7 +131,7 @@ describe('objectui#4514 — the react-i18next global does not leak between tests
     // Restoring the POINTER is what makes the leak total rather than partial.
     expect(getI18n()).toBeUndefined();
     render(<Probe />);
-    expect(seen).toEqual(PRISTINE);
+    expect(readProbe()).toEqual(PRISTINE);
   });
 
   it('the provider-safe fallback itself still works (must-not-break)', () => {
@@ -127,14 +140,14 @@ describe('objectui#4514 — the react-i18next global does not leak between tests
     // packages/i18n/src/provider.tsx (`context?.language || i18n.language || 'en'`).
     // The reset must not destroy it, only make it deterministic.
     expect(() => render(<Probe />)).not.toThrow();
-    expect(seen!.language).toBe('en');
-    expect(seen!.missing).toBe('INLINE-DEFAULT');
+    expect(readProbe().language).toBe('en');
+    expect(readProbe().missing).toBe('INLINE-DEFAULT');
   });
 
   it('a provider still works when mounted AFTER all of the above', () => {
     // The reset restores a pointer; it must not leave react-i18next in a state
     // where a later provider cannot install itself.
     renderZhProvider(<Probe />);
-    expect(seen).toEqual({ language: 'zh', save: '保存', missing: 'INLINE-DEFAULT' });
+    expect(readProbe()).toEqual({ language: 'zh', save: '保存', missing: 'INLINE-DEFAULT' });
   });
 });
