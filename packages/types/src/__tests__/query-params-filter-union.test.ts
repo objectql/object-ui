@@ -55,6 +55,9 @@ import type { QueryParams } from '../data';
 type Assert< T extends true > = T;
 /** True when `V` is accepted by the `$filter` slot. */
 type AcceptsFilter< V > = V extends QueryParams['$filter'] ? true : false;
+/** Exact type identity — NOT mutual assignability. See the note below. */
+type Equal< A, B > =
+  (< T >() => T extends A ? 1 : 2) extends (< T >() => T extends B ? 1 : 2) ? true : false;
 
 describe('QueryParams.$filter — declares the union it actually accepts (#3909)', () => {
   it('accepts the MongoDB-style field-keyed record', () => {
@@ -86,12 +89,28 @@ describe('QueryParams.$filter — declares the union it actually accepts (#3909)
     expect(Array.isArray(params.$filter)).toBe(true);
   });
 
-  it('binds the array half to the spec rather than restating it', () => {
-    // A locally re-declared AST type would satisfy the assignments above just
-    // as well — and would then be free to drift from the spec's vocabulary the
-    // way two hand-written operator lists did (#3948). This pin fails if the
-    // union stops admitting the spec's own `FilterArray`.
-    type _Bound = Assert< AcceptsFilter< FilterArray > >;
+  it('binds the array half to the spec, by IDENTITY not assignability', () => {
+    // ## Why this pin is an identity check, and why nothing weaker works
+    //
+    // Every assignment-shaped pin in this file is, on its own, VACUOUS as a
+    // regression guard — measured, not assumed. Reverting the declaration to
+    // `Record< string, any >` and re-running `type-check` leaves it GREEN
+    // (exit 0), because assignability cannot separate the two: arrays satisfy
+    // `Record< string, any >`'s string index, so `FilterArray extends
+    // QueryParams['$filter']` holds under BOTH declarations, and the old
+    // declaration is itself assignable to the new union. A guard that passes
+    // equally before and after the fix is a phantom check — it reads like
+    // enforcement and enforces nothing.
+    //
+    // Identity is the property that actually differs. This assertion goes red
+    // on a revert to the bare record, AND on the subtler regression: someone
+    // re-declaring a local `FilterNode` fork instead of binding the spec's
+    // type. That fork would satisfy every assignment above while being free to
+    // drift from the vocabulary the servers parse — the exact failure two
+    // hand-written operator lists had in #3948.
+    type _Bound = Assert<
+      Equal< NonNullable< QueryParams['$filter'] >, Record< string, any > | FilterArray >
+    >;
     const fromSpec: FilterArray = ['status', '=', 'active'];
     const params: QueryParams = { $filter: fromSpec };
     expect(params.$filter).toBe(fromSpec);
