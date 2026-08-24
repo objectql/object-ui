@@ -273,11 +273,46 @@ jobs:
             .changeset
             packages/core
 
-      # ⛔ This must stay a faithful mirror of `readChangesetState` in
-      # `changesets/action`'s `src/index.ts` (it re-exports `@changesets/read`),
-      # because the release job's guard is only correct while the two agree:
+      # ⛔ This must stay a faithful mirror of the changeset reader behind
+      # `readChangesetState` — but "the reader" is TWO copies, at different
+      # majors, and they disagree with each other. Both were MEASURED rather
+      # than read off a changelog (objectui#5775, 2026-08-24):
       #
-      #   - every `.changeset/*.md` counts EXCEPT `README.md`;
+      #   A. `changesets/action@v1` (v1.9.0) BUNDLES `@changesets/read@^0.6.7`.
+      #      Its shipped `dist/` chunk ignores `/^README\.md$/i` and nothing
+      #      else, and it never reads `.changeset/pre/`.
+      #   B. This repository INSTALLS `@changesets/read@1.0.0`, reached through
+      #      the declared `@changesets/cli@3.0.1` (it is not resolvable from the
+      #      repo root: pnpm keeps it under the CLI). It ignores
+      #      `/^README\.md$/i` PLUS the exact names `AGENTS.md`, `CLAUDE.md`
+      #      and `GEMINI.md`, and it ALSO reads `.changeset/pre/*.md`.
+      #
+      # Both ignore dotfiles and anything that is not `*.md`, which the globs
+      # below give for free (no `dotglob`, and the pattern is `*.md`).
+      #
+      # So this step mirrors the UNION: a file counts if EITHER copy would count
+      # it. That is not a hedge, it is the only rule this output's single
+      # consumer admits. `pending_changesets` gates exactly one thing — the
+      # release job's "Clear pending changesets for the publish branch" step —
+      # and that step's obligation is one-directional: leave the tree at zero so
+      # the action takes `runPublish`. OVER-counting runs the clear step
+      # needlessly, and it removes nothing and self-checks. UNDER-counting skips
+      # it while the action still sees a changeset, which is objectui#5442's
+      # silent lost release arriving through the action.
+      #
+      # ⛔ Therefore do NOT "align" this step by ignoring `AGENTS.md` /
+      # `CLAUDE.md` / `GEMINI.md` to match copy B. `.changeset/AGENTS.md` is
+      # invisible to B and PENDING to A — ignoring it here is precisely the
+      # under-count above, on the one filename this repository's conventions
+      # make most likely to appear.
+      #
+      #   - every `.changeset/*.md` AND `.changeset/pre/*.md` counts, EXCEPT a
+      #     README matched case-INSENSITIVELY. Both copies spell it
+      #     `/^README\.md$/i`; this step used to compare the one exact spelling,
+      #     so `ReadMe.md` counted here while both readers ignored it. Only the
+      #     STEM is case-insensitive: the extension is not, on either side
+      #     (`endsWith('.md')` there, a `*.md` glob here), so `notes.MD` is
+      #     ignored by everything as a non-changeset rather than as a README;
       #   - an EMPTY changeset still counts (this repository declares "nothing to
       #     release" with empty frontmatter — see `changeset-presence.yml` — and
       #     the action's `hasChangesets` counts those too, which is why a commit
@@ -286,10 +321,22 @@ jobs:
       #     nothing anyway, so the observable behaviour is unchanged);
       #   - in pre mode ONLY, the ids already listed in `pre.json.changesets` are
       #     filtered out, because the action filters them and would therefore
-      #     publish where a naive file count says "pending". This repository is
-      #     not in pre mode and has no `pre.json`, so that branch is dormant — it
-      #     is written because the failure it prevents (a pre-mode release that
-      #     silently never publishes) is invisible until release day.
+      #     publish where a naive file count says "pending". Ids are relative to
+      #     `.changeset/`, so a `pre/` file's id keeps its `pre/` prefix — that
+      #     is the `id` copy B produces and the form `pre.json` lists. This
+      #     repository is not in pre mode and has no `pre.json`, so that branch
+      #     is dormant — it is written because the failure it prevents (a
+      #     pre-mode release that silently never publishes) is invisible until
+      #     release day.
+      #
+      # PINNED, and executably:
+      # `scripts/__tests__/changeset-release-lane-mirror.test.ts` extracts THIS
+      # step's script from THIS file (never a copy of it) and runs it against the
+      # INSTALLED `@changesets/read` — imported, not transcribed — over one
+      # fixture per case. A bump of that dependency that changes what it ignores
+      # re-fails there instead of drifting silently. Copy A cannot be pinned that
+      # way (a minified chunk behind a moving tag), so the test pins the `@v1`
+      # ref instead: bump the action and it tells you to re-measure A.
       #
       # It fails LOUDLY rather than guessing a lane: this is deterministic file
       # I/O, so an error here means something is wrong that a default would hide.
@@ -310,16 +357,27 @@ jobs:
             fi
           fi
 
+          # `/^README\.md$/i` is how both copies of the reader spell the one
+          # exclusion they agree on, so this case-folds instead of comparing a
+          # single spelling. Same idiom as the release job's clear step.
+          is_readme() {
+            [ "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" = 'readme.md' ]
+          }
+
           pending=false
-          for file in .changeset/*.md; do
-            name="${file##*/}"
-            if [ "$name" = 'README.md' ]; then
+          for file in .changeset/*.md .changeset/pre/*.md; do
+            if is_readme "$file"; then
               continue
             fi
-            if [ "$in_pre_mode" = true ] && printf '%s\n' "$consumed" | grep -qxF -- "${name%.md}"; then
+            # The reader's `id`: the path relative to `.changeset/`, without the
+            # extension. For a `pre/` file that keeps the `pre/` prefix, which is
+            # the form `pre.json.changesets` lists.
+            id="${file#.changeset/}"
+            id="${id%.md}"
+            if [ "$in_pre_mode" = true ] && printf '%s\n' "$consumed" | grep -qxF -- "$id"; then
               continue
             fi
-            echo "pending changeset: ${name}"
+            echo "pending changeset: ${id}"
             pending=true
           done
 
@@ -657,11 +715,16 @@ jobs:
       # plausibly the shape that makes the clear step unnecessary — which is an
       # argument for revisiting the pin eventually, not for bumping it blind.
       #
-      # Same class of drift, and live under any bump: objectui#5775 records that
-      # the `lane` job's declared mirror of `readChangesetState` already
-      # understates what the installed `@changesets/read` ignores. Any upgrade
-      # re-opens that question, because the mirror tracks a bundled copy this
-      # file does not pin.
+      # Same class of drift, and live under any bump: objectui#5775 measured the
+      # `lane` job's mirror against BOTH readers and found them at different
+      # majors — this action bundles `@changesets/read@^0.6.7`, the repository
+      # installs `1.0.0`, and they disagree on `AGENTS.md` / `CLAUDE.md` /
+      # `GEMINI.md` and on `.changeset/pre/`. The mirror now counts the UNION of
+      # the two and is pinned to the installed copy by
+      # `scripts/__tests__/changeset-release-lane-mirror.test.ts`. The bundled
+      # copy still cannot be pinned from here, so that test also pins THIS `@v1`
+      # ref: bumping the action fails it, which is the prompt to re-measure the
+      # bundle before the mirror's union silently stops covering it.
 
       # ⚠️ THE STEP THAT LETS THE PREDICATE REACH THE ACTION (objectui#5442).
       #
