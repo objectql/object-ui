@@ -120,7 +120,38 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
   const firstLostIdx = stageKinds.findIndex((k) => k === 'lost');
   const forwardStages = firstLostIdx === -1 ? stages : stages.slice(0, firstLostIdx);
   const lostStages = firstLostIdx === -1 ? [] : stages.slice(firstLostIdx);
-  const forwardKinds = firstLostIdx === -1 ? stageKinds : stageKinds.slice(0, firstLostIdx);
+  // ── ONE classification, computed once, read by BOTH rows (objectui#5998) ──
+  //
+  // The desktop and the mobile row below render the same `stages[]`, and each
+  // used to derive its own `terminal` from it independently — desktop from a
+  // `forwardKinds` slice under an `idx === last` restriction, mobile from
+  // `stageKinds` under none — so ONE stage of ONE record could paint (and,
+  // since objectui#5957, announce) two different ways chosen by nothing but
+  // viewport width. They diverged on TWO axes, not only the one the card named:
+  //
+  //   1. `idx === last`. `WON_TOKENS` matches `完成`, an ordinary mid-path word,
+  //      so `草稿 → 完成 → 已归档` classified index 1 as `won`: desktop declined
+  //      it (not the last forward stage), mobile marked it the goal.
+  //   2. The lost slice. Desktop hardcoded `terminal: 'lost'` onto EVERY stage
+  //      of the separated alt group — a group defined POSITIONALLY, as
+  //      `stages.slice(firstLostIdx)` — while mobile classified each stage on
+  //      its own. So in `草稿 → 失败 → 已归档`, desktop painted `已归档`
+  //      destructive and announced it `closed lost`; mobile painted it plain.
+  //
+  // Both are settled here, in one array both rows index, so a future divergence
+  // is IMPOSSIBLE rather than merely absent — two rows that happen to agree
+  // would leave the defect one edit away. The rule: `lost` is a property of the
+  // STAGE; `won` is the GOAL TERMINUS, so it is the last forward stage or it is
+  // nothing. Positional grouping stays a LAYOUT concern and no longer overrides
+  // what a stage is.
+  //
+  // Conservative on both axes: this can only ever STOP marking a stage as a
+  // terminus, never start. No stage gains a `terminal` on either row that it
+  // did not already carry on that row.
+  const lastForwardIdx = forwardStages.length - 1;
+  const stageTerminals: Array<'won' | 'lost' | undefined> = stageKinds.map((kind, idx) =>
+    kind === 'won' ? (idx === lastForwardIdx ? 'won' : undefined) : kind,
+  );
 
   let currentIdx = stages.findIndex((s) => s.value === current);
   if (currentIdx < 0) currentIdx = -1;
@@ -247,8 +278,6 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
     </div>
   );
 
-  const last = forwardStages.length - 1;
-
   return (
     <div className={cn('w-full', className)} {...designer}>
       {/* Desktop: forward rail → optional lost-alt group */}
@@ -261,12 +290,11 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
           {forwardStages.map((stage, idx) => {
             const isCompleted = !currentInLost && currentIdx >= 0 && idx < currentIdx;
             const isCurrent = !currentInLost && idx === currentIdx;
-            const isWonTerminus = forwardKinds[idx] === 'won' && idx === last;
             return renderStage({
               key: `${stage.value}-${idx}`,
               stage,
               state: isCurrent ? 'current' : isCompleted ? 'completed' : 'upcoming',
-              terminal: isWonTerminus ? 'won' : undefined,
+              terminal: stageTerminals[idx],
               className: 'flex-1 min-w-0',
               labelClassName: 'text-center truncate',
             });
@@ -309,7 +337,7 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
                 key: `${stage.value}-lost-${lIdx}`,
                 stage,
                 state: absIdx === currentIdx ? 'current' : 'upcoming',
-                terminal: 'lost',
+                terminal: stageTerminals[absIdx],
                 className: 'shrink-0',
                 labelClassName: 'text-center whitespace-nowrap',
               });
@@ -325,15 +353,15 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
         aria-label={(schema.aria as any)?.label || t('detail.pathLabel')}
       >
         {stages.map((stage, idx) => {
-          const kind = stageKinds[idx];
-          const isLost = kind === 'lost';
+          const terminal = stageTerminals[idx];
+          const isLost = terminal === 'lost';
           const isCompleted = !isLost && !currentInLost && currentIdx >= 0 && idx < currentIdx;
           const isCurrent = idx === currentIdx;
           return renderStage({
             key: `${stage.value}-${idx}-m`,
             stage,
             state: isCurrent ? 'current' : isCompleted ? 'completed' : 'upcoming',
-            terminal: kind,
+            terminal,
             className: 'shrink-0',
             labelClassName: 'whitespace-nowrap',
           });
