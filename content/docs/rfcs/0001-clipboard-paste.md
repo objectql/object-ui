@@ -162,6 +162,7 @@ Key rules:
 
 ### 5.1 Parser (`@object-ui/core/clipboard`)
 
+<!-- doc-snippet: fragment — RFC signature excerpt — parseClipboard is declared without a body because this section proposes the module's shape, not its implementation -->
 ```ts
 export interface ParsedClipboard {
   /** 2D string matrix, rows × cells, never null */
@@ -188,6 +189,7 @@ Parser handles:
 
 ### 5.2 Coercer (`@object-ui/core/clipboard`)
 
+<!-- doc-snippet: fragment — RFC signature excerpt — coerceCell is declared without a body; this section proposes the coercer surface, and nothing implements it yet -->
 ```ts
 export type CoercerType =
   | 'text' | 'number' | 'integer' | 'currency' | 'percent'
@@ -240,6 +242,7 @@ Coercion details per type (v1):
 
 ### 5.3 React Hook (`@object-ui/fields/clipboard`)
 
+<!-- doc-snippet: fragment — RFC signature excerpt — usePasteToGrid is declared without a body, and ColumnCoercer / CellRange are the types proposed in the sections above -->
 ```ts
 export interface UsePasteToGridOptions {
   /** Columns currently visible / pasteable, in visual order */
@@ -287,6 +290,7 @@ export function usePasteToGrid(opts: UsePasteToGridOptions): UsePasteToGridResul
 
 ### 5.4 Preview dialog component
 
+<!-- doc-snippet: fragment — a JSX usage sketch whose handler bodies are elided with '...'; it shows the proposed dialog's props, not runnable code -->
 ```tsx
 <PastePreviewDialog
   open
@@ -358,6 +362,7 @@ quick-paste is opt-in via `usePasteToGrid({ preview: 'auto' })`.
 
 Hosts expose paste behind a flag so apps can opt-in per grid:
 
+<!-- doc-snippet: fragment — a JSX sketch with the remaining ObjectGrid props elided as '...'; the point is the features key, not a complete element -->
 ```tsx
 <ObjectGrid
   features={{ clipboardPaste: 'preview' }}  // 'off' | 'preview' | 'auto'
@@ -373,6 +378,7 @@ stable release cycle the default becomes `'preview'`.
 
 ### 7.1 ObjectGrid (master, staged)
 
+<!-- doc-snippet: fragment — proposed host wiring — the hook, coercersFromObjectSchema, applyCommands and ObjectGridImpl are all names this RFC is proposing, and the element is elided with '...' -->
 ```tsx
 const { onPaste, previewDialog } = usePasteToGrid({
   columns: coercersFromObjectSchema(schema),
@@ -410,6 +416,7 @@ return (
 
 ### 7.2 EditableGridField (child, staged)
 
+<!-- doc-snippet: fragment — proposed host wiring for EditableGridField; usePasteToGrid, coercersFromGridFieldColumns and applyCommands are proposed names, and field/value/onChange are the component's own props -->
 ```tsx
 const { onPaste, previewDialog } = usePasteToGrid({
   columns: coercersFromGridFieldColumns(field.columns),

@@ -227,7 +227,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ 9 of these entries are `.md` pages under `content/docs` that objectui#5174
+ * ⚠️ 5 of these entries are `.md` pages under `content/docs` that objectui#5174
  * made visible: the collector now reads `.md`, and an entry with a measured reason
  * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
  * debt — every one of them was equally unverified before, just unnamed. Their
@@ -235,15 +235,32 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * package does not export is called out by name, because that is the
  * reader-visible half (objectui#5160).
  *
- * That count was 19 until objectui#5174's first triage batch, which walked TEN of
- * them OFF this list rather than re-wording their reasons: `api/schema-reference`,
- * `plugins/index`, and the `guide/` pages `architecture-overview`, `deployment`,
- * `expressions`, `notifications`, `public-forms`, `schema-overview`,
- * `troubleshooting` and `user-state-persistence`. The direction on that card is
- * entries LEAVING. Each page reached zero the honest two ways — a block that
- * should compile was made self-contained against the built `dist/`, and a block
- * that genuinely cannot compile got a `FRAGMENT_MARKER` declaration with a written
- * reason. Nothing about this gate's strictness moved to get them there.
+ * That count was 19 until objectui#5174's triage batches, which walk pages OFF this
+ * list rather than re-wording their reasons. The direction on that card is entries
+ * LEAVING. Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the
+ * `guide/` pages `architecture-overview`, `deployment`, `expressions`,
+ * `notifications`, `public-forms`, `schema-overview`, `troubleshooting` and
+ * `user-state-persistence`. Batch 2 took four more — `guide/plugins`,
+ * `guide/building-crud-app`, `rfcs/0001-clipboard-paste` and `guide/architecture`
+ * — clearing 89 diagnostics. Each page reached zero the honest two ways — a block
+ * that should compile was made self-contained against the built `dist/`, and a
+ * block that genuinely cannot compile got a `FRAGMENT_MARKER` declaration with a
+ * written reason. Nothing about this gate's strictness moved to get them there.
+ *
+ * Batch 2's two routes in proportion, because the ratio is the reviewable part: it
+ * brought 42 blocks under the gate — 34 declared fragments and 8 that compile, of
+ * which 4 already compiled untouched and 4 were edited to. Three of those four
+ * edits were genuine documented-API defects the ledger had been hiding, and they
+ * are why a page like `guide/architecture` was worth covering rather than
+ * declaring wholesale: `building-crud-app`'s REST adapter
+ * passed `QueryParams['$orderby']` — a four-shape union — straight into
+ * `URLSearchParams.set`, which takes a string; its `TaskDetail` component used
+ * `SchemaRenderer` with no import of its own; and `guide/architecture`'s section
+ * titled "Type Safety", marked `// ✅ Type-checked`, set `ButtonSchema.onClick` to
+ * the STRING `'handleClick'` where the declared type is `() => void | Promise<void>`.
+ * The pages that are mostly fragments are mostly fragments for a stated reason:
+ * `guide/plugins` and the clipboard-paste RFC document packages the reader is being
+ * taught to create, and an RFC's signature excerpts have no bodies by design.
  *
  * objectui#5343 then read that list back and cleared it for the getting-started
  * pages: no entry for `content/docs/guide/**` or for
@@ -271,22 +288,6 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
-  'content/docs/guide/architecture.md':
-    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '13 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 3 unresolved-module diagnostic(s); plus TS2322x1 — candidate real ' +
-    'defects, un-triaged',
-  'content/docs/guide/building-crud-app.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 4 unresolved-module diagnostic(s); plus TS2339x1 TS2345x1 TS2882x1 — ' +
-    'candidate real defects, un-triaged. This entry read TS2305x2 TS2554x1 TS2724x1 until ' +
-    'objectui#5343: `registerAllComponents` (@object-ui/components) and the `ObjectSchema` / ' +
-    '`Field` builder pair (@object-ui/types) were fabricated. Registration is now what LOADING ' +
-    'the packages does (`initializeComponents()` plus the side-effect `@object-ui/fields` ' +
-    'import), which also retired the `registerAllFields(Registry)` arity error, and the object ' +
-    'metadata is the plain document a data source serves, with its `fields` record typed ' +
-    '`Record<string, FieldMetadata>`',
   'content/docs/guide/component-registry.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '50 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -317,10 +318,6 @@ const UNGATED_DOCS = {
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
     'page never defines; 6 unresolved-module diagnostic(s); plus TS2339x5 TS2882x1 TS7006x3 — ' +
     'candidate real defects, un-triaged',
-  'content/docs/guide/plugins.md':
-    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 6 unresolved-module diagnostic(s); plus TS2882x1 TS7006x3 — candidate ' +
-    'real defects, un-triaged',
   'content/docs/guide/schema-rendering.md':
     '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
@@ -355,10 +352,6 @@ const UNGATED_DOCS = {
     '43 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-timeline.mdx':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'content/docs/rfcs/0001-clipboard-paste.md':
-    '7 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '11 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; plus TS18004x1 TS2391x3 TS7006x1 — candidate real defects, un-triaged',
   'content/docs/utilities/create-plugin.mdx':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/utilities/data-objectstack.mdx':

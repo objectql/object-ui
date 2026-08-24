@@ -36,6 +36,7 @@ pnpm add -D tailwindcss @tailwindcss/vite
 
 Add Tailwind to your `vite.config.ts`:
 
+<!-- doc-snippet: fragment — a vite.config.ts for the app the reader is scaffolding; '@vitejs/plugin-react' and '@tailwindcss/vite' are that app's devDependencies, not this repo's -->
 ```ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -163,7 +164,10 @@ export class RestDataSource implements DataSource {
     const query = new URLSearchParams();
     if (params?.$top) query.set('$top', String(params.$top));
     if (params?.$skip) query.set('$skip', String(params.$skip));
-    if (params?.$orderby) query.set('$orderby', params.$orderby);
+    // `$orderby` is a union — an OData clause string, a map, or an array of
+    // fields. This backend speaks the string form, so narrow to it rather
+    // than stringifying a shape the server cannot parse.
+    if (typeof params?.$orderby === 'string') query.set('$orderby', params.$orderby);
     if (params?.$search) query.set('$search', params.$search);
     const res = await fetch(`${this.baseUrl}/${resource}?${query}`);
     const data = await res.json();
@@ -208,6 +212,7 @@ Wire everything together in `src/App.tsx`. `SchemaRendererProvider` injects the
 data source once, and every `SchemaRenderer` beneath it renders its schema
 against that one adapter:
 
+<!-- doc-snippet: fragment — the reader's src/App.tsx; './setup' and './data/rest-data-source' are the project files created in Steps 2 and 4 -->
 ```tsx
 import './setup';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
@@ -259,6 +264,7 @@ resolved** panel naming itself and the object it was about to read.
 
 ObjectUI generates forms directly from your schema. Extend `App.tsx` with form state:
 
+<!-- doc-snippet: fragment — two lines to paste into the App component of Step 5 — the useState import and the surrounding function body are already there -->
 ```tsx
 const [showForm, setShowForm] = useState(false);
 const [editId, setEditId] = useState<string | null>(null);
@@ -269,6 +275,7 @@ Add a "New Task" button and handle row clicks to open the edit form:
 Both of these render inside the `SchemaRendererProvider` from Step 5, so neither
 carries a data source of its own:
 
+<!-- doc-snippet: fragment — JSX to place inside the Step 5 App component; showForm, editId and their setters are the state declared in the block above -->
 ```tsx
 <SchemaRenderer
   schema={{ type: 'object-grid', objectName: 'task' }}
@@ -314,6 +321,7 @@ it declaratively, with the spec's per-element `dataSource` binding
 (fetched through your data source's `getObjectSchema` / `listViews`) and
 composes that view's `filter` and `sort` onto the query for you:
 
+<!-- doc-snippet: fragment — an excerpt mixing a state declaration with the JSX it drives, to be placed inside the App component; it is not a standalone module -->
 ```tsx
 const [activeView, setActiveView] = useState('all');
 
@@ -352,6 +360,8 @@ server decides.
 Create a detail page that renders a single record with all its fields:
 
 ```tsx
+import { SchemaRenderer } from '@object-ui/react';
+
 function TaskDetail({ taskId, onBack }: { taskId: string; onBack: () => void }) {
   return (
     <div className="min-h-screen bg-background p-6">
@@ -390,6 +400,7 @@ Use this component in your main app with simple routing state, or integrate with
 
 **Environment config** — Keep your API URL configurable:
 
+<!-- doc-snippet: fragment — continues Step 4 — RestDataSource is the class defined there, and import.meta.env is Vite's typing in the reader's own app -->
 ```ts
 const dataSource = new RestDataSource(
   import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
@@ -402,6 +413,7 @@ const dataSource = new RestDataSource(
 
 **Authentication** — Extend `RestDataSource` to inject auth headers:
 
+<!-- doc-snippet: fragment — extends the RestDataSource class defined in Step 4 -->
 ```ts
 class AuthenticatedDataSource extends RestDataSource {
   constructor(baseUrl: string, private getToken: () => string) {
