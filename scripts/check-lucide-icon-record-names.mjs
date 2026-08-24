@@ -238,13 +238,39 @@ export const isLiveKey = (name) => Object.prototype.hasOwnProperty.call(icons, t
 
 // Derive the live spelling of a retired name BY IDENTITY, never from a list:
 // lucide keeps the retired export pointing at the same object as its live key.
-const keyByComponent = new Map();
-for (const [key, component] of Object.entries(icons)) if (!keyByComponent.has(component)) keyByComponent.set(component, key);
-const kebabByKey = new Map();
-for (const kebab of iconNames) kebabByKey.set(toRecordKey(kebab), kebab);
+//
+// Built LAZILY on first read and memoised, never at module top level. This file
+// exports bindings, so whatever its top level ran would run inside every
+// importer — the rule `check-entry-guard.mjs` calls import-safety (objectui#6133).
+//
+// ⛔ Do NOT "fix" this by moving the build behind the entry guard instead. That
+// was measured, not reasoned about, and rejected (objectui#6092 PR 2's ablation,
+// recorded on objectui#6147): the maps stay EMPTY for importers, the suite fails
+// 5 of 25, and `describeName('BarChart3')` stops saying ``write `chart-column` ``
+// and says "no live key names the same glyph" instead — a WRONG DIAGNOSIS for a
+// real violation, printed by a gate that still exits 1. A green baseline bought
+// with a lying error message is worse than an honest debt line. Lazy satisfies
+// both sides: nothing runs on import, and every reader gets the built maps.
+//
+// ⛔ This does not make the module cheap to import, and is not trying to:
+// `icons`/`iconNames` are top-level `await import('lucide-react')` above. That
+// cost is a separate question (objectui#6147) and is deliberately left alone.
+let memoisedLookups = null;
+
+/** The two identity maps, built ONCE on the first read and memoised after. */
+function glyphLookups() {
+  if (memoisedLookups) return memoisedLookups;
+  const keyByComponent = new Map();
+  for (const [key, component] of Object.entries(icons)) if (!keyByComponent.has(component)) keyByComponent.set(component, key);
+  const kebabByKey = new Map();
+  for (const kebab of iconNames) kebabByKey.set(toRecordKey(kebab), kebab);
+  memoisedLookups = { keyByComponent, kebabByKey };
+  return memoisedLookups;
+}
 
 /** `{ key, kebab }` of the live spelling naming the SAME glyph, or null. */
 export function liveSpellingFor(name) {
+  const { keyByComponent, kebabByKey } = glyphLookups();
   const retiredExport = lucide[toRecordKey(name)];
   if (!retiredExport) return null;
   const liveKey = keyByComponent.get(retiredExport);

@@ -623,14 +623,26 @@ export function importUnsafeStatements(source) {
  * never a line in here. An entry whose file has since been fixed fails as STALE
  * and names itself, which is what stops this from rotting into an allowlist.
  *
- * ONE entry, and that is the point: this rule recognises a hand-typed guard AS
- * a guard (see `guardAliases`), so the 29 badly-spelled files are rule 1's
- * business and do not appear here. `check-lucide-icon-record-names.mjs` builds
- * two lookup maps in top-level `for` loops at :242 and :244, outside any guard,
- * and really does run them inside an importer. That is a true sentence with one
- * remedy, which is the only kind of line a debt list may carry.
+ * EMPTY. It stays as an empty set rather than being deleted: an empty debt list
+ * is the state this rule exists to reach, and the set still has to be here for
+ * a re-added line to be reconciled — FRESH and STALE are both pinned by the
+ * self-test in exactly that state. Nothing appears here because this rule
+ * recognises a hand-typed guard AS a guard (see `guardAliases`), so a
+ * badly-spelled guard is rule 1's business, not this list's.
+ *
+ * Its one entry, `check-lucide-icon-record-names.mjs`, is gone because that
+ * file's two lookup maps are now built LAZILY on first read inside
+ * `liveSpellingFor` instead of in top-level `for` loops (objectui#6147).
+ * ⚠️ WHICH remedy emptied it is the load-bearing part. Moving those loops
+ * behind that file's ENTRY GUARD empties this list too, and was measured and
+ * REJECTED: it leaves the maps empty for importers, so the gate prints a WRONG
+ * diagnosis for a real violation while still exiting 1. So an empty list is not
+ * by itself evidence anything improved — the remedy has to preserve what every
+ * importer already got. That file's own comment carries the measurement.
+ *
+ * @type {Set<string>}
  */
-const KNOWN_IMPORT_UNSAFE = new Set(['scripts/check-lucide-icon-record-names.mjs']);
+const KNOWN_IMPORT_UNSAFE = new Set();
 
 /** Every exporting file, with the statements that would run on import. */
 function importSafetyCensus(files) {
