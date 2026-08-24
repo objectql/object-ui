@@ -25,7 +25,12 @@ import type { ObjectMapSchema, ObjectMapConfig, DataSource, ViewData } from '@ob
 import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
-import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
+import {
+  extractRecords,
+  buildExpandFields,
+  convertSortToQueryParams,
+  getRecordDisplayName,
+} from '@object-ui/core';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -372,7 +377,13 @@ function getMapConfig(schema: MapConfigSource): ObjectMapConfig {
       locationField: schema.locationField,
       latitudeField: schema.latitudeField,
       longitudeField: schema.longitudeField,
-      titleField: schema.titleField || 'name',
+      // No `|| 'name'` (objectui#5953). An ABSENT binding must stay absent so
+      // the read site can hand the decision to `getRecordDisplayName`; the
+      // literal used to forge a binding the author never wrote, and a forged
+      // `'name'` outranks the object's own declared `nameField` at step 0 of
+      // that resolver. A binding the flatten product really carries survives
+      // here and still wins.
+      titleField: schema.titleField,
       descriptionField: schema.descriptionField,
       zoom: schema.zoom,
       center: schema.center,
@@ -392,7 +403,13 @@ function getMapConfig(schema: MapConfigSource): ObjectMapConfig {
     latitudeField: 'latitude',
     longitudeField: 'longitude',
     locationField: 'location',
-    titleField: 'name',
+    // Deliberately NO `titleField` (objectui#5953). The coordinate keys above
+    // are conventional guesses this component must make — nothing else can
+    // read a location out of an unconfigured record. A marker TITLE is not in
+    // that position: `getRecordDisplayName` resolves it from the object
+    // definition, and it does so better than any literal here could (declared
+    // `nameField`, `titleFormat`, type-aware derivation, then a name-ish probe
+    // over the record's own keys, of which `name` is only the first).
     descriptionField: 'description',
     style,
   };
@@ -665,7 +682,34 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           return null;
         }
 
-        const title = mapConfig.titleField ? record[mapConfig.titleField] : 'Marker';
+        // ADR-0079's unified record display-name resolver — the same one
+        // `ObjectKanban` (:301), `ObjectCalendar` (:356) and `ObjectGantt`
+        // (:600) already title their items through. `ObjectMap` was the fourth
+        // renderer and the only one still doing a bare property read against a
+        // hard-coded `'name'` key, so every object whose display field is not
+        // literally `name` titled EVERY marker popup `undefined` (objectui#5953).
+        //
+        // The declared binding is passed through as the explicit option rather
+        // than dropped: `getRecordDisplayName` checks `options.titleField`
+        // first, so an authored `map.titleField` still wins outright. What it
+        // adds underneath are the steps a static field-name binding
+        // structurally cannot carry — the object's `nameField`, its deprecated
+        // `displayNameField` alias, the legacy `titleFormat` TEMPLATE, and the
+        // record-key probe that runs when no object definition reached us
+        // (inline `value` data never fetches one; see the schema effect above).
+        //
+        // `fallback: 'Marker'` keeps this component's own placeholder, but only
+        // in the one position where the resolver has nothing left: an id-LESS
+        // record. A record WITH an id now reads `Record #<id>`, which beats
+        // `'Marker'` for the reason `'Marker'` was always weak on a map — every
+        // marker is a marker, so the word separates none of them, while the id
+        // names exactly one record. `fallback` is a declared option of the
+        // resolver, so choosing between the two placeholders needs no change to
+        // `@object-ui/core`.
+        const title = getRecordDisplayName(objectSchema, record, {
+          titleField: mapConfig.titleField,
+          fallback: 'Marker',
+        });
         const description = mapConfig.descriptionField ? record[mapConfig.descriptionField] : undefined;
 
         // Ensure lat/lng are within valid ranges
@@ -686,7 +730,11 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       .filter((marker): marker is NonNullable<typeof marker> => marker !== null);
 
     return { markers: validMarkers, invalidCount: invalid };
-  }, [data, mapConfig]);
+    // `objectSchema` is a dependency now, not incidentally: it lands from an
+    // async fetch AFTER the first paint, and the titles above are resolved
+    // from it. Omitting it would leave the first-painted markers titled from
+    // a null object definition for the rest of the component's life.
+  }, [data, mapConfig, objectSchema]);
 
   const selectedMarker = useMemo(() => 
     markers.find(m => m.id === selectedMarkerId),
