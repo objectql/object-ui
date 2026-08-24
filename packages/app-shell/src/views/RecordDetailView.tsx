@@ -42,7 +42,7 @@ import { useRecordBreadcrumbTitle } from '../context/NavigationContext.js';
 // Both sets are derived, not restated — see record-detail-system-fields.ts.
 import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields.js';
 import type { FeedItem } from '@object-ui/types';
-import type { ActionDef, ActionParamDef } from '@object-ui/core';
+import type { ActionDef, ActionParamDef, ConfirmationHandler } from '@object-ui/core';
 import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
 import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals.js';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel.js';
@@ -492,7 +492,28 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     [objectName, objectDef, actionResultDialog],
   );
 
-  const confirmHandler = useCallback((message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => {
+  // Typed as the PUBLISHED `ConfirmationHandler`, not a re-spelled copy of its
+  // shape (objectui#5835). This view runs its own confirm runtime rather than
+  // consuming `useConsoleActionRuntime`, and the inline
+  // `(message: string, options?: { title?; confirmText?; cancelText? })` this
+  // replaced was a near-duplicate that the compiler had no way to keep in step
+  // with the real type — the same drift family as objectui#5610 / objectui#3320.
+  //
+  // `options` is inert ON THIS PATH and that is not a reason to narrow it. The
+  // handler is only ever handed to the runner as `onConfirm`, and the runner
+  // calls it with ONE argument (the structured `confirm` arm that forwarded a
+  // bag was retired, objectui#4314). The parameter is LIVE elsewhere:
+  // `handleDeleteView` in `ObjectView.tsx` calls a `ConfirmationHandler`
+  // directly with all three fields localized. One published type, two call
+  // paths, one of which never fills the bag — settled KEEP, 2026-08-22 ruling
+  // on objectui#5205.
+  //
+  // The field set this hands `ActionConfirmDialog` must stay identical to the
+  // one `useConsoleActionRuntime` hands the same dialog; that parity is pinned
+  // by `RecordDetailView.confirmRuntimeParity-5835.test.tsx`, which reads what
+  // ARRIVES at the dialog from both runtimes rather than comparing the two
+  // declarations to each other.
+  const confirmHandler = useCallback<ConfirmationHandler>((message, options) => {
     return new Promise<boolean>((resolve) => {
       setConfirmState({ open: true, message, options, resolve });
     });
