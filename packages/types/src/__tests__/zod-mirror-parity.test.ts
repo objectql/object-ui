@@ -135,6 +135,68 @@ export type NarrowerThanDeclared< M, D > = {
   [K in MirroredKeys< M > & keyof D]: [D[K]] extends [InputOf< ShapeOf< M >[K] >] ? never : K;
 }[MirroredKeys< M > & keyof D];
 
+/**
+ * A declaration's OWN declared members, with any index signature stripped.
+ *
+ * `keyof D` is unusable on this population: most component declarations extend
+ * `BaseSchema`, which carries `[key: string]: any` (objectui#5155), and a string
+ * index signature ABSORBS every literal name — `keyof ObjectGanttSchema` resolves
+ * to bare `string`. Measured, not assumed:
+ *
+ *     declare const bare: keyof ObjectGanttSchema;
+ *     const _: never = bare;
+ *     // -> Type 'keyof ObjectGanttSchema' is not assignable to type 'never'.
+ *     //      Type 'string' is not assignable to type 'never'.
+ *
+ * A homomorphic mapped type is the escape: TypeScript maps declared members and
+ * index signatures SEPARATELY, so remapping the index-signature keys to `never`
+ * leaves the literal members — INCLUDING the ones inherited from `BaseSchema`.
+ * Same probe against this alias resolves the 36 literal names of
+ * `ObjectGanttSchema` and the 20 of `BaseSchema`.
+ *
+ * ⚠️ This lifts the ceiling on what the GUARD can READ, not on what a mirror can
+ * REJECT. #5155's ceiling stands: `BaseSchema` is `.passthrough()`, so declaring a
+ * key still does not buy rejection of a misspelling. The two are different
+ * questions and only the first one is this file's.
+ */
+type WithoutIndexSignature< D > = {
+  [K in keyof D as string extends K ? never : number extends K ? never : K]: D[K];
+};
+
+/** The declaration's DECLARED keys, read without `keyof` on the resolved key set. */
+export type DeclaredKeys< D > = Extract< keyof WithoutIndexSignature< D >, string >;
+
+/**
+ * Declared on the TS side and ABSENT from the mirror's `.shape` entirely.
+ *
+ * This is the half `NarrowerThanDeclared` above cannot see, and the reason is
+ * structural rather than a threshold: that type maps over the INTERSECTION
+ * `MirroredKeys< M > & keyof D`, so a declared key the mirror never mentions is
+ * not compared and found equal — it LEAVES THE COMPARISON. objectui#6058 measured
+ * the blind spot with a two-instruments ablation: ten keys declared on
+ * `ObjectGanttSchema` and stripped from its mirror left both halves of this guard
+ * green (runtime 5 passed EXIT=0, compile-time EXIT=0) while
+ * `gantt-declared-keys.test.ts` over the same tree read 2 failed | 7 passed EXIT=1.
+ *
+ * It is a real defect in the pair, not noise from the instrument: the published
+ * TypeScript invites an author to write the key and the published validator has
+ * never heard of it. Under `.passthrough()` the value rides through UNVALIDATED
+ * (`readOnly: 'yes'` parses green); under a mirror that is not passthrough it is
+ * refused outright. Either way `declared !== enforced`.
+ */
+export type UnmirroredDeclaredKeys< M, D > = Exclude< DeclaredKeys< D >, MirroredKeys< M > >;
+
+/**
+ * The forward comparison, over the UNION of the two key sets rather than their
+ * intersection: a declared key is drifted when the mirror refuses its declared
+ * type OR does not declare it at all.
+ *
+ * The reverse direction (the mirror declares what the TS side does not) is
+ * deliberately still out of scope — a different class, and not what this file
+ * measures.
+ */
+export type ForwardDrift< M, D > = NarrowerThanDeclared< M, D > | UnmirroredDeclaredKeys< M, D >;
+
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
 /** Mirror VALUES, keyed `<file>#<export>`. Runtime, so the census below can read the keys. */
@@ -461,13 +523,13 @@ interface Declared {
   'views.zod.ts#ViewSwitcherSchema': Ts_ViewSwitcherSchema;
 }
 
-type MirrorKey = keyof typeof MIRRORS;
+export type MirrorKey = keyof typeof MIRRORS;
 
 /** The two halves of the registry must describe the same population. */
 export type assertionRegistryHalvesAgree = Expect< Equal< MirrorKey, keyof Declared > >;
 
 /** The drift on one registered pair. */
-type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K], Declared[K] >;
+export type DriftOf< K extends MirrorKey > = ForwardDrift< (typeof MIRRORS)[K], Declared[K] >;
 
 /* ── The measured drift ledger ──────────────────────────────────────────────── */
 
