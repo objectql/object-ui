@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -2393,6 +2393,18 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   const manualSearchOn = manualPaginationOn;
 
   /**
+   * [#5729] The SERVED per-column sortability projection for this object —
+   * objectstack#10235's ruling A, consumed rather than re-derived.
+   *
+   * `undefined` means the metadata response carried no `sortability` key at
+   * all: a backend older than the upstream change, or an inline/mock data
+   * source. That is NOT "nothing is sortable" — see the branch in
+   * `withSortability` below, which is why this stays a nullable projection
+   * instead of collapsing to an empty map at the read.
+   */
+  const platformSortability = readObjectSortability(objectSchema);
+
+  /**
    * Withhold the sort affordance from a column the server cannot honestly order
    * by, when the sort is the server's (objectui#3096 + #3106, #3950).
    *
@@ -2423,8 +2435,32 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   const withSortability = (col: any) => {
     if (!manualSortingOn || col.sortable === false) return col;
     const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
-    const serverCanOrderBy = !isExpandableFieldType(fieldDef) && !isUnmaterializedFieldType(fieldDef);
-    return serverCanOrderBy ? col : { ...col, sortable: false };
+    // RELATIONAL — unchanged, and deliberately NOT delegated to the platform
+    // signal. The projection answers `sortable: true` for a `lookup` (measured:
+    // it has a stored column and both runtime doors accept an ORDER BY over
+    // it), because the platform's question is whether it can order by the
+    // STORED foreign key — which it can. Ours is whether that order means
+    // anything next to a column of names, and it does not. Two different
+    // questions; folding this one into the signal would hand every relational
+    // header its sort click back.
+    if (isExpandableFieldType(fieldDef)) return { ...col, sortable: false };
+    // PLATFORM — the served projection is authoritative when it was served.
+    // `isPlatformSortableField` is the contract: an entry must EXIST and say
+    // `sortable: true`. Absence is a refusal (an unknown name, a dotted path,
+    // an unprovisioned audit column), never a default of `true`.
+    if (platformSortability) {
+      return isPlatformSortableField(platformSortability, col.accessorKey)
+        ? col
+        : { ...col, sortable: false };
+    }
+    // NO SIGNAL SERVED — a deployment older than objectstack#10235, or an
+    // inline/mock data source. Behaviour is exactly what it was before this
+    // card, via the same `@objectstack/spec` set (`SEARCH_VIRTUAL_TYPES`) the
+    // platform's own projection is computed from, so the two cannot disagree
+    // about `formula`. This branch is a compatibility floor, not a second
+    // judge: the moment a backend serves the signal it is unreachable, and it
+    // is meant to be deleted when the supported floor passes that release.
+    return isUnmaterializedFieldType(fieldDef) ? { ...col, sortable: false } : col;
   };
 
   const applyColumnChrome = (col: any) => withSortability(applyDensity(col));
@@ -2846,12 +2882,44 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   const declaredSort = parseSchemaSort(
     schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined),
   );
-  const manualSort: TableSortItem[] = externalManualPagination
+  /**
+   * [#5729] The RESTORE leg of objectstack#10235's contract, and the guard
+   * that keeps the personalization PUT off an unsortable column.
+   *
+   * Withholding the header click (see `withSortability`) stops a NEW sort on
+   * such a column from ever being created — `DataTable` emits `onSortChange`
+   * only out of `handleSort`, which is itself gated on `col.sortable !== false`
+   * — but it says nothing about a sort that is ALREADY in stored view state,
+   * persisted before the signal existed. Replayed, that entry would put a
+   * refused `$orderby` on the wire, paint an active-sort arrow on a header
+   * that offers no click, and ride along into the next
+   * `persistViewPatch({ sort })` the toolbar issues for an unrelated reason —
+   * the exact half-fix where the affordance is gone and the PUT still fires.
+   *
+   * So both directions run through the same filter: what the grid RENDERS the
+   * sort state as, and what it EMITS back to whoever persists it. A stale
+   * entry is inert on arrival and is dropped the first time anything writes
+   * the sort back. Only under a served projection — with no signal there is no
+   * verdict to filter by, and the pre-#10235 behaviour stands unchanged.
+   */
+  const rawManualSort: TableSortItem[] = externalManualPagination
     ? (hostSort ?? [])
     : (headerSort ?? declaredSort);
-  const manualOnSortChange = externalManualPagination
+  const manualSort: TableSortItem[] = platformSortability
+    ? filterPlatformSortableSort(rawManualSort, platformSortability)
+    : rawManualSort;
+  const rawManualOnSortChange = externalManualPagination
     ? hostOnSortChange
     : setHeaderSort;
+  // Wrap only when there is BOTH a projection to judge by and a handler to
+  // wrap. Manufacturing a function where the host offered none would flip
+  // `DataTable`'s `sortingEnabled` (`!manualSorting || !!onSortChange`) from
+  // false to true and hand sort clicks to a host that never asked for them.
+  const manualOnSortChange = platformSortability && rawManualOnSortChange
+    ? (next: TableSortItem[]) => rawManualOnSortChange(
+        filterPlatformSortableSort(next, platformSortability),
+      )
+    : rawManualOnSortChange;
 
   // The search term, in whichever server mode applies. When a parent owns the
   // rows it owns the term too (ListView already does, from its own toolbar —

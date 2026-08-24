@@ -44,6 +44,7 @@ import type {
 } from '@object-ui/types';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 import {
+  attachObjectSortability,
   convertFiltersToAST,
   emulateBatchTransaction,
   normalizeSchemaReferenceKeys,
@@ -3467,7 +3468,26 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     // Unwrap defensively across server/SDK response shapes: the standard
     // `{ success, data }` envelope, an `{ item }` wrapper, or the bare item.
     const data = body && typeof body === 'object' && 'success' in body && 'data' in body ? body.data : body;
-    return data && typeof data === 'object' && 'item' in data ? data.item : data;
+    const item = data && typeof data === 'object' && 'item' in data ? data.item : data;
+    // [#5729] Carry the ENVELOPE's per-column sortability projection
+    // (objectstack#10235) across the unwrap that just discarded it.
+    //
+    // This line is the whole reason the signal was invisible to the grid: the
+    // platform serves `sortability` BESIDE `item` — deliberately, since the
+    // document is parsed `strict` server-side and the key must stay
+    // un-authorable — and the unwrap above returns `item` alone, so every
+    // consumer downstream saw a document with no signal on it and could only
+    // conclude the platform had sent nothing.
+    //
+    // Re-attached under a symbol key, so it survives to the renderer without
+    // becoming a document property: invisible to `JSON.stringify`, to
+    // `Object.keys` and to a spread, which is what keeps a schema that is ever
+    // handed back to a metadata write endpoint from carrying it into a body the
+    // server would reject by name. No-op when the envelope carried no
+    // projection (a backend older than the upstream change), so such a
+    // deployment is left exactly as it was rather than being told, falsely,
+    // that nothing is sortable.
+    return attachObjectSortability(item, data && typeof data === 'object' ? (data as any).sortability : undefined);
   }
 
   /**
