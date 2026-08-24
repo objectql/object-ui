@@ -19,7 +19,7 @@ The Formula Field component displays computed values calculated from other field
 
 ## Field Schema
 
-```plaintext
+```ts
 interface FormulaFieldSchema {
   type: 'formula';
   name: string;                  // Field name/ID
@@ -70,7 +70,7 @@ formula: 'end_date - start_date'
 
 In tables/grids, displays with monospace font:
 
-```plaintext
+```ts
 import { FormulaCellRenderer } from '@object-ui/fields';
 
 // Renders computed value in monospace font

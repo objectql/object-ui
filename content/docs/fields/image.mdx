@@ -15,12 +15,14 @@ The Image Field component provides an image upload interface with thumbnail prev
 
 ## Field Schema
 
-```plaintext
+```ts
+import type { UploadedFileMetadata } from '@object-ui/types';
+
 interface ImageFieldSchema {
   type: 'image';
   name: string;                  // Field name/ID
   label?: string;                // Field label
-  value?: FileMetadata | FileMetadata[];  // Current image(s)
+  value?: UploadedFileMetadata | UploadedFileMetadata[];  // Current image(s)
   required?: boolean;            // Is field required
   readonly?: boolean;            // Read-only mode
   disabled?: boolean;            // Disabled state
@@ -58,7 +60,7 @@ accept: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 
 In tables/grids, displays image thumbnails:
 
-```plaintext
+```ts
 import { ImageCellRenderer } from '@object-ui/fields';
 
 // Shows up to 3 thumbnails plus count if more

@@ -15,7 +15,9 @@ The Lookup Field component provides a reference field for creating relationships
 
 ## Field Schema
 
-```plaintext
+```ts
+import type { DataSource } from '@object-ui/types';
+
 interface LookupFieldSchema {
   type: 'lookup' | 'master_detail';
   name: string;                  // Field name/ID
@@ -140,7 +142,7 @@ The Record Picker dialog provides:
 
 In tables/grids, lookup values display the referenced record name:
 
-```plaintext
+```ts
 import { LookupCellRenderer } from '@object-ui/fields';
 
 // Single value: Display name/label

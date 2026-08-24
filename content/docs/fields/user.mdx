@@ -23,7 +23,7 @@ it display-only.
 
 ## Field Schema
 
-```plaintext
+```ts
 interface UserFieldSchema {
   type: 'user';
   name: string;                  // Field name/ID
@@ -73,7 +73,7 @@ text input. Write `{ type: 'user', name: 'owner' }` instead.
 
 In tables/grids, displays avatar with name:
 
-```plaintext
+```ts
 import { UserCellRenderer } from '@object-ui/fields';
 
 // Single user: Avatar + name

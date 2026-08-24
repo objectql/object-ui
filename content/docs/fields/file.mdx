@@ -19,7 +19,7 @@ The File Field component provides a file upload interface with support for multi
 
 ## Field Schema
 
-```plaintext
+```ts
 interface FileFieldSchema {
   type: 'file';
   name: string;                  // Field name/ID
@@ -79,7 +79,7 @@ accept: ['image/*']  // All images
 
 In tables/grids, displays file count:
 
-```plaintext
+```ts
 import { FileCellRenderer } from '@object-ui/fields';
 
 // Renders: "3 files" or "document.pdf"

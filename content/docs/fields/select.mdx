@@ -90,7 +90,7 @@ candidate query is filtered server-side and paginated. See
 
 ## Field Schema
 
-```plaintext
+```ts
 interface SelectFieldSchema {
   type: 'select';
   name: string;                  // Field name/ID
@@ -141,7 +141,7 @@ interface SelectOption {
 
 In tables/grids, select values are displayed as colored badges:
 
-```plaintext
+```ts
 import { SelectCellRenderer } from '@object-ui/fields';
 
 // Single value: Colored badge
