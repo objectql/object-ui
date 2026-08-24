@@ -227,28 +227,43 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ 2 of these entries are `.md` pages under `content/docs` that objectui#5174
- * made visible: the collector now reads `.md`, and an entry with a measured reason
- * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
- * debt — every one of them was equally unverified before, just unnamed. Their
- * reasons carry the same measured diagnostic mix as the rest, and a symbol a
- * package does not export is called out by name, because that is the
- * reader-visible half (objectui#5160).
+ * ⚠️ ZERO of these entries are now `.md` pages under `content/docs`. There were 19
+ * when objectui#5174 made them visible — the collector reads `.md`, and an entry
+ * with a measured reason is what a page that cannot pass yet is owed — and that
+ * card then walked every one of them back OFF this list rather than re-wording its
+ * reason. The direction on that card was entries LEAVING, and it finished: what
+ * remains here is 12 `.mdx` pages and 32 package READMEs.
  *
- * That count was 19 until objectui#5174's triage batches, which walk pages OFF this
- * list rather than re-wording their reasons. The direction on that card is entries
- * LEAVING. Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the
- * `guide/` pages `architecture-overview`, `deployment`, `expressions`,
- * `notifications`, `public-forms`, `schema-overview`, `troubleshooting` and
- * `user-state-persistence`. Batch 2 took four more — `guide/plugins`,
+ * Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the `guide/` pages
+ * `architecture-overview`, `deployment`, `expressions`, `notifications`,
+ * `public-forms`, `schema-overview`, `troubleshooting` and `user-state-persistence`
+ * — clearing 90 diagnostics. Batch 2 took four more — `guide/plugins`,
  * `guide/building-crud-app`, `rfcs/0001-clipboard-paste` and `guide/architecture`
- * — clearing 89 diagnostics. Batch 3 took three — `guide/plugin-development`,
- * `guide/schema-rendering` and `guide/theming` — clearing 81, and left
- * `guide/layout` and `guide/component-registry` as the final pair.
- * Each page reached zero the honest two ways — a block
+ * — clearing 89. Batch 3 took three — `guide/plugin-development`,
+ * `guide/schema-rendering` and `guide/theming` — clearing 81. Batch 4 took the
+ * final pair, `guide/component-registry` (59) and `guide/layout` (45), clearing
+ * 104. Each page reached zero the honest two ways — a block
  * that should compile was made self-contained against the built `dist/`, and a
  * block that genuinely cannot compile got a `FRAGMENT_MARKER` declaration with a
  * written reason. Nothing about this gate's strictness moved to get them there.
+ *
+ * Batch 4 in the same terms as the batches below: 32 blocks brought under the gate
+ * — 23 declared fragments and 9 that compile, of which 5 already compiled untouched
+ * and 4 were edited to. Its defect was in the page's ONE complete copy-paste
+ * example: `guide/component-registry`'s `RatingComponent` calls `useState` while
+ * importing only `forwardRef` from `react`, so the block a reader is invited to
+ * take whole was broken at the first hook. The same block took `cn` from the
+ * reader's own `@/lib/utils` alias when `@object-ui/components` exports `cn`
+ * itself. Two things this gate CANNOT see on that page, stated because a green run
+ * must not be read as more than it is: `ComponentRegistry` is a `Registry<any>`, so
+ * `register()`'s component argument is `any` and no registered component's props
+ * are checked against what `SchemaRenderer` passes; and `BaseSchema` carries
+ * `[key: string]: any`, so a wrong key on a `BaseSchema`-shaped literal is
+ * structurally invisible here. What IS sealed — and therefore really checked —
+ * is `ComponentMeta`, `ComponentInput`, `NavItem`, `NavGroup`, `AppShellProps` and
+ * `SidebarNavProps`; every literal of those six on the two pages was measured
+ * clean, the `lucide-react` blocks by probing them with the icon import shimmed
+ * rather than by inferring it from the TS2307 that hid them.
  *
  * Batch 2's two routes in proportion, because the ratio is the reviewable part: it
  * brought 42 blocks under the gate — 34 declared fragments and 8 that compile, of
@@ -292,6 +307,17 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * app but is not a root dependency here.
  * `guide/plugins` and the clipboard-paste RFC document packages the reader is being
  * taught to create, and an RFC's signature excerpts have no bodies by design.
+ * `guide/layout` is the same shape as `guide/theming`, one layer out: four of its
+ * nine blocks import `lucide-react` for the icon COMPONENTS `NavItem.icon` takes,
+ * and that package — a dependency of ten workspace packages here, including
+ * `@object-ui/layout` — is not a root dependency, so the specifier does not resolve
+ * in this program. Hoisting a package to the repo root to buy a doc snippet
+ * coverage is a real dependency edge, so those blocks are declared instead, with
+ * what sits underneath them measured (via a shimmed icon import) rather than left
+ * unknown. `guide/component-registry`'s six category lists are markdown BULLET
+ * LISTS inside `tsx` fences — the fence language is the defect there, and
+ * correcting it is a change to the page's rendering rather than to a snippet, so it
+ * is declared here and left to its own change.
  *
  * objectui#5343 then read that list back and cleared it for the getting-started
  * pages: no entry for `content/docs/guide/**` or for
@@ -319,21 +345,6 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
-  'content/docs/guide/component-registry.md':
-    '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '50 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 6 unresolved-module diagnostic(s). This entry read TS2305x13 TS2339x1 ' +
-    'until objectui#5343, which cleared the page of fabricated exports: `getComponentRegistry` ' +
-    '(@object-ui/react) x5 → the `ComponentRegistry` singleton @object-ui/core exports, ' +
-    '`registerDefaultRenderers` (@object-ui/components) x4 → `initializeComponents()` plus the ' +
-    'side-effect `@object-ui/fields` import, `BaseSchema` (@object-ui/core) x3 → @object-ui/types ' +
-    '(which is also what retired the TS2339, since the real `BaseSchema` declares `className`), ' +
-    'and `InputRenderer` (@object-ui/components), which nothing replaces — the built-in renderers ' +
-    'are registered by loading their package, never handed out one by one',
-  'content/docs/guide/layout.md':
-    '21 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '20 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 4 unresolved-module diagnostic(s)',
   'content/docs/guide/objectos-integration.mdx':
     '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
     '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +

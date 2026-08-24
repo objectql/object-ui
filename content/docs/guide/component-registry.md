@@ -88,6 +88,7 @@ Now you can use it in schemas:
 
 All registered components receive the schema as props:
 
+<!-- doc-snippet: fragment — continues the custom-component block above — `BaseSchema` and `MyComponentSchema` are declared there, and re-declaring them here would teach the reader to write the same interface twice (measured: TS2304 x3) -->
 ```tsx
 interface ComponentProps<T extends BaseSchema = BaseSchema> {
   // The complete schema object
@@ -119,6 +120,7 @@ function MyRenderer(props: ComponentProps<MyComponentSchema>) {
 
 Register components with additional metadata:
 
+<!-- doc-snippet: fragment — continues the custom-component block above — `MyComponent` and the `ComponentRegistry` import come from it (measured: TS2304 x2). The `ComponentMeta` literal this block shows is type-checked on the complete example at the end of the page, which does compile -->
 ```tsx
 ComponentRegistry.register('my-component', MyComponent, {
   label: 'My Custom Component',
@@ -137,6 +139,7 @@ This metadata is used by the Visual Designer to provide better editing experienc
 
 Register components that load on demand:
 
+<!-- doc-snippet: fragment — `./HeavyComponent` is the reader's own module, so the dynamic import cannot resolve here (measured: TS2307 x1, plus TS2304 on the `ComponentRegistry` the block above imports) -->
 ```tsx
 // The loader runs the first time a schema asks for `heavy-component`.
 ComponentRegistry.registerLazy('heavy-component', () => import('./HeavyComponent'))
@@ -146,6 +149,7 @@ ComponentRegistry.registerLazy('heavy-component', () => import('./HeavyComponent
 
 Override default components with your own:
 
+<!-- doc-snippet: fragment — `MyCustomButton` is the reader's own replacement component; there is nothing in this repo to import it from (measured: TS2304 x1) -->
 ```tsx
 import { ComponentRegistry } from '@object-ui/core'
 import { initializeComponents } from '@object-ui/components'
@@ -163,6 +167,7 @@ ComponentRegistry.register('button', MyCustomButton)
 Default components are organized by category:
 
 ### Form Components
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eleven form-component keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - input
 - textarea
@@ -178,6 +183,7 @@ Default components are organized by category:
 ```
 
 ### Data Display
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the seven data-display keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - table
 - list
@@ -189,6 +195,7 @@ Default components are organized by category:
 ```
 
 ### Layout
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eight layout keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - page
 - container
@@ -201,6 +208,7 @@ Default components are organized by category:
 ```
 
 ### Feedback
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the nine feedback keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - alert
 - toast
@@ -214,6 +222,7 @@ Default components are organized by category:
 ```
 
 ### Navigation
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the four navigation keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - menu
 - breadcrumb
@@ -222,6 +231,7 @@ Default components are organized by category:
 ```
 
 ### Other
+<!-- doc-snippet: fragment — not TypeScript at all — this fence holds a markdown bullet list naming the eight remaining keys the registry ships, and a leading `-` reads as unary minus on an undeclared name (measured: TS2304 across the list, and the form list does not even parse because `switch` is a keyword — TS1109/TS1005 x3). The fence language is the underlying defect; correcting it is a separate change -->
 ```tsx
 - button
 - link
@@ -238,6 +248,8 @@ Default components are organized by category:
 ### Get All Registered Types
 
 ```tsx
+import { ComponentRegistry } from '@object-ui/core'
+
 const types = ComponentRegistry.getAllTypes()
 console.log(types) // ['input', 'button', 'form', ...]
 ```
@@ -245,6 +257,8 @@ console.log(types) // ['input', 'button', 'form', ...]
 ### Check if Type is Registered
 
 ```tsx
+import { ComponentRegistry } from '@object-ui/core'
+
 if (ComponentRegistry.has('my-component')) {
   console.log('Component is registered')
 }
@@ -253,6 +267,8 @@ if (ComponentRegistry.has('my-component')) {
 ### Get Component Metadata
 
 ```tsx
+import { ComponentRegistry } from '@object-ui/core'
+
 const metadata = ComponentRegistry.getMeta('input')
 console.log(metadata)
 // {
@@ -302,6 +318,7 @@ Use kebab-case for component types:
 
 ### 4. Provide Meaningful Metadata
 
+<!-- doc-snippet: fragment — `RatingComponent` is the component built in the complete example at the end of this page, and the `ComponentRegistry` import comes with it (measured: TS2304 x2) -->
 ```tsx
 ComponentRegistry.register('rating', RatingComponent, {
   label: 'Star Rating',
@@ -313,6 +330,7 @@ ComponentRegistry.register('rating', RatingComponent, {
 
 ### 5. Handle Missing Props Gracefully
 
+<!-- doc-snippet: fragment — continues the component-interface block above — `ComponentProps` is declared there and `MySchema` stands for whatever schema the reader's component takes (measured: TS2304 x2) -->
 ```tsx
 function MyComponent(props: ComponentProps<MySchema>) {
   const { schema } = props
@@ -332,6 +350,7 @@ function MyComponent(props: ComponentProps<MySchema>) {
 
 Group related components into plugin packages:
 
+<!-- doc-snippet: fragment — the three chart components are files the reader is being told to write, so `./BarChart` / `./LineChart` / `./PieChart` cannot resolve here (measured: TS2307 x3) -->
 ```tsx
 // @my-org/objectui-plugin-charts
 import { ComponentRegistry } from '@object-ui/core'
@@ -348,6 +367,7 @@ export function registerChartComponents() {
 
 Usage:
 
+<!-- doc-snippet: fragment — `@my-org/objectui-plugin-charts` is the package the reader has just been shown how to create, not one this repo publishes (measured: TS2307 x1) -->
 ```tsx
 import { initializeComponents } from '@object-ui/components'
 import '@object-ui/fields'
@@ -362,10 +382,10 @@ registerChartComponents()
 Here's a complete example of a custom form component:
 
 ```tsx
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 import { ComponentRegistry } from '@object-ui/core'
 import type { BaseSchema } from '@object-ui/types'
-import { cn } from '@/lib/utils'
+import { cn } from '@object-ui/components'
 
 interface RatingSchema extends BaseSchema {
   type: 'rating'
