@@ -38,6 +38,13 @@
  * an early `[]` for `columns` makes a list render its empty state without ever
  * asking for data.
  *
+ * That distinction — a plausible value for EVERY input is not the same as a
+ * plausible CONFIGURATION — is the lesson this file keeps re-learning, and it is
+ * recorded instance by instance rather than as a slogan: four in
+ * {@link SUPERSEDES_BINDING}, the fifth and sixth in {@link sampleFor}. Six is
+ * the count because every one of them cost a red or, worse, a green for the
+ * wrong reason. Read them before adding a sample.
+ *
  * A block that declares `objectName` and asks the data layer for something else
  * — or for nothing at all — is not bound to the object it advertises. That is
  * the objectstack#4413 shape, stated behaviourally.
@@ -247,6 +254,34 @@ const SUPERSEDES_BINDING = new Set(['data', 'customFields']);
  * a config a block can legitimately short-circuit on, and a block that renders
  * its empty state without asking for data would read here as an unbound
  * binding.
+ *
+ * `sections` is the FIFTH instance of the lesson counted in
+ * {@link SUPERSEDES_BINDING}, and the one objectui#3840 was filed for. The
+ * generic `array` sample is `['name']`, and a bare string is not a section:
+ * `@objectstack/spec`'s `FormViewSchema.sections` rejects it at parse —
+ * `safeParse(['name'])` returns *"Invalid input: expected object, received
+ * string"* — and requires `fields` on every entry (`[{}]` returns *"0.fields:
+ * Invalid input: expected array, received undefined"*). This repo's own type
+ * says the same: `ObjectFormSection.fields` is REQUIRED
+ * (`packages/types/src/objectql.ts`). So `['name']` is not metadata any author
+ * could publish, while `ObjectForm.tsx:1166` reads `section.fields.map(...)` off
+ * each entry unguarded and takes the whole block down with *"Cannot read
+ * properties of undefined (reading 'map')"*. That makes the error card a
+ * FIXTURE defect, not the product bug the shape suggested — the discriminator
+ * being the spec shape, not the fact that a different sample stops the crash
+ * (which is true either way).
+ *
+ * `formType` is the SIXTH, and it is why `object-master-detail-form` read GREEN
+ * while carrying the identical latent crash. That block declares `formType` as a
+ * bare `string` — not the enum `object-form` declares — so the default branch
+ * below handed it `'x'`, a value the form family has no path for. The crashing
+ * section loop is gated on `(!schema.formType || schema.formType === 'simple')`
+ * (`ObjectForm.tsx:1134`), so `'x'` skipped straight past it. Measured, with
+ * `sections` still malformed: forcing `formType: 'simple'` reproduces the same
+ * `reading 'map'` crash on that block. A sample outside a prop's own vocabulary
+ * does not exercise the block, it routes AROUND it — here around a real defect,
+ * for as long as nobody looked. Both samples below are spec-valid on their own
+ * merit, not as crash avoidance.
  */
 const sampleFor = (input: any): unknown => {
   if (input.name === 'objectName') return PROBE_OBJECT;
@@ -260,6 +295,13 @@ const sampleFor = (input: any): unknown => {
   // for the wrong reason, so the sample is spec-valid at the source instead.
   // Arrived with objectui#3808, which is when `add` became a declared input.
   if (input.name === 'add') return { picker: { object: PROBE_OBJECT } };
+  // The fifth and sixth lesson entries above. Both are keyed by NAME because the
+  // TYPE carries no information here: `sections` and `fields` are both `array`,
+  // and only one of them is an array of objects.
+  if (input.name === 'sections') {
+    return [{ name: 'probe_section', label: 'Probe Section', fields: ['name'] }];
+  }
+  if (input.name === 'formType') return 'simple';
   if (input.defaultValue !== undefined) return input.defaultValue;
   switch (input.type) {
     case 'number':
@@ -285,8 +327,8 @@ const sampleFor = (input: any): unknown => {
  *
  * The html half is here because a crash is invisible in `calls` alone —
  * `SchemaRenderer` catches a renderer's throw and paints an error card, so a
- * crashed block simply makes no calls, which is the pass condition on the
- * ledgered branch below. Deliberately the same shape and field names as the
+ * crashed block simply makes no calls, and "no calls" is a verdict BOTH branches
+ * below already have a reading for. Deliberately the same shape and field names as the
  * sibling probe's `Mount` (`record-block-record-reach.test.tsx:310-313`), which
  * has captured both halves from the start for the same reason.
  */
@@ -354,12 +396,9 @@ async function dataCallsFor(cfg: any): Promise<Mount> {
   // to unmount: an error thrown during RENDER still propagates and fails.
   // Read the DOM before unmounting: `SchemaRenderer` CATCHES a renderer's throw
   // and paints an error card, so a crash never propagates here — it just makes
-  // the block produce nothing, including no data calls. For a ledgered block
-  // ("declines to fetch") that is a green earned by crashing, which is why this
-  // is captured and asserted rather than left to the calls alone. Same guard the
-  // sibling probe carries as `assertRendered`
-  // (`record-block-record-reach.test.tsx`), added here after objectui#3808 made
-  // an invalid `add` sample able to trigger exactly that.
+  // the block produce nothing, including no data calls. Captured rather than
+  // left to the calls alone because "no calls" is exactly what each branch below
+  // reads as a verdict; {@link assertRendered} spends it.
   const html = view.container.innerHTML;
   try {
     view.unmount();
@@ -368,6 +407,33 @@ async function dataCallsFor(cfg: any): Promise<Mount> {
   }
   return { calls, html };
 }
+
+/**
+ * A crash is not a binding verdict — on EITHER branch.
+ *
+ * `SchemaRenderer` CATCHES a renderer's throw and paints an error card, so
+ * nothing propagates to the assertions below: the block simply produces no DOM
+ * of its own and, having died, no data calls. That lands differently on each
+ * branch and is wrong on both. On the ledgered branch "made no data call" is the
+ * PASS condition, so a crash CONFIRMS the ledger entry — a green earned by being
+ * broken. On the other branch it reads as a binding that never reached the data
+ * layer, pointing the reader at wiring that is fine.
+ *
+ * Same shape and message as the sibling probe's `assertRendered`
+ * (`record-block-record-reach.test.tsx`), which has run it on every mount from
+ * the start. Here it was scoped to the ledgered branch for one release, because
+ * `object-form` and `object-master-detail-form` painted an error card under this
+ * fixture's malformed `sections` sample and #3808 was not the change to drag two
+ * pre-existing crashes into. That was objectui#3840; it resolved to the fixture,
+ * is fixed in {@link sampleFor}, and the guard now runs ahead of the split where
+ * it belongs.
+ */
+const assertRendered = (type: string, html: string) => {
+  expect(
+    html.includes('failed to render'),
+    `<${type}> threw during render — that is a crash, not a binding verdict:\n${html.slice(0, 600)}`,
+  ).toBe(false);
+};
 
 const candidates = ComponentRegistry.getPublicConfigs().filter(declaresObjectName);
 
@@ -389,39 +455,12 @@ describe('public blocks — a declared objectName reaches the data layer (object
     it(`${cfg.type} ${ledgered ? 'does not reach the data layer (ledgered)' : 'asks the data layer for its objectName'}`, async () => {
       const { calls, html } = await dataCallsFor(cfg);
       const reached = calls.filter((c) => c.includes(PROBE_OBJECT));
+      // Ahead of the branch split, so it covers all 14 candidates: neither
+      // branch's verdict means anything about a block that never rendered. See
+      // {@link assertRendered} for why each branch mis-reads a crash differently
+      // (objectui#3840).
+      assertRendered(cfg.type, html);
       if (ledgered) {
-        // A crash is not a binding answer, and on THIS branch it is
-        // indistinguishable from one: "made no data call" is the pass condition,
-        // and a block that threw during render made none either. `SchemaRenderer`
-        // catches the throw and paints an error card, so nothing propagates —
-        // without this the ledger entry would be confirmed by the block being
-        // broken.
-        //
-        // Added with objectui#3808, and DEFENSIVE rather than load-bearing today:
-        // that change made an invalid `add` sample crash `record:related_list`
-        // (objectui#3838), which is what it did in the sibling probe, but not
-        // here — `renderers/record-related-list.tsx:185` passes
-        // `dataSource={ctx?.dataSource}`, this probe mounts with no RecordContext,
-        // so `RelatedList`'s picker gate (`add && pickerObject && dataSource`,
-        // truthiness-only on `add` before #3838) short-circuits before the read
-        // either way. Checked, not assumed: reverting the sample to `{}` keeps
-        // all 16 green. The predicate itself is known to work — applied to both
-        // branches it reports the two crashes in objectui#3840 — so this is a
-        // cheap standing guard on the one branch where a crash IS the pass
-        // condition, not a claim that it fires today.
-        //
-        // Deliberately NOT applied to the other branch: `object-form` and
-        // `object-master-detail-form` do paint an error card under this fixture
-        // ("Cannot read properties of undefined (reading 'map')") while still
-        // making their data calls, so their verdicts are earned rather than
-        // vacuous. Whether that card is a product bug or this fixture handing
-        // them an implausible configuration — the lesson the header records four
-        // instances of — is objectui#3840, not something to decide by widening a
-        // guard here.
-        expect(
-          html.includes('failed to render'),
-          `<${cfg.type}> threw during render, so "made no data call" proves nothing:\n${html.slice(0, 600)}`,
-        ).toBe(false);
         // Asserted, not skipped: the day this block starts binding, this fails
         // and the ledger entry has to go — a ledger nobody is forced to update
         // decays into the accepted-baseline problem this whole test exists for.
