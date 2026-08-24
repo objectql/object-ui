@@ -151,25 +151,25 @@ describe('ObjectGanttSchema (TS) — compile-time pin on the same ten keys', () 
     // to `any` through `BaseSchema`'s index signature and the assignment starts
     // succeeding. That failure is the signal this card exists to create.
 
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `skipWeekends` is declared `boolean | undefined`.
     const skipWeekends: ObjectGanttSchemaTS['skipWeekends'] = 'yes';
-    // @ts-expect-error — declared `string[] | undefined`.
+    // @ts-expect-error — `holidays` is declared `string[] | undefined`.
     const holidays: ObjectGanttSchemaTS['holidays'] = [1];
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `persistLayout` is declared `boolean | undefined`.
     const persistLayout: ObjectGanttSchemaTS['persistLayout'] = 'no';
-    // @ts-expect-error — declared `string | undefined`.
+    // @ts-expect-error — `viewName` is declared `string | undefined`.
     const viewName: ObjectGanttSchemaTS['viewName'] = 1;
-    // @ts-expect-error — declared `ViewNavigationConfig | undefined`, an object.
+    // @ts-expect-error — `navigation` is declared `ViewNavigationConfig | undefined`, an object.
     const navigation: ObjectGanttSchemaTS['navigation'] = 'drawer';
-    // @ts-expect-error — `date` is declared `string` (schemas are JSON).
+    // @ts-expect-error — `markers[].date` is declared `string` (schemas are JSON).
     const markers: ObjectGanttSchemaTS['markers'] = [{ date: 5 }];
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `criticalPath` is declared `boolean | undefined`.
     const criticalPath: ObjectGanttSchemaTS['criticalPath'] = 'on';
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `showBaselines` is declared `boolean | undefined`.
     const showBaselines: ObjectGanttSchemaTS['showBaselines'] = 'off';
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `readOnly` is declared `boolean | undefined`.
     const readOnly: ObjectGanttSchemaTS['readOnly'] = 'yes';
-    // @ts-expect-error — declared `boolean | undefined`.
+    // @ts-expect-error — `mobileReadOnly` is declared `boolean | undefined`.
     const mobileReadOnly: ObjectGanttSchemaTS['mobileReadOnly'] = 'yes';
 
     expect([
