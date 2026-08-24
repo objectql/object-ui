@@ -610,15 +610,23 @@ export function importUnsafeStatements(source) {
  * two lookup maps in top-level `for` loops at :243 and :245, outside any guard,
  * and really does run them inside an importer.
  *
- * ⚠️ Its remedy is NOT "move the loops behind the guard": those maps are read by
- * the exported `liveSpellingFor` / `describeName`, which importers really call
- * (`scripts/__tests__/check-lucide-icon-record-names.test.ts`), so guarding them
- * turns a working import into a broken one. Measured on this branch, not
- * reasoned: with the loops moved behind the guard that suite fails. objectui#6092
- * ruled the restructuring out of scope rather than trade an import for a
- * baseline; the entry stays, and its remedy is a judgement someone still has to
- * make -- which is exactly what the rest of this comment says a debt line must
- * not be. It is the one line here that owes a card, not a one-liner.
+ * ⚠️ Its remedy is NOT "move the loops behind the guard". Those maps are read by
+ * the exported `liveSpellingFor` / `describeName`, which importers really call,
+ * so guarding them empties the maps for every importer. Measured on objectui#6092's
+ * branch rather than reasoned: with the two loops moved inside the guard, rule 2
+ * goes green and reports the entry as STALE -- and
+ * `scripts/__tests__/check-lucide-icon-record-names.test.ts` fails 5 of 25.
+ * The failure is not merely a red test. `describeName('BarChart3')` stops saying
+ * "write `chart-column`" and says "no live key names the same glyph" instead:
+ * a WRONG diagnosis for a real violation, printed by a gate that still exits 1,
+ * which is a worse outcome than the unguarded loops.
+ *
+ * So objectui#6092 ruled the restructuring out of scope rather than trade a
+ * working import for a baseline line. The entry stays, and its remedy is a
+ * judgement someone still has to make -- which is exactly what the rest of this
+ * comment says a debt line must not be. It is the one line here that owes a
+ * card, not a one-liner. A lazy build of the two maps inside `liveSpellingFor`
+ * would satisfy both, and is the shape that card should consider.
  */
 const KNOWN_IMPORT_UNSAFE = new Set(['scripts/check-lucide-icon-record-names.mjs']);
 
