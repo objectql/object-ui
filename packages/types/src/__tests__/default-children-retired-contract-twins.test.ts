@@ -27,6 +27,20 @@
  * The Registry twin (`@object-ui/core`) is pinned in that package instead, so
  * this suite does not have to import its own dependent.
  *
+ * ⚠️ UPDATED by objectui#5893: item 3 is no longer a separate declaration.
+ * `plugin-scope.ts` now RE-EXPORTS `base.ts`' `ComponentMeta` (the objectui#4580
+ * convergence, following objectui#5671's execution for `ComponentInput`), so
+ * the third case below no longer exercises a second declaration — it exercises
+ * a second published SPELLING of the first, which is a real consumer-facing
+ * fact only for as long as the deprecated `PluginComponentMeta` alias exists.
+ * It is deliberately kept rather than deleted: while the alias is published, an
+ * author can still reach the type by that name, and the pin costs one
+ * `@ts-expect-error`. Drop it together with the alias in objectui#5674's
+ * stage 2. Whether the declaration stays single is pinned separately and by
+ * identity, in `component-meta-single-declaration.test.ts` — a member-set
+ * assertion cannot see a structural copy, which is the defect this file was
+ * paying for.
+ *
  * Two kinds of assertion, deliberately different because the surfaces differ:
  *
  * The Zod half is NOT a refusal. Measured on zod 4.4.3, a `z.object` STRIPS
@@ -135,7 +149,10 @@ describe('the published TS twins no longer offer the retired key', () => {
     const retired: PluginScopeComponentMeta = {
       label: 'Span',
       // @ts-expect-error `defaultChildren` was retired by objectui#5051; the
-      // plugin-facing twin spelt it `any[]` and is retired in lockstep.
+      // plugin-facing twin spelt it `any[]` and was retired in lockstep. Since
+      // objectui#5893 this spelling re-exports `base.ts`' declaration, so the
+      // error above is the SAME one the case above pins, reached by the second
+      // published name.
       defaultChildren: [{ type: 'text', content: 'Inline text' }],
     };
     expect(retired.label).toBe('Span');
