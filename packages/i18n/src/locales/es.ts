@@ -339,7 +339,7 @@ const es = {
       running: "Ejecutando…",
       undo: "Deshacer",
       undoing: "Deshaciendo…",
-      done: "Hecho",
+      done: "Listo",
       selectPlaceholder: "Seleccionar…",
       loading: "Cargando…",
     },
