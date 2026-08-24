@@ -123,7 +123,7 @@
  * entries render `role="alert"` because that is what an Alert IS — the
  * assertion is correct for a dashboard tile and wrong for the corpus.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import '@object-ui/components';
 // Mirrors apps/site/app/components/registerCatalogBlocks.ts, in its order.
@@ -145,6 +145,12 @@ import { SchemaRenderer, SchemaRendererContext, toRenderableSchema } from '@obje
 import fs from 'node:fs';
 import path from 'node:path';
 import { allExamples } from '../src/index.js';
+// Plain-JS CI helper; types are inferred from the `.mjs` source (`allowJs`), the
+// same route `scripts/__tests__/known-schema-types-derivation-5115.test.ts`
+// takes. objectui#6024 reuses this derivation rather than re-deriving: a second
+// copy of "which package registers which key" is the enumeration this pin
+// exists to stop keeping by hand.
+import { deriveRegistryKeys } from '../../../scripts/check-doc-component-types.mjs';
 
 registerLayout();
 
@@ -607,126 +613,423 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
 });
 
 /**
- * THESE PLUGIN CATEGORIES' ENTRIES ACTUALLY USE THEIR PLUGIN
- * (objectui#5113 for `plugin-view`, objectui#5856 for `plugin-grid`).
+ * EVERY `plugin-*` CATEGORY'S ENTRIES ACTUALLY USE THEIR PLUGIN
+ * (objectui#5113 for `plugin-view`, objectui#5856 for `plugin-grid`,
+ * objectui#6024 for the generalization to all thirteen).
  *
- * The sweep above answers "does every tile draw". It cannot answer the
- * question objectui#5113 was filed on: whether an example mounted under a
- * PLUGIN's docs page exercises that plugin. Both categories below failed it in
- * exactly the same way, one card apart.
+ * The sweep above answers "does every tile draw". It cannot answer the question
+ * objectui#5113 was filed on: whether an example mounted under a PLUGIN's docs
+ * page exercises that plugin. Two categories failed it in exactly the same way,
+ * one card apart. `plugin-view`'s three entries used to be hand-built static
+ * card layouts — `card` / `flex` / `text` / `badge`, no `object-view` node
+ * anywhere — sitting on `content/docs/plugins/plugin-view.mdx` under an
+ * "Interactive Examples" heading and inside a `PluginLoader plugins={['view']}`
+ * wrapper none of them used. `plugin-grid`'s two were the same defect on
+ * `content/docs/plugins/plugin-grid.mdx`. Every check in the repo was green on
+ * all five: the types they named ARE registered (`check-doc-component-types`
+ * asks only that), and the tiles DID draw (the sweep above asks only that).
+ * Neither gate can see this defect, which is why this one exists.
  *
- * `plugin-view`'s three entries used to be hand-built static card layouts —
- * `card` / `flex` / `text` / `badge`, no `object-view` node anywhere — sitting
- * on `content/docs/plugins/plugin-view.mdx` under an "Interactive Examples"
- * heading and inside a `PluginLoader plugins={['view']}` wrapper none of them
- * used. `plugin-grid`'s two were the same defect on
- * `content/docs/plugins/plugin-grid.mdx` under `PluginLoader plugins={['grid']}`
- * — measured on this card's own merge-base, both authored exactly
- * `badge button card flex stack text` and no `object-grid`. Every check in the
- * repo was green on all five: the types they named ARE registered
- * (`check-doc-component-types` asks only that), and the tiles DID draw (the
- * sweep above asks only that). Neither gate can see this defect, which is why
- * this one exists.
+ * ## The two halves, and which entries carry which
  *
- * Two facts are pinned per category, and the second is the one that cannot be
- * satisfied by a picture of the component:
+ * The card that generalized this named the hazard it had to avoid, and it is
+ * the reason the classification below is COUNTED rather than implied: a pin
+ * turned on for thirteen categories that silently applies only its cheap half
+ * to eleven of them is WORSE than the honest two-category pin it replaced —
+ * the coverage number goes up, the assurance goes down, and the number is what
+ * gets quoted. So every entry's tier is derived, printed by
+ * `it('states its own coverage split…')`, and pinned there as a literal that a
+ * new category or a re-tiered entry turns red.
  *
- *  1. STRUCTURE — every entry in the category authors a node of the type its
- *     own package registers.
- *  2. RENDER — the tile shows a record that exists only in the gallery's data
+ *  1. STRUCTURE (every entry) — the entry authors a node whose `type` is in the
+ *     set its OWN package registers.
+ *  2. MOUNT (every entry) — that node sits where the renderer actually paints.
+ *     Measured by substitution: replace every own-type node with an inert probe
+ *     and re-render; the probe's marker has to reach the DOM. This is the half
+ *     that generalizes objectui#5113's RENDER assertion, and it is the answer
+ *     to the specific hole in STRUCTURE — a STRAY node. A `type` that is not a
+ *     node at all (a field's `type: 'select'`, a validation rule's
+ *     discriminant), a node under a branch the parent never renders, or one
+ *     behind a satisfied `hidden` expression all satisfy STRUCTURE and all fail
+ *     MOUNT.
+ *  3. DATA PROVENANCE (only entries that bind to an object the gallery fixture
+ *     serves) — the tile shows a record that exists ONLY in the gallery's data
  *     source, so the rows on screen came through the registered renderer →
- *     `dataSource.find`, not out of the entry's own JSON. An entry that went
- *     back to drawing its own table would keep (1) satisfiable by a stray node
- *     and would fail (2) outright.
+ *     `dataSource.find`, not out of the entry's own JSON. This is
+ *     objectui#5113's original second fact, unweakened.
  *
- * (2) is the half that does the work, and it is discriminating rather than
- * incidental: an `object-grid` node whose rows come from an inline
- * `data: { provider: 'value', items: [...] }` satisfies (1), renders a
- * perfectly good table — measured, 51 elements — and contains no gallery
- * record at all, so it fails (2). A grid wired to nothing cannot pass here.
+ * (3) is the strongest of the three and it does NOT generalize, for a reason
+ * that is a property of the entries rather than a gap in this file: the other
+ * eleven categories author their data INLINE (`data`, `staticData`, `messages`,
+ * `columns`, `content`), so there is no record that could only have come from
+ * the fixture. Measured, entry by entry, on this card's merge-base: exactly the
+ * five `plugin-view` / `plugin-grid` entries author `objectName` at all. Rather
+ * than declare that in a table, `DATA_BOUND` is derived from each entry's own
+ * JSON against the fixture's own object names — a category that becomes
+ * object-bound picks the half up with no edit here, and one that loses it moves
+ * the printed split and turns the summary red.
  *
- * ## Why an explicit two-entry map and not a rule over `plugin-*`
+ * ## What MOUNT does and does not claim
  *
- * `CATEGORY_OWN_TYPE` is enumerated, not derived. objectui#5113 scoped its pin
- * to one category because the general rule needs a per-plugin map of which
- * types each package registers, and it named `plugin-grid`'s two entries as
- * the specific reason the rule could not simply be turned on for everything.
- * objectui#5856 removed that obstacle — `plugin-grid` was the last `plugin-*`
- * category whose entries were pictures of the component rather than the
- * component — so generalizing is now possible and is deliberately left to its
- * own card. Adding a category here is a two-line change; what a reader must
- * NOT do is convert this into a loop over every `plugin-*` category with an
- * exemption list, which would turn each remaining gap into a silent entry in a
- * table rather than a card someone owns.
+ * It claims the entry's own-plugin node occupies a painted position in the
+ * tile. It does not claim the plugin's renderer produced any particular pixel:
+ * that is what (3) claims where it applies. Two weaker formulations were built
+ * and MEASURED before being rejected, both as "the live tile shows content the
+ * probe-substituted tile does not":
  *
- * The types are asserted to be REGISTERED first, separately from the render,
- * because the gallery's registration of `object-grid` is transitive: the host
- * list (`HOST_PACKAGES`) does not name `@object-ui/plugin-grid`, and the type
+ *   - by TEXT: `plugin-charts` renders recharts into a container that happy-dom
+ *     gives zero size, so two of its three tiles paint no text at all
+ *     (`advanced-line-chart`, `simple-bar-chart` — 0 new tokens against the
+ *     probe render). The assertion would be red on entries that are correct.
+ *   - by ELEMENT COUNT: same two tiles measured 3 elements live against 3
+ *     probe-substituted, i.e. no margin at all, and the `React.lazy` categories
+ *     (`kanban`, `markdown`, `code-editor`) make the count depend on whether
+ *     the dynamic import has landed.
+ *
+ * A discriminator that is red on correct entries gets the gate deleted, so the
+ * honest claim is the one asserted, and the split says how far it goes.
+ *
+ * ## The map is DERIVED from the `register()` calls, never enumerated
+ *
+ * A hard-coded `category → type` table is the same enumeration the `register()`
+ * calls already own, and it rots the first time a plugin renames a type. So
+ * `CATEGORY_OWN_TYPES` comes out of `deriveRegistryKeys` — the same derivation
+ * `scripts/check-doc-component-types.mjs` runs for its own universe and
+ * `scripts/regenerate-known-schema-types.mjs` for its generated list — keyed by
+ * the `packages/<dir>/…` site each key was registered from. Catalog category
+ * and package directory are the same string (`plugin-view` ↔
+ * `packages/plugin-view`), which is what makes the join a derivation rather
+ * than a second table.
+ *
+ * That it is a derivation is not a claim to take on trust — the rot it exists
+ * to prevent had ALREADY happened by the time it was written. The card that
+ * asked for this carried a hand-written table reading `plugin-form  form`, and
+ * measured against the register calls that is wrong: `form` is registered by
+ * `packages/components/src/renderers/form/form.tsx`, not by
+ * `@object-ui/plugin-form`, whose own keys are `object-form`,
+ * `embeddable-form`, `form-analytics` and `object-master-detail-form`. The two
+ * `plugin-form` entries are therefore the third instance of the #5113 defect,
+ * ledgered in `OWN_PLUGIN_DEBT` below against the card that owns them. An
+ * enumerated table would have inherited that mistake and reported them green.
+ *
+ * ## Why the set, not a single type
+ *
+ * `plugin-charts` breaks one-type-per-category: its entries author `chart` AND
+ * `bar-chart`, both registered by `packages/plugin-charts`. The value is a SET,
+ * and the rule stays PER ENTRY — *every* entry authors a node whose type is in
+ * the set its own package registers. Deliberately NOT "the category authors at
+ * least one type this package registers", which one conforming entry satisfies
+ * while every other entry in the category drifts.
+ *
+ * The types are asserted to be REGISTERED separately from the render, because
+ * the gallery's registration of `object-grid` is transitive: the host list
+ * (`HOST_PACKAGES`) does not name `@object-ui/plugin-grid`, and the type
  * arrives because `@object-ui/plugin-view` imports `ObjectGrid` from it, which
  * runs that package's `register` calls. That is load-bearing and invisible, so
- * it gets its own assertion — a `plugin-view` that stopped importing
- * `ObjectGrid` would otherwise turn the render case red with "Unknown
- * component type" and no explanation of why.
+ * it gets its own assertion.
+ *
+ * ## No environment exclusions, and that is a result rather than an oversight
+ *
+ * `plugin-editor` and `plugin-map` are in `EXCLUSIONS` above because Monaco
+ * wants a CDN loader and maplibre wants WebGL2 and a live tile host. Neither
+ * half here needs them to render: MOUNT replaces the own-type node with the
+ * probe, so `code-editor` and `object-map` never mount, and DATA PROVENANCE
+ * does not apply to either (no `objectName`). Both categories carry the same
+ * assertions as every other non-object-bound category — the environment limit
+ * costs them nothing in this pin.
  */
-const CATEGORY_OWN_TYPE: ReadonlyArray<
-  readonly [category: string, ownType: string, minEntries: number]
-> = [
-  ['plugin-view', 'object-view', 3],
-  ['plugin-grid', 'object-grid', 2],
-];
+/** Catalog categories that sit on a plugin's docs page. */
+const PLUGIN_CATEGORIES = [
+  ...new Set(entries.map((e) => e.meta.category).filter((c) => c.startsWith('plugin-'))),
+].sort();
 
-describe.each(CATEGORY_OWN_TYPE)(
-  'objectui#5113/#5856 — the %s entries render THROUGH %s',
-  (category, ownType, minEntries) => {
-    const categoryEntries = entries.filter((e) => e.meta.category === category);
+/**
+ * `process.cwd()` is the repo root by construction — `scripts/vitest-
+ * invocation-guard.mjs` refuses any run whose Vitest root is not it.
+ */
+const derivedRegistry = deriveRegistryKeys(process.cwd());
 
-    /** Every `type` string anywhere in a schema tree. */
-    function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
-      if (Array.isArray(node)) {
-        for (const n of node) nodeTypes(n, acc);
-        return acc;
-      }
-      if (node && typeof node === 'object') {
-        for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-          if (k === 'type' && typeof v === 'string') acc.add(v);
-          nodeTypes(v, acc);
-        }
-      }
-      return acc;
+/**
+ * category → the key set `packages/<category>` registers, joined on the
+ * registration SITE. Both spellings a package produces are kept (the bare
+ * `object-view` and the namespaced `plugin-view:object-view`), because an entry
+ * may legitimately author either.
+ */
+const CATEGORY_OWN_TYPES = new Map<string, Set<string>>();
+for (const [key, sites] of derivedRegistry.keys as Map<string, string[]>) {
+  for (const site of sites) {
+    const owner = /^packages\/([^/]+)\//.exec(site)?.[1];
+    if (!owner || !PLUGIN_CATEGORIES.includes(owner)) continue;
+    if (!CATEGORY_OWN_TYPES.has(owner)) CATEGORY_OWN_TYPES.set(owner, new Set());
+    CATEGORY_OWN_TYPES.get(owner)!.add(key);
+  }
+}
+
+/** Every `type` string anywhere in a schema tree. */
+function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(node)) {
+    for (const n of node) nodeTypes(n, acc);
+    return acc;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'type' && typeof v === 'string') acc.add(v);
+      nodeTypes(v, acc);
     }
+  }
+  return acc;
+}
+
+const ownTypesIn = (schema: unknown, own: Set<string>) =>
+  [...nodeTypes(schema)].filter((t) => own.has(t)).sort();
+
+/**
+ * The inert stand-in MOUNT substitutes for the entry's own-plugin nodes. It is
+ * namespaced with `skipFallback` so it claims no bare key any catalog entry
+ * could name, and it is unregistered on teardown because the registry is a
+ * process-level singleton.
+ */
+const PROBE_TYPE = 'catalog-pin:own-plugin-probe';
+const PROBE_MARK = 'OWN-PLUGIN-NODE-PAINTED-HERE';
+ComponentRegistry.register(
+  'own-plugin-probe',
+  () => <span data-testid="own-plugin-probe">{PROBE_MARK}</span>,
+  { namespace: 'catalog-pin', skipFallback: true },
+);
+afterAll(() => {
+  ComponentRegistry.unregister('own-plugin-probe', 'catalog-pin');
+});
+
+/** The entry's schema with every own-plugin node swapped for the probe. */
+function substituteOwnNodes(node: unknown, own: Set<string>): unknown {
+  if (Array.isArray(node)) return node.map((n) => substituteOwnNodes(n, own));
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      out[k] =
+        k === 'type' && typeof v === 'string' && own.has(v)
+          ? PROBE_TYPE
+          : substituteOwnNodes(v, own);
+    }
+    return out;
+  }
+  return node;
+}
+
+/**
+ * The objects the gallery fixture actually serves rows for. Read off the
+ * fixture above rather than restated, so an entry binding to some other object
+ * is classified as not-data-bound instead of being asserted against rows the
+ * fixture would never return.
+ */
+const FIXTURE_OBJECTS = new Set([USERS_SCHEMA.name]);
+
+/** The record that exists ONLY in the fixture — the provenance token. */
+const FIXTURE_ONLY_RECORD = USERS_ROWS[0].name;
+
+/** Does the entry bind to an object the fixture serves? Read off its own JSON. */
+function bindsFixtureObject(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some((n) => bindsFixtureObject(n));
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'objectName' && typeof v === 'string' && FIXTURE_OBJECTS.has(v)) return true;
+      if (bindsFixtureObject(v)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Entries that author NO node of their own package's types — the #5113 defect,
+ * still open. Ledgered rather than skipped, keyed to the card that owns the
+ * fix, and asserted below to STILL FAIL: an entry that starts conforming fails
+ * this file until its line is deleted, so the ledger cannot rot green.
+ *
+ * ⛔ This is not an exemption list. Nothing may be added here to make a red
+ * turn green — a new entry that does not use its own plugin is a defect in that
+ * entry, and the fix is the entry.
+ */
+const OWN_PLUGIN_DEBT: Record<string, string> = {
+  'plugin-form/basic-form':
+    'objectui#6167 — authors `form`, which `packages/components` registers, not the ' +
+    '`object-form` of `@object-ui/plugin-form`. The gallery host does not load ' +
+    '`@object-ui/plugin-form` at all, so the fix spans the entries and ' +
+    '`registerCatalogBlocks.ts`.',
+  'plugin-form/contact-form':
+    'objectui#6167 — same defect as `basic-form`; see that entry.',
+};
+
+const pluginEntries = entries.filter((e) => PLUGIN_CATEGORIES.includes(e.meta.category));
+const isDataBound = (e: (typeof pluginEntries)[number]) => bindsFixtureObject(e.schema);
+
+describe('objectui#6024 — the derivation this pin is built on', () => {
+  it('resolves every registration site — an unresolved one would shrink the sets silently', () => {
+    expect(derivedRegistry.findings).toEqual([]);
+  });
+
+  it('is not vacuous: every plugin category resolved to a non-empty key set', () => {
+    const empty = PLUGIN_CATEGORIES.filter((c) => !(CATEGORY_OWN_TYPES.get(c)?.size ?? 0));
+    expect(empty).toEqual([]);
+    expect(derivedRegistry.counters.resolved).toBeGreaterThan(100);
+  });
+
+  /**
+   * The provenance token is only provenance if the entries it is asserted
+   * against cannot supply it. Asserted rather than asserted-in-a-comment: an
+   * entry that happened to author the fixture's first record would turn the
+   * DATA half into a tautology — green forever, checking nothing.
+   *
+   * Scoped to the `plugin-*` corpus, which is this pin's universe, and that
+   * scope is measured rather than assumed: two entries elsewhere in the catalog
+   * DO author the string (`components-layout-card/profile-detail-card` and
+   * `components-layout-card/user-list-card`, found by this case on the first
+   * run). They are hand-built cards about a person named like the fixture's
+   * first row, they are not held to the DATA half, and a corpus-wide assertion
+   * would have been red on two correct entries.
+   */
+  it(`no plugin-* entry authors ${FIXTURE_ONLY_RECORD} — for them it exists only in the fixture`, () => {
+    const authoring = pluginEntries
+      .filter((e) => JSON.stringify(e.schema).includes(FIXTURE_ONLY_RECORD))
+      .map((e) => e.id);
+    expect(authoring).toEqual([]);
+  });
+
+  /**
+   * THE SPLIT, STATED BY THE GATE ITSELF. Breadth is not depth: this case is
+   * what stops "the pin covers all thirteen categories" from being read as
+   * "all thirteen carry the strong half". The literal is measured, and a new
+   * category, a new entry, or an entry changing tier turns it red for review.
+   */
+  it('states its own coverage split — how many entries carry which half', () => {
+    const tierOf = (e: (typeof pluginEntries)[number]) =>
+      OWN_PLUGIN_DEBT[e.id] ? 'ledgered-debt' : isDataBound(e) ? 'structure+mount+data' : 'structure+mount';
+    const byTier: Record<string, string[]> = {};
+    for (const e of pluginEntries) (byTier[tierOf(e)] ??= []).push(e.id);
+    const categoriesIn = (tier: string) =>
+      [...new Set((byTier[tier] ?? []).map((id) => id.split('/')[0]))].sort();
+
+    expect({
+      categories: PLUGIN_CATEGORIES.length,
+      entries: pluginEntries.length,
+      'structure+mount+data': {
+        categories: categoriesIn('structure+mount+data'),
+        entries: (byTier['structure+mount+data'] ?? []).length,
+      },
+      'structure+mount': {
+        categories: categoriesIn('structure+mount'),
+        entries: (byTier['structure+mount'] ?? []).length,
+      },
+      'ledgered-debt': byTier['ledgered-debt'] ?? [],
+    }).toEqual({
+      categories: 13,
+      entries: 41,
+      // The strong half — the tile shows a record only the fixture holds.
+      // These are the two categories whose entries bind to `users`.
+      'structure+mount+data': { categories: ['plugin-grid', 'plugin-view'], entries: 5 },
+      // The other eleven author their data inline, so no fixture-only record
+      // can reach their tiles. They carry STRUCTURE and MOUNT, and nothing here
+      // claims otherwise.
+      'structure+mount': {
+        categories: [
+          'plugin-calendar',
+          'plugin-charts',
+          'plugin-chatbot',
+          'plugin-dashboard',
+          'plugin-editor',
+          'plugin-gantt',
+          'plugin-kanban',
+          'plugin-map',
+          'plugin-markdown',
+          'plugin-timeline',
+        ],
+        entries: 34,
+      },
+      // Open defects with an owning card, NOT exemptions. See OWN_PLUGIN_DEBT.
+      'ledgered-debt': ['plugin-form/basic-form', 'plugin-form/contact-form'],
+    });
+  });
+
+  it('every ledgered entry still exists and still fails — the ledger cannot rot green', () => {
+    const ids = new Set(entries.map((e) => e.id));
+    for (const [id, reason] of Object.entries(OWN_PLUGIN_DEBT)) {
+      expect(ids.has(id), `${id} is ledgered but no longer exists in the catalog`).toBe(true);
+      expect(reason).toMatch(/objectui#\d+/);
+      const entry = entries.find((e) => e.id === id)!;
+      const own = CATEGORY_OWN_TYPES.get(entry.meta.category) ?? new Set<string>();
+      expect(
+        ownTypesIn(entry.schema, own),
+        `${id} now authors a node its own package registers — delete its OWN_PLUGIN_DEBT ` +
+          'line so the entry is held to the rule like every other one.',
+      ).toEqual([]);
+    }
+  });
+});
+
+describe.each(PLUGIN_CATEGORIES)(
+  'objectui#5113/#5856/#6024 — the %s entries use their own plugin',
+  (category) => {
+    const own = CATEGORY_OWN_TYPES.get(category) ?? new Set<string>();
+    const categoryEntries = pluginEntries.filter((e) => e.meta.category === category);
+    const held = categoryEntries.filter((e) => !OWN_PLUGIN_DEBT[e.id]);
 
     it('the category is populated (guard is not vacuous)', () => {
-      expect(categoryEntries.length).toBeGreaterThanOrEqual(minEntries);
+      expect(categoryEntries.length).toBeGreaterThanOrEqual(2);
     });
 
-    it(`${ownType} is registered in the gallery's registration set`, () => {
+    it(`every type packages/${category} registers resolves in the gallery's registration set`, () => {
+      const unresolved = [...own].filter((t) => !ComponentRegistry.get(t));
       expect(
-        ComponentRegistry.get(ownType),
-        `${ownType} resolves to no renderer, so the render case below would fail ` +
-          'with the OBJUI-001 panel rather than with anything about the entries. ' +
-          'For `object-grid` this is transitive — see the header.',
-      ).toBeTruthy();
+        unresolved,
+        `these types resolve to no renderer, so a render case below would fail with the ` +
+          'OBJUI-001 panel rather than with anything about the entries. For `object-grid` ' +
+          'this is transitive — see the header.',
+      ).toEqual([]);
     });
 
-    it.each(categoryEntries.map((e) => [e.id, e.schema] as const))(
-      `%s authors a ${ownType} node`,
-      (_id, schema) => {
-        expect([...nodeTypes(schema)]).toContain(ownType);
+    it.each(held.map((e) => [e.id, e.schema] as const))(
+      '%s authors a node whose type its own package registers',
+      (id, schema) => {
+        expect(
+          ownTypesIn(schema, own),
+          `${id} authors none of ${[...own].sort().join(', ')} — it is a picture of the ` +
+            'component rather than the component. Fix the entry, never this list.',
+        ).not.toEqual([]);
       },
     );
 
-    it.each(categoryEntries.map((e) => [e.id, e.schema] as const))(
-      '%s puts data from the gallery data source on screen',
-      async (_id, schema) => {
-        const r = await renderEntry(schema);
+    it.each(held.map((e) => [e.id, e.schema] as const))(
+      '%s mounts that node where the tile actually paints',
+      async (id, schema) => {
+        const r = await renderEntry(substituteOwnNodes(schema, own));
         try {
-          // Not authored anywhere in the catalog — it exists only in the fixture.
-          expect(r.text).toContain('Alice Johnson');
+          expect(
+            r.text,
+            `${id} authors a node its own package registers, but replacing it with an inert ` +
+              'probe changes nothing on screen — the node never reached the DOM, so it is a ' +
+              'stray rather than the thing the tile is made of.',
+          ).toContain(PROBE_MARK);
         } finally {
           teardown(r);
         }
       },
     );
+
+    const dataBound = held.filter((e) => isDataBound(e));
+    if (dataBound.length > 0) {
+      it.each(dataBound.map((e) => [e.id, e.schema] as const))(
+        '%s puts data from the gallery data source on screen',
+        async (_id, schema) => {
+          const r = await renderEntry(schema);
+          try {
+            // Not authored anywhere in the catalog — it exists only in the
+            // fixture, which the case above pins.
+            expect(r.text).toContain(FIXTURE_ONLY_RECORD);
+          } finally {
+            teardown(r);
+          }
+        },
+      );
+    }
   },
 );
 
