@@ -2375,7 +2375,9 @@ const zh = {
         object: '对象',
         dashboard: '仪表盘',
         page: '页面',
+        report: '报表',
         record: '记录',
+        metadata: '元数据',
       },
     },
     starredApps: {

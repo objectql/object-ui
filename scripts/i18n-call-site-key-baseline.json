@@ -34,8 +34,5 @@
     "Both entries below were measured by the check's first run, not created by it."
   ],
 
-  "missingMembers": {
-    "home.recentApps.itemType.metadata": "objectui#6023",
-    "home.recentApps.itemType.report": "objectui#6023"
-  }
+  "missingMembers": {}
 }

@@ -2304,7 +2304,9 @@ const fr = {
         object: "Objet",
         dashboard: "Tableau de bord",
         page: "Page",
+        report: "Rapport",
         record: "Enregistrement",
+        metadata: "Métadonnées",
       },
     },
     starredApps: {

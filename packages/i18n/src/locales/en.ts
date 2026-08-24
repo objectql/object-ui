@@ -2543,7 +2543,9 @@ const en = {
         object: 'Object',
         dashboard: 'Dashboard',
         page: 'Page',
+        report: 'Report',
         record: 'Record',
+        metadata: 'Metadata',
       },
     },
     starredApps: {

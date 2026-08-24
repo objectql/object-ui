@@ -2315,7 +2315,9 @@ const ru = {
         object: "Объект",
         dashboard: "Панель",
         page: "Страница",
+        report: "Отчёт",
         record: "Запись",
+        metadata: "Метаданные",
       },
     },
     starredApps: {

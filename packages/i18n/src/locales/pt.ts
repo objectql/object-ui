@@ -2301,7 +2301,9 @@ const pt = {
         object: "Objeto",
         dashboard: "Painel",
         page: "Página",
+        report: "Relatório",
         record: "Registro",
+        metadata: "Metadados",
       },
     },
     starredApps: {
