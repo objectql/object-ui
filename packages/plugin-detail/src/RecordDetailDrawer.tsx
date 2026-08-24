@@ -27,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@object-ui/components';
+import { isExpandableFieldType } from '@object-ui/core';
 import type { DataSource } from '@object-ui/types';
 import { SYSTEM_MANAGED_FIELD_NAMES } from '@object-ui/types';
 import { InlineEditProvider } from '@object-ui/react';
@@ -224,10 +225,27 @@ export function RecordDetailDrawer({
     .filter((name) => !schemaFields[name]?.hidden)
     .map((name) => {
       const def = schemaFields[name] || {};
-      const isLookup =
-        def.type === 'lookup' ||
-        def.type === 'master_detail' ||
-        def.type === 'reference';
+      // Which types are reference-bearing is NOT restated here: it is
+      // `EXPANDABLE_FIELD_TYPES` in `@object-ui/core`, read through
+      // `isExpandableFieldType` — the same family the `$expand` builder, the
+      // object form's `needsDataSourceWiring`, the grid's `bulkParamToField`
+      // and the dashboard's whitelist read (objectui#4770 / #4790 / #4815 /
+      // #5312 / #5692). The literal that stood here diverged in BOTH
+      // directions (objectui#5874):
+      //
+      //  - it lacked `user` and `tree`. Both carry the same foreign-key
+      //    storage as `lookup`, so the reason stated above — the drawer has no
+      //    relation picker, and a plain text input would let the user overwrite
+      //    the relation with a free-form string — applied to them just as much.
+      //    Gaining them RESTORES the stated rule rather than widening it.
+      //  - it carried a fifth spelling `reference`, which no producer can emit:
+      //    absent from `@objectstack/spec`'s closed `FieldType` vocabulary,
+      //    exactly where `owner` sat before objectui#4814 retired it.
+      //
+      // Pinned by an identity spy on that `has`, so a member-identical private
+      // copy fails rather than quietly re-forking the table. Never
+      // `new Set([...EXPANDABLE_FIELD_TYPES, ...])` — a copy re-forks it.
+      const isLookup = isExpandableFieldType(def);
       // Carry through the full field metadata so DetailView's inline-edit
       // mode can resolve the correct widget (e.g. a select with options
       // rather than a free-form text input). DetailSection performs the

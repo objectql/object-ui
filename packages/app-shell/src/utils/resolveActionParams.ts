@@ -29,7 +29,11 @@
  * rejects it, the server's `.strict()` parse rejects it, and this resolver
  * names it via {@link RESOLVED_ONLY_PARAM_KEYS} rather than reading it.
  */
+import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import type { ActionParamDef, ActionParamOption } from '@object-ui/core';
+// The fold from a PARAM type spelling to the widget key that renders it —
+// the one alias table, read rather than restated. See `isLookupResolvedType`.
+import { resolveParamWidgetType } from './paramToField';
 import type { I18nLabel } from '@objectstack/spec/ui';
 // Aliased per PR #4169's convention — app-shell has its OWN `resolveI18nLabel`
 // (renamed `resolveKeyedI18nLabel` by objectui#4167) over the translation-KEY
@@ -486,7 +490,41 @@ export function resolveActionParam(
   /** Lookup/reference params carry extra picker config that the dialog
    *  forwards to `<LookupField>`. Without these the picker would fall back
    *  to a plain text input. */
-  const isLookupResolvedType = resolvedType === 'lookup' || resolvedType === 'reference';
+  // Which params are reference-bearing is NOT restated here. It is
+  // `EXPANDABLE_FIELD_TYPES` in `@object-ui/core` — the one relational family
+  // (objectui#4770 / #4790 / #4815 / #5312 / #5692) — asked over the widget key
+  // `resolveParamWidgetType()` folds this spelling onto. That is deliberately
+  // the SAME expression `paramToField()` evaluates one step later: this half
+  // POPULATES the picker group below and that half FORWARDS it to the widget,
+  // so a divergence between them silently drops a picker's config. Asking the
+  // one question through the one alias table is what makes them agree
+  // mechanically rather than by hand (objectui#5874).
+  //
+  // The literal that stood here diverged from the family in BOTH directions,
+  // and on THREE members rather than the two its three sibling faces missed:
+  //
+  //  - it lacked `master_detail`, `user` and `tree`. A field-backed param over
+  //    any of them inherited NO picker config, so `paramToField()` then found
+  //    no `referenceTo` and degraded the param to a plain record-id text input
+  //    — the unexplained "paste a UUID" box objectui#3405 exists to prevent.
+  //    Gaining them RESTORES the rule this block states; it does not widen it.
+  //  - it carried `reference`, and that spelling survives the change: the fold
+  //    is where it belongs (`PARAM_TYPE_ALIASES` in `paramToField.ts` keeps it
+  //    as a legacy param dialect, folded to `lookup`), not hand-copied into a
+  //    membership test. Measured, not assumed — `reference` is refused by
+  //    `ActionParamSchema` and absent from `@objectstack/spec`'s `FieldType`,
+  //    with `lookup` / `master_detail` / `user` / `tree` accepted as live
+  //    controls and retired `owner` plus a nonsense spelling refused as dead
+  //    ones — so it is undeclarable, but the dialog still ACCEPTS it from
+  //    params already authored with it, and that acceptance is the alias
+  //    table's to state, once.
+  //
+  // Pinned by an identity spy on that `has`, so a member-identical private copy
+  // fails rather than quietly re-forking. Never
+  // `new Set([...EXPANDABLE_FIELD_TYPES, ...])`.
+  const isLookupResolvedType = EXPANDABLE_FIELD_TYPES.has(
+    resolveParamWidgetType(resolvedType),
+  );
   const lookupExtras: Partial<ActionParamDef> = isLookupResolvedType
     ? {
         // Inline `reference` wins, matching how every other inline value
