@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import type { DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardWidgetSchema, DashboardWidgetTypeName } from '@object-ui/types';
 import { resolveDashboardFilterDefs, type DashboardFilterDef, type ComponentMeta } from '@object-ui/core';
 import type { MetadataInspectorProps } from '../inspector-registry.js';
 import { t, tFormat } from '../i18n.js';
@@ -49,7 +49,14 @@ import type { ObjectFieldInfo } from '../previews/useObjectFields.js';
 // (object / valueField / categoryField / aggregate) was removed from the spec
 // at @objectstack/spec 9.0.0 and is no longer authored here — its fields are
 // gone so no Studio surface can emit the dead shape (framework#3251).
-const WIDGET_TYPES = [
+/**
+ * The widget families this inspector offers. TYPED to `DashboardWidgetTypeName`
+ * (objectui#4600, which closed the widget `type` vocabulary) so the inspector
+ * cannot offer a type validation refuses — every entry here is a spec
+ * visualization family. A hand-written SUBSET is fine; offering something
+ * outside the vocabulary is not.
+ */
+const WIDGET_TYPES: ReadonlyArray<{ value: DashboardWidgetTypeName; label: string }> = [
   { value: 'metric', label: 'KPI Metric' },
   { value: 'bar', label: 'Bar Chart' },
   { value: 'horizontal-bar', label: 'Horizontal Bar' },
@@ -286,7 +293,14 @@ export function DashboardWidgetInspector({
       <Field id="widget-type" label={t('engine.inspector.widget.type', locale)}>
         <Select
           value={widget.type ?? 'metric'}
-          onValueChange={(v) => patchWidget({ type: v })}
+          onValueChange={(v) => {
+            // Resolve the Select's string against the list that rendered the
+            // items rather than casting it onto the closed type — a value not in
+            // the palette writes nothing instead of storing a `type` the
+            // platform refuses at publish.
+            const picked = WIDGET_TYPES.find((wt) => wt.value === v);
+            if (picked) patchWidget({ type: picked.value });
+          }}
           disabled={readOnly}
         >
           <SelectTrigger id="widget-type">

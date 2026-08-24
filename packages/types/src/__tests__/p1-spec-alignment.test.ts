@@ -331,7 +331,15 @@ describe('P1.2 FormView Spec Alignment', () => {
 describe('P1.3 Dashboard Spec Alignment', () => {
   it('should accept widget dataset binding properties (ADR-0021)', () => {
     const widget: DashboardWidgetSchema = {
-      type: 'bar-chart',
+      // `bar`, not `bar-chart`. This fixture said `bar-chart` until objectui#4600
+      // closed the widget `type` vocabulary and tsc reported it: `bar-chart` is a
+      // `plugin-charts` COMPONENT type, not a widget visualization family, and the
+      // spec's family for this chart is `bar`. A dataset-bound widget naming it
+      // never reaches `DatasetWidget` — `classifyWidgetType` returns `passthrough`
+      // — so the fixture was pinning a shape that cannot render what it describes.
+      // The assertions below are about the ADR-0021 dataset binding and are
+      // unaffected by the spelling.
+      type: 'bar',
       title: 'Revenue by Region',
       filter: [['stage', '=', 'Closed Won']],
       dataset: 'opportunity_metrics',
