@@ -308,7 +308,24 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
     { name: 'sections', type: 'array', label: 'Parent Sections' },
     { name: 'details', type: 'array', label: 'Detail Collections', required: true },
     { name: 'recordId', type: 'string', label: 'Parent Record Id', description: 'The parent record to load in `edit` mode. Leave unset for `create`.' },
-    { name: 'formType', type: 'string', label: 'Parent Form Presentation', description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
+    // TWO values, not the six `object-form` declares (objectui#5939). A bare
+    // `string` here let an out-of-vocabulary value match NO renderer branch and
+    // fall through to the flat field list with no diagnostic — measured: a
+    // `formType` of `'wizzard'` renders the parent half with its section headers
+    // silently gone. The vocabulary is narrowed to what the master-detail
+    // composition actually supports, which the repo already states twice:
+    // `MasterDetailFormSchema.formType?: 'simple' | 'tabbed'`
+    // (MasterDetailForm.tsx) and the coercion `formType === 'tabbed' ? 'tabbed'
+    // : 'simple'` ObjectForm.tsx uses when it routes a `subforms` schema in here.
+    // The other four are reachable branches that BREAK this composition, each
+    // observed rather than assumed: `drawer`/`modal` host the parent half in a
+    // portal dialog outside the master-detail container, so the single bottom
+    // Save bar finds no `<form>` to submit; `wizard` mounts only the current
+    // step's fields and turns that Save bar into a `Next`; `split` renders two
+    // panels but persists through `dataSource.create` instead of the batch.
+    // Declaring them would mint choices an authoring UI offers and this block
+    // cannot honour.
+    { name: 'formType', type: 'enum', label: 'Parent Form Presentation', enum: ['simple', 'tabbed'], description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
     { name: 'fields', type: 'array', label: 'Parent Fields', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'submitText', type: 'string', label: 'Submit Button Text', description: 'Label of the button that saves the parent and every detail row in one batch.' },
