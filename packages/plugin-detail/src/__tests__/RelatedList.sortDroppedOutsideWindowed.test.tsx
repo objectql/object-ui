@@ -78,7 +78,7 @@ const columns = [
  */
 const makeDS = () => ({
   find: vi.fn(async (_api: string, params: any) => {
-    let rows = [...PK_ORDER];
+    const rows = [...PK_ORDER];
     const orderby = params?.$orderby;
     if (Array.isArray(orderby) && orderby.length > 0) {
       const { field, order } = orderby[0];
