@@ -972,6 +972,7 @@ const de = {
     cancelApprovalTooltipUnlocked: "Ausstehende Genehmigungsanfrage zurückziehen",
     cancelApprovalFailed: "Genehmigung konnte nicht zurückgezogen werden",
     cancelApprovalUnavailable: "Das Zurückziehen von Genehmigungen wird bei dieser Datenquelle nicht unterstützt",
+    pathLabel: 'Datensatzpfad',
     pathStageCompleted: '{{stage}}, abgeschlossen',
     pathStageCurrent: '{{stage}}, aktuelle Phase',
     pathStageUpcoming: '{{stage}}, ausstehend',

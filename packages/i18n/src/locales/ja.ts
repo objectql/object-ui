@@ -983,6 +983,7 @@ const ja = {
     cancelApprovalTooltipUnlocked: "承認待ちリクエストを取り消す",
     cancelApprovalFailed: "承認の取り消しに失敗しました",
     cancelApprovalUnavailable: "このデータソースでは承認の取り消しはサポートされていません",
+    pathLabel: 'レコードパス',
     pathStageCompleted: '{{stage}}、完了',
     pathStageCurrent: '{{stage}}、現在のステージ',
     pathStageUpcoming: '{{stage}}、未着手',

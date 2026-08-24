@@ -229,6 +229,12 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.cancelApprovalTooltipUnlocked': 'Recall the pending approval request',
   'detail.cancelApprovalFailed': 'Failed to recall approval',
   'detail.cancelApprovalUnavailable': 'Recalling approvals is not supported on this data source',
+  // `record:path`'s own container label — the accessible name of the stage LIST
+  // (objectui#5956). Was a hardcoded `'Record path'` literal in the renderer, so
+  // a zh/ja/ar session heard English for the list while every stage inside it
+  // announced in the session locale. The `schema.aria.label` author override
+  // still wins ahead of this fallback.
+  'detail.pathLabel': 'Record path',
   // `record:path` stage state, composed into each stage's accessible name
   // (objectui#5916). A `role="listitem"` takes its name from the AUTHOR only —
   // visually-hidden text inside one computes to an empty accessible name — so the

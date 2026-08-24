@@ -879,6 +879,7 @@ const zh = {
     cancelApprovalTooltipUnlocked: '撤回当前的待审批请求',
     cancelApprovalFailed: '撤回审批失败',
     cancelApprovalUnavailable: '当前数据源不支持撤回审批',
+    pathLabel: '记录路径',
     pathStageCompleted: '{{stage}}，已完成',
     pathStageCurrent: '{{stage}}，当前阶段',
     pathStageUpcoming: '{{stage}}，未开始',

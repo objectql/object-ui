@@ -222,7 +222,7 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
       <div
         className="hidden sm:flex w-full items-start gap-2"
         role="list"
-        aria-label={(schema.aria as any)?.label || 'Record path'}
+        aria-label={(schema.aria as any)?.label || t('detail.pathLabel')}
       >
         <div className="flex flex-1 items-start gap-1.5">
           {forwardStages.map((stage, idx) => {
@@ -241,8 +241,35 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
         </div>
         {lostStages.length > 0 && (
           // Separated alt-terminus group — a gap and a divider, so it does not
-          // read as "step N+1" in the forward path.
-          <div className="flex items-start gap-1.5 pl-2 border-l border-border/40" aria-label="Alternative terminal stages">
+          // read as "step N+1" in the forward path. That separation is PURELY
+          // VISUAL, and deliberately carries no accessible name (objectui#5956).
+          //
+          // It used to hold `aria-label="Alternative terminal stages"` on this
+          // bare `div`. A `div` has the `generic` role, which browsers do not
+          // expose an accessible name on, so that string reached nobody: it was
+          // INERT, not merely untranslated, and translating it would have shipped
+          // copy to ten packs that no user can hear. The two live options were to
+          // give this wrapper a role that takes a name (`group`) or to drop the
+          // label. Dropping it wins on three measurements:
+          //
+          //   1. Nothing is lost. The label was never announced, so no user's
+          //      experience changes by removing it — whereas NAMING the group is
+          //      new verbosity on every traversal of this row.
+          //   2. It would be redundant. Every stage inside already announces
+          //      `closed lost` in the session locale (objectui#5916,
+          //      `detail.pathStageLost*`), so "these are alternative terminal
+          //      stages" is already carried item by item, in the one place
+          //      `role="list"` can carry it. The forward/alt distinction is
+          //      ALREADY in the accessible name.
+          //   3. It would fork the two rows. The mobile row below renders every
+          //      stage in ONE flat list with no alt group at all, so a named
+          //      group here would make one control expose two different
+          //      structures by viewport — against the invariant
+          //      `record-path.stageStateAccessibleName.i18n.test.tsx` states
+          //      ("both rows carry identical names").
+          //
+          // So the wrapper stays a presentational box.
+          <div className="flex items-start gap-1.5 pl-2 border-l border-border/40">
             {lostStages.map((stage, lIdx) => {
               const absIdx = firstLostIdx + lIdx;
               return renderStage({
@@ -262,7 +289,7 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
       <div
         className="flex sm:hidden w-full items-start gap-2 overflow-x-auto pb-1 -mx-1 px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="list"
-        aria-label={(schema.aria as any)?.label || 'Record path'}
+        aria-label={(schema.aria as any)?.label || t('detail.pathLabel')}
       >
         {stages.map((stage, idx) => {
           const kind = stageKinds[idx];

@@ -972,6 +972,7 @@ const ko = {
     cancelApprovalTooltipUnlocked: "대기 중인 승인 요청 취소",
     cancelApprovalFailed: "승인 취소 실패",
     cancelApprovalUnavailable: "이 데이터 소스에서는 승인 취소가 지원되지 않습니다",
+    pathLabel: '레코드 경로',
     pathStageCompleted: '{{stage}}, 완료됨',
     pathStageCurrent: '{{stage}}, 현재 단계',
     pathStageUpcoming: '{{stage}}, 예정',

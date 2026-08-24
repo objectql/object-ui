@@ -973,6 +973,7 @@ const pt = {
     cancelApprovalTooltipUnlocked: "Cancelar a solicitação de aprovação pendente",
     cancelApprovalFailed: "Falha ao cancelar aprovação",
     cancelApprovalUnavailable: "O cancelamento de aprovações não é suportado por esta fonte de dados",
+    pathLabel: 'Caminho do registro',
     pathStageCompleted: '{{stage}}, concluída',
     pathStageCurrent: '{{stage}}, etapa atual',
     pathStageUpcoming: '{{stage}}, pendente',

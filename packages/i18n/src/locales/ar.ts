@@ -978,6 +978,7 @@ const ar = {
     cancelApprovalTooltipUnlocked: "إلغاء طلب الموافقة المعلق",
     cancelApprovalFailed: "فشل إلغاء الموافقة",
     cancelApprovalUnavailable: "إلغاء الموافقات غير مدعوم من مصدر البيانات هذا",
+    pathLabel: 'مسار السجل',
     pathStageCompleted: '{{stage}}، مكتملة',
     pathStageCurrent: '{{stage}}، المرحلة الحالية',
     pathStageUpcoming: '{{stage}}، قادمة',

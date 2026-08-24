@@ -991,6 +991,7 @@ const ru = {
     cancelApprovalTooltipUnlocked: "Отменить ожидающий запрос на согласование",
     cancelApprovalFailed: "Не удалось отменить согласование",
     cancelApprovalUnavailable: "Отмена согласований не поддерживается этим источником данных",
+    pathLabel: 'Путь записи',
     pathStageCompleted: '{{stage}}, завершён',
     pathStageCurrent: '{{stage}}, текущий этап',
     pathStageUpcoming: '{{stage}}, предстоит',

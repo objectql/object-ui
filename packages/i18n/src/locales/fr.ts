@@ -974,6 +974,7 @@ const fr = {
     cancelApprovalTooltipUnlocked: "Annuler la demande d'approbation en attente",
     cancelApprovalFailed: "Échec de l'annulation de l'approbation",
     cancelApprovalUnavailable: "L'annulation des approbations n'est pas prise en charge par cette source de données",
+    pathLabel: "Parcours de l'enregistrement",
     pathStageCompleted: '{{stage}}, terminée',
     pathStageCurrent: '{{stage}}, étape actuelle',
     pathStageUpcoming: '{{stage}}, à venir',
