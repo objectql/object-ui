@@ -7,12 +7,14 @@
     "here; all-locales-key-parity.test.ts then demands the same key in the other nine",
     "packs. Adding an inline defaultValue is NOT a fix -- that is the mechanism that hid",
     "these for months (objectui#3517).",
-    "missingKeys AND missingPrefixes ARE EMPTY -- the 258-key stock objectui#3546 opened with",
-    "was paid off across seven slices, the last of them two template families. Keep both lists:",
-    "empty is their terminal, load-bearing state. Any NEW unresolved call-site key is",
-    "`unexpected` against an empty baseline and fails the build, which is the point.",
-    "missingMembers is the third list (objectui#4964) and is NOT empty: it holds debt the",
-    "exact-member check MEASURED on its first run, not debt this repo took on."
+    "Of the three lists in this file, missingKeys and missingPrefixes are the PAIR that",
+    "objectui#3546 ratcheted to zero -- BOTH LISTS ARE NOW EMPTY. The 258-key stock it opened",
+    "with was paid off across seven slices, the last of them two template families. Keep both",
+    "of that pair: empty is their terminal, load-bearing state. Any NEW unresolved call-site",
+    "key is `unexpected` against an empty baseline and fails the build, which is the point.",
+    "missingMembers is a THIRD list (objectui#4964), NOT part of that pair and NOT empty -- so",
+    "the sentence above counts missingKeys and missingPrefixes only, never all three. It holds",
+    "debt the exact-member check MEASURED on its first run, not debt this repo took on."
   ],
 
   "missingKeys": {},
