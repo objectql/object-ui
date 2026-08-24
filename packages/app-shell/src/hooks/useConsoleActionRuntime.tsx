@@ -596,14 +596,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // memoized once) while the config thunks read the latest object scope and
   // refresh callback — the factory's in-flight guard only spans invocations of
   // the same instance.
-  const serverActionEnvRef = useRef({ objApiName, refresh, t });
-  serverActionEnvRef.current = { objApiName, refresh, t };
+  const serverActionEnvRef = useRef({ objApiName, refresh, t, navigate });
+  serverActionEnvRef.current = { objApiName, refresh, t, navigate };
   const serverActionHandler = useMemo(
     () => createConsoleServerActionHandler({
       fetch: authFetch,
       baseUrl: () => import.meta.env.VITE_SERVER_URL || '',
       resolveObject: () => serverActionEnvRef.current.objApiName,
       onRefresh: () => serverActionEnvRef.current.refresh(),
+      // SPA route hop for a handler-returned `openIn: 'self'` — react-router's
+      // own `navigate`, read through the env ref like every other live value
+      // here so the handler instance stays stable.
+      navigate: (url: string) => serverActionEnvRef.current.navigate(url),
       // Read through the env ref so the spinner-tab / popup-blocked copy
       // follows a language switch without invalidating the handler instance
       // (objectui#3321).

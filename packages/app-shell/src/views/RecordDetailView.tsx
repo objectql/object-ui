@@ -879,8 +879,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // `action.recordId`; header/more actions carry none and use this page's id.
   // The env ref keeps the handler instance stable across renders (authFetch is
   // memoized once) while the thunks read the live record/object.
-  const serverActionEnvRef = useRef({ objectName, pureRecordId, notifyRecordChanged, t });
-  serverActionEnvRef.current = { objectName, pureRecordId, notifyRecordChanged, t };
+  const serverActionEnvRef = useRef({ objectName, pureRecordId, notifyRecordChanged, t, navigate });
+  serverActionEnvRef.current = { objectName, pureRecordId, notifyRecordChanged, t, navigate };
   const serverActionHandler = useMemo(
     () => createConsoleServerActionHandler({
       fetch: authFetch,
@@ -890,6 +890,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         recordId: (action as { recordId?: unknown }).recordId ?? serverActionEnvRef.current.pureRecordId ?? undefined,
       }),
       onRefresh: () => serverActionEnvRef.current.notifyRecordChanged(),
+      // SPA route hop for a handler-returned `openIn: 'self'` — react-router's
+      // own `navigate`, matching the shared console runtime.
+      navigate: (url: string) => serverActionEnvRef.current.navigate(url),
       // Read through the env ref so the spinner-tab / popup-blocked copy
       // follows a language switch without invalidating the handler instance
       // (objectui#3321).
