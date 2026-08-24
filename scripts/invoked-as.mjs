@@ -7,11 +7,16 @@
  *   node scripts/invoked-as.mjs --self-test
  *
  * Every CLI script in `scripts/` has to separate "node ran me" from "something
- * imported me" before it decides whether to do anything. Each one used to
- * answer that with its own hand-typed comparison of `process.argv[1]` against
- * `import.meta.url`, and the copies had drifted into ELEVEN distinct spellings
- * across 33 files -- measured, not estimated. Nine of the eleven were wrong,
- * and wrong in a direction nothing in CI can see.
+ * imported me" before it decides whether to do anything. Left to a hand-typed
+ * comparison of `process.argv[1]` against `import.meta.url`, those answers
+ * drift: in the objectstack tree this module was ported FROM (#5984) they had
+ * reached ELEVEN distinct spellings across 33 files -- measured, not estimated
+ * -- and nine of the eleven were wrong, in a direction nothing in CI can see.
+ *
+ * THIS repository has not been swept, and no gate here enforces the rule. Read
+ * "## Nothing here enforces this yet" below before concluding otherwise: every
+ * path this header names outside `scripts/` is objectstack's, and several under
+ * `scripts/` are too.
  *
  * ## The bug every hand-typed spelling had
  *
@@ -22,19 +27,25 @@
  *
  * That is the silent-success direction this tree treats as worse than no check
  * at all. The CI wrappers spawn these tools and hold `result.status` only, so
- * an inert child is a GREEN gate. Measured on the tree that motivated this
- * module:
+ * an inert child is a GREEN gate. Measured HERE, on a real blocking gate, with
+ * one guide file made deliberately wrong so that the direct run is RED:
  *
- *   scripts/pm/check-governed-merges.mjs --test AGENTS.md
- *     direct  : exit=3, "GOVERNED -- no seat arms auto-merge"
- *     symlink : exit=0, no output
+ *   node scripts/check-skills-paths.mjs
+ *     direct  : exit=1, 696 bytes naming the dead path and how to fix it
+ *     symlink : exit=0, no output at all
  *
- * and `EXIT_TEST_NOT_GOVERNED` is 0. So through a symlink the register's
- * "this PR is GOVERNED, a human merge is the review record" answer and its
- * "NOT governed, ordinary queue landing applies" answer are the SAME EXIT CODE.
- * A seat reading the status rather than the printed verdict gets a clearance
- * to arm auto-merge from a tool that never ran, on the one surface where human
- * merge IS the review record (Prime Directive #14).
+ * Same tree, same defect, same gate -- reached through a symlink it reports the
+ * clean answer, and a wrapper holding `result.status` cannot tell that apart
+ * from a pass. `check-skills-paths.mjs` carries the no-realpath spelling, as do
+ * 27 of its neighbours; see below.
+ *
+ * The same measurement in objectstack, where this module came from, lands on a
+ * gate whose exit codes make it worse still: `scripts/pm/check-governed-merges.mjs`
+ * prints "GOVERNED -- no seat arms auto-merge" with exit 3 directly and exits 0
+ * with no output through a symlink -- and its `EXIT_TEST_NOT_GOVERNED` is also
+ * 0, so the two opposite verdicts collapse to one status and a seat reading the
+ * status gets a clearance to arm auto-merge from a tool that never ran. That
+ * file and that directive number are objectstack's; neither exists here.
  *
  * ## The two other directions the copies failed in
  *
@@ -70,27 +81,54 @@
  * it, exported so the predicate is pinned by cases rather than trusted by
  * reading.
  *
- * `scripts/check-entry-guard.mjs` enforces this: a `process.argv[1]` in an
- * entry-guard position anywhere in `scripts/**` that is not this module is a
- * failure. That gate is what stops a TWELFTH spelling, which is the whole
- * reason this file exists rather than a one-time sweep.
+ * ## Nothing here enforces this yet -- the rule is a CONVENTION
  *
- * ## The sibling in `packages/cli`, and why the duplication is deliberate
+ * An earlier version of this paragraph said `scripts/check-entry-guard.mjs`
+ * enforces the rule -- that a `process.argv[1]` in an entry-guard position
+ * anywhere in `scripts/**` outside this module is a failure. It does not. That
+ * file has never existed in this repository. It exists in objectstack, wired
+ * there as `check:entry-guard`; the port (#5984) brought this module and its
+ * prose, and neither the gate nor the sweep the prose describes. Measured on
+ * `7c96c9420`:
  *
- * `packages/cli/src/utils/invocation.ts` exports `isProcessEntry`, the same
- * predicate for the same reason (its header cites this defect). It is NOT
- * imported here and this is not imported there: `scripts/` runs as plain .mjs
+ *   git grep -n 'check-entry-guard'             -> ONE hit: this paragraph
+ *   git grep -l 'isEntrypoint' -- scripts       -> this file, and ONE adopter
+ *   git grep -l 'process.argv\[1\]' -- scripts   -> 30 files
+ *
+ * The one adopter is `scripts/pm/check-half-states.mjs`, which arrived in the
+ * same PR. The 30 files are this one plus TWENTY-NINE hand-typed guards: 28
+ * `.mjs`, in NINE textually distinct spellings and not one carrying a realpath
+ * leg -- including the exact percent-encoding spelling this header warns about
+ * above, still in `check-node-esm-load.mjs:847` -- and `scripts/shadcn-sync.js`,
+ * the only hand-typed guard here that does carry the realpath leg.
+ *
+ * A gate is still the right answer: without one, converting those 29 is a
+ * one-time sweep that starts rotting the day it merges, because nothing stops a
+ * THIRTIETH spelling from being typed next week. Both halves -- the gate and
+ * the sweep -- are tracked in #6092. Until that lands, `isEntrypoint` here is a
+ * convention: reach for it in new scripts, and do not read this file as
+ * evidence that the tree already has.
+ *
+ * ## The siblings, and why the duplication is deliberate
+ *
+ * objectstack's `packages/cli/src/utils/invocation.ts` exports `isProcessEntry`,
+ * the same predicate for the same reason (its header cites this defect). Note
+ * the repo: objectui's `packages/cli` has no such util, and `isProcessEntry`
+ * appears nowhere in this tree, so the pairing below is a CROSS-REPO obligation
+ * rather than a local one.
+ *
+ * Why the copies are not collapsed into one: `scripts/` runs as plain .mjs
  * against a possibly-unbuilt tree, and making the whole tooling layer depend on
  * a package build to answer "was I run?" trades this bug for a worse one.
  *
- * The duplication is therefore structural, but DIVERGENCE is not allowed --
- * two predicates answering this question differently is precisely the defect
- * being closed. Both carry the same two legs: realpath for symlinks, and
- * directory resolution for `node <dir>`. Change one, change the other.
+ * The duplication is therefore structural, but DIVERGENCE is not allowed -- two
+ * predicates answering this question differently is precisely the defect being
+ * closed. All three copies carry the same two legs: realpath for symlinks, and
+ * directory resolution for `node <dir>`. Change one, change the others.
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -164,7 +202,14 @@ export function selfTest() {
   t('an absent argv[1] is not this module -- the `node --eval` importer', !invokedAs(undefined, SELF) && !invokedAs('', SELF));
   t('an exact path is this module', invokedAs(SELF, SELF));
   t('a relative path resolving to this module is this module', invokedAs(relative(process.cwd(), SELF), SELF));
-  t('an unrelated existing file is not this module', !invokedAs(resolve(SELF, '..', 'js-comment-mask.mjs'), SELF));
+  // A neighbour that must really be there. The ported spelling of this case
+  // named `js-comment-mask.mjs`, which exists in objectstack and NOT here -- so
+  // it silently became a second copy of the case below it, and both passed. The
+  // existence assertion is what stops that from happening again the next time
+  // the named file moves.
+  const neighbour = resolve(SELF, '..', 'check-control-bytes.mjs');
+  t('the neighbour fixture still exists (or the next case tests nothing)', existsSync(neighbour), neighbour);
+  t('an unrelated existing file is not this module', !invokedAs(neighbour, SELF));
   t('an entry path that cannot be read is not this module (no throw)', !invokedAs(resolve(SELF, '..', 'no-such-file-here.mjs'), SELF));
 
   // ── the fixture: a probe reached three ways ────────────────────────────────
