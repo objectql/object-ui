@@ -118,6 +118,23 @@ export default tseslint.config({
     // signature needs no exemptions — 47 legitimate `options` objects exist
     // repo-wide and not one carries a `$`-prefixed key.
     'object-ui/no-query-params-under-options': 'error',
+    // objectui#5458 ratchet — the other half of the same class:
+    // `find(obj, { top: 200 })`, the query option spelled without its `$` at
+    // the TOP level. `convertQueryParams` copies exactly the `$`-prefixed keys
+    // `QueryParams` declares, so the bare spelling is dropped with no throw and
+    // no warning, and the same `[key: string]: any` makes it type-check. Three
+    // live sites, and the app-shell one INVERTED rather than widened:
+    // `find(name, { limit: 0 })` fetched the footer's record count by reading
+    // every row in the object, on every mount of every list view, because
+    // `$top: 0` is honoured end to end as "no records" and `limit` reached
+    // nothing. A sibling rule rather than a second predicate on the one above:
+    // that rule's signature (`$`-key under `options`) is unmistakable in any
+    // object literal, while every name on this one's list is an ordinary key
+    // outside a finder call, so the two need different anchors — and one
+    // `eslint-disable` must not silence both halves. Error so the next one
+    // fails at write time; all three sites were converted first, so this lints
+    // clean today with no allowlist.
+    'object-ui/no-unprefixed-query-params': 'error',
     // objectui#3090 tripwire — the spec's FormField/FormFieldSchema are the
     // form-VIEW vocabulary (`field` = object-field reference), a DIFFERENT
     // layer from objectui's runtime form-field contract (`name` = data path);

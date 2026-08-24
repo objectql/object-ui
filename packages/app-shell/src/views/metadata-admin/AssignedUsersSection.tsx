@@ -106,7 +106,7 @@ export function AssignedUsersSection({ permissionSetName }: AssignedUsersSection
     setLoading(true);
     try {
       const sets = asArray(
-        await adapter.find('sys_permission_set', { $filter: { name: permissionSetName }, limit: 1 }),
+        await adapter.find('sys_permission_set', { $filter: { name: permissionSetName }, $top: 1 }),
       );
       const id = sets[0]?.id ? String(sets[0].id) : null;
       setSetId(id);

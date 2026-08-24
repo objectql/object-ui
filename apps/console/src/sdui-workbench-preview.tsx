@@ -83,8 +83,8 @@ function Page() {
   const [stats, setStats] = React.useState({ total: 0, active: 0 });
   const refreshStats = React.useCallback(async () => {
     if (!adapter) return;
-    const all = await adapter.find('showcase_project', { top: 200 });
-    const rows = Array.isArray(all) ? all : (all && all.records) || [];
+    const all = await adapter.find('showcase_project', { $top: 200 });
+    const rows = Array.isArray(all) ? all : (all && all.data) || [];
     setStats({ total: rows.length, active: rows.filter((r) => r.status === 'active').length });
   }, [adapter]);
   React.useEffect(() => { refreshStats(); }, [refreshStats, reloadKey]);

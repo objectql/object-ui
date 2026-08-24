@@ -1681,16 +1681,31 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         }
     }, [realtimeMessage, hasConflicts, resolveAllConflicts]);
     
-    // Fetch record count for footer display
+    // Fetch record count for footer display.
+    //
+    // `$top: 0` IS the request: give me the total, send no rows. It was written
+    // `limit: 0`, which is not a `QueryParams` key — `convertQueryParams` copies
+    // exactly the `$`-prefixed keys the type declares — so the cap reached no
+    // branch and was dropped, and the platform's GET list route has no default
+    // page size. The effect therefore did the opposite of what it says: it
+    // downloaded EVERY row of the object, on every mount and every refresh of
+    // every list view, to read one integer off the envelope. The dead spelling
+    // type-checked because `QueryParams` carries `[key: string]: any` for
+    // adapter-specific params; `object-ui/no-unprefixed-query-params` rejects it
+    // at write time now (objectui#5458).
+    //
+    // `total` is the only field that can still answer the question, so the
+    // row-counting fallbacks are gone rather than repointed. Once we ask for
+    // zero rows an empty `data` means "you asked for none", not "the object is
+    // empty" — counting the response would report a confident `0` for any
+    // adapter that does not send a total. Leaving `recordCount` `undefined`
+    // omits the footer line instead of asserting a wrong number; the render is
+    // already guarded by `typeof recordCount === 'number'`.
     useEffect(() => {
         if (dataSource?.find && objectDef.name) {
-            dataSource.find(objectDef.name, { limit: 0 }).then((result: any) => {
+            dataSource.find(objectDef.name, { $top: 0 }).then((result: any) => {
                 if (typeof result?.total === 'number') {
                     setRecordCount(result.total);
-                } else if (Array.isArray(result?.data)) {
-                    setRecordCount(result.data.length);
-                } else if (Array.isArray(result)) {
-                    setRecordCount(result.length);
                 }
             }).catch(() => {
                 // Silently ignore — record count is non-critical
