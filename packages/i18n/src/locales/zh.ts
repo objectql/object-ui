@@ -634,7 +634,7 @@ const zh = {
     hideFieldsTitle: '隐藏字段',
     dataLimitReached: '显示前 {{limit}} 条记录。可能有更多数据。',
     viewSettings: '视图设置',
-    viewSettingsHint: '分组、行颜色、密度与可见字段。',
+    viewSettingsHint: '分组、行颜色、密度与可见字段。对所有使用该视图的用户生效。',
     addGroup: '添加分组字段',
     collapsedByDefault: '默认折叠',
     removeGroup: '删除',
@@ -1835,6 +1835,7 @@ const zh = {
     objectView: {
       systemViewReadonly: '系统视图由代码定义，只读。',
       cannotEditMetaView: '该视图为内置视图，由代码定义，无法修改。',
+      viewConfigPermissionDenied: '视图配置对所有使用该视图的用户生效，因此修改它需要「管理元数据」权限。请联系管理员进行修改。',
       cannotDeleteMetaView: '该视图为内置视图，由代码定义，无法删除。',
       expandToPage: '以完整页面打开',
       objectNotFound: '未找到对象',

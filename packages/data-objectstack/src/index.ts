@@ -554,6 +554,78 @@ export function isAppPermissionDeniedError(error: unknown): boolean {
 }
 
 /**
+ * [ADR-0066] The system capability a view-configuration write requires.
+ *
+ * objectstack#7494's ruling (maintainer, 2026-08-12) settled what this store
+ * IS: the `sort` / `hiddenFields` / `columnState` / `rowHeight` persisted by
+ * {@link ObjectStackAdapter.updateViewConfig} are ORG-WIDE view configuration
+ * — shared by every user of the view — not a per-user preference. A per-user
+ * scope is parked (objectstack#7611, v18) and deliberately NOT built here, so
+ * there is no second, narrower store for an ungated write to fall back to:
+ * the only thing this write can do is change the view for everyone.
+ *
+ * That makes a toolbar toggle a metadata-authoring act, so it gates on the
+ * capability this repo ALREADY uses for metadata authoring rather than a newly
+ * minted name. `manage_metadata` is what `HomePage`'s `AUTHORING_CAPABILITY`
+ * gates the builder CTAs on, what the server itself refuses metadata writes
+ * without (`PackageFormDialog` reads that 403), and what
+ * `capability.label.manage_metadata` is already translated as in all ten
+ * locale packs. Decisively: the write gated here goes through
+ * `client.meta.saveItem` — the very same ADR-0005 metadata door — so this is
+ * the same authority the server is already applying, not an analogous one.
+ */
+export const VIEW_CONFIG_CAPABILITY = 'manage_metadata';
+
+/**
+ * Thrown by {@link ObjectStackAdapter.updateViewConfig} when the session's
+ * REPORTED capability set does not contain {@link VIEW_CONFIG_CAPABILITY}.
+ *
+ * Raised BEFORE `connect()` and before `saveItem`, so a refused call issues no
+ * request at all — the org-wide row is not touched, not even optimistically.
+ *
+ * Deliberately an ERROR and not a silent `return`. The production caller is a
+ * debounced toolbar toggle whose UI has ALREADY moved by the time this runs, so
+ * a quiet no-op would leave the operator looking at a density they did not get,
+ * with nothing to explain it and a reload to discover it. The message names the
+ * SCOPE first and the capability second, in that order, because the scope is
+ * the part the operator cannot otherwise see — and it is written to be shown
+ * as-is, the same contract {@link AnalyticsNotInstalledError} states.
+ */
+export class ViewConfigPermissionDeniedError extends Error {
+  readonly code = 'VIEW_CONFIG_PERMISSION_DENIED';
+  /** The capability that was required and not held. */
+  readonly capability = VIEW_CONFIG_CAPABILITY;
+  /** The object whose view configuration the refused write targeted. */
+  readonly objectName: string;
+  /** The view id the refused write targeted. */
+  readonly viewId: string;
+  constructor(objectName: string, viewId: string) {
+    super(
+      `View configuration is shared: changing "${viewId}" changes it for everyone who uses this view. ` +
+      `That requires the "${VIEW_CONFIG_CAPABILITY}" capability, which this session does not hold.`,
+    );
+    this.name = 'ViewConfigPermissionDeniedError';
+    this.objectName = objectName;
+    this.viewId = viewId;
+  }
+}
+
+/**
+ * True when `error` is a {@link ViewConfigPermissionDeniedError}.
+ *
+ * Duck-checks `code`/`name` rather than using `instanceof`, matching
+ * {@link isConcurrentUpdateError}: a host that bundles this package twice
+ * (or re-throws across a worker boundary) still gets the right verdict.
+ */
+export function isViewConfigPermissionDeniedError(
+  error: unknown,
+): error is ViewConfigPermissionDeniedError {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as Record<string, unknown>;
+  return e.code === 'VIEW_CONFIG_PERMISSION_DENIED' || e.name === 'ViewConfigPermissionDeniedError';
+}
+
+/**
  * Thrown when the deployment has no analytics capability installed
  * (framework#3891 / #4019).
  *
@@ -1706,6 +1778,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // record CRUD, this one is the metadata save door.
   private saveAdvisoryListeners = new Set<MetadataSaveAdvisoryListener>();
 
+  // [ADR-0066] The session's REPORTED system capabilities, pushed in by the
+  // host (see `setSystemCapabilities`). `undefined` means NO answer was ever
+  // reported — which is NOT the same as a reported-empty grant, and the two
+  // are treated differently by `maySetViewConfig` below.
+  private systemCapabilities: string[] | undefined;
+
   constructor(config: {
     baseUrl: string;
     token?: string;
@@ -1717,6 +1795,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     autoReconnect?: boolean;
     maxReconnectAttempts?: number;
     reconnectDelay?: number;
+    /**
+     * [ADR-0066] The session's system capabilities, when the host already has
+     * them at construction time. Most hosts do NOT — `/me/permissions`
+     * resolves after the adapter exists — and push them in later via
+     * {@link ObjectStackAdapter.setSystemCapabilities}. Omit for "unreported".
+     */
+    systemCapabilities?: string[];
   }) {
     // Inject a quiet logger that demotes expected 404s ("HTTP request failed"
     // from probing optional collections like sys_presence/sys_activity) to
@@ -1732,6 +1817,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     this.reconnectDelay = config.reconnectDelay ?? 1000;
     this.baseUrl = config.baseUrl;
     this.token = config.token;
+    this.systemCapabilities = config.systemCapabilities;
     this.fetchImpl = config.fetch || globalThis.fetch.bind(globalThis);
   }
 
@@ -3736,12 +3822,57 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    *   (vs. a system view being personalized for the first time). Omit /
    *   `false` for the default overlay-marking behavior.
    */
+  /**
+   * [ADR-0066] Tell this adapter which system capabilities the session holds.
+   *
+   * Pass `undefined` for "no answer was reported" (a backend predating
+   * ADR-0066, or no permission provider mounted). Pass `[]` for a real,
+   * reported, empty grant — {@link maySetViewConfig} treats those two
+   * differently and callers must not collapse them, which is the same
+   * distinction `MePermissionsProvider` preserves natively (objectui#4656).
+   */
+  setSystemCapabilities(capabilities: string[] | undefined): void {
+    this.systemCapabilities = capabilities ? [...capabilities] : undefined;
+  }
+
+  /**
+   * May this session write ORG-WIDE view configuration?
+   *
+   * **Unknown fails OPEN**, deliberately, and this is the one judgement in the
+   * gate worth reading twice. It is the doctrine `PermissionContextValue`
+   * .`hasCapabilities` states for every ADR-0066 gate in this repo
+   * (objectui#4656, framework#3923): the server enforces `manage_metadata` on
+   * the metadata door regardless of what the client believes, so a client-side
+   * denial on MISSING DATA cannot protect anything the server was not already
+   * protecting — it can only break a permitted user. Failing closed here would
+   * have refused the write on every deployment predating ADR-0066 and every
+   * host with no permission provider, which is "break the write for everyone"
+   * wearing the costume of a security fix.
+   *
+   * A REPORTED empty array gates strictly: "holds nothing" is a real answer.
+   */
+  private maySetViewConfig(): boolean {
+    if (this.systemCapabilities === undefined) return true;
+    return this.systemCapabilities.includes(VIEW_CONFIG_CAPABILITY);
+  }
+
   async updateViewConfig(
     objectName: string,
     viewId: string,
     config: Record<string, any>,
     opts?: { isSavedView?: boolean }
   ): Promise<Record<string, any> | void> {
+    // objectstack#7494's ruling — THE GATE. Checked first: before `connect()`,
+    // before `saveItem`, before the payload is even assembled, so a refused
+    // call puts nothing on the wire and cannot half-write the org-wide row.
+    //
+    // This is on the WRITE PATH on purpose. Withholding the toolbar affordance
+    // would leave this method still accepting the call from anything else
+    // holding the adapter; the ruling gates the write, so the write is where
+    // the refusal lives — and every caller, present or future, inherits it.
+    if (!this.maySetViewConfig()) {
+      throw new ViewConfigPermissionDeniedError(objectName, viewId);
+    }
     await this.connect();
     // ADR-0005 metadata customization overlay: persist views under
     // `type='view'` (NOT `type=<objectName>` — that was a pre-overlay
@@ -5020,6 +5151,8 @@ export function createObjectStackAdapter<T = unknown>(config: {
   autoReconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
+  /** [ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}. */
+  systemCapabilities?: string[];
 }): DataSource<T> {
   return new ObjectStackAdapter<T>(config);
 }

@@ -15,7 +15,7 @@ import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListVie
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage.js';
 import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold.js';
-import { narrowPersonalizationOverlay } from '@object-ui/data-objectstack';
+import { narrowPersonalizationOverlay, isViewConfigPermissionDeniedError } from '@object-ui/data-objectstack';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -867,6 +867,17 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         { isSavedView: targetIsSavedView },
                     )
                 ).catch((err: any) => {
+                    // objectstack#7494's ruling — the gate refuses ORG-WIDE
+                    // view-config writes for a session without the authoring
+                    // capability. The toggle that triggered this has ALREADY
+                    // moved on screen, so the refusal has to be SAID: swallowing
+                    // it into console.error leaves the operator with a density
+                    // they did not get and no way to learn why until a reload
+                    // silently puts it back.
+                    if (isViewConfigPermissionDeniedError(err)) {
+                        toast.error(t('console.objectView.viewConfigPermissionDenied'));
+                        return;
+                    }
                     console.error('[ObjectView] Failed to persist view config:', err);
                 });
             }, 300);
@@ -1010,6 +1021,27 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const { isAdmin } = useWorkspaceAdminStatus();
     const perms = usePermissions();
     const { can, getObjectApiOperations } = perms;
+
+    // [ADR-0066 / objectstack#7494] Hand the adapter the session's REPORTED
+    // system capabilities so its `updateViewConfig` gate has something to judge
+    // by. The adapter is constructed by the host long before `/me/permissions`
+    // resolves, so this is a push, not a constructor argument.
+    //
+    // `systemPermissions` is passed straight through, `undefined` included:
+    // "never reported" and "reported empty" are different answers and the
+    // adapter decides between them (unknown fails OPEN — the server enforces
+    // the capability on the metadata door either way). Collapsing them here
+    // would re-derive, badly, the one distinction `MePermissionsProvider` goes
+    // out of its way to preserve (objectui#4656).
+    //
+    // Wired at THIS component because `updateViewConfig` has exactly one
+    // production caller — the `persistViewPatch` below (see the adapter method's
+    // own docblock). The gate itself is on the write, so a future second caller
+    // is refused whether or not it remembers to do this.
+    const { systemPermissions } = perms;
+    useEffect(() => {
+        (dataSource as any)?.setSystemCapabilities?.(systemPermissions);
+    }, [dataSource, systemPermissions]);
     
     // Get Object Definition. The outer ObjectView wrapper already guards the
     // missing-object case, so this always resolves while this component is

@@ -696,7 +696,7 @@ const en = {
     hideFieldsTitle: 'Hide Fields',
     dataLimitReached: 'Showing first {{limit}} records. More data may be available.',
     viewSettings: 'View settings',
-    viewSettingsHint: 'Grouping, color, density, and visible fields.',
+    viewSettingsHint: 'Grouping, color, density, and visible fields. Applies to everyone who uses this view.',
     addGroup: 'Add group field',
     collapsedByDefault: 'Collapsed by default',
     removeGroup: 'Remove',
@@ -1983,6 +1983,7 @@ const en = {
       // (rename / pin / set-as-default / configure), so the copy has to cover
       // any change to a built-in view rather than name one operation.
       cannotEditMetaView: 'This view is built in and defined in code — it cannot be changed.',
+      viewConfigPermissionDenied: 'View settings apply to everyone who uses this view, so changing them requires the Manage Metadata permission. Ask an administrator to make this change.',
       cannotDeleteMetaView: 'This view is built in and defined in code — it cannot be deleted.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',
