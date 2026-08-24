@@ -24,6 +24,7 @@ import { render, waitFor, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { AddRecordConfigSchema } from '@objectstack/spec/ui';
+import { shapeEnumOptions } from '@object-ui/test-support';
 import { ListView, resolveAddRecordPlacement } from '../ListView';
 import type { ListViewSchema } from '@object-ui/types';
 import { SchemaRendererProvider } from '@object-ui/react';
@@ -43,16 +44,8 @@ beforeAll(() => {
   });
 });
 
-/** The spec's position vocabulary, read through the `.default()` wrapper. */
-function specPositions(): string[] {
-  const positionSchema = (AddRecordConfigSchema as unknown as { shape?: Record<string, unknown> })
-    .shape?.position as { def?: { innerType?: { options?: readonly string[] } } } | undefined;
-  const options = positionSchema?.def?.innerType?.options;
-  return Array.isArray(options) ? [...options] : [];
-}
-
 describe('resolveAddRecordPlacement covers the spec position vocabulary', () => {
-  const specNames = specPositions();
+  const specNames = shapeEnumOptions(AddRecordConfigSchema, 'position');
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read AddRecordConfigSchema.shape.position options from the spec').not.toEqual([]);

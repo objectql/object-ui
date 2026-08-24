@@ -60,6 +60,24 @@ code imports — nothing in `src/` of a released package may import this.
   (the last two converged off local structural-only copies by objectui#4947).
   No copy of the judgement is left in-tree: gates import this module, they do
   not write the criterion out again.
+- `src/spec-enum-options.ts` — the spec enum-vocabulary reader:
+  `shapeEnumOptions(schema, key)`. Answers "which names does this key of the
+  contract accept?" — the question four spec-parity suites each answered with a
+  byte-for-byte identical hand-written walk into Zod's `def.innerType`
+  (objectui#5872). Consumed by
+  `packages/components/src/__tests__/data-table-selection-mode.test.tsx`,
+  `packages/plugin-list/src/__tests__/add-record-position-spec-parity.test.tsx`,
+  `packages/plugin-list/src/__tests__/user-filter-arity-spec-parity.test.tsx`
+  and `packages/plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`.
+  No copy of this reader is left in-tree. The other Zod-internals reader classes
+  the same card censused — array-element unwrapping, the wrapper-key walk — are
+  NOT confined here yet and are still hand-copied; converting them is a separate
+  round, one reader class at a time.
+- `src/__tests__/spec-enum-options.test.ts` — the calibration for that reader:
+  one synthetic fixture per wrapper spelling it claims to walk (bare enum,
+  `.optional()`, `.default()`, a stack, and a `lazySchema()` thunk), the `[]`
+  cases that keep a consuming suite's non-vacuity assertion from being a rubber
+  stamp, and a non-empty check against the four real `@objectstack/spec` pairs.
 - `src/__tests__/spec-tombstones.test.ts` — the calibration for that judge: one
   synthetic fixture per recognition channel (so neither can quietly stop
   working), plus a cross-check of the structural verdict against what the

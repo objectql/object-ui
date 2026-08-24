@@ -27,6 +27,7 @@ import * as React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { UserFilterFieldSchema } from '@objectstack/spec/ui';
+import { shapeEnumOptions } from '@object-ui/test-support';
 import { UserFilters, FILTER_CONTROL_KINDS } from '../UserFilters';
 
 const objectDef = {
@@ -44,16 +45,8 @@ const objectDef = {
   },
 };
 
-/** The spec's control-type vocabulary, read through the `.optional()` wrapper. */
-function specControlTypes(): string[] {
-  const typeSchema = (UserFilterFieldSchema as unknown as { shape?: Record<string, unknown> })
-    .shape?.type as { def?: { innerType?: { options?: readonly string[] } } } | undefined;
-  const options = typeSchema?.def?.innerType?.options;
-  return Array.isArray(options) ? [...options] : [];
-}
-
 describe('FILTER_CONTROL_KINDS covers the spec user-filter control vocabulary', () => {
-  const specNames = specControlTypes();
+  const specNames = shapeEnumOptions(UserFilterFieldSchema, 'type');
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read UserFilterFieldSchema.shape.type options from the spec').not.toEqual([]);

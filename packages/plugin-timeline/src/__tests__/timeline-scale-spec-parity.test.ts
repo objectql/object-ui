@@ -16,17 +16,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { TimelineConfigSchema } from '@objectstack/spec/ui';
+import { shapeEnumOptions } from '@object-ui/test-support';
 import { TIMELINE_SCALES, resolveTimelineScale, generateTimeScaleHeaders } from '../renderer';
 
-function specScales(): string[] {
-  const scaleSchema = (TimelineConfigSchema as unknown as { shape?: Record<string, unknown> })
-    .shape?.scale as { def?: { innerType?: { options?: readonly string[] } } } | undefined;
-  const options = scaleSchema?.def?.innerType?.options;
-  return Array.isArray(options) ? [...options] : [];
-}
-
 describe('timeline covers the spec scale vocabulary', () => {
-  const specNames = specScales();
+  const specNames = shapeEnumOptions(TimelineConfigSchema, 'scale');
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read TimelineConfigSchema.shape.scale options from the spec').not.toEqual([]);

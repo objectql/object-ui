@@ -91,6 +91,7 @@
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@object-ui/test-support": "workspace:*",
     "@radix-ui/react-focus-scope": "^1.1.16",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",

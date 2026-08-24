@@ -25,20 +25,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SelectionConfigSchema } from '@objectstack/spec/ui';
+import { shapeEnumOptions } from '@object-ui/test-support';
 import { renderComponent } from './test-utils';
 import { SUPPORTED_SELECTION_MODES } from '../renderers/complex/data-table';
 // Registers the renderers at module scope, NOT inside a `beforeAll` — there the
 // cold transform is billed to `hookTimeout`, which is why this carried a raised
 // timeout. See object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
 import '../renderers';
-
-/** The spec's selection vocabulary, read through the `.default()` wrapper. */
-function specSelectionModes(): string[] {
-  const typeSchema = (SelectionConfigSchema as unknown as { shape?: Record<string, unknown> })
-    .shape?.type as { def?: { innerType?: { options?: readonly string[] } } } | undefined;
-  const options = typeSchema?.def?.innerType?.options;
-  return Array.isArray(options) ? [...options] : [];
-}
 
 const baseSchema = {
   type: 'data-table' as const,
@@ -53,7 +46,7 @@ const baseSchema = {
 };
 
 describe('data-table selection mode covers the spec selection vocabulary', () => {
-  const specNames = specSelectionModes();
+  const specNames = shapeEnumOptions(SelectionConfigSchema, 'type');
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read SelectionConfigSchema.shape.type options from the spec').not.toEqual([]);
