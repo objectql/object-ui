@@ -43,6 +43,7 @@ one has its own section below.
 | `shadcn-check.yml` | Check Shadcn Components | Weekly cron `0 9 * * 1`; manual | n/a |
 | `check-links.yml` | Check Links | Weekly cron `17 4 * * 0`; manual | n/a — reports, never gates |
 | `published-dist-gate.yml` | Published Dist Tooling Scan | Nightly cron `41 3 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
+| `spec-range-floors.yml` | Spec Range Floor Scan | Nightly cron `11 4 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
 | `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
 | `hook-selftests.yml` | Hook Self-Tests | PR / push touching `.claude/hooks/**` or the workflow | **Yes** |
@@ -805,6 +806,48 @@ Three things about it are easy to get wrong and are written down in the script's
   has none per PR: `ci.yml`'s **Build & E2E** builds only `@object-ui/console`, and **Type
   Check** gets only the dependency closure from turbo's `dependsOn: ["^build"]`, so leaf packages
   are never built there. The blocking copy runs on the publish path instead — see below.
+
+### Spec Range Floors (`spec-range-floors.yml`)
+
+**Trigger:** Nightly cron `11 4 * * *`; push to `main` that touches the gate script or this
+workflow; manual. **It carries no `pull_request` trigger, on purpose.**
+
+A package's declared `@objectstack/spec` floor must carry every symbol that package's own
+build output references. The gate is `scripts/check-spec-range-floors.mjs`
+(`pnpm check:spec-floors`); the workflow builds every published package, then the gate compares
+each one's `dist` imports of `@objectstack/spec/*` against the export set of the version that
+package's own range admits at its lowest.
+
+The defect it closes ([#5793](https://github.com/objectstack-ai/objectui/issues/5793)):
+`@object-ui/plugin-detail` shipped `dist/renderers/record-reference-rail.d.ts` re-exporting
+`ReferenceRailEntry` from `@objectstack/spec/ui` — a symbol that arrived in spec 17.1.0 — while
+its own `dependencies` still named a floor a minor lower. A declared range is a public claim,
+and that one admitted a spec without the symbol. (No range literal is quoted here on purpose:
+the live answer is `packages/plugin-detail/package.json`, and this gate's output.) Normal installs resolve the newest 17.x and never see it,
+which is exactly why nothing found it: it is a floor-honesty defect, and the lockfile hides it
+from every other check in this repository.
+
+Two ways of building this check return a confident green, and both are avoided by construction
+rather than by care — the script's header carries the long version:
+
+- **Resolution answers the wrong question.** The root `package.json` declares
+  `@objectstack/spec`, so pnpm hoists it to the workspace root and every resolution succeeds
+  from every package directory regardless of that package's own manifest. A green type-check
+  therefore proves nothing about a floor: it type-checks against the *installed* version. The
+  gate resolves nothing through `node_modules` — it fetches the declared minimum from the
+  registry and reads that tarball's own `exports` map. It is the same trap
+  `check-phantom-dependencies.mjs` records for `react`.
+- **The spec is dual-package.** `require` reaches `dist/<entry>/index.js` and `import` reaches
+  `dist/<entry>/index.mjs`, with separate type entries. Reading it through `createRequire` judges
+  a build no bundler ever puts in an application. The gate walks the fetched manifest's `exports`
+  map under the **`import`** condition and prints the entry it landed on, and `--cross-check`
+  re-reads the `require` half and compares.
+
+Like the two gates above it, the criterion is artifact-level and therefore needs a full build,
+so the blocking copy runs on the publish path and this workflow is the nightly alarm. Reading
+`src/` instead would be cheaper and wrong in the expensive direction: an `import type` used only
+inside a function body is erased and never reaches `dist/`, so a source-level version would
+demand floor bumps nothing published justifies.
 
 ### Node ESM Load Gate (`node-esm-load-gate.yml`)
 
