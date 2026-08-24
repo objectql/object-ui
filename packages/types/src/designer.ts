@@ -620,12 +620,29 @@ export interface DashboardConfig {
   }>;
 
   // -- Accessibility ---------------------------------------------------------
-
-  /** ARIA properties */
-  aria?: {
-    label?: string;
-    description?: string;
-  };
+  //
+  // `aria?: { label?, description? }` was DECLARED here until objectui#5852.
+  // It was never a contract: the spellings (`label`/`description`) match
+  // neither `@objectstack/spec`'s `AriaProps` (`ariaLabel` / `ariaDescribedBy`
+  // / `role`) nor anything a renderer maps, so no read point could have
+  // consumed it even in principle. Measured on `origin/main` at the retirement:
+  // zero `.aria` reads in `packages/plugin-designer/src`,
+  // `packages/plugin-dashboard/src` and `apps/console/src` (the same grep
+  // family finds the live `schema.aria` reads in `plugin-detail`'s
+  // `record-quick-actions.tsx` and `plugin-list`'s `ListView.tsx`), and zero
+  // occurrences of either name in the `objectstack` repo.
+  //
+  // `DashboardConfigPanel.tsx` — the panel this interface's own doc comment
+  // says it serves — imports `ConfigPanelSchema` from `@object-ui/components`
+  // and neither `DashboardConfig` nor `DashboardConfigSchema`, so the key
+  // documented an integration that does not exist.
+  //
+  // Note the `[key: string]: any` catch-all below still types an authored
+  // `aria` as `any`: this deletion removes the type-level SUGGESTION, not a
+  // key that ever rendered (same shape as objectui#5830 on
+  // `DashboardComponentSchema.aria`). The Zod twin does carry teeth — see the
+  // `z.never()` tombstone in `zod/complex.zod.ts`. Pinned by
+  // `__tests__/dashboard-config.test.ts`.
 
   /** Catch-all for additional properties */
   [key: string]: any;

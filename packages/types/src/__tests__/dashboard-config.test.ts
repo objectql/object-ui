@@ -62,7 +62,11 @@ describe('DashboardConfig TypeScript Types', () => {
       headerActions: [
         { label: 'Export', action: 'export', icon: 'Download', variant: 'outline' },
       ],
-      aria: { label: 'Sales dashboard', description: 'Interactive sales overview' },
+      // `aria: { label, description }` REMOVED (objectui#5852): the member is
+      // gone from the `DashboardConfig` declaration. Kept here it would have
+      // gone on compiling through the interface's `[key: string]: any`
+      // catch-all while asserting the opposite of the contract — the
+      // green-wash objectui#5830 called out on the sibling member.
     };
     expect(config.widgets).toHaveLength(1);
     expect(config.widgets![0].type).toBe('metric');
@@ -199,9 +203,43 @@ describe('DashboardConfig Zod Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate aria accessibility attributes', () => {
+  // `should validate aria accessibility attributes` was FLIPPED, not deleted
+  // (objectui#5852). It asserted `success === true` for an authored `aria`.
+  // After the retirement a PLAIN DELETION would have kept it green — this
+  // schema is a bare `z.object` with no `.strict()`, so an undeclared key is
+  // accepted and silently stripped (measured; the same behaviour objectui#6068
+  // recorded). That green would have meant "nothing looked", which is why the
+  // mirror carries a `z.never()` tombstone instead and this pin now asserts the
+  // refusal by name.
+  it('refuses the retired `aria` key by name, with the removal message', () => {
     const result = DashboardConfigSchema.safeParse({
       aria: { label: 'Sales dashboard', description: 'Interactive overview' },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues.find((i) => i.path.join('.') === 'aria');
+    expect(issue, 'no issue at path `aria`').toBeTruthy();
+    // The message is asserted, not just its existence: a `z.never()` with no
+    // `error` would refuse with zod's generic "expected never, received
+    // object", which names the key only via the path and tells the author
+    // nothing about what to do. The tombstone carries a real message.
+    expect(issue!.message).toMatch(/RETIRED \(objectui#5852\)/);
+    expect(issue!.message).toMatch(/delete the key/);
+  });
+
+  it('CONTROL: an arbitrary undeclared key is NOT refused — the red above is the tombstone, not strictness', () => {
+    // Without this control, the refusal above is equally consistent with the
+    // schema having become `.strict()`, which would refuse every unknown key.
+    const result = DashboardConfigSchema.safeParse({ objectui5852NotAKey: 'x' });
+    expect(result.success).toBe(true);
+    // ...and it is dropped from the output, which is exactly what a plain
+    // deletion of `aria` would have silently done to an authored value.
+    expect(result.success && 'objectui5852NotAKey' in result.data).toBe(false);
+  });
+
+  it('CONTROL: a legal config still parses green — the tombstone narrowed nothing else', () => {
+    const result = DashboardConfigSchema.safeParse({
+      title: 'Sales', columns: 12, showHeader: true,
     });
     expect(result.success).toBe(true);
   });
