@@ -287,15 +287,23 @@ renders nothing here.
 
 > **Write `subtitle`. `description` is retired.** `@objectstack/spec/ui`'s
 > `PageHeaderProps` — the contract for the canonical `page:header` node — declares
-> `title / subtitle / icon / breadcrumb / actions / aria` and has **no** `description`,
-> and `page-header`'s registration declares only `title` and `subtitle` as authorable
-> inputs. The renderer used to read `description` as well, as a legacy alias; objectui#3789
+> `title / subtitle / breadcrumb / actions / recordChrome / showStar / showCopyId /
+> maxVisible / mobileMaxVisible / aria` and has **no** `description`, and
+> `page-header`'s registration declares four authorable inputs — `title`, `subtitle`,
+> `icon` and `actions`. `icon` sits on exactly one of those two lists on purpose: it is
+> an ADR-0087 D2 tombstone on the spec shape, which rejects it by name — "`page:header`
+> property `icon` was removed in @objectstack/spec 17.0.0 (#6946, ADR-0087 D2) — no
+> renderer ever read it … Delete the key." — while remaining a live input of *this*
+> component, whose `<PageHeader>` does draw an icon beside the title (objectui#3829). On
+> a canonical `page:header` node the key is gone; as a prop of this component it is
+> live. The renderer used to read `description` as well, as a legacy alias; objectui#3789
 > removed that read, so `subtitle` is now the only spelling this component draws. Stored
 > metadata written the old way is not stranded: protocol 17's ADR-0087 D2 conversion
 > `page-header-subtitle-alias` rewrites `description` to `subtitle` on header nodes as the
 > stack loads — at every position a header can occupy, regions and slots and containers
 > nested to any depth (objectstack#6775 / #6776) — and `os migrate meta` rewrites it at
-> rest. See the [PageHeader reference](/docs/layout/page-header).
+> rest. See the [PageHeader reference](/docs/layout/page-header) for the per-key
+> reference face.
 
 > **There is no `breadcrumbs` array.** The component reads no breadcrumb property of any
 > kind, in either spelling. The spec's `breadcrumb` is singular and a **boolean** — a
