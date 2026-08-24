@@ -479,8 +479,17 @@ type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K],
 interface KnownDrift {
   /** TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror declares `Record<string, unknown>` ("additional API body params"). Two different meanings of one key — a naming collision to rule on, not a widening. */
   'complex.zod.ts#ChatbotSchema': 'body';
-  /** spec-derived shape (`SpecDashboardFields`) against a hand-written local declaration; `aria` accepts only `undefined` on the mirror side. Needs the spec-unification triage of #2231, not a local widening. */
-  'complex.zod.ts#DashboardComponentSchema': 'aria' | 'header' | 'widgets' | 'globalFilters';
+  /**
+   * spec-derived shape (`SpecDashboardFields`) measured against a hand-written
+   * local declaration. Needs the spec-unification triage of #2231 rather than a
+   * local widening.
+   *
+   * `aria` was a FOURTH drifted key here until objectui#5855 retired
+   * `DashboardComponentSchema.aria` from the declaration as spec-tombstoned and
+   * renderer-dead. Dropping it from the declaration dropped it from the
+   * comparison, and this entry going stale is precisely what surfaced that.
+   */
+  'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters';
   /** TS declares `unknown`; the mirror declares a structured options object. The mirror is the STRICTER side here — narrowing the check would be wrong, widening the TS declaration is the ADR-0049 question. */
   'complex.zod.ts#DashboardWidgetSchema': 'options';
   /** inherited from `FilterFieldSchema.operators` below — the element type is the drifted one. */
@@ -525,7 +534,29 @@ export type LedgerMismatch = {
     : K;
 }[MirrorKey];
 
-export type assertionDriftMatchesLedger = Expect< Equal< LedgerMismatch, never > >;
+/**
+ * Fails when any pair's drift differs from its ledger entry, IN EITHER DIRECTION.
+ *
+ * Written as an assignment to `never` rather than `Expect< Equal< …, never > >`
+ * so the compiler prints the OFFENDING PAIR in the failure — `Type
+ * '"complex.zod.ts#DashboardComponentSchema"' is not assignable to type 'never'`.
+ * The `Expect<…>` spelling has identical teeth but reports only `Type 'false'
+ * does not satisfy the constraint 'true'`, which names neither the pair nor the
+ * key and sent one CI failure to the compiler API to diagnose.
+ *
+ * When it fires, fix it by MEASURING, never by editing the assertion:
+ *   1. the message names the pair;
+ *   2. re-measure that pair's drift (resolve `DriftOf< '<pair>' >`);
+ *   3. correct its `KnownDrift` entry to the measured set — or delete the entry
+ *      if the drift is gone, which is the whole point of the ratchet.
+ *
+ * Its first real firing was direction (3): objectui#5855 retired
+ * `DashboardComponentSchema.aria` on `main` while this branch was open, so a key
+ * this ledger recorded as drifted had been corrected elsewhere and the entry went
+ * stale. CI sees the PR's MERGE with `main`, not the branch head, so a ledger can
+ * go stale under a branch without anything on the branch changing.
+ */
+export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch;
 
 /**
  * Non-vacuity for all 163 entries at once.
