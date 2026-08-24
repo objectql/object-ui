@@ -59,69 +59,27 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { z } from 'zod';
 import { BaseSchema as Mirror } from '../zod/base.zod.js';
-import type { BaseSchema } from '../base';
 
-/* ── Type-level helpers ──────────────────────────────────────────────────── */
-
-/** Invariant equality — `extends` both ways would accept a narrowing. */
-type Equal< A, B > =
-  (< T >() => T extends A ? 1 : 2) extends (< T >() => T extends B ? 1 : 2) ? true : false;
-type Expect< T extends true > = T;
-
-/* ── The derived parity invariant ────────────────────────────────────────── */
-
-/** The mirror's DECLARED keys, read from its own shape. */
-type MirroredKeys = keyof typeof Mirror.shape & string;
-
-/** What the mirror ACCEPTS for key `K` (input side, so `.optional()` shows). */
-type Accepts< K extends MirroredKeys > = z.input< (typeof Mirror.shape)[K] >;
+/* ── The derived parity invariant lives in the population guard ──────────── */
 
 /**
- * Every key whose DECLARED type the mirror would refuse. Must be `never`.
+ * The type-level pin this card introduced — read the mirror's OWN `.shape` and
+ * compare each key against the declaration, so the next widening that forgets
+ * this file turns red with no key list to maintain — now lives in
+ * `./zod-mirror-parity.test.ts` (objectui#5684), which applies that one
+ * construction to every registered mirror in `../zod/`.
  *
- * The tuple wrappers keep the check non-distributive: `BaseSchema['visible']`
- * is a union, and a bare `extends` would ask the question limb-by-limb and
- * pass as long as ONE limb fit.
- */
-type NarrowerThanDeclared = {
-  [K in MirroredKeys]: [BaseSchema[K]] extends [Accepts< K >] ? never : K
-}[MirroredKeys];
-
-/** The invariant this card exists to establish. */
-export type assertionMirrorIsNotNarrower = Expect<
-  Equal< NarrowerThanDeclared, never >
->;
-
-/**
- * Non-vacuity guard for the pin above.
+ * `BaseSchema` is a registered row there (`'base.zod.ts#BaseSchema'`), so the
+ * invariant is unchanged and still enforced by `tsc -p tsconfig.test.json`; it
+ * is simply not restated here. Its two non-vacuity guards travelled with it:
+ * `assertionBaseSchemaKeysResolve` keeps this card's six-key pin by name, and
+ * `assertionNoVacuousEntry` generalises the bare-`string` degeneration check
+ * across the whole population.
  *
- * If `MirroredKeys` ever resolved to `never` — the `.passthrough()` failure
- * mode, or a refactor that stops exposing `.shape` — the mapped type would be
- * `never` and `assertionMirrorIsNotNarrower` would pass while enforcing
- * nothing. This asserts the six keys are really reachable through `.shape`.
+ * What stays here is what is specific to #4605: the spellings the OLD mirror
+ * really did refuse, and the two i18n vocabularies that must not cross.
  */
-export type assertionShapeKeysResolve = Expect<
-  Equal<
-    Exclude< 'type' | 'label' | 'description' | 'visible' | 'disabled' | 'ariaLabel', MirroredKeys >,
-    never
-  >
->;
-
-/**
- * The OTHER half of that guard — `MirroredKeys` must be a union of LITERALS.
- *
- * The guard above catches `MirroredKeys` degenerating to `never`; it cannot
- * catch it degenerating to bare `string`, because every literal is `Exclude`d
- * by `string` and the guard would stay green. That is not a hypothetical
- * shape: `keyof z.input<typeof Mirror>` IS `string` here, since
- * `.passthrough()` puts an index signature on the inferred type. So this pins
- * that a key the mirror does NOT declare stays outside the union.
- */
-export type assertionShapeKeysAreLiteral = Expect<
-  Equal< Exclude< 'notAMirroredKey_4605', MirroredKeys >, 'notAMirroredKey_4605' >
->;
 
 /* ── Runtime: the spellings the OLD mirror refused ───────────────────────── */
 
