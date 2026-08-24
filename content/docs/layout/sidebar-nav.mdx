@@ -189,7 +189,7 @@ Set a custom title for the sidebar:
 ## Complete Example
 
 ```plaintext
-import { SidebarNav } from '@object-ui/layout';
+import { SidebarNav, type NavGroup } from '@object-ui/layout';
 import { 
   Home,
   Users,
@@ -200,7 +200,7 @@ import {
   Mail
 } from 'lucide-react';
 
-const navigationItems = [
+const navigationItems: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
