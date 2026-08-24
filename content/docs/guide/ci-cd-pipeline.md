@@ -1132,8 +1132,8 @@ The rendered summary says that surface is **UNREAD**, never that it is clean
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.claude/hooks/**` or this
 workflow file changes**. **Blocks a PR:** yes.
 
-Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` (100 cases) and
-`.claude/hooks/guard-shared-stash.selftest.sh` (32 cases) — the hermetic self-test matrices for
+Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` and
+`.claude/hooks/guard-shared-stash.selftest.sh` — the hermetic self-test matrices for
 the two PreToolUse guards behind the rule both `CLAUDE.md` files state as binding: worktree-first,
 and never `git stash` (AGENTS.md §9). Each self-test builds its own throwaway git fixture and
 needs only `jq` and `git`, both preinstalled on `ubuntu-latest` — no install, no build.
