@@ -11,7 +11,7 @@
       "children": [
         {
           "type": "icon",
-          "name": "layout-template",
+          "icon": "layout-template",
           "className": "h-12 w-12 text-primary/60"
         }
       ]

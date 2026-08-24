@@ -90,7 +90,7 @@
                       "children": [
                         {
                           "type": "icon",
-                          "name": "credit-card",
+                          "icon": "credit-card",
                           "className": "h-6 w-6"
                         }
                       ]

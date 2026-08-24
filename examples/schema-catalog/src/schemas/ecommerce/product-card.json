@@ -11,7 +11,7 @@
       "children": [
         {
           "type": "icon",
-          "name": "package",
+          "icon": "package",
           "className": "h-24 w-24 text-muted-foreground"
         }
       ]
@@ -43,27 +43,27 @@
           "children": [
             {
               "type": "icon",
-              "name": "star",
+              "icon": "star",
               "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
             },
             {
               "type": "icon",
-              "name": "star",
+              "icon": "star",
               "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
             },
             {
               "type": "icon",
-              "name": "star",
+              "icon": "star",
               "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
             },
             {
               "type": "icon",
-              "name": "star",
+              "icon": "star",
               "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
             },
             {
               "type": "icon",
-              "name": "star",
+              "icon": "star",
               "className": "h-4 w-4 text-muted"
             },
             {
@@ -114,7 +114,7 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "heart",
+                  "icon": "heart",
                   "className": "h-4 w-4"
                 }
               ]

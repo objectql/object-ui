@@ -17,7 +17,7 @@
           "children": [
             {
               "type": "icon",
-              "name": "chart-column",
+              "icon": "chart-column",
               "className": "h-6 w-6 text-purple-600"
             }
           ]

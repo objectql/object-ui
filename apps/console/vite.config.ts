@@ -17,6 +17,7 @@ import zlib from 'node:zlib';
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub.ts';
 import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
 import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
+import { viteIneffectiveDynamicImports } from '../../scripts/vite-ineffective-dynamic-imports.ts';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -572,6 +573,13 @@ export default defineConfig({
     // 0.67% of it (objectui#5324). Measurement only: the verdict is the
     // workflow's, so a size regression never blocks a preview deploy.
     emitEagerClosureReport(),
+    // Rolldown's `INEFFECTIVE_DYNAMIC_IMPORT` warnings, pinned to a ledger
+    // instead of scrolling past 43 at a time (objectui#5325). The pinned ones
+    // are replaced by one summary line; an UNPINNED one keeps rolldown's own
+    // warning text AND fails the build, and so does a pinned one that stops
+    // firing — the counter-probe, because a build that dies before chunk
+    // assignment reports zero of these and that reads exactly like "fixed".
+    viteIneffectiveDynamicImports(),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s

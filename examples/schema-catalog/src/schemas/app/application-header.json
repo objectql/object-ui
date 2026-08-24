@@ -11,7 +11,7 @@
       "children": [
         {
           "type": "icon",
-          "name": "box",
+          "icon": "box",
           "className": "h-6 w-6 text-primary"
         },
         {

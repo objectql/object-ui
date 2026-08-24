@@ -17,7 +17,7 @@
           "children": [
             {
               "type": "icon",
-              "name": "zap",
+              "icon": "zap",
               "className": "h-6 w-6 text-primary"
             }
           ]

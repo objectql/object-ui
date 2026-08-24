@@ -17,7 +17,7 @@
           "children": [
             {
               "type": "icon",
-              "name": "shield",
+              "icon": "shield",
               "className": "h-6 w-6 text-green-600"
             }
           ]

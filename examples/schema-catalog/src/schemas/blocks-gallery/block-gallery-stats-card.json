@@ -19,7 +19,7 @@
             },
             {
               "type": "icon",
-              "name": "dollar-sign",
+              "icon": "dollar-sign",
               "className": "h-4 w-4 text-muted-foreground"
             }
           ]
