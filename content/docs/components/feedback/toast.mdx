@@ -29,7 +29,7 @@ interface ToastSchema {
   type: 'toast';
   title?: string;                // Toast title
   description?: string;           // Toast message
-  variant?: 'default' | 'destructive';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   
   // Action button
   action?: {
