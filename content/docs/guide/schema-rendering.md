@@ -31,7 +31,7 @@ function App() {
   const schema = {
     type: "page",
     title: "My Dashboard",
-    body: { /* ... */ }
+    body: { type: "text", value: "Hello" }
   }
   
   return <SchemaRenderer schema={schema} />
@@ -43,6 +43,8 @@ function App() {
 Every schema object must have at minimum a `type` field:
 
 ```typescript
+import type { CSSProperties } from 'react'
+
 interface BaseSchema {
   type: string           // Component type identifier
   id?: string           // Optional unique identifier
@@ -74,6 +76,7 @@ interface BaseSchema {
 
 The `SchemaRenderer` accepts a `data` prop that provides context for expressions:
 
+<!-- doc-snippet: fragment — continues the block above — SchemaRenderer and schema are already in scope there; the closing JSX line is the call shown in place, not a statement that parses on its own -->
 ```tsx
 const data = {
   user: { name: "John", role: "admin" },
@@ -98,6 +101,7 @@ Use expression syntax `${}` to reference data:
 
 The schema renderer uses a component registry to map schema types to React components:
 
+<!-- doc-snippet: fragment — MyComponent is the reader's own React component, named here to show what register() takes as its second argument -->
 ```tsx
 import { ComponentRegistry } from '@object-ui/core'
 
@@ -212,6 +216,7 @@ Object UI includes a powerful expression system for dynamic behavior:
 
 Components can emit events that you handle in React:
 
+<!-- doc-snippet: fragment — prop excerpt: the JSX call is shown alone to isolate onAction and onSubmit; schema and SchemaRenderer come from the first example on this page -->
 ```tsx
 <SchemaRenderer 
   schema={schema}
@@ -263,6 +268,7 @@ The renderer automatically memoizes components to prevent unnecessary re-renders
 
 Use dynamic imports for heavy components:
 
+<!-- doc-snippet: fragment — code-splitting excerpt: ./HeavyChart is the reader's own component file, and registry is whichever registry instance the host already holds -->
 ```tsx
 import { lazy } from 'react'
 
@@ -275,6 +281,7 @@ registry.register('heavy-chart', HeavyChart)
 
 The renderer includes built-in error boundaries:
 
+<!-- doc-snippet: fragment — prop excerpt: the JSX call is shown alone to isolate onError; schema and SchemaRenderer come from the first example on this page -->
 ```tsx
 <SchemaRenderer 
   schema={schema}
@@ -330,6 +337,7 @@ const pageSchema = {
 
 Pass all necessary data upfront:
 
+<!-- doc-snippet: fragment — best-practice excerpt: userData, userSettings and dashboardStats are the reader's own values, and the closing JSX line is shown in place rather than as a parseable statement -->
 ```tsx
 // ✅ Good
 const data = {
@@ -345,6 +353,7 @@ const data = {
 
 Move logic to expressions instead of creating conditional schemas:
 
+<!-- doc-snippet: fragment — a bad/good contrast pair in one fence: schema is deliberately declared twice so the two spellings sit side by side, and user, adminSchema and userSchema are the reader's own values -->
 ```tsx
 // ❌ Bad
 const schema = user.isAdmin ? adminSchema : userSchema

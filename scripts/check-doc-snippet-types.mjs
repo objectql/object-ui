@@ -227,7 +227,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ 5 of these entries are `.md` pages under `content/docs` that objectui#5174
+ * ⚠️ 2 of these entries are `.md` pages under `content/docs` that objectui#5174
  * made visible: the collector now reads `.md`, and an entry with a measured reason
  * is what a page that cannot pass yet is owed. They are DISCLOSED debt, not new
  * debt — every one of them was equally unverified before, just unnamed. Their
@@ -242,7 +242,10 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * `notifications`, `public-forms`, `schema-overview`, `troubleshooting` and
  * `user-state-persistence`. Batch 2 took four more — `guide/plugins`,
  * `guide/building-crud-app`, `rfcs/0001-clipboard-paste` and `guide/architecture`
- * — clearing 89 diagnostics. Each page reached zero the honest two ways — a block
+ * — clearing 89 diagnostics. Batch 3 took three — `guide/plugin-development`,
+ * `guide/schema-rendering` and `guide/theming` — clearing 81, and left
+ * `guide/layout` and `guide/component-registry` as the final pair.
+ * Each page reached zero the honest two ways — a block
  * that should compile was made self-contained against the built `dist/`, and a
  * block that genuinely cannot compile got a `FRAGMENT_MARKER` declaration with a
  * written reason. Nothing about this gate's strictness moved to get them there.
@@ -259,6 +262,34 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * titled "Type Safety", marked `// ✅ Type-checked`, set `ButtonSchema.onClick` to
  * the STRING `'handleClick'` where the declared type is `() => void | Promise<void>`.
  * The pages that are mostly fragments are mostly fragments for a stated reason:
+ * Batch 3 in the same terms: 38 blocks brought under the gate — 26 declared
+ * fragments and 12 that compile, of which 7 already compiled untouched and 5 were
+ * edited to. Its defect was the largest single one this card has surfaced, and it
+ * was hidden the way objectui#5138 describes: `guide/theming`'s three `Theme`
+ * objects were annotated `Theme` but the annotation itself errored (`Theme` was
+ * never imported in two of them), so TypeScript never excess-checked the literals
+ * underneath. With the annotation resolving, the `brand` palette alone had TEN of
+ * its fourteen `colors` keys off `ColorPalette` — `"primary-foreground"`,
+ * `foreground`, `muted`, `ring`, `destructive` and the other `*-foreground` pairs
+ * are Shadcn CSS VARIABLE names, not palette keys — plus `radius` and `fonts`,
+ * neither of which is a `Theme` key, and no `label`, which is required. Every one
+ * of those is dropped in silence at runtime: `generateColorVars` iterates
+ * `COLOR_TO_CSS_MAP`, so it can only ever emit the keys `ColorPalette` declares.
+ * The pages were teaching theme JSON most of which the engine ignores. The fix
+ * routes them through the two doors that do work — the real palette keys, each
+ * annotated with the variable it emits, and `customVars` for the rest, which the
+ * engine emits verbatim as `--<key>: <value>`.
+ *
+ * `guide/plugin-development` also had the documented Vitest example asserting
+ * `toBeInTheDocument()` with no `@testing-library/jest-dom` import, the matcher's
+ * own package — a reader copying that test got neither the types nor the matcher.
+ *
+ * The pages that are mostly fragments are mostly fragments for a stated reason:
+ * `guide/plugin-development` walks the reader through building a plugin package,
+ * so its blocks import `./types` and `./BoardImpl` — files the reader has just
+ * been told to write — and `guide/theming` quotes the published `Badge` source,
+ * which imports `class-variance-authority`, a peer that resolves in the reader's
+ * app but is not a root dependency here.
  * `guide/plugins` and the clipboard-paste RFC document packages the reader is being
  * taught to create, and an RFC's signature excerpts have no bodies by design.
  *
@@ -314,25 +345,6 @@ const UNGATED_DOCS = {
     'this page still needs the 8 parse-failing blocks re-fenced or declared, the undefined-name ' +
     'blocks made self-contained, and the `@objectstack/*` runtime imports resolvable — none of ' +
     'which this repo can do from here.',
-  'content/docs/guide/plugin-development.md':
-    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 6 unresolved-module diagnostic(s); plus TS2339x5 TS2882x1 TS7006x3 — ' +
-    'candidate real defects, un-triaged',
-  'content/docs/guide/schema-rendering.md':
-    '8 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 1 unresolved-module diagnostic(s); plus TS2322x1 TS2451x2 TS7006x5 — ' +
-    'candidate real defects, un-triaged. This entry read TS2305x4 until objectui#5343: ' +
-    '`registerDefaultRenderers` (@object-ui/components) → `initializeComponents()` plus the ' +
-    'side-effect `@object-ui/fields` import, `getComponentRegistry` (@object-ui/react) → the ' +
-    '`ComponentRegistry` singleton @object-ui/core exports, and `PageSchema` / `FormSchema` were ' +
-    'claimed from @object-ui/core while they live in @object-ui/types (`PageNodeSchema` there, ' +
-    'whose `body` is `SchemaNode[]` — the typed example is written as an array now)',
-  'content/docs/guide/theming.md':
-    '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '23 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 1 unresolved-module diagnostic(s); plus TS2339x1 TS2353x1 — candidate ' +
-    'real defects, un-triaged',
   'content/docs/plugins/plugin-calendar-view.mdx':
     '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
