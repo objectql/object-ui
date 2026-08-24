@@ -13,13 +13,6 @@ import {
   isDrillEnabled,
   columnIdentity,
   columnHeader,
-  // The retirement gate (objectui#4914, ruling B) — `@object-ui/fields`
-  // re-exports the same function object; read here from its home.
-  isRetiredFieldType,
-  reportRetiredFieldType,
-  // The reference-bearing field family (objectui#5692). Read, never copied —
-  // see the convergence note on `computeLookupExpand`.
-  EXPANDABLE_FIELD_TYPES,
 } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
@@ -30,6 +23,9 @@ import {
   renderFieldValue,
   isNumericFieldMeta,
   isSystemField,
+  // The package's single relation predicate (objectui#5876). The retirement
+  // gate and the family read live in ITS body — never restated here.
+  isLookupType,
 } from './recordFields';
 import { RecordDetailDrawer } from './RecordDetailDrawer';
 
@@ -176,8 +172,10 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
 /**
  * Compute the list of lookup-typed accessors that should be expanded when
  * fetching rows. Returns column accessors whose object schema field type is
- * a relation. Which types those are is NOT restated here: it is
- * {@link EXPANDABLE_FIELD_TYPES}, the family `@object-ui/core` publishes. Used
+ * a relation. Neither the type family nor the test itself is restated here:
+ * this delegates to {@link isLookupType} in `recordFields.tsx`, the package's
+ * single relation predicate, which reads `EXPANDABLE_FIELD_TYPES` — the family
+ * `@object-ui/core` publishes. Used
  * by the dashboard table widget to ask the data adapter to populate referenced
  * records (e.g. `account: { id, name }`) so cells don't show raw FK ids.
  *
@@ -211,6 +209,19 @@ export function normalizeColumns(columns: (string | Record<string, any>)[]): Nor
  *    data: the spelling is absent from `@objectstack/spec`'s closed `FieldType`
  *    and refused by `FieldSchema.safeParse`, so no object schema can declare a
  *    field whose stored type is `reference`.
+ *
+ * ## One predicate, not two that agree by coincidence (objectui#5876)
+ *
+ * This function used to carry its own `isLookup`, byte-identical to
+ * `isLookupType` once objectui#5692 had pointed both at the same set — two
+ * bodies that agreed because one sweep aligned them, with nothing keeping them
+ * aligned afterwards. The test IS `isLookupType` now, so this module no longer
+ * IMPORTS the shared family or the retirement gate and no longer CALLS either
+ * (they are named in this prose and nowhere else in the file). That absence is
+ * the assertion: a BEHAVIOURAL test cannot see this change, because a
+ * byte-identical local copy satisfies every boolean claim you can make about
+ * `$expand`. The pin that can see it is the identity pin in
+ * `__tests__/expandableFamily.identity-5692.test.ts`.
  */
 export function computeLookupExpand(
   schema: { columns?: any[]; objectName?: string },
@@ -223,17 +234,6 @@ export function computeLookupExpand(
   } else {
     for (const [name, def] of Object.entries(objectSchema.fields)) fieldsByName[name] = { name, ...(def as any) };
   }
-  const isLookup = (t: unknown) => {
-    if (typeof t === 'string' && isRetiredFieldType(t)) {
-      reportRetiredFieldType(t);
-      return false;
-    }
-    // Never `new Set([...EXPANDABLE_FIELD_TYPES, …])` and never a re-listing of
-    // its members: a copy re-forks the table, which is the defect this removed,
-    // and the identity pin fails on it by design.
-    return EXPANDABLE_FIELD_TYPES.has(t as string);
-  };
-
   const cols = Array.isArray(schema.columns) ? schema.columns : [];
   const out = new Set<string>();
 
@@ -251,14 +251,14 @@ export function computeLookupExpand(
       .filter(Boolean);
     for (const acc of accessors) {
       const def = fieldsByName[acc];
-      if (def && isLookup(def.type)) out.add(acc);
+      if (def && isLookupType(def.type)) out.add(acc);
     }
   } else {
     // No columns whitelist (auto-derive mode, e.g. drill-down drawer):
     // expand every lookup-type field known from the schema so cells show
     // the related record's display name instead of a bare FK id.
     for (const [name, def] of Object.entries(fieldsByName)) {
-      if (isLookup((def as any)?.type)) out.add(name);
+      if (isLookupType((def as any)?.type)) out.add(name);
     }
   }
   return Array.from(out);
