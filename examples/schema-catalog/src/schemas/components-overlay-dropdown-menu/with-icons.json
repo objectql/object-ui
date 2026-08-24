@@ -3,7 +3,7 @@
   "trigger": {
     "type": "button",
     "label": "Actions",
-    "icon": "more-horizontal"
+    "icon": "ellipsis"
   },
   "items": [
     {

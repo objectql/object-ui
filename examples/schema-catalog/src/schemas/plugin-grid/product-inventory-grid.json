@@ -21,7 +21,7 @@
               "label": "Filter",
               "variant": "outline",
               "size": "sm",
-              "icon": "filter"
+              "icon": "funnel"
             },
             {
               "type": "button",

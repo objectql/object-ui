@@ -39,6 +39,7 @@
     "type-check:vitest-setup": "tsc -p tsconfig.vitest-setup.json",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
     "check:action-forward-parity": "node scripts/check-action-forward-parity.mjs",
+    "check:icon-record-names": "node scripts/check-lucide-icon-record-names.mjs",
     "check:phantom-deps": "node scripts/check-phantom-dependencies.mjs",
     "check:self-import": "node scripts/check-package-self-import.mjs",
   "check:esm-specifiers": "node scripts/check-node-esm-load.mjs --specifiers-only",

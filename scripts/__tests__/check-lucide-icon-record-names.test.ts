@@ -1,0 +1,441 @@
+import { afterAll, describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  ANCHORED_MAPS,
+  DECLARED_DYNAMIC_READERS,
+  DECLARED_RECORD_READERS,
+  DISCOVERY_NEGATIVE_CONTROL,
+  RECORD_READING_TYPES,
+  analyze,
+  describeName,
+  icons,
+  iconNames,
+  isLiveKey,
+  liveSpellingFor,
+  selfTest,
+  toRecordKey,
+} from '../check-lucide-icon-record-names.mjs';
+
+/**
+ * objectui#5633 — an authored `icon:` literal reaching a record-reading lucide
+ * resolver must be a live key of the runtime `icons` record.
+ *
+ * The class is invisible in BOTH directions. lucide retires a spelling by
+ * dropping it from that record while keeping it as a deprecated named export,
+ * so the retired name still imports, still type-checks, and still renders where
+ * it is used as a COMPONENT — `Edit === SquarePen` and `Filter === Funnel` are
+ * both TRUE — and resolves to `null` where it is used as a STRING. It had been
+ * repaired twice, in two packages, by two cards, each leaving a LOCAL pin
+ * behind (objectui#5586, objectui#5622).
+ *
+ * What this file pins, in the order the gate can go wrong:
+ *
+ *  1. **The instrument is not blind.** This whole card exists because the
+ *     current tooling reports nothing; a probe that also reports nothing reads
+ *     as green. So the predicate is shown REJECTING the exact species it is
+ *     for, before any silence of it is quoted.
+ *  2. **The discriminating pin and its two controls**, over throwaway trees:
+ *     a retired-but-exported name goes red naming the site; a live name at the
+ *     same site goes green AND is shown to have been judged; a name that is not
+ *     a lucide export at all goes red for a visibly DIFFERENT reason.
+ *  3. **It is not a blanket string scan.** The same retired name on a node
+ *     whose `type` is not a censused record-reading renderer is declined, not
+ *     flagged. A gate that flagged those is a gate that gets suppressed.
+ *  4. **The census is measured, not remembered** — an undeclared resolver and a
+ *     declared-but-vanished one both fail — and discovery matches the IMPORT,
+ *     not the name.
+ *  5. **The anchors cannot collapse quietly.** A short read is an error, not
+ *     zero violations.
+ *  6. **This repository is green, with non-zero counters**, so green is a
+ *     judgement rather than a walk that found nothing.
+ *  7. **The gate is wired**, and the local pins it replaced are gone.
+ */
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const GATE = 'scripts/check-lucide-icon-record-names.mjs';
+
+/**
+ * THE repository scan — computed exactly once. It is a full TypeScript parse of
+ * every source under `packages/`, `apps/` and `examples/`; running it inside
+ * each `it()` would multiply that cost by the number of assertions.
+ */
+const repoResult = analyze(repoRoot);
+
+// ── fixture trees ────────────────────────────────────────────────────────────
+
+const fixtures: string[] = [];
+afterAll(() => {
+  for (const dir of fixtures) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+/**
+ * A record-reading resolver, spelled the way the real ones are. Every fixture
+ * carries one: `analyze` treats "no record-reading resolver discovered at all"
+ * as an error precisely because a scan that finds none makes every other
+ * verdict vacuous, and a fixture without one would be testing that error
+ * instead of what it means to test.
+ */
+const RESOLVER_FILE = 'packages/fixture-widgets/src/resolve-icon.ts';
+const RESOLVER_SOURCE = [
+  "import { icons, type LucideIcon } from 'lucide-react';",
+  'export function resolveIcon(name: string): LucideIcon | null {',
+  "  return (icons as Record<string, LucideIcon>)[name] ?? null;",
+  '}',
+].join('\n');
+
+interface FixtureOptions {
+  /** Extra `path -> body` files on top of the resolver. */
+  files: Record<string, string>;
+  anchors?: typeof ANCHORED_MAPS;
+  declaredRecordReaders?: string[];
+  declaredDynamicReaders?: string[];
+  negativeControl?: string;
+}
+
+function fixtureRepo(label: string, files: Record<string, string>): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `icon-record-${label}-`));
+  fixtures.push(root);
+  for (const [rel, body] of Object.entries({ [RESOLVER_FILE]: RESOLVER_SOURCE, ...files })) {
+    fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), body);
+  }
+  return root;
+}
+
+function judge(label: string, options: FixtureOptions) {
+  const root = fixtureRepo(label, options.files);
+  return analyze(root, {
+    anchors: options.anchors ?? [],
+    declaredRecordReaders: options.declaredRecordReaders ?? [RESOLVER_FILE],
+    declaredDynamicReaders: options.declaredDynamicReaders ?? [],
+    negativeControl: options.negativeControl,
+  });
+}
+
+/** One authored `ui:button` node in a TS module — the shape that broke live. */
+const buttonModule = (icon: string): string => [
+  "export const schema = {",
+  "  type: 'button',",
+  "  label: 'Filter',",
+  `  icon: '${icon}',`,
+  '};',
+].join('\n');
+
+// ── 1. the instrument is not blind ───────────────────────────────────────────
+
+describe('the instrument can see the distinction it claims to judge', () => {
+  it('passes its own self-test on the installed lucide', () => {
+    expect(selfTest()).toEqual([]);
+  });
+
+  it('the two vocabularies differ in exactly the way every verdict here depends on', () => {
+    // Not decoration. If the dynamic list ever stopped being a superset — or if
+    // these names came back into the record — every "this is retired" verdict
+    // below would be true of nothing, and the suite would still be green while
+    // checking nothing at all.
+    expect(iconNames.length).toBeGreaterThan(Object.keys(icons).length);
+    for (const retired of ['edit', 'smile', 'filter', 'more-horizontal', 'alert-triangle']) {
+      expect(iconNames, `\`${retired}\` left the dynamic vocabulary`).toContain(retired);
+      expect(isLiveKey(retired), `\`${retired}\` is back in the runtime record`).toBe(false);
+    }
+    for (const live of ['square-pen', 'funnel', 'ellipsis', 'face-slightly-smiling']) {
+      expect(isLiveKey(live), `\`${live}\` is not in the runtime record`).toBe(true);
+    }
+  });
+
+  it('rejects a retired alias even though it is the SAME OBJECT as its live spelling', () => {
+    // The reason membership is the predicate and resolvability is not: any
+    // assertion that reached for the export, or rendered the glyph and looked,
+    // would pass on the broken spelling.
+    const live = liveSpellingFor('filter');
+    expect(live?.kebab).toBe('funnel');
+    expect(isLiveKey('filter')).toBe(false);
+    expect(isLiveKey('funnel')).toBe(true);
+  });
+
+  it('applies the resolvers\' own `Home` -> `House` alias rather than bypassing it', () => {
+    // Five of the eight censused resolvers carry this map. Judging `home` dead
+    // would be a violation none of them would ever produce.
+    expect(toRecordKey('home')).toBe('House');
+    expect(isLiveKey('home')).toBe(true);
+  });
+});
+
+// ── 2. the discriminating pin, and its two controls ──────────────────────────
+
+describe('an authored icon name reaching a record-reading resolver', () => {
+  it('goes RED on a retired-but-still-exported spelling, naming the site and the name', () => {
+    const result = judge('retired', { files: { 'packages/app/src/toolbar.ts': buttonModule('filter') } });
+
+    expect(result.errors).toEqual([]);
+    expect(result.violations).toHaveLength(1);
+    const [violation] = result.violations;
+    expect(violation.where).toBe('packages/app/src/toolbar.ts:4');
+    expect(violation.site).toBe('button');
+    expect(violation.resolver).toBe(RECORD_READING_TYPES.button.resolver);
+    expect(violation.detail).toContain('"filter"');
+    expect(violation.detail).toContain('`Filter`');
+    // The replacement is DERIVED by object identity from the record, never read
+    // off a list this gate maintains.
+    expect(violation.detail).toContain('write `funnel`');
+  });
+
+  it('goes GREEN on a live name at the SAME site — and the name was really judged', () => {
+    const result = judge('live', { files: { 'packages/app/src/toolbar.ts': buttonModule('funnel') } });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors).toEqual([]);
+    // Without this, "no violations" would read identically to a walk that never
+    // reached the file.
+    expect(result.counters.authoredJudged).toBe(1);
+  });
+
+  it('goes RED for a visibly DIFFERENT reason on a name lucide does not export at all', () => {
+    const result = judge('unknown', { files: { 'packages/app/src/toolbar.ts': buttonModule('no-such-lucide-icon') } });
+
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].detail).toContain('is not a lucide icon at all');
+    // The two diagnoses must not collapse into one: "retired alias, write X"
+    // and "never existed" call for different repairs.
+    expect(result.violations[0].detail).not.toContain('DEPRECATED EXPORT');
+    expect(describeName('filter')).toContain('DEPRECATED EXPORT');
+  });
+
+  it('judges authored JSON with the same predicate, including a child array path', () => {
+    const result = judge('json', {
+      files: {
+        'examples/catalog/toolbar.json': JSON.stringify({
+          type: 'action:bar',
+          actions: [{ name: 'a', icon: 'square-pen' }, { name: 'b', icon: 'edit' }],
+        }, null, 2),
+      },
+    });
+
+    expect(result.counters.authoredJudged).toBe(2);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].where).toBe('examples/catalog/toolbar.json $.actions[1].icon');
+    expect(result.violations[0].detail).toContain('write `square-pen`');
+  });
+});
+
+// ── 3. it is not a blanket string scan ───────────────────────────────────────
+
+describe('a name whose resolver this gate cannot identify is declined, not flagged', () => {
+  it('leaves the same retired spelling alone on an untyped and a non-censused node', () => {
+    // Both shapes are live in this repository: Tailwind tone maps keyed `icon`,
+    // and catalog child items under `button-group`/`breadcrumb`/`command`
+    // (three of which never read `icon`, and a fourth that renders it as text).
+    // A gate that flagged these would be suppressed on day one, and then it
+    // would catch nothing at all.
+    const result = judge('declined', {
+      files: {
+        'packages/app/src/tones.ts': "export const tone = { icon: 'text-amber-500' };",
+        'packages/app/src/other.ts': "export const node = { type: 'text', icon: 'filter' };",
+        'examples/catalog/items.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2),
+      },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.counters.authoredJudged).toBe(0);
+    // …and it SAW them — silence here is a decision, not a miss.
+    expect(result.counters.authoredDeclined).toBe(3);
+  });
+});
+
+// ── 4. the census is measured, not remembered ────────────────────────────────
+
+describe('the surface census is re-derived on every run', () => {
+  it('fails on a record-reading resolver nobody declared', () => {
+    const result = judge('undeclared', {
+      files: {
+        'packages/app/src/sneaky.tsx': [
+          "import { icons } from 'lucide-react';",
+          'export const pick = (name: string) => (icons as any)[name];',
+        ].join('\n'),
+      },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors.join('\n')).toContain('UNDECLARED record-reading resolver: packages/app/src/sneaky.tsx');
+  });
+
+  it('fails on a declared entry that no longer reads the record', () => {
+    const result = judge('stale', {
+      files: {},
+      declaredRecordReaders: [RESOLVER_FILE, 'packages/app/src/gone.ts'],
+    });
+
+    expect(result.errors.join('\n')).toContain('STALE record-reading resolver census entry: packages/app/src/gone.ts');
+  });
+
+  it('separates the DYNAMIC vocabulary from the record one', () => {
+    // Getting this backwards is worse than having no gate: the dynamic list
+    // still carries `edit`, so a gate pointed at it would bless the exact names
+    // this class is about.
+    const result = judge('dynamic', {
+      files: {
+        'packages/app/src/lazy.ts': [
+          "import { iconNames } from 'lucide-react/dynamic.mjs';",
+          'export const known = new Set(iconNames as string[]);',
+        ].join('\n'),
+      },
+      declaredDynamicReaders: ['packages/app/src/lazy.ts'],
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.discovered.dynamic).toEqual(['packages/app/src/lazy.ts']);
+    expect(result.discovered.record).toEqual([RESOLVER_FILE]);
+  });
+
+  it('matches the IMPORT, not the name — a local `icons` object is not a resolver', () => {
+    // The blind-probe control for discovery. `plugin-chatbot/src/elements/tool.tsx`
+    // is the live specimen: it builds its own `icons` map of ReactNodes and
+    // indexes it by tool state.
+    const result = judge('local-icons', {
+      files: {
+        'packages/app/src/status.tsx': [
+          "import { CircleIcon } from 'lucide-react';",
+          'const icons: Record<string, unknown> = { ok: CircleIcon };',
+          'export const pick = (state: string) => icons[state];',
+        ].join('\n'),
+      },
+    });
+
+    expect(result.discovered.record).toEqual([RESOLVER_FILE]);
+    expect(result.errors).toEqual([]);
+  });
+});
+
+// ── 5. the anchors cannot collapse quietly ───────────────────────────────────
+
+describe('an anchored first-party map', () => {
+  const mapModule = (name: string, first: string): string => [
+    "import type { LucideIcon } from 'lucide-react';",
+    `const ${name}: Record<string, LucideIcon> = {`,
+    `  a: ${first},`,
+    '  b: ChartColumn,',
+    '  c: SquarePen,',
+    '};',
+    `export default ${name};`,
+  ].join('\n');
+
+  it('flags a retired IDENTIFIER sitting in a component map', () => {
+    const result = judge('anchor-red', {
+      files: { 'packages/app/src/icons.ts': mapModule('VIEW_ICONS', 'BarChart3') },
+      anchors: [{ file: 'packages/app/src/icons.ts', anchor: 'VIEW_ICONS', kind: 'identifiers', min: 3, why: 'fixture' }],
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].detail).toContain('write `chart-column`');
+    expect(result.counters.anchoredJudged).toBe(3);
+  });
+
+  it('ERRORS rather than passing when the reader comes up short', () => {
+    // The failure mode a source-reading pin invites: the declaration is
+    // renamed, the extractor finds nothing, and "zero violations" reads exactly
+    // like a clean map.
+    const result = judge('anchor-drift', {
+      files: { 'packages/app/src/icons.ts': mapModule('RENAMED_ICONS', 'ChartColumn') },
+      anchors: [{ file: 'packages/app/src/icons.ts', anchor: 'VIEW_ICONS', kind: 'identifiers', min: 3, why: 'fixture' }],
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors.join('\n')).toContain('yielded 0 entries, fewer than the 3');
+    expect(result.counters.anchoredJudged).toBe(0);
+  });
+
+  it('ERRORS when the anchored source is gone entirely', () => {
+    const result = judge('anchor-missing', {
+      files: {},
+      anchors: [{ file: 'packages/app/src/icons.ts', anchor: 'VIEW_ICONS', kind: 'identifiers', min: 3, why: 'fixture' }],
+    });
+
+    expect(result.errors.join('\n')).toContain('anchored map source is gone: packages/app/src/icons.ts');
+  });
+});
+
+// ── 6. this repository ───────────────────────────────────────────────────────
+
+describe('this repository', () => {
+  it('is green', () => {
+    expect(repoResult.violations.map((v) => `${v.where} :: ${v.detail}`)).toEqual([]);
+    expect(repoResult.errors).toEqual([]);
+  });
+
+  it('was actually scanned — green is a judgement, not an empty walk', () => {
+    expect(repoResult.counters.sources).toBeGreaterThan(1000);
+    expect(repoResult.counters.documents).toBeGreaterThan(100);
+    expect(repoResult.counters.authoredJudged).toBeGreaterThan(20);
+    expect(repoResult.counters.anchoredJudged).toBeGreaterThan(30);
+  });
+
+  it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
+    // The card's table listed four. Discovery found eight, which is the whole
+    // argument for measuring the population instead of maintaining a list: the
+    // four it missed each resolve authored strings through the same record.
+    expect(repoResult.discovered.record).toEqual([...DECLARED_RECORD_READERS].sort());
+    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(8);
+    for (const late of [
+      'packages/components/src/renderers/form/button.tsx',
+      'packages/plugin-list/src/ListView.tsx',
+      'packages/plugin-detail/src/RelatedList.tsx',
+      'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',
+    ]) {
+      expect(repoResult.discovered.record).toContain(late);
+    }
+  });
+
+  it('keeps the dynamic surface declared and separate', () => {
+    expect(repoResult.discovered.dynamic).toEqual([...DECLARED_DYNAMIC_READERS].sort());
+  });
+
+  it('does not mistake the live local-`icons` specimen for a resolver', () => {
+    expect(fs.existsSync(path.join(repoRoot, DISCOVERY_NEGATIVE_CONTROL))).toBe(true);
+    expect(repoResult.discovered.record).not.toContain(DISCOVERY_NEGATIVE_CONTROL);
+    expect(repoResult.discovered.dynamic).not.toContain(DISCOVERY_NEGATIVE_CONTROL);
+  });
+});
+
+// ── 7. wiring, and the pins this gate replaced ───────────────────────────────
+
+describe('the gate is wired and the local pins it subsumes are gone', () => {
+  it('has a `check:*` script and a CI step', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+    const scripts: Record<string, string> = manifest.scripts;
+    const entry = Object.entries(scripts).find(([, command]) => command.includes(GATE));
+    expect(entry, `no root script runs ${GATE}`).toBeDefined();
+
+    const ci = fs.readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+    expect(ci, `${GATE} is not run by ci.yml — an unrun gate is not a gate`).toContain(`pnpm ${entry![0]}`);
+  });
+
+  it('the two fully-subsumed local pins are deleted', () => {
+    for (const pin of [
+      'packages/plugin-list/src/__tests__/ViewSwitcher.iconNames.test.ts',
+      'packages/plugin-detail/src/__tests__/DetailView.systemActionIconNames.test.ts',
+    ]) {
+      expect(fs.existsSync(path.join(repoRoot, pin)), `${pin} still exists — the gate and a copy of what it checks`).toBe(false);
+    }
+  });
+
+  it('their populations moved into the gate rather than being dropped', () => {
+    const anchored = ANCHORED_MAPS.map((a) => `${a.file}::${a.anchor}`);
+    expect(anchored).toContain('packages/plugin-list/src/ViewSwitcher.tsx::VIEW_ICONS');
+    expect(anchored).toContain('packages/plugin-detail/src/DetailView.tsx::items.push');
+    expect(anchored).toContain('packages/plugin-view/src/ViewSwitcher.tsx::DEFAULT_VIEW_ICONS');
+    expect(anchored).toContain('packages/plugin-view/src/ObjectView.tsx::iconMap');
+  });
+
+  it('the pin the gate does NOT subsume is kept, and says why', () => {
+    // `ui:icon`'s registration meta: no first-party consumer of a
+    // registration's `icon` exists in this repository, so the gate has no
+    // measured basis to judge it. Retiring that pin would drop coverage.
+    const kept = 'packages/components/src/__tests__/icon-renderer-declared-default.test.ts';
+    expect(fs.existsSync(path.join(repoRoot, kept))).toBe(true);
+    expect(fs.readFileSync(path.join(repoRoot, kept), 'utf8')).toContain('NOT retired by objectui#5633');
+  });
+});

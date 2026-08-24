@@ -32,6 +32,16 @@ import '../renderers/basic/icon';
 //
 // Read off the REGISTRY rather than out of source: the registry entry is the
 // artifact the designer palette actually consumes.
+//
+// ⚠️ NOT retired by objectui#5633's repo-level gate
+// (`scripts/check-lucide-icon-record-names.mjs`), deliberately. That gate judges
+// names reaching a resolver it can SEE reading the record, and this repository
+// contains no first-party consumer of a registration's `icon` meta at all —
+// measured: `getMeta(...).icon` is read nowhere under `packages/**` or `apps/**`.
+// The palette that renders it lives outside this repo, so the claim this pin
+// makes is one the gate has no measured basis to generalise. It also asserts
+// something no membership check can: that the palette glyph and the dropped
+// default stay the SAME name.
 // ---------------------------------------------------------------------------
 
 /**

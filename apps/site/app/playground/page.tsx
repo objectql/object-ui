@@ -851,7 +851,7 @@ const EXAMPLE_SCHEMAS = {
                 type: "button",
                 variant: "outline",
                 label: "Filter",
-                icon: "Filter"
+                icon: "Funnel"
               },
               {
                 type: "button",

@@ -251,6 +251,25 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:action-forward-parity
 
+      # lucide retires a spelling by DROPPING IT FROM the runtime `icons` record
+      # while keeping it as a deprecated named export. A retired name therefore
+      # still imports, still type-checks and still renders wherever it is used as
+      # a COMPONENT (`Edit === SquarePen`, `Filter === Funnel`) — and resolves to
+      # nothing wherever it is used as a STRING, because the string lookups read
+      # that record. Nothing goes red in either direction, which is why it had to
+      # be repaired twice, in two packages, by two cards, each leaving a LOCAL pin
+      # behind (objectui#5586, objectui#5622). This gate replaces those pins with
+      # one predicate over the population, judged by the record itself and never
+      # by a list of retired spellings — a list would age the moment lucide
+      # retires the next name, and age silently. It also RE-DISCOVERS the
+      # resolvers on every run: its first pass found four record-reading resolvers
+      # objectui#5633's hand-built table did not know about. Reads sources with
+      # `typescript` and the installed lucide, so it needs the install and nothing
+      # built — same placement rationale as the step above.
+      - name: Verify authored icon names are live lucide `icons` keys
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:icon-record-names
+
       # A key a component asks `t()` for must exist in the `en` pack.
       # `all-locales-key-parity.test.ts` compares packs to EACH OTHER, so ten
       # packs identically missing a key is full parity and full parity is green

@@ -52,8 +52,9 @@ export interface ViewSwitcherProps {
 // spelling that is dead for the LOOKUP must not get to look alive in a map and
 // be copied into a string map next to it — which is exactly how `bar-chart-3`
 // reached `plugin-view`'s producer map (objectui#5586, same three aliases in
-// the sibling switcher's `DEFAULT_VIEW_ICONS`). Pinned by
-// `__tests__/ViewSwitcher.iconNames.test.ts`.
+// the sibling switcher's `DEFAULT_VIEW_ICONS`). Judged by the repo-level gate
+// `scripts/check-lucide-icon-record-names.mjs` (objectui#5633), which replaced
+// this package's local pin with one predicate over every such map.
 //
 // `gantt` is the one real glyph change of the three: `GanttChartSquare` and
 // `ChartGantt` are DIFFERENT objects (the identity-preserving live spelling is

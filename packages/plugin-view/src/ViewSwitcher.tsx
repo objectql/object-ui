@@ -79,7 +79,9 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
 // exactly that record: there a deprecated spelling resolves to nothing and the
 // view renders with no icon at all. Keeping this map on record-live names keeps
 // the two halves comparable and keeps a dead spelling from being copied back
-// into the string map. Both maps are pinned in `ViewSwitcher.test.tsx`.
+// into the string map. This map's membership is judged by the repo-level gate
+// `scripts/check-lucide-icon-record-names.mjs` (objectui#5633); the string map
+// beside it is judged there too and rendered in `ViewSwitcher.test.tsx`.
 const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   list: List,
   detail: FileText,
