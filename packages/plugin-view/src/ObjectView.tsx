@@ -246,13 +246,20 @@ export interface ObjectViewProps {
    * `sort` spells its direction key `order`, like every other sort surface in
    * the repo (`SortConfig`, `NamedListView.sort`, `ObjectGridSchema.sort` /
    * `.defaultSort`) and like the shared sink `convertSortToQueryParams` reads
-   * it. It used to be declared as `direction` (objectui#5293), which NO reader
-   * ever knew: all three consumers of the resolved `activeView.sort` read
-   * `order`, so a host writing `direction: 'desc'` got a SILENTLY ascending
-   * list — the sink's `entry.order === 'desc'` is false for a missing key, the
-   * grid built the wire string `name undefined`, and `parseSchemaSort` drew an
-   * ascending arrow above it. The rename does not remove a working feature;
-   * it converts that silent wrong answer into a loud type error.
+   * it. It used to be declared as `direction` (objectui#5293), which NO
+   * consumer of THIS prop ever read: all three consumers of the resolved
+   * `activeView.sort` read `order`, so a host writing `direction: 'desc'` got a
+   * SILENTLY ascending list — the sink's `entry.order === 'desc'` is false for
+   * a missing key, the grid built the wire string `name undefined`, and
+   * `parseSchemaSort` drew an ascending arrow above it. The rename does not
+   * remove a working feature; it converts that silent wrong answer into a loud
+   * type error.
+   *
+   * The claim is scoped to those three consumers on purpose. Elsewhere in this
+   * package the published `toSortItems` export still folds
+   * `s.order || s.direction` for the studio inspector-draft — a different
+   * surface, unreachable from this prop, and deliberately not retired here
+   * (objectui#6011).
    *
    * ⛔ Deliberately NOT a tolerant dual-read (`direction ?? order`) — that is
    * the tolerance layer objectui#4869 ruled against, and re-adding it here

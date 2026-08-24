@@ -17,8 +17,8 @@ here so that a host still writing it can find this entry by searching the old ke
   />
 ```
 
-**Nothing that worked stops working, because `direction` never worked.** No reader in the
-repo has ever known the word. All three consumers of the resolved `activeView.sort` read
+**Nothing that worked stops working on this surface, because on the `views` prop
+`direction` never worked.** All three consumers of the resolved `activeView.sort` read
 `order`: the non-grid fetch lowers it through the shared sink `convertSortToQueryParams`,
 whose `entry.order === 'desc'` is false for a missing key; the grid path forwards it to
 `ObjectGridSchema.sort`, where `ObjectGrid` builds the wire string `` `${s.field} ${s.order}` ``
@@ -31,6 +31,16 @@ failure signal anywhere: the declaration said the value was well-formed, and the
 was dropped at three independent readers rather than rejected at one. This rename does not
 take away a feature — it converts a silent wrong answer into a loud type error at the one
 place that can still be fixed cheaply.
+
+**Scope — one published export still accepts `direction`, and this release does not retire
+it.** `toSortItems` (`packages/plugin-view/src/config/view-config-utils.ts`, re-exported
+from the package root and listed in the README) folds `s.order || s.direction || 'asc'`.
+It serves a different surface — the studio inspector-draft that feeds `SortBuilder` — and
+it is not reachable from the `views` prop, so it neither affects nor is affected by this
+rename. If you migrate by searching for the old key, that is the other hit you will find:
+it is dormant (nothing in this repo calls it outside a test), and removing it would be a
+separate break on a separate public export, tracked as objectui#6011. It is not a partial
+retirement of this one.
 
 `order` is the spelling every other sort surface already uses (`SortConfig`,
 `NamedListView.sort`, `ObjectGridSchema.sort` / `.defaultSort`, and the shared
