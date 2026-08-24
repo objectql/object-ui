@@ -24,6 +24,8 @@ ObjectUI includes enterprise-grade capabilities to build production-ready applic
 #### [App Schema](/docs/core/app-schema)
 Define your entire application structure with navigation, branding, and global settings.
 
+<!-- doc-snippet: fragment — a shape excerpt: `menu` and `actions` are written as a literal `[...]` ellipsis because the section is about the app schema's top-level keys, not about a menu -->
+
 ```typescript
 const app: AppComponentSchema = {
   type: 'app',
@@ -71,6 +73,8 @@ turns it into the CSS variables your components already read.
 #### [Enhanced Actions](/docs/core/enhanced-actions)
 Powerful action system with AJAX calls, chaining, conditions, and callbacks.
 
+<!-- doc-snippet: fragment — a shape excerpt: `chain`, `condition`, `onSuccess` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
+
 ```typescript
 const action: ActionSchema = {
   type: 'action',
@@ -103,6 +107,8 @@ const action: ActionSchema = {
 Enterprise reports with aggregation, export, and scheduling.
 
 ```typescript
+import type { ReportComponentSchema } from '@object-ui/types';
+
 const report: ReportComponentSchema = {
   type: 'report',
   title: 'Sales Report',
@@ -130,6 +136,8 @@ const report: ReportComponentSchema = {
 
 #### [Block Schema](/docs/blocks/block-schema)
 Reusable component blocks with variables, slots, and marketplace support.
+
+<!-- doc-snippet: fragment — a shape excerpt: the block template's `children` is written as a literal `[...]` ellipsis, since the section is about the block wrapper rather than what it wraps -->
 
 ```typescript
 const block: BlockSchema = {
@@ -217,6 +225,8 @@ import {
   ReportComponentSchema,
   BlockSchema
 } from '@object-ui/types/zod';
+
+const myConfig = { type: 'app', title: 'My Application', layout: 'sidebar' };
 
 const result = AppComponentSchema.safeParse(myConfig);
 if (result.success) {

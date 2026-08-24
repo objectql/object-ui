@@ -283,6 +283,8 @@ npm install @object-ui/plugin-view
 
 Plugins use React's `lazy()` and `Suspense` to load heavy dependencies on-demand:
 
+<!-- doc-snippet: fragment — the inside of a plugin package: `./MonacoImpl` is that package's own sibling module, which exists only within the plugin being described and cannot resolve from here -->
+
 ```typescript
 // The plugin structure
 import React, { Suspense } from 'react'
@@ -324,6 +326,8 @@ Without lazy loading, all this code would be in your main bundle!
 ### Auto-Registration
 
 Plugins automatically register their components when imported:
+
+<!-- doc-snippet: fragment — continues the plugin-structure block above: `CodeEditorRenderer` is the component defined there, and repeating its definition here would bury the one line this section is about -->
 
 ```typescript
 // In the plugin's index.tsx

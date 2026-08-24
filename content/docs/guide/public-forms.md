@@ -20,7 +20,9 @@ from `/api/v1/meta/view/:name` and posting to `/api/v1/data/:object`.
 
 ```tsx
 import { EmbeddableForm } from '@object-ui/plugin-form';
-import { restDataSource } from '@object-ui/data-rest';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 <EmbeddableForm
   config={{
@@ -43,7 +45,7 @@ import { restDataSource } from '@object-ui/data-rest';
       redirectUrl: 'https://example.com/thank-you',
     },
   }}
-  dataSource={restDataSource}
+  dataSource={dataSource}
 />
 ```
 
@@ -67,6 +69,9 @@ thank-you page so bots can't tell they failed.
 ## Configuration reference
 
 ```ts
+import type { FormField } from '@object-ui/types';
+import type { EmbeddableFormTexts } from '@object-ui/plugin-form';
+
 interface EmbeddableFormConfig {
   formId: string;
   objectName: string;
@@ -101,6 +106,8 @@ interface EmbeddableFormConfig {
 
 Public form URLs are user-controlled, so prefill is **off** unless you
 explicitly opt fields in:
+
+<!-- doc-snippet: fragment — the quick-start element again with its `config` elided down to the one key this section adds; `EmbeddableForm` is the import made there -->
 
 ```tsx
 <EmbeddableForm
@@ -181,6 +188,8 @@ write the destination relatively if you want it placed inside your mount.
 
 ### GDPR consent
 
+<!-- doc-snippet: fragment — two bare config properties, shown on their own: they belong inside the `config` object of the quick-start block and are not a program -->
+
 ```tsx
 consent: { required: true, label: 'I agree to the privacy policy.' }
 privacyPolicyUrl: '/legal/privacy'
@@ -208,6 +217,8 @@ hard error, so legit speed-typers can simply retry.
 `EmbeddableForm` doesn't bundle a specific provider. Mount your
 preferred widget (hCaptcha, Turnstile, reCAPTCHA) and feed the token in:
 
+<!-- doc-snippet: fragment — the captcha widget, `useState` import and data source are the reader's own, and the `config` object is elided down to the one key this section adds -->
+
 ```tsx
 const [token, setToken] = useState<string>();
 <EmbeddableForm config={{ /* … */ captchaToken: token }} dataSource={ds} />
@@ -220,6 +231,8 @@ The token is forwarded as `payload._captcha` for server-side validation.
 `EmbeddableForm` is i18n-agnostic — every user-visible string is
 overridable via `config.texts: EmbeddableFormTexts`. The console wires
 this up through `@object-ui/i18n`:
+
+<!-- doc-snippet: fragment — `t` comes from the console's own i18n provider and the `config` object is elided down to the `texts` key this section is about -->
 
 ```tsx
 const { t } = useObjectTranslation();

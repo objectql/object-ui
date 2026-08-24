@@ -195,6 +195,8 @@ Add the `vite-plugin-compression` plugin for pre-compressed assets:
 pnpm add -D vite-plugin-compression
 ```
 
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's own project: `defineConfig`, `react()`, `tailwindcss()` and `vite-plugin-compression` are the reader's dependencies and imports, not this repository's, so they cannot resolve here -->
+
 ```ts
 // vite.config.ts
 import compression from 'vite-plugin-compression';
@@ -217,7 +219,8 @@ Vite splits chunks automatically. For ObjectUI plugins, use dynamic imports to k
 import { createLazyPlugin } from '@object-ui/react';
 
 const ObjectGrid = createLazyPlugin(
-  () => import('@object-ui/plugin-grid'),
+  // The plugin package has no default export — name the component you want.
+  async () => ({ default: (await import('@object-ui/plugin-grid')).ObjectGrid }),
   { fallback: <div>Loading grid...</div> }
 );
 ```
@@ -229,6 +232,8 @@ Visualize your bundle to find optimization opportunities:
 ```bash
 pnpm add -D rollup-plugin-visualizer
 ```
+
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's own project: `defineConfig`, `react()`, `tailwindcss()` and `rollup-plugin-visualizer` are the reader's dependencies and imports, not this repository's, so they cannot resolve here -->
 
 ```ts
 // vite.config.ts

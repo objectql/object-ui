@@ -22,7 +22,9 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 The foundational building block of ObjectUI. Every component in the system is described by a `SchemaNode`. It can be a full schema object, or a primitive value rendered as text.
 
 ```typescript
-// Type definition
+import type { BaseSchema } from '@object-ui/types';
+
+// The definition `@object-ui/types` declares
 type SchemaNode = BaseSchema | string | number | boolean | null | undefined;
 ```
 
