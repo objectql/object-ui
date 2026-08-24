@@ -12,7 +12,7 @@
     "with was paid off across seven slices, the last of them two template families. Keep both",
     "of that pair: empty is their terminal, load-bearing state. Any NEW unresolved call-site",
     "key is `unexpected` against an empty baseline and fails the build, which is the point.",
-    "missingMembers is a THIRD list (objectui#4964), NOT part of that pair and NOT empty -- so",
+    "missingMembers is a THIRD list (objectui#4964), NOT part of that pair and empty since objectui#6023 -- so",
     "the sentence above counts missingKeys and missingPrefixes only, never all three. It holds",
     "debt the exact-member check MEASURED on its first run, not debt this repo took on."
   ],
