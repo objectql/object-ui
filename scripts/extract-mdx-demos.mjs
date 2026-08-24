@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -413,6 +414,5 @@ export { DEMO_MODULE, findDemoImports, rewriteDemoImports, stripCode };
 
 // Only run the CLI when executed directly — the import rewriter above is
 // imported by scripts/__tests__/extract-mdx-demos.test.ts.
-const invokedDirectly =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) main();

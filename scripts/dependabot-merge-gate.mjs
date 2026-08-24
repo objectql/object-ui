@@ -109,7 +109,7 @@
  */
 
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Blocking checks whose workflow subscribes `pull_request` with NO trigger-level
@@ -499,7 +499,7 @@ export async function main({ api, env = process.env } = {}) {
   return result;
 }
 
-const invokedDirectly = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) {
   await main();
 }

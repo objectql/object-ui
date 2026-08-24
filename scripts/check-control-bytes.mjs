@@ -88,6 +88,7 @@ import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Control characters that are never legitimate in a text file: the C0 range
@@ -356,7 +357,7 @@ nobody removes is how a baseline turns into a permanent skip-list.`);
 // Run only when invoked directly — the test suite imports `scan`/`classify`
 // from here and must not trigger a repo scan (or a process.exit) on import.
 // Same guard shape as scripts/check-changeset-no-major.mjs.
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   if (process.argv.includes('--list')) {

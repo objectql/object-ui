@@ -127,6 +127,7 @@ import { createRequire } from "module";
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..");
@@ -1058,7 +1059,7 @@ export function analyze(root = REPO_ROOT, options = {}) {
 }
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   let result;

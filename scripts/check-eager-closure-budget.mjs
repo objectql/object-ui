@@ -93,7 +93,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
@@ -340,6 +340,6 @@ export function main(argv = process.argv.slice(2)) {
   return result.status === 'fail' ? 1 : 2;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }

@@ -9,10 +9,13 @@
  *
  * Ported from objectstack's gate of the same name (objectstack#10784 and the
  * cards above it), NOT copied: objectstack swept its tree BEFORE landing the
- * gate, so its spelling rule admits no exceptions at all. This repository has
- * not been swept. The port therefore carries a baseline that objectstack has
- * no need for, and the whole design question of this file is how that baseline
- * is shaped so it cannot become an allowlist. See "The baseline" below.
+ * gate, so its spelling rule admits no exceptions at all. This repository was
+ * swept the other way round -- gate first, then the sweep -- so the port landed
+ * carrying a baseline of 29 owed files that objectstack has no need for. That
+ * baseline is now EMPTY: objectui#6092's second half converted all 29 and
+ * deleted every line. The design question the shape answers -- how a baseline
+ * is kept from becoming an allowlist -- is what got it to empty, and is still
+ * what keeps a new line from being added. See "The baseline" below.
  *
  * Two rules live here. The first is about the SPELLING of a guard that exists;
  * the second, further down, is about a guard that is MISSING from a file that
@@ -22,10 +25,12 @@
  * ## What this gate is for
  *
  * A CLI script has to answer "did node run me, or did something import me?"
- * before it does anything. Hand-typed answers to that question have drifted
+ * before it does anything. Hand-typed answers to that question HAD drifted
  * into NINE distinct spellings across 28 `.mjs` files in `scripts/` here --
- * measured on `133e2ea1e`, not estimated -- and every one of them is wrong in
- * the same way. The dominant failure:
+ * measured on `133e2ea1e`, not estimated -- and every one of them was wrong in
+ * the same way. All 29 sites (those 28 plus `shadcn-sync.js`) now go through
+ * the predicate; what this gate is for is the TENTH spelling, which nothing
+ * else in CI can see. The dominant failure:
  *
  *   node resolves symlinks for the module graph but leaves `process.argv[1]`
  *   as the caller typed it
@@ -34,16 +39,18 @@
  * `false`, and does nothing -- **exit 0, no output**. The CI wrappers spawn
  * these tools and hold `result.status` only, so an inert child is a green gate.
  *
- * That is measured in THIS tree, on a real blocking gate (objectui#6078):
+ * That was measured in THIS tree, on a real blocking gate (objectui#6078),
+ * against the spelling `check-skills-paths.mjs` carried before the sweep:
  *
  *   node scripts/check-skills-paths.mjs              direct  : exit=1, 696 bytes
  *   node /…/link/check-skills-paths.mjs  (symlink)   symlink : exit=0, 0 bytes
  *
- * Same tree, same defect, same gate. A second spelling here goes inert with no
- * symlink at all: `check-node-esm-load.mjs:847` writes
+ * Same tree, same defect, same gate. A second spelling went inert with no
+ * symlink at all: `check-node-esm-load.mjs` wrote
  * ``import.meta.url === `file://${process.argv[1]}` ``, which percent-encodes
  * apart from `argv[1]` in any directory whose name needs encoding (measured in
- * a directory named `a#b c`).
+ * a directory named `a#b c`). Both files now use the predicate; the two
+ * measurements are kept because they are why the rule exists, not a to-do.
  *
  * `scripts/invoked-as.mjs` is the only place allowed to read `process.argv[1]`;
  * everywhere else spells the guard
@@ -52,45 +59,51 @@
  *
  * which has no comparison in it to get wrong.
  *
- * ## Why the gate lands BEFORE the sweep
+ * ## Why the gate landed BEFORE the sweep
  *
  * The sweep on its own is worth little: nothing would stop a TENTH spelling
  * from being typed the next time someone adds a script, and the next one would
  * be just as invisible. That is not hypothetical here -- objectui#6092 measured
  * the worklist growing while the card sat open: `check-designer-field-key-parity.mjs`
  * added a guard between `a1c41c516` and `7c96c9420`. A sweep with no gate under
- * it can be silently undone by the next pull request. So the gate lands first
- * and names its own worklist; the conversion of the 29 existing call sites is
- * the second half of objectui#6092 and is deliberately NOT in this file's PR.
+ * it can be silently undone by the next pull request. So the gate landed first
+ * and named its own worklist, and the conversion of those 29 call sites landed
+ * against it -- each conversion had to lower or delete its own baseline line or
+ * this gate failed STALE and named the file, which is what made the sweep
+ * self-checking rather than a claim.
  *
  * ## The baseline, and why it is not an allowlist
  *
  * ⛔ SHRINK-ONLY, and shaped so the difference is mechanical rather than a
  * promise. `KNOWN_HAND_TYPED_GUARDS` maps a file to the NUMBER of masked
- * `process.argv[1]` occurrences it carried when this gate landed. Three
- * consequences, and the third is the one that makes the whole thing worth
- * landing:
+ * `process.argv[1]` occurrences it carried when this gate landed. It is EMPTY
+ * now; the shape is what emptied it, in three consequences:
  *
- *   • a file NOT in the map that carries a guard fails -- a 30th spelling
- *     cannot land;
- *   • a file IN the map that carries MORE than its number fails -- a second
- *     guard cannot be smuggled into an already-owed file, which a
+ *   • a file NOT in the map that carries a guard fails -- with the map empty
+ *     that is every file, so this is the whole live rule today and a 30th
+ *     spelling cannot land;
+ *   • a file IN the map that carries MORE than its number failed -- a second
+ *     guard could not be smuggled into an already-owed file, which a
  *     path-only baseline would have accepted silently;
- *   • a file that carries FEWER fails as STALE and names itself, with the
- *     remedy being to lower or delete the line. There is no supported route
- *     that raises a number. That is what stops the map from rotting into a
- *     list nobody re-reads.
+ *   • a file that carried FEWER failed as STALE and named itself, with the
+ *     remedy being to lower or delete the line. There was no supported route
+ *     that raised a number, and there is none that adds one back.
  *
- * Every entry has the same one-line remedy -- `isEntrypoint(import.meta.url)`
- * -- so no entry records a judgement anyone has to re-make. That is the
- * property that makes a debt list safe, and it is the only reason one is here.
+ * The last two are unreachable while the map is empty, and they stay in
+ * `reconcileGuards` (and pinned by the self-test) precisely because that is the
+ * state a re-added line would have to pass through: a baseline that only ever
+ * shrank cannot be re-opened as an allowlist.
  *
- * ONE entry is different in kind and is labelled as such rather than left to be
- * re-derived: `scripts/shadcn-sync.js` hand-types the CORRECT two-leg shape
- * (`realpathSync(resolved) === __filename`, objectui#6092). It is not a defect
- * and this gate never reports it as one. It is in the map because the rule is
- * "one predicate", not "one predicate or a second correct implementation" --
- * converting it is a simplification, not a fix.
+ * Every entry had the same one-line remedy -- `isEntrypoint(import.meta.url)`
+ * -- so no entry recorded a judgement anyone had to re-make. That is the
+ * property that made the debt list safe, and it is the only reason one was here.
+ *
+ * ONE of the 29 was different in kind: `scripts/shadcn-sync.js` hand-typed the
+ * CORRECT two-leg shape (`realpathSync(resolved) === __filename`), so this gate
+ * never reported it as a defect. It was in the map because the rule is "one
+ * predicate", not "one predicate or a second correct implementation" -- its
+ * conversion was a simplification, not a fix, and that distinction is now
+ * recorded at the call site in `shadcn-sync.js` rather than here.
  *
  * ## Why a spelling gate rather than a behavioural sweep
  *
@@ -114,9 +127,13 @@
  * Comments AND string/template/regex literals are masked before the scan
  * (`js-comment-mask.mjs`), because a `process.argv[1]` inside a string payload
  * for a spawned child is not an entry guard, and neither is one inside a
- * docblock -- `shadcn-sync.js:1046` really does write one in prose, and an
- * allowlist to excuse it would be a hole the next such file falls through
- * silently.
+ * docblock. That masking is load-bearing, not defensive: after the sweep the
+ * only `scripts/` files that still contain the string at all are this gate
+ * (skipped -- it quotes the idioms it bans), `invoked-as.mjs` (the one module
+ * allowed to read it), and `js-comment-mask.mjs`, whose own corpus carries 8
+ * occurrences in literals. Unmasked, that last file would read as a 30th
+ * hand-typed guard, and an allowlist to excuse it would be a hole the next such
+ * file falls through silently.
  *
  * ## What was deliberately NOT ported
  *
@@ -252,58 +269,22 @@ export function scanFile(rel, source, { isPredicateHome = false } = {}) {
 }
 
 /**
- * ⛔ SHRINK-ONLY. The hand-typed entry guards this tree carried when the gate
- * landed, as `path -> number of masked process.argv[1] occurrences`. The
- * rationale, and why a COUNT rather than a bare path, is in the header. Two
- * shapes appear because a guard written
- * `const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === …`
- * reads `argv[1]` twice.
+ * ⛔ SHRINK-ONLY, and now EMPTY. This carried the 29 hand-typed entry guards
+ * the tree had when the gate landed, as `path -> number of masked
+ * process.argv[1] occurrences`; objectui#6092's second half converted all 29
+ * and deleted every line. The rationale, and why a COUNT rather than a bare
+ * path, is in the header.
  *
- * The remedy for every line is the same:
+ * It stays here, empty, because the reconciliation it feeds is the live rule:
+ * a `scripts/` file that hand-types a guard is now a file the map does not
+ * carry, so it fails as FRESH and names itself. There is no supported route
+ * that adds a line back — the remedy for a new hand-typed guard is the same
+ * one-liner every deleted line had:
  *
  *   import { isEntrypoint } from './invoked-as.mjs';
  *   if (isEntrypoint(import.meta.url)) { … }
- *
- * then delete the line from here. objectui#6092's second half does this sweep.
  */
-const KNOWN_HAND_TYPED_GUARDS = new Map([
-  ['scripts/check-action-forward-parity.mjs', 2],
-  ['scripts/check-changeset-fixed.mjs', 2],
-  ['scripts/check-changeset-no-major.mjs', 2],
-  ['scripts/check-changeset-presence.mjs', 2],
-  ['scripts/check-control-bytes.mjs', 2],
-  ['scripts/check-cross-repo-closer-outcome.mjs', 1],
-  ['scripts/check-designer-field-key-parity.mjs', 1],
-  ['scripts/check-doc-component-types.mjs', 2],
-  ['scripts/check-doc-links.mjs', 2],
-  ['scripts/check-doc-snippet-types.mjs', 2],
-  ['scripts/check-eager-closure-budget.mjs', 2],
-  ['scripts/check-i18n-call-site-keys.mjs', 2],
-  ['scripts/check-i18n-dead-keys.mjs', 2],
-  ['scripts/check-i18n-en-drift.mjs', 2],
-  ['scripts/check-lucide-icon-record-names.mjs', 2],
-  ['scripts/check-node-esm-load.mjs', 1],
-  ['scripts/check-package-self-import.mjs', 2],
-  ['scripts/check-phantom-dependencies.mjs', 2],
-  ['scripts/check-published-dist-tooling.mjs', 2],
-  ['scripts/check-skills-paths.mjs', 2],
-  ['scripts/check-spec-symbol-derivation.mjs', 2],
-  ['scripts/check-type-check-coverage.mjs', 2],
-  ['scripts/dependabot-merge-gate.mjs', 2],
-  ['scripts/extract-mdx-demos.mjs', 2],
-  ['scripts/regenerate-known-schema-types.mjs', 2],
-  ['scripts/render-budget-comment.mjs', 2],
-  ['scripts/shadcn-check-report.mjs', 2],
-  ['scripts/shadcn-sync.js', 1],
-  ['scripts/sync-quick-reference-release.mjs', 2],
-]);
-
-/**
- * The one entry above that is NOT a defect: it hand-types the CORRECT two-leg
- * shape already. Named here so a reader of the map is not left to re-derive
- * which of the entries is which, and so nothing later reports it as broken.
- */
-const CORRECT_SHAPE_BUT_HAND_TYPED = new Set(['scripts/shadcn-sync.js']);
+const KNOWN_HAND_TYPED_GUARDS = new Map([]);
 
 /**
  * Reconcile what the tree carries against the shrink-only baseline. Pure, and
@@ -626,9 +607,18 @@ export function importUnsafeStatements(source) {
  * ONE entry, and that is the point: this rule recognises a hand-typed guard AS
  * a guard (see `guardAliases`), so the 29 badly-spelled files are rule 1's
  * business and do not appear here. `check-lucide-icon-record-names.mjs` builds
- * two lookup maps in top-level `for` loops at :242 and :244, outside any guard,
- * and really does run them inside an importer. That is a true sentence with one
- * remedy, which is the only kind of line a debt list may carry.
+ * two lookup maps in top-level `for` loops at :243 and :245, outside any guard,
+ * and really does run them inside an importer.
+ *
+ * ⚠️ Its remedy is NOT "move the loops behind the guard": those maps are read by
+ * the exported `liveSpellingFor` / `describeName`, which importers really call
+ * (`scripts/__tests__/check-lucide-icon-record-names.test.ts`), so guarding them
+ * turns a working import into a broken one. Measured on this branch, not
+ * reasoned: with the loops moved behind the guard that suite fails. objectui#6092
+ * ruled the restructuring out of scope rather than trade an import for a
+ * baseline; the entry stays, and its remedy is a judgement someone still has to
+ * make -- which is exactly what the rest of this comment says a debt line must
+ * not be. It is the one line here that owes a card, not a one-liner.
  */
 const KNOWN_IMPORT_UNSAFE = new Set(['scripts/check-lucide-icon-record-names.mjs']);
 
@@ -760,7 +750,6 @@ function list() {
     const rel = relative(REPO_ROOT, abs);
     const found = scanFile(rel, readFileSync(abs, 'utf8'), { isPredicateHome: abs === PREDICATE_HOME });
     if (!found.length) continue;
-    const note = CORRECT_SHAPE_BUT_HAND_TYPED.has(rel) ? '  [correct shape, hand-typed]' : '';
     console.log(`  ${String(found.length).padStart(2)}  ${rel}${note}`);
     for (const f of found) console.log(`         :${f.line}  ${f.what}`);
   }
@@ -967,12 +956,15 @@ export function selfTest() {
   t('else continues the statement before it', topLevelStatements(codeOnly('if (a) { x(); } else { y(); }\n')).length === 1);
   t('catch continues the statement before it', topLevelStatements(codeOnly('try { x(); } catch (e) { y(); }\n')).length === 1);
 
-  // ── the labelled entry is really in the baseline it is labelled against ──
-  // A label naming a file the map does not carry is a sentence about nothing,
-  // which is the failure mode this whole card exists to stop.
-  for (const rel of CORRECT_SHAPE_BUT_HAND_TYPED) {
-    t(`${rel} is labelled AND baselined, not just labelled`, KNOWN_HAND_TYPED_GUARDS.has(rel), rel);
-  }
+  // ── the baseline is empty, and that is an assertion, not a description ──
+  // With no lines left, the ONLY thing the map can still do is redden on a file
+  // that hand-types a guard. A test that read the map's size would pass on an
+  // empty map that had also stopped being consulted, so this asserts the
+  // reconciliation instead: an empty baseline must call a real guard FRESH.
+  t(
+    'an EMPTY baseline still reddens on a hand-typed guard',
+    reconcileGuards(new Map([['scripts/anything.mjs', 1]]), new Map([])).fresh.length === 1,
+  );
 
   const failed = cases.filter((c) => !c.ok);
   for (const c of failed) console.error(`  ✗ ${c.name}${c.detail ? ` — ${c.detail}` : ''}`);
