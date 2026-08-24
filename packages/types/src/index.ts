@@ -840,7 +840,6 @@ export type {
   // Enhanced Action System (Phase 2)
   ActionExecutionMode,
   ActionCallback,
-  ActionCondition,
 } from './crud.js';
 
 /**

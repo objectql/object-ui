@@ -269,7 +269,6 @@ export {
 export {
   ActionExecutionModeSchema,
   ActionCallbackSchema,
-  ActionConditionSchema,
   ActionSchema,
   CRUDOperationSchema,
   CRUDFilterSchema,

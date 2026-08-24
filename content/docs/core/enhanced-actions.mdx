@@ -14,7 +14,7 @@ ObjectUI's action system has been significantly enhanced to support complex work
 The enhanced `ActionSchema` provides:
 - **New action types**: `ajax`, `confirm`, `dialog`
 - **Action chaining**: Execute multiple actions sequentially or in parallel
-- **Conditional logic**: If/then/else execution based on data
+- **Conditional execution**: a `condition` predicate gates whether an action runs
 - **Callbacks**: Success and failure handlers
 - **Tracking**: Event logging and analytics
 - **Retry logic**: Automatic retry with configurable backoff
@@ -212,37 +212,83 @@ const chainedAction: ActionSchema = {
 
 ## Conditional Execution
 
-Execute different actions based on conditions:
+`condition` is a **gate**, not a branch: the action executes only while the
+predicate holds.
 
 ```plaintext
-const conditionalAction: ActionSchema = {
+const gatedAction: ActionSchema = {
   type: 'action',
-  label: 'Approve',
-  actionType: 'button',
-  
-  condition: {
-    expression: '${data.amount > 1000}',
-    then: {
-      type: 'action',
-      label: 'Require Manager Approval',
-      actionType: 'confirm',
-      confirmText: 'Amount exceeds $1000. Manager approval needed.'
-    },
-    else: {
-      type: 'action',
-      label: 'Auto Approve',
-      actionType: 'ajax',
-      api: '/api/approve',
-      method: 'POST'
-    }
-  }
+  label: 'Require Manager Approval',
+  actionType: 'confirm',
+  confirmText: 'Amount exceeds $1000. Manager approval needed.',
+
+  // Offered only for amounts over 1000
+  condition: '${data.amount > 1000}'
 };
 ```
 
-**Condition Properties:**
-- `expression` - JavaScript expression to evaluate
-- `then` - Action(s) to execute if true
-- `else` - Action(s) to execute if false
+**How the gate is written** - four spellings, all read by the same evaluator:
+
+| Spelling | Example |
+|---|---|
+| Boolean | `condition: false` |
+| Bare CEL predicate | `condition: 'data.amount > 1000'` |
+| `${...}` template | `condition: '${data.amount > 1000}'` |
+| Normalized envelope | `condition: { dialect: 'cel', source: 'data.amount > 1000' }` |
+
+**How the gate is read:**
+- Declared and **false** - the action does not execute; the runner reports
+  `Action condition not met`.
+- Declared and **true** - the action executes normally.
+- **Not declared** (key absent, or an empty predicate) - the action executes.
+
+The envelope is what `objectstack build` emits for a compiled predicate, so
+authored metadata and built metadata both parse. This is the same predicate
+vocabulary `visible` and `disabled` carry.
+
+### Branching: one action per branch
+
+There is no `then` / `else` - a branch is expressed as **separate actions with
+mutually exclusive conditions**. Each action is gated on its own, so exactly one
+of them runs:
+
+```plaintext
+const approvalActions: ActionSchema[] = [
+  {
+    type: 'action',
+    label: 'Require Manager Approval',
+    actionType: 'confirm',
+    confirmText: 'Amount exceeds $1000. Manager approval needed.',
+    condition: '${data.amount > 1000}'
+  },
+  {
+    type: 'action',
+    label: 'Auto Approve',
+    actionType: 'ajax',
+    api: '/api/approve',
+    method: 'POST',
+    condition: '${data.amount <= 1000}'
+  }
+];
+```
+
+Sibling actions - a toolbar's `actions`, a table's `rowActions` / `batchActions`,
+or an event's action list - are each dispatched through their own gate, which is
+what makes this an either/or.
+
+A `chain` step also carries its own `condition`, but a **sequential** chain stops
+at the first step whose condition does not hold (a blocked step reports
+`Action condition not met`, and sequential chaining stops on the first failure).
+So use a step `condition` to gate an **optional follow-up**, and sibling actions
+for an either/or.
+
+> **Retired (objectui#3917):** `condition` used to be documented here as
+> `{ expression, then, else }`. Nothing ever read `expression`, `then` or
+> `else`. The runner has always read this key as the predicate above, and an
+> object without a `source` reads as "no gate declared", so an action written
+> that way ran **unconditionally**, with no error at author time and no
+> diagnostic at runtime. The shape is now refused by `ActionSchema`'s zod schema
+> instead of being accepted and ignored.
 
 ## Callbacks
 
@@ -342,22 +388,9 @@ const complexAction: ActionSchema = {
   actionType: 'confirm',
   confirmText: 'Process this order for ${data.customerName}?',
   
-  // Conditional logic
-  condition: {
-    expression: '${data.totalAmount > 1000}',
-    then: {
-      type: 'action',
-      actionType: 'ajax',
-      api: '/api/orders/process-premium',
-      method: 'POST'
-    },
-    else: {
-      type: 'action',
-      actionType: 'ajax',
-      api: '/api/orders/process-standard',
-      method: 'POST'
-    }
-  },
+  // Execution gate - this action is the premium path; the standard path is a
+  // sibling action carrying the opposite predicate
+  condition: '${data.totalAmount > 1000}',
   
   // Action chain
   chain: [

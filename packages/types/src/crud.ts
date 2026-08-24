@@ -60,25 +60,6 @@ export interface ActionCallback {
 }
 
 /**
- * Conditional action configuration
- */
-export interface ActionCondition {
-  /**
-   * Condition expression
-   * @example "${data.status === 'active'}"
-   */
-  expression: string;
-  /**
-   * Action to execute if condition is true
-   */
-  then?: ActionSchema | ActionSchema[];
-  /**
-   * Action to execute if condition is false
-   */
-  else?: ActionSchema | ActionSchema[];
-}
-
-/**
  * Action button configuration for CRUD operations
  * Enhanced with Phase 2 features: ajax, confirm, dialog, chaining, conditional execution
  *
@@ -200,9 +181,25 @@ export interface ActionSchema extends BaseSchema {
    */
   chainMode?: ActionExecutionMode;
   /**
-   * Conditional execution (Phase 2)
+   * Execution gate — the action runs only while this predicate holds.
+   *
+   * A boolean, a bare CEL string, a `${…}` template, or the normalized
+   * `{ dialect, source }` envelope `objectstack build` emits. Declared and
+   * FALSE skips the action; not declared at all executes it. Same three arms
+   * `ActionRunner`'s own `ActionDef.condition` carries (`@object-ui/core`),
+   * because this is the authoring twin of that gate.
+   *
+   * RETIRED (objectui#3917): this key used to be typed `ActionCondition`, an
+   * `{ expression, then, else }` branch DSL. NOTHING in the repo ever read
+   * `expression` / `then` / `else` — `ActionRunner` reads this key as the
+   * predicate above, and an object with no `source` normalizes to "no gate
+   * declared", so an author who followed the docs ("amounts over 1000 go to
+   * manager approval") got UNCONDITIONAL execution with zero diagnostics.
+   * Retired under enforce-or-remove rather than honoured, so one key has one
+   * reading. Conditional BRANCHING is expressed as separate actions, each
+   * carrying its own `condition`.
    */
-  condition?: ActionCondition;
+  condition?: boolean | string | { dialect?: string; source: string };
   /**
    * Whether to reload data after action
    * @default true

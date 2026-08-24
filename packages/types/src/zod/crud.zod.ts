@@ -40,13 +40,28 @@ export const ActionCallbackSchema = z.object({
 });
 
 /**
- * Action Condition Schema
+ * The wire shape of an action's execution gate: a boolean, a bare CEL string
+ * (`${…}` templates included), or the spec Expression envelope
+ * `{ dialect?, source }` that `objectstack build` emits. These are the three
+ * arms `ActionRunner` actually honours (`@object-ui/core`
+ * `hasDeclaredPredicate` + `evaluateCondition`), so an authored gate that
+ * parses here is a gate that runs. Module-local on purpose — it restates no TS
+ * interface of its own, so it is not a mirror the parity census should track.
+ *
+ * RETIRED (objectui#3917): this key used to take `ActionConditionSchema`, an
+ * `{ expression, then, else }` branch DSL with ZERO consumers — the runtime read
+ * the same key as the predicate above, and a `source`-less object normalizes to
+ * "no gate declared", so the branch was accepted here and then silently ignored
+ * at execution (the action ran unconditionally). Retiring it flips the parse
+ * verdict BOTH ways: the branch object is now refused, and the predicate forms
+ * the runtime has always honoured are now accepted — before this, `condition`
+ * required `expression`, so every live predicate spelling was refused.
  */
-export const ActionConditionSchema: z.ZodType<any> = z.lazy(() => z.object({
-  expression: z.string().describe('Condition expression'),
-  then: z.union([ActionSchema, z.array(ActionSchema)]).optional().describe('Action to execute if condition is true'),
-  else: z.union([ActionSchema, z.array(ActionSchema)]).optional().describe('Action to execute if condition is false'),
-}));
+const ActionConditionPredicateSchema = z.union([
+  z.boolean(),
+  z.string(),
+  z.object({ dialect: z.string().optional(), source: z.string() }),
+]);
 
 /**
  * Action Schema - Enhanced with Phase 2 features
@@ -81,7 +96,7 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   onFailure: ActionCallbackSchema.optional().describe('Failure callback'),
   chain: z.array(ActionSchema).optional().describe('Action chaining - actions to execute after this one'),
   chainMode: ActionExecutionModeSchema.optional().default('sequential').describe('Chain execution mode'),
-  condition: ActionConditionSchema.optional().describe('Conditional execution'),
+  condition: ActionConditionPredicateSchema.optional().describe('Execution gate — the action runs only while this predicate holds'),
   reload: z.boolean().optional().default(true).describe('Whether to reload data after action'),
   close: z.boolean().optional().default(true).describe('Whether to close dialog/modal after action'),
   onClick: z.any().optional().describe('Custom click handler'),
@@ -246,7 +261,6 @@ export const CRUDComponentSchema = z.union([
  */
 export type ActionExecutionModeSchemaType = z.infer<typeof ActionExecutionModeSchema>;
 export type ActionCallbackSchemaType = z.infer<typeof ActionCallbackSchema>;
-export type ActionConditionSchemaType = z.infer<typeof ActionConditionSchema>;
 export type ActionSchemaType = z.infer<typeof ActionSchema>;
 export type CRUDOperationSchemaType = z.infer<typeof CRUDOperationSchema>;
 export type CRUDFilterSchemaType = z.infer<typeof CRUDFilterSchema>;

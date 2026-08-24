@@ -634,9 +634,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
     }
   ],
   "chainMode": "sequential",
-  "condition": {
-    "expression": "${data.items.length > 0}"
-  },
+  "condition": "${data.items.length > 0}",
   "retry": {
     "maxAttempts": 3,
     "delay": 1000
@@ -657,7 +655,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
 | `dialog` | `object` | Modal dialog with `title`, `content`, `size`, `actions`. |
 | `chain` | `ActionSchema[]` | Actions to execute after this action completes. |
 | `chainMode` | `"sequential" \| "parallel"` | How chained actions execute. |
-| `condition` | `ActionCondition` | Conditional execution with `expression`, `then`, `else`. |
+| `condition` | `boolean \| string \| { dialect?, source }` | Execution gate — the action runs only while this predicate holds (boolean, bare CEL, `${...}` template, or the normalized envelope). Declared and false skips the action; absent executes it. It is a **gate, not a branch**: express a branch as separate actions with mutually exclusive `condition`s. (The `{ expression, then, else }` branch shape was retired in objectui#3917 — nothing read it, so it ran unconditionally.) |
 | `successMessage` / `errorMessage` | `string` | Toast messages on success/failure. |
 | `reload` | `boolean` | Reload data after action completes. |
 | `redirect` | `string` | URL to navigate to after action. |

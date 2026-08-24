@@ -659,8 +659,6 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'crud.zod.ts#ActionExecutionModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
-  'crud.zod.ts#ActionConditionSchema':
-    "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
   'crud.zod.ts#ActionSchema':
     "recursive; declared `z.ZodType<any>`, which exposes no `.shape` to read — and accepts `any`, so it cannot be narrower than any declaration",
   'crud.zod.ts#CRUDComponentSchema':

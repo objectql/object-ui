@@ -17,7 +17,6 @@ import {
   ActionSchema,
   ActionExecutionModeSchema,
   ActionCallbackSchema,
-  ActionConditionSchema,
   CRUDSchema,
   DetailViewSchema,
   ViewSwitcherSchema,
@@ -481,8 +480,41 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate conditional action execution', () => {
-    const conditionalAction = {
+  // `condition` is an execution GATE, not a branch DSL (objectui#3917). Each
+  // arm below is one the runtime honours — `ActionRunner.execute` asks
+  // `hasDeclaredPredicate(action.condition)` and then `evaluateCondition`, both
+  // of which read exactly boolean / bare CEL / `${…}` template / the
+  // `{ dialect, source }` envelope `objectstack build` emits. Before the
+  // retirement `condition` required an `expression` key, so EVERY spelling in
+  // this table was refused by the schema while being honoured at runtime.
+  it.each([
+    ['a boolean', false],
+    ['a bare CEL predicate', 'data.amount > 1000'],
+    ['a ${…} template', '${data.amount > 1000}'],
+    ['the normalized envelope', { dialect: 'cel', source: 'data.amount > 1000' }],
+  ])('should accept a condition gate written as %s', (_label, condition) => {
+    const gatedAction = {
+      type: 'action',
+      label: 'Approve',
+      actionType: 'button',
+      condition,
+    };
+
+    const result = ActionSchema.safeParse(gatedAction);
+    expect(result.success).toBe(true);
+  });
+
+  // The retirement itself (objectui#3917). This is the shape two docs pages
+  // taught with worked examples while NOTHING read `expression` / `then` /
+  // `else`: the object carries no `source`, so the runtime's normalizer read it
+  // as "no gate declared" and ran the action unconditionally — the predicate
+  // never evaluated, the branches never dispatched, zero diagnostics. Asserting
+  // the FULL parse is red (not merely that some issue exists) is the point: the
+  // verdict on this authoring surface has to be a refusal, and it has to be
+  // pinned to the `condition` key, or the next widening restores the silent
+  // accept without any test noticing.
+  it('should refuse the retired { expression, then, else } branch shape', () => {
+    const branchAction = {
       type: 'action',
       label: 'Approve',
       actionType: 'button',
@@ -501,8 +533,12 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
       },
     };
 
-    const result = ActionSchema.safeParse(conditionalAction);
-    expect(result.success).toBe(true);
+    const result = ActionSchema.safeParse(branchAction);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issues = result.error.issues.filter((i) => i.path[0] === 'condition');
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0].code).toBe('invalid_union');
   });
 
   it('should validate action with tracking', () => {
