@@ -303,6 +303,32 @@ function inRepoRangesOf(name: string): Record<string, string[]> {
 }
 
 /**
+ * The one range this repo's in-repo manifests declare for `name`, asserting
+ * FIRST that they actually agree — never an arbitrary member of a possibly
+ * split set.
+ *
+ * Two call sites below used to read `inRepoRangesOf(name)` directly and pick
+ * a member off it (`Object.keys(...).sort()[0]`, `Object.keys(...)[0]`)
+ * without ever checking the ranges were consistent to begin with. Had this
+ * repo's declarations for `name` split across two ranges, either read would
+ * quietly validate against whichever range won that arbitrary tie-break —
+ * possibly the minority spelling — and report green while the repo disagreed
+ * with itself (objectui#4991). Both now route through here, which fails
+ * loudly and names every competing range and the manifests that declare each,
+ * the same way the anchor-table precondition above already does.
+ */
+function soleInRepoRangeOf(name: string): string {
+  const byRange = inRepoRangesOf(name);
+  const ranges = Object.keys(byRange);
+  expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
+  expect(
+    ranges.sort(),
+    `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
+  ).toHaveLength(1);
+  return ranges[0];
+}
+
+/**
  * Where each range in the THREE generated manifests must come from.
  *
  * The anchoring discipline objectui#3742/objectui#3754 established: one range
@@ -585,14 +611,7 @@ describe('generated app manifests', () => {
         continue;
       }
 
-      const byRange = inRepoRangesOf(name);
-      const ranges = Object.keys(byRange);
-      expect(ranges.length, `${name} must be declared in-repo to anchor to`).toBeGreaterThan(0);
-      expect(
-        ranges.sort(),
-        `in-repo manifests disagree on ${name}: ${JSON.stringify(byRange)} — settle on one range first`
-      ).toHaveLength(1);
-      expectedRanges[name] = { range: ranges[0], source: 'its in-repo range' };
+      expectedRanges[name] = { range: soleInRepoRangeOf(name), source: 'its in-repo range' };
     }
 
     // Pass 2 — the DRIFT, accumulated and reported by a single assertion, which
@@ -649,7 +668,7 @@ describe('generated app manifests', () => {
         const anchor = DEPENDENCY_ANCHORS[name];
         if (anchor === 'cli-version') return range !== `^${cliVersion}`;
         if (anchor === 'root') return range !== rootRangeOf(name);
-        return range !== Object.keys(inRepoRangesOf(name))[0];
+        return range !== soleInRepoRangeOf(name);
       })
       .map(([name]) => name)
       .sort();
@@ -1176,9 +1195,10 @@ describe('generation onto disk', () => {
       // way: it went red the moment the template was moved onto the repo's real
       // range, making a correct fix look like a regression (objectui#4098).
       // A literal here is the very fossil generator this file exists to stop.
-      expect(manifest.dependencies?.['lucide-react']).toBe(
-        Object.keys(inRepoRangesOf('lucide-react')).sort()[0]
-      );
+      // `soleInRepoRangeOf` also asserts the in-repo declarations agree before
+      // handing back a range — this line used to skip that check and take an
+      // arbitrary member instead (objectui#4991).
+      expect(manifest.dependencies?.['lucide-react']).toBe(soleInRepoRangeOf('lucide-react'));
     });
   });
 });
