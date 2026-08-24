@@ -169,7 +169,7 @@ export interface BuildPageOptions {
    *
    * - `objectName` and `relationshipField` are required.
    * - `title` overrides the default child-object label.
-   * - `columns` / `limit` / `icon` are forwarded to the renderer.
+   * - `columns` / `limit` / `icon` / `sort` are forwarded to the renderer.
    */
   related?: Array<{
     title?: string;
@@ -178,6 +178,19 @@ export interface BuildPageOptions {
     columns?: any[];
     limit?: number;
     icon?: string;
+    /**
+     * Row order for this list — the spec `record:related_list.sort` union,
+     * forwarded verbatim onto the synthesized node.
+     *
+     * The host supplies it; this synthesizer neither derives nor overrides it.
+     * `RecordDetailView` fills it from the child object's DEFAULT LIST VIEW
+     * sort (objectui#5795 — ruled direction 1 on objectstack#11345,
+     * maintainer 2026-08-23: inherit the child list view's sort, NO new spec
+     * key), already lowered to the array arm. Omitted → the node carries no
+     * `sort` and the related list falls back to the server's PK order, exactly
+     * as before this key had a producer.
+     */
+    sort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
     /**
      * `relatedList: 'primary'` — a CORE relationship. Under the default
      * layout this list is promoted to its OWN tab; non-primary lists collapse
@@ -687,6 +700,11 @@ export function buildDefaultTabs(
         ...(rel.columns ? { columns: rel.columns } : {}),
         ...(rel.limit ? { limit: rel.limit } : {}),
         ...(rel.icon ? { icon: rel.icon } : {}),
+        // objectui#5795. Emitted only when the host actually supplied one, for
+        // the reason every sibling key here is: a `sort: undefined` written
+        // onto the node is a different fact from "the author said nothing",
+        // and it is the one a later liveness audit would read.
+        ...(rel.sort ? { sort: rel.sort } : {}),
       });
     const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
       label: rel.title || rel.objectName,

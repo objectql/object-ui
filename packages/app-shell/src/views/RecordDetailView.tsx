@@ -1963,7 +1963,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // its tab is shown (nothing is preloaded here), and header/row
     // affordances (+ New / View All / row navigation) are wired
     // downstream by `RelatedRecordActionsBridge`.
-    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary }) => {
+    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary, sort: inheritedSort }) => {
       const childObjectDef = objects.find((o: any) => o.name === childObject);
       // A `relatedListTitle` on the relationship wins; else fall back to the
       // localized child-object label.
@@ -1981,6 +1981,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         ...(Array.isArray(columnsOverride) && columnsOverride.length > 0
           ? { columns: columnsOverride }
           : {}),
+        // Row order inherited from the child object's default list view
+        // (objectui#5795, ruled direction 1 on objectstack#11345). Already
+        // normalized to the array arm by `deriveRelatedLists` — the ListView
+        // legacy string dialect (`'seq_no desc'`) is NOT the one the related
+        // list's `normalizeSortSpec` reads, so it must never travel verbatim.
+        // Absent when the child declares no list-view sort, keeping the
+        // synthesized node byte-identical to what it was before.
+        ...(inheritedSort && inheritedSort.length > 0 ? { sort: inheritedSort } : {}),
         ...(childObjectDef?.icon ? { icon: childObjectDef.icon } : {}),
         // `relatedList: 'primary'` prominence flag (ADR-0085) — the list is
         // promoted to its own tab by `buildDefaultTabs`.
