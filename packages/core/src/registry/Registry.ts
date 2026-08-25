@@ -225,7 +225,7 @@ export class Registry<T = any> {
         `  registry.register('${type}', MyComponent);\n\n` +
         `  // After:\n` +
         `  registry.register('${type}', MyComponent, { namespace: 'my-plugin' });\n\n` +
-        `  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md`
+        `  See: https://www.objectui.org/docs/guide/plugin-development#namespaced-registration`
       );
     }
     
