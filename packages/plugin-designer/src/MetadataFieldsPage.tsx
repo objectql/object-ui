@@ -58,7 +58,19 @@ interface ServerFieldSchema {
    * every later save of the object. See {@link RETIRED_FIELD_KEYS}.
    */
   reference?: string;
-  formula?: string;
+  /*
+   * No `formula` (objectui#6043). The spec spells a formula field's expression
+   * `expression` and it is CEL; `FieldSchema` refuses `formula` BY NAME, so
+   * emitting it made `PUT /api/v1/meta/object/:name` fail 422 and blocked every
+   * later save. It is NOT renamed here — see {@link RETIRED_FIELD_KEYS} and the
+   * tombstone on `DesignerFieldDefinition` for why a rename was refused.
+   *
+   * `expression` itself is deliberately NOT declared: this page renders no
+   * control for it, and the index signature below plus `carryOver` already
+   * round-trip it verbatim, so a formula authored in metadata-admin survives an
+   * edit-and-save here untouched. Declaring it would put it back in this gate's
+   * reach for no reader.
+   */
   // The framework also stores `select` field options as `options: string[] |
   // {label, value}[]`; we passthrough the raw structure for now.
   options?: unknown;
@@ -109,7 +121,6 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     externalId: raw.externalId,
     trackHistory: raw.trackHistory,
     referenceTo: raw.reference,
-    formula: raw.formula,
   };
 }
 
@@ -145,8 +156,31 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
  * whole write half of that card. The spec spelling `system` is not stripped: it
  * is a real `FieldSchema` key, so a server-injected flag rides through
  * untouched, which is exactly what lets `toDesignerField` read it back.
+ *
+ * objectui#6043 adds `formula`, and it is the one entry here that is NOT half
+ * of a rename — the difference matters, because it is the only reason this
+ * strip loses anything:
+ *
+ *   - For `referenceTo` and `isSystem`, `fromDesignerField` re-emits the value
+ *     under the spec spelling on a later line, so stripping costs nothing.
+ *   - For `formula` there is no re-emit, because the card REFUSED the rename.
+ *     `FieldSchema` does not parse CEL at the key level (17.2.0 accepts
+ *     `expression: '!!!not cel at all!!!'`), so migrating a stored `formula`
+ *     into `expression` would launder a non-CEL string — typically the
+ *     `price * quantity` the retired control's own placeholder taught — into a
+ *     valid key name, where it parses green and then evaluates to null at
+ *     runtime. That is the silent failure the card exists to avoid, so the key
+ *     is dropped rather than renamed.
+ *
+ * Dropping it is what makes an already-blocked object saveable again, and there
+ * is no gentler option: with the control gone, an author has no other way to
+ * clear the key, so leaving it would keep the object 422-blocked forever. The
+ * value being dropped is one the server already refuses to store, so nothing
+ * that ever persisted is lost. `expression` is NOT stripped — it is a real
+ * `FieldSchema` key, so a formula authored in metadata-admin rides through
+ * `carryOver` untouched.
  */
-const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem'] as const;
+const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem', 'formula'] as const;
 
 /** Carry over `prev`'s unknown keys, minus {@link RETIRED_FIELD_KEYS}. */
 function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {
@@ -175,7 +209,6 @@ function fromDesignerField(
     externalId: designed.externalId,
     trackHistory: designed.trackHistory,
     reference: designed.referenceTo,
-    formula: designed.formula,
   };
 }
 

@@ -815,8 +815,30 @@ export interface DesignerFieldDefinition {
    */
   /** Lookup reference object (for lookup type) */
   referenceTo?: string;
-  /** Formula expression (for formula type) */
-  formula?: string;
+  /*
+   * There is deliberately no `formula` here (objectui#6043). The spec spells a
+   * formula field's expression `expression` and it is CEL — `record.amount *
+   * 0.1`, rooted at `record`. `FieldSchema.safeParse` rejects `formula` by
+   * name, so authoring it produced a save-blocking 422.
+   *
+   * The key was NOT renamed to `expression`, and that is the whole finding of
+   * the card rather than a shortcut. `FieldSchema` does not parse CEL at the
+   * key level: measured on `@objectstack/spec` 17.2.0 it accepts
+   * `expression: 'price * quantity'` AND `expression: '!!!not cel at all!!!'`
+   * — only the empty string is refused. A rename therefore buys a green parse
+   * for arbitrary garbage. Worse, the control's own placeholder was
+   * `price * quantity`, whose BARE field refs `celAuthoring.ts` records as
+   * silently evaluating to null at runtime under the `record` scope formulas
+   * bind. Renaming alone converts a loud, immediate 422 into a silent wrong
+   * answer, which is strictly worse than the bug.
+   *
+   * Formula expressions are authored where they can be CHECKED: metadata-admin's
+   * `ObjectFieldInspector` edits `expression` through `CelPredicateField`,
+   * which lints against the real `@objectstack/formula` engine and stamps
+   * `returnType` from the inferred CEL type. The field TYPE `formula` remains a
+   * valid spec `FieldType` and stays in the designer's palette — only the
+   * unvalidatable expression textarea is gone.
+   */
 }
 
 /** Field Designer component schema */
