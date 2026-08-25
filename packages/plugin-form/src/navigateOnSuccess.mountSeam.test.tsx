@@ -71,7 +71,9 @@
  *     distinction the defect is about measurable, not to detect this mutation —
  *     and the 5 remaining point-1 cases plus the verdict table are untouched.
  *
- * The measured outcome of both is recorded in the PR body.
+ * MEASURED, both exactly as predicted: mutation A turns 3 red (the 2 host-navigate
+ * cases and the mounted-host placement case), mutation B turns 9 red. Full
+ * output in the PR body.
  *
  * ## One property asserted by construction rather than by a case here
  *

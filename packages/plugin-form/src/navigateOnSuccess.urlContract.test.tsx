@@ -52,19 +52,37 @@
  *
  * ## Reverse verification — direction predicted before running, counts measured
  *
- * Mutation A, restoring the pre-ruling admission (`isSameOriginUrl(url)` in place
- * of the relative-only test), escaping left in place: RED on the same-origin
- * absolute refusals and on the corpus properties; the escaping and compat blocks
- * stay green because the escape is independent of the admission test.
+ * Mutation A, restoring the pre-ruling admission (the same-origin guard in place
+ * of the relative-only test), escaping left in place. PREDICTED: red on the
+ * same-origin absolute refusals and on the corpus properties, with the escaping
+ * and compat blocks green because the escape is independent of the admission
+ * test. MEASURED: **5 red here** — the 2 relative-only refusals, `neither half
+ * substitutes`, and 2 of the 3 corpus properties.
+ *
+ * The corpus half is the one worth reading. `THE DELETED ARM IS UNREACHABLE`
+ * goes RED, which is what makes it a proof rather than a tautology: widen the
+ * admission door and the corpus immediately produces an accepted destination
+ * that is not app-relative — i.e. one that would have reached the browser
+ * navigation arm this card deleted. `NO WIDENING` stays GREEN, correctly and
+ * not incidentally: it asks about ORIGIN, and the pre-ruling admission was a
+ * same-origin test, so it has nothing to detect here. It is a change detector
+ * for a future widening past same-origin, not for this mutation.
  *
  * Mutation B, deleting the `encodeURIComponent` (interpolating the raw value),
- * relative-only left in place: RED on the escaping block. Direction worth
- * predicting rather than assuming: one of those cases goes red by turning
- * ACCEPTED-and-escaped into REFUSED (an id carrying an address, raw-interpolated,
- * stops being a relative reference), not by returning a differently-escaped
- * string. That is the asymmetry the two halves buy.
+ * relative-only left in place. PREDICTED: red on the escaping block, with one
+ * case going red by turning ACCEPTED-and-escaped into REFUSED rather than by
+ * returning a differently-escaped string. MEASURED: **5 red here**, and the
+ * prediction was right about the phenomenon and wrong about its address — all
+ * five failures here are value mismatches (`/r/a/b c` for `/r/a%2Fb%20c`, and
+ * the address surviving intact in `neither half substitutes`). The
+ * accepted-turns-refused case exists but lands in the verdict table of
+ * `navigateOnSuccess.mountSeam.test.tsx`, where a template of `{id}` with an
+ * origin in the id raw-interpolates into an absolute URL and is then refused by
+ * the still-present relative-only test: `expected null to be
+ * 'http%3A%2F%2Flocalhost%3A3000%2Fr'`. The asymmetry is real; this file is
+ * simply not where it shows.
  *
- * Measured counts for both are recorded in the PR body.
+ * Full output for both is recorded in the PR body.
  */
 
 import { describe, it, expect } from 'vitest';
