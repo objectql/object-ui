@@ -135,6 +135,7 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'capability.label.setup_access': 'Setup Access',
   'capability.label.setup_write': 'Write Settings',
   'capability.label.studio_access': 'Studio Access',
+  'capability.label.manage_sharing': 'Manage Sharing',
 };
 
 export const useFieldTranslation = createSafeTranslation(

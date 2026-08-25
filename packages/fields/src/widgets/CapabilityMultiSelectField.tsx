@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
+import { PLATFORM_CAPABILITIES } from '@objectstack/spec/security';
 import { FieldWidgetComponentProps } from './types.js';
 import { useFieldTranslation } from './useFieldTranslation.js';
 
@@ -73,21 +74,45 @@ export function parseCapabilityNames(value: unknown): string[] {
 const SCOPE_ORDER = ['platform', 'org', 'other'] as const;
 
 /**
- * objectui#2600 B5 — the curated platform capabilities are a FIXED, known set
- * whose labels the sys_capability registry serves in English. Localize just
- * these client-side via `capability.label.<name>` (dots → underscores);
- * package- and admin-authored capabilities keep their authored registry label.
- * (Mirrors @objectstack/spec/security `PLATFORM_CAPABILITIES`.)
+ * objectui#2600 B5 — the curated platform capabilities whose labels this picker
+ * localizes client-side via `capability.label.<name>`; package- and
+ * admin-authored capabilities keep their authored `sys_capability` label.
+ *
+ * ## objectui#6285 — DERIVED from the spec, not restated
+ *
+ * This used to be a seven-member literal under a doc comment that said it
+ * mirrored `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`. Nothing held
+ * the claim, and the copy had already fallen a member behind: the spec grew
+ * `manage_sharing`, the literal did not, so that one capability fell through to
+ * its registry label and rendered untranslated in all ten packs beside seven
+ * siblings that localize. Deriving retires the claim by making it structural —
+ * there is no longer a second list to drift from.
+ *
+ * ## The dot → underscore transform is deliberate, and it belongs here too
+ *
+ * The spec spells three of the eight names with a dot (`setup.access`,
+ * `setup.write`, `studio.access`) while the i18n keys spell them with an
+ * underscore, and `labelFor` bridges that at the call site. The derivation
+ * applies the SAME transform, so membership is in the same alphabet as the
+ * keys. Deriving without it would silently un-localize those three — members
+ * that work today — which is the one regression this shape can ship.
+ *
+ * ## What replaced the gate coverage this cost
+ *
+ * `scripts/check-i18n-call-site-keys.mjs` registered this symbol as a `kind:
+ * 'set'` vocabulary and expanded `capability.label.<member>` into exact key
+ * checks. Its reader parses repo source and needs a literal `new Set([…])`, so
+ * a computed initialiser is `unreadable-vocabulary` there; the family is now
+ * declared `enumerable: false` / `external-vocabulary`, and the member-to-label
+ * tie is pinned at test time — where importing the spec is free — by
+ * `CapabilityMultiSelectField.specDerivation-6285.test.tsx`, which covers the
+ * `en` pack AND `useFieldTranslation`'s provider-less defaults map. That is
+ * strictly more than the gate could state, because the gate could not see a
+ * member the literal never named.
  */
-const CURATED_CAPABILITY_LABELS = new Set([
-  'manage_users',
-  'manage_org_users',
-  'manage_metadata',
-  'manage_platform_settings',
-  'setup_access',
-  'setup_write',
-  'studio_access',
-]);
+const CURATED_CAPABILITY_LABELS: ReadonlySet<string> = new Set(
+  PLATFORM_CAPABILITIES.map((c) => c.name.replace(/\./g, '_')),
+);
 
 export function CapabilityMultiSelectField({
   value,
@@ -153,9 +178,19 @@ export function CapabilityMultiSelectField({
   // Curated platform caps get a localized label (objectui#2600 B5); everything
   // else keeps the registry-served label.
   const labelFor = (name: string) => {
+    const registryLabel = byName.get(name)?.label || name;
     const norm = name.replace(/\./g, '_');
-    if (CURATED_CAPABILITY_LABELS.has(norm)) return t(`capability.label.${norm}`);
-    return byName.get(name)?.label || name;
+    if (!CURATED_CAPABILITY_LABELS.has(norm)) return registryLabel;
+    // objectui#6285 — the membership is now open-ended: a capability the spec
+    // adds joins this set the moment the pin is bumped, which is the point, but
+    // its `capability.label.*` key still has to be authored by a human in the
+    // ten packs. `defaultValue` makes that window degrade to the registry's
+    // English label — exactly what this picker did for `manage_sharing` before
+    // this change — instead of rendering a raw i18n key at the user, which
+    // would be strictly worse than the defect being fixed. It is a fallback of
+    // last resort, not the mechanism: the spec-derivation test fails in CI on
+    // the same event, so the window should never reach a screen.
+    return t(`capability.label.${norm}`, { defaultValue: registryLabel });
   };
 
   // Group options by scope for the editable grid. Computed BEFORE the readonly

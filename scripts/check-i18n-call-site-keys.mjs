@@ -728,7 +728,26 @@ export const DYNAMIC_KEY_FAMILIES = [
   },
   {
     head: 'capability.label.',
-    vocabulary: { module: 'packages/fields/src/widgets/CapabilityMultiSelectField.tsx', name: 'CURATED_CAPABILITY_LABELS', kind: 'set' },
+    enumerable: false,
+    why: 'external-vocabulary',
+    reason:
+      'The members are `PLATFORM_CAPABILITIES` from `@objectstack/spec/security`, each name ' +
+      'normalised dot -> underscore by the call site. This family USED to name ' +
+      '`CURATED_CAPABILITY_LABELS` as a `kind: \'set\'` vocabulary, and that reading was exact ' +
+      'but hollow: the declaration was a hand-written copy of the spec array, so the gate ' +
+      'checked the seven members the copy happened to name and could say nothing about the ' +
+      'eighth the spec had added. `manage_sharing` lost its localized label in ten packs with ' +
+      'this entry green (objectui#6285). The fix derives the set from the spec, which makes the ' +
+      'initialiser a computed `new Set(PLATFORM_CAPABILITIES.map(…))` — not a shape ' +
+      '`readVocabulary` can read, and correctly reported as `unreadable-vocabulary` if this ' +
+      'entry still claimed it. The documented bridge for an external vocabulary — a repo-local ' +
+      'exhaustive `Record<Union, …>` — is unavailable here: `PlatformCapability.name` is typed ' +
+      '`string`, so the spec publishes no union of capability names to key a Record by. The ' +
+      'member-to-label tie is pinned at TEST time instead, where importing the spec is free: ' +
+      '`packages/fields/src/widgets/CapabilityMultiSelectField.specDerivation-6285.test.tsx` ' +
+      'asserts every declared capability resolves to a real label in `en` AND in ' +
+      "`useFieldTranslation`'s provider-less defaults map, and that no label outlives the " +
+      'capability it names. That covers strictly more than this entry ever did.',
   },
   {
     head: 'common.',
