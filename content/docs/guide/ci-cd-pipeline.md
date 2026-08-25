@@ -936,6 +936,54 @@ the Published Dist Gate above. A published package whose `dist/` carries tooling
 the publish before a single tarball reaches npm, which is where that defect actually costs
 anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
 
+#### The release PR runs no CI, so the refresh lane validates the tree itself
+
+The version PR gets **no checks of its own, and cannot be given any**. Measured 2026-08-25:
+`ci.yml` has **849** runs on `changeset-release/main` and every recent one is `action_required`
+with `created_at == run_started_at == updated_at` — created and immediately parked, nothing
+executed. GitHub does not start workflow runs from events raised by `GITHUB_TOKEN`, and the
+refresh force-pushes that branch, so there is no stable head to re-run against either. On the
+17.6.0 release PR the check-runs endpoint returned `total_count: 1`: one job, started **7 seconds
+after the merge**. The release commit is therefore the only commit that reaches `main` without
+passing the merge queue ([#5397](https://github.com/objectstack-ai/objectui/issues/5397)).
+
+So the refresh lane renders `pnpm changeset:version` into the runner's working tree, validates it,
+restores the tree, and only then invokes the action — which does its own versioning and owns the
+commit and the push.
+
+**What it validates, and why that is not `pnpm test`.** The version step cannot move a source
+byte. Measured against the real tree (328 pending changesets, 17.6.0 → 17.7.0) it touches 411
+paths: 330 `.changeset/*.md` deleted, 40 `package.json` (the `"version"` key and nothing else), 40
+generated `CHANGELOG.md`, and `QUICK_REFERENCE.md`. The source in the post-version tree is
+byte-identical to the `main` commit `ci.yml`'s push lane just tested under coverage across four
+shards, so a suite run here would re-test tested bytes at ~40 minutes a go, four times a day —
+~2.7 h of daily runner time for a PR nobody reads until release day, which is the cost
+[objectstack#10850](https://github.com/objectstack-ai/objectstack/issues/10850) was closed to
+remove. The validation is scoped to the surfaces the diff can move instead:
+
+| Command | Covers | Measured |
+|---|---|---|
+| `pnpm quick-reference:check` | `QUICK_REFERENCE.md` | ~1 s |
+| `pnpm check:control-bytes` | the 40 generated `CHANGELOG.md` | ~4 s |
+| `pnpm test scripts/__tests__` | 73 files / 1996 tests — every test that reads a manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` | ~50 s |
+
+`check:spec-floors` and `check:published-dist` are deliberately **not** here: they read dependency
+ranges and built `dist/`, neither of which the version step moves, and `pnpm changeset:publish`
+runs both first on the publish lane anyway.
+
+There is also **no "only when the PR content changed" condition**, for a measured reason: across
+the seven consecutive 6-hourly windows from 2026-08-23T06:08Z to 2026-08-25T00:10Z, six carried
+new changeset files (median 18). Such a predicate would skip about one refresh in seven while
+adding a local prediction of another project's state that can be wrong silently — the shape
+[#6081](https://github.com/objectstack-ai/objectui/issues/6081) just deleted from this file.
+
+**Failure semantics.** A red validation fails the job and the refresh never runs, so the standing
+PR keeps its last validated content rather than being force-pushed to a broken one. Nothing here
+can touch the publish lane: all three steps are scoped to `schedule` / `workflow_dispatch`. The
+restore step is load-bearing — with `.changeset/` left consumed the action would find nothing
+pending, take its no-op branch and return, and the PR would fossilise with nothing failing
+anywhere — so the restoration is asserted, not assumed.
+
 Both lanes configure a pnpm-lock.yaml merge driver to prevent lock file conflicts.
 
 ### Published Dist Gate (`published-dist-gate.yml`)
