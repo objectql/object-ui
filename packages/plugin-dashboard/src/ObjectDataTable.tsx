@@ -15,6 +15,7 @@ import {
   columnHeader,
 } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
+import { normalizeTableColumnType } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import { resolveFilterPlaceholders, humanizeFieldKey } from './utils';
@@ -462,11 +463,22 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       const inferredAlign = (col as any).align
         ?? (isNumericFieldMeta(fieldMeta) ? 'right' : undefined);
 
-      if (typeof col.cell === 'function') return { ...col, ...fieldMeta, align: inferredAlign };
+      // ⭐ THE SECOND EMIT SEAM (objectui#5853). `buildFieldMeta` returns
+      // `type: overrides.type ?? meta?.type` — the OBJECT SCHEMA's field type —
+      // and spreading `...fieldMeta` writes it straight into the column's
+      // `type`, the same verbatim forwarding `ObjectGrid` does at its own seam.
+      // The card's census named ObjectGrid as the only inference producer; this
+      // is the second one, and it gets the same fold so `TableColumn.type` only
+      // ever holds a value that type declares. An out-of-union type drops the
+      // `type` KEY, never the column — display here is driven by `cell` below,
+      // which reads `fieldMeta`, not `col.type`, so it is unaffected.
+      const columnType = normalizeTableColumnType(fieldMeta.type);
+
+      if (typeof col.cell === 'function') return { ...col, ...fieldMeta, type: columnType, align: inferredAlign };
 
       // Tenant-default currency backstops a currency column with no explicit code.
       const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency, displayLocale);
-      return { ...col, ...fieldMeta, align: inferredAlign, cell };
+      return { ...col, ...fieldMeta, type: columnType, align: inferredAlign, cell };
     };
 
     if (schema.columns && schema.columns.length > 0) {

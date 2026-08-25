@@ -213,6 +213,81 @@ export interface TableSortItem {
 }
 
 /**
+ * Every `type` spelling a `TableColumn` may carry — the canonical value set for
+ * this key (objectui#5853, maintainer ruling 2026-08-25, Option B: the 8-literal
+ * interface union is canonical).
+ *
+ * This tuple is the SINGLE declaration of that vocabulary. `TableColumnSchema`
+ * in `zod/data-display.zod.ts` builds its `z.enum` from this array rather than
+ * restating the members, so the interface and the validator cannot drift apart
+ * the way they had (the interface declared these 8; the mirror was a bare
+ * `z.string()` that blessed `type: 'money'` and any other typo).
+ */
+export const TABLE_COLUMN_TYPES = [
+  'text', 'number', 'date', 'datetime', 'currency', 'percent', 'boolean', 'action',
+] as const;
+
+/** Data type a table column is formatted/edited as. */
+export type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number];
+
+/**
+ * Undeclared `type` spellings the data-table renderer used to read, folded onto
+ * the canonical spelling they mean (objectui#5853).
+ *
+ * These are NOT part of the published vocabulary and deliberately do not appear
+ * in {@link TABLE_COLUMN_TYPES}: the ruling rejected alias proliferation, so the
+ * renderer's extra dialect DISAPPEARS at the producer seam instead of getting
+ * declared. `int` / `integer` / `float` / `double` were members of the
+ * data-table's `NUMERIC_EDIT_TYPES`; `datetime-local` had its own editor branch.
+ * Same treatment, and the same wording, as the param-type dialect documented at
+ * {@link ObjectUiLocalParamFieldType} in `ui-action.ts` (`datetime-local` →
+ * `datetime` there too).
+ *
+ * Authoring one of these is refused by `TableColumnSchema` — the fold exists for
+ * VALUES IN FLIGHT from a column-inference producer, not for authored metadata.
+ */
+const TABLE_COLUMN_TYPE_ALIASES: Readonly<Record<string, TableColumnType>> = {
+  int: 'number',
+  integer: 'number',
+  float: 'number',
+  double: 'number',
+  'datetime-local': 'datetime',
+};
+
+/**
+ * Fold an inferred column type onto the canonical {@link TableColumnType}
+ * vocabulary, for use at a producer's emit seam (objectui#5853).
+ *
+ * Column inference reads an OBJECT SCHEMA's field type, whose vocabulary is
+ * `@objectstack/spec`'s `FieldType` — 49 values, only 7 of which are members of
+ * this union. Forwarding that verbatim into `TableColumn.type` is what made the
+ * declaration a lie and forced an `as any` cast in the renderer. Producers call
+ * this at the point they hand columns to `data-table`, so the slot only ever
+ * holds a value it declares.
+ *
+ * Three outcomes, and the third is the load-bearing one:
+ *
+ * - a canonical spelling passes through unchanged;
+ * - a known alias folds onto its canonical spelling (`int` → `number`);
+ * - ⭐ ANYTHING ELSE yields `undefined` — the `type` ANNOTATION is dropped, and
+ *   the COLUMN IS NEVER DROPPED. This is the general case, and it is where the
+ *   42 out-of-union spec field types (`select`, `lookup`, `user`, `file`,
+ *   `formula`, …) land. Dropping the annotation is behaviour-preserving at the
+ *   only consumer that reads this key: `data-table`'s inline editor branches on
+ *   `date` / `datetime` / the numeric set and otherwise falls through to a text
+ *   input — which is exactly the `undefined` path. The dedicated widget those
+ *   fields DO get is chosen by the host's `renderCellEditor`, which resolves the
+ *   field through `column.accessorKey` and never reads `type`. Mapping them to
+ *   `'text'` instead would assert something false about a `lookup` column;
+ *   absence says only what is true — this column's type is not one of the 8.
+ */
+export function normalizeTableColumnType(value: unknown): TableColumnType | undefined {
+  if (typeof value !== 'string') return undefined;
+  if ((TABLE_COLUMN_TYPES as readonly string[]).includes(value)) return value as TableColumnType;
+  return TABLE_COLUMN_TYPE_ALIASES[value];
+}
+
+/**
  * Table column definition
  */
 export interface TableColumn {
@@ -252,7 +327,7 @@ export interface TableColumn {
   /**
    * Data type for formatting
    */
-  type?: 'text' | 'number' | 'date' | 'datetime' | 'currency' | 'percent' | 'boolean' | 'action';
+  type?: TableColumnType;
   /**
    * Whether column is sortable
    * @default true

@@ -206,7 +206,12 @@ export type {
   HtmlSchema,
   StatisticSchema,
   DataDisplaySchema,
+  TableColumnType,
 } from './data-display.js';
+
+// The canonical `TableColumn.type` vocabulary and the producer-seam fold that
+// keeps undeclared inference values out of that slot (objectui#5853).
+export { TABLE_COLUMN_TYPES, normalizeTableColumnType } from './data-display.js';
 
 // ============================================================================
 // Feedback Components - Status & Progress Indication

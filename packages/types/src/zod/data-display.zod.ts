@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
  * Alert Schema - Alert/notification component
@@ -106,7 +107,14 @@ export const TableColumnSchema = z.object({
   minWidth: z.union([z.string(), z.number()]).optional().describe('Minimum width'),
   align: z.enum(['left', 'center', 'right']).optional().describe('Column alignment'),
   fixed: z.enum(['left', 'right']).optional().describe('Fixed column position'),
-  type: z.string().optional().describe('Column type'),
+  // The canonical value set, built from the ONE declaration in
+  // `../data-display.ts` rather than restated here (objectui#5853, maintainer
+  // ruling 2026-08-25, Option B). This key was `z.string()`: every typo passed
+  // — `type: 'money'` validated green, matched no renderer branch, and the
+  // column silently fell through to plain text rendering. That is the lenient
+  // -validation face that lets AI-authored metadata errors through, and it is
+  // now a loud parse failure naming the key.
+  type: z.enum(TABLE_COLUMN_TYPES).optional().describe('Column type'),
   sortable: z.boolean().optional().describe('Whether column is sortable'),
   filterable: z.boolean().optional().describe('Whether column is filterable'),
   resizable: z.boolean().optional().describe('Whether column is resizable'),

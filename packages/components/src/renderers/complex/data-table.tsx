@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
-import type { DataTableSchema, TableSortItem } from '@object-ui/types';
+import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
@@ -101,8 +101,17 @@ function toDateTimeInputValue(value: unknown): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-// Field types that should edit as a numeric `<Input type="number">`.
-const NUMERIC_EDIT_TYPES = new Set(['number', 'currency', 'percent', 'int', 'integer', 'float', 'double']);
+// Column types that should edit as a numeric `<Input type="number">`.
+//
+// `int` / `integer` / `float` / `double` USED to be members (objectui#5853).
+// They were never declared by `TableColumn.type` — they arrived because
+// column-inference producers forwarded an object schema's field type verbatim,
+// which is also why this key had to be read through an `as any` below. Those
+// producers now fold their inferred value onto the declared vocabulary at their
+// emit seam (`normalizeTableColumnType`), so an undeclared spelling can no
+// longer reach this set. Typed as `TableColumnType` so re-adding one is a tsc
+// error rather than a silent re-opening of the undeclared dialect.
+const NUMERIC_EDIT_TYPES = new Set<TableColumnType>(['number', 'currency', 'percent']);
 
 /**
  * Human label for an object/array cell value (e.g. an expanded reference like
@@ -2187,9 +2196,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                             {isEditing ? (
                               (() => {
                                 // Type-aware inline editor. `col.type` is forwarded
-                                // from ObjectGrid's column inference. Keep this a small,
-                                // readable switch that's easy to extend.
-                                const editType = (col as any).type as string | undefined;
+                                // from a producer's column inference, folded onto the
+                                // DECLARED vocabulary at that producer's emit seam
+                                // (objectui#5853). This used to be
+                                // `(col as any).type as string | undefined` — a cast that
+                                // existed only because the values arriving were not the
+                                // values `TableColumn` declares. They are now, so the read
+                                // is typed and the switch below can only branch on
+                                // spellings the interface actually publishes.
+                                const editType: TableColumnType | undefined = col.type;
 
                                 // Host-injected editor: a higher layer (ObjectGrid) renders
                                 // the dedicated @object-ui/fields widget for this field's
@@ -2270,7 +2285,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   );
                                 }
 
-                                if (editType === 'datetime' || editType === 'datetime-local') {
+                                if (editType === 'datetime') {
                                   return (
                                     <Input
                                       ref={editInputRef}

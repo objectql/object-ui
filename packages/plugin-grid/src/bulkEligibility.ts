@@ -39,7 +39,7 @@
  * made row-scoped predicates land in a record-free evaluation.
  */
 
-import { evalRowPredicate, type FieldContainerLike } from '@object-ui/core';
+import { partitionRowsByPredicate, type FieldContainerLike } from '@object-ui/core';
 import type { BulkActionDef } from '@object-ui/types';
 
 export interface BulkEligibility<TRow> {
@@ -79,8 +79,14 @@ export function hasVisibilityGate(def: BulkEligibilityDef | null | undefined): b
 
 /**
  * Split selected records into the ones this def may act on and a count of the
- * ones it may not. A def without `visible` is a no-op: `rows` is returned by
- * REFERENCE so the common case allocates nothing and downstream memos hold.
+ * ones it may not.
+ *
+ * The loop, the boolean short-circuit and the fail-closed posture all live in
+ * `@object-ui/core`'s {@link partitionRowsByPredicate} — the ONE per-record
+ * fold every bulk surface shares (the built-in selection-bar Delete reads it
+ * through the same primitive, objectui#4420). This function is the `def`-shaped
+ * door onto it: it knows only that a bulk def spells its predicate `visible`
+ * and labels warnings with the def's name.
  */
 export function partitionBulkRows<TRow extends Record<string, unknown>>(
   def: BulkEligibilityDef | null | undefined,
@@ -96,38 +102,10 @@ export function partitionBulkRows<TRow extends Record<string, unknown>>(
     fields?: FieldContainerLike;
   } = {},
 ): BulkEligibility<TRow> {
-  const visible = def?.visible;
-  if (visible == null || visible === '') {
-    return { eligible: rows as TRow[], skipped: 0 };
-  }
-  // A BOOLEAN `visible` is a verdict, not an expression — short-circuit it
-  // exactly as `useCondition` / `useRowPredicate` do (objectui#3492). Handing
-  // it to the engine instead produced `{ dialect: 'cel', source: undefined }`,
-  // which faults ("AST-only evaluation not yet supported") and fails CLOSED —
-  // so `visible: true`, the most explicit way to say "always offer this",
-  // silently disqualified every selected record and hid the button from
-  // everyone. `BulkActionDefSchema.visible` is `ExpressionInputSchema` (no
-  // boolean), so `objectstack build` cannot emit this shape — hand-written view
-  // JSON and in-process callers constructing defs can, and did.
-  if (typeof visible === 'boolean') {
-    return visible
-      ? { eligible: rows as TRow[], skipped: 0 }
-      : { eligible: [], skipped: rows.length };
-  }
-
-  const eligible = (rows as TRow[]).filter(row =>
-    evalRowPredicate(visible as never, row, {
-      // Fail CLOSED, exactly as the row kebab does: a predicate that faults
-      // must not hand the user a button that acts on records it was written to
-      // exclude. `warnOnError` makes the resulting hide diagnosable (once per
-      // predicate) instead of silent.
-      fallback: false,
-      scope: opts.scope,
-      fields: opts.fields,
-      warnOnError: true,
-      label: def?.name,
-    }),
-  );
-
-  return { eligible, skipped: rows.length - eligible.length };
+  return partitionRowsByPredicate(def?.visible as never, rows, {
+    scope: opts.scope,
+    fields: opts.fields,
+    warnOnError: true,
+    label: def?.name,
+  });
 }
