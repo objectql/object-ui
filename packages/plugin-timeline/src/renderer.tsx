@@ -495,11 +495,30 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
     return null;
   };
 
+// `skipFallback` — the bare `timeline` key belongs to the OBJECT-BOUND renderer
+// (`view:timeline`, registered in `./index`), not to this presentational one
+// (objectui#6353).
+//
+// Both registrations name the same short key. Until this flag existed, both also
+// claimed the bare fallback (`Registry.register`, the `meta?.namespace &&
+// !meta?.skipFallback` branch), so which renderer answered `type: 'timeline'` was
+// decided by which module evaluated LAST — `./index` re-exports this module at its
+// line 300, before its own `import` at 307, so this file registered first and was
+// then overwritten. The outcome was right and the mechanism was not: swapping those
+// two lines would have silently handed `type: 'timeline'` to this renderer, which
+// reads none of the object-bound keys, so an authored timeline would stop fetching
+// with no error. The registry's own collision guard names this remedy in its warning.
+//
+// Now the answer is DECLARED: only `view:timeline` claims the bare key, in any
+// evaluation order. `plugin-timeline:timeline` stays reachable by its explicit
+// namespaced key, which is the lookup a presentational host uses.
+// Pinned by `./__tests__/timeline-bare-key-ownership.test.ts`.
 ComponentRegistry.register(
-  'timeline', 
+  'timeline',
   TimelineRenderer,
   {
     namespace: 'plugin-timeline',
+    skipFallback: true,
     label: 'Timeline',
     category: 'data-display',
     inputs: [
