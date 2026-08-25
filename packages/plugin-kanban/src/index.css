@@ -35,11 +35,21 @@
  * `scripts/build-css.mjs` then subtracts every rule components' published sheet
  * already ships.
  *
- * The naive alternative — a normal `@import 'tailwindcss'` entry — would re-emit
- * preflight, the theme and the ~1350 utilities the consumer already got from
- * `@object-ui/components/style.css`. That is why this file has no
- * `@import 'tailwindcss'`, and why the import ORDER above is not cosmetic: this
- * sheet is a supplement to the components sheet, never a replacement for it.
+ * The two halves defend different things, and the division is worth stating
+ * because it was measured rather than assumed. The SUBTRACTION is what removes
+ * the ~1350 shared utilities: without it this package would publish a 164 kB
+ * near-copy of the components sheet instead of an 11 kB supplement. The NARROW
+ * ENTRY is what makes preflight and the `@theme` `:root` block impossible to
+ * emit in the first place — swapping it for a plain `@import 'tailwindcss'` was
+ * tried on this card and produced a published artifact that is the same size
+ * (11.26 kB vs 11.41 kB) because the subtraction removes the duplicates too,
+ * which is precisely the point: that shape would leave a re-emitted theme block
+ * one Tailwind-emission change away from shipping, and a `:root` theme block
+ * loaded AFTER the base sheet overrides the consumer's own token overrides.
+ * Belt and braces, on purpose.
+ *
+ * The import ORDER above is not cosmetic either: this sheet is a supplement to
+ * the components sheet, never a replacement for it.
  *
  * ## What is subtracted — and what deliberately is not
  *

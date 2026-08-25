@@ -21,8 +21,8 @@ import { classesOf, COMPONENTS_ENTRY, REPO_ROOT } from '../build-plugin-styleshe
  *      a build inside this monorepo is their only possible producer;
  *   2. the sheet does NOT re-emit what `@object-ui/components` already ships.
  *
- * A sheet built by simply dropping `@import 'tailwindcss'` into the package —
- * the ~170 kB duplicate this shape exists to avoid — satisfies (1) perfectly.
+ * A sheet built without the subtraction step — the ~164 kB near-copy of the
+ * components sheet this shape exists to avoid — satisfies (1) perfectly.
  * "Does it have the class" therefore proves nothing on its own, which is why the
  * degenerate control below asserts a class components DOES carry is ABSENT here,
  * and asserts it against the same package's pre-subtraction compile so the
