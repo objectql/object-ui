@@ -147,6 +147,26 @@
  * category) and `catalog-gallery-render.test.tsx` (objectui#4616, every
  * category), both of which mirror this list and fail if it stops loading a
  * package.
+ *
+ * ## What weighs an ADDITION to this list (objectui#6316)
+ *
+ * Not `check:eager-closure`, whatever the cards that added to this list said:
+ * that gate reads `apps/console/dist/eager-closure.json` and weighs the CONSOLE.
+ * The figures above were taken by hand, once, and nothing re-takes them.
+ *
+ * `pnpm check:docs-route-closure`
+ * (`scripts/check-docs-route-eager-closure.mjs`) is what governs a new line
+ * here. It walks the `/docs/[[...slug]]` route's STATIC module graph — the
+ * entries, plus every compiled `content/docs/**\/*.mdx` module — and requires
+ * each package named below to be either already reachable without this file
+ * naming it (a declaration and no payload: measurably the case for the last two
+ * imports, through `@object-ui/plugin-view`) or recorded in that script's
+ * `MEASURED_PAYLOAD` with what it is for. A package that is neither is a
+ * genuinely new graph on a route all 181 docs pages share, and it fails there
+ * so that someone argues for it in review.
+ *
+ * It is structural, not byte-level, and deliberately so: it costs no docs
+ * build, and it does not re-take the measurement above or claim to.
  */
 import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-charts';

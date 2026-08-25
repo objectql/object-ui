@@ -130,6 +130,7 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   vi-mock-specifiers.yml        Inert vi.mock Specifier Check
  *   shell-escape-residue.yml      Shell Escape Residue Scan
  *   readme-exports.yml            README Export Check
+ *   docs-route-eager-closure.yml   Docs Route Eager Closure Check
  *
  * The four shards are spelled out individually on purpose. A single `Test`
  * entry, or any pattern match, would be satisfied by whichever shard happened
@@ -156,6 +157,7 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Inert vi.mock Specifier Check',
   'Shell Escape Residue Scan',
   'README Export Check',
+  'Docs Route Eager Closure Check',
 ]);
 
 /**
