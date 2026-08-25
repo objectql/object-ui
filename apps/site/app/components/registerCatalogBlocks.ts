@@ -36,9 +36,29 @@
  *   components-disclosure-toggle-group 1    core-schema-renderer 1
  *
  * The gallery page's PURPOSE is to render the whole catalog, so its baseline is
- * that every type an entry names is registered before the render. The nine
- * imports below are exactly the packages that census resolves to — not a
+ * that every type an entry names is registered before the render. Nine of the
+ * imports below are exactly the packages that census resolved to — not a
  * precautionary sweep of the workspace.
+ *
+ * ## The list is no longer ONLY that census (objectui#6167)
+ *
+ * `@object-ui/plugin-form` is here for a different reason, and the header has
+ * to say so rather than let the sentence above keep describing a property this
+ * file no longer has. The two `plugin-form` catalog entries are real
+ * `object-form` nodes as of objectui#6167, and `object-form` is registered by
+ * `@object-ui/plugin-form` — so the gallery depends on that package by name.
+ *
+ * What it did NOT do is change what resolves. Measured before adding it, with
+ * exactly the eleven imports this file used to carry: `object-form`,
+ * `plugin-form:object-form`, `embeddable-form`, `form-analytics`,
+ * `object-master-detail-form`, `record:line_items` and `view:form` all resolved
+ * already, because `@object-ui/plugin-view` — import #11 below — does
+ * `import { ObjectForm } from '@object-ui/plugin-form'`
+ * (`packages/plugin-view/src/ObjectView.tsx:38`), and importing that entry runs
+ * its `ComponentRegistry.register` calls. The package's graph was therefore
+ * ALREADY in this route's eager closure; the import below adds a declaration,
+ * not a payload. Registration is idempotent for the same reason: an ES module
+ * executes once, so naming it here does not re-run anything.
  *
  * ## The cost, measured before deciding (objectui#4616 ruling 1)
  *
@@ -126,3 +146,4 @@ import '@object-ui/plugin-map';
 import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
+import '@object-ui/plugin-form';

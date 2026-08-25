@@ -34,8 +34,10 @@
  *   components-disclosure-toggle-group 1    core-schema-renderer 1
  *
  * That is the red this file was written against. `apps/site/app/components/
- * registerCatalogBlocks.ts` now loads the nine further packages that census
- * resolves to, which takes 31 of those 33 tiles from the panel to a drawn
+ * registerCatalogBlocks.ts` loads the nine further packages that census
+ * resolved to — further packages have joined that list since, none of them
+ * from this census (see the host file's own header) — which takes 31 of those
+ * 33 tiles from the panel to a drawn
  * component. What registration cannot reach is named — never skipped silently —
  * in the tables below. Four classes were defects in the entries, one issue each:
  *
@@ -138,6 +140,7 @@ import '@object-ui/plugin-map';
 import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
+import '@object-ui/plugin-form';
 import { SidebarProvider } from '@object-ui/components';
 import { registerLayout } from '@object-ui/layout';
 import { ComponentRegistry } from '@object-ui/core';
@@ -172,6 +175,17 @@ const DATASOURCE_REQUIRED = 'DataSource required for object/api providers';
 
 const ALL_DIAGNOSTICS = [UNKNOWN_COMPONENT, FAILED_TO_RENDER, DATASOURCE_REQUIRED];
 
+/**
+ * The placeholder every `@object-ui/plugin-form` container paints while it
+ * fetches (`ObjectForm.tsx:1092`, and the same string in `TabbedForm`,
+ * `SplitForm`, `WizardForm`, `DrawerForm`). NOT a diagnostic — it is a frame on
+ * the way to the tile — but `renderEntry` has to settle past it, so it is a
+ * literal here for the same reason the three above are: a reworded placeholder
+ * should turn this file red for review rather than silently stop being waited
+ * for.
+ */
+const FORM_LOADING = 'Loading form...';
+
 /** The packages the gallery host must load, in the host's own order. */
 const HOST_PACKAGES = [
   '@object-ui/plugin-dashboard',
@@ -185,6 +199,7 @@ const HOST_PACKAGES = [
   '@object-ui/plugin-markdown',
   '@object-ui/plugin-timeline',
   '@object-ui/plugin-view',
+  '@object-ui/plugin-form',
 ];
 
 /**
@@ -355,6 +370,12 @@ const WRAPPER_ELEMENTS = 2;
 interface Rendered {
   text: string;
   elements: number;
+  /**
+   * The values of the tile's form controls. `textContent` cannot see them, and
+   * for a FORM that is exactly where the data it was given ends up — see
+   * `carriesFixtureRecord` below.
+   */
+  controlValues: string[];
   unmount: () => void;
 }
 
@@ -396,9 +417,22 @@ async function renderEntry(schema: unknown): Promise<Rendered> {
       drewSomething(container.querySelectorAll('*').length, container.textContent ?? ''),
     ).toBe(true),
   );
+  // A third shape (objectui#6167), and the one that makes the two above
+  // insufficient: a data-bound form holds its first paint behind
+  // `Loading form...` while it fetches the object schema and the record. That
+  // placeholder is 5 elements of real DOM, so `drewSomething` accepts it — and
+  // every assertion after it would then be measured against a frame that was
+  // never the tile. Measured: without this wait the `plugin-form` entries'
+  // DATA-provenance cases PASS in a whole-file run (the 570 renders before them
+  // leave the promises resolved) and FAIL when the file is run with `-t`, which
+  // is the definition of a reading that is not a measurement.
+  await waitFor(() => expect(container.textContent ?? '').not.toContain(FORM_LOADING));
   return {
     text: container.textContent ?? '',
     elements: container.querySelectorAll('*').length,
+    controlValues: Array.from(
+      container.querySelectorAll('input, textarea, select'),
+    ).map((el) => (el as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value ?? ''),
     unmount,
   };
 }
@@ -600,8 +634,8 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
      * The objectui#4600 separation, restated because objectui#4616 is exactly
      * the change that would tempt someone to collapse it: the per-page demo
      * hosts opt into their plugins through `PluginLoader`, and importing this
-     * module from them would make every docs page carrying a demo load all
-     * eleven graphs eagerly.
+     * module from them would make every docs page carrying a demo load every
+     * graph in that list eagerly.
      */
     it.each(['InteractiveDemo.tsx', 'LiveSplitDemo.tsx'])(
       '%s still does NOT import it (PluginLoader stays lazy there)',
@@ -658,6 +692,24 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
  *     `dataSource.find`, not out of the entry's own JSON. This is
  *     objectui#5113's original second fact, unweakened.
  *
+ * ## What "shows a record" means, after objectui#6167
+ *
+ * The provenance token is looked for in the tile's TEXT **and** in the values
+ * of its form CONTROLS, because those are two different places the same fact
+ * lands. A grid puts a row into text; a form puts the record into
+ * `input.value`, which `textContent` cannot see. Measured on the `plugin-form`
+ * entries this card added: `Alice Johnson` arrives as the value of
+ * `input[name]`, while the whole tile's text reads
+ * `NameEmailDepartmentCancelSave changes`. A text-only reading would have
+ * called a correctly bound form unbound — the blind-instrument failure, on the
+ * very half that does the work.
+ *
+ * The widening is a SUPERSET of the old reading, so it cannot turn a red entry
+ * green by relaxing anything; and `it('the provenance instrument still fails
+ * on a surface with no record behind it')` below is the control that it still
+ * discriminates — the same renderer in `create` mode paints the same controls
+ * with nothing in them, and fails.
+ *
  * (3) is the strongest of the three and it does NOT generalize, for a reason
  * that is a property of the entries rather than a gap in this file: the other
  * eleven categories author their data INLINE (`data`, `staticData`, `messages`,
@@ -708,8 +760,9 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
  * `packages/components/src/renderers/form/form.tsx`, not by
  * `@object-ui/plugin-form`, whose own keys are `object-form`,
  * `embeddable-form`, `form-analytics` and `object-master-detail-form`. The two
- * `plugin-form` entries are therefore the third instance of the #5113 defect,
- * ledgered in `OWN_PLUGIN_DEBT` below against the card that owns them. An
+ * `plugin-form` entries were therefore the third instance of the #5113 defect,
+ * and were ledgered in `OWN_PLUGIN_DEBT` below until objectui#6167 rewrote them
+ * as real `object-form` nodes; the ledger is empty as of that card. An
  * enumerated table would have inherited that mistake and reported them green.
  *
  * ## Why the set, not a single type
@@ -827,6 +880,16 @@ const FIXTURE_OBJECTS = new Set([USERS_SCHEMA.name]);
 /** The record that exists ONLY in the fixture — the provenance token. */
 const FIXTURE_ONLY_RECORD = USERS_ROWS[0].name;
 
+/**
+ * Did the fixture's record reach the DOM at all? TEXT **or** the value of a
+ * form control — see "What \"shows a record\" means" in the header. A form is
+ * the case that needs the second half: its record lands in `input.value`,
+ * where `textContent` cannot see it.
+ */
+const carriesFixtureRecord = (r: Rendered) =>
+  r.text.includes(FIXTURE_ONLY_RECORD) ||
+  r.controlValues.some((v) => v.includes(FIXTURE_ONLY_RECORD));
+
 /** Does the entry bind to an object the fixture serves? Read off its own JSON. */
 function bindsFixtureObject(node: unknown): boolean {
   if (Array.isArray(node)) return node.some((n) => bindsFixtureObject(n));
@@ -845,19 +908,18 @@ function bindsFixtureObject(node: unknown): boolean {
  * fix, and asserted below to STILL FAIL: an entry that starts conforming fails
  * this file until its line is deleted, so the ledger cannot rot green.
  *
+ * EMPTY as of objectui#6167, and that emptiness is an assertion rather than a
+ * dormant mechanism: the coverage-split case below pins `ledgered-debt` to `[]`,
+ * so the day an entry is added here the split moves and says so. The two lines
+ * it used to carry were `plugin-form/basic-form` and `plugin-form/contact-form`,
+ * deleted by that card together with the entries they described — the ledger is
+ * emptied by fixing entries, never by editing this list.
+ *
  * ⛔ This is not an exemption list. Nothing may be added here to make a red
  * turn green — a new entry that does not use its own plugin is a defect in that
  * entry, and the fix is the entry.
  */
-const OWN_PLUGIN_DEBT: Record<string, string> = {
-  'plugin-form/basic-form':
-    'objectui#6167 — authors `form`, which `packages/components` registers, not the ' +
-    '`object-form` of `@object-ui/plugin-form`. The gallery host does not load ' +
-    '`@object-ui/plugin-form` at all, so the fix spans the entries and ' +
-    '`registerCatalogBlocks.ts`.',
-  'plugin-form/contact-form':
-    'objectui#6167 — same defect as `basic-form`; see that entry.',
-};
+const OWN_PLUGIN_DEBT: Record<string, string> = {};
 
 const pluginEntries = entries.filter((e) => PLUGIN_CATEGORIES.includes(e.meta.category));
 const isDataBound = (e: (typeof pluginEntries)[number]) => bindsFixtureObject(e.schema);
@@ -895,6 +957,45 @@ describe('objectui#6024 — the derivation this pin is built on', () => {
   });
 
   /**
+   * THE PROVENANCE INSTRUMENT STILL DISCRIMINATES (objectui#6167).
+   *
+   * `carriesFixtureRecord` reads text OR control values, which is a WIDER
+   * reading than the `r.text` one objectui#5113 wrote. A widened instrument has
+   * to be shown to still fail on the thing it is meant to catch, or the entries
+   * it newly admits are admitted by relaxation.
+   *
+   * The control is the `plugin-form` entries' own shape with ONE thing changed:
+   * a `recordId` the fixture does not serve. Same renderer, same object, same
+   * mode, same harness — so what it measures is the record and nothing else.
+   * Its controls still render, which is asserted first: without that, a form
+   * that painted nothing would satisfy the line below while measuring nothing.
+   *
+   * (`mode: 'create'` was tried first and is NOT usable here: it paints its
+   * shell before the object schema resolves, so `renderEntry` — which settles
+   * on "something was drawn" — returns with zero controls. The edit path holds
+   * its first paint until the fetch lands, which is why this shape settles.)
+   */
+  it('the provenance instrument still fails on a surface with no record behind it', async () => {
+    const r = await renderEntry({
+      type: 'object-form',
+      objectName: 'users',
+      mode: 'edit',
+      recordId: 'no-such-record',
+      fields: ['name', 'email', 'department'],
+    });
+    try {
+      expect(
+        r.controlValues.length,
+        'the control form rendered no controls at all, so the assertion below would ' +
+          'pass without measuring anything',
+      ).toBeGreaterThan(0);
+      expect(carriesFixtureRecord(r)).toBe(false);
+    } finally {
+      teardown(r);
+    }
+  });
+
+  /**
    * THE SPLIT, STATED BY THE GATE ITSELF. Breadth is not depth: this case is
    * what stops "the pin covers all thirteen categories" from being read as
    * "all thirteen carry the strong half". The literal is measured, and a new
@@ -924,8 +1025,11 @@ describe('objectui#6024 — the derivation this pin is built on', () => {
       categories: 13,
       entries: 41,
       // The strong half — the tile shows a record only the fixture holds.
-      // These are the two categories whose entries bind to `users`.
-      'structure+mount+data': { categories: ['plugin-grid', 'plugin-view'], entries: 5 },
+      // These are the three categories whose entries bind to `users`.
+      'structure+mount+data': {
+        categories: ['plugin-form', 'plugin-grid', 'plugin-view'],
+        entries: 7,
+      },
       // The other eleven author their data inline, so no fixture-only record
       // can reach their tiles. They carry STRUCTURE and MOUNT, and nothing here
       // claims otherwise.
@@ -945,7 +1049,9 @@ describe('objectui#6024 — the derivation this pin is built on', () => {
         entries: 34,
       },
       // Open defects with an owning card, NOT exemptions. See OWN_PLUGIN_DEBT.
-      'ledgered-debt': ['plugin-form/basic-form', 'plugin-form/contact-form'],
+      // EMPTY as of objectui#6167 — every plugin category is now held to the
+      // rule, and adding a line to the ledger moves this literal.
+      'ledgered-debt': [],
     });
   });
 
@@ -1018,12 +1124,18 @@ describe.each(PLUGIN_CATEGORIES)(
     if (dataBound.length > 0) {
       it.each(dataBound.map((e) => [e.id, e.schema] as const))(
         '%s puts data from the gallery data source on screen',
-        async (_id, schema) => {
+        async (id, schema) => {
           const r = await renderEntry(schema);
           try {
             // Not authored anywhere in the catalog — it exists only in the
-            // fixture, which the case above pins.
-            expect(r.text).toContain(FIXTURE_ONLY_RECORD);
+            // fixture, which the case above pins. Read out of the text OR a
+            // control's value: a grid shows it, a form holds it.
+            expect(
+              carriesFixtureRecord(r),
+              `${id} renders with ${FIXTURE_ONLY_RECORD} nowhere in it — not in the tile's ` +
+                "text and not in a form control's value — so nothing on screen came through " +
+                'the registered renderer → `dataSource.find`.',
+            ).toBe(true);
           } finally {
             teardown(r);
           }

@@ -210,7 +210,9 @@ import components_form_file_upload_images_only from './schemas/components-form-f
 import components_form_file_upload_multiple_files from './schemas/components-form-file-upload/multiple-files.json' with { type: 'json' };
 import components_form_file_upload_simple_upload from './schemas/components-form-file-upload/simple-upload.json' with { type: 'json' };
 import components_form_file_upload_single_file from './schemas/components-form-file-upload/single-file.json' with { type: 'json' };
+import components_form_form_basic_form from './schemas/components-form-form/basic-form.json' with { type: 'json' };
 import components_form_form_contact_form from './schemas/components-form-form/contact-form.json' with { type: 'json' };
+import components_form_form_demo_request_form from './schemas/components-form-form/demo-request-form.json' with { type: 'json' };
 import components_form_form_login_form from './schemas/components-form-form/login-form.json' with { type: 'json' };
 import components_form_form_registration_form from './schemas/components-form-form/registration-form.json' with { type: 'json' };
 import components_form_input_basic_input from './schemas/components-form-input/basic-input.json' with { type: 'json' };
@@ -414,8 +416,8 @@ import plugin_dashboard_support_dashboard from './schemas/plugin-dashboard/suppo
 import plugin_editor_javascript_editor from './schemas/plugin-editor/javascript-editor.json' with { type: 'json' };
 import plugin_editor_python_editor from './schemas/plugin-editor/python-editor.json' with { type: 'json' };
 import plugin_editor_read_only_json_viewer from './schemas/plugin-editor/read-only-json-viewer.json' with { type: 'json' };
-import plugin_form_basic_form from './schemas/plugin-form/basic-form.json' with { type: 'json' };
-import plugin_form_contact_form from './schemas/plugin-form/contact-form.json' with { type: 'json' };
+import plugin_form_object_form_record from './schemas/plugin-form/object-form-record.json' with { type: 'json' };
+import plugin_form_object_form_tabbed_sections from './schemas/plugin-form/object-form-tabbed-sections.json' with { type: 'json' };
 import plugin_gantt_construction_project_phases from './schemas/plugin-gantt/construction-project-phases.json' with { type: 'json' };
 import plugin_gantt_project_timeline_with_dependencies from './schemas/plugin-gantt/project-timeline-with-dependencies.json' with { type: 'json' };
 import plugin_gantt_sprint_development_timeline from './schemas/plugin-gantt/sprint-development-timeline.json' with { type: 'json' };
@@ -2238,6 +2240,16 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_form_file_upload_single_file,
   },
+  'components-form-form/basic-form': {
+    id: 'components-form-form/basic-form',
+    meta: {
+      title: "Basic Form",
+      description: "A hand-built `form` node from `@object-ui/components`: name, email, country and newsletter fields declared inline, with no object behind them. For a form generated from an object's own metadata, see the `plugin-form` examples.",
+      category: 'components-form-form',
+      tags: ["form", "input", "select", "checkbox"],
+    },
+    schema: components_form_form_basic_form,
+  },
   'components-form-form/contact-form': {
     id: 'components-form-form/contact-form',
     meta: {
@@ -2246,6 +2258,16 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-form-form',
     },
     schema: components_form_form_contact_form,
+  },
+  'components-form-form/demo-request-form': {
+    id: 'components-form-form/demo-request-form',
+    meta: {
+      title: "Demo Request Form",
+      description: "A longer hand-built `form`: company details, industry and size selects, a message textarea and a terms checkbox, all declared inline. For a form bound to an object, see the `plugin-form` examples.",
+      category: 'components-form-form',
+      tags: ["form", "select", "textarea", "checkbox"],
+    },
+    schema: components_form_form_demo_request_form,
   },
   'components-form-form/login-form': {
     id: 'components-form-form/login-form',
@@ -4079,23 +4101,25 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_editor_read_only_json_viewer,
   },
-  'plugin-form/basic-form': {
-    id: 'plugin-form/basic-form',
+  'plugin-form/object-form-record': {
+    id: 'plugin-form/object-form-record',
     meta: {
-      title: "Basic Form",
-      description: "",
+      title: "Object Form — One Record From Object Metadata",
+      description: "object-form editing one `users` record: the fields come from the object's own metadata through `getObjectSchema`, the values from `findOne`, and `fields` / `columns` decide which of them appear and how wide the grid is.",
       category: 'plugin-form',
+      tags: ["object-form", "objectql", "edit", "columns"],
     },
-    schema: plugin_form_basic_form,
+    schema: plugin_form_object_form_record,
   },
-  'plugin-form/contact-form': {
-    id: 'plugin-form/contact-form',
+  'plugin-form/object-form-tabbed-sections': {
+    id: 'plugin-form/object-form-tabbed-sections',
     meta: {
-      title: "Contact Form",
-      description: "",
+      title: "Object Form — Sections as Tabs",
+      description: "The same record with `formType: 'tabbed'`: the declared `sections` become tab panels of ONE form, so a single submit spans them and a tab the user leaves keeps its values.",
       category: 'plugin-form',
+      tags: ["object-form", "tabbed", "sections", "objectql"],
     },
-    schema: plugin_form_contact_form,
+    schema: plugin_form_object_form_tabbed_sections,
   },
   'plugin-gantt/construction-project-phases': {
     id: 'plugin-gantt/construction-project-phases',
