@@ -31,6 +31,7 @@ import {
   useSafeTranslate,
   extractWriteErrorMessage,
   isPermissionError,
+  declaredUserMessage,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
@@ -432,10 +433,19 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       // Surface the failure — never silently snap the event back. A row-level
       // security denial (403) is the common case: the user lacks permission to
       // reschedule this record. (cloud#864)
+      // …unless the AUTHOR opted in. `userMessage` (objectstack#9934) is the
+      // producer-side marking: a field set at throw time to say "this text is
+      // for the end user". It is a SEPARATE field from `message`, so nothing
+      // unmarked can reach here — the substitution below still governs every
+      // platform diagnostic and #3821 holds by construction rather than by us
+      // guessing what a body contains. Status-agnostic on purpose: 403 is
+      // where this was reported (objectui#5210/#5902), not a fence the
+      // contract draws — a marked 409 or 400 renders identically.
       toast.error(
-        isPermissionError(err)
-          ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
-          : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
+        declaredUserMessage(err) ??
+          (isPermissionError(err)
+            ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
+            : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed')),
       );
     }
   }, [calendarConfig, schema.objectName, dataSource, data, tt]);
