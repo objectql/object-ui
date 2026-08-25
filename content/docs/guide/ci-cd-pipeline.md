@@ -1734,17 +1734,28 @@ takes part in it.
 > because nothing checked, and one of them is a PR gate.
 
 1. Create a new `.yml` file in `.github/workflows/`.
-2. Follow the existing pattern for pnpm + Turbo setup:
+2. Copy the pnpm + Turbo setup from a workflow that runs today, not from a snippet on this
+   page. A copied YAML block is a fossil the moment it is pasted — this page used to keep
+   one here, and every line of it had drifted: `actions/setup-node@v4` where every workflow
+   now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares `'22.x'`
+   (and 20 sat below the floor the root `package.json`'s `engines` field now declares), and
+   `pnpm/action-setup@v4`, which no workflow in this repository has ever used — pnpm comes
+   from `corepack enable` plus the root `packageManager` field instead.
 
-```yaml
-- uses: actions/checkout@v4
-- uses: pnpm/action-setup@v4
-- uses: actions/setup-node@v4
-  with:
-    node-version: 20
-    cache: 'pnpm'
-- run: pnpm install --frozen-lockfile
-```
+   `readme-exports.yml` (see the **README Exports** section above) is a good one to read: it
+   is short, runs on every pull request, and its setup is the complete pattern most new
+   build/test/lint workflows need — checkout, enable Corepack, `actions/setup-node` with
+   pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step for
+   whatever it needs built. Two of its steps hold for any workflow no matter which Node or
+   pnpm version the repository is on when you read this:
+
+   ```yaml
+   - uses: actions/checkout@v7
+   - run: corepack enable
+   ```
+
+   Copy everything else — the Node version, the cache key, the install command — from the
+   workflow itself, not from this page.
 
 3. Use Turbo for any build/test/lint steps to leverage caching:
 
