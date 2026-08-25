@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 
-import { createPluginStylesheetBuilder, isMainModule } from '../../../scripts/build-plugin-stylesheet.mjs';
+import { isEntrypoint } from '../../../scripts/invoked-as.mjs';
+import { createPluginStylesheetBuilder } from '../../../scripts/build-plugin-stylesheet.mjs';
 
 export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const PACKAGE_NAME = '@object-ui/plugin-kanban';
@@ -65,7 +66,7 @@ export const buildOptions = {
   classCeiling: CLASS_CEILING,
 };
 
-if (isMainModule(import.meta.url)) {
+if (isEntrypoint(import.meta.url)) {
   const { css, survivors, survivingClasses, droppedRules, droppedAtRules } =
     await builder.build(buildOptions);
   console.log(

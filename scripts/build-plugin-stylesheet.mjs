@@ -64,7 +64,7 @@
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -78,11 +78,6 @@ export const COMPONENTS_ENTRY = resolve(COMPONENTS_ROOT, 'src/index.css');
  * — that package's real build output, not a re-derivation of it.
  */
 export const COMPONENTS_SHEET = resolve(COMPONENTS_ROOT, 'dist/index.css');
-
-/** True when `url` is the module Node was started with (`node thisfile.mjs`). */
-export function isMainModule(url) {
-  return Boolean(process.argv[1]) && url === pathToFileURL(process.argv[1]).href;
-}
 
 /**
  * `var(--x, <fallback>)` -> `var(--x)`, at any nesting depth.
