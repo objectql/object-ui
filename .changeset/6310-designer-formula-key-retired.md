@@ -27,3 +27,12 @@ Not touched: `designer.field.formula` (`'Formula (CEL)'`) in
 `packages/app-shell/src/views/metadata-admin/i18n.ts`, a different and live key belonging
 to metadata-admin's `ObjectFieldInspector` — the surface that still authors formula
 expressions.
+
+`packages/i18n/src/__tests__/appDesigner-fieldDesigner-formula-retired-6310.test.ts` pins the
+removal by name, following the four prior retirements (objectui#4145, objectui#4392,
+objectui#4730, objectui#5504). Every i18n gate here runs call site → key, so none of them can
+see a dead key come BACK into the packs: the reverse sweep that found this one is report-only
+by design, `all-locales-key-parity` is fully satisfied by ten packs agreeing on a dead key, and
+`check:i18n-drift` only fires when a value changes. Reverse-verified rather than asserted —
+reviving the row in all ten packs turns exactly that one case red, naming each pack, while the
+parity gate and the defaults-map mirror stay green.
