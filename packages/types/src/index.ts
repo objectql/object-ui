@@ -899,8 +899,43 @@ export type AnySchema =
 export type SchemaByType<T extends string> = Extract<AnySchema, { type: T }>;
 
 /**
- * Utility type to make all properties optional except the type.
+ * Utility type INTENDED to make all properties optional except the type.
  * Useful for partial schema definitions in editors.
+ *
+ * ⚠️ MEASURED READING — it does not currently deliver that (objectui#6397).
+ * Every instantiation declares exactly ONE property, `type`, and carries a live
+ * `[key: string]: any`, so it accepts any key at `any`. Measured through the
+ * TypeScript checker against the emitted `index.d.ts`:
+ *
+ *   PartialSchema<ObjectGridSchema>  -> 1 declared property: type   (source: 61)
+ *   PartialSchema<ObjectFormSchema>  -> 1 declared property: type   (source: 67)
+ *   PartialSchema<ObjectViewSchema>  -> 1 declared property: type   (source: 42)
+ *   PartialSchema<ButtonSchema>      -> 1 declared property: type   (source: 27)
+ *
+ * `Omit<T, K>` is `Pick<T, Exclude<keyof T, K>>`, and `keyof T` on a type
+ * carrying a string index signature is `string | number` — the literal member
+ * names are ABSORBED. Every `T extends BaseSchema` inherits `BaseSchema`'s
+ * `[key: string]: any` (objectui#5155), so `Partial<Omit<T, 'type'>>` rebuilds a
+ * type holding the index signature and none of the named members; the explicit
+ * `{ type: T['type'] }` half is the only reason the count is 1 and not 0. Same
+ * mechanism as objectui#6151 (heritage clause) and objectui#6269 (property
+ * position) — this is its generic mapped-type-alias position.
+ *
+ * ⭐ SEQUENCING (objectui#6397 triage, 2026-08-25) — this declaration is
+ * deliberately left AS WRITTEN. It is not repairable in place: `T` is generic,
+ * so there is no literal key list to `Pick` the way objectui#6269 could for its
+ * two concrete schemas, and every generic re-spelling collapses for the same
+ * `keyof T` reason. It is also not removable here — dropping a published export
+ * of `@object-ui/types` is a breaking removal of published capability and sits
+ * on the human floor. Once objectui#5155 removes the root index signature,
+ * `keyof T` resolves to the literal member union again and this alias starts
+ * working exactly as its first line promises, with no edit here at all.
+ *
+ * Until then, do not adopt it as protection it does not provide: name the
+ * concrete schema type, or write `Partial<Pick<T, 'a' | 'b'>>` over literal keys
+ * (objectui#6269's repair shape), when you need a real partial. The reading
+ * above is pinned by `src/__tests__/partial-schema-collapse-pin.test.ts`, which
+ * goes red — by design — the day objectui#5155 lands.
  */
 export type PartialSchema<T extends BaseSchema> = {
   type: T['type'];
