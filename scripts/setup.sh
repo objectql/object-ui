@@ -11,17 +11,22 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚀 ObjectUI Development Environment Setup${NC}"
 echo -e "${BLUE}==========================================${NC}\n"
 
-# Check Node.js
+# Check Node.js — the floor is READ from the root package.json's `engines.node`
+# rather than repeated here, so this script and the manifest cannot drift apart
+# (objectui#5306: this check demanded Node 20 while the manifest said 22).
 echo -e "${YELLOW}Checking prerequisites...${NC}"
 if ! command -v node &> /dev/null; then
     echo -e "${RED}❌ Node.js is not installed${NC}"
-    echo -e "${YELLOW}Please install Node.js 20+ from https://nodejs.org/${NC}"
+    echo -e "${YELLOW}Please install Node.js from https://nodejs.org/ — the required version is the one root package.json declares in engines.node${NC}"
     exit 1
 fi
 
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo -e "${RED}❌ Node.js version must be 20 or higher (current: $(node -v))${NC}"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# `>=22.11` -> `22.11`. A failed read exits the script under `set -e`, so an
+# unreadable manifest can never be mistaken for a satisfied floor.
+NODE_FLOOR=$(node -p "require('$REPO_ROOT/package.json').engines.node.replace(/^[^0-9]*/, '')")
+if [ "$(printf '%s\n%s\n' "$NODE_FLOOR" "$(node -v | cut -d'v' -f2)" | sort -V | head -n1)" != "$NODE_FLOOR" ]; then
+    echo -e "${RED}❌ Node.js $NODE_FLOOR or higher is required (current: $(node -v))${NC}"
     exit 1
 fi
 echo -e "${GREEN}✓ Node.js $(node -v) detected${NC}"
@@ -32,9 +37,9 @@ if ! command -v pnpm &> /dev/null; then
     npm install -g pnpm
 fi
 
-PNPM_VERSION=$(pnpm -v | cut -d'.' -f1)
-if [ "$PNPM_VERSION" -lt 9 ]; then
-    echo -e "${YELLOW}📦 Upgrading pnpm to v9+...${NC}"
+PNPM_FLOOR=$(node -p "require('$REPO_ROOT/package.json').engines.pnpm.replace(/^[^0-9]*/, '')")
+if [ "$(printf '%s\n%s\n' "$PNPM_FLOOR" "$(pnpm -v)" | sort -V | head -n1)" != "$PNPM_FLOOR" ]; then
+    echo -e "${YELLOW}📦 Upgrading pnpm to v$PNPM_FLOOR+...${NC}"
     npm install -g pnpm@latest
 fi
 echo -e "${GREEN}✓ pnpm $(pnpm -v) detected${NC}"
