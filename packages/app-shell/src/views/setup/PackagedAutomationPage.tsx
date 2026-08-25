@@ -92,7 +92,11 @@ import {
 import { useObjectTranslation } from '@object-ui/i18n';
 import { actionErrorDetail } from '@object-ui/core';
 
-import { apiBase } from '../metadata-admin/previews/useFlowNodePalette.js';
+// The LEAF module, not `previews/useFlowNodePalette.js` which re-exports it:
+// this page is imported eagerly by `services/builtinComponents`, so anything
+// in its graph joins the console's eager closure — and that module's scope
+// reaches the whole flow-designer canvas.
+import { apiBase } from '../../utils/apiBase.js';
 import {
   envelopeData,
   envelopeRefused,
