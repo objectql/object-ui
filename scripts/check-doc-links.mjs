@@ -627,6 +627,12 @@ const blank = (text) => text.replace(/[^\n]/g, ' ');
  *   - `exclude` — the names to leave out (objectui#4938);
  *   - `collect` — when given, the ONLY names to take, which is what makes
  *     `exclude` meaningless alongside it.
+ *
+ * @param {string} dir            the directory to walk
+ * @param {string[]} [files]      accumulator, so the recursion has one array
+ * @param {Set<string>} [exclude] basenames to leave out, at every depth
+ * @param {Set<string> | null} [collect] the only basenames to take, at every depth
+ * @returns {string[]}
  */
 export function walk(dir, files = [], exclude = EMPTY_EXCLUDE, collect = null) {
   let entries;
@@ -704,6 +710,11 @@ function expandWildcard(pattern) {
  *
  * Neither has any effect on a single-file root: a row names its own file
  * outright, not by basename, so there is nothing to filter.
+ *
+ * @param {string} root           a directory, a markdown file, or a wildcard pattern
+ * @param {Set<string>} [exclude] basenames to leave out, at every depth
+ * @param {Set<string> | null} [collect] the only basenames to take, at every depth
+ * @returns {string[]}
  */
 export function collectFiles(root, exclude = EMPTY_EXCLUDE, collect = null) {
   if (collect && exclude.size > 0) throw new Error(`${BOTH_FILTERS}, and got both for "${root}".`);
