@@ -405,7 +405,7 @@ function SelectorControl({
   const Icon = getIcon(def.icon);
   const rawLabel = resolveKeyedI18nLabel(def.label as any, t) || def.id;
   const label = rawLabel === 'Package'
-    ? (t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel)
+    ? (t?.('common.package', { defaultValue: 'Package' }) ?? rawLabel)
     : rawLabel;
   const placeholder = t?.('actionDialog.selectPlaceholder', {
     label,

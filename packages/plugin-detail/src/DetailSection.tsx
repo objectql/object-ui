@@ -490,7 +490,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
             )}
             {showEmptyOverride
               ? t('detail.hideEmptyFields', { defaultValue: 'Hide empty fields' })
-              : t('detail.showEmptyFields', { count: emptyCount, defaultValue: `Show ${emptyCount} empty field${emptyCount === 1 ? '' : 's'}` })}
+              : t('detail.showEmptyFields', { count: emptyCount, defaultValue: 'Show {{count}} empty fields' })}
           </Button>
         </div>
       )}

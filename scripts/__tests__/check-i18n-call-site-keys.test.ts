@@ -16,6 +16,7 @@ import {
   PACK_HOOK,
   readVocabulary,
   RESERVED_OPTION_NAMES,
+  unresolvableSpellings,
 } from '../check-i18n-call-site-keys.mjs';
 
 /**
@@ -1065,8 +1066,159 @@ export const A = (name: string, label: string, n: number) => {
       path.join(repoRoot, 'packages/app-shell/src/layout/ContextSelectors.tsx'),
       'utf8',
     );
-    expect(selectors).toContain("t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel");
+    // Pinned on the OPTIONAL CALL and the `??` OPERAND — the two things this
+    // rule abstained on — and deliberately not on the options object between
+    // them. objectui#4905 rewrote both calls' `defaultValue` ARGUMENT (to the
+    // `en` value, so class 3 pins them where it previously could not), which is
+    // a different rule acting on a different position; a marker spanning both
+    // made that fix read as this rule's regression.
+    expect(selectors).toContain("t?.('common.package'");
+    expect(selectors).toContain(') ?? rawLabel');
     expect(selectors).toContain('}) ?? `Select ${label}…`');
+  });
+});
+
+describe('an inline defaultValue spells its holes the one way the fallback resolves (objectui#4905)', () => {
+  /**
+   * Class 7. `fallbackT` interpolates with an exact literal needle, so it
+   * resolves `{{name}}` and nothing else; i18next also accepts `{{ name }}`,
+   * `{{count, number}}`, `{{- name}}` and `$t(key)`. The divergence is visible
+   * only WITHOUT a provider, which is the one host nobody watches.
+   *
+   * objectui#3512 gated this rule over the copy TABLES and said in writing that
+   * inline defaults were out of its scope, because finding one means classifying
+   * the call site — the walk this file owns. The residue it recorded is what
+   * objectui#4905 closed: most of it at the SOURCE (call sites rewritten so the
+   * drift rule pins them), the rest here.
+   */
+  function spellingOf(root: string): string[] {
+    return analyze(root, { families: [] })
+      .findings.filter((f: { reason: string }) => f.reason === 'unresolvable-default-spelling')
+      .map((f: { detail: string; actual: string }) => `${f.detail}: ${f.actual}`)
+      .sort();
+  }
+
+  const withDefault = (expression: string) => ({
+    'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+    'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (name: string) => { const { t } = useObjectTranslation(); return t('interp.greet', { name, defaultValue: ${expression} }); };
+`,
+  });
+
+  it('the rule itself: canonical passes, each of the four i18next-only spellings fails', () => {
+    // A unit pin on the predicate, so the four dialects are named once in a
+    // place that does not depend on the walk finding them.
+    expect(unresolvableSpellings('Hello {{name}}')).toEqual([]);
+    expect(unresolvableSpellings('Hello {{ name }}')).toHaveLength(1);
+    expect(unresolvableSpellings('Deleted {{count, number}} rows')).toHaveLength(1);
+    expect(unresolvableSpellings('Hello {{- name}}')).toHaveLength(1);
+    expect(unresolvableSpellings('Hello $t(common.save)')).toHaveLength(1);
+    expect(unresolvableSpellings('Hello {{user.name}}')).toHaveLength(1);
+    expect(unresolvableSpellings('{{a}} and {{b}}')).toEqual([]);
+  });
+
+  it('is silent when the default spells its hole the way the fallback reads it', () => {
+    const { findings, counters } = analyze(repoWith(withDefault("'Hello {{name}}'")), { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.spellingJudgedDefaults).toBe(1);
+  });
+
+  it.each([
+    ["'Hello {{ name }}'", 'whitespace inside the braces'],
+    ["'Hello {{name, upper}}'", 'an i18next format spec'],
+    ["'Hello {{- name}}'", 'the {{- x}} unescape prefix'],
+    ["'Hello $t(common.save)'", 'i18next nesting'],
+  ])('RED on %s', (expression, fragment) => {
+    const found = spellingOf(repoWith(withDefault(expression)));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain(fragment);
+  });
+
+  it('reaches a COMPUTED default, which class 3 structurally cannot judge', () => {
+    // The residue the card is about: a template literal is not a comparable
+    // sentence, so `default-value-drift` counts it and moves on — but its
+    // literal SEGMENTS are text the fallback renders verbatim.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (name: string, n: number) => {
+  const { t } = useObjectTranslation();
+  return t('interp.both', { name, n, defaultValue: \`Hello \${name}, you have {{ n }} messages\` });
+};
+`,
+    });
+    const { counters } = analyze(root, { families: [] });
+    expect(counters.computedDefaultValues).toBe(1);
+    expect(spellingOf(root)).toEqual(['interp.both: "{{ n }}" — whitespace inside the braces; the fallback resolves only {{name}}']);
+  });
+
+  it('reaches a default on a DYNAMIC key, which no transitive pin can cover', () => {
+    // No single `en` value exists, so there is nothing for class 3 to compare
+    // and nothing #3512 covers transitively. The spelling is still judged.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (which: string, name: string) => {
+  const { t } = useObjectTranslation();
+  return t(\`common.\${which}\`, { name, defaultValue: 'Hello {{ name }}' });
+};
+`,
+    });
+    expect(spellingOf(root)).toEqual(['(dynamic key): "{{ name }}" — whitespace inside the braces; the fallback resolves only {{name}}']);
+  });
+
+  it('a hole straddling a substitution is reported, not silently joined into a valid one', () => {
+    // Joining the segments would invent an adjacency the runtime never
+    // produces: at runtime the substitution sits between the braces, so
+    // neither interpolator can resolve it. Reading it as `{{name}}` would be
+    // the false green.
+    const found = spellingOf(repoWith(withDefault('`{{ ${name} }}`')));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('unterminated `{{`');
+  });
+
+  it('counts, and does not judge, a default with no readable text at all', () => {
+    const root = repoWith(withDefault('name'));
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.opaqueDefaultText).toBe(1);
+    expect(counters.spellingJudgedDefaults).toBe(0);
+  });
+
+  it('leaves single-brace holes alone — objectui#4135 spells a downstream fill that way', () => {
+    expect(spellingOf(repoWith(withDefault("'Hello {name}'")))).toEqual([]);
+    expect(unresolvableSpellings('Resend in {seconds}s')).toEqual([]);
+  });
+
+  it('leaves JSX object-literal braces out of range by construction', () => {
+    // `style={{ opacity: 0 }}` is `{{` that is syntax, not copy. The rule is
+    // handed the TEXT of a literal, never source, so a JSX brace cannot reach
+    // it — excluded by where the rule looks, not by an allow-list.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_FIXTURE,
+      'packages/x/src/A.tsx': `import { useObjectTranslation } from '${I18N_PKG}';
+export const A = (name: string) => {
+  const { t } = useObjectTranslation();
+  return <span style={{ opacity: 0 }} data-x={{ a: 1 }}>{t('interp.greet', { name, defaultValue: 'Hello {{name}}' })}</span>;
+};
+`,
+    });
+    expect(spellingOf(root)).toEqual([]);
+  });
+
+  it('main carries no unresolvable spelling, which is why this rule has no baseline', () => {
+    expect(spellingOf(repoRoot)).toEqual([]);
+  });
+
+  it('and that green is not vacuous — it is measured over hundreds of real defaults', () => {
+    // The trap this rule's own card named: a coverage number that looks like
+    // success and can be reached by judging nothing. The CLI exits non-zero
+    // below 500; this pins the same floor where the counter is readable.
+    const { counters } = analyze(repoRoot);
+    expect(counters.spellingJudgedDefaults).toBeGreaterThan(500);
+    // The residue route C could not reach is still IN the judged set, not
+    // quietly dropped from it.
+    expect(counters.spellingJudgedResidueDefaults).toBeGreaterThan(0);
   });
 });
 

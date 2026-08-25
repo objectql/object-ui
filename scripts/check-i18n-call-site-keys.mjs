@@ -5,7 +5,9 @@
  * must say the same thing the pack does (objectui#3810) — and the interpolation
  * arguments the call site passes must be exactly the holes the `en` value has
  * to receive them (objectui#3845) — and the OTHER spelling of a fallback,
- * `t(key) || 'English'`, must not exist at all (objectui#4117).
+ * `t(key) || 'English'`, must not exist at all (objectui#4117) — and whatever
+ * text that inline default carries must spell its placeholders the one way the
+ * provider-less fallback can resolve them (objectui#4905).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
  * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
@@ -292,6 +294,58 @@
  *    112 checked member keys), and a missing translation is a gap to surface, not
  *    something to invent pack entries for.
  *
+ * 7. `unresolvable-default-spelling` (objectui#4905) — an inline `defaultValue`
+ *    spells a placeholder in one of the four dialects i18next accepts and
+ *    `createSafeTranslation`'s `fallbackT` does not (`{{ name }}`,
+ *    `{{count, number}}`, `{{- name}}`, `$t(key)`). WITH a provider the pack
+ *    value wins and nothing is visible; WITHOUT one the braces reach the user.
+ *
+ *    This is objectui#3512's rule, and the reason it is HERE rather than there
+ *    is the whole of objectui#4905. That card gated the three copy TABLE
+ *    surfaces and left inline defaults out in writing, because a `defaultValue`
+ *    is a call-site OPTION rather than a table: finding one means resolving
+ *    which `t` is in scope at that position and reading the call's arguments —
+ *    the classifier this file already is, and a second independently-rotting
+ *    copy of it anywhere else. The residue #3512 recorded was 3 "not
+ *    comparable" plus 62 computed inline defaults with no transitive pin.
+ *
+ *    Closing that residue at the SOURCE — rewriting a computed default as the
+ *    `en` value so class 3 pins it — turns out to reach only 5 of the 66 sites
+ *    measured on this tree, and the reason is worth stating because it is the
+ *    opposite of what the card assumed. THREE things can render an inline
+ *    default, and only two of them interpolate it:
+ *
+ *      1. i18next, with a provider. It interpolates — but the pack value wins,
+ *         so the default never renders at all. Moot.
+ *      2. `createSafeTranslation`'s `fallbackT`. It interpolates, with the exact
+ *         literal needle this class is named for. SAFE to rewrite.
+ *      3. react-i18next's not-ready `t`, which is what a bare
+ *         `useObjectTranslation()` yields when no i18next instance is
+ *         initialised. Measured in `react-i18next/dist/es/useTranslation.js`:
+ *         `notReadyT` returns `options.defaultValue` VERBATIM — it does not
+ *         interpolate at all.
+ *
+ *    So at a `useObjectTranslation` call site, a default written as
+ *    `` `Signed in as ${user.email}` `` is not an unpinned near-miss to be
+ *    tidied into `'Signed in as {{email}}'` — the template literal is the only
+ *    one of the two that renders correctly there, and "fixing" it would put
+ *    literal braces in front of a user on exactly the provider-less host this
+ *    whole family of cards is about. `objectBulkActionDispatch.test.tsx` fails
+ *    on precisely that substitution, which is how it was found.
+ *
+ *    Hence only 5 rewrites: four whose default carries no hole (nothing to
+ *    interpolate, so all three renderers agree) and one behind a
+ *    `createSafeTranslation` hook. The rest stay computed, and this class is
+ *    what covers them.
+ *
+ *    Judged over EVERY inline default, not just the residue. A pinned default is
+ *    byte-equal to an `en` value #3512 already holds to this rule, so those
+ *    verdicts are green twice over — which is the point: it makes the judged
+ *    count a live control (hundreds, guarded), instead of a rule whose whole
+ *    subject is three strings that could silently become zero. HARD from day
+ *    one, like classes 3-5: the first full run found 0 violations, so there is
+ *    no debt for a ratchet to hold, and 0 stops being luck.
+ *
  * ## Dynamic keys: the explicit policy
  *
  * A key that is not a string literal cannot be resolved statically. Those call
@@ -455,6 +509,95 @@ export function holesOf(value) {
     if (name) names.add(name);
   }
   return names;
+}
+
+/**
+ * A `{{…}}` pair and its contents. `[^{}]*` deliberately: a placeholder never
+ * nests braces, and refusing to cross one keeps an unterminated `{{` from
+ * swallowing the rest of the sentence into a bogus "placeholder".
+ */
+const DOUBLE_BRACE = /\{\{([^{}]*)\}\}/g;
+
+/** Every `{{` occurrence, matched or not — the balance check's other half. */
+const DOUBLE_BRACE_OPEN = /\{\{/g;
+
+/**
+ * The one placeholder spelling `createSafeTranslation`'s `fallbackT` resolves.
+ * The option name comes from `Object.entries(options)` and is spliced into the
+ * needle raw (``value.split(`{{${k}}}`)``), so the accepted name is exactly a
+ * bare identifier: no whitespace, no format spec, no `-` prefix, no keypath.
+ */
+const CANONICAL_HOLE_NAME = /^[A-Za-z0-9_]+$/;
+
+/** i18next's nesting syntax. The fallback has no notion of it at all. */
+const NESTING_MARKER = '$t(';
+
+/** Why one placeholder is not something `fallbackT` can resolve. */
+function unresolvableReason(inner) {
+  if (inner !== inner.trim()) return 'whitespace inside the braces';
+  if (inner.startsWith('-')) return 'the {{- x}} unescape prefix';
+  if (inner.includes(',')) return 'an i18next format spec';
+  if (inner.includes('.')) return 'a dotted/keyed placeholder path';
+  return 'a non-identifier placeholder name';
+}
+
+/**
+ * Placeholder spellings the provider-less fallback cannot resolve
+ * (objectui#4905, class 7 — the rule is objectui#3512's, applied to the one
+ * copy surface that card left out).
+ *
+ * `fallbackT` interpolates with an EXACT literal needle, so it recognises
+ * `{{name}}` and nothing else. i18next — which serves the SAME string whenever
+ * an `I18nProvider` is mounted — additionally recognises `{{ name }}`,
+ * `{{count, number}}`, `{{- name}}` and `$t(otherKey)`. Those four render
+ * correctly through the provider and leak literal braces without one, which is
+ * a divergence only a provider-less host ever sees.
+ *
+ * Returns one human-readable violation per offending placeholder, and `[]` for
+ * text both paths render identically.
+ *
+ * ## What is structurally out of range, and why that matters
+ *
+ *   - **Single braces.** `{shown}` / `{seconds}` is objectui#4135's spelling for
+ *     a hole filled DOWNSTREAM of `t()`. Only the inside of a `{{…}}` pair is
+ *     ever inspected, so a single-brace hole cannot reach a verdict here —
+ *     excluded by where the rule looks, not by an allow-list that could rot.
+ *   - **JSX object literals.** `style={{ opacity: 0 }}` is `{{` that is syntax,
+ *     not copy. This rule never greps source text: it is handed the TEXT of a
+ *     string literal or the literal segments of a template, and a JSX brace is
+ *     not inside either.
+ *
+ * ## The sibling copy, named rather than hidden
+ *
+ * `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
+ * carries the same rule as `placeholderViolations`, over the ten locale packs
+ * and the 31+3 defaults TABLES. This copy exists because that gate is a vitest
+ * suite reading copy tables and this one is a node script reading call-site
+ * ARGUMENTS — the walk that finds a `defaultValue` is the classifier this file
+ * already owns, and rebuilding it there was rejected on objectui#4905. The
+ * self-test pins this copy against all four i18next-only spellings and both
+ * out-of-range classes, so the two can only drift by someone editing one and
+ * not the other with both self-tests in front of them.
+ */
+export function unresolvableSpellings(value) {
+  const out = [];
+  const regions = [...value.matchAll(DOUBLE_BRACE)];
+  for (const region of regions) {
+    const inner = region[1];
+    if (CANONICAL_HOLE_NAME.test(inner)) continue;
+    out.push(`${JSON.stringify(region[0])} — ${unresolvableReason(inner)}; the fallback resolves only {{name}}`);
+  }
+  // An unterminated `{{` renders as literal braces on BOTH paths, so it is not
+  // an i18next divergence — but it is never intentional copy, and the regions
+  // above cannot report what they did not match. A hole straddling a template
+  // substitution (`` `{{ ${name} }}` ``) lands here, which is the one shape
+  // neither interpolator can resolve.
+  const opens = (value.match(DOUBLE_BRACE_OPEN) ?? []).length;
+  if (opens > regions.length) out.push('an unterminated `{{` with no closing `}}`');
+  if (value.includes(NESTING_MARKER)) {
+    out.push('`$t(` — i18next nesting, which the fallback emits verbatim');
+  }
+  return out;
 }
 
 /**
@@ -871,6 +1014,40 @@ function staticString(node, source) {
 }
 
 /**
+ * Every piece of an expression that is STATIC TEXT, or `null` when none of it
+ * is (objectui#4905).
+ *
+ * `staticString` above answers "is this whole expression one readable string",
+ * which is what the drift rule needs — it compares a sentence. The spelling
+ * rule asks something weaker and therefore reaches further: a template literal
+ * is not a readable sentence, but its literal SEGMENTS are text a placeholder
+ * can be misspelled in, and that text renders verbatim on a provider-less host.
+ * `` `Uploading… ({{ pct }}%)` `` is `null` to `staticString` and two segments
+ * here, and the second is where the defect lives.
+ *
+ * The segments are judged one by one rather than joined, because joining them
+ * would invent adjacencies the runtime never produces: the substitution between
+ * two segments becomes arbitrary text at runtime, so a `{{` in one and a `}}`
+ * in the next is not a placeholder either interpolator can resolve, and reading
+ * it as one would be the false green.
+ */
+function staticTextSegments(node, source) {
+  const inner = unwrapExpression(node);
+  if (!inner) return null;
+  if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) return [inner.text];
+  if (ts.isTemplateExpression(inner)) {
+    return [inner.head.text, ...inner.templateSpans.map((span) => span.literal.text)];
+  }
+  if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = staticTextSegments(inner.left, source);
+    const right = staticTextSegments(inner.right, source);
+    if (left === null && right === null) return null;
+    return [...(left ?? []), ...(right ?? [])];
+  }
+  return null;
+}
+
+/**
  * Dotted leaf paths of `packages/i18n/src/locales/en.ts`, read from its AST,
  * plus the leaf VALUES — the strings the app actually renders.
  *
@@ -1182,6 +1359,11 @@ function literalKeysOf(argument, source) {
  * `{ present: true, text: null }` — written, but computed (a template with a
  *                                   substitution, a variable, a ternary). Not
  *                                   comparable, so it is counted, never failed.
+ *
+ * `segments` is the same expression read for STATIC TEXT rather than for a
+ * whole sentence (objectui#4905): `null` when nothing in it is readable text,
+ * otherwise every literal piece. A computed default is `text: null` and can
+ * still carry segments — that is the surface class 7 judges and class 3 cannot.
  */
 function inlineDefaultValue(node, source) {
   for (const argument of node.arguments.slice(1)) {
@@ -1192,10 +1374,14 @@ function inlineDefaultValue(node, source) {
       const name =
         ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
       if (name !== 'defaultValue') continue;
-      return { present: true, text: staticString(property.initializer, source) };
+      return {
+        present: true,
+        text: staticString(property.initializer, source),
+        segments: staticTextSegments(property.initializer, source),
+      };
     }
   }
-  return { present: false, text: null };
+  return { present: false, text: null, segments: null };
 }
 
 /**
@@ -1414,6 +1600,9 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     matchingDefaultValues: 0,
     computedDefaultValues: 0,
     unjudgedDefaultValues: 0,
+    spellingJudgedDefaults: 0,
+    spellingJudgedResidueDefaults: 0,
+    opaqueDefaultText: 0,
     judgedInterpolation: 0,
     unjudgedInterpolation: 0,
     opaqueOptions: 0,
@@ -1575,6 +1764,42 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
               counters.matchingDefaultValues += 1;
             } else {
               findings.push({ reason: 'default-value-drift', ...at, detail: key, expected: enValue, actual: inlineDefault.text });
+            }
+          }
+
+          // objectui#4905 — class 7. Whatever the drift rule decided above, the
+          // TEXT this default carries is text `fallbackT` may be asked to
+          // render, and `fallbackT` resolves exactly one placeholder spelling.
+          // Judged on every inline default, not only the ones drift leaves
+          // unpinned: a pinned default is byte-equal to its `en` value and
+          // objectui#3512 holds `en` to the same rule, so those come back green
+          // twice over — which is what makes the count a live control on this
+          // rule rather than a set of three strings nobody would notice
+          // emptying.
+          if (inlineDefault.present) {
+            // The folded sentence when there is one, else the literal pieces of
+            // a template — never both, so a `+`-concatenated default is judged
+            // whole rather than once per operand.
+            const subjects = inlineDefault.text !== null ? [inlineDefault.text] : (inlineDefault.segments ?? []);
+            const pinnedByDrift = inlineDefault.text !== null && enValue !== undefined;
+            if (subjects.length === 0) {
+              // A bare runtime value (`defaultValue: label`). There is no text
+              // to spell, and saying so is not the same as saying it is fine.
+              counters.opaqueDefaultText += 1;
+            } else {
+              counters.spellingJudgedDefaults += 1;
+              if (!pinnedByDrift) counters.spellingJudgedResidueDefaults += 1;
+              for (const subject of subjects) {
+                for (const violation of unresolvableSpellings(subject)) {
+                  findings.push({
+                    reason: 'unresolvable-default-spelling',
+                    ...at,
+                    detail: key ?? '(dynamic key)',
+                    expected: subject,
+                    actual: violation,
+                  });
+                }
+              }
             }
           }
 
@@ -1891,6 +2116,19 @@ const HINTS = {
     ' EXTERNALLY_INTERPOLATED_HOLES with the file that does the substitution — and note that' +
     ' those keys must still NOT be passed the argument, or i18next consumes the hole before the' +
     ' consumer gets to see it.',
+  'unresolvable-default-spelling':
+    'This inline `defaultValue` spells a placeholder in a dialect only i18next understands' +
+    ' (objectui#4905). `createSafeTranslation`\'s `fallbackT` interpolates with an EXACT literal' +
+    ' needle — ``value.split(`{{${k}}}`)`` — so `{{name}}` is the only spelling it resolves,' +
+    ' while i18next also accepts `{{ name }}`, `{{count, number}}`, `{{- name}}` and `$t(key)`.' +
+    ' The consequence is invisible where we usually look: WITH an `I18nProvider` the pack value' +
+    ' wins and this string never renders at all; without one it renders and the braces reach the' +
+    ' user verbatim. Fix it at the CALL SITE by respelling the hole as `{{name}}` — the' +
+    ' maintainer\'s objectui#4135 ruling is that `{{x}}` is exclusively i18next-bound copy, so' +
+    ' teaching the fallback more dialects is not the fix. A hole this component fills ITSELF,' +
+    ' downstream of `t()`, is spelled with SINGLE braces (`{x}`) and is out of this rule\'s range' +
+    ' by construction. Same rule, same reasons, over the copy TABLES:' +
+    ' `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`.',
   'dead-sibling-fallback':
     'The key EXISTS in `en`, and this fallback is written as the call\'s SIBLING' +
     ' (`t(key) || \'English\'`) rather than as an argument — so it is dead on every path, not just' +
@@ -1927,6 +2165,21 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
+  // The same guard for class 7's own subject (objectui#4905). The rule above is
+  // silent on a tree with no inline defaults in it, and silent is exactly how a
+  // broken `inlineDefaultValue` or `staticTextSegments` would read — so the
+  // spelling verdict asserts it had something to judge, rather than inheriting
+  // the key-count guard's word for it.
+  if (counters.spellingJudgedDefaults < 500) {
+    console.error(
+      `The inline-default spelling scan collapsed: ${counters.spellingJudgedDefaults} default(s) with readable` +
+        ` text, ${counters.opaqueDefaultText} without. Expected hundreds — this repo carries` +
+        ' roughly a thousand inline defaults, so a number this small means the reader stopped' +
+        ' reading them and the spelling rule is passing on an empty set.',
+    );
+    process.exit(1);
+  }
+
   const { unexpected, stale } = applyBaseline(findings, readBaseline(root));
 
   console.log(
@@ -1940,6 +2193,11 @@ if (invokedDirectly) {
     `Inline defaults: ${counters.literalDefaultValues} literal ` +
       `(${counters.matchingDefaultValues} match their en value, ${counters.unjudgedDefaultValues} not comparable), ` +
       `${counters.computedDefaultValues} computed (report-only).`,
+  );
+  console.log(
+    `Inline default spelling: ${counters.spellingJudgedDefaults} default(s) carry readable text and are held to ` +
+      `the one placeholder spelling the provider-less fallback resolves — ${counters.spellingJudgedResidueDefaults} ` +
+      `of them on call sites the drift rule cannot pin, ${counters.opaqueDefaultText} with no readable text at all.`,
   );
   console.log(
     `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
@@ -1967,6 +2225,7 @@ if (invokedDirectly) {
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
   const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
+  const spelling = unexpected.filter((finding) => finding.reason === 'unresolvable-default-spelling');
   // objectui#4964's classes read on their own too: they are all about a template
   // family whose HEAD resolves, which is precisely the case the two key classes
   // above declare out of scope.
@@ -1979,7 +2238,12 @@ if (invokedDirectly) {
     'empty-vocabulary',
   ]);
   const families = unexpected.filter((finding) => FAMILY_CLASSES.has(finding.reason));
-  const VALUE_CLASSES = new Set(['default-value-drift', 'interpolation-parity', 'dead-sibling-fallback']);
+  const VALUE_CLASSES = new Set([
+    'default-value-drift',
+    'interpolation-parity',
+    'dead-sibling-fallback',
+    'unresolvable-default-spelling',
+  ]);
   const keyFindings = unexpected.filter(
     (finding) => !VALUE_CLASSES.has(finding.reason) && !FAMILY_CLASSES.has(finding.reason),
   );
@@ -1988,8 +2252,9 @@ if (invokedDirectly) {
     console.log(
       `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
         ' literal inline defaultValue matches the value the pack serves, every call site passes' +
-        ' exactly the arguments that value has holes for, no call site carries a literal' +
-        ' fallback beside itself, and every dynamic key family either checks its members' +
+        ' exactly the arguments that value has holes for, every inline defaultValue spells its' +
+        ' placeholders the one way the provider-less fallback resolves, no call site carries a' +
+        ' literal fallback beside itself, and every dynamic key family either checks its members' +
         ' against a declared vocabulary or says in writing why it has none.',
     );
     process.exit(0);
@@ -2048,6 +2313,21 @@ if (invokedDirectly) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
       console.error(`      en renders:  ${quote(finding.expected)}`);
       console.error(`      dead ${finding.operator} operand: ${quote(finding.actual)}`);
+    }
+  }
+
+  if (spelling.length > 0) {
+    const distinct = new Set(spelling.map((finding) => `${finding.file}:${finding.line}`));
+    console.error(
+      `\n${spelling.length} placeholder${spelling.length === 1 ? '' : 's'} in an inline defaultValue ` +
+        `cannot be resolved by the provider-less fallback (${distinct.size} call ` +
+        `site${distinct.size === 1 ? '' : 's'}) — with a provider i18next renders ` +
+        'them correctly, so the braces reach the user only where nobody is looking:',
+    );
+    for (const finding of spelling) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      console.error(`      default text: ${quote(finding.expected)}`);
+      console.error(`      ${finding.actual}`);
     }
   }
 
