@@ -369,19 +369,73 @@ describe('non-vacuity — the population refuses to collapse', () => {
     for (const v of result.vacuous) expect(v.value).toBe(0);
   });
 
-  it('breaches the README-side floors alone when only that walk collapses', () => {
-    // The two walks fail independently -- a broken README pathspec and an
-    // unbuilt workspace are different accidents, and the verdict has to name
-    // which one happened rather than printing a uniform wall.
-    const result = scan(repoRoot, { readmes: [] });
-    expect(result.vacuous.map((v) => v.counter).sort()).toEqual(
-      ['codeBlocks', 'importBindings', 'readmes', 'selfBindings'].sort(),
-    );
-    expect(result.census.packagesRead).toBeGreaterThanOrEqual(FLOORS.packagesRead);
+  describe('the two walks breach INDEPENDENTLY', () => {
+    // On the FIXTURE tree, not `repoRoot`, and that is the whole point of this
+    // block. The claim is "collapse the README walk and only the README-side
+    // floors breach", which needs the package-side walk to be HEALTHY so that
+    // collapsing `readmes` is the only variable. Against `repoRoot` that
+    // precondition is a property of the machine: the fixture carries
+    // hand-written `.d.ts` files, while the test shards run `pnpm install` and
+    // then `pnpm test` and never build, so on CI every `packages/*` type entry
+    // is absent and the package-side floors breach too. Written against
+    // `repoRoot` this test passed on a built checkout and RED on CI --
+    // measured, on this branch's first CI run.
+    //
+    // The exact equality is deliberate and must stay exact. Loosening it to a
+    // containment check would pass on a built tree AND an unbuilt one, which
+    // is precisely the distinction this test exists to draw; it would assert
+    // that these four breached without asserting that those two did not, and
+    // the independence claim would be gone while the test still read green.
+    const root = fixtureTree(FIXTURE);
+    const at = writeReadme(root, readme());
+
+    /** Fixture-scale floors: the repo's own numbers are three orders too big. */
+    const floors = {
+      readmes: 1,
+      codeBlocks: 1,
+      importBindings: 1,
+      selfBindings: 1,
+      packagesRead: 2,
+      exportSymbols: 3,
+    };
+
+    const healthy = scan(root, {
+      readmes: ['packages/alpha/README.md'],
+      packageDirs: FIXTURE_PACKAGES,
+      readmeOverrides: { 'packages/alpha/README.md': at },
+      floors,
+    });
+    const collapsed = scan(root, { readmes: [], packageDirs: FIXTURE_PACKAGES, floors });
+
+    it('breaches nothing while BOTH walks are healthy — the control leg', () => {
+      // Without this, a green below could mean "the fixture is broken too".
+      expect(healthy.vacuous).toEqual([]);
+      expect(healthy.census.packagesRead).toBe(2);
+      expect(healthy.census.selfBindings).toBe(3);
+    });
+
+    it('breaches the README-side floors ALONE when only that walk collapses', () => {
+      expect(collapsed.vacuous.map((v) => v.counter).sort()).toEqual(
+        ['codeBlocks', 'importBindings', 'readmes', 'selfBindings'].sort(),
+      );
+      for (const v of collapsed.vacuous) expect(v.value).toBe(0);
+    });
+
+    it('leaves the package-side counters untouched by that collapse', () => {
+      // The other half of "independently": these two are read from the same
+      // scan and are unchanged from the healthy leg.
+      expect(collapsed.census.packagesRead).toBe(healthy.census.packagesRead);
+      expect(collapsed.census.exportSymbols).toBe(healthy.census.exportSymbols);
+      expect(collapsed.census.packagesRead).toBe(2);
+      expect(collapsed.census.exportSymbols).toBe(4);
+    });
   });
 
   it('puts the census in the verdict line, so a reader sees the population', () => {
-    const line = summarise(scan(repoRoot, { readmes: [] }));
+    // Both walks overridden to empty, so this reads NOTHING off disk and its
+    // verdict cannot depend on whether the checkout is built. It asserts the
+    // SHAPE of the line, never a count.
+    const line = summarise(scan(repoRoot, { readmes: [], packageDirs: [] }));
     expect(line).toContain('README(s) under packages/');
     expect(line).toContain('self-imports judged');
     expect(line).toContain('export symbol(s) read from');
