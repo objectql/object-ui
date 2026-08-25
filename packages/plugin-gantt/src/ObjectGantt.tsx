@@ -1147,8 +1147,6 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Default to a right-side drawer so clicking a task opens an editable
   // detail panel inline (no full-page navigation). Schema can override by
   // providing its own `navigation` config (e.g., page mode).
-  // detail panel inline (no full-page navigation). Schema can override by
-  // providing its own `navigation` config (e.g., page mode).
   const navConfig = schema.navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
