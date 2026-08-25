@@ -323,7 +323,8 @@ vi.mock('@object-ui/app-shell', async (importOriginal) => {
   };
 });
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     // The shape `AuthProvider` yields; `buildExpressionUser` normalises it into
     // the scope, which is why `positions` reaches `current_user` at all.
