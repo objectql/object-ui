@@ -15,6 +15,7 @@ import {
   UNGATED_DOCS,
   analyze,
   blockingPreconditions,
+  buildFilterArgs,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
   findInstalledCopy,
@@ -478,6 +479,48 @@ describe('wiring — a script nothing runs is not a gate', () => {
       build,
       'invoked before its own build, the gate would red a healthy pull request on a precondition',
     ).toBeLessThan(invoke);
+  });
+
+  /**
+   * objectui#5911 — the emitted list must be BUILDABLE, not merely accurate.
+   *
+   * The set the gate computes is the packages the DOCUMENTS import. That is a
+   * true answer to a different question than "what do I build": those packages
+   * depend on workspace packages no snippet names, and without them the build
+   * the gate prescribes dies on an import the reader never wrote. Measured on
+   * this tree before the fix: `pnpm <bare list> run build` selected 21 packages
+   * and failed with `TS2307: Cannot find module '@object-ui/sdui-parser'`.
+   *
+   * The suffix is pinned rather than the list, because the list is supposed to
+   * move as coverage grows — that is the property `--build-filter` exists for.
+   */
+  it('emits the dependency-closure suffix on every filter, so the build it prescribes is complete', () => {
+    const args = buildFilterArgs(['@object-ui/react', '@object-ui/core']);
+    expect(args).toBe('--filter=@object-ui/core... --filter=@object-ui/react...');
+    for (const word of args.split(' ')) {
+      expect(word, 'a bare --filter= builds the package without what it depends on').toMatch(
+        /^--filter=\S+\.\.\.$/,
+      );
+    }
+  });
+
+  it('keeps the emission sorted and shell-safe — the workflow word-splits it unquoted', () => {
+    const args = buildFilterArgs(['@object-ui/types', '@object-ui/app-shell', '@object-ui/i18n']);
+    expect(args.split(' ')).toEqual([
+      '--filter=@object-ui/app-shell...',
+      '--filter=@object-ui/i18n...',
+      '--filter=@object-ui/types...',
+    ]);
+    expect(args, 'a glob or quote here would be re-interpreted by the runner shell').not.toMatch(
+      /["'`$*?]/,
+    );
+  });
+
+  it('names every package it is given, so the closure suffix never replaces a name', () => {
+    const names = ['@object-ui/react', '@object-ui/core', '@object-ui/i18n'];
+    const args = buildFilterArgs(names);
+    for (const name of names) expect(args).toContain(`--filter=${name}...`);
+    expect(args.split(' ')).toHaveLength(names.length);
   });
 
   it('is reachable by name from the workspace root', () => {

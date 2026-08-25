@@ -649,8 +649,14 @@ rather than new capability.
 snippets import must exist as `dist/*.d.ts` first. The build is filtered to exactly those packages,
 and the filter is emitted by the gate itself (`node scripts/check-doc-snippet-types.mjs
 --build-filter`) rather than hand-maintained in the workflow — so it can never drift from what the
-documents import, and the cost grows only when coverage grows. This is deliberately **not** the
-per-PR full-repo build the 2026-08-16 ruling on
+documents import, and the cost grows only when coverage grows. Each emitted filter carries pnpm and
+turbo's dependency-closure suffix (`--filter=@object-ui/react...`), because the packages the
+documents import are not a buildable unit on their own: they depend on workspace packages no snippet
+names, and those have to exist first. Under `turbo run build` the suffix selects the same tasks
+`dependsOn: ["^build"]` already did; under `pnpm ... run build`, which selects exactly what it
+matches, it is the difference between a build that completes and one that dies on an import the
+reader never wrote ([#5911](https://github.com/objectstack-ai/objectui/issues/5911)). This is
+deliberately **not** the per-PR full-repo build the 2026-08-16 ruling on
 [#4846](https://github.com/objectstack-ai/objectui/issues/4846) rejected; see *Published Dist Gate*
 below.
 
