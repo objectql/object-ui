@@ -104,8 +104,17 @@
 /**
  * Unprefixed spellings that are really query options, mapped to the
  * `QueryParams` key each one means. Closed on purpose — see the scope note.
+ *
+ * EXPORTED for objectui#5944, which needs the canonical (`$`-prefixed) half of
+ * this map to mutate a real page source and prove the gate over page-source
+ * template literals can go red. `eslint-rules/` is a repo-local plugin
+ * directory, not a workspace package — it has no `package.json` and is not in
+ * `pnpm-workspace.yaml` — so a named export here widens no published surface.
+ * The point of exporting rather than copying: a second list of these spellings
+ * would drift from this one silently, and the drift would show up as a gate
+ * that quietly stops covering a spelling.
  */
-const QUERY_OPTION_SPELLINGS = {
+export const QUERY_OPTION_SPELLINGS = {
   top: '$top',
   limit: '$top',
   skip: '$skip',
