@@ -117,12 +117,27 @@ describe('[#6286] the batch cap is the spec\'s export, not a local copy', () => 
     expect(calls.every((c) => c.object === OBJECT && c.operation === 'update')).toBe(true);
   });
 
-  it('does not split AT the cap — a page of exactly cap ids is one request', async () => {
-    const ids = idsFor(STUB_CAP);
-    renderHook(() => useRecordCrudVerdicts({ objectName: OBJECT, recordIds: ids, update: true }));
-
+  it('splits only ABOVE the cap — exactly cap ids is one request, cap + 1 is two', async () => {
+    // BOTH sides are asserted deliberately. "Exactly cap ids is one request" is
+    // true of the pre-fix hook too (3 ids fit under a cap of 200), so on its own
+    // it is another ghost — it is the `cap + 1` half that can only pass when the
+    // boundary being applied is the spec's. The ablation leg for this file found
+    // that out: written with the first half alone, this case survived the revert.
+    const atCap = idsFor(STUB_CAP);
+    const { unmount } = renderHook(() =>
+      useRecordCrudVerdicts({ objectName: OBJECT, recordIds: atCap, update: true }),
+    );
     await waitFor(() => expect(calls.length).toBe(1));
-    expect(calls[0].recordIds).toEqual(ids);
+    expect(calls[0].recordIds).toEqual(atCap);
+
+    unmount();
+    __clearRecordCrudVerdictCache();
+    calls = [];
+
+    const overCap = idsFor(STUB_CAP + 1);
+    renderHook(() => useRecordCrudVerdicts({ objectName: OBJECT, recordIds: overCap, update: true }));
+    await waitFor(() => expect(calls.length).toBe(2));
+    expect(calls.map((c) => c.recordIds?.length)).toEqual([STUB_CAP, 1]);
   });
 
   it('splits per operation, so two verbs over cap+1 ids cost four requests', async () => {
