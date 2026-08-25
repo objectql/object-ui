@@ -131,3 +131,83 @@ describe('object-master-detail-form — a detail collection with no child object
     expect(calls).not.toContain('getObjectSchema(undefined)');
   });
 });
+
+/**
+ * ## The RENDER half of the same decline (objectui#6360)
+ *
+ * The tests above pin what the renderer does NOT fetch. They assert nothing
+ * about what the author is then shown, and for as long as that was true the
+ * answer was "Loading columns…" — forever, because the decline is exactly the
+ * guarantee that those columns can never arrive. Two source comments (at the
+ * decline itself and at the `catch`) claimed a config hint was rendered; there
+ * was none, and a reader who followed them had to run the component to find
+ * out.
+ *
+ * ⭐ Both directions are pinned here for the same reason the fetch half pins
+ * both: an assertion that only says "no `Loading columns…`" would also pass for
+ * a renderer that deleted the loading branch outright. So the second test holds
+ * the loading branch alive for the detail that legitimately IS still resolving.
+ */
+
+async function renderDetails(details: unknown) {
+  const calls: string[] = [];
+  const schema: any = {
+    type: 'object-master-detail-form',
+    objectName: PROBE_OBJECT,
+    mode: 'create',
+    formType: 'simple',
+    details,
+  };
+  const view = render(
+    <SchemaRendererProvider dataSource={recordingDataSource(calls)}>
+      <SchemaRenderer schema={schema} />
+    </SchemaRendererProvider>,
+  );
+  // Same settle loop as `callsFor`: resolution runs in an effect, and a second
+  // pass follows once the object schema lands.
+  for (let i = 0; i < 10; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+  }
+  return { view, calls };
+}
+
+describe('object-master-detail-form — what a declined detail RENDERS (objectui#6360)', () => {
+  it('names `childObject` in a config hint instead of a permanent "Loading columns…"', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { view, calls } = await renderDetails([{ title: 'Probe Detail' }]);
+
+    // The decline fired — this is the same state the tests above describe, now
+    // read from the render side.
+    expect(calls).toEqual([`getObjectSchema("${PROBE_OBJECT}")`]);
+
+    const hint = view.getByTestId('md-detail-no-child-object');
+    // The hint must NAME the key the author has to set. A generic "not
+    // configured" placeholder would pass a mere presence check and still leave
+    // the author guessing, which is the whole complaint.
+    expect(hint.textContent).toContain('childObject');
+
+    // The spinner-shaped message must be gone for THIS detail: nothing is
+    // pending, so "loading" is not merely unhelpful, it is false.
+    expect(view.container.textContent).not.toContain('Loading columns…');
+
+    // The section still renders (the decline keeps `details` length-matched to
+    // `rawDetails`), so the author sees which collection is misconfigured.
+    expect(view.container.textContent).toContain('Probe Detail');
+
+    warn.mockRestore();
+    view.unmount();
+  });
+
+  it('does NOT show the hint for a detail that names its child object, and still says "Loading columns…" while it resolves', async () => {
+    // ⭐ The other direction. Without this, deleting the loading branch
+    // altogether would pass the test above.
+    const { view } = await renderDetails([{ childObject: 'invoice_line', title: 'Invoice lines' }]);
+
+    expect(view.queryByTestId('md-detail-no-child-object')).toBeNull();
+    expect(view.container.textContent).toContain('Loading columns…');
+
+    view.unmount();
+  });
+});

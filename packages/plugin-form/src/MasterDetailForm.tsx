@@ -239,7 +239,25 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
       {details.map((d, i) => (
         <section key={`${d.childObject}-${i}`} className="space-y-2">
           <h3 className="text-sm font-medium text-foreground">{d.title || 'Line Items'}</h3>
-          {!d.columns?.length ? (
+          {/* A detail whose child object never resolved gets its OWN branch,
+              ahead of the columns/loading one (objectui#6360) — the render half
+              of the decline at `MasterDetailForm`'s resolve effect, and the same
+              shape `LineItemsPanel` takes for this exact key (objectui#6194)
+              following objectui#5940's config-hint precedent. It must not sit on
+              "Loading columns…": the decline is precisely the guarantee that
+              those columns can never arrive, so the spinner-shaped message is
+              permanently, unfixably wrong and never names the key the author has
+              to set. Checked BEFORE the columns arm because nothing is pending —
+              there is no first paint where "loading" is true. */}
+          {!d.childObject ? (
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              data-testid="md-detail-no-child-object"
+            >
+              This collection has no child object configured: set{' '}
+              <code className="font-mono">childObject</code> to the object whose rows it lists.
+            </p>
+          ) : !d.columns?.length ? (
             <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
           ) : (
             <LineItemsField
@@ -347,9 +365,14 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           // choice for the same class of missing key ("has no referenceField/parentId
           // — refusing to fetch all rows", RelatedList.tsx), and the sibling effect
           // below already spells it `.filter(Boolean)`; this makes the three agree.
-          // Left as-is rather than dropped, exactly like the `catch` below — the
-          // grid card shows a config hint, and `details` stays length-matched to
-          // `rawDetails` (the row-state array is indexed against it).
+          // Left as-is rather than dropped: `details` stays length-matched to
+          // `rawDetails` (the row-state array is indexed against it), and the
+          // `!d.childObject` branch in <MasterDetailLines> renders a config hint
+          // naming this key. That hint did not exist when this comment was first
+          // written — the branch showed "Loading columns…" forever, and a reader
+          // who trusted the claim had to run the component to find out
+          // (objectui#6360). Do not restore the claim that the `catch` below
+          // behaves the same way: it does not (objectui#6372).
           if (!d.childObject) {
             console.warn(
               `[MasterDetailForm] a detail collection has no childObject — refusing to fetch its schema. Set childObject to the child object the collection lists.`,
@@ -379,7 +402,16 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               sortField: d.sortField ?? derived.sortField,
             };
           } catch {
-            return d; // leave as-is; the grid card will show a config hint
+            // Left as-is so `details` stays length-matched to `rawDetails`.
+            // ⚠️ NOT the same outcome as the `!d.childObject` decline above:
+            // this entry DOES name a child object, so it skips the config-hint
+            // branch and lands on "Loading columns…" — which never ends, because
+            // the fetch that would supply those columns has already failed and
+            // is not retried. Telling that apart from "still in flight" needs a
+            // per-entry error state this resolver does not keep; tracked as
+            // objectui#6372. This comment used to claim a config hint was shown
+            // here; it was not, and still is not (objectui#6360).
+            return d;
           }
         }),
       );
