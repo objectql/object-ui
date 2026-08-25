@@ -97,6 +97,25 @@
  *    `renderers/action/resolve-icon.ts`, which is already declared. Part 1
  *    stays at eight resolvers; this is a part-2 rule, not a census change.
  *
+ *    ── Re-taken at objectui@e3784607f, and UNCHANGED ──────────────────────
+ *    objectui#6009 censused the `icon` TYPE, which looks like it should move
+ *    this table and does not: the table counts UNTYPED names, and a
+ *    `type: 'icon'` node is typed, so the two populations are disjoint. The
+ *    per-container figures above re-measure identically. Recorded rather than
+ *    left implicit — "the numbers did not move" is a measurement, and the next
+ *    reader should not have to re-derive that it was taken.
+ *
+ *    ⚠️ SCOPE, which the count above does not carry on its face: it is
+ *    measured over `examples/schema-catalog/`, while this gate SCANS
+ *    `packages/`, `apps/` and `examples/`. Over the full scan roots the same
+ *    walk finds 76 untyped names across NINE containers — the extra 15 all in
+ *    `packages/types/examples/` (`tree-view` +6, `timeline` +3, plus `list` 3
+ *    and `sidebar` 3, two containers this table does not name at all). Both
+ *    extra containers were read: `data-display/list.tsx` and
+ *    `navigation/sidebar.tsx` never read `icon`, so those names reach no
+ *    resolver and decline correctly. The table is right about what it judges;
+ *    it is simply not the whole unjudged census.
+ *
  * 3. ANCHORED MAPS — the first-party const maps that feed a record-reading
  *    resolver but are not authored nodes. This is the population the retired
  *    local pins covered, generalised: each anchor carries a minimum entry
@@ -197,6 +216,21 @@ export const RECORD_READING_TYPES = {
     min: 1,
     resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/dropdown-menu.tsx)',
   },
+  // `ui:icon` — the node type whose WHOLE job is naming a glyph. It could not
+  // have been censused before objectui#5631: that renderer named its glyph with
+  // `name`, the SDUI IDENTITY key, and every path in this table is an `icon`
+  // path. Post-#5631 it reads `schema.icon` straight out of lucide's runtime
+  // record (`import { icons } from 'lucide-react'` + `(icons as any)[key]`), so
+  // it is a DIRECT record reader, not a `resolveIcon` router — which is why
+  // part 1's `DECLARED_RECORD_READERS` already carries it and dropdown-menu's
+  // does not. Part 1 knowing a module and part 2 knowing its `type` are two
+  // independent facts; this entry supplies the second (objectui#6009).
+  //
+  // NO `descendants`: the renderer resolves exactly one name and returns a
+  // single element. It never walks `children`, so there is no untyped-child
+  // population for a descent to reach — and a descent that reaches nothing is
+  // an ERROR here, by the non-vacuity rule below.
+  'icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/basic/icon.tsx' },
   'view-switcher': { paths: ['views[].icon', 'viewActions[].icon'], resolver: 'packages/plugin-view/src/ViewSwitcher.tsx' },
 };
 

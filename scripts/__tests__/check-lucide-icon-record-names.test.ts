@@ -242,6 +242,63 @@ describe('an authored icon name reaching a record-reading resolver', () => {
   });
 });
 
+/**
+ * `ui:icon` — the node type whose whole job is naming a glyph, and the one that
+ * could not be censused until objectui#5631 moved its key from `name` (the SDUI
+ * IDENTITY key) to `icon`. Until objectui#6009 added its census entry, its
+ * authored names were SEEN and DECLINED: 96 of them, three carrying a retired
+ * spelling that rendered the placeholder.
+ *
+ * Pinned separately from `button` above because the two answer part 1
+ * differently, and that difference is the reasoning the entry rests on:
+ * `icon.tsx` imports the `icons` record DIRECTLY, so it is a part-1 resolver in
+ * its own right, where `dropdown-menu.tsx` routes through `resolveIcon` and
+ * correctly stays out (objectui#5992).
+ */
+describe('the `ui:icon` node type', () => {
+  const iconNode = (icon: string): string => JSON.stringify({ type: 'icon', icon }, null, 2);
+
+  it('goes RED on a retired spelling, naming `icon.tsx` as the resolver', () => {
+    const result = judge('ui-icon-red', {
+      files: { 'examples/catalog/cta.json': iconNode('check-circle') },
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.violations).toHaveLength(1);
+    const [violation] = result.violations;
+    expect(violation.site).toBe('icon');
+    expect(violation.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+    expect(violation.where).toBe('examples/catalog/cta.json $.icon');
+    // Derived by object identity, not read off a list: lucide's `CheckCircle`
+    // export IS `CircleCheckBig`, so `circle-check-big` is the spelling that
+    // keeps the SAME glyph. `circle-check` is a different one.
+    expect(violation.detail).toContain('write `circle-check-big`');
+  });
+
+  it('goes GREEN on the live spelling — and the name was really judged', () => {
+    const result = judge('ui-icon-green', {
+      files: { 'examples/catalog/cta.json': iconNode('circle-check-big') },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.counters.authoredJudged).toBe(1);
+  });
+
+  it('declares NO descent — the renderer resolves one name and never walks children', () => {
+    // A `descendants: true` here would carry a `min` that ERRORS when it
+    // reaches nothing, and there is nothing for it to reach: `icon.tsx`
+    // returns a single element.
+    expect(RECORD_READING_TYPES.icon.paths).toEqual(['icon']);
+    // `'descendants' in …`, not `.descendants` — the same idiom the descent
+    // test below uses. `RECORD_READING_TYPES` is a plain object literal, so the
+    // key is absent from `icon`'s INFERRED TYPE, and reading it does not
+    // type-check. Asserting absence of the key is also the stronger fact.
+    expect('descendants' in RECORD_READING_TYPES.icon).toBe(false);
+    expect(RECORD_READING_TYPES.icon.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+  });
+});
+
 // ── 3. it is not a blanket string scan ───────────────────────────────────────
 
 describe('a name whose resolver this gate cannot identify is declined, not flagged', () => {
@@ -539,6 +596,25 @@ describe('this repository', () => {
     expect(repoResult.discovered.record).toHaveLength(8);
     expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
     expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
+  });
+
+  it('really judges the `ui:icon` nodes objectui#6009 opened up', () => {
+    // The card's whole subject is a population that was SEEN and DECLINED while
+    // the gate stayed green, so "no violations" is not evidence on its own.
+    // Measured on this tree, the census entry moved 96 names from `declined` to
+    // `judged`; a floor well under that fails loudly if the walk stops reaching
+    // the corpus, without pinning a figure the catalog is free to move.
+    expect(Object.keys(RECORD_READING_TYPES)).toContain('icon');
+    expect(repoResult.counters.authoredJudged).toBeGreaterThan(100);
+  });
+
+  it('did NOT grow part 1 for `ui:icon` either — it was ALREADY a declared resolver', () => {
+    // The asymmetry against dropdown-menu, pinned: `icon.tsx` imports the
+    // `icons` record directly and has been in part 1's census since
+    // objectui#5633's own discovery run. objectui#6009 supplies only the part-2
+    // fact — which `type` sends names there — so this count must not move.
+    expect(repoResult.discovered.record).toContain('packages/components/src/renderers/basic/icon.tsx');
+    expect(repoResult.discovered.record).toHaveLength(8);
   });
 
   it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
