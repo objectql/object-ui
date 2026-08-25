@@ -49,7 +49,15 @@ function colorToClass(color: string): string | undefined {
   if (color.startsWith('bg-')) return color;
 
   const lower = color.toLowerCase().trim();
-  return COLOR_TO_CLASS[lower];
+  // `hasOwnProperty` rather than a bare index (objectui#6295, the quiet half):
+  // this object literal inherits `constructor`, `toString` and friends, so an
+  // authored colour value naming one of them used to hand the inherited member
+  // back as the row's className. That never threw — it reached React as a class
+  // attribute. (`Object.hasOwn` is ES2022; this workspace compiles against the
+  // ES2020 lib.)
+  return Object.prototype.hasOwnProperty.call(COLOR_TO_CLASS, lower)
+    ? COLOR_TO_CLASS[lower]
+    : undefined;
 }
 
 /**
@@ -64,7 +72,17 @@ export function useRowColor(config: RowColorConfig | undefined) {
       if (!config?.field || !config.colors) return undefined;
 
       const value = String(row[config.field] ?? '');
-      const color = config.colors[value];
+      // The same guard one call out, and this read is reached with RECORD DATA
+      // (objectui#6295, the loud half): the authored map inherits
+      // `Object.prototype`, so a record whose colour field holds `constructor` /
+      // `toString` / `valueOf` / `hasOwnProperty` resolved to an inherited
+      // FUNCTION. `if (!color)` below passes it (functions are truthy) and
+      // `colorToClass` then called `.startsWith` on it — a TypeError thrown
+      // inside the row-className resolver during render, crashing the grid on
+      // data rather than on metadata.
+      const color = Object.prototype.hasOwnProperty.call(config.colors, value)
+        ? config.colors[value]
+        : undefined;
       if (!color) return undefined;
 
       return colorToClass(color);
