@@ -157,9 +157,18 @@ describe('ObjectView hands the view filter to the delegated renderer', () => {
     expect(seen[0]?.filter).toEqual(rules);
   });
 
+  // Spelled `order`, the key `ObjectGridSchema.defaultSort` actually declares
+  // (`packages/types/src/objectql.ts`, and the zod mirror agrees). It used to
+  // say `direction` — a spelling this surface never declared, retired
+  // repo-wide by objectui#5293 / objectui#6011. Re-spelling changes nothing
+  // this test grades: the assertion pins VERBATIM pass-through and never reads
+  // the direction key, so any word passed. The remaining `as any` is about
+  // ARITY, not spelling — `defaultSort` is declared a single `{ field, order }`
+  // and this passes an array on purpose (see ObjectView.namedViewSortArity for
+  // what the arity costs elsewhere).
   it('forwards the sort alongside it', () => {
-    const seen = renderDelegated({ table: { defaultSort: [{ field: 'name', direction: 'asc' }] } as any });
-    expect(seen[0]?.sort).toEqual([{ field: 'name', direction: 'asc' }]);
+    const seen = renderDelegated({ table: { defaultSort: [{ field: 'name', order: 'asc' }] } as any });
+    expect(seen[0]?.sort).toEqual([{ field: 'name', order: 'asc' }]);
   });
 
   it('forwards nothing when the view declares neither', () => {

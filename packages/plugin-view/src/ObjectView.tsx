@@ -255,11 +255,12 @@ export interface ObjectViewProps {
    * remove a working feature; it converts that silent wrong answer into a loud
    * type error.
    *
-   * The claim is scoped to those three consumers on purpose. Elsewhere in this
-   * package the published `toSortItems` export still folds
+   * The claim is scoped to those three consumers on purpose. The published
+   * `toSortItems` export elsewhere in this package used to fold
    * `s.order || s.direction` for the studio inspector-draft — a different
-   * surface, unreachable from this prop, and deliberately not retired here
-   * (objectui#6011).
+   * surface, unreachable from this prop, which is why it was not retired with
+   * this rename. It has since been retired on its own card (objectui#6011), so
+   * `order` is now the only sort spelling this package reads on either surface.
    *
    * ⛔ Deliberately NOT a tolerant dual-read (`direction ?? order`) — that is
    * the tolerance layer objectui#4869 ruled against, and re-adding it here

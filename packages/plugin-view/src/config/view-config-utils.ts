@@ -320,12 +320,28 @@ export function toFilterGroup(draftFilter: any): FilterGroup {
     return { id: 'root', logic: parsed.logic, conditions: parsed.conditions };
 }
 
-/** Convert draft sort → SortItem[] for SortBuilder */
+/**
+ * Convert draft sort → SortItem[] for SortBuilder.
+ *
+ * Reads **`order`**, and only `order`. The retired spelling is **`direction`**
+ * (objectui#6011): this used to fold `s.order || s.direction || 'asc'`, which
+ * accepted two spellings for one key and silently preferred the canonical one.
+ * That is the tolerance layer objectui#4869 ruled against — a spelling the sink
+ * does not recognise gets ruled into the contract or rejected at the producer,
+ * never absorbed here — and objectui#5293 retired the same word on
+ * `ObjectViewProps.views[].sort`. A draft entry still spelled
+ * `{ field, direction }` now takes the `'asc'` default instead of the direction
+ * it asked for.
+ *
+ * ⛔ Do not re-add the alias. `SortUI`'s own file-local `toSortItems` is a
+ * DIFFERENT symbol: it maps `SortEntry[]`, whose `direction` key is
+ * type-correct on `SortUISchema`, and it is not this export.
+ */
 export function toSortItems(draftSort: any): SortItem[] {
     return (Array.isArray(draftSort) ? draftSort : []).map((s: any) => ({
         id: s.id || crypto.randomUUID(),
         field: s.field || '',
-        order: (s.order || s.direction || 'asc') as 'asc' | 'desc',
+        order: (s.order || 'asc') as 'asc' | 'desc',
     }));
 }
 
