@@ -88,8 +88,8 @@ export const normalize = (literal) => literal.replace(/\s+/g, '');
  * @property {string} version      the one version the `fixed` group carries
  * @property {string} spec         the `@objectstack/spec` range
  * @property {string} client       the `@objectstack/client` range
- * @property {string} nodeFloor    numeric floor out of root `engines.node`
- * @property {string} pnpmFloor    numeric floor out of root `engines.pnpm`
+ * @property {string} nodeFloor    version floor out of root `engines.node`
+ * @property {string} pnpmFloor    version floor out of root `engines.pnpm`
  * @property {string} pnpmPinned   the version half of root `packageManager`
  * @property {string[]} reactMajors the majors named by the react peer range
  */
@@ -112,6 +112,21 @@ export function peerMajors(range) {
     .split('||')
     .map((comparator) => comparator.trim().match(/^[\^~>=<\s]*(\d+)\./)?.[1])
     .filter((major) => major !== undefined);
+}
+
+/**
+ * The floor an `engines`-style range states, as the WHOLE version string — not
+ * just its leading integer group.
+ *
+ * objectui#6313: the previous derivation, `match(/(\d+)/)?.[1]`, kept only the
+ * leading digits, so `>=22.11` produced a floor of `22` and this script would
+ * regenerate `≥ 22`, silently discarding the `.11` the anchor actually states.
+ * Stripping the comparator and keeping the remainder whole means the row this
+ * script writes and the anchor it reads can no longer disagree at any segment
+ * the anchor carries. Same derivation as the gate's copy of this function.
+ */
+export function versionFloor(range) {
+  return range.match(/^[\^~>=<\s]*(.+)$/)?.[1];
 }
 
 /**
@@ -180,11 +195,11 @@ export function readAnchors(root = repoRoot) {
     );
   }
 
-  const nodeFloor = rootManifest.engines?.node?.match(/(\d+)/)?.[1];
-  const pnpmFloor = rootManifest.engines?.pnpm?.match(/(\d+)/)?.[1];
+  const nodeFloor = rootManifest.engines?.node && versionFloor(rootManifest.engines.node);
+  const pnpmFloor = rootManifest.engines?.pnpm && versionFloor(rootManifest.engines.pnpm);
   const pnpmPinned = rootManifest.packageManager?.split('@').pop();
-  if (!nodeFloor) throw new Error('root package.json must still declare a numeric engines.node floor');
-  if (!pnpmFloor) throw new Error('root package.json must still declare a numeric engines.pnpm floor');
+  if (!nodeFloor) throw new Error('root package.json must still declare a version-floor engines.node');
+  if (!pnpmFloor) throw new Error('root package.json must still declare a version-floor engines.pnpm');
   if (!pnpmPinned) throw new Error('root package.json must still declare packageManager');
 
   const peer = reactManifest.peerDependencies?.react;

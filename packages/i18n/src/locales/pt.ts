@@ -3407,6 +3407,36 @@ const pt = {
       bulkOperationFailed: "Falha na operação em massa: {{reason}}",
     },
   },
+  // objectui#6301 — Configuração › Automação de pacotes (ADR-0126 §7.4).
+  // Terminologia do pack: `common.package` = Pacote, `flowRunner.completed` =
+  // Fluxo, aspas "…". ⛔ Nenhuma formulação de linhagem ou desvio neste
+  // grupo (§9).
+  packagedAutomation: {
+    title: "Automação de pacotes",
+    subtitle: "Fluxos fornecidos pelos pacotes instalados. Desligue um nesta implantação ou clone-o com um novo nome para personalizá-lo. A edição acontece no Studio.",
+    refresh: "Atualizar",
+    colFlow: "Fluxo",
+    colActivation: "Ativação",
+    colActions: "Ações",
+    toggleLabel: "Ativação de {{label}}",
+    on: "Ativado",
+    off: "Desativado",
+    clone: "Clonar",
+    cloneTitle: "Clonar fluxo do pacote",
+    cloneBody: "A cópia mantém toda a definição e exige um novo nome de máquina e um novo rótulo. Edite a cópia no Studio.",
+    cloneName: "Novo nome de máquina",
+    cloneLabel: "Novo rótulo",
+    cancel: "Cancelar",
+    cloneConfirm: "Criar clone",
+    cloneCreated: 'Fluxo "{{name}}" criado.',
+    emptyTitle: "Nenhum fluxo de pacote",
+    emptyBody: "Nenhum pacote instalado fornece um fluxo de automação nesta implantação. Os fluxos que você mesmo cria ficam no Studio.",
+    loadFailed: "Não foi possível carregar a automação de pacotes.",
+    toggleFailedHttp: "Não foi possível alterar a ativação (HTTP {{status}}).",
+    toggleFailed: "Não foi possível alterar a ativação.",
+    cloneFailedHttp: "Não foi possível clonar este fluxo (HTTP {{status}}).",
+    cloneFailed: "Não foi possível clonar este fluxo.",
+  },
 };
 
 export default pt;

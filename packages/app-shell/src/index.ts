@@ -355,6 +355,12 @@ export type {
 // Standalone at `/studio` and embedded via the `studio:builder` component ref.
 export { BuilderLanding } from './views/studio-design/BuilderLanding.js';
 
+// Setup › Packaged automation (ADR-0126 §7.4) — on/off + clone for the flows
+// installed packages ship. Reached through the `automation:packaged` component
+// ref registered in `services/builtinComponents`; exported so a host app can
+// compose the page directly.
+export { PackagedAutomationPage } from './views/setup/PackagedAutomationPage.js';
+
 // AI assistant bus — connects the metadata designers to the global chat.
 export {
   assistantBus,

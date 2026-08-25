@@ -3408,6 +3408,36 @@ const de = {
       bulkOperationFailed: "Massenvorgang fehlgeschlagen: {{reason}}",
     },
   },
+  // objectui#6301 — Setup › Paketautomatisierung (ADR-0126 §7.4). Terminologie
+  // wie im übrigen Pack: `common.package` = Paket, `flowRunner.completed` =
+  // Flow, Anführungszeichen „…“. ⛔ Keine Herkunfts- oder Drift-Formulierungen
+  // in dieser Gruppe (§9).
+  packagedAutomation: {
+    title: "Paketautomatisierung",
+    subtitle: "Flows aus installierten Paketen. Schalten Sie einen für diese Installation ab oder klonen Sie ihn unter einem neuen Namen, um ihn anzupassen. Bearbeitet wird im Studio.",
+    refresh: "Aktualisieren",
+    colFlow: "Flow",
+    colActivation: "Aktivierung",
+    colActions: "Aktionen",
+    toggleLabel: "Aktivierung für {{label}}",
+    on: "An",
+    off: "Aus",
+    clone: "Klonen",
+    cloneTitle: "Paket-Flow klonen",
+    cloneBody: "Die Kopie übernimmt die gesamte Definition und benötigt einen neuen Maschinennamen und ein neues Label. Bearbeiten Sie die Kopie im Studio.",
+    cloneName: "Neuer Maschinenname",
+    cloneLabel: "Neues Label",
+    cancel: "Abbrechen",
+    cloneConfirm: "Klon erstellen",
+    cloneCreated: "Flow „{{name}}“ erstellt.",
+    emptyTitle: "Keine Paket-Flows",
+    emptyBody: "In dieser Installation liefert kein installiertes Paket einen Automatisierungs-Flow. Selbst erstellte Flows finden Sie im Studio.",
+    loadFailed: "Paketautomatisierung konnte nicht geladen werden.",
+    toggleFailedHttp: "Aktivierung konnte nicht geändert werden (HTTP {{status}}).",
+    toggleFailed: "Aktivierung konnte nicht geändert werden.",
+    cloneFailedHttp: "Dieser Flow konnte nicht geklont werden (HTTP {{status}}).",
+    cloneFailed: "Dieser Flow konnte nicht geklont werden.",
+  },
 };
 
 export default de;

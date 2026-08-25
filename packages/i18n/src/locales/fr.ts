@@ -3410,6 +3410,36 @@ const fr = {
       bulkOperationFailed: "Échec de l'opération groupée : {{reason}}",
     },
   },
+  // objectui#6301 — Configuration › Automatisation des packages (ADR-0126
+  // §7.4). Terminologie du pack : `common.package` = Package,
+  // `flowRunner.completed` = Flux, guillemets « … ». ⛔ Aucune formulation
+  // d'ascendance ou de dérive dans ce groupe (§9).
+  packagedAutomation: {
+    title: "Automatisation des packages",
+    subtitle: "Flux fournis par les packages installés. Désactivez-en un pour ce déploiement, ou clonez-le sous un nouveau nom pour le personnaliser. La modification se fait dans Studio.",
+    refresh: "Actualiser",
+    colFlow: "Flux",
+    colActivation: "Activation",
+    colActions: "Actions",
+    toggleLabel: "Activation de {{label}}",
+    on: "Activé",
+    off: "Désactivé",
+    clone: "Cloner",
+    cloneTitle: "Cloner le flux du package",
+    cloneBody: "La copie reprend toute la définition et exige un nouveau nom machine et un nouveau libellé. Modifiez la copie dans Studio.",
+    cloneName: "Nouveau nom machine",
+    cloneLabel: "Nouveau libellé",
+    cancel: "Annuler",
+    cloneConfirm: "Créer le clone",
+    cloneCreated: "Flux « {{name}} » créé.",
+    emptyTitle: "Aucun flux de package",
+    emptyBody: "Aucun package installé ne fournit de flux d'automatisation sur ce déploiement. Les flux que vous créez vous-même se trouvent dans Studio.",
+    loadFailed: "Impossible de charger l'automatisation des packages.",
+    toggleFailedHttp: "Impossible de modifier l'activation (HTTP {{status}}).",
+    toggleFailed: "Impossible de modifier l'activation.",
+    cloneFailedHttp: "Impossible de cloner ce flux (HTTP {{status}}).",
+    cloneFailed: "Impossible de cloner ce flux.",
+  },
 };
 
 export default fr;
