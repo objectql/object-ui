@@ -1266,18 +1266,30 @@ its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same reposi
 the rule survives this workflow being skipped.
 
 > **A changeset IS now required, by `changeset-presence.yml` — but there is still no
-> `skip-changeset` label.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
+> `skip-changeset` mechanism.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
 > nothing in CI asked whether a PR had added one, and this note said so at length, because the
 > opposite had been documented for months: a second workflow inventory at `.github/WORKFLOWS.md`
 > — unpinned, therefore free to drift — gave a "Changeset Check" workflow its own numbered
 > section, failing any PR touching `packages/` without a `.changeset/*.md` and skippable with a
 > `skip-changeset` or `dependencies` label. None of it existed;
-> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted the page. The label
-> still does not exist (checked against the labels API, 2026-08-08 — of the two names only
-> `dependencies` exists, applied by the auto-labeler and read by no gate), and the real gate has
-> no label escape hatch by design: its exemption is a changeset with an **empty frontmatter**,
-> which lives in the repository where the next reader finds it, rather than a label that vanishes
-> from history.
+> [#3724](https://github.com/objectstack-ai/objectui/issues/3724) deleted the page.
+>
+> ⚠️ **The label object came back, and it still does nothing.** This note used to report a
+> point-in-time labels-API reading (2026-08-08: of the two names only `dependencies` existed).
+> That reading has since expired — a `skip-changeset` label now exists in this repository's
+> label set, because GitHub mints a label the first time one is applied by name, so a single
+> API call that applies it is enough to create it. By 2026-08-25 it sat on **seven** pull
+> requests, carrying the default grey `ededed` and an empty description that tell an
+> auto-minted label apart from a curated one.
+> [#4912](https://github.com/objectstack-ai/objectui/issues/4912) tracks deleting the object.
+>
+> ⛔ **Whether or not you can still see it in the picker, applying it declares nothing** — no
+> gate in this repository reads it. The real gate has no label escape hatch by design: its
+> exemption is a changeset with an **empty frontmatter**, which lives in the repository where
+> the next reader finds it, rather than a label that vanishes from history. The name is wired
+> in the `objectstack` sibling, not here, which is how it reaches agents that then look for it
+> in this repo. If you were told to apply it, the instruction is wrong; declare an empty
+> changeset instead.
 >
 > The three real things with adjacent names each do something different, and none of them
 > subsumes another. `changeset-guard.yml` reads pending changesets and rejects a `major` bump.
