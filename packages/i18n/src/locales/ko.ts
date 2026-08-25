@@ -3407,6 +3407,35 @@ const ko = {
       bulkOperationFailed: "일괄 작업 실패: {{reason}}",
     },
   },
+  // objectui#6301 — 설정 › 패키지 자동화 (ADR-0126 §7.4). 용어는 기존 번역을
+  // 따릅니다: `common.package` = 패키지, `flowRunner.completed` = 플로우,
+  // 인용부호는 「」. ⛔ 계보·드리프트를 나타내는 표현은 이 그룹에 두지 않습니다 (§9).
+  packagedAutomation: {
+    title: "패키지 자동화",
+    subtitle: "설치된 패키지가 제공하는 플로우입니다. 이 배포에서 끄거나, 새 이름으로 복제해 사용자 지정할 수 있습니다. 편집은 Studio에서 합니다.",
+    refresh: "새로고침",
+    colFlow: "플로우",
+    colActivation: "활성화 상태",
+    colActions: "작업",
+    toggleLabel: "{{label}}의 활성화 상태",
+    on: "켜짐",
+    off: "꺼짐",
+    clone: "복제",
+    cloneTitle: "패키지 플로우 복제",
+    cloneBody: "사본은 정의 전체를 그대로 가져가며 새 머신 이름과 레이블이 필요합니다. 사본은 Studio에서 편집하세요.",
+    cloneName: "새 머신 이름",
+    cloneLabel: "새 레이블",
+    cancel: "취소",
+    cloneConfirm: "복제본 만들기",
+    cloneCreated: "플로우 「{{name}}」을(를) 만들었습니다.",
+    emptyTitle: "패키지 플로우 없음",
+    emptyBody: "이 배포에는 자동화 플로우를 제공하는 설치된 패키지가 없습니다. 직접 작성한 플로우는 Studio에 있습니다.",
+    loadFailed: "패키지 자동화를 불러오지 못했습니다.",
+    toggleFailedHttp: "활성화 상태를 변경하지 못했습니다 (HTTP {{status}}).",
+    toggleFailed: "활성화 상태를 변경하지 못했습니다.",
+    cloneFailedHttp: "이 플로우를 복제하지 못했습니다 (HTTP {{status}}).",
+    cloneFailed: "이 플로우를 복제하지 못했습니다.",
+  },
 };
 
 export default ko;

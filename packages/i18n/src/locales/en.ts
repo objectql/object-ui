@@ -3751,6 +3751,53 @@ const en = {
       bulkOperationFailed: 'Bulk operation failed: {{reason}}',
     },
   },
+  // objectui#6301 — Setup › Packaged automation (ADR-0126 §7.4): the
+  // operational surface for the flows an installed package ships. Authoring
+  // stays in Studio, so this group has no editing vocabulary at all; it is
+  // on/off, clone, and the states those two produce.
+  //
+  // ⛔ No drift or ancestry wording anywhere in this group (ADR-0126 §9). There
+  // is deliberately no "customized", no "based on v3", no "out of date" — the
+  // platform does not track that lineage, and a translatable string for it is
+  // the cheapest way for the surface to grow one.
+  //
+  // ⛔ Server refusals are NOT in this group either. The posture gate, the
+  // subflow guard and the clone name conflict all arrive as server-authored
+  // prose and are rendered verbatim; the four `*Failed*` keys below are the
+  // last-resort fallbacks for a response that carried no message at all.
+  packagedAutomation: {
+    title: 'Packaged automation',
+    subtitle:
+      'Flows shipped by installed packages. Turn one off for this deployment, or clone it under a new name to customize it. Editing happens in Studio.',
+    refresh: 'Refresh',
+    colFlow: 'Flow',
+    colActivation: 'Activation',
+    colActions: 'Actions',
+    // The switch's accessible name — the only place a row's label is spoken.
+    toggleLabel: 'Activation for {{label}}',
+    on: 'On',
+    off: 'Off',
+    clone: 'Clone',
+    cloneTitle: 'Clone packaged flow',
+    cloneBody:
+      'The copy carries the whole definition and takes a new machine name and label. Edit the copy in Studio.',
+    cloneName: 'New machine name',
+    cloneLabel: 'New label',
+    cancel: 'Cancel',
+    cloneConfirm: 'Create clone',
+    cloneCreated: 'Created flow "{{name}}".',
+    emptyTitle: 'No packaged flows',
+    emptyBody:
+      'No installed package ships an automation flow on this deployment. Flows you author yourself live in Studio.',
+    loadFailed: 'Could not load packaged automation.',
+    // Two keys per action, not one: the response arm has an HTTP status to
+    // name and the transport-exception arm does not, and a single key cannot
+    // carry a hole only half its call sites can fill.
+    toggleFailedHttp: 'Could not change activation (HTTP {{status}}).',
+    toggleFailed: 'Could not change activation.',
+    cloneFailedHttp: 'Could not clone this flow (HTTP {{status}}).',
+    cloneFailed: 'Could not clone this flow.',
+  },
 } as const;
 
 export default en;

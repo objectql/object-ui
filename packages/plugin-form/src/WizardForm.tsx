@@ -32,6 +32,7 @@ import {
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 import type { FormSectionConfig } from './TabbedForm';
 
 /**
@@ -556,7 +557,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Final submission
       setSubmitting(true);
       try {
-        if (!dataSource) {
+        // No submit TARGET: a declared `submitHandler` owns the write and needs no
+        // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+        // nor a `dataSource` is target-less. The one target-less form that is still
+        // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+        // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+        // adapter-less submit, bypassing a declared host seam and persisting
+        // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+        if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
           if (schema.onSuccess) {
             await schema.onSuccess(mergedData);
           }
@@ -582,6 +590,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // host-owned write silently becomes an independent one
           // (objectui#6176).
           result = await schema.submitHandler(writePayload);
+        } else if (!dataSource) {
+          // No route left: no host seam and no adapter. Refuse instead of reporting
+          // success — the `catch` below hands this to `schema.onError` and rethrows.
+          throw noSubmitTargetError();
         } else if (schema.mode === 'create') {
           result = await dataSource.create(schema.objectName, writePayload);
         } else if (schema.mode === 'edit' && schema.recordId) {

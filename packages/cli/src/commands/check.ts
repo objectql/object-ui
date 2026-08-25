@@ -200,9 +200,17 @@ export async function check(cwd: string = process.cwd()) {
   console.log(chalk.bold('Object UI Schema Check'));
 
   // 1. Find all JSON/YAML files
-  const files = globSync('**/*.{json,yaml,yml}', { 
-    cwd, 
-    ignore: ['node_modules/**', 'dist/**', '.git/**'] 
+  const files = globSync('**/*.{json,yaml,yml}', {
+    cwd,
+    // `glob` matches `ignore` patterns against the path relative to `cwd`, so
+    // an unanchored `dist/**`/`node_modules/**` excludes only a directory of
+    // that name at the scan root — every nested `packages/*/dist/`,
+    // `examples/*/dist/`, `apps/*/dist/` (and their `node_modules/`) is still
+    // scanned. `**/` anchors the match at any depth (objectui#6320): measured
+    // on this repository, a built tree without it reports roughly double the
+    // files of a clean checkout, almost all of it re-reading the author's own
+    // schemas from build output.
+    ignore: ['**/node_modules/**', '**/dist/**', '.git/**']
   });
   
   console.log(`Analyzing ${files.length} files...`);

@@ -3466,6 +3466,36 @@ const zh = {
       bulkOperationFailed: '批量操作失败：{{reason}}',
     },
   },
+  // objectui#6301 — 设置 › 打包自动化(ADR-0126 §7.4)。术语沿用本包既有译法:
+  // `common.package` = 软件包,`flowRunner.completed` = 流程,`common.duplicate`
+  // 一族的“复制”在这里写作“克隆”,因为服务端的 clone 是另起机器名的同级流程,
+  // 不是一次副本粘贴。⛔ 本组不含任何血缘/漂移措辞(§9)。
+  packagedAutomation: {
+    title: '打包自动化',
+    subtitle: '由已安装软件包提供的流程。可在本部署中关闭某个流程,或以新名称克隆后再自定义。编辑在 Studio 中进行。',
+    refresh: '刷新',
+    colFlow: '流程',
+    colActivation: '启用状态',
+    colActions: '操作',
+    toggleLabel: '{{label}} 的启用状态',
+    on: '已启用',
+    off: '已关闭',
+    clone: '克隆',
+    cloneTitle: '克隆打包流程',
+    cloneBody: '副本会带上完整定义,并需要新的机器名和标签。请在 Studio 中编辑副本。',
+    cloneName: '新机器名',
+    cloneLabel: '新标签',
+    cancel: '取消',
+    cloneConfirm: '创建克隆',
+    cloneCreated: '已创建流程「{{name}}」。',
+    emptyTitle: '没有打包流程',
+    emptyBody: '本部署中没有任何已安装软件包提供自动化流程。你自己编写的流程在 Studio 中。',
+    loadFailed: '无法加载打包自动化。',
+    toggleFailedHttp: '无法更改启用状态(HTTP {{status}})。',
+    toggleFailed: '无法更改启用状态。',
+    cloneFailedHttp: '无法克隆此流程(HTTP {{status}})。',
+    cloneFailed: '无法克隆此流程。',
+  },
 } as const;
 
 export default zh;
