@@ -134,10 +134,16 @@ describe('a view-level `map` block reaches getMapConfig through ListView (object
     await waitFor(() => expect(screen.getAllByTestId('map-marker').length).toBe(2));
 
     // The title is a real read, not a forwarded prop: `getMapConfig` resolves
-    // `titleField`, the marker transform reads `record[titleField]`, and the
-    // popup renders it. Before the forward landed this read `'Marker'` — the
-    // literal `getMapConfig` falls back to — which is the `undefined`/placeholder
-    // marker-title symptom the card was filed for.
+    // the declared `titleField`, the marker transform hands it to
+    // `getRecordDisplayName` as `options.titleField` — step 0 of that resolver,
+    // so a declared binding still wins outright — and the popup renders it.
+    // Before the forward landed the block never reached `getMapConfig` at all:
+    // the flat branch forged `titleField: 'name'` (dropped by objectui#5953)
+    // and these records carry no `name`, so this read `undefined` — the
+    // marker-title symptom the card was filed for. `'Marker'` is not a
+    // `getMapConfig` literal and never was: it is `getRecordDisplayName`'s
+    // `fallback` option in the marker transform, reached now only by an
+    // id-less record.
     fireEvent.click(screen.getAllByTestId('map-marker')[0]);
     await waitFor(() => expect(screen.queryByTestId('map-popup')).not.toBeNull());
     expect(screen.getByText('Install rooftop unit')).toBeTruthy();
