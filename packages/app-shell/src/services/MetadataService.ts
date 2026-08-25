@@ -79,7 +79,19 @@ export interface FieldMetadataPayload {
   // in the designer made `PUT /api/v1/meta/object/:name` fail 422
   // `INVALID_METADATA` and blocked every later save of that object.
   reference?: string;
-  formula?: string;
+  // No `formula` (objectui#6043): the spec spells a formula field's expression
+  // `expression`, and it is CEL. `FieldSchema.safeParse` refuses `formula` BY
+  // NAME ("Did you mean `formula` -> `expression`?"), so a formula field
+  // authored in the designer made `PUT /api/v1/meta/object/:name` fail 422
+  // `INVALID_METADATA` and blocked every later save of that object.
+  //
+  // Deliberately NOT renamed to `expression`. `FieldSchema` validates the key
+  // but not the LANGUAGE: measured on 17.2.0 it accepts
+  // `expression: '!!!not cel at all!!!'`. Emitting the retired textarea's
+  // non-CEL contents under the accepted spelling would have turned a loud,
+  // immediate 422 into a formula that parses and then silently evaluates to
+  // null. Expressions are authored in metadata-admin's `ObjectFieldInspector`,
+  // which lints them against the real `@objectstack/formula` engine.
   sortOrder?: number;
 }
 
@@ -126,7 +138,6 @@ function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
     externalId: field.externalId,
     trackHistory: field.trackHistory,
     reference: field.referenceTo,
-    formula: field.formula,
     sortOrder: field.sortOrder,
   };
 }

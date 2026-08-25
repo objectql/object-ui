@@ -160,7 +160,27 @@ objectui validate ./schemas/dashboard.yaml
 
 ### `objectui check`
 
-Validate every schema file detected in the project. No flags.
+Scan the project for ObjectUI schema files and report on the ones it
+recognises. No flags.
+
+A JSON file with a root `type` is recognised when its root carries an ObjectUI
+structural key (`children`, `body`, `className`, …) **or** when the whole
+document validates as an ObjectUI component schema. Recognised files have their
+`type` checked against the component types this build registers.
+
+Files that are recognised by neither arm fall into one of two reports, and the
+distinction matters:
+
+- **Reported by name** when the root `type` *does* name a registered component.
+  That is ObjectUI content the validator could not accept — either the document
+  is off-spec, or its component type is not modelled by `@object-ui/types`. Run
+  `objectui validate <file>` for the reason.
+- **Counted as skipped** otherwise. A root `type` heads several unrelated JSON
+  vocabularies — `package.json`'s `"type": "module"` most of all — and those are
+  not ObjectUI files.
+
+Only unreadable JSON makes `objectui check` exit non-zero; everything above is a
+report. Use `objectui validate` when you want a failing exit code.
 
 ### `objectui doctor`
 

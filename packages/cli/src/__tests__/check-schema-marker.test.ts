@@ -82,6 +82,23 @@ function advertisedKeys(): string[] {
   return match[1].split(', ');
 }
 
+/**
+ * The per-file lines of the unvalidated-candidate report (objectui#6075) — the
+ * bucket that exists so a broken ObjectUI file is never filed as a foreign one.
+ */
+function candidateLines(): string[] {
+  return plainLines().filter((l) => /^ {3}\S.*\(type "/.test(l));
+}
+
+/** The headline count of that report, or 0 when it did not print. */
+function candidateCount(): number {
+  const line = plainLines().find((l) => l.includes('did not validate as an ObjectUI schema'));
+  if (!line) return 0;
+  const match = /(\d+) files? carr/.exec(line);
+  if (!match) throw new Error(`candidate line present but unparseable: ${line}`);
+  return Number(match[1]);
+}
+
 /** The count `check` reports for files it declined to judge, or 0 if silent. */
 function skippedCount(): number {
   const line = plainLines().find((l) => l.startsWith('Skipped '));
@@ -130,6 +147,13 @@ describe('objectui check — foreign root-`type` vocabularies are never judged',
     // reason that has nothing to do with the marker. `array` is not registered,
     // so the array document is one that genuinely warned before.
     //
+    // objectui#6075 split what used to be one bucket. Because `object` IS a
+    // registered key, the draft-07 document lands in the unvalidated-candidate
+    // report rather than the skipped count — the ONE false positive that
+    // discriminator has, pinned here so it stays a known, one-line cost and
+    // never silently grows. Neither document is JUDGED, which is what this
+    // suite is about.
+    //
     // Note the array document carries `items`, which is why `items` is absent
     // from the structural-key set even though ObjectUI nodes use it: a marker
     // key shared with JSON Schema re-admits exactly the files this gate exists
@@ -149,7 +173,14 @@ describe('objectui check — foreign root-`type` vocabularies are never judged',
     });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([]);
-    expect(skippedCount()).toBe(2);
+    // The array document is unrecognisable by every arm: skipped.
+    expect(skippedCount()).toBe(1);
+    // The `object` document is refused by both recogniser arms but its root
+    // type is registered, so it is reported by name instead of counted.
+    expect(candidateCount()).toBe(1);
+    expect(candidateLines()).toEqual([
+      expect.stringContaining('thing.schema.json (type "object")'),
+    ]);
   });
 
   it('says nothing about a deployment resource descriptor', async () => {
@@ -205,10 +236,21 @@ describe('objectui check — foreign root-`type` vocabularies are never judged',
     // `form` IS a registered component key, so this file was silent before the
     // marker too — but for the wrong reason. Pinning it keeps the gate honest:
     // the file is out of scope, not accidentally acceptable.
+    //
+    // The load-bearing assertion is the first one: NOT JUDGED. A manifest whose
+    // `type` collides with a component key is refused by both recogniser arms —
+    // the structural arm sees no ObjectUI key, and the validity arm rejects it
+    // because a `FormSchema` needs more than a name. That the collision then
+    // costs one advisory line in the unvalidated-candidate report is the
+    // measured price of using the registered-type universe as the
+    // report/skip discriminator (objectui#6075), recorded here rather than
+    // discovered later. ⛔ The alternative — exempting files called
+    // `package.json` — is the filename skip list this gate was built to avoid.
     writeSchema('package.json', { name: 'x', type: 'form' });
     await check(cwd);
     expect(unknownTypeWarnings()).toEqual([]);
-    expect(skippedCount()).toBe(1);
+    expect(candidateCount()).toBe(1);
+    expect(skippedCount()).toBe(0);
   });
 });
 
@@ -262,14 +304,19 @@ describe('objectui check — the narrowed judgement surface is never silent (opt
   it('reports how many eligible files went unjudged, and how to opt one in', async () => {
     writeSchema('package.json', { name: 'x', type: 'module' });
     // The two leaves are the majority shape of the real in-repo corpus: a
-    // single node with no structural key, which is precisely the coverage this
-    // interim gives up and which this count keeps visible.
+    // single node with no structural key. They used to be counted as lost
+    // coverage here — that was the recall debt objectui#6075 tracked, and the
+    // validity arm repays it: both now VALIDATE as ObjectUI components and are
+    // judged, so only the manifest remains unrecognised. The assertion is
+    // deliberately still a count of what went unjudged; what changed is which
+    // files are in it.
     writeSchema('leaf-1.json', { type: 'button', label: 'Send Email', icon: 'mail' });
     writeSchema('leaf-2.json', { type: 'badge', variant: 'default' });
     await check(cwd);
-    // Two leaves plus the manifest: three files had a root `type` string and
-    // no marker.
-    expect(skippedCount()).toBe(3);
+    // The manifest alone. Both leaves are recognised now, and neither is a
+    // candidate: they validate.
+    expect(skippedCount()).toBe(1);
+    expect(candidateCount()).toBe(0);
     const hint = hintLine();
     expect(hint).toContain('children');
     expect(hint).toContain('className');

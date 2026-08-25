@@ -252,12 +252,14 @@ export const PAYLOAD_SHAPES = [
  * answer even when a near-spelling exists.
  */
 export const KNOWN_UNPARSEABLE_KEYS = {
-  formula: {
-    card: "objectui#6043",
-    oracle: "FieldSchema",
-    spec: "expression (+ returnType)",
-    note: "LIVE. FieldDesigner renders a textarea for it on `type == 'formula'`. Not a rename: the spec's `expression` is CEL, so the key and the expression LANGUAGE move together.",
-  },
+  // objectui#6043 `formula` was resolved and its entry removed. The resolution
+  // was NOT the rename this ledger's `spec` column recorded as available, which
+  // is the header's point about `spec` being documentation and never an
+  // instruction: `FieldSchema` accepts `expression` without parsing the CEL in
+  // it, so renaming would have shipped the retired control's `price * quantity`
+  // placeholder — bare field refs that evaluate to null under the `record`
+  // scope — under a valid key name. The control was removed instead; the field
+  // TYPE `formula` is unaffected and remains a valid spec `FieldType`.
   sortOrder: {
     card: "objectui#6045",
     // Scoped to the FIELD oracle deliberately. `sortOrder` is refused at BOTH

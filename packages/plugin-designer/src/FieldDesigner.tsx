@@ -219,7 +219,6 @@ export function FieldDesigner({
         defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
         placeholder: data.placeholder ? String(data.placeholder) : undefined,
         referenceTo: data.referenceTo ? String(data.referenceTo) : undefined,
-        formula: data.formula ? String(data.formula) : undefined,
       };
       onFieldsChange?.(fields.map((f) => (f.id === editingField.id ? updated : f)));
     } else {
@@ -240,7 +239,6 @@ export function FieldDesigner({
         defaultValue: data.defaultValue ? String(data.defaultValue) : undefined,
         placeholder: data.placeholder ? String(data.placeholder) : undefined,
         referenceTo: data.referenceTo ? String(data.referenceTo) : undefined,
-        formula: data.formula ? String(data.formula) : undefined,
         isSystem: false,
       };
       onFieldsChange?.([...fields, newField]);
@@ -309,7 +307,27 @@ export function FieldDesigner({
         label: t('appDesigner.fieldDesigner.typeSpecificSection'),
         fields: [
           { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly, visibleWhen: "record.type == 'lookup'" },
-          { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly, visibleWhen: "record.type == 'formula'" },
+          // No `formula` control (objectui#6043). It wrote a key the spec
+          // refuses BY NAME — `FieldSchema` spells a formula field's expression
+          // `expression` — so typing in this box made
+          // `PUT /api/v1/meta/object/:name` fail 422 `INVALID_METADATA` and
+          // blocked every later save of the object.
+          //
+          // Renaming the key was considered and REFUSED. `FieldSchema` does not
+          // parse CEL at the key level (measured on 17.2.0: it accepts
+          // `expression: '!!!not cel at all!!!'`), and this control's own
+          // placeholder was `e.g. price * quantity` — bare field refs, which
+          // formulas' `record` scope evaluates to null silently. A rename would
+          // have traded a loud 422 for a silent wrong answer.
+          //
+          // Making it loud instead needs the CEL engine: lint, autocomplete and
+          // `returnType` inference. That is `CelPredicateField`, which lives in
+          // `@object-ui/app-shell` — and app-shell DEPENDS on this package, so
+          // it cannot be imported back without a cycle. Formula expressions are
+          // therefore authored in metadata-admin's `ObjectFieldInspector`,
+          // where they are checked against the real `@objectstack/formula`
+          // engine. The field TYPE `formula` is a valid spec `FieldType` and
+          // stays in the palette above; only this unvalidatable box is gone.
           { name: 'defaultValue', label: t('appDesigner.fieldDesigner.defaultValue'), type: 'text', placeholder: 'Default value', disabled: readOnly },
           { name: 'placeholder', label: t('appDesigner.fieldDesigner.placeholder'), type: 'text', placeholder: 'Placeholder text', disabled: readOnly },
           { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), type: 'text', placeholder: 'Field Group', disabled: readOnly },
@@ -348,7 +366,6 @@ export function FieldDesigner({
           defaultValue: editingField.defaultValue != null ? String(editingField.defaultValue) : '',
           placeholder: editingField.placeholder || '',
           referenceTo: editingField.referenceTo || '',
-          formula: editingField.formula || '',
         }
       : { type: 'text', required: false, unique: false },
     onSuccess: handleFormSuccess,
