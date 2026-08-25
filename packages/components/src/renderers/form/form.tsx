@@ -2565,6 +2565,17 @@ ComponentRegistry.register('form',
           // `schema` destructure above already consumes them; drop the
           // top-level copies here so nothing bleeds through `...formProps`.
           objectName: _objectName,
+          // The persisted record (objectui#6396). It has a real consumer — the
+          // `previousRecord` memo above, which binds `previous` for field-rule
+          // CEL and is the INSERT/UPDATE signal the read-only submit strip
+          // gates on — but that consumer reads it off `schema`, never off
+          // `props`. This top-level copy is purely the SDUI-dispatch duplicate
+          // described above, and it was the one member of this family missing
+          // from the list: it rode `...formProps` onto <form>, where React
+          // declined it ("does not recognize the `previousValues` prop") AND
+          // still stamped the node with `previousvalues="[object Object]"` —
+          // seen on every edit-mode `object-master-detail-form` header render.
+          previousValues: _previousValuesProp,
           onDirtyChange: _onDirtyChangeProp,
           onCancel: _onCancelProp,
           fields: _fields,
