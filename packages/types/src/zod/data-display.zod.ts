@@ -299,13 +299,44 @@ export const TimelineEventSchema = z.object({
 });
 
 /**
+ * Timeline scale — the six values of `@objectstack/spec`
+ * `ui/TimelineConfig.json#scale`, which are also the six `TIMELINE_SCALES` the
+ * gantt renderer accepts. Mirrors `TimelineScale` in `../data-display.ts`.
+ *
+ * Deliberately NOT exported: every exported const in this directory has to be
+ * registered in `zod-mirror-parity.test.ts`'s `MIRRORS` or `EXCLUSIONS`, and a
+ * shared inline enum is not a mirror of any declaration — it is spelling reuse
+ * between the two keys below.
+ */
+const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', 'year']);
+
+/**
  * Timeline Schema - Timeline component
+ *
+ * Mirrors `TimelineSchema` in `../data-display.ts`, which objectui#6170 aligned
+ * to the key set `TimelineRenderer` actually reads (maintainer ruling
+ * 2026-08-25). `zod-mirror-parity.test.ts` pins the two together: a key
+ * declared there and absent here is `UnmirroredDeclaredKeys` and reddens the
+ * pair, so the nine presentational keys below are not optional to carry.
+ *
+ * `events` / `orientation` / `position` stay declared and stay mirrored: they
+ * have zero read points, but removing them is a breaking narrowing routed
+ * through ADR-0049 rather than done here. `events` follows the declaration from
+ * required to OPTIONAL — strictly more input parses than before.
  */
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
-  events: z.array(TimelineEventSchema).describe('Timeline events'),
-  orientation: z.enum(['vertical', 'horizontal']).optional().describe('Timeline orientation'),
-  position: z.enum(['left', 'right', 'alternate']).optional().describe('Event position'),
+  variant: z.enum(['vertical', 'horizontal', 'gantt']).optional().describe('Layout variant'),
+  items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
+  dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
+  scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
+  timeScale: TimelineScaleSchema.optional().describe('DEPRECATED pre-spec alias for scale; still read as a fallback'),
+  rowLabel: z.string().optional().describe('Header label above the gantt row-label gutter'),
+  minDate: z.string().optional().describe('Override the auto-calculated gantt axis start (YYYY-MM-DD)'),
+  maxDate: z.string().optional().describe('Override the auto-calculated gantt axis end (YYYY-MM-DD)'),
+  events: z.array(TimelineEventSchema).optional().describe('DEPRECATED — zero read points; renders an empty rail. Use items'),
+  orientation: z.enum(['vertical', 'horizontal']).optional().describe('DEPRECATED — zero read points. Use variant'),
+  position: z.enum(['left', 'right', 'alternate']).optional().describe('DEPRECATED — zero read points'),
 });
 
 /**

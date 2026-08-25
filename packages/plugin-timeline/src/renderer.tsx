@@ -524,12 +524,32 @@ ComponentRegistry.register(
         label: 'Date Format',
         defaultValue: 'short',
       },
+      // The designer's axis key is `scale` — the spec's spelling
+      // (`ui/TimelineConfig.json`) and the one `resolveTimelineScale` prefers.
+      // It offers all six buckets: `hour` / `quarter` / `year` have rendered
+      // correctly since #2942 but were offered by neither the designer nor the
+      // exported type, so they were authorable and undiscoverable (objectui#6170).
+      {
+        name: 'scale',
+        type: 'enum',
+        enum: [...TIMELINE_SCALES],
+        label: 'Time Scale (Gantt only)',
+        defaultValue: 'month',
+      },
+      // Kept so a stored `timeScale` still round-trips through the designer.
+      // Deprecated in favour of `scale`; retiring the alias is routed separately
+      // (objectui#6170 maintainer ruling 2026-08-25). `ComponentInput` has no
+      // `deprecated` slot and no index signature, so the notice lives in
+      // `description` — this package's stated ceiling for anything the coarse
+      // `type` cannot express.
       {
         name: 'timeScale',
         type: 'enum',
-        enum: ['day', 'week', 'month'],
+        enum: [...TIMELINE_SCALES],
         label: 'Time Scale (Gantt only)',
-        defaultValue: 'month',
+        description:
+          'DEPRECATED — use `scale`, which @objectstack/spec owns and this renderer reads first. Kept so stored JSON keeps working.',
+        advanced: true,
       },
       {
         name: 'rowLabel',

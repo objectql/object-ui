@@ -200,6 +200,7 @@ export type {
   PivotTableSchema,
   DrillDownConfig,
   TimelineEvent,
+  TimelineScale,
   TimelineSchema,
   KbdSchema,
   HtmlSchema,

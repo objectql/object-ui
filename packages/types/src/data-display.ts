@@ -1199,21 +1199,151 @@ export interface TimelineEvent {
 }
 
 /**
- * Timeline component
+ * The axis-bucket vocabulary for the `gantt` variant.
+ *
+ * One spelling, one source: these are exactly the six values of
+ * `@objectstack/spec` `ui/TimelineConfig.json#scale`, and exactly the six
+ * `TIMELINE_SCALES` that `packages/plugin-timeline/src/renderer.tsx`
+ * (`resolveTimelineScale`) accepts. Declared here so the two agree by
+ * construction rather than by coincidence.
+ */
+export type TimelineScale = 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+/**
+ * Timeline component (`type: 'timeline'`).
+ *
+ * ## The members below are the set `TimelineRenderer` actually reads
+ *
+ * objectui#6170, maintainer ruling 2026-08-25 (「同意」), the same family rule
+ * adopted on objectui#6172: **the exported type aligns to the measured
+ * authored + read set.** Before that ruling this interface declared `events` /
+ * `orientation` / `position` and nothing else, and the divergence was
+ * invisible to `tsc` because {@link BaseSchema} carries `[key: string]: any` —
+ * every key the renderer reads resolved as `any`, so `schema: TimelineSchema`
+ * constrained nothing. (The index signature itself is objectui#5155 /
+ * objectui#6269, deliberately not touched here.)
+ *
+ * Measured on `origin/main` @ `79ebf30d1`: `TimelineRenderer`
+ * (`plugin-timeline/src/renderer.tsx:250`) reads NINE keys off this node —
+ * `variant`, `items`, `dateFormat`, `onItemClick`, `minDate`, `maxDate`,
+ * `rowLabel`, `scale`, `timeScale` — and NONE of `events` / `orientation` /
+ * `position`. EIGHT of those nine are declared below; `onItemClick` is not, on
+ * purpose — it is a runtime slot `ObjectTimeline` installs when it composes
+ * this schema, not authorable metadata, and this package's convention keeps
+ * callback-shaped keys off the authored surface (see `RuntimeOnlyDeclared` in
+ * `__tests__/zod-mirror-parity.test.ts`). The registration's own `inputs` metadata and
+ * `content/docs/plugins/plugin-timeline.mdx`'s property table agreed with the
+ * renderer all along; only this type disagreed — including with the docs
+ * page's own TypeScript example, which did not compile, because `events` was
+ * required and nothing writes it.
+ *
+ * ## Two timelines, and this is the presentational one
+ *
+ * `TimelineSchema` describes HOW TO DRAW a rail from items already in hand.
+ * The OBJECT-BOUND config — WHICH RECORD FIELDS to project — is
+ * `@objectstack/spec`'s `TimelineConfig`, surfaced here as
+ * {@link ListViewTimelineConfig} (`startDateField` / `titleField` / …) and
+ * consumed by `ObjectTimeline`, which resolves those field names against
+ * fetched records and composes the presentational shape below before handing
+ * it to `TimelineRenderer`. The two vocabularies are disjoint by design; only
+ * `scale` is common to both, deliberately spelled the same in each.
  */
 export interface TimelineSchema extends BaseSchema {
   type: 'timeline';
   /**
-   * Timeline events
+   * Layout variant. The renderer implements exactly these three and returns
+   * `null` for anything else.
+   * @default 'vertical'
    */
-  events: TimelineEvent[];
+  variant?: 'vertical' | 'horizontal' | 'gantt';
   /**
-   * Timeline orientation
+   * The rows to draw.
+   *
+   * TWO element shapes, discriminated by `variant`, both read dynamically by
+   * the renderer (`items.map((item: any) => …)`), so the element type is left
+   * open rather than narrowed to either one:
+   *
+   * - `vertical` / `horizontal` — a feed item:
+   *   `{ time, title, description?, variant?, icon?, color?, content?, className?, meta?, group? }`
+   * - `gantt` — a row:
+   *   `{ label, items: [{ title, startDate, endDate, variant? }] }`
+   *
+   * `content/docs/plugins/plugin-timeline.mdx` carries both in full.
+   */
+  items?: any[];
+  /**
+   * How item dates are rendered.
+   * @default 'short'
+   */
+  dateFormat?: 'short' | 'long' | 'iso';
+  /**
+   * Gantt axis bucket size. **Canonical spelling** — it is `@objectstack/spec`
+   * `ui/TimelineConfig.json`'s axis key AND the renderer's preferred read
+   * (`resolveTimelineScale` resolves `scale ?? timeScale`).
+   * @default 'month'
+   */
+  scale?: TimelineScale;
+  /**
+   * Gantt axis bucket size — this renderer's pre-spec dialect, still read as a
+   * fallback so stored JSON keeps working.
+   *
+   * @deprecated Use {@link TimelineSchema.scale}, which `@objectstack/spec`
+   * owns and this renderer prefers. Retiring the alias is routed separately
+   * (objectui#6170 maintainer ruling 2026-08-25: "`timeScale` goes the
+   * alias-retirement route, not a silent second spelling").
+   */
+  timeScale?: TimelineScale;
+  /**
+   * Header label above the Gantt row-label gutter.
+   * @default 'Items'
+   */
+  rowLabel?: string;
+  /**
+   * Override the auto-calculated Gantt axis start (`YYYY-MM-DD`).
+   */
+  minDate?: string;
+  /**
+   * Override the auto-calculated Gantt axis end (`YYYY-MM-DD`).
+   */
+  maxDate?: string;
+  /**
+   * Timeline events.
+   *
+   * ⚠️ ZERO read points — `packages/plugin-timeline` never reads this key, so a
+   * timeline authored with `events` renders an EMPTY rail. It was `required`
+   * until objectui#6170, which is why the docs page's own TypeScript example
+   * did not compile; it is OPTIONAL now so that documented authoring form
+   * type-checks, and that widening is the whole of the change made here.
+   *
+   * Its RETIREMENT is routed, not done: objectui#6170's maintainer ruling
+   * (2026-08-25) sends this key, {@link TimelineSchema.orientation} and
+   * {@link TimelineSchema.position} down the ADR-0049 enforce-or-remove route.
+   * That is a breaking removal from a published type and therefore its own
+   * change; the house form for it is the `?: never` tombstone convention on
+   * {@link StaticTableColumn} above (objectui#5474).
+   *
+   * @deprecated Never read by any renderer. Use `items` — see
+   * `content/docs/plugins/plugin-timeline.mdx`.
+   */
+  events?: TimelineEvent[];
+  /**
+   * Timeline orientation.
+   *
+   * ⚠️ ZERO read points — the renderer discriminates on
+   * {@link TimelineSchema.variant}, not on this key. Retirement routed via
+   * ADR-0049; see {@link TimelineSchema.events}.
+   *
+   * @deprecated Never read by any renderer. Use `variant`.
    * @default 'vertical'
    */
   orientation?: 'vertical' | 'horizontal';
   /**
-   * Timeline position (for vertical)
+   * Timeline position (for vertical).
+   *
+   * ⚠️ ZERO read points. Retirement routed via ADR-0049; see
+   * {@link TimelineSchema.events}.
+   *
+   * @deprecated Never read by any renderer.
    * @default 'left'
    */
   position?: 'left' | 'right' | 'alternate';
