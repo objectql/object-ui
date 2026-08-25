@@ -260,15 +260,36 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
 
   it('refuses a whole FieldMeta spread — the defect this card is about', () => {
     // Checked by `tsc -p tsconfig.test.json`, which this package's `type-check`
-    // script chains and CI's Type Check job runs. If the tombstones are ever
-    // removed, tsc reports this directive UNUSED (TS2578) and the gate goes red
-    // — an expired tombstone cannot sit here looking like coverage.
-    // @ts-expect-error objectui#6373 — TS2322: FieldMeta's `label: string` is not assignable to `never`.
+    // script chains and CI's Type Check job runs. A directive whose error stops
+    // happening is reported UNUSED (TS2578), so these cannot decay into
+    // decoration the way an uncompiled tombstone would.
+    // @ts-expect-error objectui#6373 — re-adding `{ ...fieldMeta }` at the emit seam is a compile error.
     const spreadRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', ...({} as FieldMeta) };
     expect(spreadRefused.accessorKey).toBe('a');
   });
 
+  it('refuses the retired members even when nothing else about them is wrong', () => {
+    // ⚠️ MEASURED, and the reason this second spread pin exists. The one above
+    // is refused for TWO independent reasons: the tombstones, AND `FieldMeta`'s
+    // `type?: string` not fitting the `TableColumnType` union objectui#5853
+    // narrowed this key to. Deleting the tombstones therefore leaves it erroring
+    // — so on its own it pins "the spread is refused" without pinning WHY, and
+    // would have gone on passing after the enforcement was removed.
+    //
+    // `Omit<FieldMeta, 'name' | 'type'>` is exactly the retired six: `name` is
+    // the held alias, `type` carries #5853's own refusal. Nothing but the
+    // tombstones refuses this one — verified by removing them and watching this
+    // directive, and only this one, turn TS2578.
+    // @ts-expect-error objectui#6373 — the six retired members are refused by the tombstones alone.
+    const retiredRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', ...({} as Omit<FieldMeta, 'name' | 'type'>) };
+    expect(retiredRefused.accessorKey).toBe('a');
+  });
+
   it('refuses a retired key written out by hand', () => {
+    // This one needs no tombstone: a hand-written property is subject to the
+    // excess-property check, which `TableColumn` alone already fails. Kept
+    // because it is the OTHER way a key gets added back, and separated from the
+    // spread pins because the two are enforced by different machinery.
     // @ts-expect-error objectui#6373 — `format` retired from this emit seam.
     const writtenRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', format: '$0,0' };
     expect(writtenRefused.accessorKey).toBe('a');
