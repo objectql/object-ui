@@ -1370,8 +1370,11 @@ surface, and every loud-failure path.
 **Trigger:** manual dispatch only. Nothing triggers this workflow automatically.
 
 Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to regenerate the root
-`CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
-moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
+`CHANGELOG.md` and commit it to the repository. It configured the lockfile merge driver until
+[#6358](https://github.com/objectstack-ai/objectui/issues/6358); it no longer does, because this
+job never merges. It checks out, runs git-cliff, stages exactly `CHANGELOG.md`, commits and
+pushes — and a driver fires only when git has to merge the attributed path. Committing back to a
+branch that may have moved does not reach one: such a push is *rejected*, not merged.
 
 **When to run it:** at release time, as part of cutting the release — that is the ritual it
 belongs to, and there is no other owner.
@@ -1591,12 +1594,11 @@ that may have moved defines it immediately after checkout:
     git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
 ```
 
-Three workflows carry that step, for three different reasons:
+Two workflows carry that step, for two different reasons:
 
 | Workflow | Why it needs the driver |
 |---|---|
 | `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
-| `changelog.yml` | commits a regenerated `CHANGELOG.md` back to the branch |
 | `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
@@ -1613,8 +1615,12 @@ configured with a plain `pnpm install` under **Configure Git Merge Driver for pn
 `CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
 branches.
 
-Adding a workflow that merges or pushes? Add the step **after checkout and before the merge**,
-and add its row above — the pin fails otherwise.
+Adding a workflow that **merges**? Add the step after checkout and before the merge, and add its
+row above — the pin fails otherwise. ⛔ Pushing is not merging, and this sentence said "merges or
+pushes" until [#6358](https://github.com/objectstack-ai/objectui/issues/6358): `changelog.yml`
+carried the step on the strength of that word, having no merge to resolve. A
+workflow that only commits and pushes needs no driver, and giving it one buys nothing while
+implying a lockfile hazard it does not have.
 
 ## Adding a New Workflow
 
