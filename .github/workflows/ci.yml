@@ -759,7 +759,7 @@ jobs:
 
       - name: Download every shard's blob report
         if: needs.test-coverage.result == 'success'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: coverage-blob-*
           path: .vitest-reports

@@ -17,9 +17,28 @@ npm install @object-ui/plugin-form
 
 ## Interactive Examples
 
-<SchemaExample id="plugin-form/basic-form" />
+Each preview below **is** an `object-form` node drawn by this plugin — the JSON
+in the Code tab is the whole example, and the fields on screen were built from
+the `users` object's own metadata rather than written into that JSON. Both the
+metadata and the record come from the docs site's demo data source, because
+`dataSource` is not a schema key: it is the prop the registered renderer pulls
+off `SchemaRendererProvider` context (see
+[Registration is a side effect of the import](#registration-is-a-side-effect-of-the-import)
+below), so in your own app these same nodes read whatever object your data
+source serves.
 
-<SchemaExample id="plugin-form/contact-form" />
+A plain `form` node with its fields written out inline is the
+`@object-ui/components` renderer, not this plugin — that is what these two
+examples used to be, and they now live in the catalog under
+`components-form-form`.
+
+### One record, fields from the object
+
+<SchemaExample id="plugin-form/object-form-record" />
+
+### Sections as tabs
+
+<SchemaExample id="plugin-form/object-form-tabbed-sections" />
 
 ## Features
 

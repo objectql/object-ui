@@ -1904,6 +1904,15 @@ function ReferencedRecordLink({
 }
 
 /**
+ * How many chips a multi-value lookup cell shows before collapsing the rest
+ * into a single "+N" chip. Mirrors UserCellRenderer's avatar cap (3): enough
+ * to identify the cell's content, few enough that the cell cannot grow its
+ * row unboundedly (objectui — a 60-reference cell blew a grid row up to
+ * several screens of height).
+ */
+const MAX_LOOKUP_CELL_CHIPS = 3;
+
+/**
  * Lookup/Master-Detail field cell renderer.
  *
  * Display order:
@@ -2033,18 +2042,31 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   };
 
   if (Array.isArray(value)) {
+    const itemDisplay = (item: unknown): { label: string; muted: boolean } => {
+      if (item != null && typeof item === 'object') {
+        return {
+          label:
+            resolveLookupRecordName(item as Record<string, unknown>, refSchema, displayField) ||
+            String((item as any).id || (item as any)._id || '[Object]'),
+          muted: false,
+        };
+      }
+      const r = resolveLabel(item);
+      return { label: r.text, muted: r.muted };
+    };
+
+    // Cap the chips the same way UserCellRenderer caps its avatars: a
+    // multi-value lookup can reference dozens of records (a 60-reference cell
+    // has been seen in the wild), and one chip per reference lets a single
+    // cell stretch its row to several screens. The hidden names stay
+    // reachable — the overflow chip's `title` lists them, and the record
+    // itself shows the full set.
+    const visible = value.slice(0, MAX_LOOKUP_CELL_CHIPS);
+    const overflow = value.slice(MAX_LOOKUP_CELL_CHIPS);
     return (
       <div className="flex flex-wrap gap-1">
-        {value.map((item, idx) => {
-          let label: string;
-          let muted = false;
-          if (item != null && typeof item === 'object') {
-            label = resolveLookupRecordName(item as Record<string, unknown>, refSchema, displayField) || String((item as any).id || (item as any)._id || '[Object]');
-          } else {
-            const r = resolveLabel(item);
-            label = r.text;
-            muted = r.muted;
-          }
+        {visible.map((item, idx) => {
+          const { label, muted } = itemDisplay(item);
           // Each chip is one referenced record, so each links on its own —
           // there is no single destination a multi-value cell could point at.
           return (
@@ -2067,6 +2089,14 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
             </ReferencedRecordLink>
           );
         })}
+        {overflow.length > 0 && (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted/40 text-muted-foreground"
+            title={overflow.map((item) => itemDisplay(item).label).join(', ')}
+          >
+            +{overflow.length}
+          </span>
+        )}
       </div>
     );
   }

@@ -315,25 +315,6 @@ export const KNOWN_GAPS = {
       },
     ])
   ),
-  ...Object.fromEntries(
-    ["action:button", "action:icon", "action:group", "action:menu"].map((surface) => [
-      `${surface}:onSuccess`,
-      {
-        reason:
-          "Newly OWED by the `@objectstack/spec` 17.1.0 pin bump (objectui#5328), not newly " +
-          "dropped: the runner has honoured it all along (ActionRunner.ts:1197 reads " +
-          "`action.onSuccess` and :1198 runs the chained defs), and 17.1.0 supplied the missing " +
-          "half by declaring the key authorable on `ActionSchema` — 0 occurrences in 17.0.0's " +
-          "`dist/**/*.d.ts`, 53 in 17.1.0. Both halves of the owed-set therefore hold for the " +
-          "first time on the bump. Forwarding it is capability WIRING, the same class the pin " +
-          "bump defers to its dependants (#5074 `viewMode`, #5042 `ListMapConfigSchema`), so it " +
-          "is filed rather than ridden in: objectui#5493. `element:button` is absent from this " +
-          "list because `onSuccess` is not on spec's `InlineActionSchema` pick list, so that " +
-          "surface never owed it.",
-        issue: 5493,
-      },
-    ])
-  ),
 };
 
 // ── Opaque spreads ───────────────────────────────────────────────────────────
