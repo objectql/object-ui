@@ -60,6 +60,19 @@
  * not a payload. Registration is idempotent for the same reason: an ES module
  * executes once, so naming it here does not re-run anything.
  *
+ * `@object-ui/plugin-grid` joins on the same argument and with the same
+ * measured non-effect (objectui#6025). The `plugin-grid` entries have been real
+ * `object-grid` nodes since objectui#5856, and `object-grid` reached this
+ * registry only because `ObjectView.tsx:37` — the line above the one quoted
+ * above — imports `ObjectGrid`. That is a COMPONENT import, not a plugin
+ * dependency: a refactor that stopped `object-view` from drawing a grid itself
+ * would be entirely reasonable, would say nothing about the gallery, and would
+ * turn two catalog tiles into OBJUI-001 panels several files from the cause.
+ *
+ * So the list below is: the census (nine), plus objectui#4600's original two,
+ * plus two packages the gallery's own entries depend on BY NAME. What it is not
+ * is a sweep — nothing is here that the catalog does not render.
+ *
  * ## The cost, measured before deciding (objectui#4616 ruling 1)
  *
  * Eager registration pulls each package's graph into the `/docs/[[...slug]]`
@@ -147,3 +160,4 @@ import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
 import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';

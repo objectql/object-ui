@@ -141,6 +141,7 @@ import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
 import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';
 import { SidebarProvider } from '@object-ui/components';
 import { registerLayout } from '@object-ui/layout';
 import { ComponentRegistry } from '@object-ui/core';
@@ -200,6 +201,7 @@ const HOST_PACKAGES = [
   '@object-ui/plugin-timeline',
   '@object-ui/plugin-view',
   '@object-ui/plugin-form',
+  '@object-ui/plugin-grid',
 ];
 
 /**
@@ -774,12 +776,17 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
  * least one type this package registers", which one conforming entry satisfies
  * while every other entry in the category drifts.
  *
- * The types are asserted to be REGISTERED separately from the render, because
- * the gallery's registration of `object-grid` is transitive: the host list
- * (`HOST_PACKAGES`) does not name `@object-ui/plugin-grid`, and the type
- * arrives because `@object-ui/plugin-view` imports `ObjectGrid` from it, which
- * runs that package's `register` calls. That is load-bearing and invisible, so
- * it gets its own assertion.
+ * The types are asserted to be REGISTERED separately from the render, because a
+ * type that resolves to nothing fails every case below with the OBJUI-001 panel
+ * rather than with anything about the entries. That separation was written for
+ * `object-grid`, which used to reach this registry ONLY because
+ * `@object-ui/plugin-view` imports `ObjectGrid` from `@object-ui/plugin-grid` —
+ * load-bearing and invisible. objectui#6025 made both `@object-ui/plugin-grid`
+ * and `@object-ui/plugin-form` declared imports of the gallery host, so
+ * resolution no longer rides on that component import. The transitive path
+ * still exists and still works, which is precisely why "is it registered"
+ * cannot judge whether the declaration is there — see
+ * `objectui#6025 — the gallery DECLARES the packages its entries need` below.
  *
  * ## No environment exclusions, and that is a result rather than an oversight
  *
@@ -1144,6 +1151,60 @@ describe.each(PLUGIN_CATEGORIES)(
     }
   },
 );
+
+/**
+ * DECLARED, NOT TRANSITIVE (objectui#6025).
+ *
+ * ## Why this is not the same question as "is the type registered"
+ *
+ * `object-grid` resolved in this registry long before the host declared it, and
+ * it still would if the declaration were deleted: `@object-ui/plugin-view`
+ * imports `ObjectGrid` from `@object-ui/plugin-grid`
+ * (`packages/plugin-view/src/ObjectView.tsx:37`), and importing that entry runs
+ * its `register` calls. The same is true of `@object-ui/plugin-form` one line
+ * below it. Measured on this card's merge-base, importing exactly the eleven
+ * packages the host then carried: `object-grid`, `object-form`,
+ * `plugin-form:object-form`, `embeddable-form`, `form-analytics`,
+ * `object-master-detail-form`, `record:line_items`, `view:form` and
+ * `import-wizard` ALL resolved.
+ *
+ * So `expect(ComponentRegistry.get('object-grid')).toBeTruthy()` — which this
+ * file does assert, for its own reason, in every category's own case — passes
+ * in the declared world and in the transitive one alike. For THIS question it
+ * is a ghost: an assertion that cannot fail in either world.
+ *
+ * What is asserted here instead is the host's DECLARATION, and it is a real
+ * judge because of the case it leans on: the parity case above ties
+ * `HOST_PACKAGES` to the literal import list in `registerCatalogBlocks.ts`.
+ * Remove the import from the host and parity reds; remove it from both and this
+ * case reds. No transitive import can satisfy either, because neither reads the
+ * registry at all.
+ *
+ * The rule is derived, not enumerated: every `plugin-*` CATEGORY that has
+ * catalog entries names a package the gallery renders through, so the host must
+ * load that package by name. A new plugin category with entries picks the
+ * requirement up with no edit here.
+ */
+describe('objectui#6025 — the gallery DECLARES the packages its entries need', () => {
+  it('every plugin category with catalog entries is loaded BY NAME by the host', () => {
+    expect(
+      PLUGIN_CATEGORIES.length,
+      'no plugin categories were derived, so this case would be vacuous',
+    ).toBeGreaterThanOrEqual(13);
+
+    const undeclared = PLUGIN_CATEGORIES.map((category) => `@object-ui/${category}`).filter(
+      (pkg) => !HOST_PACKAGES.includes(pkg),
+    );
+    expect(
+      undeclared,
+      'these packages register the types their own category’s entries author, and the ' +
+        'gallery host does not name them. Whether the types resolve anyway through some ' +
+        'other package’s component import is a different question and not this one — add ' +
+        'the side-effect import to `apps/site/app/components/registerCatalogBlocks.ts` and ' +
+        'mirror it in `HOST_PACKAGES`.',
+    ).toEqual([]);
+  });
+});
 
 /**
  * HOST PARITY for the fixture, same technique and same reason as the

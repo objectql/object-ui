@@ -41,6 +41,7 @@
     "@object-ui/plugin-editor": "workspace:*",
     "@object-ui/plugin-form": "workspace:*",
     "@object-ui/plugin-gantt": "workspace:*",
+    "@object-ui/plugin-grid": "workspace:*",
     "@object-ui/plugin-kanban": "workspace:*",
     "@object-ui/plugin-map": "workspace:*",
     "@object-ui/plugin-markdown": "workspace:*",
