@@ -8,6 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
 // from `MetadataClient.save` (#4133/#4236), this one from the interceptor below.
@@ -1005,11 +1006,29 @@ export class ConcurrentUpdateError extends Error {
   readonly httpStatus = 409;
   readonly currentVersion: string | null;
   readonly currentRecord: unknown;
-  constructor(opts: { currentVersion: string | null; currentRecord: unknown; message?: string }) {
+  /**
+   * The refusal text the PRODUCER marked as addressed to the end user
+   * (`ApiErrorSchema.userMessage`, objectstack#9934), or `null` when the
+   * refusal carried no marking.
+   *
+   * Declared on the class because this error has no `details` bag: the shared
+   * reader (`declaredUserMessage` in `@object-ui/react`) looks at the
+   * top-level field first, so parking it here is what makes the marking
+   * readable at the surface. The contract is status-agnostic — a 409 carries
+   * it exactly like a 400 or a 403 does.
+   */
+  readonly userMessage: string | null;
+  constructor(opts: {
+    currentVersion: string | null;
+    currentRecord: unknown;
+    message?: string;
+    userMessage?: string | null;
+  }) {
     super(opts.message ?? 'Record was modified by another user');
     this.name = 'ConcurrentUpdateError';
     this.currentVersion = opts.currentVersion;
     this.currentRecord = opts.currentRecord;
+    this.userMessage = opts.userMessage ?? null;
   }
 }
 
@@ -1025,6 +1044,47 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
 }
 
 /**
+ * The one declared key this boundary carries, anchored to the contract rather
+ * than to a string literal: `ApiError` is `z.input<typeof ApiErrorSchema>` in
+ * `@objectstack/spec`, so a rename there fails this file at compile time
+ * instead of silently going quiet. The same anchor `@object-ui/react`'s
+ * reader uses.
+ */
+type MarkedRefusal = Pick<ApiError, 'userMessage'>;
+
+/**
+ * Lift the producer's user-facing marking off a client error.
+ *
+ * `userMessage` (`ApiErrorSchema.userMessage`, objectstack#9934) is the opt-in
+ * channel an application author sets at throw time to say "this text is for
+ * the end user". The contract states it **status-agnostic** — not a 403
+ * special case, any refusal status may carry it — so this read is
+ * deliberately gated on neither a status nor a code.
+ *
+ * Read from the same two places, under the same declared key, as the shared
+ * reader `declaredUserMessage` in `@object-ui/react`: the error itself
+ * (`@objectstack/client` lifts a marked body onto `err.userMessage`, from
+ * either wire dialect) and `details`, which the client falls back to the WHOLE
+ * response body — the identical pair the `fields[]` read below uses. The
+ * predicate (non-empty after trimming, returned untrimmed) matches that reader
+ * exactly, so a marking that survives this boundary is one the surface accepts.
+ *
+ * Deliberately not imported from `@object-ui/react`: that package depends on
+ * THIS one, so the symbol cannot travel in this direction. The key is anchored
+ * to the contract type rather than to either copy of the predicate.
+ */
+function liftUserMessage(
+  e: Record<string, unknown>,
+  details: Record<string, unknown>,
+): MarkedRefusal['userMessage'] | null {
+  if (typeof e.userMessage === 'string' && e.userMessage.trim()) return e.userMessage;
+  if (typeof details.userMessage === 'string' && details.userMessage.trim()) {
+    return details.userMessage;
+  }
+  return null;
+}
+
+/**
  * Convert any error thrown by the upstream client into a typed error when we
  * recognise its shape. Returns the original error untouched otherwise, so
  * callers can simply `throw normaliseClientError(err)` from their catch blocks.
@@ -1034,6 +1094,12 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
  *   - `400` + `VALIDATION_FAILED` → {@link DataApiValidationError}, carrying the
  *     server's per-field entries so a form can mark the offending inputs
  *     instead of showing one undirected toast.
+ *
+ * Both re-wraps preserve the producer's `userMessage` marking (see
+ * {@link liftUserMessage}). Re-wrapping used to drop it, which made the
+ * marking unreadable at every surface downstream of this boundary — nothing
+ * threw, the typed error was otherwise correct, and the user simply got a
+ * generic string.
  */
 export function normaliseClientError(error: unknown): unknown {
   if (!error || typeof error !== 'object') return error;
@@ -1042,6 +1108,9 @@ export function normaliseClientError(error: unknown): unknown {
   // the WHOLE body — and the validation envelope has no `details` key, so this
   // is where `fields[]` lands.
   const details = (e.details ?? {}) as Record<string, unknown>;
+  // Status-agnostic on purpose: lifted before either branch decides a shape,
+  // so a 400 and a 409 carry the marking identically.
+  const userMessage = liftUserMessage(e, details);
 
   if (e.code === 'VALIDATION_FAILED' || e.name === 'ValidationError') {
     const rawFields = Array.isArray(details.fields)
@@ -1068,7 +1137,13 @@ export function normaliseClientError(error: unknown): unknown {
       typeof e.message === 'string' ? e.message : 'Validation failed',
       validationErrors[0]?.field,
       validationErrors,
-      { fields: rawFields },
+      // The marking rides the details bag exactly the way `fields` already
+      // does, landing on `err.details.userMessage` — the second of the two
+      // places the shared reader looks. Purely additive: `field`,
+      // `validationErrors` and `fields` are untouched, so the per-field
+      // marking a form already draws keeps working. Omitted entirely when
+      // unmarked, so an unmarked refusal carries no empty key.
+      userMessage === null ? { fields: rawFields } : { fields: rawFields, userMessage },
     );
   }
 
@@ -1078,6 +1153,7 @@ export function normaliseClientError(error: unknown): unknown {
     currentVersion: typeof details.currentVersion === 'string' ? details.currentVersion : null,
     currentRecord: details.currentRecord ?? null,
     message: typeof e.message === 'string' ? e.message : undefined,
+    userMessage,
   });
 }
 
