@@ -90,6 +90,12 @@ import { join, resolve } from 'node:path';
 import { BarChart3, DollarSign, Home, LayoutDashboard, Settings, Users } from 'lucide-react';
 import type { NavGroup, NavItem, SidebarNavProps } from '../SidebarNav';
 
+// The shared registration reader (objectui#4894). Plain JS, and this package's
+// test program sets `allowJs: false`, so the import is untyped here — the local
+// annotation below is what keeps the call site checked.
+// @ts-expect-error — plain-JS shared helper, intentionally untyped
+import { readComponentRegistrations } from '../../../../scripts/component-registrations.mjs';
+
 /** Repo root — five levels up from `packages/layout/src/__tests__`. */
 const REPO_ROOT = resolve(__dirname, '../../../..');
 const GUIDE = readFileSync(join(REPO_ROOT, 'content', 'docs', 'guide', 'layout.md'), 'utf8');
@@ -324,11 +330,19 @@ function sidebarNavTagProps(body: string): string[] {
   return props;
 }
 
-/** Component keys `registerLayout()` registers, read out of the source. */
+/**
+ * Component keys `registerLayout()` registers, read out of the source.
+ *
+ * `scripts/component-registrations.mjs` (objectui#4894) — the one reader the
+ * four pins on this key list share. It replaced four copies of a regex that
+ * accepted a single-quoted key and nothing else, which is a real failure here
+ * and not a tidy one: this page LISTS the keys correctly, so a registration the
+ * read misses reds the assertion below with the message "the page names a key
+ * that is not registered" — sending the reader off to edit a page that was
+ * right.
+ */
 function registeredKeys(): string[] {
-  return [...LAYOUT_INDEX_SRC.matchAll(/ComponentRegistry\.register\(\s*'([^']+)'/g)].map(
-    (match) => match[1],
-  );
+  return readComponentRegistrations(LAYOUT_INDEX_SRC, 'packages/layout/src/index.ts').keys;
 }
 
 /**

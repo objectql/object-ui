@@ -241,6 +241,91 @@
  * its own control at once: the phrase is known-present, and it returned these
  * five plus one unrelated i18n test under `packages/fields`. Six files means the
  * search worked; zero means it broke, not that the copies are gone.
+ *
+ * ## Comment text in `src` DOES reach a published `.d.ts` (objectui#5666)
+ *
+ * Recorded here because this gate's own limitation is what let it through, and
+ * because the FALSE version of the finding is already merged in a changeset
+ * where the next author will reasonably cite it.
+ *
+ * `.changeset/page-source-tailwind-framing-5461.md` (PR #5471, `a691c0bee`)
+ * justifies giving a comment-only edit to
+ * `packages/components/src/renderers/layout/react-page.tsx` no entry of its own:
+ *
+ *     Those are internal comments — they do not project into any `.d.ts` and
+ *     change no export — so they get no entry of their own; there is nothing an
+ *     `@object-ui/components` consumer could read in a CHANGELOG and act on.
+ *
+ * The first clause is false, and it is false for that exact file. Re-measured
+ * on `c9a725263` (the finding's own reading is from 2026-08-22 and was NOT
+ * quoted forward), building `@object-ui/components` — 17.6.0, `private` unset,
+ * `files` lists `dist`, so the emitted declarations are in the npm tarball:
+ *
+ *   - `src/renderers/layout/react-page.tsx`'s file header, including the whole
+ *     styling paragraph #5461 added, is present VERBATIM in
+ *     `dist/renderers/layout/react-page.d.ts` — `page-source-className-tailwind`
+ *     on line 37 of the emitted file. The text the changeset said no consumer
+ *     could read sits inside a file that is published verbatim.
+ *   - Of #5461's THREE edits to that file, two are in the header and reach the
+ *     emitted `.d.ts` (the injected-scope note losing `+ Tailwind`, and the new
+ *     styling paragraph); the third does not. That third one is the
+ *     `buildComponentScope` comment, which sits above a NON-EXPORTED function —
+ *     the identifier `buildComponentScope` does not occur in the `.d.ts` at all,
+ *     so neither does anything attached to it. One changeset, one file, both
+ *     answers.
+ *   - `src/renderers/basic/html-elements.tsx`'s file header likewise reaches
+ *     `dist/renderers/basic/html-elements.d.ts`, whose only other content is
+ *     `export {};` — there, the comment is very nearly the whole shipped file.
+ *   - A comment inside a FUNCTION BODY does not project, and that half is
+ *     load-bearing: without it this note would read as "comments project",
+ *     which is false in the other direction. Control: the `kind === 'html'`
+ *     dispatch arm inside `src/renderers/layout/page.tsx`'s `useMemo`. Three
+ *     distinct phrases from it each occur exactly once under `src` and zero
+ *     times anywhere under `dist`.
+ *
+ * ### Do NOT simplify this to "a file header projects"
+ *
+ * That is the shape the finding arrived in, and measuring the package instead
+ * of two files does not support it. Of the 202 files under
+ * `packages/components/src` that carry the licence file-header AND emit a
+ * `.d.ts`, 165 have that header in the emitted file — and 37 do not.
+ *
+ * `page.tsx` is one of the 37, which makes it a single file demonstrating both
+ * halves: its function-body comment is the negative control above, and its
+ * header (`The Page renderer interprets PageSchema into structured layouts.`)
+ * is likewise absent from all of `dist`, while its `PageRenderer` declaration
+ * is emitted normally. Position in the file is NECESSARY, not SUFFICIENT.
+ *
+ * The 37 split by what the declaration emitter did with the statement the
+ * header was attached to. 11 emit an empty `.d.ts` (barrels whose every line is
+ * a side-effect import), so there is no node left for the comment to hang on.
+ * In the other 26 the first statement the emitter produced is not the one the
+ * header was attached to: `import React, { useMemo } from 'react'` is re-emitted
+ * as `import { default as React } from 'react'`, `import type` becomes a value
+ * import, an all-values import is dropped and a later one becomes first. A
+ * rebuilt node carries no leading comment. That correlation holds across all 37
+ * — but it is a reading of emitter behaviour, not a contract TypeScript
+ * documents, and `vite-plugin-dts` post-processes on top of it.
+ *
+ * ### So do not reason about it — build and look
+ *
+ *     pnpm --filter '<pkg>^...' --filter <pkg> build
+ *     git diff --stat -- <pkg>/dist
+ *
+ * If emitted `.d.ts` text moved, the package ships changed bytes and owes a
+ * changeset that says so. THIS GATE CANNOT TELL YOU: it checks changeset
+ * PRESENCE, not per-package correctness, so #5461 declaring `@object-ui/types`
+ * satisfied it while `@object-ui/components`' emitted declarations changed with
+ * nothing describing them. Making it per-package is a much larger change and was
+ * deliberately not ruled here; the counter-statement is.
+ *
+ * One correction to the finding as filed, since it changes only the tense and
+ * not the conclusion: at the time of writing the text had NOT yet been released.
+ * `.changeset/page-source-tailwind-framing-5461.md` is still un-compiled in
+ * `.changeset/` (its opening sentence appears in no CHANGELOG), so the release
+ * that carries this declaration text is still ahead. The corrective entry
+ * therefore lands WITH that release rather than apologising for it afterwards —
+ * which is the outcome to aim for whenever this is caught in time.
  */
 
 import { execFileSync } from 'node:child_process';
