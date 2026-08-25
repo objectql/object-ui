@@ -454,6 +454,7 @@ export type {
   UploadedFileMetadata,
   ImageFieldMetadata,
   LocationFieldMetadata,
+  LocationValue,
   LookupFieldMetadata,
   LookupColumnDef,
   LookupFilterDef,

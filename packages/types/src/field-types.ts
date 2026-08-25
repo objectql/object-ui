@@ -403,6 +403,37 @@ export interface LocationFieldMetadata extends BaseFieldMetadata {
 }
 
 /**
+ * The value a `location` field stores: the coordinate pair itself, which is the
+ * field's VALUE and not metadata (`LocationFieldMetadata` above declares the
+ * authoring keys, of which the coordinates are deliberately not one).
+ *
+ * Scope of this declaration, stated because it is narrower than it looks: this
+ * declares **what the `LocationField` widget stores**, NOT what every reader of
+ * a `location` value accepts. Measured 2026-08-25 by driving the real widget:
+ * `LocationField` (`@object-ui/fields`) produces exactly this shape, plus `null`
+ * when the input is cleared -- which is why its produce/consume sites bind to
+ * `LocationValue | null`, the `null` arm being measured output rather than
+ * defensive padding. The DISPLAY path is more tolerant than this type:
+ * `LocationCellRenderer` (`@object-ui/fields`) and `ObjectMap`
+ * (`@object-ui/plugin-map`) additionally read `{ lat, lng }`, `{ lat, lon }`, a
+ * `"lat,lng"` string and a `[lat, lng]` array.
+ *
+ * Those alias spellings are NOT contract (ruled 2026-08-25) and are left
+ * undeclared here on purpose: declaring them would fossilize a five-spelling
+ * dialect as protocol, the second de-facto contract AGENTS.md #0.1 forbids, and
+ * would leave nothing canonical for an author -- or a code generator -- to aim
+ * at. Leaving them undeclared keeps them retirable. The divergence between the
+ * two sides is tracked as objectui#6272, whose fix direction is retiring the
+ * display-side tolerance, NOT widening this type.
+ */
+export interface LocationValue {
+  /** Latitude in decimal degrees, -90 to 90 (negative South, positive North). */
+  latitude: number;
+  /** Longitude in decimal degrees, -180 to 180 (negative West, positive East). */
+  longitude: number;
+}
+
+/**
  * Column definition for the Record Picker dialog table.
  */
 export interface LookupColumnDef {

@@ -38,8 +38,10 @@ const officeLocation: LocationFieldMetadata = {
 
 The coordinates themselves are the field's **value**, not metadata: the widget stores
 an object carrying a `latitude` and a `longitude` and displays it as a comma-separated
-pair. No exported type declares that value shape today, which is tracked as
-[objectui#6154](https://github.com/objectstack-ai/objectui/issues/6154).
+pair. That value shape is declared as `LocationValue` (`@object-ui/types`), which is
+what the widget stores -- the display path additionally tolerates some alias spellings
+that are not contract, tracked as
+[objectui#6272](https://github.com/objectstack-ai/objectui/issues/6272).
 
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
@@ -89,7 +91,7 @@ Render it directly when you build the form yourself:
 ```tsx
 import { useState } from 'react';
 import { LocationField } from '@object-ui/fields';
-import type { LocationFieldMetadata } from '@object-ui/types';
+import type { LocationFieldMetadata, LocationValue } from '@object-ui/types';
 
 const field: LocationFieldMetadata = {
   type: 'location',
@@ -98,7 +100,7 @@ const field: LocationFieldMetadata = {
 };
 
 export function StoreLocationInput() {
-  const [value, setValue] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [value, setValue] = useState<LocationValue | null>(null);
   return <LocationField field={field} value={value} onChange={setValue} />;
 }
 ```

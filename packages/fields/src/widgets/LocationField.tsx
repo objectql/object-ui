@@ -1,13 +1,17 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
+import type { LocationValue } from '@object-ui/types';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
 
 /**
  * LocationField - Geographic coordinate input for latitude and longitude
- * Stores location as { latitude, longitude } object and displays as comma-separated pair
+ * Stores location as a `LocationValue` (`@object-ui/types`) -- the published
+ * declaration of the `{ latitude, longitude }` shape this widget writes -- and
+ * displays it as a comma-separated pair. The binding is `LocationValue | null`
+ * because clearing the input emits `null` (see `handleChange` below).
  */
-export function LocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<any>) {
+export function LocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<LocationValue | null>) {
   const config = field;
   // Location is stored as { latitude, longitude } object
   // For display, convert to "latitude, longitude" string format
