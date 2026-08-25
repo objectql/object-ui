@@ -100,6 +100,13 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'pull request, and is requirable; `scripts/dependabot-merge-gate.mjs` already classifies ' +
       'it as a required context',
   ],
+  [
+    'vi-mock-specifiers.yml',
+    'produces Inert vi.mock Specifier Check — added by objectui#5646. A module mock can be ' +
+      'written into any package in any shape of pull request, and the gate costs a checkout plus ' +
+      'one node call, so it carries no path filter, reports on every pull request, and is ' +
+      'requirable; `scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
+  ],
 ]);
 
 /**

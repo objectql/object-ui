@@ -111,6 +111,28 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
   useEffect(() => {
     const ds: any = dataSource;
     if (!ds || typeof ds.getObjectSchema !== 'function') return;
+    // Decline to fetch when the child object never resolved (objectui#6188).
+    // `childObject` is declared `required: true` on this block's registry entry
+    // and typed `string` above, but nothing enforces either — `inputs[].required`
+    // is designer metadata, and the block has no spec schema — so a node reaches
+    // this renderer straight off an authored schema with the key `undefined`, and
+    // the fetch below then asked the data layer for an object literally named
+    // `undefined`. `RelatedList` already takes the other choice for the same class
+    // of missing key ("has no referenceField/parentId — refusing to fetch all
+    // rows", RelatedList.tsx), and `MasterDetailForm` declines on this exact key
+    // (objectui#5940) with its child-schema cache spelling it `.filter(Boolean)`.
+    //
+    // Clearing the cache rather than just returning: an unresolvable panel HAS no
+    // child schema, and leaving a previous object's schema in place would sanitize
+    // the next save against the wrong object's fields. `null` is what the `.catch`
+    // below already produces, so the sanitize path needs no new case.
+    if (!schema.childObject) {
+      setChildSchema(null);
+      console.warn(
+        `[LineItemsPanel] a line-items panel has no childObject — refusing to fetch its child schema. Set childObject to the child object the panel lists.`,
+      );
+      return;
+    }
     let cancelled = false;
     ds.getObjectSchema(schema.childObject)
       .then((s: any) => { if (!cancelled) setChildSchema(s ?? null); })

@@ -127,6 +127,7 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   doc-snippet-types.yml    Doc Snippet Type Check
  *   doc-fence-languages.yml  Doc Fence Language Check
  *   pre-install-import-graph.yml  Pre-Install Import Graph Check
+ *   vi-mock-specifiers.yml        Inert vi.mock Specifier Check
  *
  * The four shards are spelled out individually on purpose. A single `Test`
  * entry, or any pattern match, would be satisfied by whichever shard happened
@@ -150,6 +151,7 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Doc Snippet Type Check',
   'Doc Fence Language Check',
   'Pre-Install Import Graph Check',
+  'Inert vi.mock Specifier Check',
 ]);
 
 /**
