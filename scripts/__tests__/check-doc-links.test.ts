@@ -443,7 +443,12 @@ describe('the repo it guards', () => {
     // apps/*) the day the row landed; a floor rather than an exact count for
     // the same reason as every wildcard row above — the surface is meant to
     // pick up the next file someone adds, not stay pinned to today's.
-    expect(scanned['packages/*']).toBeGreaterThanOrEqual(12);
+    // objectui#5965 removed `packages/vscode-extension/SUMMARY.md` (a one-off
+    // session artifact asserting a CodeQL scan this repo never ran), taking
+    // the packages/* population from 12 to 11. The floor moves down by exactly
+    // that one deliberate deletion — it still fails if the scanner itself
+    // stops walking the tree, which is what this row guards.
+    expect(scanned['packages/*']).toBeGreaterThanOrEqual(11);
     expect(scanned['apps/*']).toBeGreaterThanOrEqual(3);
     for (const rootFile of ['AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md', 'LICENSE-THIRD-PARTY.md', 'QUICK_REFERENCE.md']) {
       expect(scanned[rootFile], `${rootFile} is a SCAN_ROOTS row that opened no file`).toBe(1);
@@ -1603,7 +1608,10 @@ describe('objectui#4938 — the rest of each package/app directory', () => {
       ...(collectFiles(path.join(repoRoot, packagesRoot!.path), new Set(packagesRoot!.exclude)) as string[]),
       ...(collectFiles(path.join(repoRoot, appsRoot!.path), new Set(appsRoot!.exclude)) as string[]),
     ];
-    expect(files.length).toBeGreaterThanOrEqual(15);
+    // objectui#5965 removed `packages/vscode-extension/SUMMARY.md`, so the
+    // combined population is 14 (11 + 3) rather than the 15 measured when the
+    // row landed. Still a floor, for the reasoning above.
+    expect(files.length).toBeGreaterThanOrEqual(14);
 
     let decidable = 0;
     for (const file of files) {
