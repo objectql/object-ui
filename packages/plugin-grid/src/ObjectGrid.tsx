@@ -3087,10 +3087,21 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         widths: { ...columnState.widths, [columnKey]: width },
       });
     },
-    onColumnReorder: (newOrder: string[]) => {
+    // objectui#6175: the renderer invokes `onColumnsReorder` (with the `s`) —
+    // `data-table.tsx:handleColumnDrop` — and has never invoked the singular
+    // `onColumnReorder` this used to emit, so reorders were never persisted.
+    // Producer-side fix (AGENTS #0.1: fix the producer, don't teach the renderer
+    // a second spelling), which retires nothing: `onColumnReorder` stays declared
+    // on `DataTableSchema` and stays unwired, exactly as the RuntimeOnlyDeclared
+    // ledger records it. Which of the two declared spellings survives is still an
+    // open ruling and is deliberately NOT settled here.
+    onColumnsReorder: (newColumns: any[]) => {
+      const order = newColumns
+        .map((c) => c?.accessorKey)
+        .filter((key): key is string => typeof key === 'string' && key.length > 0);
       saveColumnState({
         ...columnState,
-        order: newOrder,
+        order,
       });
     },
   };
