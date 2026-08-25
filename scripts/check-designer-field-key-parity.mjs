@@ -125,6 +125,7 @@ import { createRequire } from "module";
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..");
@@ -459,6 +460,6 @@ async function main() {
   console.log("\ndesigner-field-key-parity: OK");
 }
 
-if (resolve(process.argv[1] ?? "") === resolve(fileURLToPath(import.meta.url))) {
+if (isEntrypoint(import.meta.url)) {
   await main();
 }

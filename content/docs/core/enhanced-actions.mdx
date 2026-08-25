@@ -39,7 +39,9 @@ The enhanced `ActionSchema` provides:
 
 Execute API calls with full request configuration:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const ajaxAction: ActionSchema = {
   type: 'action',
   label: 'Load Data',
@@ -75,7 +77,9 @@ const ajaxAction: ActionSchema = {
 
 Show confirmation dialog before executing:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const confirmAction: ActionSchema = {
   type: 'action',
   label: 'Delete Record',
@@ -98,7 +102,9 @@ const confirmAction: ActionSchema = {
 
 Open a modal or dialog:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const dialogAction: ActionSchema = {
   type: 'action',
   label: 'Edit Details',
@@ -170,7 +176,9 @@ submitted before its uploaded fileId is ready.
 
 Execute multiple actions in sequence or parallel:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const chainedAction: ActionSchema = {
   type: 'action',
   label: 'Process Order',
@@ -215,7 +223,9 @@ const chainedAction: ActionSchema = {
 `condition` is a **gate**, not a branch: the action executes only while the
 predicate holds.
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const gatedAction: ActionSchema = {
   type: 'action',
   label: 'Require Manager Approval',
@@ -252,7 +262,9 @@ There is no `then` / `else` - a branch is expressed as **separate actions with
 mutually exclusive conditions**. Each action is gated on its own, so exactly one
 of them runs:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const approvalActions: ActionSchema[] = [
   {
     type: 'action',
@@ -294,7 +306,9 @@ for an either/or.
 
 Handle success and failure scenarios:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const actionWithCallbacks: ActionSchema = {
   type: 'action',
   label: 'Submit',
@@ -310,6 +324,7 @@ const actionWithCallbacks: ActionSchema = {
   onFailure: {
     type: 'dialog',
     dialog: {
+      type: 'dialog',
       title: 'Submission Failed',
       content: {
         type: 'text',
@@ -333,7 +348,9 @@ const actionWithCallbacks: ActionSchema = {
 
 Track actions for analytics:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const trackedAction: ActionSchema = {
   type: 'action',
   label: 'Download Report',
@@ -356,7 +373,9 @@ const trackedAction: ActionSchema = {
 
 Automatically retry failed requests:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const retryAction: ActionSchema = {
   type: 'action',
   label: 'Submit',
@@ -377,7 +396,9 @@ const retryAction: ActionSchema = {
 
 A comprehensive action combining multiple features:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const complexAction: ActionSchema = {
   type: 'action',
   label: 'Process Order',
@@ -433,6 +454,7 @@ const complexAction: ActionSchema = {
   onFailure: {
     type: 'dialog',
     dialog: {
+      type: 'dialog',
       title: 'Order Processing Failed',
       content: {
         type: 'text',
@@ -467,8 +489,15 @@ const complexAction: ActionSchema = {
 
 ## Runtime Validation
 
-```plaintext
+```ts
 import { ActionSchema } from '@object-ui/types/zod';
+
+const myAction = {
+  type: 'action',
+  label: 'Delete Record',
+  actionType: 'confirm',
+  confirmText: 'Are you sure?',
+};
 
 const result = ActionSchema.safeParse(myAction);
 

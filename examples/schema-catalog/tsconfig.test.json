@@ -17,9 +17,13 @@
   "compilerOptions": {
     "noEmit": true,
     // The package build emits `dist` from `src`; this project emits nothing, so
-    // it must not inherit the emit options — and `rootDir` has to widen to the
-    // package root because the tests sit beside `src`, not inside it.
-    "rootDir": ".",
+    // it must not inherit the emit options — and `rootDir` has to widen past the
+    // package build's `./src` because the tests sit beside `src`, not inside it.
+    // Widened again to the REPO root by objectui#6024: `catalog-gallery-render.
+    // test.tsx` imports `scripts/check-doc-component-types.mjs`, and `rootDir`
+    // is checked against every file in the program, imports included (TS6059),
+    // even though `noEmit` makes it emit nothing. Nothing else reads it here.
+    "rootDir": "../..",
     "declaration": false,
     "declarationMap": false,
     "composite": false,
@@ -34,7 +38,23 @@
     // json`). Narrowing to a list is safe here: no catalog test uses a
     // jest-dom matcher, and `react`/`react-dom` types arrive through the
     // packages that re-export them.
-    "types": ["node"]
+    "types": ["node"],
+    // `allowJs` with `checkJs` off, the same answer and for the same reason as
+    // `tsconfig.scripts.json` (objectui#3494): `catalog-gallery-render.test.tsx`
+    // imports `deriveRegistryKeys` from `scripts/check-doc-component-types.mjs`
+    // — a plain-JS CI helper — so the pin's category/type map is DERIVED from
+    // the `register()` calls rather than enumerated a second time
+    // (objectui#6024). Without it that import is TS7016 and the module comes in
+    // as a blanket `any`; the alternative, a hand-written `.d.mts` beside the
+    // `.mjs`, is a second source of truth free to drift silently. With it the
+    // types are INFERRED FROM THE HELPER ITSELF, so changing the helper's
+    // exported signature turns this test red instead of nothing.
+    //
+    // `checkJs` stays FALSE on purpose: this project consumes the helper's
+    // inferred types, it does not take ownership of type-cleanliness inside a
+    // 1000-line plain-JS gate.
+    "allowJs": true,
+    "checkJs": false
   },
   // `test/`, not `src/`: that is where this package keeps its tests, and it is
   // the layout the gate could not see.

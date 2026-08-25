@@ -38,7 +38,7 @@ interface ToggleGroupSchema {
   size?: 'sm' | 'default' | 'lg';
   
   // Events
-  onValueChange?: string | ActionConfig;
+  onValueChange?: (value: string | string[]) => void;
   
   // States
   disabled?: boolean;

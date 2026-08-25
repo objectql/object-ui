@@ -159,6 +159,48 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: node scripts/check-lint-coverage.mjs
 
+      # ── One entry guard, one predicate (objectui#6092) ───────────────────
+      # A `scripts/**` CLI has to answer "did node run me, or did something
+      # import me?" before it does anything, and the hand-typed answers in this
+      # tree had drifted into NINE spellings across 28 `.mjs` files. Every one
+      # of them fails the same way: node resolves symlinks for the module graph
+      # but leaves `process.argv[1]` as the caller typed it, so a script reached
+      # through a symlink compares two different paths, answers false, and does
+      # NOTHING — exit 0, no output. The wrappers that spawn these tools hold
+      # `result.status` only, so an inert child is a green gate. Measured on a
+      # real blocking gate in this repository (objectui#6078):
+      # `check-skills-paths.mjs` run directly on a deliberately broken tree
+      # exits 1 with 696 bytes naming the dead path; run through a symlink
+      # against the SAME tree it exits 0 with no output.
+      #
+      # `scripts/invoked-as.mjs` landed here in #5984 with a header stating that
+      # a gate enforced the single-spelling rule. It did not exist, and the
+      # sweep it described had not happened either (objectui#6078). This is that
+      # gate. It lands BEFORE the conversion on purpose: the worklist grew while
+      # the card sat open, so a sweep with nothing under it can be undone
+      # silently by the next pull request. The 29 existing guards are baselined,
+      # SHRINK-ONLY, and the script's own header says why that is safe.
+      #
+      # Runs before install, next to `check-lint-coverage.mjs` above and for the
+      # same reason: it reads sources with no dependency beyond node builtins
+      # and two local modules, so nothing it needs is in `node_modules`. Placed
+      # before `pnpm install` it also cannot be made green by an install
+      # failure. `--self-test` runs FIRST and is the half that stops the gate
+      # rotting into decoration — it drives the scanner over fixture sources,
+      # including the nine spellings measured in this tree, and pins the
+      # baseline in every direction it can move.
+      #
+      # Invoked as `node` rather than through the `pnpm check:entry-guard` alias
+      # for the pre-install placement, matching `check-lint-coverage.mjs` above
+      # and `check-cross-repo-closer-outcome.mjs` below. The alias exists in
+      # `package.json` for local use and `scripts/__tests__/entry-guard-wiring.test.ts`
+      # holds the two spellings to the same script.
+      - name: Verify every scripts/ entry guard goes through one predicate
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-entry-guard.mjs --self-test
+          node scripts/check-entry-guard.mjs
+
       - name: Turbo Cache
         if: steps.relevant.outputs.should_run == 'true'
         uses: actions/cache@v6

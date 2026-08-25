@@ -16,6 +16,7 @@ import zlib from 'node:zlib';
 // `native` becomes the default loader (objectui#3384).
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub.ts';
 import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
+import { resolveClientDistInjection } from '../../scripts/vite-objectstack-client-dist.ts';
 import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
 import { viteIneffectiveDynamicImports } from '../../scripts/vite-ineffective-dynamic-imports.ts';
 import { compression } from 'vite-plugin-compression2';
@@ -470,16 +471,24 @@ const workspaceAliases: Record<string, string> = {
 // console before that client ships, point OBJECTSTACK_CLIENT_DIST at a locally
 // built client (its dist entry or package dir). Inert when unset — production
 // and CI builds use the installed client unchanged.
-const clientDistOverride = process.env.OBJECTSTACK_CLIENT_DIST;
+//
+// No longer a bare string alias: the value is VALIDATED before it is aliased —
+// the path must exist, it must sit inside a `@objectstack/client` package
+// (directory, `dist/`, or an entry file all resolve to the same package), and
+// that package's own declared `dependencies` must resolve from where it lives.
+// Without that last check an out-of-tree override produced a fully written
+// bundle whose bare specifiers no browser can load, and nothing in the build
+// output named this variable — objectui#6094, the client twin of the spec
+// hook's objectui#5391. See the module for the measurement and for why the
+// check is re-stated there rather than shared with the spec hook.
+const clientDistInjection = resolveClientDistInjection(process.env.OBJECTSTACK_CLIENT_DIST);
+if (clientDistInjection) workspaceAliases['@objectstack/client'] = clientDistInjection.aliasTarget;
+
 // Extra dirs the dev server may read the override from — it lives outside the
 // workspace root, so Vite's default `server.fs.allow` would 403 it (blank page).
-const clientFsAllow: string[] = [];
-if (clientDistOverride) {
-  const resolved = path.resolve(clientDistOverride);
-  workspaceAliases['@objectstack/client'] = resolved;
-  // Allow the containing package (…/dist/index.mjs → …/<pkg>) so Vite can serve it.
-  clientFsAllow.push(path.dirname(resolved), path.resolve(path.dirname(resolved), '..'));
-}
+// Unchanged values: the containing package (…/dist/index.mjs → …/<pkg>) and its
+// parent, now computed beside the validation that vouches for the path.
+const clientFsAllow: string[] = clientDistInjection ? clientDistInjection.fsAllow : [];
 
 // Deps pre-bundled for the dev server. Build-time pre-bundling was removed in
 // Vite 5.1, so this list is read by `pnpm dev` only, never by `vite build`.

@@ -1,0 +1,78 @@
+name: Pre-Install Import Graph
+
+# Why this is its own workflow rather than a step in `lint.yml` or `ci.yml`:
+# what it judges is the ARRANGEMENT of the workflows themselves — which steps
+# run a `scripts/` gate before their job installs anything. Its whole input is
+# `.github/workflows/**` plus the `scripts/` files those steps name, so a run
+# lives or dies on files that both `ci.yml` and `lint.yml` keep OUT of their
+# expensive lanes. Putting it inside either one would make it skip on exactly
+# the change most likely to break it: a workflow edit that moves a step across
+# `pnpm install`.
+#
+# Same shape and the same reasoning as `docs-links.yml`, `control-bytes.yml`,
+# `skills-paths.yml` and `changeset-presence.yml`, whose headers record the
+# conclusion this repository reached four times already — a gate that cannot see
+# the PR shape most likely to trip it "rebuilds the hole it exists to close".
+# One gate, one home.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately. Reporting on every
+# pull request is also what makes the check requirable, and
+# `scripts/dependabot-merge-gate.mjs` classifies it as a required context —
+# an unclassified blocking check is one a Dependabot merge would be let past
+# (objectui#6135).
+#
+# It needs no install and no build — a checkout plus one `node` call over 24
+# workflow files and a dozen scripts, well under a second. Keep it that way: the
+# gate exists to protect install-free gates, so an install here would be the
+# joke telling itself.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that can become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: pre-install-import-graph-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-install-import-graph:
+    name: Pre-Install Import Graph Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # Two legs, in this order and in one step, for the reason `lint.yml` runs
+      # the entry-guard gate the same way: a scan whose recogniser is broken
+      # reports a clean tree. The self-test pins the workflow parser and the
+      # graph walk against fixtures, so a green scan below means something.
+      #
+      # This step is itself in the population the gate derives — it runs a
+      # `scripts/` file before any install, in a job that never installs — so
+      # the gate walks its own import graph on every run. That is deliberate: a
+      # floor that exempted its own enforcer would be the first thing to rot.
+      - name: Check the pre-install gates' import graphs
+        run: |
+          node scripts/check-pre-install-import-graph.mjs --self-test
+          node scripts/check-pre-install-import-graph.mjs

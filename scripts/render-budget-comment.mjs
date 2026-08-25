@@ -27,7 +27,7 @@
  */
 
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * The only two statuses that carry a measurement. Kept as an explicit
@@ -191,7 +191,7 @@ export function renderFromEnv(env = process.env, sizeReportPath = 'size-report.m
 }
 
 // CLI: write the comment body to stdout for the workflow to capture.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isEntrypoint(import.meta.url)) {
   const { kind, body } = renderFromEnv();
   process.stderr.write(`Rendered performance budget comment (kind: ${kind})\n`);
   process.stdout.write(body);

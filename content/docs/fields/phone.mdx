@@ -15,19 +15,24 @@ The Phone Field component provides a text input optimized for phone number entry
 
 ## Field Schema
 
+A phone field is authored as `PhoneFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with a display format.
+
 ```ts
-interface PhoneFieldSchema {
-  type: 'phone';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-}
+import type { PhoneFieldMetadata } from '@object-ui/types';
+
+const mobile: PhoneFieldMetadata = {
+  type: 'phone',
+  name: 'mobile',
+  label: 'Mobile',
+  placeholder: '(555) 000-0000',
+  required: false,
+  format: '(###) ###-####',
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Cell Renderer
 

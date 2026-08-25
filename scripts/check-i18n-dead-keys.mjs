@@ -112,6 +112,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { analyze, collectEnKeys } from './check-i18n-call-site-keys.mjs';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -269,7 +270,7 @@ export function sweep(root) {
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const root = resolve(scriptDir, '..');

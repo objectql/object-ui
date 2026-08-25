@@ -61,7 +61,7 @@ interface ButtonSchema {
   loading?: boolean;
   
   // Actions
-  onClick?: string | ActionConfig;  // Action on click
+  onClick?: () => void | Promise<void>;  // Click handler
   href?: string;                    // Link URL (renders as link)
   
   // Styling

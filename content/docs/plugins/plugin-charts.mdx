@@ -71,7 +71,11 @@ const schema = {
 }
 ```
 
-### Properties
+### BarChartSchema
+
+Declared by `@object-ui/plugin-charts` (`packages/plugin-charts/src/types.ts`).
+It extends `BaseSchema`, so the shared component properties are available on a
+`bar-chart` node as well as the ones below.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -262,7 +266,7 @@ const schema = {
 
 ## TypeScript Support
 
-```plaintext
+```ts
 import type { BarChartSchema } from '@object-ui/plugin-charts'
 
 const chartSchema: BarChartSchema = {

@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 163 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 158 entries at once.
  *
  * ## What is registered
  *
@@ -45,9 +45,49 @@
  * directory fails this file until someone registers or excludes it, so an
  * incomplete population reads as a declared decision instead of an oversight.
  *
+ * ## The population, and where each number came from (objectui#6141)
+ *
+ * ⚠️ Every count in this header is READ, not inherited. The three that used to
+ * stand here — "163 pairs" twice and "13 entries" once — were stale, and they were
+ * the numbers other cards quoted as the size of the drift problem (objectui#5927's
+ * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
+ * entire subject is measurement that is worth stating explicitly:
+ *
+ *   - **158 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *     already pins equal to `keyof Declared`. Nothing asserts it against a written
+ *     number, so this line is prose and can rot; the pin that cannot is the one
+ *     comparing the two halves to each other.
+ *   - **12 entries** in `KnownDrift`, **17 keys** across them.
+ *   - **16 entries** in `UnmirroredDeclared`, **98 keys** across them. ⚠️ It was
+ *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
+ *     keys to the ledger below by RECLASSIFICATION, not by fixing them. Anything
+ *     citing "121" as the mirroring debt is citing a number that changed meaning —
+ *     the comparable figure is 98 + 23. The full statement is on that ledger.
+ *   - **6 entries** in `RuntimeOnlyDeclared`, **23 keys** across them — a strict
+ *     subset of the 16 pairs above, so the "no entry in either" population is
+ *     unchanged.
+ *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *
+ * ## Two ratchets, because the forward comparison has two halves
+ *
+ * The forward comparison runs over the UNION of the mirror's keys and the
+ * declaration's, and a declared key can fail it in two structurally different ways:
+ * the mirror declares the key and REFUSES its declared type (`NarrowerThanDeclared`
+ * → `KnownDrift`), or the mirror has never heard of the key at all
+ * (`UnmirroredDeclaredKeys` → `UnmirroredDeclared`). The second half was invisible
+ * until objectui#6058 — an unmirrored key did not compare unequal, it left the
+ * comparison entirely — so it is ledgered separately, seeded at its own measured
+ * debt, and `KnownDrift` keeps its meaning and its citable history untouched.
+ *
+ * The second half is itself recorded in TWO ledgers, because its keys do not share
+ * a remedy (objectui#6152). `UnmirroredDeclared` holds the keys where MIRRORING is
+ * the fix; `RuntimeOnlyDeclared` holds callback-shaped keys that are runtime slots
+ * and must never be mirrored at all. Both are reconciled against ONE measurement,
+ * through the union at `RecordedUnmirrored`, so a key cannot fall between them.
+ *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 13 of the 163 pairs carry drift TODAY (measured, not assumed). Each is
+ * 12 of the 158 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -75,7 +115,7 @@ import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zo
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
 import { BlockEditorSchema, BlockInstanceSchema, BlockLibraryItemSchema, BlockLibrarySchema, BlockMetadataSchema, BlockSchema, BlockSlotSchema, BlockVariableSchema, ComponentSchema } from '../zod/blocks.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
-import { ActionCallbackSchema, CRUDDialogSchema, CRUDFilterSchema, CRUDOperationSchema, CRUDPaginationSchema, CRUDSchema, CRUDToolbarSchema, DetailSchema } from '../zod/crud.zod.js';
+import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
@@ -92,7 +132,7 @@ import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig
 import type { BlockEditorSchema as Ts_BlockEditorSchema, BlockInstanceSchema as Ts_BlockInstanceSchema, BlockLibraryItem as Ts_BlockLibraryItem, BlockLibrarySchema as Ts_BlockLibrarySchema, BlockMetadata as Ts_BlockMetadata, BlockSchema as Ts_BlockSchema, BlockSlot as Ts_BlockSlot, BlockVariable as Ts_BlockVariable, ComponentSchema as Ts_ComponentSchema } from '../blocks';
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
-import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, CRUDFilter as Ts_CRUDFilter, CRUDOperation as Ts_CRUDOperation, CRUDPagination as Ts_CRUDPagination, CRUDSchema as Ts_CRUDSchema, CRUDToolbar as Ts_CRUDToolbar, DetailSchema as Ts_DetailSchema } from '../crud';
+import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
@@ -135,6 +175,155 @@ export type NarrowerThanDeclared< M, D > = {
   [K in MirroredKeys< M > & keyof D]: [D[K]] extends [InputOf< ShapeOf< M >[K] >] ? never : K;
 }[MirroredKeys< M > & keyof D];
 
+/**
+ * A declaration's OWN declared members, with any index signature stripped.
+ *
+ * `keyof D` is unusable on this population: most component declarations extend
+ * `BaseSchema`, which carries `[key: string]: any` (objectui#5155), and a string
+ * index signature ABSORBS every literal name — `keyof ObjectGanttSchema` resolves
+ * to bare `string`. Measured, not assumed:
+ *
+ *     declare const bare: keyof ObjectGanttSchema;
+ *     const _: never = bare;
+ *     // -> Type 'keyof ObjectGanttSchema' is not assignable to type 'never'.
+ *     //      Type 'string' is not assignable to type 'never'.
+ *
+ * A homomorphic mapped type is the escape: TypeScript maps declared members and
+ * index signatures SEPARATELY, so remapping the index-signature keys to `never`
+ * leaves the literal members — INCLUDING the ones inherited from `BaseSchema`.
+ * Same probe against this alias resolves the 36 literal names of
+ * `ObjectGanttSchema` and the 20 of `BaseSchema`.
+ *
+ * ⚠️ This lifts the ceiling on what the GUARD can READ, not on what a mirror can
+ * REJECT. #5155's ceiling stands: `BaseSchema` is `.passthrough()`, so declaring a
+ * key still does not buy rejection of a misspelling. The two are different
+ * questions and only the first one is this file's.
+ */
+type WithoutIndexSignature< D > = {
+  [K in keyof D as string extends K ? never : number extends K ? never : K]: D[K];
+};
+
+/** The declaration's DECLARED keys, read without `keyof` on the resolved key set. */
+export type DeclaredKeys< D > = Extract< keyof WithoutIndexSignature< D >, string >;
+
+/**
+ * Declared on the TS side and ABSENT from the mirror's `.shape` entirely.
+ *
+ * This is the half `NarrowerThanDeclared` above cannot see, and the reason is
+ * structural rather than a threshold: that type maps over the INTERSECTION
+ * `MirroredKeys< M > & keyof D`, so a declared key the mirror never mentions is
+ * not compared and found equal — it LEAVES THE COMPARISON. objectui#6058 measured
+ * the blind spot with a two-instruments ablation: ten keys declared on
+ * `ObjectGanttSchema` and stripped from its mirror left both halves of this guard
+ * green (runtime 5 passed EXIT=0, compile-time EXIT=0) while
+ * `gantt-declared-keys.test.ts` over the same tree read 2 failed | 7 passed EXIT=1.
+ *
+ * It is a real defect in the pair, not noise from the instrument: the published
+ * TypeScript invites an author to write the key and the published validator has
+ * never heard of it. Under `.passthrough()` the value rides through UNVALIDATED
+ * (`readOnly: 'yes'` parses green); under a mirror that is not passthrough it is
+ * refused outright. Either way `declared !== enforced`.
+ */
+export type UnmirroredDeclaredKeys< M, D > = Exclude< DeclaredKeys< D >, MirroredKeys< M > >;
+
+/**
+ * Reconcile ONE pair's measured key set against what a ledger records for it:
+ * `never` when they agree, the pair key otherwise.
+ *
+ * Factored out and driven by synthetic pairs below rather than written inline, for
+ * the reason objectui#6133 gives for exporting its `reconcileGuards`: **a run over
+ * TODAY's tree can only ever show that today's tree is green.** A baseline that has
+ * never been shown to FAIL is indistinguishable from no baseline, and no amount of
+ * green CI tells the two apart. Recognition is pinned at
+ * `assertionRatchet…` below, in every direction a ledger can be wrong.
+ */
+export type ReconcileAgainstLedger< K, Measured, Recorded > =
+  Equal< Measured, Recorded > extends true ? never : K;
+
+/* ── Recognition: the ratchet is shown to FAIL, in both directions ──────────── */
+
+/** A pair whose measured set matches its ledger entry stays silent. */
+export type assertionRatchetAcceptsAgreement =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
+
+/** …and so does a clean pair with no entry, which is the case for 142 of the 158. */
+export type assertionRatchetAcceptsCleanPair =
+  Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
+
+/**
+ * ⬆ GROWTH on a CLEAN pair — the property the whole seeding argument rests on. A
+ * NEW declared-but-unmirrored key on a pair the ledger does not mention reddens it
+ * immediately. This is why a seeded baseline is a FLOOR and not a waiver.
+ */
+export type assertionRatchetRejectsFreshDrift =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', never >, 'p' > >;
+
+/**
+ * ⬆ GROWTH on a LEDGERED pair — an entry cannot absorb a second key, so drift
+ * cannot be smuggled into a pair that already owes some. Read the other way round,
+ * this is also the pin that a fact DELETED from the seed is not silently
+ * re-acceptable: deleting `'a'` from a recorded `'a' | 'b'` leaves exactly this
+ * shape, and it fails.
+ */
+export type assertionRatchetRejectsGrowth =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a' | 'b', 'a' >, 'p' > >;
+
+/**
+ * ⬇ SHRINK — a recorded key that has since been MIRRORED fails as STALE and names
+ * its own pair. Without this the ledger rots into an allowlist nobody re-reads, and
+ * the shrink-only promise becomes prose.
+ */
+export type assertionRatchetRejectsStaleKey =
+  Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' | 'b' >, 'p' > >;
+
+/** ⬇ SHRINK to nothing — a fully fixed pair fails until its entry is DELETED. */
+export type assertionRatchetRejectsStaleEntry =
+  Expect< Equal< ReconcileAgainstLedger< 'p', never, 'a' >, 'p' > >;
+
+/* ── Recognition: the SPLIT unmirrored ledger, both directions (objectui#6152) ── */
+
+/**
+ * The unmirrored half reconciles one measurement against the UNION of two ledgers.
+ * The pins above cover the shape `Recorded = one ledger`; these cover the shape it
+ * actually has. `'onX'` stands for a callback-shaped key recorded in
+ * `RuntimeOnlyDeclared`, `'a'` for an ordinary omission in `UnmirroredDeclared`.
+ */
+export type ReconcileAgainstSplitLedger< K, Measured, Ordinary, RuntimeOnly > =
+  ReconcileAgainstLedger< K, Measured, Ordinary | RuntimeOnly >;
+
+/** The two halves TOGETHER account for the measured set — silent. */
+export type assertionSplitLedgerAcceptsBothHalves =
+  Expect< Equal< ReconcileAgainstSplitLedger< 'p', 'a' | 'onX', 'a', 'onX' >, never > >;
+
+/**
+ * ⬆ GROWTH — a NEW callback-shaped declared-but-unmirrored key is NOT absorbed by
+ * the runtime-only half. It reddens until someone files it, which is the property
+ * that makes the new category a ratchet rather than a waiver: objectui#6152's
+ * reclassification bought `UnmirroredDeclared` a smaller number, not a hole.
+ */
+export type assertionSplitLedgerRejectsFreshCallback =
+  Expect< Equal< ReconcileAgainstSplitLedger< 'p', 'a' | 'onX' | 'onY', 'a', 'onX' >, 'p' > >;
+
+/**
+ * ⬇ SHRINK — a runtime-only key that has since LEFT the measurement (mirrored, or
+ * the declaration removed) fails as STALE and names its own pair. Same shrink
+ * discipline `UnmirroredDeclared` carries; a reclassified fact does not stop being
+ * watched.
+ */
+export type assertionSplitLedgerRejectsStaleRuntimeOnly =
+  Expect< Equal< ReconcileAgainstSplitLedger< 'p', 'a', 'a', 'onX' >, 'p' > >;
+
+/**
+ * ⚠️ The LIMIT of this reconciliation, pinned rather than left to be discovered:
+ * it is BLIND to which half a key sits in. Moving a key between the ledgers changes
+ * nothing here — so the union alone cannot keep the classification honest, and
+ * without the shape pins below the new category would be a bucket anything could be
+ * moved into. `assertionNoCallbackShapedKeyInUnmirroredDeclared` and
+ * `assertionRuntimeOnlyIsCallbackShapedOnly` are what actually hold the split.
+ */
+export type assertionSplitLedgerIsBlindToWhichHalf =
+  Expect< Equal< ReconcileAgainstSplitLedger< 'p', 'onX', never, 'onX' >, never > >;
+
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
 /** Mirror VALUES, keyed `<file>#<export>`. Runtime, so the census below can read the keys. */
@@ -176,11 +365,6 @@ const MIRRORS = {
   'complex.zod.ts#KanbanSchema': KanbanSchema,
   'crud.zod.ts#ActionCallbackSchema': ActionCallbackSchema,
   'crud.zod.ts#CRUDDialogSchema': CRUDDialogSchema,
-  'crud.zod.ts#CRUDFilterSchema': CRUDFilterSchema,
-  'crud.zod.ts#CRUDOperationSchema': CRUDOperationSchema,
-  'crud.zod.ts#CRUDPaginationSchema': CRUDPaginationSchema,
-  'crud.zod.ts#CRUDSchema': CRUDSchema,
-  'crud.zod.ts#CRUDToolbarSchema': CRUDToolbarSchema,
   'crud.zod.ts#DetailSchema': DetailSchema,
   'data-display.zod.ts#AlertSchema': AlertSchema,
   'data-display.zod.ts#AvatarSchema': AvatarSchema,
@@ -343,11 +527,6 @@ interface Declared {
   'complex.zod.ts#KanbanSchema': Ts_KanbanSchema;
   'crud.zod.ts#ActionCallbackSchema': Ts_ActionCallback;
   'crud.zod.ts#CRUDDialogSchema': Ts_CRUDDialogSchema;
-  'crud.zod.ts#CRUDFilterSchema': Ts_CRUDFilter;
-  'crud.zod.ts#CRUDOperationSchema': Ts_CRUDOperation;
-  'crud.zod.ts#CRUDPaginationSchema': Ts_CRUDPagination;
-  'crud.zod.ts#CRUDSchema': Ts_CRUDSchema;
-  'crud.zod.ts#CRUDToolbarSchema': Ts_CRUDToolbar;
   'crud.zod.ts#DetailSchema': Ts_DetailSchema;
   'data-display.zod.ts#AlertSchema': Ts_AlertSchema;
   'data-display.zod.ts#AvatarSchema': Ts_AvatarSchema;
@@ -471,13 +650,16 @@ interface Declared {
   'views.zod.ts#ViewSwitcherSchema': Ts_ViewSwitcherSchema;
 }
 
-type MirrorKey = keyof typeof MIRRORS;
+export type MirrorKey = keyof typeof MIRRORS;
 
 /** The two halves of the registry must describe the same population. */
 export type assertionRegistryHalvesAgree = Expect< Equal< MirrorKey, keyof Declared > >;
 
-/** The drift on one registered pair. */
-type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K], Declared[K] >;
+/** The TYPE drift on one registered pair: mirrored, but the mirror refuses the declared type. */
+export type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRORS)[K], Declared[K] >;
+
+/** The other half: declared on the TS side, absent from the mirror's `.shape` entirely. */
+export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeof MIRRORS)[K], Declared[K] >;
 
 /* ── The measured drift ledger ──────────────────────────────────────────────── */
 
@@ -505,8 +687,6 @@ interface KnownDrift {
   'complex.zod.ts#FilterBuilderSchema': 'fields';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** TS declares an index signature whose value type includes `undefined`; the mirror`s `z.record` value type does not. The mirror refuses `{ create: undefined }` only. */
-  'crud.zod.ts#CRUDSchema': 'operations';
   /** DISJOINT: TS declares `rowActions?: boolean` (show the column or not), the mirror declares `any[]` (the actions themselves). One of the two is dead; which is a ruling. (`selectable` was a second drifted key here until objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` — `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements `'single'` as a real mode.) */
   'data-display.zod.ts#DataTableSchema': 'rowActions';
   /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. */
@@ -523,16 +703,416 @@ interface KnownDrift {
   'navigation.zod.ts#HeaderBarSchema': 'variant';
 }
 
+/* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
+
+/**
+ * Exact DECLARED-BUT-UNMIRRORED key set per pair: keys the published TypeScript
+ * invites an author to write and the published validator has never heard of.
+ *
+ * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION
+ *
+ * objectui#6058 seeded this ledger at **121 keys**. It records **98**, and the
+ * difference is NOT 23 defects repaired. objectui#6152 measured the 23
+ * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for
+ * every one of them; they moved, intact and still pinned, to `RuntimeOnlyDeclared`
+ * below. ⛔ Nothing was mirrored, no declaration was removed, nothing was waived.
+ *
+ * So: **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** A card that
+ * cites 121 as the size of the mirroring problem, or 98 as a shrink from it, is
+ * wrong in both directions. objectui#6141 is the standing example of what a
+ * silently moved count costs — it is why this paragraph is in the ledger rather
+ * than in a commit message.
+ *
+ * ## ⛔ SHRINK-ONLY, and why a seed is a FLOOR rather than a waiver
+ *
+ * The obvious misreading is that seeding a ledger at 121 facts waives 121 defects.
+ * It is the opposite, and the reason is that **before this ledger the guard saw
+ * ZERO of them**. `NarrowerThanDeclared` maps over the INTERSECTION
+ * `MirroredKeys< M > & keyof D`, so a declared key the mirror never mentions did
+ * not compare unequal — it LEFT THE COMPARISON. Nothing that was previously caught
+ * is being let through, because there was no such thing. Seeding takes the count of
+ * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
+ * grow while they are worked off, and a new declared-but-unmirrored key on any of
+ * the 158 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * including a callback-shaped one, which reddens until it is filed in
+ * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
+ *
+ * Same instrument and same discipline as objectui#6133's `KNOWN_HAND_TYPED_GUARDS`,
+ * which is the landed precedent for this shape in this repo: seed at the measured
+ * debt, fail on growth, fail on staleness, never offer a route that raises a line.
+ *
+ * ## What each entry is, and where the remedy lives
+ *
+ * ⚠️ The remedy is NOT uniformly "mirror the key" — objectui#6058's ruling is
+ * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
+ * are recorded here so whoever works them off does not re-derive them:
+ *
+ *   - **SPEC-DERIVED (3 entries, 13 keys)** — `DashboardComponentSchema`,
+ *     `DashboardWidgetSchema`, `ObjectViewSchema` are in `SPEC_DERIVED_PAIRS` below,
+ *     so their mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
+ *     unmirrored declared key there means the LOCAL declaration carries members the
+ *     spec schema does not model, which is objectui#2231's unification question and
+ *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
+ *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
+ *   - **LOCAL (13 entries, 85 keys)** — plain omissions from a hand-written mirror.
+ *
+ * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
+ * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
+ * (107 → 85). The pair COUNTS did not move — every affected pair kept keys here —
+ * which is why 16 entries still hold 98 keys.
+ *
+ * ## How this was measured, and the trap that makes the number hard to get
+ *
+ * ⚠️ **Do not read the offending set off the compile error.** objectui#6058 lost a
+ * pass to this. The behaviour is not "TypeScript truncates", it is that the two
+ * spellings of the same assertion print DIFFERENTLY, and the worse one gives no
+ * sign that it is incomplete. Both measured:
+ *
+ *   - through a NAMED alias — the spelling `assertionDriftMatchesLedger` uses via
+ *     `LedgerMismatch` — TS prints the ALIAS NAME and elaborates with exactly ONE
+ *     member: `Type 'LedgerMismatch' is not assignable to type 'never'. Type
+ *     '"complex.zod.ts#ChatbotSchema"' is not assignable to type 'never'.` There is
+ *     no ellipsis, so 23 offending pairs read as one. `--noErrorTruncation` does NOT
+ *     expand it, and neither a distributive conditional nor a template-literal
+ *     wrapper forces expansion — both re-associate to the alias.
+ *   - written INLINE, as `assertionUnmirroredMatchesLedger` below is, TS resolves the
+ *     union and prints it WITH a truncation marker: ten neutralised entries printed
+ *     five names, `... 4 more ...`, and the last. Honest about being partial.
+ *
+ * That is the whole reason the new assertion is spelled inline. It is still only a
+ * pointer: the authoritative read is the compiler API — build a Program over
+ * `tsconfig.test.json`, declare one binding per pair, and walk each type's union
+ * members reading `isStringLiteral().value`, bypassing type printing entirely. Its
+ * non-vacuity control on the seeding run: it read all 158 pairs and returned an
+ * EMPTY set for 142 of them, so it is discriminating rather than uniformly silent.
+ */
+interface UnmirroredDeclared {
+  /**
+   * LOCAL. `body` sits in `KnownDrift` above for an unrelated reason (a naming
+   * collision on a key both sides declare); these three the mirror has simply never
+   * heard of.
+   */
+  'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
+  /**
+   * SPEC-DERIVED → objectui#2231. The mirror takes its shape by reference from
+   * `@objectstack/spec`, so `title` is a member the LOCAL declaration carries and the
+   * spec schema does not model. Its three TYPE-drifted keys are in `KnownDrift` above
+   * and route the same way.
+   */
+  'complex.zod.ts#DashboardComponentSchema': 'title';
+  /** SPEC-DERIVED → objectui#2231, same reading as `DashboardComponentSchema`. */
+  'complex.zod.ts#DashboardWidgetSchema': 'pagination' | 'searchable';
+  /** LOCAL. Declared in `../data-display.ts`, absent from the mirror. */
+  'data-display.zod.ts#ChartSchema': 'drillDown';
+  /**
+   * LOCAL, and still the largest single entry at 17. It was 29: the twelve `on*` keys
+   * are in `RuntimeOnlyDeclared` below (objectui#6152). `rowActions` is in
+   * `KnownDrift` above — the mirror does declare that one, disjointly.
+   */
+  'data-display.zod.ts#DataTableSchema':
+    | 'disableInnerScroll' | 'editable' | 'manualPagination' | 'manualSearch' | 'manualSorting'
+    | 'page' | 'rowActionDefs' | 'rowClassName'
+    | 'rowCount' | 'rowStyle' | 'search' | 'selectionResetKey' | 'selectionStyle'
+    | 'showAddRow' | 'showSelectionCount' | 'singleClickEdit' | 'sort';
+  /** LOCAL. */
+  'form.zod.ts#FormFieldSchema': 'field';
+  /**
+   * LOCAL. `fields`/`mode` are in `KnownDrift` above (both mirrored, both drifted in
+   * TYPE); these eight the mirror does not declare at all. It was nine —
+   * `onDirtyChange` is in `RuntimeOnlyDeclared` below (objectui#6152).
+   */
+  'form.zod.ts#FormSchema':
+    | 'defaultFieldTab' | 'fieldContainerClass' | 'fieldPanes' | 'fieldPanesOrientation'
+    | 'fieldPanesResizable' | 'fieldTabs' | 'fieldTabsPosition' | 'mobileStickyActions';
+  /**
+   * LOCAL. Verified by hand against both sources while measuring: declared once in
+   * `../form.ts`, zero occurrences in the mirror.
+   */
+  'form.zod.ts#InputSchema': 'wrapperClass';
+  /** LOCAL. */
+  'form.zod.ts#LabelSchema': 'content';
+  /** LOCAL. */
+  'navigation.zod.ts#PaginationSchema': 'currentPage';
+  /**
+   * LOCAL, and still the second-largest at 21. It was 26: the five `on*` keys are in
+   * `RuntimeOnlyDeclared` below (objectui#6152). ⚠️ `submitHandler` is NOT among them
+   * — the reclassification took the measured `/^on[A-Z]/` set and nothing else, so a
+   * handler-shaped key with another name stays here until someone measures it.
+   */
+  'objectql.zod.ts#ObjectFormSchema':
+    | 'allowSkip' | 'buttons' | 'defaultTab' | 'defaults' | 'drawerSide' | 'drawerWidth'
+    | 'formType' | 'mobile' | 'modalCloseButton' | 'modalSize' | 'nextText' | 'open' | 'prevText'
+    | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
+    | 'subforms' | 'submitHandler' | 'tabPosition';
+  /** LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152). */
+  'objectql.zod.ts#ObjectGridSchema':
+    | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
+    | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'operations'
+    | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
+    | 'singleClickEdit' | 'title';
+  /**
+   * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
+   * objectui#6058 — eleven declared keys the published validator has never heard of,
+   * and the guard reported the pair clean. It is the clearest single instance of the
+   * blind spot this ledger exists to make visible. It was eleven: `onNavigate` is in
+   * `RuntimeOnlyDeclared` below (objectui#6152), which does NOT change the routing of
+   * the other ten — they are still spec-derived and still go to objectui#2231.
+   */
+  'objectql.zod.ts#ObjectViewSchema':
+    | 'allowCreateView' | 'defaultListView' | 'defaultViewType' | 'filterableFields'
+    | 'listViews' | 'navigation' | 'searchableFields' | 'showViewSwitcher'
+    | 'viewActions' | 'viewTabBar';
+  /** LOCAL. */
+  'reports.zod.ts#ReportComponentSchema': 'chartConfig' | 'conditionalFormatting' | 'reportType';
+  /**
+   * LOCAL. It was 14: the three `on*` keys are in `RuntimeOnlyDeclared` below
+   * (objectui#6152), where the 2026-07 audit had already ruled them.
+   */
+  'views.zod.ts#DetailViewSchema':
+    | 'activities' | 'autoDiscoverRelated' | 'autoTabs' | 'comments' | 'defaultTab'
+    | 'highlightFields' | 'history'
+    | 'primaryField' | 'recordNavigation' | 'sectionGroups' | 'summaryFields';
+  /**
+   * LOCAL. Verified by hand against both sources: declared once in `../views.ts`, zero
+   * occurrences in the mirror.
+   */
+  'views.zod.ts#DetailViewSectionSchema': 'hideEmpty';
+}
+
+/* ── The runtime-only / non-authorable ledger (objectui#6152) ─────────────── */
+
+/**
+ * Callback-shaped declared keys that are RUNTIME SLOTS rather than authorable
+ * metadata: kept on the declaration, deliberately never mirrored, separately pinned.
+ *
+ * ## ⚠️ THIS IS WHERE 23 KEYS WENT — a RECLASSIFICATION, not a fix
+ *
+ * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058. It records
+ * **98** today and the difference is these 23, moved here whole. ⛔ Nothing was
+ * mirrored, no declaration was removed, no defect was repaired and nothing was
+ * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
+ * reconciled against the same measurement — under a different remedy.
+ *
+ * **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** Cite it that way.
+ * objectui#6141 is the standing example of what a silently moved count costs.
+ *
+ * ## Why mirroring is the wrong remedy for these (the objectui#6152 ruling)
+ *
+ * Measured on the SHIPPED `dist/*.d.ts`, all 23 are already function-only —
+ * `((row: any) => void) | undefined` and the like, with no string alternative:
+ *
+ *   - ⛔ **Mirroring them enforces nothing.** The only available spelling is
+ *     `z.function()`, which **no serialized authored document can satisfy**. It would
+ *     move 23 rows off a ledger while adding validator surface no authored payload
+ *     can ever populate — converting VISIBLE debt into INVISIBLE non-enforcement,
+ *     which is the "declared ≠ enforced" shape this whole file exists to close.
+ *   - ⛔ **Narrowing the declaration is not available.** objectui#4453's precedent
+ *     narrowed a key that accepted `string | function` to `typeof === 'function'`;
+ *     there is no string branch left here to remove.
+ *   - ⛔ **Removing the declaration would break shipped renderers.** 21 of the 23 are
+ *     read off `schema.*` in renderer source. ⭐ Measured by AST, because a plain
+ *     `schema.onX` grep UNDERCOUNTS — `renderers/complex/data-table.tsx` DESTRUCTURES
+ *     four of them (`const { onPageChange, … } = schema`) and a grep reads those as
+ *     unread. The values reach the renderer by a third channel that is neither
+ *     authored metadata nor a React prop: a sibling component SYNTHESISING a
+ *     schema-shaped object in code and rendering it through `SchemaRenderer`
+ *     (`ObjectGrid.tsx:2937` builds `const dataTableSchema: any`, rendered at
+ *     `:3735`; `ListView`, `ObjectView`, `RelatedList`, `ObjectKanban`,
+ *     `ObjectCalendar`, `ObjectGantt` and `ObjectGallery` all do the same).
+ *
+ * Authored anywhere: **zero of 23**, positive-controlled — a planted `"onRowClick"`
+ * value in a schema-catalog fixture made the same search return exactly that line.
+ *
+ * ## ⚠️ The 16/7 split — these 23 did NOT all arrive the same way
+ *
+ * Read as "the mirrors omit callbacks by policy" this ledger would be wrong about two
+ * thirds of itself. Measured across `../zod/`: **73 `on*` keys are ALREADY mirrored**
+ * (56 `z.function()`, 11 `z.string()`, 3 `z.any()`, 3 named schemas).
+ *
+ *   - **16 were OVERSIGHTS.** `DataTableSchema`'s own mirror already declares four
+ *     callbacks (`onRowEdit`, `onRowDelete`, `onSelectionChange`, `onColumnsReorder`),
+ *     `FormSchema`'s three (`onSubmit`, `onChange`, `onCancel`), `DetailViewSchema`'s
+ *     one (`onBack` — and in the OTHER dialect, `z.string()`). The omitted keys sit in
+ *     the same object literals as the included ones.
+ *   - **7 are POLICY.** `objectql.zod.ts` carries zero `on*` and zero `z.function()`
+ *     in the entire file, and says so in passing at `:164`, where `successMessage` is
+ *     described as what applies "when no `onSuccess` handler is given" — the mirror
+ *     naming the authored alternative to a runtime callback it deliberately does not
+ *     model. Those seven are `ObjectFormSchema`'s 5, `ObjectGridSchema`'s 1 and
+ *     `ObjectViewSchema`'s 1.
+ *
+ * Reclassifying all 23 is still right — the remedy is the same for both groups — but
+ * they are not the same fact, and a later reader must not infer uniform intent from
+ * uniform treatment.
+ *
+ * ## Standing prior art, reached independently for 3 of the 23
+ *
+ * `docs/audits/2026-07-objectview-detailview-schema.md` ruled this before either
+ * ledger existed. At `:148`, on `onNavigate`: "A function. Non-serializable; cannot
+ * live in a JSON protocol." — filed under **Keep local**. At `:237-241`: `onNavigate`,
+ * `onTabChange` and `onAddComment` are "live state and callbacks, not metadata", they
+ * "must never enter a serializable protocol", and "their existence on a schema is
+ * itself the smell: they are why this 'schema' cannot be validated, persisted, or
+ * authored — it is a props bag wearing a schema's clothes". objectui#4650 is the same
+ * split expressed in types: `ObjectFormPropsSchema` is "serialisable authoring keys
+ * only", `ObjectFormComponentProps` is the renderer's props, "none of which can exist
+ * in authored metadata".
+ *
+ * ⭐ And one piece of evidence that the declaration was ALREADY not trusted:
+ * `DetailView.tsx:1402` reads `onTabChange` through an `(schema as any)` cast — at its
+ * ONLY read site, for a key that IS declared on the type.
+ *
+ * ## ⛔ What this category is NOT
+ *
+ * Not a waiver, not a bucket. Three pins hold it to its meaning, and none of them is
+ * prose: `assertionUnmirroredMatchesLedger` reconciles ONE measurement against the
+ * UNION of both ledgers (`RecordedUnmirrored`), so a NEW callback-shaped unmirrored
+ * key reddens until it is filed here and a recorded one that leaves the measurement
+ * fails as STALE naming its own pair — both directions pinned on synthetic pairs at
+ * `assertionSplitLedgerRejectsFreshCallback` and `…RejectsStaleRuntimeOnly`;
+ * `assertionRuntimeOnlyIsCallbackShapedOnly` refuses a non-callback key here; and
+ * `assertionNoCallbackShapedKeyInUnmirroredDeclared` refuses a callback key over
+ * there. The move is one-way and shape-checked.
+ *
+ * ⚠️ The end state is objectui#4650's two-layer split — an authored-metadata type and
+ * a renderer-props type per pair, mirroring only the authored half. This ledger is its
+ * first honest step: it RECORDS what these keys are without pretending they are fixed.
+ * If objectui#6152's escalated second question is ever answered "an authored handler
+ * EXPRESSION is a supported dialect" (the 11 `z.string()` mirrors), an `on*` key can
+ * become genuinely authorable — that is a RULING, and it moves the key back with the
+ * shape pin relaxed deliberately, never by quietly refiling it.
+ */
+interface RuntimeOnlyDeclared {
+  /**
+   * 12 of `DataTableSchema`'s former 29. OVERSIGHT group — this mirror already
+   * declares four callbacks. ⚠️ Two of these are additionally read NOWHERE:
+   * `onColumnResize`/`onColumnReorder` are the only call sites of `saveColumnState`
+   * and `data-table.tsx` invokes neither, so column-state persistence never fires
+   * (objectui#6175, filed separately — NOT fixed by this reclassification). And
+   * `onColumnReorder` is a near-duplicate of the MIRRORED `onColumnsReorder`: one
+   * event, two declared spellings, different signatures. Which spelling survives is
+   * an open ruling and is deliberately not settled here.
+   */
+  'data-display.zod.ts#DataTableSchema':
+    | 'onAddRecord' | 'onBatchSave' | 'onCellChange' | 'onColumnReorder' | 'onColumnResize'
+    | 'onPageChange' | 'onPageSizeChange' | 'onRowActionDef' | 'onRowClick' | 'onRowSave'
+    | 'onSearchChange' | 'onSortChange';
+  /**
+   * 1 of `FormSchema`'s former 9. OVERSIGHT group — `onSubmit`, `onChange` and
+   * `onCancel` are mirrored beside it. Read at `renderers/form/form.tsx:997`, by
+   * destructuring, which is why the AST census and not a grep found it.
+   */
+  'form.zod.ts#FormSchema': 'onDirtyChange';
+  /**
+   * 5 of `ObjectFormSchema`'s former 26. POLICY group — `objectql.zod.ts` mirrors no
+   * callback at all. All five are read in `plugin-form/src/ObjectForm.tsx`.
+   */
+  'objectql.zod.ts#ObjectFormSchema':
+    | 'onCancel' | 'onError' | 'onOpenChange' | 'onStepChange' | 'onSuccess';
+  /** 1 of `ObjectGridSchema`'s former 17. POLICY group. Read at `ObjectGrid.tsx:1334`. */
+  'objectql.zod.ts#ObjectGridSchema': 'onNavigate';
+  /**
+   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. This
+   * pair is ALSO spec-derived, so its other ten keys stay in `UnmirroredDeclared` and
+   * stay routed to objectui#2231; reclassifying its callback does not re-route the
+   * pair. POLICY group.
+   */
+  'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
+  /**
+   * 3 of `DetailViewSchema`'s former 14 — the exact three the 2026-07 audit named. By
+   * mirror SHAPE this is the oversight group (`onBack` is mirrored, as `z.string()`),
+   * but this is also the pair where "a props bag wearing a schema's clothes" was
+   * written, and `onTabChange` is the key read through an `(schema as any)` cast.
+   */
+  'views.zod.ts#DetailViewSchema': 'onAddComment' | 'onNavigate' | 'onTabChange';
+}
+
+/**
+ * Every entry in EITHER unmirrored ledger names a REGISTERED pair.
+ *
+ * A misspelled pair key would otherwise be ignored by the `[K in MirrorKey]` map
+ * below and the real pair would read as having no entry — still red, but pointing at
+ * the wrong thing. This names it directly.
+ */
+export type assertionUnmirroredLedgerKeysAreRegistered =
+  Expect< Equal< Exclude< keyof UnmirroredDeclared | keyof RuntimeOnlyDeclared, MirrorKey >, never > >;
+
+/* ── Classification: what keeps the split from being a bucket ───────────────── */
+
+/**
+ * `on` followed by an uppercase letter.
+ *
+ * Spelled as the 26 letters rather than `` `on${string}` `` so the TYPE and the
+ * `/^on[A-Z]/` census that MEASURED the 23 cannot drift apart: the loose spelling
+ * also matches `only`, `once` and `onboarding`, and would quietly refuse an ordinary
+ * declared key from `UnmirroredDeclared` on a name collision.
+ */
+type CallbackShapedKey = `on${
+  | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M'
+  | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z'}${string}`;
+
+/**
+ * A callback-shaped key recorded as an ORDINARY mirroring debt.
+ *
+ * Refused: objectui#6152 ruled that mirroring is never the remedy for one, so filing
+ * it here would record a remedy the ruling rejects. This is also the pin that shows
+ * the 23 actually LEFT `UnmirroredDeclared` — it would be red if any had stayed.
+ */
+export type CallbackShapedInUnmirrored = {
+  [K in keyof UnmirroredDeclared]: Extract< UnmirroredDeclared[K], CallbackShapedKey >;
+}[keyof UnmirroredDeclared];
+
+export type assertionNoCallbackShapedKeyInUnmirroredDeclared =
+  Expect< Equal< CallbackShapedInUnmirrored, never > >;
+
+/**
+ * A NON-callback key recorded as runtime-only.
+ *
+ * Refused, and this is the load-bearing half: without it the new category is a place
+ * to move any inconvenient key to, and the reclassification becomes the waiver it is
+ * not. `RuntimeOnlyDeclared` can only ever hold what its header claims it holds.
+ */
+export type NonCallbackInRuntimeOnly = {
+  [K in keyof RuntimeOnlyDeclared]: Exclude< RuntimeOnlyDeclared[K], CallbackShapedKey >;
+}[keyof RuntimeOnlyDeclared];
+
+export type assertionRuntimeOnlyIsCallbackShapedOnly =
+  Expect< Equal< NonCallbackInRuntimeOnly, never > >;
+
+/**
+ * The two ledgers are DISJOINT per pair.
+ *
+ * The union reconciliation below cannot see a double-filing — `'a' | 'a'` is `'a'` —
+ * so a key recorded in both halves would reconcile green while making "98 + 23" the
+ * wrong arithmetic and leaving two contradictory remedies on record. Named here
+ * instead of assumed.
+ */
+export type DoubleFiledKey = {
+  [K in keyof RuntimeOnlyDeclared]: K extends keyof UnmirroredDeclared
+    ? Extract< RuntimeOnlyDeclared[K], UnmirroredDeclared[K] >
+    : never;
+}[keyof RuntimeOnlyDeclared];
+
+export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, never > >;
+
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
 /**
- * Every pair's drift equals what the ledger records for it — `never` for the
- * 146 pairs with no entry.
+ * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
+ * 146 pairs with no entry (158 − 12).
+ *
+ * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
+ * inline. That is a semantics-preserving refactor and nothing else — the type is
+ * literally `Equal< Measured, Recorded > extends true ? never : K`, exactly what
+ * stood here — and it buys one thing: the recognition pins at `assertionRatchet…`
+ * now cover THIS assertion's reconciliation as well as the new one's.
  */
 export type LedgerMismatch = {
-  [K in MirrorKey]: Equal< DriftOf< K >, K extends keyof KnownDrift ? KnownDrift[K] : never > extends true
-    ? never
-    : K;
+  [K in MirrorKey]: ReconcileAgainstLedger<
+    K,
+    DriftOf< K >,
+    K extends keyof KnownDrift ? KnownDrift[K] : never
+  >;
 }[MirrorKey];
 
 /**
@@ -566,7 +1146,60 @@ export type LedgerMismatch = {
 export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch;
 
 /**
- * Non-vacuity for all 163 entries at once.
+ * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
+ * pairs with no entry in either (158 − 16; `RuntimeOnlyDeclared`'s 6 pairs are a
+ * measured subset of `UnmirroredDeclared`'s 16, so the clean population is unchanged
+ * by objectui#6152's reclassification).
+ *
+ * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
+ * The exit code is a whole-file verdict, so it moves only while the rest of the
+ * file is green — and objectui#6058 measured the state where it does not move at
+ * all. On the un-seeded tree the comparison was already red on 23 pairs, so
+ * `tsc -p tsconfig.test.json` returned 2 BEFORE and AFTER the card's ablation while
+ * the ablated pair went from clean to ten drifted keys. Seeding this ledger is what
+ * restored the exit code as a usable signal, and it stays usable only while it is
+ * green at rest. To read a change of state, resolve
+ * `UnmirroredOf< '<the named pair>' >` on each side and compare the SETS.
+ *
+ * ⚠️ And it is a COMPILE-TIME assertion. The `describe` block at the bottom of this
+ * file is a population census — it checks that the registry is closed and that
+ * `SPEC_DERIVED_PAIRS` re-derives, and it never compares keys at all. Its
+ * `Tests 5 passed (5)` line does not move when this half reddens, correctly, and it
+ * did not move under the ablation either. Reading the runtime half for evidence
+ * about drift measures the wrong instrument and concludes the guard does nothing.
+ *
+ * When it fires, fix it by MEASURING (the compiler-API recipe and the
+ * error-printing trap are in the ledger's header above):
+ *   1. the message names a pair, possibly with `... N more ...` after it;
+ *   2. resolve `UnmirroredOf< '<pair>' >`;
+ *   3. a key APPEARED — that is a new defect on a published surface; mirror it, or
+ *      narrow the declaration. ⛔ Adding it to `UnmirroredDeclared` is not a supported
+ *      route: that ledger is SHRINK-ONLY. The ONE exception is a callback-shaped key,
+ *      which objectui#6152 ruled can never be mirrored: it is recorded in
+ *      `RuntimeOnlyDeclared` instead, and `assertionRuntimeOnlyIsCallbackShapedOnly`
+ *      is what stops that exception from widening into a waiver;
+ *   4. a key DISAPPEARED — good news, and the entry must be corrected or deleted, in
+ *      whichever of the two ledgers holds it. That is the ratchet doing its job.
+ */
+/**
+ * What the TWO unmirrored ledgers together record for one pair (objectui#6152).
+ *
+ * One measurement, one reconciliation, two ledgers on the recorded side. Splitting
+ * the RECORD by remedy while keeping the MEASUREMENT whole is what makes the
+ * reclassification a bookkeeping change and not a hole: a declared-but-unmirrored key
+ * must appear in one of the two halves or the pair reddens.
+ */
+export type RecordedUnmirrored< K extends MirrorKey > =
+  | (K extends keyof UnmirroredDeclared ? UnmirroredDeclared[K] : never)
+  | (K extends keyof RuntimeOnlyDeclared ? RuntimeOnlyDeclared[K] : never);
+
+export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
+  [K in MirrorKey]: ReconcileAgainstLedger< K, UnmirroredOf< K >, RecordedUnmirrored< K > >;
+}[MirrorKey];
+
+/**
+ * Non-vacuity for all 158 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the

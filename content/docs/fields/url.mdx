@@ -15,19 +15,24 @@ The URL Field component provides a text input with URL validation and clickable 
 
 ## Field Schema
 
+A URL field is authored as `UrlFieldMetadata` (`@object-ui/types`), which is the source
+of truth for the key set: it extends `BaseFieldMetadata` with a single length bound.
+
 ```ts
-interface UrlFieldSchema {
-  type: 'url';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-}
+import type { UrlFieldMetadata } from '@object-ui/types';
+
+const website: UrlFieldMetadata = {
+  type: 'url',
+  name: 'website',
+  label: 'Website',
+  placeholder: 'https://example.com',
+  required: false,
+  max_length: 2048,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Validation
 

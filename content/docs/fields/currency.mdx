@@ -15,24 +15,28 @@ The Currency Field component provides a formatted currency input with proper loc
 
 ## Field Schema
 
+A currency field is authored as `CurrencyFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the currency
+code, the decimal precision and the two numeric bounds.
+
 ```ts
-interface CurrencyFieldSchema {
-  type: 'currency';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: number;                // Default value
-  currency?: string;             // Currency code (default: 'USD')
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  min?: number;                  // Minimum value
-  max?: number;                  // Maximum value
-}
+import type { CurrencyFieldMetadata } from '@object-ui/types';
+
+const amount: CurrencyFieldMetadata = {
+  type: 'currency',
+  name: 'amount',
+  label: 'Amount',
+  placeholder: '0.00',
+  required: true,
+  currency: 'USD',
+  precision: 2,
+  min: 0,
+  max: 1000000,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Supported Currencies
 

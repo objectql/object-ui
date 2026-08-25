@@ -123,6 +123,7 @@ import {
   moduleSpecifiers,
   packageNameOf,
 } from './check-phantom-dependencies.mjs';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -443,7 +444,7 @@ const HINTS = {
     'site has gone silently widens the hole for the next file that lands there.',
 };
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const argOf = (name) => {

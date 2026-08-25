@@ -788,32 +788,39 @@ function packageAliasTargetExists(abs: string): boolean {
 }
 
 /**
- * objectui#5380 — one entry whose target does not exist and which this PR
- * deliberately does NOT delete, for the same reason objectui#4820 was carved
- * out of the `paths` half rather than fixed in it.
+ * objectui#5380 — RESOLVED, and this ratchet is empty as a result.
  *
- * `packages/runner`'s `"@app"` points at `packages/runner/src/app-data`, which
- * is absent in every form (no directory, no `app-data.<ext>`). Its comment reads
- * `DX: App Data Symlink`, and nothing in the repo imports `@app` — the
- * declaration is the only occurrence. So the fix is either "drop the line" or
- * "restore the symlink this DX affordance was written for", and which one is a
- * maintainer call, not a rider on a gate that is only supposed to start looking.
- * Filed as objectui#5380; this file's job here is to stop it being invisible.
+ * It briefly carved out `packages/runner`'s `"@app"`, which pointed at
+ * `packages/runner/src/app-data`. #5380 ruled direction A′: delete the alias
+ * line, on the measured ground that it had **zero importers** and that the
+ * documented App Data Symlink DX does not route through it —
+ * `packages/runner/src/lib/MetadataLoader.ts`'s `LocalBundleLoader` reads that
+ * directory through relative `import.meta.glob('../app-data/…')`, never through
+ * the alias. Deleting the line changed no behaviour.
  *
- * Note it is NOT an `@object-ui/*` key. The finding that opened objectui#5168
- * counted 196 `@object-ui/*` entries, and a gate scoped to that prefix would
- * have shipped green over this. That is the second time this exact config has
- * outlived a target: its own comment records objectui#3593, where a
- * `2>/dev/null` kept a dead `data-objectql` entry quiet.
+ * ⚠️ Read the ground carefully before carving out anything that looks like
+ * this again: `src/app-data/` is NOT a dead target. It is git-ignored
+ * (`packages/runner/.gitignore:1`) and **user-supplied** — the reader creates it
+ * by following `packages/runner/README.md` or `content/docs/utilities/runner.mdx`,
+ * and it is absent from a fresh checkout **by design**. What was dead was the
+ * unused alias, not the thing it named. An existence check reads a
+ * user-supplied directory as missing on CI and present on the machine of anyone
+ * who followed the docs; that checkout-state dependence is objectui#5968's
+ * subject, and this ratchet reaching empty is what removed its only instance
+ * here — not a fix for the class.
  *
- * A shrink-only ratchet, not an exemption. The list may not grow — a NEW dead
- * target is still red — and the pin below asserts the listed entry is still
- * declared AND still missing, so resolving it either way turns this file red
- * until the list is emptied with it.
+ * Note the entry was NOT an `@object-ui/*` key. The finding that opened
+ * objectui#5168 counted 196 `@object-ui/*` entries, and a gate scoped to that
+ * prefix would have shipped green over it. That is why this half takes its
+ * scope from EVERY entry in every table, and why narrowing it to a prefix would
+ * silently shrink the surface.
+ *
+ * A shrink-only ratchet, not an exemption: it may not grow. Empty is its
+ * terminal state — every package alias entry is now guarded with no exemptions,
+ * and the pin below keeps it that way. A NEW dead target is meant to go red in
+ * the existence check above, not to be carved out.
  */
-const KNOWN_MISSING_PACKAGE_ALIAS_TARGETS: readonly { config: string; specifier: string }[] = [
-  { config: 'packages/runner/vite.config.ts', specifier: '@app' },
-];
+const KNOWN_MISSING_PACKAGE_ALIAS_TARGETS: readonly { config: string; specifier: string }[] = [];
 
 const isCarvedOut = (entry: PackageAliasEntry): boolean =>
   KNOWN_MISSING_PACKAGE_ALIAS_TARGETS.some(
@@ -884,7 +891,25 @@ describe('objectui#5168 — package-level vite.config.ts alias tables', () => {
     }
   );
 
-  it('the objectui#5168 carve-out still describes exactly the entries it was written for', () => {
+  it('the objectui#5168 carve-out is empty, so no package alias entry is exempt', () => {
+    // objectui#5380 was resolved by deleting the one carved-out line, so this
+    // list is empty and the existence check above now covers every entry.
+    //
+    // ⚠️ Asserted rather than left implicit. With an empty list BOTH
+    // expectations below are vacuous — each filters an empty list (or filters
+    // by `isCarvedOut`, which is false for everything) and compares [] with [],
+    // so neither can fail for ANY repo state. A silently vacuous pin is the
+    // exact trap the `toBeGreaterThanOrEqual` cases at the top of this block
+    // guard against, so the expectation that still bites at zero has to be
+    // written down: emptiness itself. This one goes red the moment the list is
+    // re-populated, which is the only way the two below become meaningful again.
+    expect(
+      KNOWN_MISSING_PACKAGE_ALIAS_TARGETS,
+      'KNOWN_MISSING_PACKAGE_ALIAS_TARGETS is a shrink-only ratchet that reached empty when ' +
+        'objectui#5380 landed. Re-populating it needs a card of its own — a new dead alias ' +
+        'target is meant to go red in the existence check above, not to be carved out.'
+    ).toEqual([]);
+
     const declared = KNOWN_MISSING_PACKAGE_ALIAS_TARGETS.filter((known) =>
       packageAliasEntries.some((e) => e.config === known.config && e.specifier === known.specifier)
     );

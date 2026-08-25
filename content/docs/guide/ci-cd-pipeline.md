@@ -32,6 +32,9 @@ one has its own section below.
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
+| `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
+| `pre-install-import-graph.yml` | Pre-Install Import Graph Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a gate a workflow runs *before* `pnpm install` reaches a package anywhere in its import graph |
+| `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -79,11 +82,14 @@ checks it requires are green **on that rebuilt commit**. Those runs are a distin
 `merge_group`, on a throwaway `gh-readonly-queue/**` branch — a workflow that does not subscribe
 to that event simply does not run there.
 
-Which workflows subscribe is deliberately not listed here. `MUST_SUBSCRIBE_MERGE_GROUP` in
-`scripts/__tests__/merge-queue-reporting.test.ts` is the maintained list, and the only copy
-anything reads — it records why each entry is on it, and an assertion fails when one of them drops
-the trigger. A copy of it on this page would be right the day it was written and quietly wrong
-after the next subscriber landed, which is exactly what this paragraph used to do
+Which workflows subscribe is deliberately not listed here, and is not maintained by hand anywhere
+either: `scripts/__tests__/merge-queue-reporting.test.ts` derives the floor from
+`REQUIRED_CONTEXTS` — every workflow producing a check that list declares blocking must subscribe,
+and an assertion fails the moment one of them does not. `MUST_SUBSCRIBE_MERGE_GROUP` in the same
+file records *why* particular members are requirable; a further assertion holds it to being a
+subset of the derived floor, so the two cannot drift apart. A copy of the list on this page would
+be right the day it was written and quietly wrong after the next subscriber landed, which is
+exactly what this paragraph used to do
 ([#4154](https://github.com/objectstack-ai/objectui/issues/4154)). What is worth knowing here is
 the rule that decides membership, not the instances: a gate that carries no path filter reports on
 every pull request and is therefore requirable — and a requirable context that skips the queue
@@ -113,11 +119,14 @@ queued PR burns an hour and fails, with nothing red to point at.
 
 Two things follow for anyone editing this directory:
 
-- **A workflow producing a context that could ever be required must subscribe `merge_group`**,
-  and takes an entry in `MUST_SUBSCRIBE_MERGE_GROUP` (above) naming the context it produces. That
-  entry is what fails the build if the workflow later drops the trigger; nothing derives the set,
-  because "may this context be required?" is a property of the repository's settings, which no
-  test here can read.
+- **A workflow producing a context that could ever be required must subscribe `merge_group`.**
+  Nothing has to be added to a list for that to be enforced: name the context in
+  `REQUIRED_CONTEXTS` (`scripts/dependabot-merge-gate.mjs`), which is where this repository already
+  writes down that a check is blocking and reports on every pull request, and the workflow is
+  inside the derived floor from that moment. "May this context be required?" is still a property of
+  the repository's settings that no test here can read — `REQUIRED_CONTEXTS` is a human's answer to
+  it, and deriving from that answer beats writing it down a second time and watching the copies
+  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)).
 - **Some contexts can never be required, structurally**, and no amount of triggering changes
   that. Each line below is blocked by a *different* property, which is why they are all worth
   reading; they are examples rather than a census, so a further workflow carrying any of these
@@ -673,6 +682,155 @@ at the harness. Either fix what the snippet teaches, or — if the block is genu
 it with a reason. Run it locally with `pnpm check:doc-snippets` (after building the packages it
 names: `pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter)`).
 
+## Fence Languages (`doc-fence-languages.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — **no path
+filter**, for the same reason as the two sections above. It appears in the checks list as **Doc Fence
+Language Check**.
+
+Runs `scripts/check-doc-fence-languages.mjs`. It answers the question the gate above cannot ask about
+itself: *is every TypeScript block in the documentation actually fenced as TypeScript?*
+`check-doc-snippet-types` reads `ts` / `tsx` / `typescript` fences and nothing else, so a TypeScript
+block fenced any other way is invisible to it —
+[#5867](https://github.com/objectstack-ai/objectui/issues/5867), whose remediation lane collected its
+population from ```plaintext fences only.
+
+**`plaintext` is not the only spelling of an unhighlighted fence.**
+[#6135](https://github.com/objectstack-ai/objectui/issues/6135) measured a ```text block opening
+`interface FileUploadSchema {` sitting outside the gate *and* outside the lane that exists to close
+it, for no reason but how its fence is spelled. Widening the lane's derivation once would fix that
+block; it would not stop a sixth spelling reopening the identical gap.
+
+**So it reads bodies, not a list of languages.** No enumeration of allowed fence languages is on the
+enforcement path — an enumeration is the thing that rots, and it rots silently. Every fence's body is
+put to #5867's own binding triage classifier (*a block whose first line starts with `import` /
+`export` / `interface` / `type X =` / `const x: T` is code*), quoted rather than extended. `txt`,
+`console`, `raw`, or a bare fence with no info string at all therefore cannot hide a block.
+
+**Two failure modes, because only one can be auto-classified.** A *known* spelling of an
+unhighlighted fence (`plaintext`, `text`, `plain`, `txt`, no info string) is #5867's population and
+its remedy is mechanical, so it is the only mode the baseline describes. Any *other* spelling might
+be a sixth synonym or a real highlighter language — that is a human's call, so it is reported
+separately and can **never** be baselined.
+
+**The baseline is #5867's remaining population.** `KNOWN_UNHIGHLIGHTED_TS_FENCES` maps a path to the
+number of hidden blocks it carries, ⛔ **shrink-only** in the shape
+[#6133](https://github.com/objectstack-ai/objectui/issues/6133) landed for
+`KNOWN_HAND_TYPED_GUARDS`: a file not in the map that carries one fails, a file carrying more than
+its number fails, and a file carrying fewer fails as *stale* and names itself. Every #5867 batch now
+lowers these numbers in the same pull request that re-fences the blocks, so the lane's arithmetic
+lives in the repository instead of being re-derived by hand in each handback.
+
+**`--self-test` runs first.** It drives the real scanner over fixture sources — including a
+`text`-fenced, a `txt`-fenced and an info-string-less TypeScript block — and pins the shrink-only
+baseline in every direction it can move. A scanner whose recogniser is broken reports a clean tree,
+which is why the probe runs before the verdict.
+
+**If it fails:** each line is `file:line ```<language> — <first line of the block>`. Re-fence the
+block ```ts (or ```tsx) and fix whatever `check-doc-snippets` then reports, then lower the file's
+number. Run it locally with `pnpm check:doc-fences`; it needs no install and no build.
+
+## Pre-Install Import Graphs (`pre-install-import-graph.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. What this gate judges is the arrangement of the workflows themselves, so its
+input is `.github/workflows/**` plus the `scripts/` files those workflows name, and the change most
+likely to break it is a workflow edit. It appears in the checks list as **Pre-Install Import Graph
+Check**.
+
+Runs `scripts/check-pre-install-import-graph.mjs`. Several gates in this repository deliberately run
+**before any `pnpm install`** — that is what lets them run unfiltered on every pull request shape for
+the price of a checkout plus one `node` call. The property that arrangement silently depends on is
+that each of those scripts' *whole static import graph* is node builtins plus repo-relative modules,
+with nothing in it needing `node_modules`.
+
+**Why it needed a gate.** A violation is invisible everywhere it could be caught cheaply: it is not a
+type error (`tsc` is happy with a package import), not a lint error (the package is a real dependency
+of the repo), not a local failure (locally `node_modules` exists), and — until
+[#6148](https://github.com/objectstack-ai/objectui/issues/6148) — not a test failure, because exactly
+one of the pre-install scripts had a test asserting it. It surfaces only as `ERR_MODULE_NOT_FOUND`
+inside one CI job, on whichever pull request happens to touch the file; and for the gates that carry
+no path filter *precisely so they see every PR shape*, that is a gate which **stops running** rather
+than one that fails loudly.
+
+**The population is derived, never listed.** On every run the gate parses every workflow and, per
+job, compares each step's index against the index of the first `pnpm install` step **in that same
+job**. Move a step above an install and the population grows on the next run; move one below and it
+shrinks. A hard-coded list would break silently the first time someone moved a step across an
+install, which is exactly the edit that needs catching. Two anchoring decisions the derivation
+depends on, each with a case in this repository: `pnpm exec playwright install chromium` installs a
+browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"` in
+`dependabot-auto-merge.yml` *configures* a driver in a job that never installs — reading either as an
+install would move a boundary and silently drop a script out of the population.
+
+**It walks the graph, not the entry file.** Requiring each of the entry's own imports to start with
+`node:` is too narrow in one direction (a relative import of a builtins-only local module is fine,
+and two of these scripts spell their builtins bare as `from "fs"`, which is equally install-free) and
+too weak in the other, because it cannot see a package pulled in **one hop away**. Since
+[#6092](https://github.com/objectstack-ai/objectui/issues/6092) every one of these scripts imports
+`scripts/invoked-as.mjs`, so one hop away is exactly where the next breach comes from. The check is
+static rather than a runtime resolver hook because a hook *executes* module top level, and these
+files are CI gates that spawn `git`, read the whole tree and call `process.exit`.
+
+**It is in its own population.** The step above runs a `scripts/` file before any install, in a job
+that never installs, so the gate walks its own import graph on every run. A floor that exempted its
+own enforcer would be the first thing to rot.
+
+**If it fails:** it prints the offending chain — `scripts/some-gate.mjs -> scripts/invoked-as.mjs ->
+typescript` — rather than a bare verdict, so the hop that introduced the package is named. Repairing
+the import is deliberately *not* this gate's job: either drop the package, or move the step below
+`pnpm install` in its workflow and accept the install cost. Run it locally with
+`pnpm check:pre-install-import-graph`, `node scripts/check-pre-install-import-graph.mjs --list` to see
+the derived population and every module walked, or `--self-test` to exercise the parser and the walk
+against fixtures.
+
+## Inert vi.mock Specifiers (`vi-mock-specifiers.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. A module mock can be written into any package in any shape of pull request, and
+the scan costs a checkout plus one `node` call, so there is nothing to gain by hiding it behind a
+filter. It appears in the checks list as **Inert vi.mock Specifier Check**.
+
+Runs `scripts/check-vi-mock-specifiers.mjs`. It walks every tracked JS/TS-family source file, finds
+each `vi.mock` / `vi.doMock` call site, and resolves the **relative** specifiers against the calling
+file's own directory. Any that resolves to no file fails the run.
+
+**Why it needed a gate.** A mock whose specifier names no file does **not** error. Vitest registers
+it against a module id nothing imports, the run proceeds with the *real* module everywhere, and the
+suite passes — with no warning and no smaller assertion count, identically to a correct one. In
+[#5646](https://github.com/objectstack-ai/objectui/issues/5646)'s one known instance (PR #5645) the
+suite passed even when the code under test was reverted to the exact broken shape it had been written
+to catch; only an ablation leg exposed it. Neighbouring mocks in that same file made it invisible to a
+reader: one stepped up a single level and one stepped up two, and **both were correct**, because
+their targets sat at different depths. This is
+[#4347](https://github.com/objectstack-ai/objectui/issues/4347) one layer down — a declaration
+pointing at nothing, reported as a pass.
+
+**It is green at rest, so its census is part of the verdict.** There are zero unresolvable specifiers
+in the tree and there should stay zero, which means the run's output alone cannot distinguish a
+working gate from one that matches nothing. Two things answer that. The verdict line prints the
+**population** it judged, not a bare `OK`. And the scan **fails when that population collapses**: no
+source files, no test files, or no relative specifiers is a broken walk, not a clean tree, and
+reporting `OK` for it would be this gate's own defect one level up. The evidence that the gate works
+lives in `scripts/__tests__/check-vi-mock-specifiers.test.ts`, which reconstructs the historical
+specifier on a fixture tree and pins that the two correct neighbours are *not* flagged.
+
+**Resolution matches how this repo spells specifiers**, which is more than an existence check: the
+bare path plus `.ts/.tsx/.js/.jsx/.mjs/.cjs`, the `/index.*` forms, and a trailing `.js` stripped and
+retried, because `src/` is NodeNext throughout. The judgement is `isFile` rather than "exists", so a
+directory with no index is correctly unresolved. Comments are masked and a call quoted inside a string
+literal is counted but not judged — an ESLint `RuleTester` code sample is source text, not a mock.
+
+**Scope:** relative specifiers only. A bare specifier (`@object-ui/…`, `lucide-react`) can be
+misspelled too, but resolving one needs the workspace map rather than the filesystem — a different
+check with a different failure mode. Bare specifiers are counted in the census and never judged.
+
+**If it fails:** it names the file, the line and the specifier, and the first path it tried. Fix the
+specifier, then confirm the mock is really installed by reverting the code under test and checking
+that the suite goes red. Run it locally with `pnpm check:vi-mock-specifiers`, or
+`node scripts/check-vi-mock-specifiers.mjs --list` to see every call site the walk found. It needs no
+install and no build.
+
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Weekly cron (`17 4 * * 0` — Sundays, off the top of the hour, when the scheduled-run
@@ -1132,8 +1290,8 @@ The rendered summary says that surface is **UNREAD**, never that it is clean
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.claude/hooks/**` or this
 workflow file changes**. **Blocks a PR:** yes.
 
-Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` (100 cases) and
-`.claude/hooks/guard-shared-stash.selftest.sh` (32 cases) — the hermetic self-test matrices for
+Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` and
+`.claude/hooks/guard-shared-stash.selftest.sh` — the hermetic self-test matrices for
 the two PreToolUse guards behind the rule both `CLAUDE.md` files state as binding: worktree-first,
 and never `git stash` (AGENTS.md §9). Each self-test builds its own throwaway git fixture and
 needs only `jq` and `git`, both preinstalled on `ubuntu-latest` — no install, no build.

@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+
+// The shared registration reader (objectui#4894). Types are INFERRED from the
+// .mjs source by `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error`.
+import { readComponentRegistrations } from '../component-registrations.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -1434,20 +1438,50 @@ describe('objectui#3899 specimen: @object-ui/layout registers through the source
     // a test asserting a component that does not exist. (`SidebarNav` reaches
     // the registry under NO key at all — it is consumed as a plain React
     // component in JSX, corrected in objectui#3999.)
-    const registeredKeys = [
-      ...fs.readFileSync(path.join(layoutSrc, 'index.ts'), 'utf8').matchAll(/ComponentRegistry\.register\(\s*'([^']+)'/g),
-    ].map((match) => match[1]);
+    //
+    // The read is `scripts/component-registrations.mjs` (objectui#4894), shared
+    // with the three pins in `packages/layout/src/__tests__/`. It replaced four
+    // copies of a regex that accepted a single-quoted key and nothing else, and
+    // this file was the copy whose failure was SILENT: see the census note below.
+    const registrations = readComponentRegistrations(
+      fs.readFileSync(path.join(layoutSrc, 'index.ts'), 'utf8'),
+      'packages/layout/src/index.ts',
+    );
+    const registeredKeys = registrations.keys;
 
-    // A floor, not a census: it exists so a regex that stops matching cannot
-    // turn the loop below into a no-op. It read `6` until objectui#4841
-    // deregistered `app-shell` (ADR-0049 remove side), which is the one way this
-    // number is allowed to move — DOWN, with a register call deleted in the same
-    // commit. The keys themselves are pinned by name in
+    // A CENSUS, not a floor — and this is the half of objectui#4894 that widening
+    // a regex does not fix.
+    //
+    // This assertion read `toBeGreaterThanOrEqual(5)`, and its own comment said
+    // "a floor, not a census". A floor cannot see a key that is MISSING FROM THE
+    // READ: "five single-quoted calls plus one double-quoted call" satisfied it,
+    // so the sixth key's "survives the side-effect-only bundle" assertion simply
+    // never ran, and nothing anywhere went red. Of the four pins on this key
+    // list, this was the one that failed in silence — the two doc-parity pins at
+    // least reddened (with a backwards message), and the `app-shell` pin has a
+    // live-registry second line of defence.
+    //
+    // An exact LITERAL was the other candidate and is worse: it read `6` until
+    // objectui#4841 deregistered `app-shell`, and a number kept here reds on every
+    // legitimate registration added — which is how an exact count gets loosened
+    // back to a floor by the next person who adds a key. So the count is exact and
+    // DERIVED: every `ComponentRegistry.register` call the reader saw in code has
+    // to have yielded a key it could read. Add a key and it still holds; write one
+    // in a form the reader cannot see and it does not.
+    //
+    // The shared reader refuses a partial read at source — it throws rather than
+    // returning a short list — so on today's tree this line cannot be the thing
+    // that reddens first. It is stated here anyway, because it is the fact THIS
+    // loop depends on, and it is what still holds the loop honest if that refusal
+    // is ever relaxed. The keys themselves are pinned by name in
     // `packages/layout/src/__tests__/guide-layout-sidebar-nav-doc.test.ts`.
     expect(
       registeredKeys.length,
-      'No `ComponentRegistry.register` call found in src/index.ts — the loop below would assert nothing.',
-    ).toBeGreaterThanOrEqual(5);
+      `src/index.ts has ${registrations.calls} \`ComponentRegistry.register\` call(s) but only ` +
+        `${registeredKeys.length} readable key(s), so the loop below would skip one in silence. ` +
+        'Unreadable: ' +
+        (registrations.unreadable.map((c: { line: number }) => `line ${c.line}`).join(', ') || 'none'),
+    ).toBe(registrations.calls);
 
     for (const key of registeredKeys) {
       expect(code, `the \`${key}\` registration must survive a side-effect-only import`).toContain(key);

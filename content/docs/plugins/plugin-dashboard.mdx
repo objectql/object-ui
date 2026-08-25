@@ -329,12 +329,19 @@ from widget `options`. In particular, on a dataset-bound gauge:
 ## TypeScript Support
 
 ```plaintext
-import type { DashboardSchema, MetricCardSchema } from '@object-ui/plugin-dashboard';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 
-const dashboard: DashboardSchema = {
+const widget: DashboardWidgetSchema = {
+  id: 'revenue',
+  title: 'Revenue',
+  type: 'metric-card',
+  layout: { x: 0, y: 0, w: 1, h: 1 },
+};
+
+const dashboard: DashboardComponentSchema = {
   type: 'dashboard',
   columns: 3,
-  widgets: [...]
+  widgets: [widget],
 };
 ```
 

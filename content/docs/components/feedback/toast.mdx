@@ -29,11 +29,13 @@ interface ToastSchema {
   type: 'toast';
   title?: string;                // Toast title
   description?: string;           // Toast message
-  variant?: 'default' | 'destructive';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   
-  // Action
-  actionLabel?: string;           // Action button label
-  onAction?: string | ActionConfig;
+  // Action button
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
   
   // Timing
   duration?: number;              // Auto-dismiss time in ms

@@ -12,27 +12,34 @@ The Date Field component provides a date picker for selecting dates and optional
 ## With Default Value
 
 <SchemaExample id="fields-date/with-default-date" />
-
 ## Field Schema
 
+A date field is authored as `DateFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with a display format
+and the two range bounds.
+
 ```ts
-interface DateFieldSchema {
-  type: 'date' | 'datetime';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string | Date;         // Default value (ISO string or Date)
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  min?: string | Date;           // Minimum date
-  max?: string | Date;           // Maximum date
-  format?: string;               // Display format
-}
+import type { DateFieldMetadata } from '@object-ui/types';
+
+const closeDate: DateFieldMetadata = {
+  type: 'date',
+  name: 'close_date',
+  label: 'Close Date',
+  placeholder: 'Pick a date',
+  required: true,
+  format: 'yyyy-MM-dd',
+  min_date: '2024-01-01',
+  max_date: '2030-12-31',
+  dueLike: true,
+};
 ```
+
+The range bounds are `min_date` and `max_date` — the same spelling the datetime field
+uses. `datetime` is its own type with its own metadata (`DateTimeFieldMetadata`); see
+[DateTime Field](/docs/fields/datetime).
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Date Formats
 

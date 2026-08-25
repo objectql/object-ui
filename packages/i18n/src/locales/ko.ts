@@ -2301,7 +2301,9 @@ const ko = {
         object: "오브젝트",
         dashboard: "대시보드",
         page: "페이지",
+        report: "보고서",
         record: "레코드",
+        metadata: "메타데이터",
       },
     },
     starredApps: {

@@ -723,7 +723,7 @@ nothing:
 | Written on a form schema | What actually happens |
 |---|---|
 | `dataSource` | **Discarded.** The basic form strips it in both directions — `dataSource: _dataSource` at `form.tsx:304` (`stripRendererOnlyProps`) and `:2168` — so it never reaches a widget and never reaches the DOM. The adapter the fields receive is the context one |
-| `resource` | **Never read.** It is not declared on `FormSchema` or `ObjectFormSchema` at all. The key exists elsewhere in the protocol — on **`CRUDSchema`** (`packages/types/src/crud.ts`, `type: 'crud'`), where `CRUDBuilder` in `@object-ui/core` sets it — but no form renderer reads it under any spelling. On a form it names nothing |
+| `resource` | **Never read.** It is not declared on `FormSchema` or `ObjectFormSchema` at all. It used to exist elsewhere in the protocol — on `CRUDSchema`, where `CRUDBuilder` set it — but objectui#5373 retired both under ADR-0049, so today the key names nothing anywhere in this package's surface, and no form renderer reads it under any spelling |
 
 Both survive compilation for the reason [Schema API](#schema-api) gives: `FormSchema`
 and `ObjectFormSchema` extend `BaseSchema`, which declares `[key: string]: any`, so an
