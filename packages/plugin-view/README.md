@@ -88,7 +88,7 @@ import {
   RECORD_SURFACE_PAGE_THRESHOLD,
   deriveFieldOptions, // object fields -> picker options
   toFilterGroup, // filter rules -> FilterGroup
-  toSortItems, // sort config -> SortItem[]
+  toSortItems, // sort config ({ field, order }) -> SortItem[]
   VIEW_TYPE_LABELS,
   VIEW_TYPE_OPTIONS,
   isImageLikeField,
