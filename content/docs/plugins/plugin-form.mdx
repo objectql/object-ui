@@ -99,9 +99,11 @@ is bound to react-hook-form, whose initial values come from the form.
 
 #### `validation` is an object keyed by rule name
 
-There is no `ValidationRule` type in this repository, under any spelling. The
-type of the key is `FieldValidationRules` (`packages/types/src/form.ts`), and it
-is **not** an array of `{ type, value, message }` entries:
+There is no `ValidationRule` type in this repository. Near-spellings do exist —
+`AdvancedValidationRule`, `ValidationRuleType`, `ObjectValidationRule` and
+`DesignerValidationRule` — and none of them types this key. The type of the key
+is `FieldValidationRules` (`packages/types/src/form.ts`), and it is **not** an
+array of `{ type, value, message }` entries:
 
 | Rule | Type | Notes |
 | --- | --- | --- |

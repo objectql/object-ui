@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
 import { analyze, deriveRegistryKeys, scanDocs } from '../check-doc-component-types.mjs';
+import { blank, scanSource } from '../js-comment-mask.mjs';
 
 /**
  * objectui#4823 — the test for `scripts/check-doc-component-types.mjs`.
@@ -578,6 +580,71 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
   });
 });
 
+/**
+ * Comments AND string / template / regex literal CONTENT blanked, offsets kept.
+ *
+ * Both halves are load-bearing, and the second one is what lets the scan below
+ * read THIS file without reding on it: the fixture table writes the very
+ * declaration it is looking for, as a string. `maskComments` alone leaves those
+ * strings live. Measured over the 3,603 TypeScript files git tracks, blanking
+ * literal content as well loses 16 of 2,324 top-level exported declarations, in
+ * exactly two files — `packages/sdui-parser/src/codegen.ts`, which EMITS a
+ * declaration from a template, and `check-spec-symbol-derivation.test.ts`, whose
+ * fixtures are template literals. Both are the direction to lose them in: source
+ * that declares nothing must not be read as declaring something.
+ */
+function codeOnly(source: string): string {
+  const { comment, literal } = scanSource(source);
+  const flags = new Uint8Array(source.length);
+  for (let i = 0; i < source.length; i++) flags[i] = comment[i] || literal[i];
+  return blank(source, flags);
+}
+
+/**
+ * Every site in `source` that puts the BARE name `ValidationRule` into this
+ * repository's types, reported as `line: what`. Empty means the sentence on
+ * `content/docs/plugins/plugin-form.mdx` holds for this file.
+ *
+ * ⛔ Why this is written the long way (objectui#6186). A substring match on
+ * `ValidationRule` matched 106 lines when this was written, every one of them a
+ * real and DIFFERENT type: `AdvancedValidationRule`, `ValidationRuleType`,
+ * `ObjectValidationRule`, `DesignerValidationRule` and `FieldValidationRules`,
+ * plus `ValidationRuleSchema`, `ValidationRuleDraft`, `BaseValidationRuleShape`
+ * and `buildValidationRules`. A naive match therefore reds on a TRUE claim, and
+ * the next person to hit that deletes the assertion — which puts the claim back
+ * where it started, unguarded. So every spelling above is fixtured as a NEGATIVE
+ * in the test below rather than remembered here.
+ */
+function bareValidationRuleSites(source: string): string[] {
+  const code = codeOnly(source);
+  const lineOf = (index: number) => code.slice(0, index).split('\n').length;
+  const sites: string[] = [];
+
+  // A declaration of the exact name. The trailing `\b` is what keeps
+  // `ValidationRuleType` and `ValidationRuleDraft` out; requiring the keyword and
+  // the whitespace immediately before the name is what keeps
+  // `AdvancedValidationRule`, `ObjectValidationRule`, `DesignerValidationRule`
+  // and `FieldValidationRules` out.
+  for (const m of code.matchAll(/\b(?:interface|class|enum)\s+ValidationRule\b|\btype\s+ValidationRule\s*[=<]/g)) {
+    sites.push(`${lineOf(m.index ?? 0)}: declares \`${m[0].replace(/\s+/g, ' ').trim()}\``);
+  }
+
+  // A re-export publishes the name without declaring it here, so a check that
+  // read declarations alone would call the page true while
+  // `import { ValidationRule } from '@object-ui/types'` compiled for the reader.
+  // Specifiers are SPLIT rather than matched inside the braces, which is what
+  // keeps `export { ValidationRuleSchema }` out — and `export { ValidationRule as
+  // SpecRule }` too, because that publishes a different name.
+  for (const m of code.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}/g)) {
+    for (const specifier of m[1].split(',')) {
+      const published = specifier.trim().split(/\s+as\s+/).pop()?.trim().replace(/^type\s+/, '');
+      if (published === 'ValidationRule') sites.push(`${lineOf(m.index ?? 0)}: re-exports \`ValidationRule\``);
+    }
+  }
+
+  return sites;
+}
+
 describe('objectui#5118 — the plugin-form page teaches the real `validation` shape', () => {
   // The `type` literals this gate judges were only half the drift on that page.
   // `### Form Field` redeclared a local `interface FormField` whose `validation`
@@ -597,6 +664,100 @@ describe('objectui#5118 — the plugin-form page teaches the real `validation` s
     // the declaration a reader copies.
     expect(body).not.toMatch(/validation\??\s*:\s*ValidationRule/);
     expect(body).toContain('There is no `ValidationRule` type in this repository');
+  });
+
+  // ── The OTHER half of that pin (objectui#6186) ─────────────────────────────
+  // `toContain` above asserts the sentence is PRESENT. It cannot assert the
+  // sentence is TRUE. Land a bare declaration of the name tomorrow and the page
+  // turns false while that assertion stays green — worse than no pin at all,
+  // because a green test reads as coverage of the claim it quotes. The two tests
+  // below re-derive the claim from source instead of pinning the prose that
+  // states it. Presence and truth are different assertions; there is now one of
+  // each and neither pretends to do the other's job.
+  //
+  // ⛔ The pin above stays exactly as it is. Its job — keeping the fiction from
+  // being authored back into a snippet a reader copies — is not this one's.
+
+  it('the bare-`ValidationRule` match discriminates every near-spelling that really exists', () => {
+    // Fixtures rather than the tree, so the negative control stays decidable
+    // when the types move. Every negative is a spelling this repository really
+    // writes, cited where it lives — an assertion that red on `FieldValidationRules`
+    // would be deleted by the first person who hit it, and the claim would be
+    // back to unguarded.
+    for (const source of [
+      'export interface ValidationRule {\n  type: string;\n}',
+      'export type ValidationRule = { type: string };',
+      'export type ValidationRule<T> = T[];',
+      'interface ValidationRule {}',
+      'export declare class ValidationRule {}',
+      'export enum ValidationRule {}',
+      "export { ValidationRule } from './rules';",
+      "export type { SpecRule as ValidationRule } from '@objectstack/spec';",
+    ]) {
+      expect(bareValidationRuleSites(source), source).not.toEqual([]);
+    }
+
+    for (const source of [
+      'export interface AdvancedValidationRule {}', //          packages/types/src/data-protocol.ts:708
+      "export type ValidationRuleType = 'required';", //        packages/types/src/data-protocol.ts:748
+      'export type ObjectValidationRule = { name: string };', // packages/types/src/data-protocol.ts:1129
+      'export interface DesignerValidationRule {}', //           packages/types/src/designer.ts:762
+      'export interface FieldValidationRules {}', //             packages/types/src/form.ts:744
+      'interface ValidationRuleDraft {}', //                     app-shell ObjectValidationsPanel.tsx:46
+      'interface BaseValidationRuleShape {}', //                 quoted at types/src/data-protocol.ts:980
+      "import { ValidationRuleSchema } from '@objectstack/spec/data';",
+      "export { ValidationRuleSchema } from '@objectstack/spec/data';",
+      'export function buildValidationRules(field: unknown) {\n  return field;\n}',
+      'const rules: ObjectValidationRule[] = [];',
+      "export { ValidationRule as SpecRule } from '@objectstack/spec';", // publishes another name
+      '// nothing here declares interface ValidationRule', //             prose is masked
+      "const fixture = 'export interface ValidationRule {}';", //         a fixture is masked
+    ]) {
+      expect(bareValidationRuleSites(source), source).toEqual([]);
+    }
+  });
+
+  it('re-derives the claim: nothing this repository declares is a bare `ValidationRule`', () => {
+    // SCANNED POPULATION, stated because the sentence says "in this repository":
+    // every TypeScript file git tracks — `git ls-files` filtered to the `.ts`
+    // family, `.d.ts` included. 3,603 files on the tree this was written against.
+    // It is DERIVED, not listed: `node_modules`, `dist` and every other build
+    // output are untracked and so are out by construction, and a TypeScript type
+    // cannot be declared in a file outside that family.
+    // `scripts/check-control-bytes.mjs` reads this repository the same way, for
+    // the same reason.
+    //
+    // ⚠️ The population and the sentence have to stay co-extensive. If this scan
+    // ever has to be narrowed, narrow the sentence on the page with it — a gate
+    // that asserts less than the prose while looking like it covers it is the
+    // exact defect objectui#6186 filed.
+    const tracked = execFileSync('git', ['ls-files', '-z'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .split('\0')
+      .filter((rel) => /\.(?:[cm]?ts|tsx)$/.test(rel));
+
+    // The walk cannot collapse quietly: an empty population makes the assertion
+    // below vacuous and green forever, which is the shape this whole block exists
+    // to stop.
+    expect(tracked.length, 'the source walk found no TypeScript files at all').toBeGreaterThan(1000);
+
+    const sites: string[] = [];
+    for (const rel of tracked) {
+      const source = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+      // Prefilter on the raw bytes. Masking only ever REMOVES text, so a site in
+      // the masked code implies the raw file carries the name.
+      if (!source.includes('ValidationRule')) continue;
+      for (const site of bareValidationRuleSites(source)) sites.push(`${rel}:${site}`);
+    }
+
+    expect(
+      sites,
+      'content/docs/plugins/plugin-form.mdx tells the reader there is no `ValidationRule` type here. ' +
+        `These declare or publish one, so either the page or the type has to go:\n${sites.join('\n')}`,
+    ).toEqual([]);
   });
 
   it('authors `validation` as an object keyed by rule name, never an array', () => {
