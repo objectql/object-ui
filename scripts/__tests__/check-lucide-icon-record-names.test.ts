@@ -586,6 +586,11 @@ describe('this repository', () => {
       .filter(([, spec]) => 'descendants' in spec && spec.descendants)
       .map(([type]) => type);
     expect(declaring).toContain('dropdown-menu');
+    // objectui#6278 — the same shape in `renderers/overlay/context-menu.tsx`.
+    // Its four catalog names (`copy`, `scissors`, `clipboard`, `trash`) are
+    // judged only through this declaration; drop the entry and the fixture goes
+    // back to being unjudged while the repo stays green.
+    expect(declaring).toContain('context-menu');
   });
 
   it('did NOT grow part 1 in the process — descent is a part-2 rule', () => {
@@ -596,6 +601,10 @@ describe('this repository', () => {
     expect(repoResult.discovered.record).toHaveLength(8);
     expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
     expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
+    // objectui#6278 routes the twin the same way, so it must not move the
+    // part-1 count above either.
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/context-menu.tsx');
+    expect(RECORD_READING_TYPES['context-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
   });
 
   it('really judges the `ui:icon` nodes objectui#6009 opened up', () => {

@@ -205,6 +205,20 @@ export const RECORD_READING_TYPES = {
   'action:group': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:menu': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
+  // The twin of the `dropdown-menu` entry below, and it earns its own line for
+  // the same reason: the container's OWN `icon` is never read (`paths: []`),
+  // while its item icons sit on untyped children, recursively, and every one of
+  // them goes through the single `resolveIcon(item.icon)` call that serves BOTH
+  // the leaf arm and the submenu-trigger arm. The renderer did not read the key
+  // at all until objectui#6278, which is why this entry could not have been
+  // added by objectui#5992 — a census entry declares that a type's names REACH
+  // a vocabulary, and until the repair landed they reached nothing.
+  'context-menu': {
+    paths: [],
+    descendants: true,
+    min: 1,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/context-menu.tsx)',
+  },
   'data-table': { paths: ['rowActionDefs[].icon'], resolver: 'packages/components/src/renderers/complex/data-table.tsx' },
   // The container's OWN `icon` is never read (`paths: []`); its item icons sit
   // on untyped children, recursively, and every one of them goes through the
