@@ -423,9 +423,13 @@ all**, which is the point of the workflow. It appears in the checks list as **In
 Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
-its `SCAN_ROOTS` — `content/docs/`, `examples/`, the root `README.md`, `CONTRIBUTING.md`,
-`ROADMAP.md`, the internal `docs/` tree and every package `README.md` — and asks of each internal
-markdown link whether its target is really there.
+its `SCAN_ROOTS` (17 rows as of objectui#6280) — `content/docs/`, `examples/`, the internal `docs/`
+tree, every package and app `README.md`, the rest of each package's and app's directory tree (every
+file except `README.md` and `CHANGELOG.md`, the latter excluded everywhere as changesets output
+rather than authored prose), every nested `README.md` a package or app carries below its top level,
+and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`,
+`CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — and asks of each
+internal markdown link whether its target is really there.
 
 **Two rules, because the two groups are read through different machinery** (objectui#3536). For
 `content/docs/` the question is the one a site reader cares about, **does the site serve this URL?**
@@ -1058,7 +1062,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and every package `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), and, as paths on disk: `examples/`, the internal `docs/` tree, every package and app `README.md`, the rest of each package's and app's directory tree (everything but `README.md`/`CHANGELOG.md`), every nested `README.md`, and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
