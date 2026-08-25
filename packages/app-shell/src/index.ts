@@ -12,6 +12,16 @@ export { AppShell } from './components/AppShell.js';
 export { AdapterProvider, useAdapter } from './providers/AdapterProvider.js';
 export { MetadataProvider, useMetadata, useMetadataItem } from './providers/MetadataProvider.js';
 export { ExpressionProvider, useExpressionContext, evaluateVisibility } from './providers/ExpressionProvider.js';
+/**
+ * The `user` normalisation `ExpressionProvider` is fed with — exported so every
+ * console surface that mounts the provider publishes the SAME `current_user`
+ * shape (objectui#6110). It supplies the defaults a predicate needs in order to
+ * evaluate to FALSE rather than FAULT: an absent `positions` makes
+ * `'x' in current_user.positions` an unbound-key fault, which fails OPEN, so a
+ * second mount site re-deriving this by hand would reintroduce exactly the
+ * asymmetry #6010's parity pin exists to refuse.
+ */
+export { buildExpressionUser } from './console/AppContent.js';
 
 // Hooks
 export { useObjectActions } from './hooks/useObjectActions.js';

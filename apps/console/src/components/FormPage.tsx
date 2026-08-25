@@ -114,6 +114,7 @@ import {
   resolveFieldRuleState,
   type FieldRulePredicate,
 } from '@object-ui/core';
+import { usePredicateScope } from '@object-ui/react';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
 
@@ -605,9 +606,10 @@ export function isFieldVisible(
   field: RenderableField,
   values: Record<string, unknown>,
   previous?: Record<string, unknown> | null,
+  predicateScope?: Record<string, unknown>,
 ): boolean {
   if (field.hidden) return false;
-  return evalFieldPredicate(field.visibleWhen, values, true, previous ?? undefined, undefined, {
+  return evalFieldPredicate(field.visibleWhen, values, true, previous ?? undefined, predicateScope, {
     // Named for the canonical key even when the deprecated alias supplied the
     // predicate: ADR-0089 is what this predicate is CALLED, and the warning
     // prints the source text verbatim, which is what finds a hand-written
@@ -647,8 +649,9 @@ export function isSectionVisible(
   section: RenderableSection,
   values: Record<string, unknown>,
   previous?: Record<string, unknown> | null,
+  predicateScope?: Record<string, unknown>,
 ): boolean {
-  return evalFieldPredicate(section.visibleWhen, values, true, previous ?? undefined, undefined, {
+  return evalFieldPredicate(section.visibleWhen, values, true, previous ?? undefined, predicateScope, {
     // Sections have no `name`, so the locator is the heading an author can
     // actually find in their own metadata; an unlabelled section says so
     // rather than printing `undefined`.
@@ -704,6 +707,7 @@ export function resolveRowState(
   values: Record<string, unknown>,
   previous: Record<string, unknown> | null | undefined,
   isCreateForm: boolean,
+  predicateScope?: Record<string, unknown>,
 ): { visible: boolean; readonly: boolean; required: boolean } {
   const ruleState = resolveFieldRuleState(
     field.rules ?? {},
@@ -720,10 +724,10 @@ export function resolveRowState(
       ),
     },
     previous ?? undefined,
-    undefined,
+    predicateScope,
     `field '${field.name}'`,
   );
-  const viewVisible = isFieldVisible(field, values, previous);
+  const viewVisible = isFieldVisible(field, values, previous, predicateScope);
   return {
     visible: ruleState.visible && viewVisible,
     readonly: ruleState.readonly,
@@ -1536,6 +1540,32 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
    * never reads `?recordId=` at all.
    */
   const isCreateForm = target.kind !== 'edit';
+  /**
+   * The host shell's global predicate scope — `current_user` plus the ADR-0068
+   * `user` / `ctx.user` / `os.user` aliases, `app`, `data`, `features` — read
+   * from the `PredicateScopeProvider` an `ExpressionProvider` mounts, and
+   * threaded into all three evaluators below (objectui#6110). Same binding the
+   * sibling renderer took in #6010, so one authored `visibleWhen` means one
+   * thing on both form chains.
+   *
+   * ## The two routes are told apart by WHO MOUNTS THEM, not by a new key
+   *
+   * `/forms/:name` renders inside `InternalFormRoute`, which has an
+   * authenticated session and publishes it through `ExpressionProvider`.
+   * `/f/:slug` is mounted bare in `App.tsx`, deliberately outside
+   * `ProtectedRoute`, because an anonymous visitor must be able to submit it —
+   * so no provider sits above it and this returns `{}`. That is not a gap left
+   * unfilled: an anonymous form HAS no principal, and binding an empty scope is
+   * precisely that statement. A `current_user` predicate authored on a public
+   * form therefore still faults and still fails OPEN, exactly as before this
+   * change; nothing new is declared to say so.
+   *
+   * `features` is likewise empty here rather than fetched. `ExpressionProvider`
+   * already documents `{}` as the pre-load state whose predicates default to
+   * visible, and wiring a deployment-config fetch into this route would be a
+   * different card.
+   */
+  const predicateScope = usePredicateScope();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1816,7 +1846,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
           // would renumber every later section the moment one hid, remounting
           // their inputs and taking the caret with them. `null` keeps each
           // surviving section on the key it already had.
-          if (!isSectionVisible(sec, values, loaded.record)) return null;
+          if (!isSectionVisible(sec, values, loaded.record, predicateScope)) return null;
           return (
           <section key={i} className="rounded-md border bg-card p-4 sm:p-5">
             {sec.label && (
@@ -1838,7 +1868,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
                 // things that depend on it below — the row's presence, the
                 // required marker, and the control's own attributes. Computing
                 // it three times would be three chances to disagree.
-                const state = resolveRowState(f, values, loaded.record, isCreateForm);
+                const state = resolveRowState(f, values, loaded.record, isCreateForm, predicateScope);
                 if (!state.visible) return null;
                 return (
                 <div

@@ -212,6 +212,105 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
     expect(doc).not.toMatch(/size-check\.yml/);
     expect(workflowFiles).not.toContain('size-check.yml');
   });
+
+  /**
+   * objectui#4912: `skip-changeset` is the other phantom that deleted page left behind, and
+   * unlike `size-check.yml` it did not stay dead. The label *object* was re-minted in this
+   * repository's label set — GitHub creates a label the first time one is applied by name, so
+   * one API call that applies it is enough — and by 2026-08-25 it sat on seven pull requests,
+   * carrying the default grey `ededed` and the empty description that tell an auto-minted
+   * label apart from a curated one. It is now actively read as a mechanism: a triage comment
+   * on objectui#6243 instructed a PR to carry it, the developer refused on the grounds
+   * recorded above, and the refusal was upheld on PR #6260. That is the exact harm #4912
+   * predicted, arriving after the card was filed.
+   *
+   * ⛔ What these two cases can and cannot see, said plainly because the boundary is the whole
+   * design of this file: **a label lives in GitHub's data, not in the tree, so nothing here
+   * can assert the label object is gone.** Deleting it is an administrative act, and a test
+   * that reached for the labels API would put a network call and a credential in a suite that
+   * deliberately has neither. The pins below are therefore not restatements of "the label does
+   * nothing" — that needs no pin. They hold the two things that *are* ours and that a future
+   * commit could change without anyone noticing.
+   */
+  it('never wires the phantom `skip-changeset` label into a workflow or a gate', () => {
+    // Option B of #4912 — give the changeset gates a labelled skip path — was declined by
+    // #3724 and again by the #4912 ruling: the presence gate has no bypass by design, and its
+    // exemption is an empty-frontmatter changeset, which lives in the repo where the next
+    // reader finds it rather than in a label that vanishes from history. So a read of this
+    // name appearing under `.github/` or `scripts/` is that declined option landing without a
+    // decision. The name IS wired in the `objectstack` sibling (lint.yml, pr-automation.yml,
+    // check-empty-changeset.mjs), which is how it reaches agents who then look for it here —
+    // copying that wiring across is precisely what this catches.
+    const selfPath = path.resolve(fileURLToPath(import.meta.url));
+    const offenders: string[] = [];
+
+    function scan(dir: string): void {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules' || entry.name === '.turbo') continue;
+          scan(full);
+        } else if (entry.isFile() && path.resolve(full) !== selfPath) {
+          // This file is the one legitimate mention: it records the history above.
+          if (fs.readFileSync(full, 'utf8').includes('skip-changeset')) {
+            offenders.push(path.relative(repoRoot, full));
+          }
+        }
+      }
+    }
+
+    for (const root of ['.github', 'scripts']) scan(path.join(repoRoot, root));
+
+    expect(
+      offenders.sort(),
+      `these files under .github/ or scripts/ mention \`skip-changeset\`:\n` +
+        offenders.map((f) => `  - ${f}`).join('\n') +
+        `\n\nNo gate in this repository reads that label and none is supposed to. If this is a ` +
+        `workflow or script that now honours it, that is objectui#4912 option B — a labelled ` +
+        `bypass on a changeset gate that deliberately has none — and it was declined twice ` +
+        `(#3724, and the #4912 ruling). Land the decision to reverse those before the code. ` +
+        `To declare that a PR publishes nothing, add a changeset with empty frontmatter; that ` +
+        `is the mechanism, and it is the one content/docs/guide/ci-cd-pipeline.md documents.`,
+    ).toEqual([]);
+  });
+
+  it('keeps the page denying `skip-changeset` rather than describing it', () => {
+    // `ci-cd-pipeline.md` is where a contributor looks up "how do I declare this PR publishes
+    // nothing", so the page is the surface that decides whether the next reader believes the
+    // label. Unlike the `size-check.yml` pin, absence is the wrong assertion here: the page
+    // has to keep NAMING the label in order to deny it, or the phantom is simply undocumented
+    // again. So the denial itself is what gets pinned.
+    //
+    // Blockquote markers are stripped before matching — the whole passage is a `>` block, and
+    // its sentences wrap across lines, so a raw substring search would silently never match
+    // and this pin would be vacuously green.
+    const prose = doc.replace(/^[ \t]*>[ \t]?/gm, '').replace(/\s+/g, ' ');
+
+    expect(
+      prose,
+      'content/docs/guide/ci-cd-pipeline.md must keep stating that nothing reads the ' +
+        '`skip-changeset` label. The label object exists in this repository (auto-minted by ' +
+        'being applied, objectui#4912) and agents are being told to use it, so a page that ' +
+        'stops denying it leaves the label as the most authoritative-looking answer in reach.',
+    ).toContain('no gate in this repository reads it');
+
+    expect(
+      prose,
+      'the page must keep telling the reader what to do INSTEAD of the label — a denial with ' +
+        'no alternative sends them back to the label. The real exemption is a changeset with ' +
+        'empty frontmatter.',
+    ).toContain('declare an empty changeset instead');
+
+    // The 2026-08-08 labels-API reading this note used to carry ("the label still does not
+    // exist") had expired by the time #4912 was worked: the object had been re-minted. A
+    // point-in-time API reading is not a fact this repository can keep true, and restating one
+    // is how the page came to assert something false about the very phantom it documents.
+    expect(
+      prose,
+      'do not put a point-in-time labels-API reading back on this page. Nothing in the tree ' +
+        'can keep it true, and the last one was false within weeks (objectui#4912).',
+    ).not.toContain('checked against the labels API');
+  });
 });
 
 /**
