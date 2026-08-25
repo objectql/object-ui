@@ -7,12 +7,36 @@ on:
       - 'packages/**'
       - 'apps/console/**'
       - 'pnpm-lock.yaml'
+      # This file itself (objectui#6245). Without it a change to this gate ships
+      # to `main` having never run once: the PR that edits it touches no
+      # `packages/**` path, so `Bundle Analysis` never appears on it, and a
+      # wiring bug surfaces on the NEXT `packages/**` PR — a required context
+      # turning red on someone else's diff, reading to them as a bundle problem
+      # of their own. Self-inclusion is this repo's convention for a
+      # path-filtered gate: measured on `origin/main`, 5 of the 7 workflows
+      # carrying a `paths:` filter list their own file, and this was one of the
+      # two that did not. The cost is honest and accepted — every edit of this
+      # file now pays a console build — and it is the same tax the other
+      # self-included gates already pay.
+      - '.github/workflows/performance-budget.yml'
   pull_request:
     branches: [main, develop]
     paths:
       - 'packages/**'
       - 'apps/console/**'
       - 'pnpm-lock.yaml'
+      # This file itself (objectui#6245). Without it a change to this gate ships
+      # to `main` having never run once: the PR that edits it touches no
+      # `packages/**` path, so `Bundle Analysis` never appears on it, and a
+      # wiring bug surfaces on the NEXT `packages/**` PR — a required context
+      # turning red on someone else's diff, reading to them as a bundle problem
+      # of their own. Self-inclusion is this repo's convention for a
+      # path-filtered gate: measured on `origin/main`, 5 of the 7 workflows
+      # carrying a `paths:` filter list their own file, and this was one of the
+      # two that did not. The cost is honest and accepted — every edit of this
+      # file now pays a console build — and it is the same tax the other
+      # self-included gates already pay.
+      - '.github/workflows/performance-budget.yml'
 
 concurrency:
   group: bundle-analysis-${{ github.event.pull_request.number || github.ref }}

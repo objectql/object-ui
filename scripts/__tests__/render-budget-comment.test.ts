@@ -541,6 +541,34 @@ describe('performance-budget.yml contract', () => {
       }
     });
 
+    /**
+     * objectui#6245, second pass. The first version of this change shipped a
+     * workflow half — `fetch-depth: 2`, the resolve step, the `$GITHUB_ENV`
+     * threading — that `Bundle Analysis` never ran on, because the PR editing it
+     * touched no `packages/**` path and so the gate never appeared on its own
+     * PR. A wiring bug there is fail-CLOSED by design, which is right, but it
+     * means the red would have surfaced on the NEXT `packages/**` PR and read to
+     * that seat as a bundle problem on their own diff.
+     *
+     * Self-inclusion is this repo's convention rather than a new policy:
+     * measured on `origin/main`, 5 of the 7 workflows carrying a `paths:` filter
+     * list their own file, and this one was an exception.
+     */
+    it('triggers on its own file, so a change to this gate is exercised by its own PR', () => {
+      const selfPath = '.github/workflows/performance-budget.yml';
+      // `#` lines are part of the block — an entry that needs explaining carries
+      // its reason inline — and `[ \t]*` rather than `\s*` so the run cannot walk
+      // past the end of the list into the next key.
+      const filters = [...workflow.matchAll(/^[ \t]*paths:\n((?:[ \t]*(?:- |#).*\n)+)/gm)].map(
+        (m) => m[1],
+      );
+      // Guard the guard: `push` and `pull_request` both carry one.
+      expect(filters).toHaveLength(2);
+      for (const filter of filters) {
+        expect(filter, 'every paths: filter must list this workflow itself').toContain(selfPath);
+      }
+    });
+
     it('lets the bundle be measured even when the resolve step fails', () => {
       // The checker turns absent inputs into a freshness ERROR, so failing the
       // job here instead would only cost the run its numbers (objectui#3152).
