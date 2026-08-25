@@ -326,17 +326,40 @@ function emitEagerClosureReport(reportFileName = 'eager-closure.json'): Plugin {
           );
         }
 
+        // The chunk's OWN name, as rolldown recorded it — the `advancedChunks`
+        // group name for a grouped chunk, the entry's name for an entry. The
+        // per-chunk ceilings in `scripts/check-eager-closure-budget.mjs` key on
+        // this field (objectui#5490) instead of stripping the hash out of
+        // `fileName` themselves: the group names are decided by `advancedChunks`
+        // a few hundred lines below, and a budget that re-derives them from a
+        // file name is a second opinion about the same fact — one that goes on
+        // reading plausibly while it matches nothing.
+        const name = chunks.get(fileName)?.name;
+        if (typeof name !== 'string' || name === '') {
+          this.error(
+            `[emit-eager-closure-report] eager-closure member \`${fileName}\` carries no chunk ` +
+              `\`name\` (${JSON.stringify(name)}), so a per-chunk ceiling has no way to find ` +
+              `its subject. Refused rather than published: a budgeted chunk MISSING from this ` +
+              `report is a budget with nothing to weigh, and a budget that weighs nothing ` +
+              `passes — the silent direction every counter-probe in this plugin exists to ` +
+              `refuse (objectui#5490).`,
+          );
+        }
+
         const raw = fs.readFileSync(filePath);
         // Level 6 — zlib's default, and the level `gzip -c` uses in the
         // workflow's entry-chunk check, so the two numbers in one PR comment
         // are measured the same way.
-        return { fileName, bytes: raw.length, gzipBytes: zlib.gzipSync(raw).length };
+        return { fileName, name, bytes: raw.length, gzipBytes: zlib.gzipSync(raw).length };
       });
 
       const report = {
         // Bumped when the shape below changes; the checker refuses a report it
-        // does not understand rather than reading absent fields as zero.
-        reportVersion: 1,
+        // does not understand rather than reading absent fields as zero. v2
+        // added `files[].name` for the per-chunk ceilings (objectui#5490) — a
+        // v1 report reaching the v2 checker is therefore a REFUSAL, not a run
+        // in which every budgeted chunk happens to be missing.
+        reportVersion: 2,
         entryChunks: entries.sort(),
         eagerChunkCount: files.length,
         totalChunkCount: chunks.size,

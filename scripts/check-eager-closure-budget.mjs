@@ -78,10 +78,18 @@
  * This is a truthful CURRENT-STATE ceiling, not a target. 3.8 MB gzipped before
  * first render is a bad payload, and the honest long-term line is far below it —
  * but lowering the line is a separate decision with its own work behind it
- * (objectui#5324 names the candidates; objectui#5490 is the ruled follow-up
- * adding per-chunk budgets so `vendor-objectstack` cannot grow unnoticed inside
- * aggregate headroom again). Nothing here should be read as a finding that
- * 3.82 MB is acceptable.
+ * (objectui#5324 names the candidates). Nothing here should be read as a
+ * finding that 3.82 MB is acceptable.
+ *
+ * ## Per-chunk ceilings (objectui#5490)
+ *
+ * One total over 52 chunks cannot say WHERE the payload moved, and inside its
+ * headroom one chunk can grow by the whole allowance while the others shrink.
+ * {@link PER_CHUNK_GZIP_CEILINGS} adds a line per big chunk on top of the
+ * aggregate — same truthful-current-state discipline, same checked constraints,
+ * keyed on the chunk names the REPORT carries so a renamed or vanished chunk
+ * fails loudly instead of passing by weighing nothing. See that constant's
+ * comment for the reasoning and for how to move one.
  *
  * ## Raising it
  *
@@ -124,8 +132,93 @@ export const BASELINE = Object.freeze({
  */
 export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
 
-/** The report shape this checker understands. */
-export const SUPPORTED_REPORT_VERSION = 1;
+/**
+ * Per-chunk ceilings, in gzipped bytes, keyed by the chunk NAME the report
+ * carries (objectui#5490, the ruled follow-up of objectui#5468: option A now,
+ * option C next, option B — a comparison against `main` — rejected).
+ *
+ * ## Why the aggregate ceiling is not enough
+ *
+ * The aggregate is one number over 52 chunks. Inside its headroom, a single
+ * chunk can grow by the whole allowance while every other chunk shrinks by the
+ * same amount, and the gate reports a green tick either way. That is not a
+ * hypothetical shape: objectui#5266 put 89 KiB on every page load and ALL of it
+ * landed in `vendor-objectstack`, the chunk that is 29% of the closure today.
+ * The aggregate says whether the payload grew; these say WHERE.
+ *
+ * ## Why the keys are names from the report and not names written here
+ *
+ * The names are decided by `advancedChunks.groups` in
+ * `apps/console/vite.config.ts`, emitted by rolldown, and published in
+ * `files[].name`. This file looks them up; it does not re-derive them by
+ * stripping `-<hash>.js` off a file name, and it does not carry a list of
+ * chunks it EXPECTS to exist independent of the measurement.
+ *
+ * The distinction is the whole design, because the failure mode is silent. A
+ * budget keyed on a chunk name that no longer exists is VACUOUSLY GREEN: it
+ * passes because there is nothing to weigh. So a budgeted name that is absent
+ * from the report is an ERROR here (exit 2, "the gauge cannot be trusted"),
+ * never a skip — the same asymmetry {@link validateReport} exists for. If a
+ * group is renamed or removed in `vite.config.ts`, this gate stops the build
+ * and says so, and the mapping is re-pinned deliberately.
+ *
+ * ## Raising one
+ *
+ * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
+ * constraints, both CHECKED in `scripts/__tests__/check-eager-closure-budget.test.ts`:
+ * every ceiling passes on the measurement in {@link PER_CHUNK_BASELINE}, and its
+ * headroom stays under {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES} so a repeat
+ * of the incident that motivated the gate cannot fit inside it. ⛔ Do not LOWER
+ * one below the measured figure to express an aspiration: this is a ratchet, and
+ * a ceiling under today's reality is a gate that lands red on `main`, which is
+ * how a budget gets switched off rather than met. Shrinking the payload is real
+ * work with its own cards (objectui#5324 names the candidates); when it lands,
+ * re-measure and lower both numbers together.
+ */
+export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
+  'vendor-objectstack': 967_000,
+  framework: 502_000,
+  'ui-components': 399_000,
+});
+
+/**
+ * The measurement {@link PER_CHUNK_GZIP_CEILINGS} was derived from: one
+ * `vite build` of `apps/console` on `2c8474c04`, read out of the report that
+ * build wrote. Exported so the ceilings are CHECKED against it instead of
+ * merely asserted in this comment.
+ *
+ * ⚠️ This is a DIFFERENT and LATER reading than {@link BASELINE} above, which
+ * still carries `4c1623c0c`. On `2c8474c04` the same build measures the closure
+ * at 3,298,620 bytes — 707,291 BELOW that recorded aggregate baseline, almost
+ * all of it in `vendor-objectstack` (1,493 KB in the objectui#5490 card, 926 KB
+ * here). The aggregate ceiling and its baseline were deliberately NOT touched
+ * by objectui#5490: objectui#5468 ruled that the aggregate line "stays as
+ * shipped", and moving it — in either direction — is the maintainer's call, not
+ * this card's. The consequence is recorded rather than quietly fixed: the
+ * aggregate ceiling now sits ~787 KB above today's payload, which is far more
+ * than the {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES} it was sized to catch,
+ * and until that is re-decided these per-chunk ceilings are what actually holds
+ * the three biggest chunks in place.
+ *
+ * Keys must match {@link PER_CHUNK_GZIP_CEILINGS} exactly (a test enforces it):
+ * a ceiling with no measurement behind it is a number someone guessed, and a
+ * measurement with no ceiling weighs nothing.
+ */
+export const PER_CHUNK_BASELINE = Object.freeze({
+  'vendor-objectstack': 948_461,
+  framework: 492_399,
+  'ui-components': 391_095,
+});
+
+/**
+ * The report shape this checker understands. v2 added `files[].name` — the
+ * chunk name rolldown itself recorded — which is what the per-chunk ceilings
+ * below are keyed on. Refusing a v1 report is the point: without those names
+ * every budgeted chunk would be "absent", and the difference between "this
+ * build predates per-chunk budgets" and "vendor-objectstack has vanished from
+ * the closure" must not be a guess.
+ */
+export const SUPPORTED_REPORT_VERSION = 2;
 
 const DEFAULT_REPORT_PATH = 'apps/console/dist/eager-closure.json';
 
@@ -193,6 +286,20 @@ export function validateReport(report) {
   if (files.length !== eagerChunkCount) {
     problems.push(`files has ${files.length} entries but eagerChunkCount is ${eagerChunkCount}`);
   }
+  // v2: every member carries the chunk name rolldown recorded, and that name is
+  // the key the per-chunk ceilings look up. A member without one is not a
+  // cosmetic gap — its bytes would be weighed by the aggregate and by nothing
+  // else, and a budgeted chunk hiding in it would read as ABSENT.
+  const unnamed = files.filter((f) => typeof f?.name !== 'string' || f.name === '');
+  if (unnamed.length > 0) {
+    const shown = unnamed.slice(0, 5).map((f) => f?.fileName ?? '<no fileName>');
+    problems.push(
+      `${unnamed.length} of ${files.length} files carry no chunk \`name\` (${shown.join(', ')}` +
+        `${unnamed.length > shown.length ? ', …' : ''}) — per-chunk ceilings key on that field, ` +
+        `so a report without it cannot be weighed per chunk`,
+    );
+  }
+
   const summed = files.reduce((n, f) => n + (typeof f?.gzipBytes === 'number' ? f.gzipBytes : NaN), 0);
   if (!Number.isFinite(summed) || summed !== eagerGzipBytes) {
     problems.push(
@@ -277,6 +384,192 @@ export function evaluateClosureBudget({
 const kb = (bytes) => (bytes / 1024).toFixed(1);
 
 /**
+ * Fold the report's eager members into `name -> { gzipBytes, fileNames }`.
+ *
+ * Chunks are SUMMED per name rather than matched one-to-one, so a group that
+ * one day emits two chunks under the same name cannot let bytes out from under
+ * its ceiling by splitting. Members with no name are skipped here and refused
+ * upstream by {@link validateReport}, which is the only place that refusal
+ * belongs — dropping them silently here would be the under-count this whole
+ * file exists to prevent.
+ *
+ * @param {{ files?: { fileName: string, name?: string, gzipBytes: number }[] }} report
+ * @returns {Map<string, { name: string, gzipBytes: number, fileNames: string[] }>}
+ */
+export function measureChunksByName(report) {
+  const byName = new Map();
+  for (const file of report?.files ?? []) {
+    const name = file?.name;
+    if (typeof name !== 'string' || name === '') continue;
+    const entry = byName.get(name) ?? { name, gzipBytes: 0, fileNames: [] };
+    entry.gzipBytes += file.gzipBytes;
+    entry.fileNames.push(file.fileName);
+    byName.set(name, entry);
+  }
+  return byName;
+}
+
+/**
+ * Weigh each budgeted chunk against its own ceiling.
+ *
+ * Three verdicts, and the ORDER between them is the design:
+ *
+ *   - `error` — the report cannot be read, yielded no named chunks at all, or
+ *     is missing a chunk this file budgets. All three are verdicts about the
+ *     GAUGE. The missing-chunk case is the one worth stating out loud: a budget
+ *     whose subject is absent passes trivially, so "absent" must be louder than
+ *     "over", not quieter. A collapsed measurement is never under budget.
+ *   - `fail` — a budgeted chunk is over its ceiling. Names the chunk and BOTH
+ *     numbers, because "over budget" without the measurement is a tick in the
+ *     other direction.
+ *   - `pass` — every budgeted chunk with its measured size and remaining
+ *     headroom, so a reader watching a chunk creep upward sees it coming
+ *     instead of learning about it the day the gate turns red.
+ *
+ * @param {object} input
+ * @param {unknown} input.report
+ * @param {Record<string, number>} [input.ceilings]
+ * @param {string} [input.reportPath]
+ * @returns {{ status: 'pass' | 'fail' | 'error', message: string,
+ *             chunks: { name: string, gzipBytes: number, ceilingBytes: number,
+ *                       headroomBytes: number, fileNames: string[] }[],
+ *             missing: string[], over: string[] }}
+ */
+export function evaluatePerChunkBudgets({
+  report,
+  ceilings = PER_CHUNK_GZIP_CEILINGS,
+  reportPath = DEFAULT_REPORT_PATH,
+} = {}) {
+  const base = { chunks: [], missing: [], over: [] };
+  const budgeted = Object.keys(ceilings);
+
+  if (report === null || report === undefined) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `No eager-closure report at ${reportPath}, so no chunk was weighed. Per-chunk ` +
+        `ceilings measure nothing without a build — this is a broken gauge, not ` +
+        `${budgeted.length} budgets that all passed.`,
+    };
+  }
+
+  const problems = validateReport(report);
+  if (problems.length > 0) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `Per-chunk budgets cannot be read from ${reportPath}:\n  - ${problems.join('\n  - ')}`,
+    };
+  }
+
+  // A ceiling map with no entries is the same vacuity as a ceiling whose chunk
+  // is missing, one level up: nothing is weighed, so nothing can fail.
+  if (budgeted.length === 0) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `No per-chunk ceilings are configured, so this half of the gate weighs nothing. ` +
+        `An empty PER_CHUNK_GZIP_CEILINGS is a disabled check, not a passing one — ` +
+        `objectui#5490 exists because a budget with no subject is green forever.`,
+    };
+  }
+
+  const measured = measureChunksByName(report);
+  // Defence in depth: {@link validateReport} above already refuses a report with
+  // no files or with unnamed ones, so this branch should be unreachable through
+  // this function. It stays because the direction it guards is the silent one —
+  // if a future report shape ever slips an empty measurement past validation,
+  // "zero chunks" must read as a broken gauge, never as an under-budget bundle.
+  if (measured.size === 0) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `The eager-closure report at ${reportPath} yielded ZERO named chunks, so every ` +
+        `per-chunk budget would pass by measuring nothing. A collapsed measurement is not an ` +
+        `under-budget bundle.`,
+    };
+  }
+
+  const present = [...measured.values()].sort((a, b) => b.gzipBytes - a.gzipBytes);
+  const missing = budgeted.filter((name) => !measured.has(name));
+  if (missing.length > 0) {
+    return {
+      ...base,
+      missing,
+      status: 'error',
+      message:
+        `Budgeted chunk${missing.length === 1 ? '' : 's'} ${missing.map((n) => `\`${n}\``).join(', ')} ` +
+        `${missing.length === 1 ? 'is' : 'are'} ABSENT from the eager closure reported at ` +
+        `${reportPath}. That is a FAILURE, not a pass: a ceiling whose chunk does not exist ` +
+        `weighs nothing and would be green forever.\n` +
+        `Either the chunk left the eager closure — good news that must be RE-PINNED here, not ` +
+        `inferred — or an \`advancedChunks\` group in apps/console/vite.config.ts was renamed ` +
+        `or removed and PER_CHUNK_GZIP_CEILINGS still names the old spelling.\n` +
+        `The ${present.length} chunks the report DOES carry, largest first:\n` +
+        present.map((c) => `  ${kb(c.gzipBytes).padStart(9)} KB  ${c.name}`).join('\n'),
+    };
+  }
+
+  const chunks = budgeted
+    .map((name) => {
+      const entry = /** @type {{ name: string, gzipBytes: number, fileNames: string[] }} */ (
+        measured.get(name)
+      );
+      const ceilingBytes = ceilings[name];
+      return {
+        name,
+        gzipBytes: entry.gzipBytes,
+        ceilingBytes,
+        headroomBytes: ceilingBytes - entry.gzipBytes,
+        fileNames: entry.fileNames,
+      };
+    })
+    .sort((a, b) => b.gzipBytes - a.gzipBytes);
+
+  const over = chunks.filter((c) => c.gzipBytes > c.ceilingBytes);
+  // Measured sizes belong in the verdict either way — a reader should see
+  // headroom shrinking, not just the tick that precedes a red gate.
+  const table = chunks
+    .map(
+      (c) =>
+        `  ${c.gzipBytes > c.ceilingBytes ? '❌' : '✅'} ${c.name.padEnd(20)} ` +
+        `${kb(c.gzipBytes).padStart(9)} KB / ${kb(c.ceilingBytes)} KB ceiling ` +
+        `(${c.headroomBytes >= 0 ? `headroom ${kb(c.headroomBytes)}` : `OVER by ${kb(-c.headroomBytes)}`} KB)` +
+        `${c.fileNames.length > 1 ? ` [${c.fileNames.length} chunks]` : ''}`,
+    )
+    .join('\n');
+
+  if (over.length > 0) {
+    return {
+      ...base,
+      chunks,
+      over: over.map((c) => c.name),
+      status: 'fail',
+      message:
+        `${over.length} eager chunk${over.length === 1 ? ' is' : 's are'} over ` +
+        `${over.length === 1 ? 'its' : 'their'} per-chunk budget:\n${table}\n` +
+        `These bytes are inside the aggregate ceiling's headroom, which is exactly why this ` +
+        `check exists (objectui#5490): one chunk growing while others shrink is invisible to a ` +
+        `single total.\n` +
+        `If the growth is intended, raise that chunk's entry in PER_CHUNK_GZIP_CEILINGS in ` +
+        `scripts/check-eager-closure-budget.mjs deliberately, move PER_CHUNK_BASELINE with it, ` +
+        `and say in the PR what the bytes buy — do not widen it just to get a green check.`,
+    };
+  }
+
+  return {
+    ...base,
+    chunks,
+    status: 'pass',
+    message: `Per-chunk eager budgets (${chunks.length} chunks weighed):\n${table}`,
+  };
+}
+
+/**
  * The biggest eager chunks, so a failure names suspects instead of a total.
  * @param {{ files?: { fileName: string, gzipBytes: number }[] }} report
  * @param {number} [limit]
@@ -303,8 +596,18 @@ function writeGithubOutput(entries, outputPath = process.env.GITHUB_OUTPUT) {
 }
 
 /**
- * Exit codes: `0` within budget, `1` over budget, `2` no trustworthy
- * measurement (report missing, stale-shaped, or internally inconsistent).
+ * Exit codes: `0` within budget, `1` over budget — the aggregate ceiling or any
+ * per-chunk ceiling — and `2` no trustworthy measurement (report missing,
+ * stale-shaped, internally inconsistent, or missing a budgeted chunk).
+ *
+ * `2` covers the unbuilt tree, and deliberately so: with no
+ * `apps/console/dist/eager-closure.json` this check reports a BROKEN GAUGE and
+ * the workflow fails the step. It never prints a verdict about a bundle nobody
+ * weighed, and it never exits 0 having measured nothing.
+ *
+ * Both halves are evaluated and printed before either decides the code: a run
+ * that reports the total and hides which chunk moved (or the reverse) teaches
+ * readers to ignore the half they cannot see.
  */
 export function main(argv = process.argv.slice(2)) {
   const flagIndex = argv.indexOf('--report');
@@ -312,11 +615,17 @@ export function main(argv = process.argv.slice(2)) {
   const resolved = path.resolve(reportPath);
   const report = readReport(resolved);
   const result = evaluateClosureBudget({ report, reportPath });
+  const perChunk = evaluatePerChunkBudgets({ report, reportPath });
 
   if (result.status === 'pass') {
     console.log(`✅ ${result.message}`);
   } else {
     console.error(`❌ ${result.message}`);
+  }
+  if (perChunk.status === 'pass') {
+    console.log(`✅ ${perChunk.message}`);
+  } else {
+    console.error(`❌ ${perChunk.message}`);
   }
   if (report?.files?.length) {
     console.log('');
@@ -329,6 +638,7 @@ export function main(argv = process.argv.slice(2)) {
     closure_gzip_kb: result.gzipBytes === null ? '' : kb(result.gzipBytes),
     closure_budget_kb: kb(result.budgetBytes),
     closure_chunks: result.chunkCount === null ? '' : String(result.chunkCount),
+    closure_chunk_status: perChunk.status,
   });
 
   // Distinct codes so the workflow can tell "over budget" (a real verdict about
@@ -336,8 +646,13 @@ export function main(argv = process.argv.slice(2)) {
   // Collapsing them to 1 would let a broken report be reported as a size
   // regression, and a size regression reported as a broken report — each of
   // which teaches readers to ignore the other.
-  if (result.status === 'pass') return 0;
-  return result.status === 'fail' ? 1 : 2;
+  //
+  // `error` outranks `fail` across BOTH halves for the same reason it does
+  // within one: a report that cannot be trusted makes its own size verdict
+  // meaningless, whichever half noticed first.
+  const statuses = [result.status, perChunk.status];
+  if (statuses.includes('error')) return 2;
+  return statuses.includes('fail') ? 1 : 0;
 }
 
 if (isEntrypoint(import.meta.url)) {

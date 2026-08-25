@@ -362,7 +362,7 @@ export function approverCopyFrom(
   const str = (out: unknown, fallbackText: string): string =>
     typeof out === 'string' && out ? out : fallbackText;
   const separator = str(
-    t('approvalsInbox.approverNameSeparator', { defaultValue: DEFAULT_NAME_SEPARATOR }),
+    t('approvalsInbox.approverNameSeparator', { defaultValue: ', ' }),
     DEFAULT_NAME_SEPARATOR,
   );
   return {

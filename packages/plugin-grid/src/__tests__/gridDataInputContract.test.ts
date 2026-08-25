@@ -41,9 +41,14 @@
  * side moving turns the comparison red — a spec release that widens `ViewData`
  * to accept an array, or a declaration that grows an arm the contract rejects.
  * That derivation is the discipline `component-input-union-specimens.test.ts`
- * and `text-input-inputs-spec-parity.test.ts` adopted, and it is the only gate
- * on this fact: whether a declared arm matches the contract is otherwise
- * nobody's (objectui#4971).
+ * and `text-input-inputs-spec-parity.test.ts` adopted. It used to be the only
+ * gate on this fact; objectui#4971 has since added the repo-wide arm direction to
+ * `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`. That one
+ * judges against `ComponentPropsMap['object-grid'].data`, which is `z.array()`
+ * and DISAGREES with the `ViewDataSchema` this file measures — two spec
+ * authorities, opposite kinds, filed as objectui#6207 and carried there as a
+ * reasoned exemption. So this file stays the authority for the contract
+ * `ObjectGridSchema` actually resolves to, and the two are not redundant.
  *
  * The renderer's array tolerance is NOT asserted away here. It stays as
  * back-compat and is objectui#5068's family; what this file forbids is
