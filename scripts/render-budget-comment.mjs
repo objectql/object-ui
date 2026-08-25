@@ -48,6 +48,8 @@ const text = (value) => (typeof value === 'string' ? value.trim() : '');
  * @param {string} [input.closureGzipKb]  measured gzip size of the eager closure, in KB
  * @param {string} [input.closureBudgetKb] the closure ceiling it was compared against
  * @param {string} [input.closureChunks]  how many chunks the eager closure spans
+ * @param {string} [input.closureChunkStatus]    `closure_chunk_status` — the per-chunk half
+ * @param {string} [input.closureHeadroomStatus] `closure_headroom_status` — the sensitivity half
  * @param {string} [input.message]       human-readable reason when `status` is `error`
  * @param {string} [input.budgetOutcome] `steps.budget.outcome`
  * @param {string} [input.buildOutcome]  `steps.build_packages.outcome`
@@ -66,6 +68,8 @@ export function renderBudgetComment(input = {}) {
     gzipKb: text(input.closureGzipKb),
     budgetKb: text(input.closureBudgetKb),
     chunks: text(input.closureChunks),
+    chunkStatus: text(input.closureChunkStatus),
+    headroomStatus: text(input.closureHeadroomStatus),
   };
 
   // A verdict needs an affirmative status AND the numbers that status was
@@ -82,9 +86,71 @@ export function renderBudgetComment(input = {}) {
         buildOutcome: text(input.buildOutcome),
         sizeReport,
         runUrl: text(input.runUrl),
+        closure,
       });
 
   return { kind: measured ? status : 'not-measured', body };
+}
+
+/**
+ * The eager-closure checker evaluates three halves and publishes a verdict for
+ * each. The step's exit code folds all three into ONE `budget_status`, so a
+ * comment that renders only that says "something objected" and sends the reader
+ * to the job log to learn which — the aggregate total, one chunk, or a ceiling
+ * that has stopped measuring anything (objectui#6230). These labels name the
+ * halves the way the step log names them.
+ */
+const CLOSURE_HALVES = [
+  ['status', 'Aggregate closure ceiling'],
+  ['chunkStatus', 'Per-chunk ceilings'],
+  ['headroomStatus', 'Ceiling sensitivity (headroom)'],
+];
+
+/**
+ * `error` is deliberately NOT worded as a size verdict. It is what exit 2 means
+ * in the checker: the report cannot be trusted, or a ceiling has drifted out of
+ * range of the regression it must catch. Nothing grew.
+ */
+const HALF_VERDICT = {
+  pass: '✅ pass',
+  fail: '❌ over its ceiling',
+  error: '⚠️ broken gauge',
+};
+
+const halfVerdict = (status) => HALF_VERDICT[status] ?? `\`${status}\``;
+
+/**
+ * Renders the per-half breakdown, and renders NOTHING in the two cases where it
+ * would be noise:
+ *
+ *   - every half passed — the healthy comment stays byte-for-byte what it was.
+ *     An observability change that rewrites the green output is a regression;
+ *   - no half status was handed over — a caller that does not pass them gets
+ *     silence, never a table of blanks inferred into verdicts, which is the
+ *     objectui#3152 failure mode this whole file exists to prevent.
+ */
+function closureHalfLines(closure) {
+  const rows = CLOSURE_HALVES.map(([key, label]) => [label, closure[key] ?? '']).filter(
+    ([, status]) => status !== '',
+  );
+  if (rows.length === 0 || rows.every(([, status]) => status === 'pass')) {
+    return [];
+  }
+  const lines = [
+    '**Which half objected:**',
+    '',
+    '| Eager-closure half | Verdict |',
+    '|--------------------|---------|',
+    ...rows.map(([label, status]) => `| ${label} | ${halfVerdict(status)} |`),
+    '',
+  ];
+  if (rows.some(([, status]) => status === 'error')) {
+    lines.push(
+      '> ⚠️ A **broken gauge** half is a verdict about the ceiling, not about the bundle: that line has drifted out of range of the regression it exists to catch, or the report behind it cannot be trusted. It does not say anything grew. The `Check console performance budget` step log carries the ceiling and the number it was compared against.',
+      '',
+    );
+  }
+  return lines;
 }
 
 function verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport, closure }) {
@@ -108,6 +174,7 @@ function verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport, closure 
     // gate (objectui#5324).
     'The **eager closure** is every chunk the entry reaches through static imports — what the browser fetches and parses before the app renders. The entry chunk on its own is a small fraction of it.',
     '',
+    ...closureHalfLines(closure),
   ];
   if (!closureMeasured) {
     // Never let an absent closure figure render as a quiet table with one row.
@@ -120,20 +187,52 @@ function verdictBody({ status, gzipKb, budgetKb, entryFile, sizeReport, closure 
   return withSizeReport(lines.join('\n'), sizeReport);
 }
 
-function notMeasuredBody({ message, budgetOutcome, buildOutcome, sizeReport, runUrl }) {
-  const lines = [
-    '## ℹ️ Console Performance Budget — not measured',
-    '',
-    'This run did not produce a console bundle to measure, so there is **no pass/fail verdict** for the performance budget.',
-    '',
-    '**This is not a budget violation.** Nothing was measured — the numbers a real violation would carry are simply absent.',
-    '',
+function notMeasuredBody({
+  message,
+  budgetOutcome,
+  buildOutcome,
+  sizeReport,
+  runUrl,
+  closure = {},
+}) {
+  // objectui#6230: `error` does not always mean "nothing was measured". A
+  // ceiling that has drifted out of range of the regression it must catch is
+  // exit 2 with a perfectly good measurement behind it, and then the "nothing
+  // was measured" wording below is FALSE — the comment would deny a measurement
+  // in the same breath as the half table showing two ceilings that passed on
+  // one. Discriminate on the same emptiness the verdict branch keys on: the
+  // checker publishes `closure_gzip_kb` EMPTY when it has no report, never as a
+  // stale number, and that is pinned by its own tests.
+  const closureMeasured = (closure.gzipKb ?? '') !== '' && (closure.budgetKb ?? '') !== '';
+  const lines = closureMeasured
+    ? [
+        '## ⚠️ Console Performance Budget — gauge not trustworthy',
+        '',
+        'The eager closure was measured, but one of the ceilings it is measured against no longer means what it names, so this run carries **no pass/fail verdict** for the performance budget.',
+        '',
+        '**This is not a budget violation.** Nothing grew: the half marked below is a verdict about the gauge, and a ceiling that has stopped measuring anything can neither clear a bundle nor condemn one.',
+        '',
+      ]
+    : [
+        '## ℹ️ Console Performance Budget — not measured',
+        '',
+        'This run did not produce a console bundle to measure, so there is **no pass/fail verdict** for the performance budget.',
+        '',
+        '**This is not a budget violation.** Nothing was measured — the numbers a real violation would carry are simply absent.',
+        '',
+      ];
+  lines.push(
     '| Step | Outcome |',
     '|------|---------|',
     `| Build packages | \`${outcome(buildOutcome)}\` |`,
     `| Check console performance budget | \`${outcome(budgetOutcome)}\` |`,
     '',
-  ];
+    // Exit 2 — a drifted ceiling, or a report that cannot be trusted — maps to
+    // `budget_status=error`, and error lands HERE rather than in the verdict
+    // body. So this branch needs the halves as much as that one does: they are
+    // the only thing in the comment that says WHICH gauge is broken.
+    ...closureHalfLines(closure),
+  );
 
   if (message) {
     lines.push(`Reason: ${message}`, '');
@@ -183,6 +282,8 @@ export function renderFromEnv(env = process.env, sizeReportPath = 'size-report.m
     closureGzipKb: env.BUDGET_CLOSURE_GZIP_KB,
     closureBudgetKb: env.BUDGET_CLOSURE_BUDGET_KB,
     closureChunks: env.BUDGET_CLOSURE_CHUNKS,
+    closureChunkStatus: env.BUDGET_CLOSURE_CHUNK_STATUS,
+    closureHeadroomStatus: env.BUDGET_CLOSURE_HEADROOM_STATUS,
     budgetOutcome: env.BUDGET_STEP_OUTCOME,
     buildOutcome: env.BUILD_PACKAGES_OUTCOME,
     sizeReport: readSizeReport(sizeReportPath),
