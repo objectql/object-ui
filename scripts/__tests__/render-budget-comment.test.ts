@@ -542,31 +542,67 @@ describe('performance-budget.yml contract', () => {
     });
 
     /**
-     * objectui#6245, second pass. The first version of this change shipped a
-     * workflow half — `fetch-depth: 2`, the resolve step, the `$GITHUB_ENV`
-     * threading — that `Bundle Analysis` never ran on, because the PR editing it
-     * touched no `packages/**` path and so the gate never appeared on its own
-     * PR. A wiring bug there is fail-CLOSED by design, which is right, but it
-     * means the red would have surfaced on the NEXT `packages/**` PR and read to
-     * that seat as a bundle problem on their own diff.
+     * objectui#6245, second and third pass. The freshness half shipped a
+     * workflow half that `Bundle Analysis` could never run on: the PR editing it
+     * touched no `packages/**` path, so the gate never appeared on its own PR.
+     * Adding the YAML to the filters fixed that — and was still not enough. A PR
+     * touching only `check-eager-closure-budget.mjs`, the file that computes the
+     * verdict and the one this card is about, ALSO did not trigger the gate.
      *
-     * Self-inclusion is this repo's convention rather than a new policy:
-     * measured on `origin/main`, 5 of the 7 workflows carrying a `paths:` filter
-     * list their own file, and this one was an exception.
+     * The convention measured on `origin/main` is the gate's RUNTIME CLOSURE,
+     * not merely its own YAML: `half-state-patrol.yml` lists both the script it
+     * runs and `scripts/invoked-as.mjs`, that script's dependency.
+     *
+     * A wiring bug in any of these is fail-CLOSED — freshness `error`, exit 2 —
+     * so an untriggered gate does not fail quietly; it turns a REQUIRED context
+     * red on the next `packages/**` PR, belonging to another seat, reading to
+     * them as a bundle problem in their own diff.
      */
-    it('triggers on its own file, so a change to this gate is exercised by its own PR', () => {
-      const selfPath = '.github/workflows/performance-budget.yml';
+    const TRIGGER_CLOSURE = [
+      '.github/workflows/performance-budget.yml',
+      'scripts/check-eager-closure-budget.mjs',
+      'scripts/render-budget-comment.mjs',
+      // `isEntrypoint` decides whether `main()` runs at all — a regression here
+      // makes the checker exit 0 having measured nothing.
+      'scripts/invoked-as.mjs',
+    ];
+
+    it('triggers on its whole runtime closure, so no part of this gate ships unexercised', () => {
       // `#` lines are part of the block — an entry that needs explaining carries
       // its reason inline — and `[ \t]*` rather than `\s*` so the run cannot walk
       // past the end of the list into the next key.
       const filters = [...workflow.matchAll(/^[ \t]*paths:\n((?:[ \t]*(?:- |#).*\n)+)/gm)].map(
         (m) => m[1],
       );
-      // Guard the guard: `push` and `pull_request` both carry one.
+      // Guard the guard: `push` and `pull_request` both carry one, and they must
+      // not drift apart — a gate that runs on a PR but not on the merge (or the
+      // reverse) is worse than one that runs on neither.
       expect(filters).toHaveLength(2);
       for (const filter of filters) {
-        expect(filter, 'every paths: filter must list this workflow itself').toContain(selfPath);
+        for (const entry of TRIGGER_CLOSURE) {
+          expect(filter, `every paths: filter must list ${entry}`).toContain(entry);
+        }
       }
+    });
+
+    /**
+     * The closure is defined by what the JOB EXECUTES, which is why the
+     * `__tests__` files are deliberately absent from it: this job runs two
+     * `node scripts/*.mjs` commands and never vitest, so a test-only edit cannot
+     * move this gate's verdict, and those tests already run on every PR in the
+     * root vitest `unit` project. This asserts the definition rather than the
+     * list, so the two stay in step.
+     */
+    it('lists every script the job runs, and nothing it merely tests', () => {
+      const invoked = [...workflow.matchAll(/^\s*(?:run: )?node (scripts\/[\w./-]+\.mjs)/gm)].map(
+        (m) => m[1],
+      );
+      expect(invoked.length).toBeGreaterThan(0);
+      for (const script of new Set(invoked)) {
+        expect(TRIGGER_CLOSURE, `${script} is executed by this job, so it belongs in the closure`)
+          .toContain(script);
+      }
+      expect(TRIGGER_CLOSURE.some((e) => e.includes('__tests__'))).toBe(false);
     });
 
     it('lets the bundle be measured even when the resolve step fails', () => {

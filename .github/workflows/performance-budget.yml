@@ -19,6 +19,28 @@ on:
       # file now pays a console build — and it is the same tax the other
       # self-included gates already pay.
       - '.github/workflows/performance-budget.yml'
+      # ...and the gate's RUNTIME CLOSURE: the files this job actually executes.
+      # Listing the YAML alone was still not enough — a PR touching only
+      # `check-eager-closure-budget.mjs`, the file that computes the verdict and
+      # the one this card is about, did not trigger this gate. The convention
+      # measured on `origin/main` is the closure, not just the workflow:
+      # `half-state-patrol.yml` lists its script AND `scripts/invoked-as.mjs`,
+      # the dependency of that script.
+      #
+      # `invoked-as.mjs` is here for the same reason it is there, and the reason
+      # is specific rather than tidy: `isEntrypoint` decides whether `main()`
+      # runs at all, so a regression in it makes this checker exit 0 having
+      # measured nothing — the exact silent-green failure the rest of this gate
+      # exists to prevent.
+      #
+      # NOT listed: `scripts/__tests__/*.test.ts`. This job never runs vitest —
+      # it runs two `node scripts/*.mjs` commands — so a test-only edit cannot
+      # change this gate's verdict, and those tests already run on every PR in
+      # the root vitest `unit` project. `published-dist-gate.yml` and
+      # `spec-range-floors.yml` draw the same line.
+      - 'scripts/check-eager-closure-budget.mjs'
+      - 'scripts/render-budget-comment.mjs'
+      - 'scripts/invoked-as.mjs'
   pull_request:
     branches: [main, develop]
     paths:
@@ -37,6 +59,28 @@ on:
       # file now pays a console build — and it is the same tax the other
       # self-included gates already pay.
       - '.github/workflows/performance-budget.yml'
+      # ...and the gate's RUNTIME CLOSURE: the files this job actually executes.
+      # Listing the YAML alone was still not enough — a PR touching only
+      # `check-eager-closure-budget.mjs`, the file that computes the verdict and
+      # the one this card is about, did not trigger this gate. The convention
+      # measured on `origin/main` is the closure, not just the workflow:
+      # `half-state-patrol.yml` lists its script AND `scripts/invoked-as.mjs`,
+      # the dependency of that script.
+      #
+      # `invoked-as.mjs` is here for the same reason it is there, and the reason
+      # is specific rather than tidy: `isEntrypoint` decides whether `main()`
+      # runs at all, so a regression in it makes this checker exit 0 having
+      # measured nothing — the exact silent-green failure the rest of this gate
+      # exists to prevent.
+      #
+      # NOT listed: `scripts/__tests__/*.test.ts`. This job never runs vitest —
+      # it runs two `node scripts/*.mjs` commands — so a test-only edit cannot
+      # change this gate's verdict, and those tests already run on every PR in
+      # the root vitest `unit` project. `published-dist-gate.yml` and
+      # `spec-range-floors.yml` draw the same line.
+      - 'scripts/check-eager-closure-budget.mjs'
+      - 'scripts/render-budget-comment.mjs'
+      - 'scripts/invoked-as.mjs'
 
 concurrency:
   group: bundle-analysis-${{ github.event.pull_request.number || github.ref }}
