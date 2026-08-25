@@ -692,8 +692,25 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
 
   const dialogs = (
     <>
+      {/*
+        Close = flip `open` and KEEP every other field (objectui#6034). Radix
+        holds `AlertDialogContent` mounted through its exit animation
+        (`data-[state=closed]:animate-out … duration-200`), so
+        `ActionConfirmDialog` goes on reading `state.message` into the
+        description and `state.options` into the title and both button labels
+        for the whole fade-out. The `{ open: false, message: '' }` this replaced
+        blanked the description and reverted the labels to their i18n defaults
+        mid-fade. The retained `resolve` is inert — the dialog settles the
+        promise BEFORE it asks for the close, and the open path above replaces
+        the whole state object, so nothing stale survives a reopen.
+
+        `RecordDetailView` mounts a SECOND runtime into this same dialog and
+        already closed this way; that both runtimes hand the dialog one field
+        set on open AND reset it one way on close is pinned by
+        `views/RecordDetailView.confirmRuntimeParity-5835.test.tsx`.
+      */}
       <ActionConfirmDialog state={confirmState} onOpenChange={(open) => {
-        if (!open) setConfirmState({ open: false, message: '' });
+        if (!open) setConfirmState(s => ({ ...s, open: false }));
       }} />
       <ActionParamDialog state={paramState} onOpenChange={(open) => {
         if (!open) setParamState({ open: false, params: [] });
