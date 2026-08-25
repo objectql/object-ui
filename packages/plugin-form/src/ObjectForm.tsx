@@ -300,6 +300,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // rebuilds each section key by key, so a key it doesn't copy is
             // silently dropped — exactly how `visibleOn` once vanished here.
             pane: s.pane,
+            // ADR-0089 section predicate (#6111) — same reason as `pane` above:
+            // a key this map does not copy never reaches the layout at all.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),
@@ -330,6 +333,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             fields: s.fields,
             collapsible: (s as any).collapsible,
             collapsed: (s as any).collapsed,
+            // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
+            // uncopied key is silently dropped before DrawerForm ever sees it.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
           })),
           open: schema.open,
@@ -358,6 +364,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
+            // uncopied key is silently dropped before ModalForm ever sees it.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),
@@ -1195,6 +1204,11 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           name: `__section_${sectionKey}`,
           label,
           type: 'section-divider',
+          // ADR-0089 `FormSection.visibleWhen` (#6111). The renderer evaluates
+          // a `visibleWhen` on this pseudo-field with the host predicate scope
+          // bound (#6010), so copying it here is what makes the authored
+          // section predicate reach an evaluator at all.
+          visibleWhen: (section as any).visibleWhen,
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,

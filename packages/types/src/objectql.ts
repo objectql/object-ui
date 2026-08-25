@@ -941,6 +941,22 @@ export interface ObjectFormSection {
   fields: (string | FormField)[];
 
   /**
+   * Conditional visibility for the SECTION HEADER, as an authored predicate.
+   * Aligns with @objectstack/spec FormSection.visibleWhen (ADR-0089) — the same
+   * canonical `@object-ui/core` engine and record scope every other
+   * `visibleWhen` surface uses, so one authored predicate text means one thing
+   * everywhere (#6010). A broken predicate fails OPEN (the header renders).
+   *
+   * ⚠️ Scope, measured: this gates the section's `section-divider` HEADER row.
+   * The renderer treats that row as presentational and holds no association
+   * between it and the fields that follow, so a false predicate removes the
+   * heading and leaves its fields rendering (objectui#6111). The console
+   * renderer drops the whole `<section>`; reconciling the two is filed
+   * separately.
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
+
+  /**
    * Custom CSS class for the section's wrapper (Card, when the form variant
    * renders sections as cards; the divider header, for the flat/simple path).
    */
