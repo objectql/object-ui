@@ -137,9 +137,10 @@ The renderers this package registers for itself are internal wrappers rather
 than these exported components. `SchemaRenderer` hands a registered component its
 `schema` (plus the schema's own props), but never a `dataSource` — that travels
 on `SchemaRendererContext` — so each wrapper reads it off the context first.
-`ObjectForm` takes `dataSource` as a prop, optional because inline `customFields`
-need no adapter, so a custom-key registration either supplies one or wraps the
-component the same way.
+`ObjectForm` takes `dataSource` as a prop, optional because inline fields need no
+adapter, so a custom-key registration either supplies one or wraps the component
+the same way. "Optional" is not "absent is fine for every form", though — see
+[What a form submits to](#what-a-form-submits-to).
 
 ## Schema API
 
@@ -532,7 +533,10 @@ A section's `fields` accepts three shapes — a field **name**, a spec
 `FormField` object. The inline shape is what lets a wizard run with no data
 source at all, which is the closest equivalent of the old snippet; note that
 `WizardForm` reports a data-source-less submit through `onSuccess` (there is no
-`onSubmit` on this schema):
+`onSubmit` on this schema). **Every** step's fields have to be the inline shape
+for that to hold — one bare name among them means the form needed object
+metadata it could not fetch, and the submit is refused rather than confirmed
+(again, [What a form submits to](#what-a-form-submits-to)):
 
 ```tsx
 import { WizardForm } from '@object-ui/plugin-form';
@@ -625,6 +629,30 @@ const schema: FormSchema = {
 Each rule appears **once**, under its own name — an object, not a list. A second
 `minLength` cannot exist, which is the point: the shape the renderer hands
 react-hook-form is one rule per kind.
+
+## What a form submits to
+
+A form has somewhere to put the values when it has **either** a `dataSource` (it
+writes through the adapter) **or** a declared `submitHandler` (the host owns the
+write and needs no adapter of its own). With neither, exactly one shape is still
+legitimate: **fields authored inline**, where the author's `onSuccess` *is* the
+write. That is
+
+- a non-empty `customFields`, or
+- `sections` whose fields are **all** inline runtime `FormField` objects.
+
+Anything else — a form naming fields the object schema would have to resolve,
+with no adapter to fetch it and no host seam to hand the values to — **refuses**
+the submit with `DataSource is required for form submission (inline mode not
+configured)`. The error reaches `schema.onError` and is rethrown.
+
+This is uniform across all six renderers (`simple`, `tabbed`, `wizard`, `split`,
+`drawer`, `modal`). It used to be uniform in the other direction: the five
+variant renderers answered an adapter-less submit by calling `onSuccess` and
+returning, which reported a save that never happened and, through
+`MasterDetailForm`, produced a success toast over a form it then cleared
+(objectui#6300). A declared `submitHandler` is consulted first, so a host that
+said it owns the write is never bypassed for want of an adapter it never needed.
 
 ## Integration with Data Sources
 
