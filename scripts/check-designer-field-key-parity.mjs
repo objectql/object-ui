@@ -210,11 +210,6 @@ export const KNOWN_UNPARSEABLE_KEYS = {
     spec: "expression (+ returnType)",
     note: "LIVE. FieldDesigner renders a textarea for it on `type == 'formula'`. Not a rename: the spec's `expression` is CEL, so the key and the expression LANGUAGE move together.",
   },
-  isSystem: {
-    card: "objectui#6044",
-    spec: "system",
-    note: "Two defects. The READ (`toDesignerField` reads `raw.isSystem`) never matches what a spec-parsed server sends, so system fields present as ordinary editable ones; the WRITE can round-trip out through `carryOver`'s verbatim spread.",
-  },
   sortOrder: {
     card: "objectui#6045",
     spec: null, // the spec has `sortable` (a boolean), and no field-level ordering key

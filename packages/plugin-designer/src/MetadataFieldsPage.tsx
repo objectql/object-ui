@@ -62,8 +62,15 @@ interface ServerFieldSchema {
   // The framework also stores `select` field options as `options: string[] |
   // {label, value}[]`; we passthrough the raw structure for now.
   options?: unknown;
-  // Marker used by the framework's system-field injection (organization_id).
-  isSystem?: boolean;
+  /**
+   * Marker set by the framework's system-field injection (`organization_id`,
+   * `created_at`, `updated_by`, …). The spec spells it `system`
+   * (objectui#6044); `isSystem` is refused BY NAME by `FieldSchema`, and — being
+   * an OPTIONAL flag — reading the wrong spelling went unnoticed: `undefined`
+   * is a valid "not a system field", so system fields presented as ordinary
+   * editable, deletable business fields.
+   */
+  system?: boolean;
   [key: string]: unknown;
 }
 
@@ -98,7 +105,7 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     hidden: raw.hidden,
     defaultValue: raw.defaultValue,
     placeholder: raw.placeholder,
-    isSystem: raw.isSystem,
+    isSystem: raw.system,
     externalId: raw.externalId,
     trackHistory: raw.trackHistory,
     referenceTo: raw.reference,
@@ -131,8 +138,15 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
  * on the way out is what makes an edit-and-save of an ALREADY-BLOCKED object
  * come out parseable. The target itself is not lost — `fromDesignerField`
  * re-emits it under the spec spelling `reference` on the very next line.
+ *
+ * objectui#6044 adds `isSystem` for the same reason and with one difference
+ * worth stating: `fromDesignerField` never NAMES it, so the only way out is the
+ * verbatim `carryOver` spread — which makes this line, not any emit site, the
+ * whole write half of that card. The spec spelling `system` is not stripped: it
+ * is a real `FieldSchema` key, so a server-injected flag rides through
+ * untouched, which is exactly what lets `toDesignerField` read it back.
  */
-const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo'] as const;
+const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem'] as const;
 
 /** Carry over `prev`'s unknown keys, minus {@link RETIRED_FIELD_KEYS}. */
 function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {
