@@ -1,6 +1,6 @@
 {
   "type": "radio-group",
-  "direction": "vertical",
+  "orientation": "vertical",
   "options": [
     {
       "value": "sm",

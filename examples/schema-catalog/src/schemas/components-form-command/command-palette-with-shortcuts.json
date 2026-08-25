@@ -8,29 +8,17 @@
         {
           "value": "new",
           "label": "New File",
-          "icon": "file-plus",
-          "shortcut": [
-            "Ctrl",
-            "N"
-          ]
+          "icon": "file-plus"
         },
         {
           "value": "open",
           "label": "Open File",
-          "icon": "folder-open",
-          "shortcut": [
-            "Ctrl",
-            "O"
-          ]
+          "icon": "folder-open"
         },
         {
           "value": "save",
           "label": "Save",
-          "icon": "save",
-          "shortcut": [
-            "Ctrl",
-            "S"
-          ]
+          "icon": "save"
         }
       ]
     }

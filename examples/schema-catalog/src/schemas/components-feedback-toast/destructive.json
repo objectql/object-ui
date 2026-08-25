@@ -4,7 +4,7 @@
   "variant": "destructive",
   "onClick": {
     "action": "toast",
-    "variant": "destructive",
+    "variant": "error",
     "title": "Error",
     "description": "Something went wrong."
   }
