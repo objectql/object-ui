@@ -116,9 +116,12 @@ The AppShell renders no toggle button of its own. What it does give you is the
 ```tsx
 import { SidebarTrigger } from '@object-ui/components';
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { Home, Settings } from 'lucide-react';
 
-// The items defined under "Basic Usage" above.
-declare const navItems: NavItem[];
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/', icon: Home },
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
 
 <AppShell
   navbar={<SidebarTrigger />}
