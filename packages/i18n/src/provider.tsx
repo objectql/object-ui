@@ -7,6 +7,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import type { i18n as I18nInstance } from 'i18next';
 import { createI18n, getDirection, type I18nConfig } from './i18n.js';
+import { interpolateFallback, optionsOf } from './fallbackInterpolation.js';
 import { builtInLocales } from './locales/index.js';
 
 /**
@@ -628,7 +629,66 @@ export function I18nProvider({
  */
 export function useObjectTranslation(ns?: string) {
   const context = useContext(ObjectI18nContext);
-  const { t, i18n } = useTranslation(ns);
+  const { t: boundT, i18n } = useTranslation(ns);
+
+  // Whether react-i18next found an i18next instance at all — from props,
+  // from an `I18nextProvider` above, or from the module-level global that
+  // `createI18n` installs via `initReactI18next`.
+  //
+  // Read off the returned instance rather than the `ready` flag, and that is
+  // the load-bearing part. `useTranslation` returns `i18n || {}`, so a plain
+  // object with no `t` is exactly and only the no-instance case; `ready` is
+  // ALSO false for a real instance whose namespace is still loading, and there
+  // `t` is i18next's own `getFixedT` result, which interpolates already.
+  // Keying on `ready` would run a second interpolation pass over a string
+  // i18next had already filled — measured in
+  // `react-i18next@17.0.11/dist/es/useTranslation.js`, where `getSnapshot`
+  // returns `notReadySnapshot` under `if (!i18n)` and nothing else.
+  const hasInstance = typeof (i18n as { t?: unknown } | undefined)?.t === 'function';
+
+  // objectui#6219. With no instance, react-i18next hands back `notReadyT`,
+  // which returns `options.defaultValue` **verbatim**: an inline default
+  // written `'Deleted {{count}} rows'` reached the user with the braces intact
+  // on every host that embeds an ObjectUI component without `I18nProvider` —
+  // the configuration `createSafeTranslation` exists for (objectui#3865), so a
+  // supported one rather than a hypothetical.
+  //
+  // This is the ONE seam: 68 inline defaults across 24 files were rendering
+  // through it, and every one of them is fixed here instead of at the call
+  // sites. It is deliberately NOT a rewrite of those call sites — at a bare
+  // `useObjectTranslation()` the pre-interpolated template literal
+  // (`` `Deleted ${n} rows` ``) is the CORRECT spelling and stays correct
+  // (there is no hole left to fill), so both shapes now render right and
+  // neither is residue. objectui#4905 specified the opposite rewrite and it
+  // would have introduced this defect at 29 more sites.
+  //
+  // Scope, stated as narrowly as it is implemented: this widens WHICH BINDINGS
+  // interpolate on the provider-less path. It does not widen WHICH SPELLINGS
+  // resolve — that fork is objectui#3512's, which ruled deliberately against
+  // teaching the fallback i18next's other three dialects, and this change
+  // keeps that ruling by routing through the same one interpolator
+  // (`fallbackInterpolation.ts`) that `createSafeTranslation`'s `fallbackT`
+  // uses. With an instance present, `boundT` is returned untouched: i18next
+  // does its own interpolation and must never be double-processed.
+  const t = useMemo(() => {
+    if (hasInstance) return boundT;
+    const interpolating = (...args: unknown[]) => {
+      const rendered = (boundT as unknown as (...a: unknown[]) => unknown)(...args);
+      // `notReadyT` can also answer with a key array's last member or `''` for
+      // a function key. Only a string can carry a hole; anything else is
+      // handed back exactly as react-i18next produced it.
+      if (typeof rendered !== 'string') return rendered;
+      return interpolateFallback(rendered, optionsOf(args));
+    };
+    // The cast restores react-i18next's `TFunction` overloads for the ~700
+    // call sites that destructure `t` — the wrapper is argument-transparent by
+    // construction (it forwards `...args` untouched), so the declared type
+    // still describes it.
+    return interpolating as unknown as typeof boundT;
+    // `notReadyT` is a module constant in react-i18next, so on this path
+    // `boundT` is referentially stable and so is the wrapper — which matters,
+    // because call sites put `t` in `useMemo`/`useCallback` dependency arrays.
+  }, [boundT, hasInstance]);
 
   return {
     /** Translation function */

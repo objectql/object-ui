@@ -457,9 +457,17 @@ const HAND_ROLLED_TABLES: readonly { readonly file: string; readonly name: strin
   },
 ];
 
-/** Files that carry the literal needle today — the completeness case's subject. */
+/**
+ * Files that carry the literal needle today — the completeness case's subject.
+ *
+ * The canonical copy moved out of `useSafeTranslation.ts` into
+ * `fallbackInterpolation.ts` in objectui#6219, so that `useObjectTranslation`'s
+ * not-ready path could run the SAME interpolator rather than grow a fifth. The
+ * set is the same size for that reason: this registry counts copies of the
+ * grammar, and that change moved one rather than adding one.
+ */
 const NEEDLE_FILES = [
-  'packages/i18n/src/useSafeTranslation.ts',
+  'packages/i18n/src/fallbackInterpolation.ts',
   'packages/plugin-gantt/src/useGanttTranslation.ts',
   'packages/plugin-grid/src/ImportWizard.tsx',
   'packages/plugin-timeline/src/useTimelineTranslation.ts',
