@@ -44,9 +44,22 @@ When used through `ObjectGantt` (the wiring the framework uses for the
   fetched by `DetailView` itself when `dataSource.getObjectSchema` is
   available).
 
-  Override by setting `navigation` on the schema, e.g.
-  `{ mode: 'page', basePath: '/console/apps/.../campaign' }` to route
-  to the standalone detail page instead.
+  Override by setting `navigation` on the schema: set `{ "mode": "page" }` to
+  route to the standalone detail page instead.
+
+  ```json
+  { "navigation": { "mode": "page" } }
+  ```
+
+  The destination route is **not** authorable here — `useNavigationOverlay`
+  builds no URL out of this config, so page mode hands the record to the
+  host's `onNavigate` / `onRowClick` and the host owns where it lands. To
+  choose *which* detail view opens, use the declared `view` member (a
+  form-view name, e.g. `"summary_view"`). `navigation` is the spec's
+  `NavigationConfig`, and its schema refuses any key it does not declare: an
+  undeclared key rejects the whole config, so the `mode` beside it never
+  takes effect either. `@objectstack/spec`'s `NavigationConfigSchema` owns the
+  member list.
 
 
 ### Drag-and-drop rescheduling
