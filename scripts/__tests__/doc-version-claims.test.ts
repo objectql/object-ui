@@ -277,6 +277,46 @@ import { fileURLToPath } from 'node:url';
  * manifests (it wires Tailwind 4 through `@tailwindcss/postcss` instead), so there is
  * nothing here to compare against, whatever the page teaches.
  *
+ * ## What objectui#6307 added: the SPELLING the scan could not see
+ *
+ * Every widening above added a surface or a name. This one added a SEPARATOR, and it is
+ * the first whose absence was invisible from inside this gate's own output: a green
+ * ratchet looks identical whether it examined a line or never matched it at all.
+ *
+ * `SEP` admitted backticks, quotes, whitespace, colons, commas, pipes, brackets and a
+ * dash — and not `*`. So `**Node.js** 20+` never matched `TOOLCHAIN + SEP + VERSION`,
+ * while markdown emphasis around a toolchain name is one of this corpus's ordinary
+ * spellings: measured at this cut, six files across the three scan roots write one in
+ * bold. Two of them were the consumer guides' prerequisite bullets, where the number is
+ * exactly what a reader acts on.
+ *
+ * Measured across the widening, over the 241 files the three roots resolve to: 33
+ * matched literals before, 37 after — four new, none lost, all four on the two pages
+ * objectui#6307 names (`quick-start.md:12-13` and `building-crud-app.md:12`).
+ *
+ * NOT ONE of the four earned an inventory entry, and that is the half of this change
+ * worth carrying forward. They were not a floor this project declares — of the 46
+ * workspace manifests, ZERO declare `engines.node` or `engines.pnpm`, the only
+ * `engines` block outside the root being `packages/vscode-extension`'s `engines.vscode`
+ * — and not one it tests: 26 of the 27 `node-version:` declarations in
+ * `.github/workflows` read `'22.x'` and the 27th reads `'22'`, so nothing anywhere runs
+ * the Node 20 those bullets named. A number a reader will act on, restating no manifest
+ * and tested by no lane, is precisely what the ratchet's own failure message says to
+ * DELETE rather than ledger. The pages now state what CI exercises instead, and THOSE
+ * sentences are the four `anchored` entries below — an entry per literal, each naming
+ * the anchor it can be re-measured against.
+ *
+ * Which leaves the trap this section exists to stop. After that repair the corpus holds
+ * no emphasised claim at all, so reverting `SEP` would change nothing observable and
+ * this file would report green over the same blind spot again.
+ * `it('reads a claim through markdown emphasis…')` is the permanent witness, and it
+ * also pins the boundary the widening does NOT cross: `_` is in the class, yet
+ * `_Node.js_ 20+` still cannot match, because `_` is a word character and the `\b` on
+ * each side of `TOOLCHAIN` therefore fires on neither side of the name. Measured: zero
+ * underscore-emphasised toolchain names in the corpus today (control, same sweep: six
+ * files carry the bold spelling), so it is recorded as a boundary rather than repaired
+ * by widening those boundaries into a lookaround nothing has asked for.
+ *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
  * The dispatch expected the bare-claim count to be zero, since #3688 and #3698 had just
@@ -446,7 +486,7 @@ const TOOLCHAIN =
  * spelled without the wildcard in the comments here.
  */
 const TICK = '\u0060';
-const SEP = '[' + TICK + '\'"\\s:,|)\\]]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
+const SEP = '[' + TICK + '\'"\\s:,|)\\]*_]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
 
 /**
  * Case-insensitive, and the reason is the biggest single class in the corpus: the
@@ -687,6 +727,18 @@ const PEER_RESTATEMENT_OK =
 const KNOWN_CLAIMS: KnownClaim[] = [
   // --- content/docs ------------------------------------------------------------
   {
+    file: 'content/docs/guide/building-crud-app.md',
+    claim: 'Node 22.x',
+    kind: 'anchored',
+    why: "Anchored on the workflows: of the 27 node-version declarations in .github/workflows, 26 read '22.x' and the 27th (half-state-patrol.yml) reads '22'. Written by objectui#6307, which replaced an invented consumer floor (`**Node.js** 20+`) on this page. The sentence around it states what CI EXERCISES, not what a reader's project requires - no manifest in this tree declares a consumer engines.node, so a floor here would be a number nobody measured.",
+  },
+  {
+    file: 'content/docs/guide/building-crud-app.md',
+    claim: 'pnpm 10.x',
+    kind: 'anchored',
+    why: 'Anchored on the root packageManager field, pnpm@10.31.0: 17 corepack enable steps across 12 workflow files mean the pnpm that installs and builds these packages in CI is the one that field names. Same objectui#6307 rewrite as the Node line above, replacing `**pnpm** 9+` - a floor zero manifests in this workspace declare.',
+  },
+  {
     file: 'content/docs/guide/ci-cd-pipeline.md',
     claim: 'Node 22.x',
     kind: 'anchored',
@@ -723,6 +775,18 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     kind: 'anchored',
     skeletonDep: 'vite',
     why: 'Same skeleton, same anchor, same assertion (objectui#3855). This was the worst of the pair: it read ^5.0.0 against a workspace unanimously on ^8.2.1 — three majors — and the entry excusing it said the plugin author picks their own bundler version, which is not what a workspace:* manifest with a vite build script means.',
+  },
+  {
+    file: 'content/docs/guide/quick-start.md',
+    claim: 'Node 22.x',
+    kind: 'anchored',
+    why: "Same anchor and same objectui#6307 rewrite as the building-crud-app.md entry above (26 of 27 node-version declarations read '22.x'); this page carried the same invented floor in two bullets, `**Node.js** 20+` and `**pnpm** 9+`, and both were invisible to this scan until SEP admitted emphasis markers.",
+  },
+  {
+    file: 'content/docs/guide/quick-start.md',
+    claim: 'pnpm 10.x',
+    kind: 'anchored',
+    why: 'Same anchor as the building-crud-app.md pnpm entry above: the root packageManager field, pnpm@10.31.0, is what corepack hands every CI job that installs this workspace. Written by objectui#6307 in place of `**pnpm** 9+`.',
   },
   {
     file: 'content/docs/guide/theming.md',
@@ -1372,6 +1436,66 @@ describe('doc version claims - the scan itself', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('reads a claim through markdown emphasis, so the widened separator is not decorative', () => {
+    // objectui#6307. `SEP` admitted backticks, quotes, whitespace, colons, commas,
+    // pipes and brackets — and not `*` — so `**Node.js** 20+` never matched
+    // `TOOLCHAIN + SEP + VERSION`. Both consumer guides spelled their prerequisite
+    // floors that way, four literals across two pages, and this gate reported green
+    // over every one of them: the failure its own header warns about for other
+    // classes, arriving through the scan instead.
+    //
+    // This fixture is the widening's only PERMANENT witness, which is why it is here
+    // rather than left to the corpus. The four literals that motivated the change
+    // were DELETED by the same change (they stated a consumer floor this project
+    // neither declares nor tests, objectui#6307 half 1), and the sentences that
+    // replaced them put a plain space between each name and its version. So on the
+    // corpus alone, reverting `SEP` to its pre-#6307 spelling would change nothing
+    // observable and the blind spot would come back unnoticed.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-emphasis-'));
+    try {
+      const fixture = path.join(dir, 'prerequisites-shaped.md');
+      fs.writeFileSync(
+        fixture,
+        ['# Prerequisites', '', '- **Node.js** 20+', '- *pnpm* 9+ or npm/yarn', ''].join('\n'),
+        'utf8',
+      );
+
+      expect(
+        claimsIn(fixture).map((c) => c.claim),
+        'a toolchain name wrapped in markdown emphasis must still produce a claim',
+      ).toEqual(['Node.js** 20+', 'pnpm* 9+']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+
+    // The two spellings pinned side by side, so that "the widening bought something"
+    // is asserted rather than believed: the pre-#6307 class, rebuilt here, must FAIL
+    // on the same line the current one matches.
+    const claimWith = (sep: string): RegExp =>
+      new RegExp('(?:@[a-z0-9-]+/)?\\b' + TOOLCHAIN + '\\b' + sep + '(' + VERSION + ')', 'i');
+    const SEP_BEFORE_6307 = '[' + TICK + '\'"\\s:,|)\\]]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
+
+    expect(claimWith(SEP).test('- **Node.js** 20+'), 'the current SEP must match the bold spelling').toBe(true);
+    expect(
+      claimWith(SEP_BEFORE_6307).test('- **Node.js** 20+'),
+      'the pre-objectui#6307 SEP must be shown NOT to match, or nothing here says what the widening changed',
+    ).toBe(false);
+
+    // The residual, asserted rather than left for someone to assume away: `_` is in
+    // the class (it costs nothing between a name and a version) but underscore
+    // EMPHASIS around the name is still invisible, and no character class can reach
+    // it. `_` is a word character, so `\b` fires on neither side of `_Node.js_` —
+    // the match fails before `SEP` is ever consulted. Measured at this cut across the
+    // three scan roots: ZERO underscore-emphasised toolchain names (control, same
+    // sweep: six files carry the bold spelling), so this is a documented boundary and
+    // not a live hole. A corpus that starts spelling it that way needs the BOUNDARIES
+    // widened, not the class.
+    expect(
+      claimWith(SEP).test('- _Node.js_ 20+'),
+      'if this ever goes true the boundary was changed too - update this comment with what it now covers',
+    ).toBe(false);
   });
 
   it('does not treat a numbered section heading as a release section', () => {
