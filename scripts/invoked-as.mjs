@@ -13,10 +13,10 @@
  * reached ELEVEN distinct spellings across 33 files -- measured, not estimated
  * -- and nine of the eleven were wrong, in a direction nothing in CI can see.
  *
- * THIS repository has not been swept, and no gate here enforces the rule. Read
- * "## Nothing here enforces this yet" below before concluding otherwise: every
- * path this header names outside `scripts/` is objectstack's, and several under
- * `scripts/` are too.
+ * THIS repository has since been swept, and a gate here enforces the rule. Read
+ * "## What enforces this, and what it took to get here" below for the numbers
+ * and the commit they were taken on. Two paths this header names are
+ * objectstack's and do not exist here; each is labelled where it appears.
  *
  * ## The bug every hand-typed spelling had
  *
@@ -36,8 +36,10 @@
  *
  * Same tree, same defect, same gate -- reached through a symlink it reports the
  * clean answer, and a wrapper holding `result.status` cannot tell that apart
- * from a pass. `check-skills-paths.mjs` carries the no-realpath spelling, as do
- * 27 of its neighbours; see below.
+ * from a pass. `check-skills-paths.mjs` CARRIED the no-realpath spelling when
+ * that was measured, as did 27 of its neighbours; every one of them routes
+ * through `isEntrypoint` now -- see below for what closed them, and what keeps
+ * them shut.
  *
  * The same measurement in objectstack, where this module came from, lands on a
  * gate whose exit codes make it worse still: `scripts/pm/check-governed-merges.mjs`
@@ -81,33 +83,54 @@
  * it, exported so the predicate is pinned by cases rather than trusted by
  * reading.
  *
- * ## Nothing here enforces this yet -- the rule is a CONVENTION
+ * ## What enforces this, and what it took to get here
  *
- * An earlier version of this paragraph said `scripts/check-entry-guard.mjs`
- * enforces the rule -- that a `process.argv[1]` in an entry-guard position
- * anywhere in `scripts/**` outside this module is a failure. It does not. That
- * file has never existed in this repository. It exists in objectstack, wired
- * there as `check:entry-guard`; the port (#5984) brought this module and its
- * prose, and neither the gate nor the sweep the prose describes. Measured on
- * `7c96c9420`:
+ * `scripts/check-entry-guard.mjs` enforces the rule: a `process.argv[1]` in an
+ * entry-guard position anywhere in `scripts/**` outside this module is a
+ * failure. It is wired in `package.json` as `check:entry-guard` and run by
+ * `.github/workflows/lint.yml` BEFORE `pnpm install`, so an install failure
+ * cannot take the gate down with it. `scripts/__tests__/entry-guard-wiring.test.ts`
+ * pins that wiring rather than the numbers, because a gate nobody runs is
+ * indistinguishable from a gate that passes.
  *
- *   git grep -n 'check-entry-guard'             -> ONE hit: this paragraph
- *   git grep -l 'isEntrypoint' -- scripts       -> this file, and ONE adopter
- *   git grep -l 'process.argv\[1\]' -- scripts   -> 30 files
+ * Measured on `2dc4aa709`. Naming the commit is the point: these are a
+ * SNAPSHOT, and an older snapshot left standing in the present tense is exactly
+ * what this section had to be rewritten to fix.
  *
- * The one adopter is `scripts/pm/check-half-states.mjs`, which arrived in the
- * same PR. The 30 files are this one plus TWENTY-NINE hand-typed guards: 28
- * `.mjs`, in NINE textually distinct spellings and not one carrying a realpath
- * leg -- including the exact percent-encoding spelling this header warns about
- * above, still in `check-node-esm-load.mjs:847` -- and `scripts/shadcn-sync.js`,
- * the only hand-typed guard here that does carry the realpath leg.
+ *   pnpm check:entry-guard                      -> 47 scripts/ files scanned, no
+ *                                                  guard outside the baseline;
+ *                                                  0 still hand-type one
+ *                                                  (SHRINK-ONLY); 42 export
+ *                                                  bindings, 42 inert on import
+ *   git grep -l 'isEntrypoint' -- scripts       -> 40 files
+ *   git grep -l 'process.argv\[1\]' -- scripts   -> 3 files
  *
- * A gate is still the right answer: without one, converting those 29 is a
- * one-time sweep that starts rotting the day it merges, because nothing stops a
- * THIRTIETH spelling from being typed next week. Both halves -- the gate and
- * the sweep -- are tracked in #6092. Until that lands, `isEntrypoint` here is a
- * convention: reach for it in new scripts, and do not read this file as
- * evidence that the tree already has.
+ * Those three are this module -- the one place allowed to read `argv[1]` -- and
+ * `check-entry-guard.mjs` and `js-comment-mask.mjs`, which carry the broken
+ * spellings as FIXTURE data rather than as guards; the gate's comment/string
+ * masking is what tells those apart from the real thing.
+ *
+ * The history, because the figures above only mean something against it. This
+ * module arrived from objectstack (#5984) with prose describing OBJECTSTACK'S
+ * tree: it named a gate that did not exist here and a sweep that had not
+ * happened here. Measured then, on `7c96c9420`: `check-entry-guard` appeared in
+ * exactly ONE place, the paragraph claiming it; `isEntrypoint` had a single
+ * adopter (`scripts/pm/check-half-states.mjs`); and 29 hand-typed guards stood
+ * in NINE textually distinct spellings, 28 of them with no realpath leg --
+ * including the exact percent-encoding spelling this header warns about above,
+ * then still in `check-node-esm-load.mjs`. objectui#6092 closed both halves:
+ * the gate landed (#6133), the 29 call sites were converted (#6145), and the
+ * second rule's baseline reached zero (#6156).
+ *
+ * The gate, not the sweep, is what holds. A one-time sweep starts rotting the
+ * day it merges, because nothing stops a THIRTIETH spelling from being typed
+ * next week; `KNOWN_HAND_TYPED_GUARDS` is empty and SHRINK-ONLY, so typing one
+ * is now RED rather than a convention politely ignored.
+ *
+ * When these numbers move, re-take them and re-name the commit -- do not edit
+ * the figures in place under the old one. A refreshed count under a stale
+ * commit is a measurement nobody can reproduce, and that is the failure this
+ * whole section records.
  *
  * ## The siblings, and why the duplication is deliberate
  *
