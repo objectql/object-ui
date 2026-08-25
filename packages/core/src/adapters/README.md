@@ -18,7 +18,7 @@ The `ObjectStackAdapter` provides seamless integration with ObjectStack Protocol
 ### Usage
 
 ```typescript
-import { createObjectStackAdapter } from '@object-ui/core';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
 // Create the adapter
 const dataSource = createObjectStackAdapter({
@@ -41,7 +41,7 @@ const schema = {
 ### Advanced Usage
 
 ```typescript
-import { ObjectStackAdapter } from '@object-ui/core';
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 
 const adapter = new ObjectStackAdapter({
   baseUrl: 'https://api.example.com',

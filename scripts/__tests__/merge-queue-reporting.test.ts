@@ -107,6 +107,14 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'one node call, so it carries no path filter, reports on every pull request, and is ' +
       'requirable; `scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
   ],
+  [
+    'readme-exports.yml',
+    'produces README Export Check — added by objectui#5043. A fabricated self-import can be ' +
+      'written into any package README, and a README-only pull request is the shape `ci.yml` ' +
+      'structurally cannot see (its jobs short-circuit on a diff that excludes `**/*.md`), so ' +
+      'this gate carries no path filter, reports on every pull request, and is requirable; ' +
+      '`scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
+  ],
 ]);
 
 /**
