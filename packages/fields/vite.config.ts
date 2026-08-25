@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import path from 'path';
 
+import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
+
 export default defineConfig({
   plugins: [
     react(),
@@ -14,6 +16,10 @@ export default defineConfig({
       // this package's `rootDir` — which would emit TS6059 rootDir errors.
       compilerOptions: { rootDir: path.resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
+      // Relative specifiers in the EMITTED typings get their explicit extension
+      // here — objectui#5365 / #5439. A NAMED re-export through an extensionless
+      // hop still declares the name under `nodenext` and silently types it `any`.
+      ...createDtsExplicitExtensions({ packageDir: __dirname }),
       // Deliberately NOT spreading `createDtsFailOnTypeErrors` here, unlike the
       // other 21 `dts(` call sites — objectui#5483. This package's build script is
       // `tsc && vite build && node scripts/build-css.mjs`, and that leading `tsc` is

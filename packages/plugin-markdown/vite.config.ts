@@ -11,6 +11,7 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
+import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
 import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
 
 export default defineConfig({
@@ -25,6 +26,10 @@ export default defineConfig({
       compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
       include: ['src'],
+      // Relative specifiers in the EMITTED typings get their explicit extension
+      // here — objectui#5365 / #5439. A NAMED re-export through an extensionless
+      // hop still declares the name under `nodenext` and silently types it `any`.
+      ...createDtsExplicitExtensions({ packageDir: __dirname }),
       // A type error the declaration program already found and printed used to
       // leave `vite build` exiting 0 — objectui#5370 / #5483. This makes it fatal.
       ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
