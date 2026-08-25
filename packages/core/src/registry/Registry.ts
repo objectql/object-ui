@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { ComponentInput } from '@object-ui/types';
+import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
@@ -34,10 +34,27 @@ export type ComponentRenderer<T = any> = T;
  */
 export type { ComponentInput } from '@object-ui/types';
 
-export type ComponentMeta = {
-  label?: string; // Display name in designer
-  icon?: string; // Icon name or svg string
-  category?: string; // Grouping category
+/**
+ * The keys the REGISTRY adds on top of the one `ComponentMeta` declaration:
+ * registration mechanics (`tier` / `namespace` / `skipFallback`) and the
+ * host-labelling contract (`labelling`). None of the four has a counterpart on
+ * the general type in `@object-ui/types`, and none is being moved there —
+ * publishing registry mechanics on the general type was the alternative
+ * objectui#6067 weighed and rejected.
+ *
+ * They live in their OWN named type so that `ComponentMeta` below can be
+ * DERIVED from the canonical declaration instead of restating it. Until
+ * objectui#6067 this file carried a second, thirteen-key structural copy of
+ * the name: the nine shared members restated from `@object-ui/types`' `base.ts`,
+ * these four added here, and `tags` / `description` — declared on the canonical
+ * type and on the `ComponentMetaSchema` zod mirror — simply absent. That is
+ * objectui#4580's ruling coming true for the third type in a row: *a
+ * structural copy would reproduce the defect the moment either side moved.*
+ * objectui#5671 executed the same convergence for `ComponentInput` in this very
+ * file, and objectui#5893 closed the identical two-key delta inside
+ * `@object-ui/types`.
+ */
+export type RegistryComponentMetaExtras = {
   /**
    * Public contract tier (ADR-0080). `'public'` = part of the curated,
    * type-checked, AI-facing block set (gets a strengthened contract, the
@@ -95,20 +112,31 @@ export type ComponentMeta = {
    * unlabelled group.
    */
   labelling?: 'control' | 'group' | 'display';
-  inputs?: ComponentInput[];
-  defaultProps?: Record<string, any>; // Default props when dropped
-  examples?: Record<string, any>; // Example configurations
-  isContainer?: boolean; // Whether the component can have children
-  resizable?: boolean; // Whether the component can be resized in the designer
-  resizeConstraints?: {
-    width?: boolean;
-    height?: boolean;
-    minWidth?: number;
-    maxWidth?: number;
-    minHeight?: number;
-    maxHeight?: number;
-  };
 };
+
+/**
+ * What a registration DECLARES about one component — the type every
+ * `ComponentRegistry.register` / `registerLazy` call is checked against.
+ *
+ * ONE declaration of the shared members: this is `@object-ui/types`'
+ * `ComponentMeta` (the declaration `ComponentMetaSchema` mirrors and the
+ * plugin-facing surface publishes) intersected with the registry-only keys
+ * above. The nine shared members are no longer restated here, so they cannot
+ * drift again, and `tags` / `description` now reach the registration surface —
+ * the two keys the divergence had made unwritable at the very declaration most
+ * component registrations import.
+ *
+ * NOTE for anyone pinning this: every member of both halves is OPTIONAL, so
+ * `extends` is mutually TRUE between the two shapes even when their key sets
+ * differ. Measured on the EMITTED `.d.ts` of both packages immediately before
+ * this convergence: `Core extends Canonical` and `Canonical extends Core` were
+ * BOTH `true` while `tags` / `description` were missing and four keys were
+ * extra. An assignability assertion is therefore a ghost here — it was green on
+ * the diverged tree. `__tests__/component-meta-derives-from-canonical.test.ts`
+ * compares `keyof` sets instead and keeps the assignability check beside it as
+ * the labelled control that shows why.
+ */
+export type ComponentMeta = CanonicalComponentMeta & RegistryComponentMetaExtras;
 
 export type ComponentConfig<T = any> = ComponentMeta & {
   type: string;
