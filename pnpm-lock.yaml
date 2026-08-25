@@ -1193,7 +1193,7 @@ importers:
         specifier: ^17.0.0
         version: 17.2.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0
+        specifier: ^17.2.0
         version: 17.2.0(ai@7.0.65(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
@@ -1255,7 +1255,7 @@ importers:
         specifier: ^17.0.0
         version: 17.2.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^17.0.0
+        specifier: ^17.2.0
         version: 17.2.0(ai@7.0.65(zod@4.4.3))
     devDependencies:
       tsup:
