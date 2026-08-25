@@ -111,9 +111,9 @@ describe('the population follows the workflows', () => {
   });
 
   it('does not read an install out of a shell comment or a quoted argument', () => {
-    // Both shapes are in this repository: `dependabot-auto-merge.yml` configures
-    // a merge driver whose VALUE is `"pnpm install --no-frozen-lockfile"` in a
-    // job that never installs, and block scalars carry `#` lines that are shell
+    // Both shapes are in this repository: `changeset-release.yml` configures a
+    // merge driver whose VALUE is `"pnpm install --no-frozen-lockfile"`, ahead of
+    // that job's real install, and block scalars carry `#` lines that are shell
     // comments rather than YAML ones. Reading either as an install moves the
     // boundary earlier and silently drops a script out of the population — the
     // shrinking direction, which costs coverage rather than raising a false red.

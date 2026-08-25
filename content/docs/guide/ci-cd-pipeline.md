@@ -778,8 +778,9 @@ shrinks. A hard-coded list would break silently the first time someone moved a s
 install, which is exactly the edit that needs catching. Two anchoring decisions the derivation
 depends on, each with a case in this repository: `pnpm exec playwright install chromium` installs a
 browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"` in
-`dependabot-auto-merge.yml` *configures* a driver in a job that never installs — reading either as an
-install would move a boundary and silently drop a script out of the population.
+`changeset-release.yml` *configures* a driver — the `pnpm install` there is a quoted argument, and
+that job's real install is a later step — reading either as an install would move a boundary and
+silently drop a script out of the population.
 
 **It walks the graph, not the entry file.** Requiring each of the entry's own imports to start with
 `node:` is too narrow in one direction (a relative import of a builtins-only local module is fine,
@@ -1539,7 +1540,9 @@ Dependabot bump never touches `.claude/hooks/**`, so it is never waited for) rat
 
 - **Patch/minor updates**: approved and enqueued — **but only after an explicit wait**, see below.
 - **Major updates**: commented for manual review; never approved, never enqueued.
-- Configures a pnpm-lock.yaml merge driver for conflict resolution.
+- Configures **no** lockfile merge driver ([#6369](https://github.com/objectstack-ai/objectui/issues/6369)):
+  its only merge is `gh pr merge`, which GitHub runs server-side, where the runner's git config
+  cannot reach.
 
 **The wait, and why it exists.** This workflow used to run `gh pr merge --auto --squash`
 unconditionally for every patch/minor bump. `--auto` lands the merge as soon as GitHub considers
@@ -1599,8 +1602,8 @@ pnpm-lock.yaml merge=pnpm-merge
 ```
 
 Git does not ship a `pnpm-merge` driver, and an attribute naming a driver nothing defines falls
-back to an ordinary text merge. So every workflow that merges, rebases, or commits onto a branch
-that may have moved defines it immediately after checkout:
+back to an ordinary text merge. So every workflow that performs a **local** merge or rebase --
+one git carries out on the runner -- defines it immediately after checkout:
 
 ```yaml
 - name: Configure Git merge driver for pnpm-lock.yaml
@@ -1609,12 +1612,11 @@ that may have moved defines it immediately after checkout:
     git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
 ```
 
-Two workflows carry that step, for two different reasons:
+One workflow carries that step:
 
 | Workflow | Why it needs the driver |
 |---|---|
 | `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
-| `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
 actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
@@ -1630,12 +1632,19 @@ configured with a plain `pnpm install` under **Configure Git Merge Driver for pn
 `CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
 branches.
 
-Adding a workflow that **merges**? Add the step after checkout and before the merge, and add its
-row above — the pin fails otherwise. ⛔ Pushing is not merging, and this sentence said "merges or
-pushes" until [#6358](https://github.com/objectstack-ai/objectui/issues/6358): `changelog.yml`
-carried the step on the strength of that word, having no merge to resolve. A
-workflow that only commits and pushes needs no driver, and giving it one buys nothing while
-implying a lockfile hazard it does not have.
+Adding a workflow that merges **locally** — a merge git performs on the runner? Add the step
+after checkout and before the merge, and add its row above — the pin fails otherwise. This
+sentence has been read too widely twice, and each reading left a dead copy behind:
+
+⛔ **Pushing is not merging.** It said "merges or pushes" until
+[#6358](https://github.com/objectstack-ai/objectui/issues/6358): `changelog.yml` carried the step
+on the strength of that word, having no merge to resolve. A workflow that only commits and pushes
+needs no driver, and giving it one buys nothing while implying a lockfile hazard it does not have.
+
+⛔ **A server-side merge is not a local one.** `dependabot-auto-merge.yml` carried the step until
+[#6369](https://github.com/objectstack-ai/objectui/issues/6369) for a merge it genuinely performs
+— `gh pr merge`. But GitHub executes that one itself, not on the runner, so no local git config
+takes part in it.
 
 ## Adding a New Workflow
 
