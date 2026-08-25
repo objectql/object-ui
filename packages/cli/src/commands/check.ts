@@ -11,6 +11,7 @@ import { globSync } from 'glob';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
+import { safeValidateSchema } from '@object-ui/types/zod';
 
 import { isKnownSchemaType } from '../utils/known-schema-types.js';
 import { didYouMeanClause } from '../utils/known-type-case-suggestion.js';
@@ -79,12 +80,18 @@ const OBJECTUI_STRUCTURAL_KEYS: readonly string[] = [
  *   delivered.
  *
  * Because that matching was host-based rather than literal, the arm can be
- * added later without invalidating a single file — most soundly once
- * `@object-ui/types` ships a generated JSON Schema, which is filed separately.
+ * added later without invalidating a single file. The trigger that clause once
+ * pointed at is gone: `@object-ui/types` shipping a generated JSON Schema was
+ * objectui#5392, and the maintainer ruled it Option B on 2026-08-25 — no
+ * shipped artifact. There is therefore no document a `$schema` URL could name,
+ * and the recall that arm was being kept in reserve for is repaid instead by
+ * the validity arm below, which reads the Zod schemas already in
+ * `node_modules` rather than a URL fetched over HTTP.
  */
 
 /**
- * Does this parsed file positively read as an ObjectUI schema (objectui#5127)?
+ * Does this parsed file positively read as an ObjectUI schema (objectui#5127,
+ * objectui#6075)?
  *
  * `type` carries at least seven unrelated vocabularies in JSON — the most
  * common of them being `package.json`'s `"type": "module"` — so the presence
@@ -95,37 +102,79 @@ const OBJECTUI_STRUCTURAL_KEYS: readonly string[] = [
  * produced were exactly that.
  *
  * The fix is a positive marker, not a consumer-side skip list: a file is
- * judged when it is structurally recognisable as an ObjectUI node. A list of
- * filenames to exclude was
- * considered and rejected — it is a second hand-maintained list of the shape
- * objectui#5115 had just finished deleting, and it can only ever enumerate the
- * foreign vocabularies someone already thought of.
+ * judged when it is recognisable as an ObjectUI node. A list of filenames to
+ * exclude was considered and rejected — it is a second hand-maintained list of
+ * the shape objectui#5115 had just finished deleting, and it can only ever
+ * enumerate the foreign vocabularies someone already thought of.
  *
- * ⚠️ The structural arm is a TRANSITIONAL fallback, not the contract. It is
- * drawn for precision over recall on purpose: a foreign file wrongly judged is
- * this card's defect reappearing in a user's project, while a real schema
- * wrongly skipped is a RECALL DEBT — real, unpaid, and kept visible by the
- * skipped-file count printed below.
+ * There are two arms, and the ORDER is load-bearing:
  *
- * ⛔ Nothing repays that debt today, and no corpus migration can. The marker a
- * migration would stamp is the `$schema` URL the 2026-08-20 ruling declined to
- * mint: `OBJECTUI_SCHEMA_URL` and `pointsAtObjectUi()` were deleted before
- * objectui#5334 merged, so there is no arm for a stamped file to match — see
- * the block above, which records the same absence from the other side.
- * Measured rather than reasoned: injecting a `$schema` key into a
- * currently-skipped real corpus file leaves the skipped count unmoved, while
- * injecting a structural key into the same file moves it by exactly one. A
- * corpus-wide `$schema` sweep is therefore a no-op here, not an unfinished
- * chore — an earlier card was written, claimed and worked on the belief that
- * this sentence promised one.
+ * 1. The structural arm (`OBJECTUI_STRUCTURAL_KEYS`, above) — a set-membership
+ *    test over the parsed root, and the cheap one. It runs first so the
+ *    common case never pays for arm 2.
+ * 2. The validity arm — the document parses as an ObjectUI component schema
+ *    under `@object-ui/types`' own Zod union. This is the recogniser the
+ *    2026-08-25 ruling on objectui#5392 selected (Option B, no shipped schema
+ *    artifact): measured over this repository it admits schemas the structural
+ *    arm cannot see — leaf nodes that carry only their own vocabulary — while
+ *    refusing every `package.json`, because `"module"` is not a component the
+ *    protocol models.
  *
- * The debt is tracked as objectui#6075, blocked on objectui#5392
- * (`@object-ui/types` shipping a generated JSON Schema to point at). Waiting
- * forecloses nothing: matching would be host-based, so adding the arm then
- * invalidates not a single file.
+ * ⛔ There is deliberately no third arm reading a registered root `type`
+ * alone. `{ "name": "x", "type": "form" }` is a plausible `package.json` and
+ * `form` is a real component key; admitting on the type name re-creates the
+ * exact defect this gate exists to remove. Recognition needs SHAPE.
+ *
+ * ⚠️ The validity arm couples this command's recall to `@object-ui/types`:
+ * tightening a Zod schema moves files out of recognition. That is not a
+ * hazard left to chance — it is the reason `check` reports a third bucket
+ * rather than two (see `UNVALIDATED_CANDIDATE` below). A file that stops
+ * validating stops being *judged*, but it does not stop being *mentioned*.
  */
 function isObjectUiSchemaFile(content: Record<string, unknown>): boolean {
-  return OBJECTUI_STRUCTURAL_KEYS.some((key) => key in content);
+  return (
+    OBJECTUI_STRUCTURAL_KEYS.some((key) => key in content) ||
+    safeValidateSchema(content).success
+  );
+}
+
+/**
+ * `UNVALIDATED_CANDIDATE` — the bucket a validity-based recogniser MUST report
+ * rather than swallow (objectui#6075).
+ *
+ * A recogniser built on validation conflates two entirely different findings:
+ * "this file is not ours" and "this file is ours and it is broken". The second
+ * is the more valuable of the two — it is the thing this command exists to
+ * find — and filing it under the first makes it vanish. The symptom of that
+ * bug is an ABSENCE: the file simply stops being mentioned, and nothing
+ * prompts a re-read.
+ *
+ * It is not a theoretical bucket. Measured over this repository at the commit
+ * that introduced this function, 100 eligible files failed the validity arm,
+ * and 54 of them were real ObjectUI content — schema-catalog leaves such as
+ * `{ "type": "text", "content": "Small text", "variant": "small" }`, whose
+ * `variant` is not in `TextSchema`'s enum. Reported as foreign, all 54 would
+ * have gone quiet.
+ *
+ * The discriminator is `isKnownSchemaType`: does the root `type` name a
+ * component THIS BUILD registers? It is the same derived universe the
+ * judgement arm uses, so it needs no second list, and it is the one signal
+ * that separates a broken `"type": "text"` node from `"type": "module"`.
+ *
+ * Its cost, stated rather than hidden: a foreign document whose root `type`
+ * happens to collide with a registered component key lands here. A JSON Schema
+ * document with `"type": "object"` is exactly that, and this repository
+ * contains one. The cost is one advisory line naming a file — not a warning
+ * about the reader's `package.json`, which is the failure this gate was built
+ * for. The opposite error is the one that cannot be seen.
+ *
+ * ⛔ This bucket is REPORTED, never counted as skipped. Moving files from the
+ * skipped count into an unreported bucket would make the recall debt look
+ * repaid while nothing had been repaid, which is the one outcome objectui#6075
+ * names as unacceptable.
+ */
+function isUnvalidatedCandidate(type: string): boolean {
+  return isKnownSchemaType(type);
 }
 
 /**
@@ -159,11 +208,17 @@ export async function check(cwd: string = process.cwd()) {
   
   let errors = 0;
   // Files that a root `type` string made ELIGIBLE for type judgement and that
-  // no ObjectUI marker admitted. Reported below so the narrowed judgement
+  // no ObjectUI recogniser admitted. Reported below so the narrowed judgement
   // surface is never silent (objectui#5127) — a check that quietly stops
   // checking is worse than one that warns too loudly, because nothing prompts
   // a re-read.
   let skipped = 0;
+  // The third bucket (objectui#6075): eligible files the recogniser refused
+  // whose root `type` nevertheless names a component this build registers.
+  // These are ObjectUI content that does not validate — a finding, not a
+  // foreign file — so they are listed by name rather than folded into the
+  // count above.
+  const unvalidatedCandidates: { file: string; type: string }[] = [];
   
   for (const file of files) {
     try {
@@ -212,7 +267,15 @@ export async function check(cwd: string = process.cwd()) {
             // is. The glob also matches `.yaml`/`.yml`, and those files are
             // read by neither arm, before this change or after it.
             if (!isObjectUiSchemaFile(content as Record<string, unknown>)) {
-              skipped++;
+              // Refused. Which of the two refusals is this? A file whose root
+              // `type` names a registered component is ObjectUI content the
+              // recogniser could not validate — say so. Everything else is
+              // simply not ours.
+              if (isUnvalidatedCandidate(content.type)) {
+                unvalidatedCandidates.push({ file, type: content.type });
+              } else {
+                skipped++;
+              }
             } else if (!isKnownSchemaType(content.type)) {
               // The known-type universe is DERIVED from the repository's
               // registration calls (see `packages/cli/src/utils/known-schema-types.ts`
@@ -237,10 +300,40 @@ export async function check(cwd: string = process.cwd()) {
     }
   }
 
+  // Printed BEFORE the skipped count, and per file rather than as a bare
+  // number: this bucket is the one a two-bucket report would have destroyed,
+  // and a count alone is not enough to act on (objectui#6075). The list is
+  // uncapped for the same reason the unknown-type warnings above are — a cap
+  // is a quieter way of losing the finding.
+  if (unvalidatedCandidates.length > 0) {
+    const n = unvalidatedCandidates.length;
+    console.log(
+      chalk.yellow(
+        `⚠️ ${n} file${n === 1 ? '' : 's'} carr${n === 1 ? 'ies' : 'y'} a registered ObjectUI component type but did not validate as an ObjectUI schema:`
+      )
+    );
+    for (const { file, type } of unvalidatedCandidates) {
+      console.log(chalk.yellow(`   ${file} (type "${type}")`));
+    }
+    console.log(
+      chalk.dim('   Run `objectui validate <file>` on any of them for the reason.')
+    );
+    console.log(
+      chalk.dim(
+        '   Either the document is off-spec, or its component type is not modelled by @object-ui/types.'
+      )
+    );
+    console.log(
+      chalk.dim(
+        '   These are NOT counted as skipped: a schema that fails validation is a broken schema, not a foreign file.'
+      )
+    );
+  }
+
   if (skipped > 0) {
     console.log(
       chalk.dim(
-        `Skipped ${skipped} file${skipped === 1 ? '' : 's'} with a root "type" and no ObjectUI schema marker.`
+        `Skipped ${skipped} file${skipped === 1 ? '' : 's'} with a root "type" that no ObjectUI recogniser admitted.`
       )
     );
     // The hint names the marker keys by rendering the gate's OWN array, never
@@ -253,6 +346,15 @@ export async function check(cwd: string = process.cwd()) {
     console.log(
       chalk.dim(
         `  A file is checked when its root carries an ObjectUI structural key: ${OBJECTUI_STRUCTURAL_KEYS.join(', ')}.`
+      )
+    );
+    // The second arm, stated because the sentence above no longer describes
+    // the whole predicate — and an explanation that has stopped describing
+    // what the code does is the defect class objectui#6074 had just finished
+    // removing from this file.
+    console.log(
+      chalk.dim(
+        '  It is also checked when the whole document validates as an ObjectUI component schema.'
       )
     );
   }
