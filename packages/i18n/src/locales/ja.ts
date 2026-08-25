@@ -3410,6 +3410,35 @@ const ja = {
       bulkOperationFailed: "一括操作に失敗しました：{{reason}}",
     },
   },
+  // objectui#6301 — 設定 › パッケージ自動化 (ADR-0126 §7.4)。用語は既存訳に
+  // 合わせています: `common.package` = パッケージ、`flowRunner.completed` =
+  // フロー、引用符は「」。⛔ 系譜・ドリフトを示す語はこのグループに置きません (§9)。
+  packagedAutomation: {
+    title: "パッケージ自動化",
+    subtitle: "インストール済みパッケージが提供するフローです。このデプロイでオフにするか、新しい名前でクローンしてカスタマイズできます。編集は Studio で行います。",
+    refresh: "更新",
+    colFlow: "フロー",
+    colActivation: "有効状態",
+    colActions: "操作",
+    toggleLabel: "{{label}} の有効状態",
+    on: "オン",
+    off: "オフ",
+    clone: "クローン",
+    cloneTitle: "パッケージフローをクローン",
+    cloneBody: "コピーは定義全体を引き継ぎ、新しいマシン名とラベルが必要です。コピーの編集は Studio で行ってください。",
+    cloneName: "新しいマシン名",
+    cloneLabel: "新しいラベル",
+    cancel: "キャンセル",
+    cloneConfirm: "クローンを作成",
+    cloneCreated: "フロー「{{name}}」を作成しました。",
+    emptyTitle: "パッケージフローはありません",
+    emptyBody: "このデプロイには、自動化フローを提供するインストール済みパッケージがありません。自分で作成したフローは Studio にあります。",
+    loadFailed: "パッケージ自動化を読み込めませんでした。",
+    toggleFailedHttp: "有効状態を変更できませんでした (HTTP {{status}})。",
+    toggleFailed: "有効状態を変更できませんでした。",
+    cloneFailedHttp: "このフローをクローンできませんでした (HTTP {{status}})。",
+    cloneFailed: "このフローをクローンできませんでした。",
+  },
 };
 
 export default ja;

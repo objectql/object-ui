@@ -3412,6 +3412,36 @@ const es = {
       bulkOperationFailed: "Error en la operación masiva: {{reason}}",
     },
   },
+  // objectui#6301 — Configuración › Automatización de paquetes (ADR-0126
+  // §7.4). Terminología del pack: `common.package` = Paquete,
+  // `flowRunner.completed` = Flujo, comillas «…». ⛔ Ninguna formulación de
+  // linaje o desviación en este grupo (§9).
+  packagedAutomation: {
+    title: "Automatización de paquetes",
+    subtitle: "Flujos incluidos en los paquetes instalados. Desactiva uno en esta implementación o clónalo con un nombre nuevo para personalizarlo. La edición se hace en Studio.",
+    refresh: "Actualizar",
+    colFlow: "Flujo",
+    colActivation: "Activación",
+    colActions: "Acciones",
+    toggleLabel: "Activación de {{label}}",
+    on: "Activado",
+    off: "Desactivado",
+    clone: "Clonar",
+    cloneTitle: "Clonar flujo del paquete",
+    cloneBody: "La copia conserva toda la definición y necesita un nombre de máquina y una etiqueta nuevos. Edita la copia en Studio.",
+    cloneName: "Nuevo nombre de máquina",
+    cloneLabel: "Nueva etiqueta",
+    cancel: "Cancelar",
+    cloneConfirm: "Crear clon",
+    cloneCreated: "Flujo «{{name}}» creado.",
+    emptyTitle: "Sin flujos de paquete",
+    emptyBody: "Ningún paquete instalado incluye un flujo de automatización en esta implementación. Los flujos que creas tú están en Studio.",
+    loadFailed: "No se pudo cargar la automatización de paquetes.",
+    toggleFailedHttp: "No se pudo cambiar la activación (HTTP {{status}}).",
+    toggleFailed: "No se pudo cambiar la activación.",
+    cloneFailedHttp: "No se pudo clonar este flujo (HTTP {{status}}).",
+    cloneFailed: "No se pudo clonar este flujo.",
+  },
 };
 
 export default es;

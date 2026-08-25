@@ -3415,6 +3415,36 @@ const ar = {
       bulkOperationFailed: "فشلت العملية الجماعية: {{reason}}",
     },
   },
+  // objectui#6301 — الإعداد › أتمتة الحزم (ADR-0126 §7.4). المصطلحات كما في
+  // بقية الحزمة: ‏`common.package` = الحزمة، و`flowRunner.completed` = التدفق،
+  // وعلامات الاقتباس «…». ⛔ لا توجد صياغة عن الأصل أو الانحراف في هذه
+  // المجموعة (§9).
+  packagedAutomation: {
+    title: "أتمتة الحزم",
+    subtitle: "تدفقات تأتي مع الحزم المثبّتة. يمكنك إيقاف أحدها في هذا النشر، أو استنساخه باسم جديد لتخصيصه. التحرير يتم في Studio.",
+    refresh: "تحديث",
+    colFlow: "التدفق",
+    colActivation: "التفعيل",
+    colActions: "إجراءات",
+    toggleLabel: "تفعيل {{label}}",
+    on: "مفعل",
+    off: "إيقاف",
+    clone: "استنساخ",
+    cloneTitle: "استنساخ تدفق الحزمة",
+    cloneBody: "تحتفظ النسخة بالتعريف كاملاً وتتطلب اسم آلة وتسمية جديدين. حرّر النسخة في Studio.",
+    cloneName: "اسم آلة جديد",
+    cloneLabel: "تسمية جديدة",
+    cancel: "إلغاء",
+    cloneConfirm: "إنشاء نسخة",
+    cloneCreated: "تم إنشاء التدفق «{{name}}».",
+    emptyTitle: "لا توجد تدفقات من الحزم",
+    emptyBody: "لا توجد حزمة مثبّتة توفّر تدفق أتمتة في هذا النشر. التدفقات التي تنشئها بنفسك موجودة في Studio.",
+    loadFailed: "تعذّر تحميل أتمتة الحزم.",
+    toggleFailedHttp: "تعذّر تغيير التفعيل (HTTP {{status}}).",
+    toggleFailed: "تعذّر تغيير التفعيل.",
+    cloneFailedHttp: "تعذّر استنساخ هذا التدفق (HTTP {{status}}).",
+    cloneFailed: "تعذّر استنساخ هذا التدفق.",
+  },
 };
 
 export default ar;

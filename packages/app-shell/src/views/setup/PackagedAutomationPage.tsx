@@ -236,8 +236,12 @@ export function PackagedAutomationPage() {
           ...prev,
           [row.name]: actionErrorDetail(
             json,
-            t('packagedAutomation.toggleFailed', {
-              defaultValue: `Could not change activation (HTTP ${res.status}).`,
+            // A SEPARATE key from the catch arm's below: this one has a status
+            // to name and that one does not, and one key cannot carry a hole
+            // only half its call sites can fill.
+            t('packagedAutomation.toggleFailedHttp', {
+              defaultValue: 'Could not change activation (HTTP {{status}}).',
+              status: res.status,
             }),
           ),
         }));
@@ -279,8 +283,11 @@ export function PackagedAutomationPage() {
           busy: false,
           refusal: actionErrorDetail(
             json,
-            t('packagedAutomation.cloneFailed', {
-              defaultValue: `Could not clone this flow (HTTP ${res.status}).`,
+            // Separate key from the catch arm's below, for the same reason as
+            // the toggle pair: a status hole only one of the two can fill.
+            t('packagedAutomation.cloneFailedHttp', {
+              defaultValue: 'Could not clone this flow (HTTP {{status}}).',
+              status: res.status,
             }),
           ),
         });
@@ -340,7 +347,10 @@ export function PackagedAutomationPage() {
         <div role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-1">
           <p className="font-medium">
             {t('packagedAutomation.cloneCreated', {
-              defaultValue: `Created flow "${cloneResult.name}".`,
+              // `{{name}}`, not a JS template literal: the inline default must
+              // be the SAME string the pack carries, so a provider-less render
+              // and a translated one cannot drift apart.
+              defaultValue: 'Created flow "{{name}}".',
               name: cloneResult.name,
             })}
           </p>
@@ -413,7 +423,7 @@ export function PackagedAutomationPage() {
                         disabled={busyFlow === row.name}
                         onCheckedChange={(next: boolean) => void onToggle(row, next)}
                         aria-label={t('packagedAutomation.toggleLabel', {
-                          defaultValue: `Activation for ${row.label}`,
+                          defaultValue: 'Activation for {{label}}',
                           label: row.label,
                         })}
                       />

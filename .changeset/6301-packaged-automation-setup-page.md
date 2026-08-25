@@ -1,5 +1,6 @@
 ---
 '@object-ui/app-shell': minor
+'@object-ui/i18n': minor
 ---
 
 Setup gains a **Packaged automation** page — the operational surface for the flows an
@@ -35,3 +36,11 @@ base-moved notice, no link from a clone back to its source. Cloned-without-disab
 disabled-without-clone are ordinary states, shown plainly. Tests pin the absence, including
 the case where a response carries a `clonedFrom` key anyway — the platform does not track
 that lineage, so a page that displayed it would be displaying something it invented.
+
+`@object-ui/i18n` gains the `packagedAutomation` key group — 24 keys in `en` and real
+translations in all nine other packs, matching each pack's existing vocabulary for "flow"
+and "package" (zh 流程/软件包, ja フロー/パッケージ, ko 플로우/패키지, de Flow/Paket,
+fr Flux/Package, es Flujo/Paquete, pt Fluxo/Pacote, ru Поток/Пакет, ar التدفق/الحزمة) and
+each one's quotation convention. The group deliberately carries no drift or ancestry
+wording, and no server refusal text: those arrive as server-authored prose and are
+rendered verbatim.

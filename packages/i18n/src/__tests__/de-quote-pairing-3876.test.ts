@@ -260,8 +260,12 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // asserted around a hole rather than around literal prose,
     // 53 once objectui#5232 added `console.objectView.viewConfigPermissionDenied`,
     // which names the same withheld „Metadaten verwalten“ permission as
-    // `home.build.noCapability` above — the org-wide view-config gate's refusal.
-    expect(okSpans, 'correctly paired spans').toBe(53);
+    // `home.build.noCapability` above — the org-wide view-config gate's refusal,
+    // 54 once objectui#6301 added `packagedAutomation.cloneCreated`, which names
+    // the flow a clone just produced — „{{name}}“, an interpolated span like
+    // `flowRunner.completed` above, so the pairing is again asserted around a
+    // hole rather than around literal prose.
+    expect(okSpans, 'correctly paired spans').toBe(54);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -279,10 +283,12 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // now true for a *different* reason (rdq went to zero), which is why the
     // identity below is asserted as arithmetic rather than as `close === open`.
     // 53 / 53 / 0 after objectui#5232 added
-    // `console.objectView.viewConfigPermissionDenied`. `rdq` staying at 0 is the
-    // load-bearing half: the new value added a MATCHED „…“ pair, not a stray
-    // closer that would have made `close === open` true for the wrong reason.
-    expect({ open, close, rdq }).toEqual({ open: 53, close: 53, rdq: 0 });
+    // `console.objectView.viewConfigPermissionDenied`; 54 / 54 / 0 after
+    // objectui#6301 added `packagedAutomation.cloneCreated`. `rdq` staying at 0
+    // is the load-bearing half: each new value added a MATCHED „…“ pair, not a
+    // stray closer that would have made `close === open` true for the wrong
+    // reason.
+    expect({ open, close, rdq }).toEqual({ open: 54, close: 54, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);
