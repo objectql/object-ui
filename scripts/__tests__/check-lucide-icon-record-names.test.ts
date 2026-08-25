@@ -598,7 +598,13 @@ describe('this repository', () => {
     // fresh `icons` import, so `renderers/overlay/dropdown-menu.tsx` correctly
     // stays OUT of the record-reader census. A descent declaration that moved
     // this number would have altered the wrong part of the gate.
-    expect(repoResult.discovered.record).toHaveLength(8);
+    //
+    // The figure was 8 until objectui#5993 deduped `renderers/form/button.tsx`
+    // onto the shared `resolveIcon`. That is the ONE way this number is allowed
+    // to move: a site stopped reading the record. It did not stop resolving
+    // icons — `RECORD_READING_TYPES['button']` still judges its authored names,
+    // one indirection away, exactly like the two menu entries this row is about.
+    expect(repoResult.discovered.record).toHaveLength(7);
     expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
     expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
     // objectui#6278 routes the twin the same way, so it must not move the
@@ -623,17 +629,29 @@ describe('this repository', () => {
     // objectui#5633's own discovery run. objectui#6009 supplies only the part-2
     // fact — which `type` sends names there — so this count must not move.
     expect(repoResult.discovered.record).toContain('packages/components/src/renderers/basic/icon.tsx');
-    expect(repoResult.discovered.record).toHaveLength(8);
+    // 7 since objectui#5993, for the reason the row above spells out. `ui:icon`
+    // keeps its own resolver deliberately — it draws a `SquareDashed`
+    // placeholder and warns where the shared one returns `null` (objectui#5631,
+    // pinned by `basic/__tests__/icon-unresolvable-placeholder.test.tsx`), so it
+    // is NOT a dedupe candidate and stays in this census.
+    expect(repoResult.discovered.record).toHaveLength(7);
   });
 
   it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
     // The card's table listed four. Discovery found eight, which is the whole
     // argument for measuring the population instead of maintaining a list: the
     // four it missed each resolve authored strings through the same record.
+    //
+    // Three of those four are still here. The fourth — `renderers/form/button.tsx`
+    // — was a hand-copied reimplementation of `resolve-icon.ts`, and objectui#5993
+    // deduped it onto the shared function, so it left this census by being FIXED
+    // rather than by being forgotten. Discovery is what proves that: the equality
+    // below fails if it comes back undeclared, and the census-drift check in the
+    // gate fails if the declaration outlives the read.
     expect(repoResult.discovered.record).toEqual([...DECLARED_RECORD_READERS].sort());
-    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(8);
+    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(7);
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/form/button.tsx');
     for (const late of [
-      'packages/components/src/renderers/form/button.tsx',
       'packages/plugin-list/src/ListView.tsx',
       'packages/plugin-detail/src/RelatedList.tsx',
       'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',

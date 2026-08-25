@@ -158,7 +158,6 @@ export const DECLARED_RECORD_READERS = [
   'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',
   'packages/components/src/renderers/action/resolve-icon.ts',
   'packages/components/src/renderers/basic/icon.tsx',
-  'packages/components/src/renderers/form/button.tsx',
   'packages/plugin-detail/src/RelatedList.tsx',
   'packages/plugin-list/src/ListView.tsx',
   'packages/plugin-list/src/components/TabBar.tsx',
@@ -199,7 +198,15 @@ export const SCAN_ROOTS = ['packages', 'apps', 'examples'];
 // descent that reaches NOTHING reports no violations and reads exactly like a
 // clean tree.
 export const RECORD_READING_TYPES = {
-  'button': { paths: ['icon'], resolver: 'packages/components/src/renderers/form/button.tsx' },
+  // `form/button.tsx` no longer reads the record itself: it imports the shared
+  // `resolveIcon` (objectui#5993), which is why it left part 1's census in the
+  // same commit. The `type` stays judged — its names still reach a
+  // record-reading resolver, just one indirection away, exactly like the
+  // `context-menu` and `dropdown-menu` entries below.
+  'button': {
+    paths: ['icon'],
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/form/button.tsx)',
+  },
   'action:bar': { paths: ['actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:button': { paths: ['icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:group': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
