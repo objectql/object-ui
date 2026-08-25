@@ -45,6 +45,20 @@
  * `submitViaBatch` (which would have said `dataSource is required`) never
  * called. That is the half this file pins in `describe` block 5.
  *
+ * ## The sixth renderer (objectui#6388)
+ *
+ * `SimpleObjectForm` had the same hole in its own dialect. Its carve-out reads
+ * `hasInlineFields && !dataSource` — non-empty `customFields`, its own inline
+ * field source — and it too opened `handleSubmit`, ahead of the persistence
+ * chain. Re-derived on the merged tree (faa863dce) with `customFields`, a
+ * `submitHandler` and NO `dataSource`: `onSuccess 1 / submitHandler 0`. Its
+ * cases live in blocks 1 and 3 beside the family's, on a `customFields`
+ * fixture: under `simple`, `sections[].fields` only SELECT fields already
+ * resolved from `customFields` or the object schema, so the sectioned fixture
+ * above renders no fields at all there — which is also why `simple` keeps its
+ * own predicate rather than `hasInlineFieldSource` (block 3's `simple`
+ * BOUNDARY case pins that).
+ *
  * ## The blocks below
  *
  * 1. the declared `submitHandler` seam is consulted with no `dataSource`;
@@ -108,6 +122,24 @@ const baseSchema = (formType: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+/**
+ * `simple` (`SimpleObjectForm`) — the sixth renderer. Its inline field source is
+ * `customFields`, so it gets its own fixture rather than `baseSchema`'s
+ * `sections`: a bare field NAME in a section is resolved against fields that
+ * only `customFields` or an object schema can supply, so `baseSchema('simple')`
+ * with no `dataSource` renders zero fields and every assertion on it would pass
+ * vacuously.
+ */
+const simpleSchema = (extra: Record<string, unknown> = {}) => ({
+  type: 'object-form',
+  objectName: 'po',
+  mode: 'create',
+  formType: 'simple',
+  submitText: 'Save Now',
+  customFields: INLINE_FIELDS,
+  ...extra,
+});
+
 /** Type into the one field and press the form's own submit button. */
 async function fillAndSubmit(value = 'PO-1') {
   const ref = await waitFor(() => {
@@ -151,6 +183,63 @@ describe('1. a declared `submitHandler` is consulted even with NO dataSource', (
       expect(onError).not.toHaveBeenCalled();
     },
   );
+
+  it('formType `simple`: inline fields + a declared seam — the seam is what runs', async () => {
+    const submitHandler = vi.fn().mockResolvedValue({ id: 'p1' });
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    render(
+      <ObjectForm schema={simpleSchema({ submitHandler, onSuccess, onError }) as any} />,
+    );
+    await fillAndSubmit();
+
+    // THE PIN (objectui#6388). Measured on the merged tree: `onSuccess 1 /
+    // submitHandler 0` — the inline-fields carve-out opened `handleSubmit`, so a
+    // host that had DECLARED it owns the write was never asked, and got a
+    // success signal for a write that never happened.
+    await waitFor(() => expect(submitHandler).toHaveBeenCalledTimes(1));
+    expect(submitHandler).toHaveBeenCalledWith(expect.objectContaining({ ref: 'PO-1' }));
+    // Success still reported — after the host wrote, carrying ITS result.
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(onSuccess).toHaveBeenCalledWith({ id: 'p1' });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('formType `simple`: the seam wins over a PRESENT dataSource too (objectui#6176)', async () => {
+    const create = vi.fn().mockResolvedValue({ id: 'written-by-adapter' });
+    const submitHandler = vi.fn().mockResolvedValue({ id: 'written-by-host' });
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const dataSource = {
+      getObjectSchema: vi.fn().mockResolvedValue(parentObject),
+      find: vi.fn().mockResolvedValue({ data: [] }),
+      findOne: vi.fn().mockResolvedValue({}),
+      create,
+      update: vi.fn(),
+      delete: vi.fn(),
+      bulk: vi.fn(),
+    } as any;
+
+    // The inverse of the pin above: `submitHandler` is documented as handing the
+    // values to the host INSTEAD of calling `dataSource.create` / `update`, so
+    // the adapter being available changes nothing about who writes. Passes on
+    // the merged tree as well — the ordering defect was reachable only through
+    // the `!dataSource` carve-out, and this case is what says so.
+    render(
+      <ObjectForm
+        schema={simpleSchema({ submitHandler, onSuccess, onError }) as any}
+        dataSource={dataSource}
+      />,
+    );
+    await fillAndSubmit();
+
+    await waitFor(() => expect(submitHandler).toHaveBeenCalledTimes(1));
+    expect(create).not.toHaveBeenCalled();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(onSuccess).toHaveBeenCalledWith({ id: 'written-by-host' });
+    expect(onError).not.toHaveBeenCalled();
+  });
 });
 
 describe('2. no seam, no adapter, no inline fields → refuse loudly', () => {
@@ -280,6 +369,59 @@ describe('3. CARVE-OUT: a legitimate inline-fields form still works', () => {
       expect(onSuccess).not.toHaveBeenCalled();
     },
   );
+
+  it('formType `simple`: CONTROL — no seam declared, the carve-out still fires', async () => {
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    // THE DEGENERATE CONTROL for objectui#6388. `simple`'s inline collector is
+    // legitimate and must survive the reordering untouched: with no
+    // `submitHandler` to consult, `onSuccess` IS the write and it receives the
+    // RAW collected values, not an adapter's result. Passes on the merged tree
+    // and after the fix, deliberately — it is what makes block 1's `simple` pin
+    // attributable to the declared seam rather than to the carve-out having
+    // been narrowed or removed.
+    render(<ObjectForm schema={simpleSchema({ onSuccess, onError }) as any} />);
+    await fillAndSubmit();
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ ref: 'PO-1' }));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('formType `simple`: BOUNDARY — sections of inline fields are NOT its field source', async () => {
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    // `hasInlineFieldSource`'s second limb (all-inline `sections`) is how the
+    // SECTIONED variants declare an inline field source — block 3's case above
+    // pins it for them. `SimpleObjectForm` does not read it: a section field
+    // here only SELECTS a field already resolved from `customFields` or the
+    // object schema, so this form resolves ZERO fields and collected nothing.
+    // Adopting the shared predicate for `simple` while "aligning" it would
+    // therefore turn this into a success signal for an empty submit — the very
+    // defect class of objectui#6300. It refuses instead.
+    render(
+      <ObjectForm
+        schema={{
+          type: 'object-form',
+          objectName: 'po',
+          mode: 'create',
+          formType: 'simple',
+          submitText: 'Save Now',
+          sections: [{ name: 's1', label: 'Sec One', fields: INLINE_FIELDS }],
+          onSuccess,
+          onError,
+        } as any}
+      />,
+    );
+    const submit = await waitFor(() => screen.getByRole('button', { name: /save now/i }));
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect((onError.mock.calls[0][0] as Error).message).toBe(NO_SUBMIT_TARGET_MESSAGE);
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
 });
 
 describe('4. DEGENERATE CONTROL: with a dataSource the write really happens', () => {

@@ -42,6 +42,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { noSubmitTargetError } from './submitTarget';
 import {
   schemaDefaultValues,
   isCreateFormMode,
@@ -781,16 +782,31 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       }
     }
 
-    // For inline fields without a dataSource, just call the success callback
-    if (hasInlineFields && !dataSource) {
+    // No submit TARGET: a declared `submitHandler` owns the write and needs no
+    // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+    // nor a `dataSource` is target-less. The one target-less form that is still
+    // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+    // This arm used to be `hasInlineFields && !dataSource` alone, checked BEFORE
+    // the persistence chain: a declared `submitHandler` was never reached, so a
+    // host that had said it owns the write got a success signal for a write it
+    // was never asked to perform (objectui#6388). Same rule and same precedence
+    // as the five variant renderers — see `submitTarget.ts` for the whole rule.
+    //
+    // The predicate stays this component's own `hasInlineFields` (non-empty
+    // `customFields`) rather than the shared `hasInlineFieldSource`. That
+    // helper's second limb — sections whose every field is an inline runtime
+    // `FormField` — is how the SECTIONED variants express an inline field
+    // source, and this renderer does not read it: here `sections[].fields` only
+    // SELECT (and override) fields already resolved from `customFields` or the
+    // object schema, so a sections-only form with no adapter resolves zero
+    // fields. Treating that as inline would widen the carve-out into a success
+    // signal for a form that collected nothing — this card's own defect class.
+    // Limb (a) is identical, and the refusal below is the shared one, verbatim.
+    if (!dataSource && !schema.submitHandler && hasInlineFields) {
       if (schema.onSuccess) {
         await schema.onSuccess(formData);
       }
       return formData;
-    }
-
-    if (!dataSource) {
-      throw new Error('DataSource is required for form submission (inline mode not configured)');
     }
 
     // Strip server-managed and computed / read-only fields from the payload
@@ -830,6 +846,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
         // + children into one atomic transaction). The form just validates and
         // hands over the values; it does NOT create/update itself.
         result = await schema.submitHandler(payload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of
+        // reporting success — the `catch` below hands this to `schema.onError`
+        // and rethrows. Expressing it here rather than in a pre-`try` guard is
+        // what lets the `submitHandler` branch above run first, and it is also
+        // what narrows `dataSource` for the routes below with no assertion.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
