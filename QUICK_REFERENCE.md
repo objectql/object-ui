@@ -127,7 +127,7 @@ behind (objectui#5394 — that had happened once per release, three times).
   `apps/console/package.json`)
 - **Client:** `@objectstack/client` ^17.0.0 (declared by `apps/console/package.json`
   and `packages/data-objectstack/package.json`)
-- **Node.js:** ≥ 22 (see root `engines.node`)
+- **Node.js:** ≥ 22.11 (see root `engines.node`)
 - **pnpm:** ≥ 10 (the workspace pins `pnpm@10.31.0` via `packageManager`)
 - **React:** 18.x or 19.x (the `peerDependencies.react` range the packages declare)
 - **TypeScript:** ≥ 5.0 (strict mode) — the stack floor stated in AGENTS.md §2, not a
