@@ -241,6 +241,21 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   ```
 
   三者的共同点是**先把未提交状态捕获下来**再动工作区;任何「先覆盖、事后再从某个 ref 取回」的写法都**不是**替代做法 —— 它假设你的改动已经提交,而反向验证时通常没有(objectstack#7800:那条推荐语害一个 agent 丢了在途改动)。一个 **PreToolUse 钩子**(`.claude/hooks/guard-shared-stash.sh`)**强制**此规则:拦截 push/pop/drop/clear 共享栈的 `Bash` 命令,放行拿不到别人条目的形式 —— `git stash list`/`show`/`create`,以及 `git stash apply <sha>` / `store <sha>` 且 sha 为**字面十六进制 object id**(绝不用 `stash@{N}` —— 那是你并不拥有的那个栈里的一个**位置**)。确知栈只属于你时用 `OS_ALLOW_STASH=1` 放行;改了钩子就重跑 `.claude/hooks/guard-shared-stash.selftest.sh`。
+- **上一条不是孤例 —— worktree 只隔离你的 checkout 和四个 ref 命名空间,其余一切共享。** Git 的 per-worktree ref 命名空间**恰好四个**:`HEAD`、`refs/bisect`、`refs/worktree`、`refs/rewritten`。**除此之外全部共享** —— 不是 object store,不是 repo config,也不是任何别的 ref。上一条的 `refs/stash` 是本规则的一个**特例**,不是一条孤立的怪癖;只读到那一条就以为「worktree 隔离 ref、只有 stash 例外」的,恰好把结论记反了。判据只有一条命令:`git rev-parse --git-dir` 与 `--git-common-dir` **不同**说明你在 linked worktree 里,而**凡是落在 common dir 底下的东西都是共用的**(实测本仓:linked worktree 的 `--git-dir` 是 `.git/worktrees/<name>`,`--git-common-dir` 是 `.git`;`HEAD` 两棵树各有一份、读数不同,`refs/remotes/` 在 per-worktree 目录里**根本不存在**,只有 common dir 那一份)。除 stash 外,另外两个已经吃过亏的实例:
+
+  1. **`refs/remotes/*`** —— 别的 agent 在**它自己的** worktree 里 `git fetch`,推进的是**你的** `origin/main`。于是 `git checkout origin/main -- <paths>` 在 worktree 里**不是**「还原到我的分支基点」,而是「还原到 `origin/main` **此刻**指向的地方」—— 那可能比你切分支的那个 commit 更新,别人刚合并的改动就以「revert」的名义进了你的工作区,随后一次 `git add -A` 把它们扫进你的 PR。实测本仓:四个 agent 并行时 `origin/main` **十分钟内动了三次**。⚠️ 而且 path-scoped checkout 会**顺带 stage** 它还原的内容 —— 污染到达时已经在 index 里了。
+  2. ⭐ **`FETCH_HEAD`** —— **它的症状是「没有内容」而不是「内容不对」,这是前两个实例推不出来的那一半。** `FETCH_HEAD` 是「**本 checkout 里最后一次 fetch** 的结果」,谁 fetch 的都算。`git fetch X && git diff …FETCH_HEAD` 写成**一条**命令是安全的;拆成**两条**就不是 —— 中间任何一次 fetch 都把它换成了另一条分支,而 `git diff` **退出 0、什么都不打印**。那个输出最自然的读法是「这个改动根本不在」:一个关于**别人**工作的、基于看起来很干净的证据的、自信的错误结论。⚠️ 对**做评审的座位**尤其致命 —— PM 拿 PR 比对 `main` 做的正是这个操作,而它朝「活儿没做」的方向失败。
+
+  ⚠️ **`FETCH_HEAD` 的隔离边界和前两个不一样,别照着 `refs/stash` 外推**(实测 git 2.43):`git rev-parse --git-path FETCH_HEAD` 在 linked worktree 里解析到 `.git/worktrees/<name>/FETCH_HEAD`,**B 在自己 worktree 里 fetch 并不会动 A 的 `FETCH_HEAD`** —— 这一点已经量过。它咬人的地方是**共享的主 checkout**:那里同一条命令解析到 common dir 的 `.git/FETCH_HEAD`,而每个 agent 在建自己 worktree**之前**的第一条 `git fetch` 都落在那儿,评审座位更是整天待在那儿。所以这一条按 **checkout** 说、不按 worktree 说:**同一个 checkout 里,最后一次 fetch 说了算**。
+
+  三条做法(都是**做法**,不是禁令):
+
+  - **钉住基点。** 建 worktree 时记下 `BASE=$(git rev-parse HEAD)`,还原一律 `git checkout "$BASE" -- <paths>`,绝不用一个会动的 remote-tracking 名字。真要以 `origin/main` 为源,就**按 commit 说**,别按 ref 名说。
+  - **确实点了 remote-tracking ref,就核验到手的内容。** 规则不是「绝不点名」,而是「它会在你脚下动,所以要查清楚拿到的是什么」—— 用磁盘上的出现次数**正反两个方向**查。objectui#5235 是这个缓解措施成功的实例:`resetInFlightRef` 计数 `7 → 0`,同时确认修复前的注释文本回到 2 处;`origin/main` 若已漂到另一个版本,这两个数都对不上。
+  - **fetch 进一个你自己命名的 ref。** `git fetch origin <branch>:refs/<namespace>/<id> -f`,然后读**那个** ref —— 没有任何 sibling 动得了它。这是 `FETCH_HEAD` 的解法。
+  - 任何 path-scoped 还原做完之后,把还原的那几个路径和记录的基点 diff 一次,**确认为空再 stage**。
+
+  ⛔ **这一条不会有钩子兜底**(上面 worktree 与 stash 两条各有一个 PreToolUse 钩子):安全形式就是 `git checkout` / `git fetch` 这些日常命令,而不安全的那个形式在别处完全正当 —— 机械拦截只会拦在正确用法上。所以这条规则的全部效力,就在于你还记不记得基点是**钉住的那个 commit**。
 - **临时文件所在的 scratchpad 目录跨会话共享 —— 提交信息与 PR 正文一律别落到那里。** 容器发给每个会话的「scratchpad」临时目录事实上被多个并行会话映射到**同一个路径**,和上一条的 stash 栈同族:一块位于 worktree 之外的共享可写状态,worktree 隔离**管不到它**。两个 agent 各写一份同名的 `commitmsg.txt` / `pr-body.md`,后写的整份顶掉先写的;而 `git commit -F` 读到别人的文件**不报错**,每一步都报成功 —— 受害的是**另一个** agent 的产出(你的提交信息落到别人的 commit 上,你这边什么都看不出来),没有任何错误可供发现。实测在 20 分钟内撞了两次,可见的损伤是 `main` 上一条 squash commit:提交信息描述的是一张卡、diff 实施的是另一张卡,两者毫无关系;`main` 不重写,于是这条误导永久留在 git 考古里 —— 下一个人按 `git log --grep` 找那张卡,会得出「已经做过了」的错误结论。两条做法,**有先后之分**:
 
   1. **首选机制:让内容根本不落共享盘。** 提交信息用 `git commit -F -` 配 heredoc(或多个 `-m`),PR 正文直接作为工具参数传(用 `gh` 就把正文写成进程内的 heredoc,别先写文件再 `--body-file`)。内容不落盘,就无从被顶掉。
