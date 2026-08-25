@@ -1331,6 +1331,36 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   const navigation = useNavigationOverlay({
     navigation: schema.navigation,
     objectName: schema.objectName,
+    // NON-AUTHOR SURFACE — `onNavigate` is deliberately absent from
+    // `GRID_QUERY_INPUTS` (`index.tsx`), by the maintainer ruling of
+    // 2026-08-19 on objectui#5234, so this read is deliberate, not missed.
+    //
+    // Unlike the four keys objectui#5091 ruled, this one IS declared — in
+    // `@object-ui/types`' `ObjectGridSchema` (`objectql.ts`), with its own doc
+    // comment — which is why the read below is plain and not a cast. It is NOT
+    // drift absorbed by `BaseSchema`'s index signature: the reading that said
+    // so was measured wrong and withdrawn on the card before it was ruled.
+    //
+    // It stays unpublished because it is a FUNCTION VALUE and a schema is a
+    // SERIALISABLE DOCUMENT. `(recordId, action) => void` cannot survive a
+    // metadata round-trip whatever declares it, so no author writing JSON or
+    // YAML — and no AI emitting a schema document — can ever express this key.
+    // Publishing it into the designer panel and the generated
+    // `sdui-intrinsics.d.ts` would advertise an offer nobody can take, which
+    // is the option the ruling rejected as the most AI-error-prone of the
+    // three. Programmatic callers already have the channel its nine siblings
+    // use: `onRowClick`, `onRowSelect`, `onCellChange`, `onRowSave`,
+    // `onBatchSave`, `onEdit`, `onDelete`, `onBulkDelete` and `onAddRecord`
+    // are props on `ObjectGridComponentProps`, and that is where a caller
+    // should prefer to pass this one too.
+    //
+    // The contract says the same thing independently: `ComponentPropsMap
+    // ['object-grid']` (`@objectstack/spec@17`) is a `strictObject` and
+    // rejects `onNavigate` BY NAME (`unrecognized_keys`), so an author who
+    // took the offer could not save the document. Both halves — unlisted here,
+    // rejected there — are pinned by `__tests__/gridNonAuthorKeys.test.tsx`,
+    // together with the read itself, so this exemption cannot decay into a
+    // silent drop.
     onNavigate: schema.onNavigate,
     onRowClick,
   });
@@ -3087,10 +3117,21 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         widths: { ...columnState.widths, [columnKey]: width },
       });
     },
-    onColumnReorder: (newOrder: string[]) => {
+    // objectui#6175: the renderer invokes `onColumnsReorder` (with the `s`) —
+    // `data-table.tsx:handleColumnDrop` — and has never invoked the singular
+    // `onColumnReorder` this used to emit, so reorders were never persisted.
+    // Producer-side fix (AGENTS #0.1: fix the producer, don't teach the renderer
+    // a second spelling), which retires nothing: `onColumnReorder` stays declared
+    // on `DataTableSchema` and stays unwired, exactly as the RuntimeOnlyDeclared
+    // ledger records it. Which of the two declared spellings survives is still an
+    // open ruling and is deliberately NOT settled here.
+    onColumnsReorder: (newColumns: any[]) => {
+      const order = newColumns
+        .map((c) => c?.accessorKey)
+        .filter((key): key is string => typeof key === 'string' && key.length > 0);
       saveColumnState({
         ...columnState,
-        order: newOrder,
+        order,
       });
     },
   };

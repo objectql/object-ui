@@ -51,13 +51,26 @@ interface ServerFieldSchema {
   group?: string;
   externalId?: boolean;
   trackHistory?: boolean;
-  referenceTo?: string;
+  /**
+   * Relationship target object name. The spec spells it `reference`
+   * (objectui#6041) — `referenceTo` is refused BY NAME by `FieldSchema`, so
+   * emitting it made `PUT /api/v1/meta/object/:name` fail 422 and blocked
+   * every later save of the object. See {@link RETIRED_FIELD_KEYS}.
+   */
+  reference?: string;
   formula?: string;
   // The framework also stores `select` field options as `options: string[] |
   // {label, value}[]`; we passthrough the raw structure for now.
   options?: unknown;
-  // Marker used by the framework's system-field injection (organization_id).
-  isSystem?: boolean;
+  /**
+   * Marker set by the framework's system-field injection (`organization_id`,
+   * `created_at`, `updated_by`, …). The spec spells it `system`
+   * (objectui#6044); `isSystem` is refused BY NAME by `FieldSchema`, and — being
+   * an OPTIONAL flag — reading the wrong spelling went unnoticed: `undefined`
+   * is a valid "not a system field", so system fields presented as ordinary
+   * editable, deletable business fields.
+   */
+  system?: boolean;
   [key: string]: unknown;
 }
 
@@ -92,10 +105,10 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
     hidden: raw.hidden,
     defaultValue: raw.defaultValue,
     placeholder: raw.placeholder,
-    isSystem: raw.isSystem,
+    isSystem: raw.system,
     externalId: raw.externalId,
     trackHistory: raw.trackHistory,
-    referenceTo: raw.referenceTo,
+    referenceTo: raw.reference,
     formula: raw.formula,
   };
 }
@@ -117,7 +130,23 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
  * parseable; it is keyed to the tombstone, so every other unknown key the
  * designer does not render still survives.
  */
-const RETIRED_FIELD_KEYS = ['indexed'] as const;
+/*
+ * objectui#6041 adds `referenceTo`. Renaming the emit site alone does not
+ * unblock an object a previous designer build already saved: that stored
+ * payload still carries `referenceTo`, `carryOver` spreads `prev` verbatim,
+ * and the key would round-trip straight back out to the same 422. Stripping it
+ * on the way out is what makes an edit-and-save of an ALREADY-BLOCKED object
+ * come out parseable. The target itself is not lost — `fromDesignerField`
+ * re-emits it under the spec spelling `reference` on the very next line.
+ *
+ * objectui#6044 adds `isSystem` for the same reason and with one difference
+ * worth stating: `fromDesignerField` never NAMES it, so the only way out is the
+ * verbatim `carryOver` spread — which makes this line, not any emit site, the
+ * whole write half of that card. The spec spelling `system` is not stripped: it
+ * is a real `FieldSchema` key, so a server-injected flag rides through
+ * untouched, which is exactly what lets `toDesignerField` read it back.
+ */
+const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem'] as const;
 
 /** Carry over `prev`'s unknown keys, minus {@link RETIRED_FIELD_KEYS}. */
 function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {
@@ -145,7 +174,7 @@ function fromDesignerField(
     group: designed.group,
     externalId: designed.externalId,
     trackHistory: designed.trackHistory,
-    referenceTo: designed.referenceTo,
+    reference: designed.referenceTo,
     formula: designed.formula,
   };
 }

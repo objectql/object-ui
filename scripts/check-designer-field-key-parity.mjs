@@ -205,20 +205,10 @@ export const PAYLOAD_SHAPES = [
  * answer even when a near-spelling exists.
  */
 export const KNOWN_UNPARSEABLE_KEYS = {
-  referenceTo: {
-    card: "objectui#6041",
-    spec: "reference",
-    note: "LIVE. FieldDesigner renders a control for it on `type == 'lookup'` and both write paths populate it, so authoring a lookup field produces the 422.",
-  },
   formula: {
     card: "objectui#6043",
     spec: "expression (+ returnType)",
     note: "LIVE. FieldDesigner renders a textarea for it on `type == 'formula'`. Not a rename: the spec's `expression` is CEL, so the key and the expression LANGUAGE move together.",
-  },
-  isSystem: {
-    card: "objectui#6044",
-    spec: "system",
-    note: "Two defects. The READ (`toDesignerField` reads `raw.isSystem`) never matches what a spec-parsed server sends, so system fields present as ordinary editable ones; the WRITE can round-trip out through `carryOver`'s verbatim spread.",
   },
   sortOrder: {
     card: "objectui#6045",

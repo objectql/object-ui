@@ -88,9 +88,14 @@ jobs:
           # `scripts/check-eager-closure-budget.mjs` next to the reasoning that
           # produced it, so a re-baseline is one edit against a documented
           # argument rather than a number in YAML: today's measured payload plus
-          # ~2% of headroom, chosen to pass on today's `main` while staying
-          # NARROWER than the 89 KiB regression the gate exists to catch. It is a
-          # truthful current-state ceiling, not a statement that 3.79 MB is fine.
+          # half the 89 KiB regression the gate exists to catch, which keeps the
+          # headroom NARROWER than that regression while leaving as much room for
+          # the payload to shrink as to grow. Since objectui#5924 the checker
+          # enforces that itself, against the report it just read rather than
+          # against a frozen constant, for the aggregate ceiling and each
+          # per-chunk one — a ceiling that has drifted out of range of the
+          # regression it must catch is exit 2, a verdict about the gauge. It is
+          # a truthful current-state ceiling, not a statement that 3.15 MB is fine.
           #
           # Both measurements run before either may fail the step: a run that
           # reports one number and hides the other teaches readers to distrust

@@ -654,6 +654,13 @@ per-PR full-repo build the 2026-08-16 ruling on
 [#4846](https://github.com/objectstack-ai/objectui/issues/4846) rejected; see *Published Dist Gate*
 below.
 
+**And the filter is checked, twice.** The step that derives it fails the job if the gate exits
+non-zero, and the build step refuses a filter that names no package
+([#6221](https://github.com/objectstack-ai/objectui/issues/6221)). Written the obvious way —
+`echo "args=$(node …)" >> "$GITHUB_OUTPUT"` — the step's status is `echo`'s, so a gate that failed
+would read as a gate that named nothing, and `turbo run build` with no filter is the whole-workspace
+build this section just said the job must never run.
+
 **Fragments are declared, never guessed.** Documentation legitimately carries partial snippets, so a
 block that is not meant to compile carries a marker line immediately above its fence with a written
 reason — `{/* doc-snippet: fragment - why */}` in `.mdx`, the HTML-comment form in `.md`. A block

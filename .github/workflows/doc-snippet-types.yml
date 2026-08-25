@@ -85,12 +85,48 @@ jobs:
       # covered documents import. A package the snippets need but nothing built
       # is reported by the gate as `unbuilt-package` — its own failure reason,
       # never as a page full of broken imports.
+      #
+      # ⛔ Do not fold this back into `echo "args=$(node …)" >> "$GITHUB_OUTPUT"`
+      # (objectui#6221). A command substitution contributes its STDOUT to the
+      # surrounding word and nothing else — the step's status is `echo`'s — so a
+      # gate that failed reads as a gate that named no packages, `args` is
+      # silently empty, and the step below expands to a bare `turbo run build`
+      # over the whole workspace: the one thing this workflow's header forbids,
+      # with no signal anywhere. `set -o pipefail` is not the remedy and would
+      # not help; there is no pipe here. Capture the status, then write the
+      # output.
       - name: Derive the packages the covered snippets import
         id: filter
-        run: echo "args=$(node scripts/check-doc-snippet-types.mjs --build-filter)" >> "$GITHUB_OUTPUT"
+        run: |
+          status=0
+          args="$(node scripts/check-doc-snippet-types.mjs --build-filter)" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Could not derive the build filter: \`node scripts/check-doc-snippet-types.mjs --build-filter\` exited $status. Refusing to continue — carrying on would build every package in the workspace instead of the ones the covered snippets import." >&2
+            exit "$status"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
 
+      # The empty-filter refusal is the second half, deliberately kept HERE
+      # rather than beside the status check above: it holds for every route to
+      # an empty filter, including a gate that exits 0 while naming nothing.
+      # An empty filter can only ever mean something went wrong — the covered
+      # document population is never zero and the gate's own floors already
+      # refuse that — and an unfiltered `turbo run build` is a far worse answer
+      # than a red step. `args` arrives through the environment so the check has
+      # a value to test; it stays unquoted on the `turbo` line because it is a
+      # LIST of `--filter=` words that must word-split.
       - name: Build those packages
-        run: pnpm exec turbo run build ${{ steps.filter.outputs.args }} --concurrency=2
+        env:
+          FILTER_ARGS: ${{ steps.filter.outputs.args }}
+        run: |
+          case "$FILTER_ARGS" in
+            *--filter=*) ;;
+            *)
+              echo "::error::The derived build filter names no package (got: '$FILTER_ARGS'). Refusing to run an unfiltered build — see this workflow's header." >&2
+              exit 1
+              ;;
+          esac
+          pnpm exec turbo run build $FILTER_ARGS --concurrency=2
 
       - name: Compile documentation snippets against the built types
         run: node scripts/check-doc-snippet-types.mjs
