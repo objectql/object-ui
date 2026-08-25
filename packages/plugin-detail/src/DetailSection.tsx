@@ -34,6 +34,7 @@ import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { InlineFieldInput } from './InlineFieldInput';
+import { headerColorClass } from './headerColor';
 import {
   enrichDetailField,
   isComputedFieldType,
@@ -510,7 +511,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     return (
       <Card className={cn(section.showBorder === false ? 'border-none shadow-none' : '', className)}>
         {section.title && (
-          <CardHeader className={cn('py-3 px-4 sm:py-4 sm:px-6', section.headerColor && `bg-${section.headerColor}`)}>
+          <CardHeader className={cn('py-3 px-4 sm:py-4 sm:px-6', headerColorClass(section.headerColor))}>
             <CardTitle className="flex items-center justify-between text-base font-semibold tracking-tight">
               <div className="flex items-center gap-2">
                 {section.icon && <SectionIcon name={section.icon} />}
@@ -539,7 +540,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         <CollapsibleTrigger asChild>
           <CardHeader className={cn(
             "py-3 px-4 sm:py-4 sm:px-6 cursor-pointer hover:bg-muted/50 transition-colors",
-            section.headerColor && `bg-${section.headerColor}`
+            headerColorClass(section.headerColor)
           )}>
             <CardTitle className="flex items-center justify-between text-base font-semibold tracking-tight">
               <div className="flex items-center gap-2">
