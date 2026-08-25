@@ -308,6 +308,57 @@ describe('the second oracle — objectui#6223', () => {
     );
   });
 
+  it('scopes a ledger entry to ITS oracle — one level\'s card must not absorb the other level\'s key', async () => {
+    // Measured during objectui#6223's ablation, which is why it is pinned here.
+    // `sortOrder` is refused at BOTH levels by two different schemas and is two
+    // different cards (objectui#6045 field-level, objectui#6223 object-level).
+    // With a name-keyed ledger, re-declaring the OBJECT-level key stayed green:
+    // the field-level card's entry absorbed it in silence. That is the ledger
+    // becoming a hiding place, which the header says it must never be.
+    const FIELD_LEDGER = {
+      zzzTwoLevelKey: { card: 'objectui#0000', oracle: 'FieldSchema', spec: null, note: 'fixture' },
+    };
+    await withFixture(
+      {
+        'payload.ts': 'export interface FixturePayload {\n  type?: string;\n  label?: string;\n  zzzTwoLevelKey?: string;\n}\n',
+        'object-payload.ts': 'export interface FixtureObjectPayload {\n  name?: string;\n  label?: string;\n  zzzTwoLevelKey?: string;\n}\n',
+      },
+      async (dir) => {
+        const { violations, staleLedger } = await analyze(dir, {
+          shapes: [WIRE_SHAPE, OBJECT_WIRE],
+          ledger: FIELD_LEDGER,
+        });
+        // The field-level occurrence is covered by its card...
+        expect(staleLedger).toEqual([]);
+        // ...and the object-level one is NOT, because the entry is not scoped to
+        // that oracle. Exactly one violation, on the object shape.
+        expect(violations.map((v) => `${v.shape}.${v.key}`)).toEqual([
+          'FixtureObjectPayload.zzzTwoLevelKey',
+        ]);
+      },
+    );
+  });
+
+  it('an entry scoped to an oracle no shape of that oracle declares is stale', async () => {
+    // The other direction of the same scope. An ObjectSchema-scoped entry is
+    // not kept alive by a FIELD shape that happens to declare the same
+    // spelling, or the entry would outlive the refusal it was filed for.
+    await withFixture(
+      { 'payload.ts': 'export interface FixturePayload {\n  type?: string;\n  label?: string;\n  zzzTwoLevelKey?: string;\n}\n' },
+      async (dir) => {
+        const { staleLedger } = await analyze(dir, {
+          shapes: [WIRE_SHAPE],
+          ledger: {
+            zzzTwoLevelKey: { card: 'objectui#0000', oracle: 'ObjectSchema', spec: null, note: 'fixture' },
+          },
+        });
+        expect(staleLedger).toEqual([
+          { key: 'zzzTwoLevelKey', reason: 'no payload shape declares it any more' },
+        ]);
+      },
+    );
+  });
+
   it('throws when the object oracle cannot be resolved — a missing schema is never a pass', async () => {
     await expect(
       analyze(repoRoot, {
@@ -453,6 +504,9 @@ describe('the real shapes, on the real tree', () => {
     for (const [key, entry] of entries) {
       expect(entry.card, `${key} has no card`).toMatch(/^objectui#\d+$/);
       expect(entry.note, `${key} has no note`).toBeTruthy();
+      // objectui#6223: with two oracles, an entry that names none silently
+      // defaults to the field one and can absorb an object-level key.
+      expect(['FieldSchema', 'ObjectSchema'], `${key} names no oracle`).toContain(entry.oracle);
     }
   });
 });

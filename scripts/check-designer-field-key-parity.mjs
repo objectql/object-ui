@@ -239,6 +239,12 @@ export const PAYLOAD_SHAPES = [
  * owns its resolution. NOT a suppression list: see the header's ratchet note —
  * an entry that stops applying is as red as a key that is missing one.
  *
+ * `oracle` scopes the entry to the schema that refuses the key, defaulting to
+ * `FieldSchema`. It is load-bearing, not decoration: `sortOrder` is refused at
+ * BOTH levels by two different schemas, and they are two different cards with
+ * two different resolutions. Without the scope, one card's entry would absorb
+ * the other level's occurrence and the gate would stay green over it.
+ *
  * `spec` records the accepted spelling where the spec has one, because that is
  * the fact a resolver needs first and the fact most likely to be wrong in a
  * hurry. It is documentation for the card, never an instruction to rename:
@@ -248,16 +254,24 @@ export const PAYLOAD_SHAPES = [
 export const KNOWN_UNPARSEABLE_KEYS = {
   formula: {
     card: "objectui#6043",
+    oracle: "FieldSchema",
     spec: "expression (+ returnType)",
     note: "LIVE. FieldDesigner renders a textarea for it on `type == 'formula'`. Not a rename: the spec's `expression` is CEL, so the key and the expression LANGUAGE move together.",
   },
   sortOrder: {
     card: "objectui#6045",
+    // Scoped to the FIELD oracle deliberately. `sortOrder` is refused at BOTH
+    // levels and the two are different cards with different resolutions
+    // (objectui#6223 removed the object-level one). An unscoped entry would let
+    // this card's entry absorb an object-level reappearance in silence, which
+    // is the ledger becoming the hiding place the header says it must not be.
+    oracle: "FieldSchema",
     spec: null, // the spec has `sortable` (a boolean), and no field-level ordering key
     note: "Latent: declared and written by `toFieldPayload`, but nothing populates it, so JSON drops the undefined. One reorder feature away from live.",
   },
   enabled: {
     card: "objectui#6238",
+    oracle: "ObjectSchema",
     // `ObjectSchema` DOES have `enable` — but it is `ObjectCapabilities`, a
     // system-features module object, not a boolean on/off flag. Recorded here
     // so the next reader does not mistake the near-spelling for a rename.
@@ -447,8 +461,9 @@ export async function analyze(root = REPO_ROOT, options = {}) {
         uiOnly.push({ shape: shape.id, file: shape.file, key, oracle });
         continue;
       }
-      if (Object.prototype.hasOwnProperty.call(ledger, key)) {
-        ledgered.add(key);
+      const entry = Object.prototype.hasOwnProperty.call(ledger, key) ? ledger[key] : null;
+      if (entry && (entry.oracle ?? "FieldSchema") === oracle) {
+        ledgered.add(`${key}\u0000${oracle}`);
         continue;
       }
       violations.push({ shape: shape.id, file: shape.file, writer: shape.writer, key, oracle });
@@ -456,22 +471,37 @@ export async function analyze(root = REPO_ROOT, options = {}) {
   }
 
   // Both-directions ratchet: an entry that no longer applies must not survive.
-  const declaredEverywhere = new Set(read.flatMap((r) => r.keys));
+  const ledgerOracle = (key) => ledger[key].oracle ?? "FieldSchema";
+  /** key -> the oracles whose shapes still declare it. */
+  const declaredUnder = new Map();
+  for (const r of read) {
+    for (const key of r.keys) {
+      if (!declaredUnder.has(key)) declaredUnder.set(key, new Set());
+      declaredUnder.get(key).add(oracleOf(r.shape));
+    }
+  }
+
   const acceptedBy = (key) =>
     [...new Set(read.filter((r) => r.keys.includes(key)).map((r) => oracleOf(r.shape)))].filter((name) =>
       accepts.get(name).has(key)
     );
   const staleLedger = Object.keys(ledger)
-    .filter((key) => !ledgered.has(key))
+    .filter((key) => !ledgered.has(`${key}\u0000${ledgerOracle(key)}`))
     .map((key) => {
-      if (!declaredEverywhere.has(key)) {
+      // Scoped to the entry's own oracle: a key still declared somewhere, but
+      // no longer on any shape THIS entry could apply to, is exactly as stale
+      // as one nothing declares at all.
+      if (!declaredUnder.get(key)?.has(ledgerOracle(key))) {
         return { key, reason: "no payload shape declares it any more" };
       }
       const accepting = acceptedBy(key);
       // Every shape that still declares it is judged by a schema that now
       // accepts it — the objectui#4676 shape, where the producer moved upstream.
       const stillRefused = read.some(
-        (r) => r.keys.includes(key) && !accepts.get(oracleOf(r.shape)).has(key)
+        (r) =>
+          r.keys.includes(key) &&
+          oracleOf(r.shape) === ledgerOracle(key) &&
+          !accepts.get(oracleOf(r.shape)).has(key)
       );
       if (accepting.length > 0 && !stillRefused) {
         return { key, reason: `\`${accepting.join("` / `")}\` now accepts it` };
@@ -525,7 +555,10 @@ async function main() {
     console.log("\n  Ledgered — refused, filed, resolution owned by its card:");
     for (const key of ledgerKeys) {
       const e = KNOWN_UNPARSEABLE_KEYS[key];
-      console.log(`    ${key.padEnd(14)} ${e.card}` + (e.spec ? `  (spec spells it \`${e.spec}\`)` : "  (no spec equivalent)"));
+      console.log(
+        `    ${key.padEnd(14)} ${e.card}  [${e.oracle ?? "FieldSchema"}]` +
+          (e.spec ? `  (spec spells it \`${e.spec}\`)` : "  (no spec equivalent)")
+      );
     }
   }
 
