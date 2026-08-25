@@ -1353,7 +1353,6 @@ const ko = {
       defaultValue: "기본값",
       placeholder: "자리 표시자",
       referenceTo: "참조 대상",
-      formula: "수식",
       options: "옵션",
       addOption: "옵션 추가",
       validationRules: "유효성 검사 규칙",

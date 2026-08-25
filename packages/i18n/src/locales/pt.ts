@@ -1352,7 +1352,6 @@ const pt = {
       defaultValue: "Valor padrão",
       placeholder: "Espaço reservado",
       referenceTo: "Referência a",
-      formula: "Fórmula",
       options: "Opções",
       addOption: "Adicionar opção",
       validationRules: "Regras de validação",

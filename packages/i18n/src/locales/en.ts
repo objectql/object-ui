@@ -1522,7 +1522,6 @@ const en = {
       defaultValue: 'Default Value',
       placeholder: 'Placeholder',
       referenceTo: 'Reference To',
-      formula: 'Formula',
       options: 'Options',
       addOption: 'Add Option',
       validationRules: 'Validation Rules',

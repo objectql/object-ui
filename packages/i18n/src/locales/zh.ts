@@ -1418,7 +1418,6 @@ const zh = {
       defaultValue: '默认值',
       placeholder: '占位文本',
       referenceTo: '引用对象',
-      formula: '公式',
       options: '选项',
       addOption: '添加选项',
       validationRules: '验证规则',

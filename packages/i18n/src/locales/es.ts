@@ -1357,7 +1357,6 @@ const es = {
       defaultValue: "Valor predeterminado",
       placeholder: "Marcador de posición",
       referenceTo: "Referencia a",
-      formula: "Fórmula",
       options: "Opciones",
       addOption: "Agregar opción",
       validationRules: "Reglas de validación",

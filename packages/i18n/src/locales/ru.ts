@@ -1363,7 +1363,6 @@ const ru = {
       defaultValue: "Значение по умолчанию",
       placeholder: "Заполнитель",
       referenceTo: "Ссылка на",
-      formula: "Формула",
       options: "Параметры",
       addOption: "Добавить параметр",
       validationRules: "Правила валидации",

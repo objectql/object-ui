@@ -1360,7 +1360,6 @@ const ar = {
       defaultValue: "القيمة الافتراضية",
       placeholder: "نص تلميحي",
       referenceTo: "مرجع إلى",
-      formula: "صيغة",
       options: "خيارات",
       addOption: "إضافة خيار",
       validationRules: "قواعد التحقق",

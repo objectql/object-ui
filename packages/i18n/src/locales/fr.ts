@@ -1355,7 +1355,6 @@ const fr = {
       defaultValue: "Valeur par défaut",
       placeholder: "Espace réservé",
       referenceTo: "Référence à",
-      formula: "Formule",
       options: "Options",
       addOption: "Ajouter une option",
       validationRules: "Règles de validation",

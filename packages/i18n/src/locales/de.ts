@@ -1353,7 +1353,6 @@ const de = {
       defaultValue: "Standardwert",
       placeholder: "Platzhalter",
       referenceTo: "Verweis auf",
-      formula: "Formel",
       options: "Optionen",
       addOption: "Option hinzufügen",
       validationRules: "Validierungsregeln",

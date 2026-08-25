@@ -1353,7 +1353,6 @@ const ja = {
       defaultValue: "デフォルト値",
       placeholder: "プレースホルダー",
       referenceTo: "参照先",
-      formula: "数式",
       options: "オプション",
       addOption: "オプションを追加",
       validationRules: "検証ルール",
