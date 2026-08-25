@@ -23,7 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema, ListViewExportFormat } from '@object-ui/types';
-import { isSystemManagedField } from '@object-ui/types';
+import { isSystemManagedField, normalizeTableColumnType } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -897,7 +897,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Resolved HERE, above the error / loading early returns, rather than beside
   // the row-actions column it feeds: the record-level layer below is a hook and
   // may not sit behind a conditional return.
-  const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
+  const { canEdit, canDelete, objectCanDelete, editPredicates, deletePredicates, objectDeletePredicates } = resolveRowCrudAffordances({
     operationsUpdate: operations?.update,
     operationsDelete: operations?.delete,
     wantEditAction,
@@ -2245,7 +2245,35 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       next.editable = false;
     }
     return next;
-  });
+  })
+    // ⭐ THE EMIT SEAM (objectui#5853, maintainer ruling 2026-08-25, Option B).
+    //
+    // Every column this component hands to `data-table` passes through here, so
+    // it is the one place that can guarantee `TableColumn.type` only ever holds
+    // a value that type DECLARES. Five paths above write `type`: the four
+    // column literals inside `generateColumns()` and the `fieldDef.type`
+    // enrichment in the map above — all of them forward an OBJECT SCHEMA's
+    // field type verbatim, whose vocabulary is `@objectstack/spec`'s `FieldType`
+    // (49 values, only 7 of them members of the declared union). That verbatim
+    // forwarding is why the renderer had to read this key through an `as any`.
+    //
+    // ⛔ Deliberately a SEPARATE pass, not folded into the map above: that map
+    // early-returns for `_actions` and for any column whose `accessorKey` has no
+    // `fieldDef`, and a heuristic `inferColumnType()` type (`select`, `user`)
+    // rides out on exactly those columns. Normalizing there would miss them.
+    //
+    // An out-of-union type drops the `type` KEY — never the column. See
+    // `normalizeTableColumnType` for why absence beats folding onto `'text'`.
+    .map((col: any) => {
+      if (!col || col.type == null) return col;
+      const normalized = normalizeTableColumnType(col.type);
+      if (normalized === col.type) return col;
+      if (normalized === undefined) {
+        const { type: _undeclared, ...rest } = col;
+        return rest;
+      }
+      return { ...col, type: normalized };
+    });
 
   // Apply persisted column order and widths
   let persistedColumns = [...columns];
@@ -2659,12 +2687,68 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     setSelectionResetKey(k => k + 1);
   };
 
+  /**
+   * [objectui#4420] The built-in Delete, as a def — so the ONE selection whose
+   * records the predicate split can be reported on the surface built to report
+   * it. Constructed only when the dialog route is taken (see below), never
+   * rendered in the bar: the bar's Delete stays the legacy string button it has
+   * always been, because the ruling is explicit that the predicate must not
+   * change whether the button is offered.
+   */
+  const builtInDeleteDef = (): BulkActionDef => ({
+    name: 'delete',
+    label: resolveActionLabel(schema.objectName, 'delete', formatActionLabel('delete')),
+    operation: 'delete',
+    variant: 'danger',
+  });
+
   const dispatchBulkAction = (action: string, rows: any[]) => {
     void (async () => {
       const expanded = await resolveBulkRows(rows);
       if (action === 'delete' && onBulkDelete) {
-        onBulkDelete(expanded);
-        resetSelection();
+        // [objectui#4420] `userActions.delete.visibleWhen` gates the built-in
+        // Delete PER RECORD — the same key, the same fail-closed fold and the
+        // same evaluator the row kebab and the rich-def bar already run
+        // (`partitionBulkRows` → `partitionRowsByPredicate`). Applied to the
+        // EXPANDED set for the reason #3067 states one line down in
+        // `dispatchBulkActionDef`: "select all N matching" pulls in records no
+        // on-screen check ever evaluated.
+        //
+        // The predicates come from `objectDeletePredicates`, not
+        // `deletePredicates`: the latter rides `canDelete`, which folds in the
+        // ROW wiring (`onDelete`), and bulk delete rides `onBulkDelete`. A
+        // consumer wiring only the bulk handler would otherwise have the
+        // author's predicate silently dropped.
+        const { eligible, skipped } = partitionBulkRows(
+          { name: 'delete', visible: objectDeletePredicates?.visibleWhen as never },
+          expanded,
+          { scope: predicateScope, fields: objectSchema?.fields },
+        );
+        if (skipped === 0) {
+          // Nothing was excluded, so there is nothing to report and no reason
+          // to change surfaces: the consumer's own delete flow — which owns the
+          // confirmation, the toast and the refresh — runs exactly as before.
+          // This is also what keeps every object that declares no predicate at
+          // all byte-identical to its previous behaviour.
+          onBulkDelete(eligible);
+          resetSelection();
+          return;
+        }
+        // Something WAS excluded. The run must own up to it, and
+        // `BulkActionDialog`'s `bulk-skipped-notice` is the slot built for this
+        // shape (objectui#3067) — so the delete is confirmed and executed
+        // there, over `eligible` only. Routing it back through `onBulkDelete`
+        // instead would put the host's own confirmation dialog behind this
+        // one and confirm the same delete twice.
+        //
+        // `eligible` may be EMPTY, and that case deliberately still opens the
+        // dialog: the maintainer ruled a selection where every row is excluded
+        // must produce "a legible refusal, not a hidden button whose absence is
+        // unexplained". The dialog reports zero affected records beside the
+        // skipped notice, and declines to run (see `noEligibleRows` there).
+        setActiveBulkDef(builtInDeleteDef());
+        setActiveBulkRows(eligible);
+        setActiveBulkSkipped(skipped);
         return;
       }
       // A string bulk action (e.g. a consumer-registered runner handler)
