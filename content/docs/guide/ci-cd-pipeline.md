@@ -37,6 +37,7 @@ one has its own section below.
 | `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
 | `shell-escape-residue.yml` | Shell Escape Residue Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a fenced block in `AGENTS.md`, `CLAUDE.md`, `skills/**` or `content/docs/**` carries the enumerated machine-produced shell escape, or a scan root fails to resolve |
 | `readme-exports.yml` | README Export Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `packages/**/README.md` imports a name from its own package that the package does not export, or the scan's population collapses |
+| `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -76,6 +77,16 @@ The path filters explain most "why did nothing run on my PR?" questions:
 - `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
   deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
   the change most likely to trip it. Both cost a checkout plus one `node` call.
+- `docs-route-eager-closure.yml` carries **no** filter for the opposite reason — not that its
+  subject is invisible to a filter, but that a filter naming everything it reads would be
+  indistinguishable from having none. Its inputs are the whole `/docs/[[...slug]]` module graph:
+  `apps/site/**`, `content/docs/**` (the compiled MDX modules are most of that graph) and
+  `packages/**` — a refactor dropping an import from `packages/plugin-view/src/ObjectView.tsx` is
+  exactly what turns a free declaration into a new graph — plus the gate's own closure under
+  `scripts/`. A filter that then *missed* one of those directories could not be exercised by the
+  pull request that changed it, which is the defect
+  [#6321](https://github.com/objectstack-ai/objectui/issues/6321) records. It too costs a checkout
+  plus one `node` call.
 
 ## Merge Queue
 
@@ -130,7 +141,12 @@ Two things follow for anyone editing this directory:
   inside the derived floor from that moment. "May this context be required?" is still a property of
   the repository's settings that no test here can read — `REQUIRED_CONTEXTS` is a human's answer to
   it, and deriving from that answer beats writing it down a second time and watching the copies
-  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)).
+  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)). A gate that carries no path filter
+  *precisely so that it can be required* is the mirror image of the bullet below, and the sequence
+  matters there too: name its context in `REQUIRED_CONTEXTS` and subscribe `merge_group` in the
+  same commit that creates the workflow, rather than acquiring either afterwards
+  ([#6316](https://github.com/objectstack-ai/objectui/issues/6316) is a worked example — see its
+  own section for which gate that was).
 - **Some contexts can never be required, structurally**, and no amount of triggering changes
   that. Each line below is blocked by a *different* property, which is why they are all worth
   reading; they are examples rather than a census, so a further workflow carrying any of these
@@ -969,6 +985,69 @@ reject while `BaseSchema` carries an index signature and its Zod mirror is `.pas
 **If it fails:** it names the README, the line of the offending specifier, and which package really
 exports the name. Run it locally with `pnpm check:readme-exports` after a build, or
 `node scripts/check-readme-exports.mjs --list` to see every self-import it judged.
+
+## Docs Route Eager Closure (`docs-route-eager-closure.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all** (the reason is in the [inventory](#workflow-inventory) bullets above). It
+appears in the checks list as **Docs Route Eager Closure Check**, and `REQUIRED_CONTEXTS` in
+`scripts/dependabot-merge-gate.mjs` declares that context blocking — which is also what puts this
+workflow inside the derived `merge_group` floor, because a required check that never reports on a
+queue build does not fail it, it stalls it for the ruleset's 60 minutes.
+
+Runs `scripts/check-docs-route-eager-closure.mjs` (`pnpm check:docs-route-closure`): a checkout plus
+one `node` call over the source tree, **no install and no build**, ~1.3 s.
+
+**What it weighs, and what was not weighing it.**
+`apps/site/app/components/registerCatalogBlocks.ts` is a list of side-effect imports, and each one
+pulls its package's module graph into the Next docs route `/docs/[[...slug]]` — a route **all 181
+docs pages share**, not just the catalog gallery. The cards that added to that list said the cost
+was governed by `check:eager-closure`. It was not:
+`scripts/check-eager-closure-budget.mjs` reads `apps/console/dist/eager-closure.json` and
+`performance-budget.yml` builds `@object-ui/console`, so that budget weighs the **console**. The
+only measurement of the docs route that has ever existed was reconstructed by hand, once, from the
+`script src` set of the prerendered route on disk, and the `+50%` stop condition
+[#4616](https://github.com/objectstack-ai/objectui/issues/4616) set had no gauge behind it
+([#6316](https://github.com/objectstack-ai/objectui/issues/6316)).
+
+**Structural, not byte-level — ruled that way on purpose.** A second byte budget would need a
+556-page docs build in CI. This gate instead walks the route's **static** module graph from source —
+the route entries, plus every compiled `content/docs/**` MDX module, which the route pulls in through
+the generated `.source/server.ts` — and sorts every package the registrar names into one of three
+buckets:
+
+| Bucket | Meaning |
+|---|---|
+| **Recorded** | listed in the gate's `MEASURED_PAYLOAD` — its eager cost was argued for and written down when it landed |
+| **Free** | already reachable without this file naming it, so the import adds a *declaration* and no payload |
+| **New graph** | neither, so the import pulls a graph this route has never carried — **fails** |
+
+The third bucket is the whole point: it turns an unmeasured hazard into a review event, which is
+what a cheap instrument can honestly do. `MEASURED_PAYLOAD` is a ledger and **not a ceiling** — it
+carries no bytes and no threshold, and every entry is re-measured on each run, so an entry the
+registrar stopped naming, or one that became reachable some other way, fails and has to shrink.
+
+**Exit 1 and exit 2 mean different things, and must not be read as one.** Exit **1** is a verdict
+about the registrar: a new graph, or a ledger that has drifted. Exit **2** says the **gauge** is not
+trustworthy — a specifier the walk must resolve did not, a route entry moved, the registrar is no
+longer reachable from the route at all, or every workspace package now reads as reachable (a
+traversal that reaches everything cannot tell a new graph from a free one). A reader who sees exit 2
+must not conclude the registrar is wrong; nothing was validly measured. All three verdicts print
+before any of them decides the code, the way `check-eager-closure-budget.mjs` prints its four.
+
+**A structural gate that cannot fail is worse than none**, because it converts an unmeasured hazard
+into a false assurance — so the failing direction is verified rather than assumed.
+`scripts/__tests__/check-docs-route-eager-closure.test.ts` drives the real analysis over fixture
+trees for each way the walk could silently answer "everything is reachable": a fenced MDX code block
+counted as an import, an erased `import type`, a lazy `import()` (the distinction the gate exists to
+police — `PluginLoader` is built on it so those graphs stay *off* this route), a package named only
+in the registrar's own prose, an unresolved specifier, and the registrar falling off the route.
+
+**If it fails:** the message names the package, the line that declares it, and the two ways out —
+reach the code through a package the route already carries, or argue for the payload in review and
+record it in `MEASURED_PAYLOAD` with what it is for. Run it locally with
+`pnpm check:docs-route-closure`; a green run prints the full classification, including which file
+each *free* package is already imported by.
 
 ## Link Checking (`check-links.yml`)
 
