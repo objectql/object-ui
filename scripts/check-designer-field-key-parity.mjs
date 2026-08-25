@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 /**
- * Every key a field designer's statically declared payload shape can emit must
- * be a key the installed `FieldSchema` accepts by name.
+ * Every key a designer's statically declared payload shape can emit must be a
+ * key the installed spec schema that judges that shape accepts by name.
  *
- * The failure class (objectui#5761): a field designer offers a control that
- * writes a key `FieldSchema` refuses BY NAME. The author sees the control work
+ * Two oracles, because the designers PUT a two-level document. A field shape is
+ * judged by `FieldSchema`, the parent object document by `ObjectSchema`, and
+ * each shape in {@link PAYLOAD_SHAPES} names the one that judges it. The gate
+ * shipped for objectui#5761 carried only the field oracle, so nothing checked
+ * the document those fields are nested in — and objectui#6223 then found three
+ * object-level keys (`group`, `sortOrder`, `relationships`) that `ObjectSchema`
+ * refuses by name, sitting on the wire the whole time the gate was green.
+ *
+ * The failure class (objectui#5761): a designer offers a control that
+ * writes a key the spec refuses BY NAME. The author sees the control work
  * — and, in metadata-admin, sees the preview render it — then
  * `PUT /api/v1/meta/object/:name` returns a hard 422 `INVALID_METADATA` that
  * blocks EVERY subsequent save of that object until the key is stripped. The
@@ -73,10 +81,10 @@
  *      refinement) is green here and still a 422 in production.
  *
  * ── The accept set is read from the schema, never listed here ───────────────
- * `FieldSchema` is a strict zod object: it refuses unknown keys with
- * `unrecognized_keys` rather than stripping them (objectstack#4001 closed the
- * silent-drop shape). Its accept set is read off the schema's own `shape` at
- * run time.
+ * `FieldSchema` and `ObjectSchema` are strict zod objects: they refuse unknown
+ * keys with `unrecognized_keys` rather than stripping them (objectstack#4001
+ * closed the silent-drop shape). Each accept set is read off the schema's own
+ * `shape` at run time.
  *
  * It is read through a dynamic `import()`, NOT `createRequire`, and that is
  * load-bearing rather than stylistic. `@objectstack/spec` is a dual-package
@@ -170,6 +178,7 @@ export const PAYLOAD_SHAPES = [
     id: "FieldMetadataPayload",
     file: "packages/app-shell/src/services/MetadataService.ts",
     interface: "FieldMetadataPayload",
+    schema: "FieldSchema",
     reach: "wire",
     // `toFieldPayload` builds it; `saveFields` PUTs `fields.map(toFieldPayload)`
     // and `saveObject` PUTs it through `toObjectPayload`.
@@ -179,6 +188,7 @@ export const PAYLOAD_SHAPES = [
     id: "ServerFieldSchema",
     file: "packages/plugin-designer/src/MetadataFieldsPage.tsx",
     interface: "ServerFieldSchema",
+    schema: "FieldSchema",
     reach: "wire",
     // `fromDesignerField` builds it; `MetadataFieldsPage` PUTs the assembled
     // `fields` map. Carries an index signature — see coverage note 2.
@@ -188,8 +198,39 @@ export const PAYLOAD_SHAPES = [
     id: "DesignerFieldDefinition",
     file: "packages/types/src/designer.ts",
     interface: "DesignerFieldDefinition",
+    schema: "FieldSchema",
     reach: "ui",
     writer: "FieldDesigner (in-memory model)",
+  },
+  {
+    id: "ObjectMetadataPayload",
+    file: "packages/app-shell/src/services/MetadataService.ts",
+    interface: "ObjectMetadataPayload",
+    schema: "ObjectSchema",
+    reach: "wire",
+    // `toObjectPayload` builds it; `saveObject` PUTs it whole to
+    // `PUT /api/v1/meta/object/:name`, fields nested inside.
+    writer: "MetadataService.saveObject",
+  },
+  {
+    id: "ServerObjectSchema",
+    file: "packages/plugin-designer/src/MetadataObjectsPage.tsx",
+    interface: "ServerObjectSchema",
+    schema: "ObjectSchema",
+    reach: "wire",
+    // `handleObjectsChange` merges the manager's edits onto the raw server
+    // payload and PUTs the result. Carries an index signature — coverage
+    // note 2 applies here too, and with more force: this shape is BUILT by
+    // spreading the server's own document.
+    writer: "MetadataObjectsPage.handleObjectsChange",
+  },
+  {
+    id: "ObjectDefinition",
+    file: "packages/types/src/designer.ts",
+    interface: "ObjectDefinition",
+    schema: "ObjectSchema",
+    reach: "ui",
+    writer: "ObjectManager (in-memory model)",
   },
 ];
 
@@ -215,16 +256,28 @@ export const KNOWN_UNPARSEABLE_KEYS = {
     spec: null, // the spec has `sortable` (a boolean), and no field-level ordering key
     note: "Latent: declared and written by `toFieldPayload`, but nothing populates it, so JSON drops the undefined. One reorder feature away from live.",
   },
+  enabled: {
+    card: "objectui#6238",
+    // `ObjectSchema` DOES have `enable` — but it is `ObjectCapabilities`, a
+    // system-features module object, not a boolean on/off flag. Recorded here
+    // so the next reader does not mistake the near-spelling for a rename.
+    spec: null,
+    note: "Object-level, surfaced by the ObjectSchema oracle added in objectui#6223. `ObjectMetadataPayload` declares it and `deleteObject` / `deleteMetadataItem` write `{ enabled: false, _deleted: true }` directly, so the SOFT-DELETE path — not `toObjectPayload` — is what puts it on the wire. Not a rename: the spec's `enable` is a capabilities object, so what a soft delete should write is its own question.",
+  },
 };
 
+/** The oracle names a shape may name, in the order they are reported. */
+export const ORACLES = ["FieldSchema", "ObjectSchema"];
+
 /**
- * The keys the INSTALLED `FieldSchema` accepts, read off the schema itself.
+ * The keys the INSTALLED schema named by `exportName` accepts, read off the
+ * schema itself.
  *
  * Resolved through `@objectstack/spec/data` — the published subpath, the same
  * one the runtime parses with — so this is the schema that actually judges a
  * `PUT`, not a local look-alike. Extraction failure throws; see the header.
  */
-export async function fieldSchemaAcceptSet(importSpec = (id) => import(id)) {
+export async function schemaAcceptSet(exportName, importSpec = (id) => import(id)) {
   let data;
   try {
     data = await importSpec("@objectstack/spec/data");
@@ -235,22 +288,32 @@ export async function fieldSchemaAcceptSet(importSpec = (id) => import(id)) {
         `    (${err && err.message})`
     );
   }
-  const schema = data.FieldSchema;
+  const schema = data[exportName];
   if (!schema) {
     fail(
-      "@objectstack/spec/data no longer exports `FieldSchema` — the accept set cannot be derived.\n" +
-        "    Re-point this gate at the schema that judges a field payload; do NOT hardcode a key list."
+      `@objectstack/spec/data no longer exports \`${exportName}\` — the accept set cannot be derived.\n` +
+        "    Re-point this gate at the schema that judges that payload; do NOT hardcode a key list."
     );
   }
   const keys = shapeKeys(schema);
   if (!keys || keys.length === 0) {
     fail(
-      "could not resolve `FieldSchema`'s shape from @objectstack/spec/data.\n" +
+      `could not resolve \`${exportName}\`'s shape from @objectstack/spec/data.\n` +
         "    The schema's internal representation changed. Fix the walk — falling back to a\n" +
         "    hardcoded key list would make this gate the stale copy it exists to prevent."
     );
   }
   return { schema, accept: new Set(keys), origin: specOrigin() };
+}
+
+/** {@link schemaAcceptSet} pinned to the field oracle. */
+export async function fieldSchemaAcceptSet(importSpec = (id) => import(id)) {
+  return schemaAcceptSet("FieldSchema", importSpec);
+}
+
+/** {@link schemaAcceptSet} pinned to the object oracle. */
+export async function objectSchemaAcceptSet(importSpec = (id) => import(id)) {
+  return schemaAcceptSet("ObjectSchema", importSpec);
 }
 
 /**
@@ -323,56 +386,110 @@ export function declaredKeys(root, shape) {
   return { keys, indexSignature };
 }
 
+/** The oracle a shape names, defaulting to the field one for older entries. */
+const oracleOf = (shape) => shape.schema ?? "FieldSchema";
+
 /**
- * Compare every declared payload key against the accept set.
+ * Compare every declared payload key against the accept set OF THE ORACLE THAT
+ * JUDGES ITS SHAPE.
  *
- * Returns `{ accept, shapes, violations, uiOnly, staleLedger }`. `violations`
- * is what makes the gate red; `uiOnly` and `staleLedger` are reported too —
- * `staleLedger` is red as well (see the header's both-directions ratchet).
+ * Returns `{ accept, accepts, origin, shapes, violations, uiOnly, staleLedger }`.
+ * `violations` is what makes the gate red; `uiOnly` and `staleLedger` are
+ * reported too — `staleLedger` is red as well (see the header's
+ * both-directions ratchet).
+ *
+ * Reach is resolved WITHIN an oracle, never across one. A key is `uiOnly` when
+ * no wire shape *judged by the same schema* declares it: `group` is a legal
+ * `FieldSchema` key and a refused `ObjectSchema` key at the same time, so a
+ * single pooled wire-key set would have let an object-level key hide behind a
+ * field-level shape that legitimately declares the same spelling.
  */
 export async function analyze(root = REPO_ROOT, options = {}) {
   const shapes = options.shapes ?? PAYLOAD_SHAPES;
   const ledger = options.ledger ?? KNOWN_UNPARSEABLE_KEYS;
-  const { accept, origin } = options.acceptSet
-    ? { accept: options.acceptSet, origin: "(injected)" }
-    : await fieldSchemaAcceptSet(options.importSpec);
+  const needed = [...new Set(shapes.map(oracleOf))];
+
+  /** oracle name -> accept set. `acceptSet` (singular) applies to every oracle. */
+  const accepts = new Map();
+  let origin = "(injected)";
+  for (const name of needed) {
+    if (options.acceptSets && options.acceptSets[name]) {
+      accepts.set(name, options.acceptSets[name]);
+    } else if (options.acceptSet) {
+      accepts.set(name, options.acceptSet);
+    } else {
+      const resolved = await schemaAcceptSet(name, options.importSpec);
+      accepts.set(name, resolved.accept);
+      origin = resolved.origin;
+    }
+  }
 
   const read = shapes.map((shape) => ({ shape, ...declaredKeys(root, shape) }));
-  const wireKeys = new Set(read.filter((r) => r.shape.reach === "wire").flatMap((r) => r.keys));
+
+  /** oracle name -> every key declared on a wire shape judged by that oracle. */
+  const wireKeysByOracle = new Map(
+    needed.map((name) => [
+      name,
+      new Set(read.filter((r) => r.shape.reach === "wire" && oracleOf(r.shape) === name).flatMap((r) => r.keys)),
+    ])
+  );
 
   const violations = [];
   const uiOnly = [];
   const ledgered = new Set();
 
   for (const { shape, keys } of read) {
+    const oracle = oracleOf(shape);
+    const accept = accepts.get(oracle);
     for (const key of keys) {
       if (accept.has(key)) continue;
-      if (shape.reach === "ui" && !wireKeys.has(key)) {
-        uiOnly.push({ shape: shape.id, file: shape.file, key });
+      if (shape.reach === "ui" && !wireKeysByOracle.get(oracle).has(key)) {
+        uiOnly.push({ shape: shape.id, file: shape.file, key, oracle });
         continue;
       }
       if (Object.prototype.hasOwnProperty.call(ledger, key)) {
         ledgered.add(key);
         continue;
       }
-      violations.push({ shape: shape.id, file: shape.file, writer: shape.writer, key });
+      violations.push({ shape: shape.id, file: shape.file, writer: shape.writer, key, oracle });
     }
   }
 
   // Both-directions ratchet: an entry that no longer applies must not survive.
   const declaredEverywhere = new Set(read.flatMap((r) => r.keys));
+  const acceptedBy = (key) =>
+    [...new Set(read.filter((r) => r.keys.includes(key)).map((r) => oracleOf(r.shape)))].filter((name) =>
+      accepts.get(name).has(key)
+    );
   const staleLedger = Object.keys(ledger)
     .filter((key) => !ledgered.has(key))
-    .map((key) => ({
-      key,
-      reason: !declaredEverywhere.has(key)
-        ? "no payload shape declares it any more"
-        : accept.has(key)
-          ? "`FieldSchema` now accepts it"
-          : "it is no longer reachable from a wire-bound shape",
-    }));
+    .map((key) => {
+      if (!declaredEverywhere.has(key)) {
+        return { key, reason: "no payload shape declares it any more" };
+      }
+      const accepting = acceptedBy(key);
+      // Every shape that still declares it is judged by a schema that now
+      // accepts it — the objectui#4676 shape, where the producer moved upstream.
+      const stillRefused = read.some(
+        (r) => r.keys.includes(key) && !accepts.get(oracleOf(r.shape)).has(key)
+      );
+      if (accepting.length > 0 && !stillRefused) {
+        return { key, reason: `\`${accepting.join("` / `")}\` now accepts it` };
+      }
+      return { key, reason: "it is no longer reachable from a wire-bound shape" };
+    });
 
-  return { accept, origin, shapes: read, violations, uiOnly, staleLedger };
+  // `accept` is kept as the field oracle's set for callers that predate the
+  // second oracle; `accepts` is the full map.
+  return {
+    accept: accepts.get("FieldSchema") ?? accepts.get(needed[0]),
+    accepts,
+    origin,
+    shapes: read,
+    violations,
+    uiOnly,
+    staleLedger,
+  };
 }
 
 async function main() {
@@ -388,18 +505,20 @@ async function main() {
     throw err;
   }
 
-  const { accept, origin, shapes, violations, uiOnly, staleLedger } = result;
-  console.log(`designer-field-key-parity: FieldSchema accepts ${accept.size} keys`);
+  const { accepts, origin, shapes, violations, uiOnly, staleLedger } = result;
+  for (const [name, accept] of accepts) {
+    console.log(`designer-field-key-parity: ${name} accepts ${accept.size} keys`);
+  }
   console.log(`  oracle: ${origin}`);
   for (const { shape, keys, indexSignature } of shapes) {
     console.log(
-      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}]` +
+      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}] vs ${(shape.schema ?? "FieldSchema").padEnd(12)}` +
         (indexSignature ? "  (+ index signature — see coverage note 2)" : "")
     );
   }
   if (uiOnly.length) {
-    console.log("\n  UI-only keys (declared on no wire-bound shape, so out of reach of a PUT):");
-    for (const u of uiOnly) console.log(`    ${u.key}  (${u.shape})`);
+    console.log("\n  UI-only keys (declared on no wire-bound shape of the same oracle, so out of reach of a PUT):");
+    for (const u of uiOnly) console.log(`    ${u.key.padEnd(16)} (${u.shape}, vs ${u.oracle})`);
   }
   const ledgerKeys = Object.keys(KNOWN_UNPARSEABLE_KEYS);
   if (ledgerKeys.length) {
@@ -422,7 +541,7 @@ async function main() {
   }
 
   if (violations.length) {
-    console.error("\ndesigner-field-key-parity: KEYS `FieldSchema` REFUSES BY NAME\n");
+    console.error("\ndesigner-field-key-parity: KEYS THE SPEC REFUSES BY NAME\n");
     // Grouped by KEY, not by site: one key declared on three shapes is one
     // decision to make, and reading it three times obscures that.
     const byKey = new Map();
@@ -435,6 +554,7 @@ async function main() {
       for (const v of sites) {
         console.error(`        declared on ${v.shape} (${v.file})`);
         console.error(`        written by  ${v.writer}`);
+        console.error(`        refused by  ${v.oracle}`);
       }
     }
     console.error(

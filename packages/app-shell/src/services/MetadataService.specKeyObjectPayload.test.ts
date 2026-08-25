@@ -1,0 +1,250 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * objectui#6223 — the object payload `MetadataService` PUTs carries no key
+ * `ObjectSchema` refuses BY NAME.
+ *
+ * Surfaced by the key-level parity gate built for objectui#5761
+ * (`scripts/check-designer-field-key-parity.mjs`), once objectui#6223 gave it a
+ * SECOND ORACLE. Until then the gate compared field shapes against
+ * `FieldSchema` and nothing at all checked the parent document those fields are
+ * nested in, so three object-level keys sat on the wire while the gate was
+ * green. `ObjectMetadataPayload` is now one of that gate's object-level `wire`
+ * shapes: `toObjectPayload` builds it and `saveObject` PUTs it whole to
+ * `PUT /api/v1/meta/object/:name`.
+ *
+ * Measured against the installed `@objectstack/spec` 17.2.0 (ESM build), whose
+ * `ObjectSchema` accept set is 42 keys:
+ *
+ *   ObjectSchema.safeParse({ ...base, group: 'Sales' })  => unrecognized_keys ["group"]
+ *   ObjectSchema.safeParse({ ...base, sortOrder: 3 })    => unrecognized_keys ["sortOrder"]
+ *   ObjectSchema.safeParse({ ...base, relationships: … }) => unrecognized_keys ["relationships"]
+ *
+ * The controls are what make that a KEY-BY-KEY result rather than a schema that
+ * refuses everything: `isSystem` and `pluralLabel` parse green on the same base
+ * document. Both are asserted below, first, before any claim about the fix.
+ *
+ * ## What this file does NOT claim
+ *
+ * It does not claim a reproduced HTTP 422. The card was explicit that whether
+ * the deployed route rejects these today depends on what that route parses
+ * with; the schema fact is the ground for the fix and is all that is asserted.
+ *
+ * ## Why the assertions are on bytes
+ *
+ * `undefined` is a key zod's strict object COUNTS and `JSON.stringify` DROPS.
+ * An in-memory assertion on the object handed to the client and a wire
+ * assertion therefore disagree exactly on the half-filled case, so every
+ * assertion here reads `JSON.parse` of the captured request body.
+ *
+ * ## One `it` per key, deliberately
+ *
+ * Three keys were resolved. A suite that exercised them together would stay
+ * green on a fix that landed two of three, so each key is pinned by name in its
+ * own case: reverting one resolution reds only that case.
+ */
+
+import { describe, expect, it, vi } from 'vitest';
+import { ObjectSchema } from '@objectstack/spec/data';
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectDefinition } from '@object-ui/types';
+import { MetadataService } from './MetadataService';
+
+/** The bodies of every PUT the SDK issued, exactly as they went over the wire. */
+function makeCapturingAdapter() {
+  const puts: Array<Record<string, unknown>> = [];
+  const adapter = new ObjectStackAdapter({
+    baseUrl: 'http://test.local',
+    fetch: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET').toUpperCase() === 'PUT') {
+        puts.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch,
+  });
+  return { adapter, puts };
+}
+
+const unrecognizedKeys = (result: ReturnType<typeof ObjectSchema.safeParse>): string[] =>
+  result.success
+    ? []
+    : result.error.issues
+        .filter((i) => i.code === 'unrecognized_keys')
+        .flatMap((i) => (i as unknown as { keys: string[] }).keys);
+
+/** A base document `ObjectSchema` accepts, for probing one key at a time. */
+const BASE = { name: 'account', label: 'Account', fields: { n: { type: 'text', label: 'N' } } };
+
+/**
+ * An object as the Object Manager holds it, with all three UI-only keys
+ * populated — the state a designer save actually starts from.
+ */
+const MANAGED: ObjectDefinition = {
+  id: 'account',
+  name: 'account',
+  label: 'Account',
+  pluralLabel: 'Accounts',
+  description: 'Customer accounts',
+  icon: 'Building',
+  group: 'Custom Objects',
+  sortOrder: 3,
+  isSystem: false,
+  fieldCount: 1,
+  relationships: [
+    { relatedObject: 'contact', type: 'one-to-many', label: 'Contacts', foreignKey: 'account_id' },
+  ],
+};
+
+async function putFor(obj: ObjectDefinition = MANAGED): Promise<Record<string, unknown>> {
+  const { adapter, puts } = makeCapturingAdapter();
+  await new MetadataService(adapter).saveObject(obj, [{ name: 'name', type: 'text', label: 'Name' }]);
+  expect(puts).toHaveLength(1);
+  return puts[0];
+}
+
+describe('the instrument', () => {
+  it('is the installed spec schema and it is STRICT — unknown keys are refused, not stripped', () => {
+    // objectstack#4001 closed the silent-drop shape. Every parity assertion
+    // below depends on it: a stripping schema would make them all trivially
+    // green while the 422 still happened server-side.
+    const result = ObjectSchema.safeParse({ ...BASE, zzzDefinitelyNotAKey: 1 });
+    expect(result.success).toBe(false);
+    expect(unrecognizedKeys(result)).toContain('zzzDefinitelyNotAKey');
+  });
+
+  it('accepts the controls — this is a key-by-key result, not a schema refusing everything', () => {
+    // Without these two, "ObjectSchema refuses `group`" would be worthless: a
+    // schema that refused every object would produce the same evidence.
+    expect(ObjectSchema.safeParse(BASE).success).toBe(true);
+    expect(ObjectSchema.safeParse({ ...BASE, isSystem: true }).success).toBe(true);
+    expect(ObjectSchema.safeParse({ ...BASE, pluralLabel: 'Accounts' }).success).toBe(true);
+  });
+
+  it('refuses each of the three keys BY NAME, one at a time', () => {
+    expect(unrecognizedKeys(ObjectSchema.safeParse({ ...BASE, group: 'Sales' }))).toEqual(['group']);
+    expect(unrecognizedKeys(ObjectSchema.safeParse({ ...BASE, sortOrder: 3 }))).toEqual(['sortOrder']);
+    expect(
+      unrecognizedKeys(
+        ObjectSchema.safeParse({ ...BASE, relationships: [{ relatedObject: 'contact', type: 'one-to-many' }] }),
+      ),
+    ).toEqual(['relationships']);
+  });
+
+  it('has no near-spelling for any of them — unlike objectui#6041, nothing here is a rename', () => {
+    const accept = new Set(Object.keys(ObjectSchema.shape as Record<string, unknown>));
+    expect(accept.size).toBe(42);
+    // `fieldGroups` is the only grouping key on the object, and it groups the
+    // FIELDS INSIDE one object — it is not a category for objects themselves,
+    // so `group` has no mapping target here.
+    expect(accept.has('fieldGroups')).toBe(true);
+    for (const key of ['group', 'sortOrder', 'relationships', 'order', 'category', 'sortField']) {
+      expect(accept.has(key), `ObjectSchema unexpectedly accepts \`${key}\``).toBe(false);
+    }
+  });
+});
+
+describe('objectui#6223 · `group` — the manager’s display category, never the payload', () => {
+  it('does not put `group` on the wire even when the object carries one', async () => {
+    const put = await putFor();
+    expect('group' in put).toBe(false);
+    // Falsification: the save really happened and really described this object.
+    expect(put.name).toBe('account');
+    expect(put.label).toBe('Account');
+  });
+
+  it('and `ObjectSchema` reports no `group` among the refused keys of that body', async () => {
+    expect(unrecognizedKeys(ObjectSchema.safeParse(await putFor()))).not.toContain('group');
+  });
+});
+
+describe('objectui#6223 · `sortOrder` — list order, not object metadata', () => {
+  it('does not put `sortOrder` on the wire even when the object carries one', async () => {
+    const put = await putFor();
+    expect('sortOrder' in put).toBe(false);
+    expect(put.name).toBe('account');
+  });
+
+  it('and `ObjectSchema` reports no `sortOrder` among the refused keys of that body', async () => {
+    expect(unrecognizedKeys(ObjectSchema.safeParse(await putFor()))).not.toContain('sortOrder');
+  });
+
+  it('leaves the FIELD-level `sortOrder` alone — that key is objectui#6045 and is not this card', async () => {
+    // The two keys share a spelling and nothing else. Reverting the object-level
+    // resolution must not read as progress on the field-level one, and this
+    // assertion is what keeps the two cards independently measurable.
+    const { adapter, puts } = makeCapturingAdapter();
+    await new MetadataService(adapter).saveFields('account', [
+      { id: 'name', name: 'name', label: 'Name', type: 'text', sortOrder: 7 },
+    ]);
+    const fields = puts[puts.length - 1].fields as Record<string, unknown>[];
+    expect(fields[0].sortOrder).toBe(7);
+  });
+});
+
+describe('objectui#6223 · `relationships` — the spec models these on the FIELD', () => {
+  it('does not put `relationships` on the wire even when the object carries them', async () => {
+    const put = await putFor();
+    expect('relationships' in put).toBe(false);
+    expect(put.name).toBe('account');
+  });
+
+  it('and `ObjectSchema` reports no `relationships` among the refused keys of that body', async () => {
+    expect(unrecognizedKeys(ObjectSchema.safeParse(await putFor()))).not.toContain('relationships');
+  });
+});
+
+describe('objectui#6223 · the whole body, and the honest limit of this fix', () => {
+  it('carries NO key `ObjectSchema` refuses by name', async () => {
+    // The claim of this card, stated once over the whole document rather than
+    // key by key. Before the fix this was ["group", "sortOrder", "relationships"].
+    expect(unrecognizedKeys(ObjectSchema.safeParse(await putFor()))).toEqual([]);
+  });
+
+  it('still carries everything the spec DOES accept — the fix removed keys, it did not empty the payload', async () => {
+    // Falsification for the assertion above: a payload of `{}` would also carry
+    // no refused key, and that is not the fix.
+    const put = await putFor();
+    expect(put).toMatchObject({
+      name: 'account',
+      label: 'Account',
+      pluralLabel: 'Accounts',
+      description: 'Customer accounts',
+      icon: 'Building',
+    });
+  });
+
+  it('does NOT parse green as a whole — `fields` is an array where the spec wants a map (objectui#6240)', async () => {
+    // Stated as an assertion rather than left as prose, because a reader who
+    // saw only the `unrecognized_keys` case above would reasonably conclude the
+    // designer's object payload is now spec-valid. It is not: this fix closes
+    // the KEY-NAME class, which is the class objectui#6223 and its parity gate
+    // are about. What remains is a VALUE-level rejection — the gate's coverage
+    // note 4 — and it is filed separately as objectui#6240.
+    const result = ObjectSchema.safeParse(await putFor());
+    expect(result.success).toBe(false);
+    expect(unrecognizedKeys(result)).toEqual([]);
+    expect(result.error?.issues.map((i) => `${i.code} @ ${i.path.join('.')}`)).toEqual([
+      'invalid_type @ fields',
+    ]);
+  });
+
+  it('a half-filled object — no group, no sortOrder, no relationships — puts identical bytes, as it always did', async () => {
+    // ⚠ This case would still pass on a revert, deliberately. `undefined` is
+    // dropped by `JSON.stringify`, so an object that never had these keys
+    // populated produced byte-identical output before and after this fix. It is
+    // here to prove the fix did not newly break the untouched half, which is a
+    // claim about what did NOT change.
+    const put = await putFor({ id: 'lead', name: 'lead', label: 'Lead' });
+    expect(Object.keys(put).sort()).toEqual(['fields', 'label', 'name']);
+    expect(unrecognizedKeys(ObjectSchema.safeParse(put))).toEqual([]);
+  });
+});

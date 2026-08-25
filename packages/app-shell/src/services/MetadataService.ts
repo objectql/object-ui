@@ -30,16 +30,27 @@ export interface ObjectMetadataPayload {
   pluralLabel?: string;
   description?: string;
   icon?: string;
-  group?: string;
-  sortOrder?: number;
+  // No `group` (objectui#6223): `ObjectSchema` has no object-level grouping
+  // key — its 42-key accept set contains `fieldGroups`, which groups the FIELDS
+  // inside one object, and nothing that categorises objects against each other.
+  // The designer's grouping IS a real feature, but a UI-only one: the Object
+  // Manager's group column and its group select are display categories derived
+  // from the object itself (`sys_` prefix / `isSystem` -> `System Objects` vs
+  // `Custom Objects`), never authored data the server round-trips. Writing it
+  // made `PUT /api/v1/meta/object/:name` refuse the key by name.
+  // No `sortOrder` (objectui#6223): `ObjectSchema` has no object-level ordering
+  // key either. What populated it was the ARRAY INDEX the converter happened to
+  // be at (`sortOrder: index`), i.e. the order the list was already in — a
+  // display concern of the manager, not object metadata. (Distinct from the
+  // field-level `sortOrder`, objectui#6045, which is still declared below.)
   enabled?: boolean;
   fields?: FieldMetadataPayload[];
-  relationships?: Array<{
-    relatedObject: string;
-    type: string;
-    label?: string;
-    foreignKey?: string;
-  }>;
+  // No `relationships` (objectui#6223): the spec models relationships on the
+  // FIELD — `reference` / `master_detail` plus object-level `indexes` — and
+  // `ObjectSchema` refuses an object-level `relationships` array by name. What
+  // the designer should author for a relationship is a data-model question
+  // that this card does not settle; what it settles is that this shape must
+  // stop putting the key on the wire.
 }
 
 /** Shape written to the metadata API for a field definition. */
@@ -76,7 +87,16 @@ export interface FieldMetadataPayload {
 // Converters: UI types → API payloads
 // ---------------------------------------------------------------------------
 
-/** Convert an `ObjectDefinition` (UI) to the API payload shape. */
+/**
+ * Convert an `ObjectDefinition` (UI) to the API payload shape.
+ *
+ * `ObjectDefinition` carries three keys that deliberately do NOT cross into the
+ * payload (objectui#6223): `group` and `sortOrder` are the Object Manager's own
+ * display category and display order, and `relationships` has no object-level
+ * home in the spec. `ObjectSchema` refuses all three BY NAME, so copying them
+ * across is what turned a designer save into a 422. The UI model keeps them;
+ * the wire shape does not.
+ */
 function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[]): ObjectMetadataPayload {
   return {
     name: obj.name,
@@ -84,10 +104,7 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
     pluralLabel: obj.pluralLabel,
     description: obj.description,
     icon: obj.icon,
-    group: obj.group,
-    sortOrder: obj.sortOrder,
     fields,
-    relationships: obj.relationships,
   };
 }
 
