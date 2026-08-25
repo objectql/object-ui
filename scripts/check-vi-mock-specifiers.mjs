@@ -307,6 +307,12 @@ function trackedFiles(root) {
 /**
  * The one scan. `main()`, `--list`, `--json` and the test suite all go through
  * here, so the tests exercise the real code path rather than an imitation.
+ *
+ * @param {string} root  Repository root to scan.
+ * @param {{ files?: string[] | null, floors?: Record<string, number> }} [options]
+ *   `files` overrides the `git ls-files` walk (fixtures pass their own list);
+ *   `floors` overrides `FLOORS` — pass `{}` to switch the collapse check off for
+ *   a fixture tree, which is legitimately far below every repo floor.
  */
 export function scan(root, { files = null, floors = FLOORS } = {}) {
   const tracked = files ?? trackedFiles(root);
