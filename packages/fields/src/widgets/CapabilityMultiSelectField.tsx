@@ -2,7 +2,6 @@ import React from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
-import { PLATFORM_CAPABILITIES } from '@objectstack/spec/security';
 import { FieldWidgetComponentProps } from './types.js';
 import { useFieldTranslation } from './useFieldTranslation.js';
 
@@ -78,41 +77,70 @@ const SCOPE_ORDER = ['platform', 'org', 'other'] as const;
  * localizes client-side via `capability.label.<name>`; package- and
  * admin-authored capabilities keep their authored `sys_capability` label.
  *
- * ## objectui#6285 — DERIVED from the spec, not restated
+ * ## This IS `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`, and the
+ * ## equality is CHECKED rather than claimed (objectui#6285)
  *
- * This used to be a seven-member literal under a doc comment that said it
- * mirrored `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`. Nothing held
- * the claim, and the copy had already fallen a member behind: the spec grew
- * `manage_sharing`, the literal did not, so that one capability fell through to
- * its registry label and rendered untranslated in all ten packs beside seven
- * siblings that localize. Deriving retires the claim by making it structural —
- * there is no longer a second list to drift from.
+ * The names below are the spec's, with the dot spellings written as underscores
+ * (see the transform note under the declaration). It used to say that in prose
+ * and nothing held it: the spec grew `manage_sharing`, this list did not follow,
+ * and that capability fell through to the English label the `sys_capability`
+ * registry serves — untranslated in all ten packs, beside seven siblings that
+ * localize, with every gate green.
  *
- * ## The dot → underscore transform is deliberate, and it belongs here too
+ * What holds it now is `CapabilityMultiSelectField.specParity-6285.test.tsx`,
+ * which imports `PLATFORM_CAPABILITIES` and fails on ANY difference in either
+ * direction — a member the spec added and this list lacks, or one this list
+ * keeps after the spec dropped it. A spec bump that moves the vocabulary turns
+ * CI red here before it can reach a screen.
  *
- * The spec spells three of the eight names with a dot (`setup.access`,
- * `setup.write`, `studio.access`) while the i18n keys spell them with an
- * underscore, and `labelFor` bridges that at the call site. The derivation
- * applies the SAME transform, so membership is in the same alphabet as the
- * keys. Deriving without it would silently un-localize those three — members
- * that work today — which is the one regression this shape can ship.
+ * ## Why a repo-local list rather than a runtime derivation
  *
- * ## What replaced the gate coverage this cost
+ * `new Set(PLATFORM_CAPABILITIES.map(…))` was built and measured (objectui#6285,
+ * and the branch history carries the numbers). It costs nothing in bundle terms
+ * — +0.3 KB gzipped on the console's eager closure, because the console's graph
+ * already reaches those modules — so bundle size is NOT the reason, and the
+ * `useTenancyPosture.ts` precedent's reason does not apply here.
  *
- * `scripts/check-i18n-call-site-keys.mjs` registered this symbol as a `kind:
- * 'set'` vocabulary and expanded `capability.label.<member>` into exact key
- * checks. Its reader parses repo source and needs a literal `new Set([…])`, so
- * a computed initialiser is `unreadable-vocabulary` there; the family is now
- * declared `enumerable: false` / `external-vocabulary`, and the member-to-label
- * tie is pinned at test time — where importing the spec is free — by
- * `CapabilityMultiSelectField.specDerivation-6285.test.tsx`, which covers the
- * `en` pack AND `useFieldTranslation`'s provider-less defaults map. That is
- * strictly more than the gate could state, because the gate could not see a
- * member the literal never named.
+ * The reason is instrument coverage. `scripts/check-i18n-call-site-keys.mjs`
+ * reads this declaration as the `capability.label.` family's vocabulary and
+ * expands it into exact `en` key checks; its reader parses source and needs a
+ * literal `new Set([…])`, so a computed initialiser is `unreadable-vocabulary`
+ * and the family would have to fall back to `enumerable: false`, dropping the
+ * gate from 18 vocabularies / 113 exactly-checked members to 17 / 105. The gate
+ * documents one bridge for a vocabulary living in a dependency — "a repo-local
+ * exhaustive `Record<Union, …>` this reader can read" — and it is unavailable:
+ * `PlatformCapability.name` is typed `string`, so the spec publishes no union to
+ * key a `Record` by.
+ *
+ * And the benefit a derivation would have bought is not real. A capability the
+ * spec adds cannot "arrive automatically": its `capability.label.*` key still
+ * has to be authored by a human in ten packs, or it renders the registry English
+ * (this card's exact defect) or a raw key. `manage_sharing` is the proof — it
+ * had no key anywhere. Deriving does not remove the human step; it only chooses
+ * which instrument reports it. So the shape that keeps BOTH instruments — this
+ * list read by the gate, and the parity test read by CI — wins on the only axis
+ * that separates them.
+ *
+ * ⛔ Do not hand-edit this list to match a new spec release without also
+ * authoring `capability.label.<name>` in all ten packs and in
+ * `useFieldTranslation.ts`; the parity test fails on the first, and
+ * `all-locales-key-parity.test.ts` on the second.
  */
-const CURATED_CAPABILITY_LABELS: ReadonlySet<string> = new Set(
-  PLATFORM_CAPABILITIES.map((c) => c.name.replace(/\./g, '_')),
-);
+const CURATED_CAPABILITY_LABELS = new Set([
+  'manage_users',
+  'manage_org_users',
+  'manage_metadata',
+  'manage_platform_settings',
+  // The spec spells these three with a dot (`setup.access`, `setup.write`,
+  // `studio.access`). `labelFor` normalises dots to underscores before building
+  // the key, so membership is written in the key's alphabet, not the spec's.
+  // The parity test applies the same transform and would fail if either side
+  // stopped agreeing.
+  'setup_access',
+  'setup_write',
+  'studio_access',
+  'manage_sharing',
+]);
 
 export function CapabilityMultiSelectField({
   value,
