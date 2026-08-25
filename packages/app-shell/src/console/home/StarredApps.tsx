@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card, CardContent, cn } from '@object-ui/components';
 import { Star, ArrowUpRight, Database, FileText, LayoutDashboard, File } from 'lucide-react';
-import { capitalizeFirst } from '../../utils/index.js';
+import { recentItemTypeLabel } from './recentItemTypeLabel.js';
 import type { FavoriteItem } from '../../hooks/useFavorites.js';
 
 interface StarredAppsProps {
@@ -56,11 +56,9 @@ export function StarredApps({ items }: StarredAppsProps) {
           const tone = TYPE_TONES[item.type] || TYPE_TONES.object;
           // Reuse the recentApps.itemType.* keys so Starred and Recently
           // Accessed surface the same localized labels (e.g. "记录" vs
-          // "Record"). Falls back to the capitalized english type so
-          // unknown types still render readably.
-          const typeLabel = t(`home.recentApps.itemType.${item.type}`, {
-            defaultValue: capitalizeFirst(item.type),
-          });
+          // "Record"). Resolved through the shared helper so all three Home
+          // surfaces fall back identically (objectui#6165).
+          const typeLabel = recentItemTypeLabel(t, item.type);
           return (
             <Card
               key={item.id}
