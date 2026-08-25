@@ -13,6 +13,16 @@ Advanced data grid with sorting, filtering, pagination, and row selection capabi
 npm install @object-ui/plugin-grid
 ```
 
+This package publishes a stylesheet. Import it after the base sheets, or the grid renders unstyled — the themed utilities it uses have no other source in a published app ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)):
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-grid/style.css";
+```
+
 <PluginLoader plugins={['grid']}>
 
 ## Interactive Examples

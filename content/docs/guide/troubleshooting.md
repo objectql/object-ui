@@ -57,7 +57,14 @@ npx objectui doctor
 @import '@object-ui/fields/style.css';
 ```
 
-Two packages publish a `style.css`: `@object-ui/components` (the base sheet — theme tokens, base layer, its own utilities) and `@object-ui/fields` (a supplement carrying only what the field widgets add). The fields sheet is built by subtracting everything the components sheet already ships, so it must come **after** it; on its own it styles almost nothing.
+`@object-ui/components` publishes the base sheet — theme tokens, base layer, its own utilities — and every other sheet is a supplement built by subtracting everything the base already ships, so each must come **after** it and none styles much on its own. `@object-ui/fields` carries what the field widgets add. `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` carry what those two plugins add; add a line for each plugin package you install:
+
+```css
+@import '@object-ui/plugin-grid/style.css';
+@import '@object-ui/plugin-kanban/style.css';
+```
+
+If a grid or a kanban board specifically looks wrong — column headers and card surfaces flat, drag feedback and selection rings missing — that plugin's sheet is the missing import. It did not exist before either: those packages emitted no CSS at all until [#4929](https://github.com/objectstack-ai/objectui/issues/4929), so on earlier versions the subpath does not resolve and upgrading is the fix, not a scanning path. The remaining `@object-ui/plugin-*` packages still publish no stylesheet.
 
 If field widgets specifically look wrong — tag and badge colours flat, the rating stars not reacting to hover, the signature pad showing the wrong cursor — the fields import is the one that is missing. Note that it genuinely did not exist before: every release up to and including 17.3.0 declared the `@object-ui/fields/style.css` subpath while shipping no stylesheet at all ([#4059](https://github.com/objectstack-ai/objectui/issues/4059)), so on those versions the import fails to resolve and breaks the build. Upgrade rather than adding scanning paths.
 
