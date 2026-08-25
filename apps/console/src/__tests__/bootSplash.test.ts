@@ -30,6 +30,18 @@ const SCRIPT_MARKER = 'installBootSplash';
 const THEME_STORAGE_KEY = 'vite-ui-theme';
 const APP_ENTRY = '/src/main.tsx';
 
+/**
+ * The document with HTML COMMENTS REMOVED.
+ *
+ * Load-bearing, not tidiness, and the same hazard `insecure-origin-crypto.
+ * placement.test.ts` records for script tags: the prose in `index.html`
+ * DESCRIBES this markup, so it contains the literal strings `<div
+ * id="boot-splash">` and `<div id="root">`. Every positional assertion below
+ * that reads the raw file finds the COMMENT first and passes without ever
+ * looking at the element — measured, while writing these tests.
+ */
+const documentHtml = indexHtml.replace(/<!--[\s\S]*?-->/g, '');
+
 /** Every `<script>` open tag plus its inline body, in document order. */
 function scriptsOf(html: string) {
   return [
@@ -59,21 +71,36 @@ describe('apps/console/index.html — boot splash ships in the DOCUMENT', () => 
     // the JavaScript, so an indicator delivered BY that JavaScript cannot paint
     // during it. This assertion is the artifact-level half of that argument —
     // the element is in the document the server returns.
-    const body = indexHtml.slice(indexHtml.indexOf('<body>'));
+    const body = documentHtml.slice(documentHtml.indexOf('<body>'));
     expect(body).toContain(`id="${SPLASH_ID}"`);
   });
 
   it('styles it from an inline <style>, so no stylesheet request gates the paint', () => {
-    const styles = [...indexHtml.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1] ?? '');
+    const styles = [...documentHtml.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1] ?? '');
     expect(styles.some((css) => css.includes(`#${SPLASH_ID}`))).toBe(true);
   });
 
-  it('paints the element BEFORE the application entry in document order', () => {
-    const splashAt = indexHtml.indexOf(`id="${SPLASH_ID}"`);
-    const entryAt = indexHtml.indexOf(APP_ENTRY);
+  it('runs its script BEFORE the parser reaches the element it configures', () => {
+    // The ordering that survives the build. Comparing against the application
+    // entry does NOT: Vite hoists `<script type="module">` into `<head>`, ahead
+    // of `<body>`, so in `dist/index.html` the entry precedes this element
+    // (measured: 7925 vs 8626). Harmless — a module script is deferred and
+    // cannot run before the parse finishes — but an assertion about it would
+    // pass here and be false of the artifact, which is the wrong way round.
+    const scriptAt = documentHtml.indexOf(SCRIPT_MARKER);
+    const splashAt = documentHtml.indexOf(`id="${SPLASH_ID}"`);
+    expect(scriptAt).toBeGreaterThan(-1);
     expect(splashAt).toBeGreaterThan(-1);
-    expect(entryAt).toBeGreaterThan(-1);
-    expect(splashAt).toBeLessThan(entryAt);
+    expect(scriptAt).toBeLessThan(splashAt);
+  });
+
+  it('keeps the application entry a module script', () => {
+    // Not an ordering claim — the guarantee that makes the ordering above
+    // sufficient. A classic entry would execute during parse and could beat the
+    // splash to the screen.
+    const entry = scriptsOf(indexHtml).find((script) => script.attrs.includes(APP_ENTRY));
+    expect(entry, `no script carries ${APP_ENTRY}`).toBeDefined();
+    expect(entry?.attrs).toContain('type="module"');
   });
 
   it('keeps the script a CLASSIC inline script that runs before every `src` script', () => {
@@ -98,10 +125,12 @@ describe('apps/console/index.html — boot splash ships in the DOCUMENT', () => 
     // string here would be untranslatable English in a ten-language product,
     // and a product name would mean waiting for `GET /api/v1/runtime/config`.
     // `LoadingScreen` carries the copy the moment React mounts.
-    // Comments first, and from `<body>` — the head carries prose ABOUT this
-    // element, and matching that instead would grade the wrong text.
-    const body = indexHtml.slice(indexHtml.indexOf('<body>')).replace(/<!--[\s\S]*?-->/g, '');
-    const splash = body.slice(body.indexOf(`id="${SPLASH_ID}"`));
+    const body = documentHtml.slice(documentHtml.indexOf('<body>'));
+    // From the element's OPENING `<`, not from the id attribute: slicing
+    // mid-tag leaves `id="boot-splash" ...>` outside any `<...>` pair, and the
+    // tag strip below then reports it as visible copy.
+    const idAt = body.indexOf(`id="${SPLASH_ID}"`);
+    const splash = body.slice(body.lastIndexOf('<', idAt));
     const markup = splash.slice(0, splash.indexOf('<div id="root">'));
     const text = markup
       .replace(/<[^>]*>/g, ' ')

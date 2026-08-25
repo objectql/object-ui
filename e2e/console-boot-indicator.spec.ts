@@ -51,13 +51,36 @@ test.describe('Console boot indicator', () => {
     // needed. It has to be in the document itself.
     const response = await page.request.get(`${baseURL}${CONSOLE_BASE}/`);
     expect(response.ok()).toBe(true);
-    const html = await response.text();
+    // Comments stripped FIRST: the prose in `index.html` describes this markup
+    // and contains the literal string `<div id="boot-splash">`, so a raw search
+    // finds the COMMENT and passes without ever seeing the element.
+    const html = (await response.text()).replace(/<!--[\s\S]*?-->/g, '');
+
+    // All three parts must travel in the document: the element, the rules that
+    // give it a shape and a non-white canvas, and the script that themes it.
     expect(html).toContain('id="boot-splash"');
-    // ...and ahead of the module entry, so the parser reaches it first.
-    const splashAt = html.indexOf('id="boot-splash"');
-    const entryAt = html.search(/<script[^>]*type="module"/);
-    expect(entryAt).toBeGreaterThan(-1);
-    expect(splashAt).toBeLessThan(entryAt);
+    expect(html).toMatch(/<style\b[^>]*>[\s\S]*?#boot-splash[\s\S]*?<\/style>/);
+    expect(html).toContain('installBootSplash');
+
+    // The script stays a CLASSIC inline script — `type="module"` is deferred
+    // and `src=` is a chunk, and either one runs after the frame it governs.
+    const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+    const boot = scripts.find((match) => (match[2] ?? '').includes('installBootSplash'));
+    expect(boot, 'no inline installBootSplash script in the served document').toBeDefined();
+    expect(boot?.[1]).not.toContain('type="module"');
+    expect(boot?.[1]).not.toContain('src=');
+
+    // ...and it precedes the element it configures, so the first painted frame
+    // already carries the right canvas colour.
+    //
+    // NOTE the comparison this deliberately does NOT make: the application
+    // entry is NOT after the splash in the built document. Vite hoists
+    // `<script type="module">` into `<head>`, ahead of `<body>` entirely
+    // (measured: entry at 7925, element at 8626). That is harmless because a
+    // module script is DEFERRED — it cannot execute before the parser is done —
+    // and asserting document order against it would fail on the artifact while
+    // passing against the source, which is the reverse of useful.
+    expect(html.indexOf('installBootSplash')).toBeLessThan(html.indexOf('id="boot-splash"'));
   });
 
   test('renders the indicator with the app bundle blocked', async ({ page }) => {
@@ -126,11 +149,25 @@ test.describe('Console boot indicator', () => {
         probe.reactMountAt = performance.now();
         probe.splashPresentAtMount = document.getElementById('boot-splash') !== null;
       });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      // `document`, NOT `document.documentElement`: an init script runs at
+      // document-start, where there is no `<html>` element yet and the
+      // observe() call throws. (Measured — it made this probe time out.)
+      observer.observe(document, { childList: true, subtree: true });
     });
 
     await page.goto(`${CONSOLE_BASE}/`);
     await waitForReactMount(page);
+
+    // A paint follows the commit we just observed; on a REGRESSED build the
+    // first contentful paint IS that one, so it has not been reported yet at
+    // this instant. Waiting for it here is what makes the failure below say
+    // "fcp did not precede the commit" instead of "there was no fcp" — the
+    // second sentence is true on a regression but names the wrong subject.
+    await page
+      .waitForFunction(() => window.__bootProbe?.fcp !== undefined, null, { timeout: 15_000 })
+      .catch(() => {
+        /* absence is graded by the assertion below, which says what it means */
+      });
 
     const probe = await page.evaluate(() => window.__bootProbe);
     expect(probe?.fcp, 'no first-contentful-paint was reported').toBeDefined();
