@@ -48,11 +48,14 @@ npm install @object-ui/plugin-form
 
 ### Form Field
 
-`FormField` is declared once, in `@object-ui/types`
-(`packages/types/src/form.ts`) — this page does not redeclare it, because a
-locally written `interface` compiles no matter how far it has drifted from the
-real one. It has **23 declared keys**, and `name` is the only **required** one:
-`type` and `label` are both optional.
+`FormField` here means the one declared by `@object-ui/types`
+(`packages/types/src/form.ts`) — `@objectstack/spec` ships its own copy of this
+name (`json-schema/ui/FormField.json`) with a different key set, so read this
+table against the `@object-ui/types` copy rather than the same-named schema in
+the spec. This page does not redeclare it, because a locally written
+`interface` compiles no matter how far it has drifted from the real one. It
+has **23 declared keys**, and `name` is the only **required** one: `type` and
+`label` are both optional.
 
 | Key | Type | What it does |
 | --- | --- | --- |
@@ -96,9 +99,11 @@ is bound to react-hook-form, whose initial values come from the form.
 
 #### `validation` is an object keyed by rule name
 
-There is no `ValidationRule` type in this repository, under any spelling. The
-type of the key is `FieldValidationRules` (`packages/types/src/form.ts`), and it
-is **not** an array of `{ type, value, message }` entries:
+There is no `ValidationRule` type in this repository. Near-spellings do exist —
+`AdvancedValidationRule`, `ValidationRuleType`, `ObjectValidationRule` and
+`DesignerValidationRule` — and none of them types this key. The type of the key
+is `FieldValidationRules` (`packages/types/src/form.ts`), and it is **not** an
+array of `{ type, value, message }` entries:
 
 | Rule | Type | Notes |
 | --- | --- | --- |

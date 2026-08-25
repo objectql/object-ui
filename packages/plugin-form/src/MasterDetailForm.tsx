@@ -337,6 +337,25 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           const columnsTyped = d.columns?.length ? d.columns.every((c) => !!c.type) : false;
           // Fully configured (FK + every column typed) — nothing to resolve.
           if (d.relationshipField && columnsTyped) return d;
+          // Decline to fetch when the child object never resolved (objectui#5940).
+          // `childObject` is REQUIRED on `MasterDetailDetailConfig`, but a detail
+          // entry reaches this renderer straight off an authored schema, so a
+          // malformed one (or a bare string) arrives with it `undefined` — and the
+          // fetch below then asked the data layer for an object literally named
+          // `undefined`. A real backend receives that query and whatever it returns
+          // becomes the console's problem. `RelatedList` already takes the other
+          // choice for the same class of missing key ("has no referenceField/parentId
+          // — refusing to fetch all rows", RelatedList.tsx), and the sibling effect
+          // below already spells it `.filter(Boolean)`; this makes the three agree.
+          // Left as-is rather than dropped, exactly like the `catch` below — the
+          // grid card shows a config hint, and `details` stays length-matched to
+          // `rawDetails` (the row-state array is indexed against it).
+          if (!d.childObject) {
+            console.warn(
+              `[MasterDetailForm] a detail collection has no childObject — refusing to fetch its schema. Set childObject to the child object the collection lists.`,
+            );
+            return d;
+          }
           try {
             const childSchema = await dataSource.getObjectSchema(d.childObject);
             // Author gave the FK + an explicit column set but left some columns
