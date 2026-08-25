@@ -37,6 +37,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EXPLAIN_BATCH_MAX_RECORD_IDS } from '@objectstack/spec/security';
 import { render, screen, waitFor, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
@@ -444,20 +445,28 @@ describe('[#4296] one batched call per (object, operation) per page', () => {
     }
   });
 
-  it('paginates under the server\'s 200-id cap instead of sending a request it would refuse', async () => {
-    // The cap is the server's (`EXPLAIN_BATCH_MAX_RECORD_IDS`): over-cap
+  it('paginates under the server\'s cap instead of sending a request it would refuse', async () => {
+    // The cap is the server's (`EXPLAIN_BATCH_MAX_RECORD_IDS`, imported from
+    // the package that owns it rather than re-typed — objectui#6286): over-cap
     // requests are refused with 400 VALIDATION_FAILED, never truncated, and the
     // spec directs consumers to paginate under it. Still amortized — 2 calls
-    // per operation for 250 rows, not 250.
-    const rows = bigPage(250);
+    // per operation, never one per row.
+    //
+    // The fixture is sized FROM the cap: `cap + m` rows with `0 < m <= cap` is
+    // exactly two chunks per operation for ANY cap, so this stays a cap test if
+    // the contract moves. That does NOT make it a two-world test for the
+    // import itself — the value is the same on both sides of that change, which
+    // is what `../hooks/useRecordCrudVerdicts.batchCap.test.tsx` exists to pin.
+    const cap = EXPLAIN_BATCH_MAX_RECORD_IDS;
+    const rows = bigPage(cap + Math.min(50, cap));
     for (const r of rows) server.verdicts.set(r.id, { update: true, delete: true });
     renderGrid({ rows });
-    await waitFor(() => expect(screen.getByText('Row 249')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(`Row ${rows.length - 1}`)).toBeInTheDocument());
     await settle(4);
 
     expect(server.calls.length).toBe(4);
     for (const call of server.calls) {
-      expect(call.recordIds!.length).toBeLessThanOrEqual(200);
+      expect(call.recordIds!.length).toBeLessThanOrEqual(cap);
       expect(call.recordIds!.length).toBeGreaterThan(0);
     }
     for (const operation of ['update', 'delete'] as const) {
