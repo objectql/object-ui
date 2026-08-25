@@ -1,0 +1,81 @@
+name: Inert vi.mock Specifiers
+
+# Why this is its own workflow rather than a step in `ci.yml` or `lint.yml`: a
+# module mock can be written into any package, in any shape of pull request, and
+# both of those workflows decide inside the job whether the change "needs a full
+# run" — with an exclusion list that skips every expensive step on a
+# markdown-only or changeset-only change. This gate costs a checkout plus one
+# `node` call, so there is nothing to gain by putting it behind that switch and
+# a whole class of pull request to lose.
+#
+# Same shape and the same reasoning as `docs-links.yml`, `control-bytes.yml`,
+# `skills-paths.yml`, `changeset-presence.yml` and `pre-install-import-graph.yml`,
+# whose headers record the conclusion this repository has now reached five
+# times: a gate that cannot see the pull request shape most likely to trip it
+# "rebuilds the hole it exists to close". One gate, one home.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-vi-mock-specifiers.test.ts` fails if either is ever
+# added, and fails too if a second workflow starts running the same script.
+# Reporting on every pull request is also what makes the check requirable, and
+# `scripts/dependabot-merge-gate.mjs` classifies it as a required context — an
+# unclassified blocking check is one a Dependabot merge would be let past
+# (objectui#6135).
+#
+# It needs no install and no build — a checkout plus one `node` call over ~3.7k
+# tracked source files, measured at ~2.7s on this tree. Keep it that way; the
+# import graph is builtins plus repo-relative modules only, which
+# `pre-install-import-graph.yml` enforces (objectui#6148).
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that can become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: vi-mock-specifiers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  vi-mock-specifiers:
+    name: Inert vi.mock Specifier Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # A `vi.mock` whose relative specifier resolves to no file does NOT error.
+      # Vitest registers the mock against a module id nothing imports, the run
+      # proceeds with the real module everywhere, and the suite passes —
+      # identically to a correct one, with no warning and no smaller assertion
+      # count. objectui#5646: the one known instance (PR #5645) passed even with
+      # the code under test reverted to the shape the suite was written to
+      # catch, and only an ablation leg exposed it.
+      #
+      # This gate is GREEN AT REST — there are zero unresolvable specifiers in
+      # the tree and there should stay zero — so it prints its census rather
+      # than a bare "OK", and it FAILS if the population collapses to nothing.
+      # A scan that silently finds nothing reads as coverage, which is this
+      # gate's own defect one level up.
+      - name: Check every relative vi.mock specifier resolves
+        run: node scripts/check-vi-mock-specifiers.mjs

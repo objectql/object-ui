@@ -34,6 +34,7 @@ one has its own section below.
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
 | `pre-install-import-graph.yml` | Pre-Install Import Graph Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a gate a workflow runs *before* `pnpm install` reaches a package anywhere in its import graph |
+| `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -782,6 +783,53 @@ the import is deliberately *not* this gate's job: either drop the package, or mo
 `pnpm check:pre-install-import-graph`, `node scripts/check-pre-install-import-graph.mjs --list` to see
 the derived population and every module walked, or `--self-test` to exercise the parser and the walk
 against fixtures.
+
+## Inert vi.mock Specifiers (`vi-mock-specifiers.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. A module mock can be written into any package in any shape of pull request, and
+the scan costs a checkout plus one `node` call, so there is nothing to gain by hiding it behind a
+filter. It appears in the checks list as **Inert vi.mock Specifier Check**.
+
+Runs `scripts/check-vi-mock-specifiers.mjs`. It walks every tracked JS/TS-family source file, finds
+each `vi.mock` / `vi.doMock` call site, and resolves the **relative** specifiers against the calling
+file's own directory. Any that resolves to no file fails the run.
+
+**Why it needed a gate.** A mock whose specifier names no file does **not** error. Vitest registers
+it against a module id nothing imports, the run proceeds with the *real* module everywhere, and the
+suite passes — with no warning and no smaller assertion count, identically to a correct one. In
+[#5646](https://github.com/objectstack-ai/objectui/issues/5646)'s one known instance (PR #5645) the
+suite passed even when the code under test was reverted to the exact broken shape it had been written
+to catch; only an ablation leg exposed it. Neighbouring mocks in that same file made it invisible to a
+reader: one stepped up a single level and one stepped up two, and **both were correct**, because
+their targets sat at different depths. This is
+[#4347](https://github.com/objectstack-ai/objectui/issues/4347) one layer down — a declaration
+pointing at nothing, reported as a pass.
+
+**It is green at rest, so its census is part of the verdict.** There are zero unresolvable specifiers
+in the tree and there should stay zero, which means the run's output alone cannot distinguish a
+working gate from one that matches nothing. Two things answer that. The verdict line prints the
+**population** it judged, not a bare `OK`. And the scan **fails when that population collapses**: no
+source files, no test files, or no relative specifiers is a broken walk, not a clean tree, and
+reporting `OK` for it would be this gate's own defect one level up. The evidence that the gate works
+lives in `scripts/__tests__/check-vi-mock-specifiers.test.ts`, which reconstructs the historical
+specifier on a fixture tree and pins that the two correct neighbours are *not* flagged.
+
+**Resolution matches how this repo spells specifiers**, which is more than an existence check: the
+bare path plus `.ts/.tsx/.js/.jsx/.mjs/.cjs`, the `/index.*` forms, and a trailing `.js` stripped and
+retried, because `src/` is NodeNext throughout. The judgement is `isFile` rather than "exists", so a
+directory with no index is correctly unresolved. Comments are masked and a call quoted inside a string
+literal is counted but not judged — an ESLint `RuleTester` code sample is source text, not a mock.
+
+**Scope:** relative specifiers only. A bare specifier (`@object-ui/…`, `lucide-react`) can be
+misspelled too, but resolving one needs the workspace map rather than the filesystem — a different
+check with a different failure mode. Bare specifiers are counted in the census and never judged.
+
+**If it fails:** it names the file, the line and the specifier, and the first path it tried. Fix the
+specifier, then confirm the mock is really installed by reverting the code under test and checking
+that the suite goes red. Run it locally with `pnpm check:vi-mock-specifiers`, or
+`node scripts/check-vi-mock-specifiers.mjs --list` to see every call site the walk found. It needs no
+install and no build.
 
 ## Link Checking (`check-links.yml`)
 
