@@ -149,11 +149,12 @@ function isObjectUiSchemaFile(content: Record<string, unknown>): boolean {
  * bug is an ABSENCE: the file simply stops being mentioned, and nothing
  * prompts a re-read.
  *
- * It is not a theoretical bucket. Measured over this repository at the commit
- * that introduced this function, 100 eligible files failed the validity arm,
- * and 54 of them were real ObjectUI content — schema-catalog leaves such as
+ * It is not a theoretical bucket. Measured over a clean checkout of this
+ * repository at the commit that introduced this function, 100 eligible files
+ * failed the validity arm; 54 of those land here, and 53 of the 54 are real
+ * ObjectUI content — schema-catalog leaves such as
  * `{ "type": "text", "content": "Small text", "variant": "small" }`, whose
- * `variant` is not in `TextSchema`'s enum. Reported as foreign, all 54 would
+ * `variant` is not in `TextSchema`'s enum. Reported as foreign, all 53 would
  * have gone quiet.
  *
  * The discriminator is `isKnownSchemaType`: does the root `type` name a

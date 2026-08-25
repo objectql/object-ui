@@ -21,7 +21,7 @@ Validity alone would have answered two different questions with one word.
 A broken ObjectUI schema fails validation exactly as a foreign file does, so a
 two-bucket report would have filed it as "not ObjectUI" — and the symptom of
 that is an absence: the file simply stops being mentioned. Measured, that bucket
-is not empty; 54 real corpus files land in it.
+is not empty: 54 files land in it and 53 of them are real corpus content.
 
 So files the recogniser refuses are split. When the root `type` names a
 component this build registers, the file is **listed by name** as ObjectUI
