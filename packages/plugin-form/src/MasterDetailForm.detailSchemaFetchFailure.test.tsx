@@ -166,17 +166,26 @@ describe('object-master-detail-form — a detail whose schema fetch THREW (objec
     // relationship field" were indistinguishable.
     //
     // Routing both to the refusal placeholder would make it state something
-    // false — the schema loaded fine here. This arm's RENDER is deliberately
-    // unchanged (it still says "Loading columns…", pinned by objectui#6360);
-    // what this control holds is that it did not get swept into objectui#6372's
-    // placeholder. The error is nonetheless no longer discarded.
+    // false — the schema loaded fine here. What this control holds is that the
+    // derive failure did not get swept into objectui#6372's placeholder.
+    //
+    // ⚠️ Its WAIT was rewritten by objectui#6394, which is the card that gave
+    // this arm a render of its own: it waited on "Loading columns…", the
+    // permanent-spinner outcome objectui#6372 deliberately left standing here
+    // and triage has since ruled out. The subject of the control — this is NOT
+    // a load failure — is unchanged and still asserted below; the error is
+    // still no longer discarded.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     // Loads fine, but carries no field referencing the parent.
     const ds = dataSourceRejectingFor([], { name: 'po_line', fields: { amount: { type: 'number' } } });
     const view = renderForm([{ childObject: 'po_line', title: 'PO lines' }], ds);
 
     await waitFor(() => expect(ds.getObjectSchema).toHaveBeenCalledWith('po_line'));
-    await waitFor(() => expect(view.container.textContent).toContain('Loading columns…'));
+    // The derive failure's OWN placeholder (objectui#6394), naming
+    // `relationshipField` — not the "Loading columns…" this waited on before
+    // that card, and not the refusal below.
+    await waitFor(() => expect(view.queryByTestId('md-detail-no-relationship-field')).not.toBeNull());
+    expect(view.container.textContent).not.toContain('Loading columns…');
 
     // NOT the load-failure placeholder: the load succeeded.
     expect(view.queryByTestId('md-detail-schema-unavailable')).toBeNull();

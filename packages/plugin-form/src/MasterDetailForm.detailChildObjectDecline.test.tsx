@@ -145,8 +145,15 @@ describe('object-master-detail-form — a detail collection with no child object
  *
  * ⭐ Both directions are pinned here for the same reason the fetch half pins
  * both: an assertion that only says "no `Loading columns…`" would also pass for
- * a renderer that deleted the loading branch outright. So the second test holds
- * the loading branch alive for the detail that legitimately IS still resolving.
+ * a renderer that showed this hint for every detail. So the second test drives
+ * a detail that DOES name its child object and reads what that one gets
+ * instead.
+ *
+ * ⚠️ That second test used to hold the loading branch alive, on the belief that
+ * its detail was still resolving. It is not: this file's recording data source
+ * resolves `getObjectSchema` to `[]`, so the fetch succeeds and the DERIVE
+ * throws (objectui#6394). The loading branch's honest control — a fetch that
+ * never settles — lives in `MasterDetailForm.detailSchemaFetchFailure.test.tsx`.
  */
 
 async function renderDetails(details: unknown) {
@@ -200,14 +207,39 @@ describe('object-master-detail-form — what a declined detail RENDERS (objectui
     view.unmount();
   });
 
-  it('does NOT show the hint for a detail that names its child object, and still says "Loading columns…" while it resolves', async () => {
-    // ⭐ The other direction. Without this, deleting the loading branch
-    // altogether would pass the test above.
+  it('does NOT show the `childObject` hint for a detail that names its child object — whose fixture reaches the FAILED DERIVE, hinted at `relationshipField` (objectui#6394)', async () => {
+    // ⭐ The other direction, unchanged in purpose: without this, a renderer
+    // that showed the `childObject` hint for every unresolved detail would pass
+    // the test above.
+    //
+    // ⚠️ This assertion's PREMISE was rewritten under objectui#6394's triage
+    // ruling, which explicitly authorized moving this ONE objectui#6360
+    // assertion (and no other in this file). Its title used to claim the detail
+    // "still says `Loading columns…` while it resolves" — but this file's
+    // recording data source resolves `getObjectSchema` to `[]`, so for
+    // `invoice_line` the fetch SUCCEEDS and `deriveDetail` then throws: the
+    // entry is not resolving at all, it is permanently underivable, and the
+    // message it pinned could never end. The loading branch this believed it
+    // was holding alive now has an honest control that drives a never-settling
+    // promise (`MasterDetailForm.detailSchemaFetchFailure.test.tsx`, "DEGENERATE
+    // CONTROL: a detail that is still IN FLIGHT keeps "Loading columns…""),
+    // so naming what this fixture really hits loses no coverage.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { view } = await renderDetails([{ childObject: 'invoice_line', title: 'Invoice lines' }]);
 
+    // The original claim, kept verbatim: the `!childObject` hint belongs to the
+    // OTHER arm and must not appear for a detail that named its child object.
     expect(view.queryByTestId('md-detail-no-child-object')).toBeNull();
-    expect(view.container.textContent).toContain('Loading columns…');
 
+    // What this fixture actually reaches, now that the arm renders it: the
+    // config hint naming the key to set, in place of a "Loading columns…" that
+    // could never end (objectui#6394).
+    const hint = view.getByTestId('md-detail-no-relationship-field');
+    expect(hint.textContent).toContain('relationshipField');
+    expect(hint.textContent).toContain('invoice_line');
+    expect(view.container.textContent).not.toContain('Loading columns…');
+
+    warn.mockRestore();
     view.unmount();
   });
 });

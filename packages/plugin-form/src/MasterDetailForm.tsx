@@ -136,7 +136,16 @@ type DetailResolution =
   /** Columns are hydrated, or were fully authored to begin with. */
   | 'ready'
   /** The schema fetch THREW — columns can never arrive (objectui#6372). */
-  | 'failed';
+  | 'failed'
+  /**
+   * The schema LOADED FINE, but `deriveDetail` threw on it (objectui#6394) —
+   * almost always "no lookup/master_detail field on the child references the
+   * parent". A CONFIGURATION error, not a load error, which is why it is a
+   * state of its own rather than a second reading of `failed`: the remedy is a
+   * key the author writes (`relationshipField`), not a reload, and the two
+   * placeholders must not borrow each other's copy.
+   */
+  | 'underivable';
 
 /**
  * One authored detail collection, plus the two pieces of per-entry metadata a
@@ -252,6 +261,12 @@ interface MasterDetailLinesProps {
   formKey: number;
   onRowExpand: (entryId: string, rowIdx: number) => void;
   onAddViaForm: (entryId: string) => void;
+  /**
+   * The PARENT object's name, for the `underivable` config hint — "which parent
+   * this collection could not be linked to" is half the diagnosis, and the
+   * entry's own config cannot carry it (objectui#6394).
+   */
+  parentObjectName: string;
 }
 
 /**
@@ -276,6 +291,7 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
   formKey,
   onRowExpand,
   onAddViaForm,
+  parentObjectName,
 }) => {
   const [parentRecord, setParentRecord] = useState<Record<string, unknown>>({});
   const parentKeyRef = useRef<string>('');
@@ -380,6 +396,31 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
               Could not load the schema of{' '}
               <code className="font-mono">{d.childObject}</code>, so this collection has no
               columns to show. Check that the object exists and is readable, then reload.
+            </p>
+          ) : entry.status === 'underivable' ? (
+            /* The THIRD arm of the same resolver (objectui#6394): the schema
+               LOADED, and `deriveDetail` then threw on it — no lookup /
+               master_detail field on the child references the parent. Before
+               this branch existed it fell through to "Loading columns…" and
+               stayed there forever, exactly like the two arms above, because
+               the derive is not retried either.
+               ⛔ NOT the refusal placeholder above: that one states the schema
+               could not be LOADED, which is false here — "dishonest copy for a
+               schema that loaded fine" (objectui#6394 triage). This is a
+               CONFIGURATION error with a named remedy, so it takes the config
+               hint shape of the `!d.childObject` branch (objectui#5940 /
+               objectui#6360) and NAMES `relationshipField` as the key to set —
+               the same key the thrown message names, which is why that error is
+               also logged rather than discarded. */
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              data-testid="md-detail-no-relationship-field"
+            >
+              Could not work out how <code className="font-mono">{d.childObject}</code> links
+              to <code className="font-mono">{parentObjectName}</code>: no lookup or
+              master_detail field on it references the parent. Set{' '}
+              <code className="font-mono">relationshipField</code> on this collection to the
+              field that holds the parent record.
             </p>
           ) : !d.columns?.length ? (
             <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
@@ -590,27 +631,28 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
             // THE DERIVE FAILED, on a schema that loaded fine — almost always
             // "no lookup/master_detail field on the child references the
             // parent", i.e. a configuration error the author fixes by setting
-            // `relationshipField`. Deliberately NOT the refusal placeholder:
-            // that one states the schema could not be loaded, and here it was.
+            // `relationshipField`.
             //
-            // ⚠️ Behaviour is UNCHANGED for this arm — the entry stays
-            // unresolved and still renders "Loading columns…", which is the same
-            // permanent-spinner shape one level over. Left standing on purpose:
-            // objectui#6360 pinned this exact case
-            // (`MasterDetailForm.detailChildObjectDecline.test.tsx`, "still says
-            // Loading columns… while it resolves") and changing what it renders
-            // is a decision that belongs to triage, not a rider here. Filed
-            // separately; do not silently repoint this arm at the placeholder
-            // above.
+            // ⛔ Still NOT the refusal placeholder above: that one states the
+            // schema could not be loaded, and here it was — triage's words,
+            // "dishonest copy for a schema that loaded fine". What changed in
+            // objectui#6394 is the OTHER half: this arm used to return the entry
+            // UNRESOLVED (`return entry`), so it fell through to "Loading
+            // columns…" and stayed there forever — the derive is not retried, so
+            // those columns can never arrive, the same unbounded-wait-shown-as-a
+            // -spinner defect objectui#5940 / objectui#6360 / objectui#6372
+            // removed one arm at a time. `status: 'underivable'` routes it to a
+            // config hint of its own, naming `relationshipField`.
             //
-            // What DOES change: the error is no longer discarded. It carried the
-            // whole diagnosis — which child object, which parent, which key to
-            // set — and a bare `catch` threw it away.
+            // The error stays logged, not discarded (objectui#6372): it carries
+            // the whole diagnosis — which child object, which parent, which key
+            // to set — and the placeholder deliberately shows the author the
+            // key, not the raw message.
             console.warn(
               `[MasterDetailForm] loaded the schema of child object "${d.childObject}" but could not derive its detail configuration; the collection cannot render its columns. Set relationshipField (and columns) explicitly on the detail entry.`,
               err,
             );
-            return entry;
+            return { ...entry, status: 'underivable' };
           }
         }),
       );
@@ -946,6 +988,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         formKey={formKey}
         onRowExpand={(entryId, rowIdx) => setExpanded({ entryId, rowIdx })}
         onAddViaForm={addRowViaForm}
+        parentObjectName={schema.objectName}
       />
 
       {/* Per-row "expand to full form": an inline editor panel for the selected
