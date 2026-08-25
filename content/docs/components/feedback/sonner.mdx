@@ -33,12 +33,6 @@ interface SonnerSchema {
   description?: string;           // Additional description
   variant?: 'default' | 'success' | 'error' | 'warning' | 'info';
   duration?: number;              // Auto-close duration (ms)
-  
-  // Action
-  action?: {
-    label: string;
-    onClick: string | ActionConfig;
-  };
 }
 ```
 

@@ -19,6 +19,7 @@ interface MenubarItem {
   shortcut?: string[];
   type?: 'separator';
   disabled?: boolean;
+  onClick?: () => void;           // Item click handler
 }
 
 interface MenubarMenu {
@@ -30,10 +31,11 @@ interface MenubarSchema {
   type: 'menubar';
   menus: MenubarMenu[];           // Menu definitions
   
-  // Events
-  onSelect?: string | ActionConfig;
-  
   // Styling
   className?: string;
 }
 ```
+
+Handlers are declared on the **item**, not on the menu: the shipped `MenuItem`
+declares `onClick?: () => void`. The menu schema itself declares no event slot,
+so there is no menu-level `onSelect`.

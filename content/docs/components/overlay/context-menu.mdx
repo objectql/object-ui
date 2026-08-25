@@ -27,13 +27,17 @@ interface ContextMenuItem {
   icon?: string;                  // kebab-case Lucide icon name (e.g. "trash")
   type?: 'separator';
   disabled?: boolean;
+  onClick?: () => void;           // Item click handler
 }
 
 interface ContextMenuSchema {
   type: 'context-menu';
   trigger: ComponentSchema;       // Trigger element
   items: ContextMenuItem[];       // Menu items
-  onSelect?: string | ActionConfig;
   className?: string;
 }
 ```
+
+Handlers are declared on the **item**, not on the menu: the shipped `MenuItem`
+declares `onClick?: () => void`. The menu schema itself declares no event slot,
+so there is no menu-level `onSelect`.
