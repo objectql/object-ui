@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { hiddenFieldNames, readHiddenFields } from './hiddenFields';
+import { hiddenFieldNames, readHiddenFields, planHiddenFieldReads } from './hiddenFields';
 
 describe('hiddenFieldNames — both served `fields` shapes', () => {
   it('reads the record shape (`{ name: def }`)', () => {
@@ -75,5 +75,27 @@ describe('readHiddenFields — every not-an-answer is the empty set', () => {
   it('returns the declared names when the read answers', async () => {
     const getObjectSchema = vi.fn(async () => ({ fields: { x: { hidden: true } } }));
     expect([...(await readHiddenFields({ getObjectSchema }, 'o'))]).toEqual(['x']);
+  });
+});
+
+describe('planHiddenFieldReads — the cost model for a queue of N rows', () => {
+  it('is one read per distinct object, not one per row', () => {
+    // A page of six rows spanning two objects costs two metadata reads
+    // (objectui#6020). The returned length IS the call count, so the cost is
+    // asserted rather than described.
+    const rows = ['showcase_purchase', 'showcase_invoice', 'showcase_purchase',
+      'showcase_invoice', 'showcase_purchase', 'showcase_invoice'];
+    expect(planHiddenFieldReads(rows)).toEqual(['showcase_purchase', 'showcase_invoice']);
+  });
+
+  it('keeps first-seen order — stable output for stable input', () => {
+    expect(planHiddenFieldReads(['b', 'a', 'b', 'c'])).toEqual(['b', 'a', 'c']);
+  });
+
+  it('drops what is not an object name, rather than reading it', () => {
+    // A row mid-load, or one the server sent without an object, is not an
+    // object to ask about — and `''` would be a request for `/meta/object/`.
+    expect(planHiddenFieldReads([null, undefined, '', 'showcase_purchase']))
+      .toEqual(['showcase_purchase']);
   });
 });
