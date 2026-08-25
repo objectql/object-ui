@@ -23,6 +23,7 @@ const ja = {
       setup_access: "設定へのアクセス",
       setup_write: "設定の書き込み",
       studio_access: "Studio へのアクセス",
+      manage_sharing: "共有の管理",
     },
     group: {
       platform: 'プラットフォーム',

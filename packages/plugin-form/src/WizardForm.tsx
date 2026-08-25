@@ -14,13 +14,13 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { FormField, DataSource } from '@object-ui/types';
+import type { FormField, DataSource, ObjectFormSchema } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
@@ -203,6 +203,21 @@ export interface WizardFormSchema {
    */
   readOnly?: boolean;
   
+  /**
+   * Override persistence — the seam a host uses to own the write. Declared as
+   * `ObjectFormSchema['submitHandler']` rather than restated, so this variant
+   * and the canonical key `ObjectForm` forwards can never drift apart.
+   * When supplied, the form validates and hands the collected values
+   * to this handler INSTEAD of calling `dataSource.create` /
+   * `dataSource.update`; the returned record is passed on to `onSuccess`.
+   *
+   * `MasterDetailForm` supplies it to route the parent AND its child
+   * collections through one atomic `batchTransaction` (#2679 / ADR-0034
+   * item 4). A renderer that does not read it writes the parent on its own and
+   * escapes that transaction — objectui#6176.
+   */
+  submitHandler?: ObjectFormSchema['submitHandler'];
+
   /**
    * Callbacks
    */
@@ -405,6 +420,24 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // form and gated as an edit one.
   const isCreateWizard = isCreateFormMode(schema);
 
+  /**
+   * The host shell's global predicate scope (`ExpressionProvider` →
+   * `PredicateScopeProvider`) — `current_user` plus the ADR-0068 `user` /
+   * `ctx.user` / `os.user` aliases, `app`, `data`, `features`. Empty `{}` when
+   * no provider is mounted, which is the same "nothing to bind" the renderer
+   * sees (objectui#6110).
+   *
+   * Read HERE, at the component's top level, because the only consumer is a
+   * `useCallback` — a hook cannot be called inside one, and the gate below is
+   * invoked from a submit handler where no React context is readable at all.
+   * It joins that callback's dependency list for the same reason it joins the
+   * renderer's (#6010): a scope change — the host switching organisations, so
+   * `current_user.positions` changes — can flip a `visibleWhen` exactly as a
+   * keystroke can, and a memoized gate holding the old scope would answer the
+   * final submit with a principal the user no longer is.
+   */
+  const predicateScope = usePredicateScope();
+
   // Current section fields
   const currentSectionFields = useMemo(() => {
     if (currentStep >= 0 && currentStep < totalSteps) {
@@ -458,7 +491,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               serverOwnedValue: isServerOwnedValue(field, isCreateWizard),
             },
             undefined,
-            undefined,
+            // The host predicate scope, so `current_user` resolves here exactly
+            // as it does in the form renderer that DREW this field (#6010).
+            // Without it this gate faults on every `current_user` predicate and
+            // fails OPEN, demanding a field the wizard itself hid (#6110).
+            predicateScope,
             `field '${name}'`,
           );
           // View-level FormField.visibleOn hides the field the same way a
@@ -468,7 +505,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // receives the ADR-0089 canonical view-level `visibleWhen` spelling.
           const viewVisible =
             (field as any).visibleOn == null ||
-            evalFieldPredicate((field as any).visibleOn, record, true, undefined, undefined, {
+            evalFieldPredicate((field as any).visibleOn, record, true, undefined, predicateScope, {
               context: `visibleOn of field '${name}'`,
             });
           // A hidden or read-only field is not the user's to fill in.
@@ -479,7 +516,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       });
       return out;
     },
-    [schema.sections, buildSectionFields, isCreateWizard],
+    [schema.sections, buildSectionFields, isCreateWizard, predicateScope],
   );
 
   // Handle step data collection (merge partial data into formData)
@@ -528,14 +565,26 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         }
         
         let result;
-        if (schema.mode === 'create') {
-          // Omit the fields the producer owns (#4069) — see
-          // `omitServerResolvedDefaults` for why an empty key is not the same
-          // as no key at insert time.
-          result = await dataSource.create(
-            schema.objectName,
-            omitServerResolvedDefaults(mergedData, objectSchema),
-          );
+        // Omit the fields the producer owns (#4069) — see
+        // `omitServerResolvedDefaults` for why an empty key is not the same
+        // as no key at insert time. Create only: on an edit form a cleared
+        // column is a real removal. Computed ONCE so every persistence route
+        // below — the host-owned seam included — writes the identical payload.
+        const writePayload = schema.mode === 'create'
+          ? omitServerResolvedDefaults(mergedData, objectSchema)
+          : mergedData;
+
+        if (schema.submitHandler) {
+          // The host owns persistence (e.g. MasterDetailForm batching the
+          // parent + its child collections into ONE atomic transaction). The
+          // form validates and hands the values over; it does NOT create/update
+          // itself. Same seam and same precedence as SimpleObjectForm — every
+          // renderer `ObjectForm` routes to must check it FIRST, or a declared
+          // host-owned write silently becomes an independent one
+          // (objectui#6176).
+          result = await schema.submitHandler(writePayload);
+        } else if (schema.mode === 'create') {
+          result = await dataSource.create(schema.objectName, writePayload);
         } else if (schema.mode === 'edit' && schema.recordId) {
           // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks
           // the user to keep editing (skip the success path) or overwrite.
@@ -545,7 +594,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             dataSource,
             objectName: schema.objectName,
             recordId: schema.recordId,
-            payload: mergedData,
+            payload: writePayload,
             baseRecord: formData,
           });
           if (outcome.status === 'cancelled') return;
@@ -554,7 +603,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         
         if (schema.onSuccess) {
           await schema.onSuccess(result);
-        } else if (schema.submitBehavior) {
+        } else if (!schema.submitHandler && schema.submitBehavior) {
           const behavior = schema.submitBehavior;
           switch (behavior.kind) {
             case 'redirect': {
@@ -614,8 +663,12 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               break;
             }
           }
-        } else {
+        } else if (!schema.submitHandler) {
           // Legacy declarative success behaviors for metadata-only wizards.
+          // Skipped when a `submitHandler` owns persistence: the host already
+          // reports the outcome, so a second toast/redirect here would
+          // double-confirm (the guard SimpleObjectForm applies for the same
+          // reason).
           const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.

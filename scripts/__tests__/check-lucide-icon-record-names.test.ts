@@ -93,7 +93,27 @@ interface FixtureOptions {
   declaredRecordReaders?: string[];
   declaredDynamicReaders?: string[];
   negativeControl?: string;
+  recordReadingTypes?: CensusTable;
 }
+
+/** The census-table shape `analyze` accepts, derived from the gate, not restated. */
+type CensusTable = NonNullable<NonNullable<Parameters<typeof analyze>[1]>['recordReadingTypes']>;
+type CensusEntry = CensusTable[string];
+
+/**
+ * The authored-node census with every `descendants` declaration stripped —
+ * the fixture default, for the same reason `anchors` defaults to `[]` here:
+ * a throwaway tree contains none of this repository's authored nodes, and a
+ * descent declaration carries a `min` that ERRORS when it reaches nothing
+ * (objectui#5992). A fixture inheriting the repo's declarations would be
+ * testing that error instead of what it means to test. Tests that are ABOUT
+ * descent pass their own table.
+ */
+const FIXTURE_TYPES: CensusTable = Object.fromEntries(
+  Object.entries(RECORD_READING_TYPES).map(([type, spec]): [string, CensusEntry] => (
+    [type, { paths: spec.paths, resolver: spec.resolver }]
+  )),
+);
 
 function fixtureRepo(label: string, files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `icon-record-${label}-`));
@@ -112,6 +132,7 @@ function judge(label: string, options: FixtureOptions) {
     declaredRecordReaders: options.declaredRecordReaders ?? [RESOLVER_FILE],
     declaredDynamicReaders: options.declaredDynamicReaders ?? [],
     negativeControl: options.negativeControl,
+    recordReadingTypes: options.recordReadingTypes ?? FIXTURE_TYPES,
   });
 }
 
@@ -221,6 +242,63 @@ describe('an authored icon name reaching a record-reading resolver', () => {
   });
 });
 
+/**
+ * `ui:icon` — the node type whose whole job is naming a glyph, and the one that
+ * could not be censused until objectui#5631 moved its key from `name` (the SDUI
+ * IDENTITY key) to `icon`. Until objectui#6009 added its census entry, its
+ * authored names were SEEN and DECLINED: 96 of them, three carrying a retired
+ * spelling that rendered the placeholder.
+ *
+ * Pinned separately from `button` above because the two answer part 1
+ * differently, and that difference is the reasoning the entry rests on:
+ * `icon.tsx` imports the `icons` record DIRECTLY, so it is a part-1 resolver in
+ * its own right, where `dropdown-menu.tsx` routes through `resolveIcon` and
+ * correctly stays out (objectui#5992).
+ */
+describe('the `ui:icon` node type', () => {
+  const iconNode = (icon: string): string => JSON.stringify({ type: 'icon', icon }, null, 2);
+
+  it('goes RED on a retired spelling, naming `icon.tsx` as the resolver', () => {
+    const result = judge('ui-icon-red', {
+      files: { 'examples/catalog/cta.json': iconNode('check-circle') },
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.violations).toHaveLength(1);
+    const [violation] = result.violations;
+    expect(violation.site).toBe('icon');
+    expect(violation.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+    expect(violation.where).toBe('examples/catalog/cta.json $.icon');
+    // Derived by object identity, not read off a list: lucide's `CheckCircle`
+    // export IS `CircleCheckBig`, so `circle-check-big` is the spelling that
+    // keeps the SAME glyph. `circle-check` is a different one.
+    expect(violation.detail).toContain('write `circle-check-big`');
+  });
+
+  it('goes GREEN on the live spelling — and the name was really judged', () => {
+    const result = judge('ui-icon-green', {
+      files: { 'examples/catalog/cta.json': iconNode('circle-check-big') },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.counters.authoredJudged).toBe(1);
+  });
+
+  it('declares NO descent — the renderer resolves one name and never walks children', () => {
+    // A `descendants: true` here would carry a `min` that ERRORS when it
+    // reaches nothing, and there is nothing for it to reach: `icon.tsx`
+    // returns a single element.
+    expect(RECORD_READING_TYPES.icon.paths).toEqual(['icon']);
+    // `'descendants' in …`, not `.descendants` — the same idiom the descent
+    // test below uses. `RECORD_READING_TYPES` is a plain object literal, so the
+    // key is absent from `icon`'s INFERRED TYPE, and reading it does not
+    // type-check. Asserting absence of the key is also the stronger fact.
+    expect('descendants' in RECORD_READING_TYPES.icon).toBe(false);
+    expect(RECORD_READING_TYPES.icon.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+  });
+});
+
 // ── 3. it is not a blanket string scan ───────────────────────────────────────
 
 describe('a name whose resolver this gate cannot identify is declined, not flagged', () => {
@@ -242,6 +320,131 @@ describe('a name whose resolver this gate cannot identify is declined, not flagg
     expect(result.counters.authoredJudged).toBe(0);
     // …and it SAW them — silence here is a decision, not a miss.
     expect(result.counters.authoredDeclined).toBe(3);
+  });
+});
+
+// ── 3b. icons on UNTYPED child items of a DECLARED container ─────────────────
+
+/**
+ * objectui#5992. Part 2 judged an `icon` only on a node whose OWN `type` was
+ * censused. `ui:dropdown-menu` menu items are child objects with no `type` key
+ * at all, so they were never judged — harmless while nothing resolved them, and
+ * a live hole the moment objectui#5930 routed them through `resolveIcon`. The
+ * published fixture that carries them is a declared AI few-shot retrieval
+ * source, so a dead spelling there teaches a dead name.
+ *
+ * The rule pinned here is the one that closed it: an untyped node's `icon` is
+ * judged against its NEAREST TYPED ANCESTOR, and only when that ancestor's
+ * census entry declares `descendants`.
+ */
+describe('an icon on an UNTYPED child of a container that declares descent', () => {
+  /** A fixture container declaring descent, so these tests own their table. */
+  const DESCENT_TYPES: CensusTable = {
+    ...FIXTURE_TYPES,
+    'fixture-menu': {
+      paths: [],
+      descendants: true,
+      min: 1,
+      resolver: RESOLVER_FILE,
+    },
+  };
+
+  const menu = (items: unknown): string => JSON.stringify({ type: 'fixture-menu', items }, null, 2);
+
+  it('goes RED, naming the child node and the container it answers to', () => {
+    const result = judge('descend-red', {
+      files: { 'examples/catalog/menu.json': menu([{ label: 'Edit', icon: 'edit' }]) },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].where).toBe('examples/catalog/menu.json $.items[0].icon');
+    expect(result.violations[0].site).toBe('fixture-menu (untyped child item)');
+    expect(result.violations[0].detail).toContain('write `square-pen`');
+    expect(result.counters.authoredDescendantJudged).toBe(1);
+  });
+
+  it('goes GREEN on a live name at the same site — and it was really judged', () => {
+    const result = judge('descend-green', {
+      files: { 'examples/catalog/menu.json': menu([{ label: 'Edit', icon: 'square-pen' }]) },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.counters.authoredDescendantJudged).toBe(1);
+  });
+
+  it('reaches ARBITRARY nesting depth — the case a `items[].icon` path cannot express', () => {
+    // Why the nearest-typed-ancestor rule was chosen over declaring child-item
+    // keys per container. `renderMenuItems` RECURSES into `item.children` and
+    // resolves the submenu trigger through the SAME `resolveIcon` call, so a
+    // retired name three levels down reaches the record exactly as the leaf
+    // does. The `paths` grammar is `^(\w+)\[\]\.icon$` — one level, by
+    // construction — so a key list would have closed the leaf and left the
+    // submenu open, which is the narrower version of the same bug objectui#5930
+    // explicitly refused to ship.
+    const result = judge('descend-deep', {
+      files: {
+        'examples/catalog/menu.json': menu([
+          { label: 'More', children: [{ label: 'Deeper', children: [{ label: 'Deepest', icon: 'more-horizontal' }] }] },
+        ]),
+      },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0].where).toBe('examples/catalog/menu.json $.items[0].children[0].children[0].icon');
+    expect(result.violations[0].detail).toContain('write `ellipsis`');
+  });
+
+  it('STOPS at a typed child — the child\'s own `type` still answers for it', () => {
+    // A `type: 'separator'` menu item is returned early by the renderer and
+    // draws no icon. Descent that ran through it would invent a violation no
+    // resolver would ever produce, and this gate would get suppressed.
+    const result = judge('descend-typed-child', {
+      files: {
+        'examples/catalog/menu.json': menu([
+          { type: 'separator', icon: 'edit' },
+          { type: 'text', icon: 'filter' },
+        ]),
+      },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.counters.authoredDescendantJudged).toBe(0);
+    // …and it SAW them: silence is a decision, not a miss.
+    expect(result.counters.authoredDeclined).toBe(2);
+  });
+
+  it('does NOT leak descent into a container that never declared it', () => {
+    // The reason `descendants` is opt-in per container rather than a blanket
+    // "nearest censused ancestor" rule: `breadcrumb`/`button-group`/`command`
+    // items were measured and none of their renderers reads `icon` at all.
+    const result = judge('descend-undeclared', {
+      files: { 'examples/catalog/crumbs.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2) },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.counters.authoredDescendantJudged).toBe(0);
+    expect(result.counters.authoredDeclined).toBe(1);
+  });
+
+  it('ERRORS rather than passing when a descent declaration reaches NOTHING', () => {
+    // The vacuity this whole card is about, one level up: a declaration that
+    // stops reaching its nodes produces zero violations and reads exactly like
+    // a clean tree. Same precondition ANCHORED_MAPS states with `min`.
+    const result = judge('descend-vacuous', {
+      files: { 'examples/catalog/other.json': JSON.stringify({ type: 'text', label: 'hi' }, null, 2) },
+      recordReadingTypes: DESCENT_TYPES,
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.errors.join('\n')).toContain('`fixture-menu` declares its icon names on UNTYPED child items');
+    expect(result.errors.join('\n')).toContain('reached 0 of them — fewer than the 1');
   });
 });
 
@@ -373,6 +576,56 @@ describe('this repository', () => {
     expect(repoResult.counters.anchoredJudged).toBeGreaterThan(30);
   });
 
+  it('really judges the untyped child items objectui#5992 opened up', () => {
+    // Without this, the descent rule could stop reaching the catalog and the
+    // repository would stay green — which is precisely the shape of the defect
+    // that card was filed for. The gate carries a `min` for the same reason;
+    // this is the reading of it from outside.
+    expect(repoResult.counters.authoredDescendantJudged).toBeGreaterThan(0);
+    const declaring = Object.entries(RECORD_READING_TYPES)
+      .filter(([, spec]) => 'descendants' in spec && spec.descendants)
+      .map(([type]) => type);
+    expect(declaring).toContain('dropdown-menu');
+    // objectui#6278 — the same shape in `renderers/overlay/context-menu.tsx`.
+    // Its four catalog names (`copy`, `scissors`, `clipboard`, `trash`) are
+    // judged only through this declaration; drop the entry and the fixture goes
+    // back to being unjudged while the repo stays green.
+    expect(declaring).toContain('context-menu');
+  });
+
+  it('did NOT grow part 1 in the process — descent is a part-2 rule', () => {
+    // objectui#5930 routes menu icons through `resolveIcon`, not through a
+    // fresh `icons` import, so `renderers/overlay/dropdown-menu.tsx` correctly
+    // stays OUT of the record-reader census. A descent declaration that moved
+    // this number would have altered the wrong part of the gate.
+    expect(repoResult.discovered.record).toHaveLength(8);
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
+    expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
+    // objectui#6278 routes the twin the same way, so it must not move the
+    // part-1 count above either.
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/context-menu.tsx');
+    expect(RECORD_READING_TYPES['context-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
+  });
+
+  it('really judges the `ui:icon` nodes objectui#6009 opened up', () => {
+    // The card's whole subject is a population that was SEEN and DECLINED while
+    // the gate stayed green, so "no violations" is not evidence on its own.
+    // Measured on this tree, the census entry moved 96 names from `declined` to
+    // `judged`; a floor well under that fails loudly if the walk stops reaching
+    // the corpus, without pinning a figure the catalog is free to move.
+    expect(Object.keys(RECORD_READING_TYPES)).toContain('icon');
+    expect(repoResult.counters.authoredJudged).toBeGreaterThan(100);
+  });
+
+  it('did NOT grow part 1 for `ui:icon` either — it was ALREADY a declared resolver', () => {
+    // The asymmetry against dropdown-menu, pinned: `icon.tsx` imports the
+    // `icons` record directly and has been in part 1's census since
+    // objectui#5633's own discovery run. objectui#6009 supplies only the part-2
+    // fact — which `type` sends names there — so this count must not move.
+    expect(repoResult.discovered.record).toContain('packages/components/src/renderers/basic/icon.tsx');
+    expect(repoResult.discovered.record).toHaveLength(8);
+  });
+
   it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
     // The card's table listed four. Discovery found eight, which is the whole
     // argument for measuring the population instead of maintaining a list: the
@@ -428,6 +681,21 @@ describe('the gate is wired and the local pins it subsumes are gone', () => {
     expect(anchored).toContain('packages/plugin-detail/src/DetailView.tsx::items.push');
     expect(anchored).toContain('packages/plugin-view/src/ViewSwitcher.tsx::DEFAULT_VIEW_ICONS');
     expect(anchored).toContain('packages/plugin-view/src/ObjectView.tsx::iconMap');
+  });
+
+  it('no longer carries the parenthetical objectui#5930 falsified', () => {
+    // The header used to state, as a measurement, that the untyped catalog
+    // icons were "eight ... child items of `button-group`, `breadcrumb`,
+    // `command` and `dropdown-menu` — three of which never read `icon`, and the
+    // fourth renders it as raw text". objectui#5930 made the fourth resolve
+    // through the record, and the count was low by 53. A stale measurement in
+    // the header of a gate is what the next reader reasons from.
+    const header = fs.readFileSync(path.join(repoRoot, GATE), 'utf8');
+    expect(header).not.toContain('the fourth renders it as raw text');
+    expect(header).toContain('Re-measured over the schema catalog at objectui@ef2a3bd8d');
+    for (const container of ['button-group', 'breadcrumb', 'command', 'context-menu', 'timeline', 'tree-view']) {
+      expect(header, `the re-measured table dropped ${container}`).toContain(container);
+    }
   });
 
   it('the pin the gate does NOT subsume is kept, and says why', () => {

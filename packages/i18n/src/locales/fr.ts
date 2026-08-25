@@ -23,6 +23,7 @@ const fr = {
       setup_access: "Accès à la configuration",
       setup_write: "Écriture des paramètres",
       studio_access: "Accès à Studio",
+      manage_sharing: "Gérer le partage",
     },
     group: {
       platform: 'Plateforme',

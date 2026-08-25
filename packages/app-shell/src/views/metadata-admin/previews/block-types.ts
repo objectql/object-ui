@@ -151,11 +151,32 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   'app:launcher': 'shell singleton — the app shell renders it, not a page',
   'global:notifications': 'shell singleton — lives in the app shell header',
   'user:profile': 'shell singleton — lives in the app shell header',
-  // No renderer, by decision.
+  // No renderer, by decision — and these two are the ones that MEASURE that way.
+  // Nothing registers `form` under `namespace: 'element'` (the form renderers are
+  // `ui:form` in `components/renderers/form/form.tsx` and `view:form` in
+  // `plugin-form/src/index.tsx`; the object-bound alternative named below,
+  // `object-form`, is registered in that same file), and no `ai:` namespace
+  // registration exists anywhere — `components/renderers/placeholders.tsx` keeps
+  // `ai:chat_window` out on purpose so a referencing schema fails loudly.
   'ai:chat_window': 'no inline renderer — the floating chat overlay (plugin-chatbot) is canonical',
   'element:form': 'no renderer — use the object-bound `object-form` block',
-  'element:record_picker': 'no renderer — record picking is a field widget, not a page block',
-  'element:text_input': 'no renderer — bare inputs belong to a form, not a page block',
+  // Renders fine — excluded because it is not PAGE CONTENT, not because it is
+  // unrenderable. Both types have a registered renderer under `namespace:
+  // 'element'` (`components/renderers/basic/text-input.tsx:161`,
+  // `components/renderers/basic/record-picker.tsx:303`), so the "no renderer"
+  // these two reasons used to open with was simply false (#6071). That matters
+  // because this ledger is read as the DECISION RECORD: #5837 had to re-derive
+  // registration state from source precisely because the stated reason could not
+  // be trusted. `core/src/registry/public-blocks.ts` already words these same two
+  // exclusions without any renderer claim.
+  //
+  // ⛔ The exclusions themselves are unchanged — still decisions, still standing.
+  // Only the false leading clause moved; the substantive half (field widget /
+  // belongs to a form) was correct all along and is kept verbatim.
+  // `exclusion-reason-truthfulness.test.ts` pins the CLASS so it cannot come
+  // back: an exclusion whose reason claims "no renderer" must not have one.
+  'element:record_picker': 'renders, but not as page content — record picking is a field widget, not a page block (also excluded from PUBLIC_BLOCKS)',
+  'element:text_input': 'renders, but not as page content — bare inputs belong to a form, not a page block',
   // Renders fine — excluded to keep ONE palette entry per renderer, not because
   // it is unauthorable. `record:chatter` and `record:discussion` are the same
   // renderer under two names: `plugin-detail/src/index.tsx` registers both

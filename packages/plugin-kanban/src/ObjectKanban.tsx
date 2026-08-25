@@ -23,7 +23,6 @@ import {
   extractRecords,
   buildExpandFields,
   getRecordDisplayName,
-  isExpandableFieldType,
 } from '@object-ui/core';
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
@@ -346,25 +345,27 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
           return undefined;
         }
         if (typeof raw !== 'string') return String(raw);
-        const def = objectDef?.fields?.[key];
-        // Which types are reference-bearing is NOT restated here: it is
-        // `EXPANDABLE_FIELD_TYPES` in `@object-ui/core`, read through
-        // `isExpandableFieldType` — the one relational family that
-        // `buildExpandFields` (imported above, same file), the object form's
-        // `needsDataSourceWiring`, the grid's `bulkParamToField`, `app-shell`'s
-        // `paramToField` and the dashboard's `$expand` whitelist already read
-        // (objectui#4770 / #4790 / #4815 / #5312 / #5692). The literal that
-        // stood here diverged from it in BOTH directions: it lacked `user` and
-        // `tree`, and carried a fifth spelling `reference` that no producer can
-        // emit — absent from `@objectstack/spec`'s closed `FieldType` and
-        // refused by `FieldSchema` / `ActionParamSchema` alike, exactly where
-        // `owner` sat before objectui#4814 retired it (objectui#5874).
+        // Suppression here is a rule about the VALUE, not about the field's
+        // declared type: an id-shaped string is gibberish in a card
+        // description whatever `objectDef` calls the column — and `objectDef`
+        // is optional at this read, so a type gate would suppress nothing on
+        // exactly the boards whose schema is thin or absent. The same
+        // predicate is applied with no type gate to the incoming
+        // `description` further down this function.
         //
-        // Pinned by an identity spy on that `has`, so a member-identical
-        // private copy fails here rather than quietly re-forking the table.
-        // Never `new Set([...EXPANDABLE_FIELD_TYPES, ...])` — a copy re-forks it.
-        const isLookup = isExpandableFieldType(def);
-        if (isLookup && isOpaqueId(raw)) return undefined;
+        // A relation-typed guard stood immediately above this line
+        // (`isExpandableFieldType(def) && isOpaqueId(raw)`, over the same
+        // `def = objectDef?.fields?.[key]`) and was unreachable: same `raw`,
+        // same predicate, and `OPAQUE_ID_RE` carries no `g`/`y` flag, so
+        // repeated `.test()` on it is stateless. Whenever it returned, the
+        // line below returned too — computed, branched on, discarded
+        // (objectui#6063). Removing it also removed this path's read of
+        // `@object-ui/core`'s `EXPANDABLE_FIELD_TYPES`; the file's live read
+        // of that family is `buildExpandFields` (imported above), which is
+        // where objectui#5874's identity pin now sits.
+        //
+        // Pinned by `__tests__/resolveDisplay.opaqueId-6063.test.tsx`: its
+        // first two cases go RED if this is ever re-gated on the field type.
         if (isOpaqueId(raw)) return undefined;
         return raw;
       };

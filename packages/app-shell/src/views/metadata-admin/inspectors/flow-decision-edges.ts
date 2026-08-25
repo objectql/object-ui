@@ -35,21 +35,23 @@
 import { conditionText, type FlowDesignerEdge } from '../previews/flow-canvas-layout.js';
 import { uniqueId } from './unique-id.js';
 
-export interface DecisionEdge {
-  id?: string;
-  source: string;
-  target: string;
-  /** CEL guard — a bare string or the spec's `{ dialect, source }` envelope. */
-  condition?: unknown;
-  label?: string;
-  isDefault?: boolean;
-  type?: string;
-  [k: string]: unknown;
-}
+/**
+ * The edge this module mirrors decision branches onto — the canvas's own edge,
+ * ALIASED rather than restated (objectui#6287).
+ *
+ * It used to be a fourth hand-written copy of that shape whose `condition` was
+ * still `unknown`, months after objectui#3202 narrowed the designer's edge to
+ * the spec's `ExpressionInput` — the over-wide read type that describes an
+ * envelope `FlowEdgeSchema` rejects and that got objectui#3171 filed against a
+ * defect which does not reproduce. The copy's own `condText` helper existed
+ * only to cast its way back to the narrow type on every read, which is the
+ * clearest statement available that the looseness was never wanted here: the
+ * one value this module ever WRITES to `condition` is a bare CEL string, which
+ * `ExpressionInput` has always admitted.
+ */
+export type DecisionEdge = FlowDesignerEdge;
 
-/** `conditionText` narrowed for the loose `unknown` condition this module carries. */
-const condText = (c: unknown): string | undefined =>
-  conditionText(c as FlowDesignerEdge['condition']);
+const condText = (c: FlowDesignerEdge['condition']): string | undefined => conditionText(c);
 
 /** A branch row as committed by the editor (freeform per the spec config). */
 export type DecisionBranch = Record<string, unknown>;

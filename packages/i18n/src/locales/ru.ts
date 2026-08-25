@@ -23,6 +23,7 @@ const ru = {
       setup_access: "Доступ к настройке",
       setup_write: "Запись настроек",
       studio_access: "Доступ к Studio",
+      manage_sharing: "Управление общим доступом",
     },
     group: {
       platform: 'Платформа',

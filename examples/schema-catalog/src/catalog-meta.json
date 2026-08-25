@@ -36,6 +36,26 @@
       "verification"
     ]
   },
+  "components-form-form/basic-form": {
+    "title": "Basic Form",
+    "description": "A hand-built `form` node from `@object-ui/components`: name, email, country and newsletter fields declared inline, with no object behind them. For a form generated from an object's own metadata, see the `plugin-form` examples.",
+    "tags": [
+      "form",
+      "input",
+      "select",
+      "checkbox"
+    ]
+  },
+  "components-form-form/demo-request-form": {
+    "title": "Demo Request Form",
+    "description": "A longer hand-built `form`: company details, industry and size selects, a message textarea and a terms checkbox, all declared inline. For a form bound to an object, see the `plugin-form` examples.",
+    "tags": [
+      "form",
+      "select",
+      "textarea",
+      "checkbox"
+    ]
+  },
   "components-layout-card/inventory-table-card": {
     "title": "Inventory Table Card",
     "description": "A card that draws a product inventory table by hand — toolbar buttons, header row, stock-status badges. For a table bound to an object, see the `plugin-grid` examples.",
@@ -108,6 +128,26 @@
   "plugin-dashboard/filtered-dashboard-target-widgets": {
     "title": "Filtered Dashboard — Target Widgets Allow-list",
     "description": "Legacy targetWidgets allow-list: only listed widgets get the default binding; an explicit filterBindings entry still wins"
+  },
+  "plugin-form/object-form-record": {
+    "title": "Object Form — One Record From Object Metadata",
+    "description": "object-form editing one `users` record: the fields come from the object's own metadata through `getObjectSchema`, the values from `findOne`, and `fields` / `columns` decide which of them appear and how wide the grid is.",
+    "tags": [
+      "object-form",
+      "objectql",
+      "edit",
+      "columns"
+    ]
+  },
+  "plugin-form/object-form-tabbed-sections": {
+    "title": "Object Form — Sections as Tabs",
+    "description": "The same record with `formType: 'tabbed'`: the declared `sections` become tab panels of ONE form, so a single submit spans them and a tab the user leaves keeps its values.",
+    "tags": [
+      "object-form",
+      "tabbed",
+      "sections",
+      "objectql"
+    ]
   },
   "plugin-grid/object-grid-columns": {
     "title": "Object Grid — Column Definitions",

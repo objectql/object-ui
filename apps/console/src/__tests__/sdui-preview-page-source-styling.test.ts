@@ -27,86 +27,24 @@
 import { describe, it, expect } from 'vitest';
 import { validatePageSourceStyling, PAGE_SOURCE_CLASSNAME } from '@objectstack/lint';
 import { parseJsx } from '@object-ui/sdui-parser';
-
 /**
- * The harness files as TEXT, enumerated by Vite rather than `node:fs`: this
- * app's tsconfig is browser-only (`lib: ES2020, DOM`, `types` without `node`),
- * so a `node:fs` import passes under Vitest and fails the console's `tsc` —
- * the trap `insecure-origin-crypto.placement.test.ts` records. The glob is also
- * the enumeration the last test needs: Vite expands it against the real
- * directory at transform time, so a NEW harness appears here without anyone
- * remembering to add it.
+ * The enumeration and the page-source extractor both live in the helper, so
+ * this file and `sdui-preview-page-source-query-params.test.ts` cannot disagree
+ * about what a preview page is (objectui#5944). The helper documents why Vite's
+ * glob rather than `node:fs`, and why the source is read off a parsed AST.
  */
-const harnesses = import.meta.glob('../*-preview.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
+import {
+  pagesOf,
+  previewHarnessFiles,
+  readHarness as read,
+  type HarnessPage,
+} from './helpers/preview-page-sources';
 
 /** The header line every harness that keeps its Tailwind must carry. */
 const EXCEPTION_ANCHOR = ' * ADR-0080 EXCEPTION — Tailwind in page source';
 
-interface HarnessPage {
-  kind: string;
-  name: string;
-  source: string;
-}
-
-/**
- * Pull the page objects out of a harness file: every `kind: '<k>'` inside an
- * object literal that also carries a `source`, with the source resolved from
- * the template literal it names (or the ES-shorthand `source` const).
- *
- * Deliberately fails loudly rather than returning nothing: an extractor that
- * silently finds zero pages is indistinguishable from a clean file, which is
- * the exact way a count-based guard rots (objectui#5470 — the card's own 79 was
- * a whole-file `grep -c`, i.e. LINES, harness JSX included; the rule's own count
- * over the source strings is 95).
- */
-function pagesOf(text: string): HarnessPage[] {
-  const pages: HarnessPage[] = [];
-  for (const m of text.matchAll(/\bkind:\s*'([a-z]+)'/g)) {
-    // widen from the `kind:` match to the enclosing object literal
-    const open = text.lastIndexOf('{', m.index);
-    if (open < 0) continue;
-    let depth = 0;
-    let close = open;
-    for (; close < text.length; close++) {
-      if (text[close] === '{') depth++;
-      else if (text[close] === '}' && --depth === 0) break;
-    }
-    const objText = text.slice(open, close + 1);
-    const bound = objText.match(/\bsource:\s*([A-Za-z_$][\w$]*)/);
-    const ident = bound ? bound[1] : /\bsource\s*[,}]/.test(objText) ? 'source' : null;
-    if (!ident) continue;
-    const decl = new RegExp(String.raw`^const\s+${ident}\s*=\s*\``, 'm').exec(text);
-    if (!decl) continue;
-    const start = decl.index + decl[0].length;
-    let i = start;
-    while (i < text.length) {
-      if (text[i] === '\\') { i += 2; continue; }
-      if (text[i] === '`') break;
-      i++;
-    }
-    const name = objText.match(/\bname:\s*'([^']+)'/)?.[1] ?? ident;
-    pages.push({ kind: m[1], name, source: text.slice(start, i) });
-  }
-  return pages;
-}
-
 function findingsFor(pages: HarnessPage[]) {
   return validatePageSourceStyling({ pages: pages as unknown as Record<string, unknown>[] });
-}
-
-function read(file: string): string {
-  const text = harnesses[`../${file}`];
-  // A missing key means the file was renamed or the glob stopped matching —
-  // fail loudly rather than assert over an empty string, which reads exactly
-  // like a clean file.
-  if (typeof text !== 'string') {
-    throw new Error(`${file} is not in the preview-harness glob (found: ${Object.keys(harnesses).join(', ')})`);
-  }
-  return text;
 }
 
 describe('ADR-0080 preview harnesses — page-source styling', () => {
@@ -128,7 +66,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
 
   // ---- (a) the authoring example: zero findings ---------------------------
   it('sdui-tiers-preview.tsx authors no Tailwind in either page source', () => {
-    const pages = pagesOf(read('sdui-tiers-preview.tsx'));
+    const pages = pagesOf(read('sdui-tiers-preview.tsx'), 'sdui-tiers-preview.tsx');
     expect(pages.map((p) => `${p.name}:${p.kind}`)).toEqual([
       'release_notes:html',
       'pipeline_react:react',
@@ -137,7 +75,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
   });
 
   it("the html-tier source's JSON style objects materialize (not deferred expressions)", () => {
-    const [html] = pagesOf(read('sdui-tiers-preview.tsx'));
+    const [html] = pagesOf(read('sdui-tiers-preview.tsx'), 'sdui-tiers-preview.tsx');
     const parsed = parseJsx(html.source);
     expect(parsed.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
 
@@ -167,7 +105,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
     ['sdui-workbench-preview.tsx', 21],
   ])('%s keeps its Tailwind AND declares the exception', (file, expected) => {
     const text = read(file);
-    const pages = pagesOf(text);
+    const pages = pagesOf(text, file);
     expect(pages).toHaveLength(1);
 
     const findings = findingsFor(pages);
@@ -183,7 +121,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
 
   // ---- no silent third path ----------------------------------------------
   it('every preview harness in src/ is one of the two declared shapes', () => {
-    const files = Object.keys(harnesses).map((k) => k.replace('../', ''));
+    const files = previewHarnessFiles;
     expect(files.length).toBeGreaterThanOrEqual(3);
     expect(files).toEqual(
       expect.arrayContaining([
@@ -195,7 +133,7 @@ describe('ADR-0080 preview harnesses — page-source styling', () => {
 
     for (const file of files) {
       const text = read(file);
-      const pages = pagesOf(text);
+      const pages = pagesOf(text, file);
       if (pages.length === 0) continue; // not a source-tier harness
       const dirty = findingsFor(pages).length > 0;
       const declared = text.split('\n').includes(EXCEPTION_ANCHOR);

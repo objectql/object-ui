@@ -20,7 +20,7 @@ Create a multi-stage `Dockerfile` at the project root:
 ```dockerfile
 # Stage 1: Build
 FROM node:22-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
@@ -131,8 +131,8 @@ Create `netlify.toml` in the project root:
   publish = "apps/console/dist"
 
 [build.environment]
-  NODE_VERSION = "20"
-  PNPM_VERSION = "9"
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10"
 
 # SPA fallback — redirect all routes to index.html
 [[redirects]]

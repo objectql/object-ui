@@ -54,11 +54,67 @@
  *    schema object literals embedded in first-party TS) and checks the `icon`
  *    names on nodes whose `type` is a censused record-reading renderer. The
  *    node's own `type` is what answers "which resolver does this string
- *    reach?", which is why this check can be broad without being suppressible:
- *    an `icon` on an UNTYPED node is not judged at all (measured: the eight
- *    such names in the schema catalog are child items of `button-group`,
- *    `breadcrumb`, `command` and `dropdown-menu` — three of which never read
- *    `icon`, and the fourth renders it as raw text).
+ *    reach?", which is why this check can be broad without being suppressible.
+ *
+ *    An `icon` on an UNTYPED node is judged only when its NEAREST TYPED
+ *    ANCESTOR is a censused container whose entry DECLARES that its child items
+ *    carry icon names (`descendants: true`) — a fact read off that container's
+ *    renderer, exactly the way every `paths` entry in the table below was. A
+ *    typed node ENDS any descent it sits inside, because its own `type` is
+ *    still the answer to which resolver its string reaches. Untyped icons under
+ *    every other ancestor remain declined, not flagged.
+ *
+ *    ── Re-measured over the schema catalog at objectui@ef2a3bd8d ────────────
+ *    The parenthetical this replaced read "the eight such names in the schema
+ *    catalog are child items of `button-group`, `breadcrumb`, `command` and
+ *    `dropdown-menu` — three of which never read `icon`, and the fourth renders
+ *    it as raw text". objectui#5930 falsified its second half, and the count
+ *    was low by 53. Re-measured, by reading each renderer (objectui#5992):
+ *
+ *      61 untyped `icon` names, across SEVEN containers. Exactly ONE of them
+ *      reaches a record-reading resolver:
+ *
+ *        dropdown-menu   3  RECORD — `resolveIcon(item.icon)` in
+ *                           `renderers/overlay/dropdown-menu.tsx` (objectui#5930).
+ *                           JUDGED HERE. Judged RECURSIVELY, because that
+ *                           renderer recurses into `item.children` for submenus
+ *                           and resolves the submenu trigger's icon through the
+ *                           same call — a depth no single-level `items[].icon`
+ *                           path can express.
+ *        button-group    8  `renderers/basic/button-group.tsx` never reads
+ *                           `button.icon` at all; the names render nothing
+ *        breadcrumb      3  renderer never reads `icon`
+ *        command         9  renderer never reads `icon`
+ *        context-menu    4  renderer never reads `icon` — dropdown-menu's twin,
+ *                           and NOT routed by objectui#5930
+ *        timeline        4  rendered as RAW TEXT, `<span>{item.icon}</span>`;
+ *                           the four authored names are emoji, not lucide names
+ *        tree-view      30  read, but as a TWO-VALUED literal switch
+ *                           (`node.icon === 'folder'`) — never a record lookup
+ *
+ *    `dropdown-menu.tsx` itself is correctly ABSENT from part 1's census: it
+ *    imports `resolveIcon`, not `icons`, so the record read happens in
+ *    `renderers/action/resolve-icon.ts`, which is already declared. Part 1
+ *    stays at eight resolvers; this is a part-2 rule, not a census change.
+ *
+ *    ── Re-taken at objectui@e3784607f, and UNCHANGED ──────────────────────
+ *    objectui#6009 censused the `icon` TYPE, which looks like it should move
+ *    this table and does not: the table counts UNTYPED names, and a
+ *    `type: 'icon'` node is typed, so the two populations are disjoint. The
+ *    per-container figures above re-measure identically. Recorded rather than
+ *    left implicit — "the numbers did not move" is a measurement, and the next
+ *    reader should not have to re-derive that it was taken.
+ *
+ *    ⚠️ SCOPE, which the count above does not carry on its face: it is
+ *    measured over `examples/schema-catalog/`, while this gate SCANS
+ *    `packages/`, `apps/` and `examples/`. Over the full scan roots the same
+ *    walk finds 76 untyped names across NINE containers — the extra 15 all in
+ *    `packages/types/examples/` (`tree-view` +6, `timeline` +3, plus `list` 3
+ *    and `sidebar` 3, two containers this table does not name at all). Both
+ *    extra containers were read: `data-display/list.tsx` and
+ *    `navigation/sidebar.tsx` never read `icon`, so those names reach no
+ *    resolver and decline correctly. The table is right about what it judges;
+ *    it is simply not the whole unjudged census.
  *
  * 3. ANCHORED MAPS — the first-party const maps that feed a record-reading
  *    resolver but are not authored nodes. This is the population the retired
@@ -132,6 +188,16 @@ export const SCAN_ROOTS = ['packages', 'apps', 'examples'];
 // from this table is not judged, because nothing here knows which vocabulary
 // (if any) its icons reach — and a gate that guessed would be a gate that gets
 // suppressed.
+//
+// `descendants: true` extends that same declaration to the container's UNTYPED
+// child items — see the part-2 paragraph in the header. It is deliberately
+// OPT-IN per container rather than a blanket "nearest typed ancestor" rule:
+// applying descent to every censused entry would extend a judgement that was
+// measured against one shape (`action:bar`'s `actions[]`) to descendant shapes
+// nobody read off a renderer, which is the guessing this table exists to
+// refuse. `min` is the non-vacuity precondition ANCHORED_MAPS uses below: a
+// descent that reaches NOTHING reports no violations and reads exactly like a
+// clean tree.
 export const RECORD_READING_TYPES = {
   'button': { paths: ['icon'], resolver: 'packages/components/src/renderers/form/button.tsx' },
   'action:bar': { paths: ['actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
@@ -139,7 +205,46 @@ export const RECORD_READING_TYPES = {
   'action:group': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:menu': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
+  // The twin of the `dropdown-menu` entry below, and it earns its own line for
+  // the same reason: the container's OWN `icon` is never read (`paths: []`),
+  // while its item icons sit on untyped children, recursively, and every one of
+  // them goes through the single `resolveIcon(item.icon)` call that serves BOTH
+  // the leaf arm and the submenu-trigger arm. The renderer did not read the key
+  // at all until objectui#6278, which is why this entry could not have been
+  // added by objectui#5992 — a census entry declares that a type's names REACH
+  // a vocabulary, and until the repair landed they reached nothing.
+  'context-menu': {
+    paths: [],
+    descendants: true,
+    min: 1,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/context-menu.tsx)',
+  },
   'data-table': { paths: ['rowActionDefs[].icon'], resolver: 'packages/components/src/renderers/complex/data-table.tsx' },
+  // The container's OWN `icon` is never read (`paths: []`); its item icons sit
+  // on untyped children, recursively, and every one of them goes through the
+  // single `resolveIcon(item.icon)` call that serves BOTH the leaf arm and the
+  // submenu-trigger arm (objectui#5930, objectui#5992).
+  'dropdown-menu': {
+    paths: [],
+    descendants: true,
+    min: 1,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/dropdown-menu.tsx)',
+  },
+  // `ui:icon` — the node type whose WHOLE job is naming a glyph. It could not
+  // have been censused before objectui#5631: that renderer named its glyph with
+  // `name`, the SDUI IDENTITY key, and every path in this table is an `icon`
+  // path. Post-#5631 it reads `schema.icon` straight out of lucide's runtime
+  // record (`import { icons } from 'lucide-react'` + `(icons as any)[key]`), so
+  // it is a DIRECT record reader, not a `resolveIcon` router — which is why
+  // part 1's `DECLARED_RECORD_READERS` already carries it and dropdown-menu's
+  // does not. Part 1 knowing a module and part 2 knowing its `type` are two
+  // independent facts; this entry supplies the second (objectui#6009).
+  //
+  // NO `descendants`: the renderer resolves exactly one name and returns a
+  // single element. It never walks `children`, so there is no untyped-child
+  // population for a descent to reach — and a descent that reaches nothing is
+  // an ERROR here, by the non-vacuity rule below.
+  'icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/basic/icon.tsx' },
   'view-switcher': { paths: ['views[].icon', 'viewActions[].icon'], resolver: 'packages/plugin-view/src/ViewSwitcher.tsx' },
 };
 
@@ -399,13 +504,17 @@ export function discoverResolvers(root, files) {
 // ── Part 2: authored nodes ───────────────────────────────────────────────────
 const ARRAY_PATH = /^(\w+)\[\]\.icon$/;
 
-function judgeAuthoredNodes(root, { sources, documents }) {
+function judgeAuthoredNodes(root, { sources, documents }, types = RECORD_READING_TYPES) {
   const violations = [];
+  const errors = [];
   let judged = 0;
   let declined = 0;
+  let descendantJudged = 0;
+  /** Per declaring container `type`, how many untyped child icons descent reached. */
+  const descentReach = new Map();
 
   const judge = (typeName, gather, locate) => {
-    const spec = RECORD_READING_TYPES[typeName];
+    const spec = types[typeName];
     if (!spec) return;
     for (const path of spec.paths) {
       for (const found of gather(path)) {
@@ -417,16 +526,43 @@ function judgeAuthoredNodes(root, { sources, documents }) {
     }
   };
 
+  /**
+   * The descent site a node's children inherit. A node's OWN `type` is still
+   * the answer to "which resolver does this string reach?", so a typed node
+   * ENDS whatever descent it sits inside and opens a new one only if its own
+   * census entry declares one. That is what keeps a `type: 'separator'` menu
+   * item — which this renderer returns early for, drawing no icon — declined
+   * rather than judged.
+   */
+  const descentBelow = (typeName, inherited) => {
+    if (!typeName) return inherited;
+    const spec = types[typeName];
+    return spec?.descendants ? { type: typeName, spec } : null;
+  };
+
+  /** Judge one untyped child icon against the container that declared descent. */
+  const judgeDescendant = (site, value, where) => {
+    judged += 1;
+    descendantJudged += 1;
+    descentReach.set(site.type, (descentReach.get(site.type) ?? 0) + 1);
+    if (!isLiveKey(value)) {
+      violations.push({ where, site: `${site.type} (untyped child item)`, resolver: site.spec.resolver, detail: describeName(value) });
+    }
+  };
+
   for (const file of documents) {
     if (isTestPath(file)) continue;
     let document;
     try { document = JSON.parse(readFileSync(join(root, file), 'utf8')); } catch { continue; }
-    // One walker, carrying a JSON-pointer trail so a violation names the node.
-    const walk = (node, trail) => {
-      if (Array.isArray(node)) { node.forEach((child, index) => walk(child, `${trail}[${index}]`)); return; }
+    // One walker, carrying a JSON-pointer trail so a violation names the node,
+    // and the descent site (if any) its untyped children answer to.
+    const walk = (node, trail, descent) => {
+      if (Array.isArray(node)) { node.forEach((child, index) => walk(child, `${trail}[${index}]`, descent)); return; }
       if (!node || typeof node !== 'object') return;
       const typeName = typeof node.type === 'string' ? node.type : null;
-      if (typeof node.icon === 'string' && !(typeName && RECORD_READING_TYPES[typeName])) declined += 1;
+      const inherits = !typeName && descent && typeof node.icon === 'string';
+      if (inherits) judgeDescendant(descent, node.icon, `${file} ${trail}.icon`);
+      if (typeof node.icon === 'string' && !inherits && !(typeName && types[typeName])) declined += 1;
       if (typeName) {
         judge(typeName, (path) => {
           const found = [];
@@ -441,9 +577,10 @@ function judgeAuthoredNodes(root, { sources, documents }) {
           return found;
         }, (where) => `${file} ${where}`);
       }
-      for (const [key, value] of Object.entries(node)) walk(value, `${trail}.${key}`);
+      const below = descentBelow(typeName, descent);
+      for (const [key, value] of Object.entries(node)) walk(value, `${trail}.${key}`, below);
     };
-    walk(document, '$');
+    walk(document, '$', null);
   }
 
   for (const file of sources) {
@@ -451,12 +588,17 @@ function judgeAuthoredNodes(root, { sources, documents }) {
     const text = readFileSync(join(root, file), 'utf8');
     if (!text.includes('icon')) continue;
     const sf = parseSource(root, file);
-    const visit = (node) => {
+    const visit = (node, descent) => {
+      let below = descent;
       if (ts.isObjectLiteralExpression(node)) {
         const typeInit = objectProp(node, 'type');
         const iconInit = objectProp(node, 'icon');
         const typeName = typeInit && ts.isStringLiteral(typeInit) ? typeInit.text : null;
-        if (iconInit && ts.isStringLiteral(iconInit) && !(typeName && RECORD_READING_TYPES[typeName])) declined += 1;
+        below = descentBelow(typeName, descent);
+        const iconLiteral = iconInit && ts.isStringLiteral(iconInit) ? iconInit : null;
+        const inherits = !typeName && descent && iconLiteral;
+        if (inherits) judgeDescendant(descent, iconLiteral.text, `${file}:${lineOf(sf, iconLiteral)}`);
+        if (iconLiteral && !inherits && !(typeName && types[typeName])) declined += 1;
         if (typeName) {
           judge(typeName, (path) => {
             const found = [];
@@ -477,12 +619,30 @@ function judgeAuthoredNodes(root, { sources, documents }) {
           }, (where) => `${file}:${lineOf(sf, where)}`);
         }
       }
-      ts.forEachChild(node, visit);
+      ts.forEachChild(node, (child) => visit(child, below));
     };
-    ts.forEachChild(sf, visit);
+    ts.forEachChild(sf, (child) => visit(child, null));
   }
 
-  return { violations, judged, declined };
+  // Non-vacuity, the precondition ANCHORED_MAPS states in full below: a descent
+  // declaration that reached NOTHING produces zero violations and reads exactly
+  // like a clean tree. That is the failure this whole card is about one level
+  // up, so it is an ERROR here rather than a shrug.
+  for (const [typeName, spec] of Object.entries(types)) {
+    if (!spec.descendants) continue;
+    const reached = descentReach.get(typeName) ?? 0;
+    const min = spec.min ?? 1;
+    if (reached < min) {
+      errors.push(
+        `\`${typeName}\` declares its icon names on UNTYPED child items (\`descendants: true\`), but the authored-node walk `
+        + `reached ${reached} of them — fewer than the ${min} it is declared to carry. Either the authored nodes moved `
+        + 'or the descent no longer reaches them; a descent that reaches nothing reports no violations and reads as green. '
+        + `Resolved through: ${spec.resolver}`,
+      );
+    }
+  }
+
+  return { violations, errors, judged, declined, descendantJudged };
 }
 
 // ── Part 3: anchored first-party maps ────────────────────────────────────────
@@ -547,11 +707,32 @@ function judgeAnchoredMaps(root, anchors) {
 }
 
 // ── The whole judgement ──────────────────────────────────────────────────────
+/**
+ * One authored-node census entry. Spelled out as a type rather than left to be
+ * inferred from `RECORD_READING_TYPES`, because every override this function
+ * takes exists to be a DIFFERENT table from the declared one — inferring the
+ * parameter from the default makes the declared table the only one that fits,
+ * which is precisely backwards for a seam whose job is substitution.
+ *
+ * @typedef {{ paths: string[], resolver: string, descendants?: boolean, min?: number }} RecordReadingType
+ *
+ * @typedef {{
+ *   anchors?: readonly any[],
+ *   declaredRecordReaders?: readonly string[],
+ *   declaredDynamicReaders?: readonly string[],
+ *   negativeControl?: string,
+ *   recordReadingTypes?: Record<string, RecordReadingType>,
+ * }} AnalyzeOptions
+ *
+ * @param {string} root
+ * @param {AnalyzeOptions} [options]
+ */
 export function analyze(root, {
   anchors = ANCHORED_MAPS,
   declaredRecordReaders = DECLARED_RECORD_READERS,
   declaredDynamicReaders = DECLARED_DYNAMIC_READERS,
   negativeControl = DISCOVERY_NEGATIVE_CONTROL,
+  recordReadingTypes = RECORD_READING_TYPES,
 } = {}) {
   const errors = [...selfTest()];
   const { sources, documents } = collectFiles(root);
@@ -581,9 +762,9 @@ export function analyze(root, {
     errors.push(`discovery classified ${negativeControl} as a lucide resolver. It builds its OWN local \`icons\` object — discovery is matching the NAME rather than the IMPORT.`);
   }
 
-  const authored = judgeAuthoredNodes(root, { sources, documents });
+  const authored = judgeAuthoredNodes(root, { sources, documents }, recordReadingTypes);
   const anchored = judgeAnchoredMaps(root, anchors);
-  errors.push(...anchored.errors);
+  errors.push(...authored.errors, ...anchored.errors);
 
   return {
     discovered,
@@ -594,6 +775,7 @@ export function analyze(root, {
       documents: documents.length,
       authoredJudged: authored.judged,
       authoredDeclined: authored.declined,
+      authoredDescendantJudged: authored.descendantJudged,
       anchoredJudged: anchored.judged,
     },
   };
@@ -613,7 +795,7 @@ if (invokedDirectly) {
     for (const file of discovered.record) console.log(`    ${file}`);
     console.log(`dynamic-surface resolvers discovered (${discovered.dynamic.length}), NOT judged here:`);
     for (const file of discovered.dynamic) console.log(`    ${file}`);
-    console.log(`authored icon names judged: ${counters.authoredJudged} | icon names on nodes this gate declines to judge: ${counters.authoredDeclined}`);
+    console.log(`authored icon names judged: ${counters.authoredJudged} (${counters.authoredDescendantJudged} of them on UNTYPED child items of a declared container) | icon names on nodes this gate declines to judge: ${counters.authoredDeclined}`);
     console.log(`anchored map entries judged: ${counters.anchoredJudged}`);
     console.log('');
   }

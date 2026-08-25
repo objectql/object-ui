@@ -36,6 +36,9 @@
  *               step's fields, and the master-detail's single bottom Save bar
  *               drives the wizard's `Next` instead of saving.
  *   `split`   → ObjectForm.tsx:287  (SplitForm) — renders two panels inline.
+ *               (It ALSO escaped the atomic batch when this file was written;
+ *               objectui#6176 fixed that, so only the presentation difference
+ *               is left. The set below is unchanged regardless.)
  *   `drawer`  → ObjectForm.tsx:316  (DrawerForm) — hosts the parent half in a
  *               PORTAL dialog, outside the master-detail container, so the Save
  *               bar has no `<form>` to submit.
@@ -210,15 +213,24 @@ describe('the measurement the vocabulary is derived from', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('`split` is excluded: it renders inline but persists AROUND the atomic batch', async () => {
+  it('`split` renders inline and now saves through the ATOMIC batch — its persistence rationale is spent (objectui#6176)', async () => {
     const { container, batchTransaction, create } = mountWith('split');
     await waitFor(() => expect(container.querySelector('input[name="ref"]')).toBeTruthy());
     expect(await clickHostSave(container)).toBe(true);
-    // `submitHandler` — the hook MasterDetailForm hands the parent form to route
-    // the save through `batchTransaction` — is read only by SimpleObjectForm
-    // (ObjectForm.tsx:820). SplitForm writes the parent directly instead.
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-    expect(batchTransaction).not.toHaveBeenCalled();
+    // This row used to read `create 1 / batchTransaction 0`. `submitHandler` —
+    // the hook MasterDetailForm hands the parent form so the save routes
+    // through `batchTransaction` — was read only by SimpleObjectForm, and
+    // SplitForm wrote the parent directly instead. objectui#6176 made every
+    // renderer honour the declared seam, so this row now reads like `simple`.
+    await waitFor(() => expect(batchTransaction).toHaveBeenCalledTimes(1));
+    expect(create).not.toHaveBeenCalled();
+    // ⚠️ The VOCABULARY is deliberately unchanged and stays `simple | tabbed`
+    // (asserted above). Admitting `split` would be a contract change, and
+    // objectui#6176 — a declared-vs-enforced restoration — did not make it.
+    // What this case now records is narrower than before: the PERSISTENCE
+    // reason for excluding `split` no longer holds, so whatever keeps it out is
+    // presentational and is an open question for triage, not a fact this file
+    // may assert.
   });
 
   it('the harm the closed vocabulary guards: an out-of-vocabulary value silently drops the sections', async () => {

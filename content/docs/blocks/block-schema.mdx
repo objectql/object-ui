@@ -21,9 +21,15 @@ whole implementation:
   `packages/types/src/index.ts`. They are discriminants of the interfaces below, **not
   renderable node types**. Putting one into a `children` array gives you the renderer's
   `OBJUI-001` "Unknown component type" panel.
-- **Nothing reads `slots`, `slotContent` or `template` at runtime.** There is no block
-  expander, no block library UI and no block editor in this repository. The keys are
-  declared and validated, and that is all.
+- **Nothing expands a block: `BlockSchema.slots`, `BlockInstanceSchema.slotContent` and
+  `BlockSchema.template` have no reader.** The population that would hold one is named and
+  empty — there is no block expander, no block library UI and no block editor. These
+  interfaces and their Zod validators are the whole implementation. Bounded to the block
+  family's **own** keys deliberately: the bare words `slots` and `template` are live
+  vocabulary elsewhere in this repository and *are* read at runtime there —
+  `PageSchema.slots` drives slotted record pages (`buildDefaultPageSchema` in
+  `@object-ui/plugin-detail`), and `PageNodeSchema.template` selects a page layout from
+  `TEMPLATE_REGISTRY` in `@object-ui/components`. Neither goes near `BlockSchema`.
 
 So use these types to **describe** a block (author tooling, a marketplace payload, a
 validation step) and do not expect one to render. Looking for slots that work today?

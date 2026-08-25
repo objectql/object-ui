@@ -68,7 +68,6 @@ function renderPicker(properties: Record<string, unknown>, language = 'en') {
       persistLanguage={false}
       config={{ defaultLanguage: language, detectBrowserLanguage: false }}
     >
-      {/* eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns the registered component (stable), not one created during render */}
       <C schema={{ type: 'element:record_picker', id: 'picker', properties }} />
     </I18nProvider>,
   );

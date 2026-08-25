@@ -33,6 +33,7 @@ const zh = {
       setup_access: '访问 Setup',
       setup_write: '保存设置',
       studio_access: '访问 Studio',
+      manage_sharing: '管理共享',
     },
   },
   // objectui#3546 切片六 —— 权限集记录上六个授权面的只读摘要与 Studio 深链

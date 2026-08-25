@@ -222,8 +222,9 @@ change framework source).
 
 - **One authoring path per concern.** Objects/fields/RLS/tabs/admin-scope are
   authored once, in Studio, through validated editors the explain engine (D6)
-  and publish linter (D7) can see. Capabilities are authored once, in Setup,
-  through the `sys_capability` picker.
+  and publish linter (D7) can see. Capabilities are designed once, in Studio,
+  through the `sys_capability` picker (P2); Setup only assigns permission sets
+  to users (P1b) and shows every facet read-only (P1).
 - **The Setup/Studio audience split (ADR-0084 / studio.app) is honored:**
   operators assign and grant-entry; makers design permissions.
 - **AI-authoring safety improves** exactly where ADR-0090 wants it: no security
@@ -240,10 +241,15 @@ change framework source).
     summary reads — so Studio edits aren't reflected in Setup until the projection
     refreshes. Display-freshness only (enforcement reads the authoritative
     metadata), but it needs a framework-side fix to close the loop.
-- **Studio becomes load-bearing for permission ops.** An admin who can assign
-  sets but lacks `studio.access` can no longer *design* them. That is the
-  intended boundary, but it makes "who holds `studio.access`" operationally
-  important — hence P2 keeps that grant in Setup and first-class.
+- **The structured editor becomes load-bearing for permission ops.** Designing a
+  set now means opening the permission matrix editor; no facet can be authored
+  from the record's own fields any more. The same editor has two entry points
+  (Decision 1) — the package-scoped Studio Access pillar (`studio.access`) and
+  Setup's own env-scope metadata route (`setup.access`) — so an operator who
+  lacks `studio.access` can still design a set at environment scope, including
+  granting `studio.access` itself. That is what dissolves the bootstrap knot A2
+  worried about, and why P2 puts the capability picker in the structured editor
+  instead of keeping a Setup exception (Decision 3).
 
 ## Open design questions
 

@@ -9,13 +9,22 @@ The Context Menu component displays a menu when right-clicking on an element.
 
 <SchemaExample id="components-overlay-context-menu/basic-context-menu" />
 
+## Icons
+
+An item's `icon` is a **kebab-case Lucide icon name**, resolved against lucide's
+runtime `icons` record — the same surface `ui:button`, `ui:dropdown-menu` and the
+`action:*` family resolve against. It is read on **both** arms: a leaf item and a
+submenu trigger. A name that is not a live key of that record (an unknown or a
+retired spelling such as `edit`) renders **no glyph**, never a fallback glyph and
+never the literal name as text.
+
 ## Schema
 
 ```plaintext
 interface ContextMenuItem {
   label?: string;
   value?: string;
-  icon?: string;
+  icon?: string;                  // kebab-case Lucide icon name (e.g. "trash")
   type?: 'separator';
   disabled?: boolean;
 }

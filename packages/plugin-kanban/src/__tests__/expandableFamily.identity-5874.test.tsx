@@ -27,33 +27,36 @@
  * here, where a value check would pass ON the defect. Same shape as
  * objectui#4770 / #4790 / #4815 / #5312 / #5692.
  *
- * ## ⚠️ This face has NO behavioural counter-probe, and that is a finding
+ * ## Where the pin sits now — objectui#6063 moved it to the LIVE read
  *
- * The identity pin below is the ONLY thing this file can assert about the
- * convergence, because the guard it re-homes is unreachable in its own right.
- * Measured on the merge base, `resolveDisplay` reads:
+ * As written for #5874 this pin was attributed to `resolveDisplay`, and its
+ * docblock recorded a finding: that read could not be paired with a
+ * behavioural counter-probe, because the guard holding it was unreachable —
  *
  *     if (isLookup && isOpaqueId(raw)) return undefined;
  *     if (isOpaqueId(raw)) return undefined;
  *
- * The second line subsumes the first for every input, so `isLookup` cannot
- * change any outcome — no membership delta on this face, in EITHER direction,
- * is observable through `ObjectKanban`'s rendered output. That is why there is
- * no "a `user` field is now treated as a relation here" probe: writing one
- * would mean writing an assertion that cannot fail, which is worse than
- * recording the absence.
+ * — the second line subsuming the first for every input, so `isLookup` could
+ * not change any outcome, in EITHER direction, that `ObjectKanban`'s rendered
+ * output could show. objectui#6063 settled that fork in favour of the
+ * unconditional line (the suppression is a rule about the VALUE, not about the
+ * declared type) and deleted the dead branch — which deleted `resolveDisplay`'s
+ * read of the shared family along with it. The behaviour that survives there is
+ * pinned in `resolveDisplay.opaqueId-6063.test.tsx`.
  *
- * The subsumption is a DIFFERENT defect from the one this card fixes (a
- * redundant guard, not a forked table), so it is filed rather than fixed in
- * passing — objectui#6063. Converging the copy is still correct on its own
- * terms: the day that guard is made live again it reads the family instead of a
- * stale literal, and this pin is what holds it there.
+ * So the convergence claim for this face is re-anchored onto the read that is
+ * actually live: `buildExpandFields`, called from the same module on every
+ * fetch. That read is the better subject in both halves — a re-fork leaves the
+ * spy empty exactly as before, AND its membership delta is observable, so the
+ * counter-probe the #5874 docblock had to record as ABSENT now exists (last
+ * describe block: a `user`-typed field reaches the wire in `$expand`, a
+ * `text`-typed one does not).
  *
- * Ablation direction, predicted before running: restore the private copy
- * (`def?.type === 'lookup' || def?.type === 'master_detail' ||
- * def?.type === 'reference'`) and the identity pin goes RED (the spy records no
- * call) while the member-set assertion stays GREEN — that contrast is the whole
- * reason the pin is on identity rather than on members.
+ * Ablation direction, predicted before running: replace `buildExpandFields`'
+ * consultation with a member-identical private table and every identity pin
+ * below goes RED (the spy records no call) while the member-set assertion stays
+ * GREEN — that contrast is the whole reason the pin is on identity rather than
+ * on members.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
@@ -110,7 +113,10 @@ function makeAdapter(fieldTypes: Record<string, string>) {
 }
 
 async function renderBoard(fieldTypes: Record<string, string> = {}) {
-  const adapter = makeAdapter(fieldTypes);
+  return (await renderBoardWith(makeAdapter(fieldTypes))).container;
+}
+
+async function renderBoardWith(adapter: ReturnType<typeof makeAdapter>) {
   const { container } = render(
     <SchemaRendererProvider dataSource={adapter as any}>
       <SchemaRenderer
@@ -127,23 +133,29 @@ async function renderBoard(fieldTypes: Record<string, string> = {}) {
   );
   // The cards render past a Suspense boundary and after the fetch resolves.
   await waitFor(() => expect(container.textContent).toContain('Acme renewal'));
-  return container;
+  return { container, adapter };
 }
 
 /**
  * Record every `EXPANDABLE_FIELD_TYPES.has` call made while `exercise()` runs,
  * ATTRIBUTED to the function that made it, and return the arguments that came
- * from `resolveDisplay` alone.
+ * from the named read site alone.
  *
  * ⚠️ The attribution is load-bearing, not decoration. `ObjectKanban.tsx` also
- * imports `buildExpandFields`, which consults the SAME shared object once per
- * schema field on every render. A bare `vi.spyOn(...).mock.calls` pin therefore
- * stays GREEN when `resolveDisplay` is re-forked — measured, not feared: the
- * first draft of this file did exactly that and survived its own ablation, so
- * the pin was reporting on `buildExpandFields`' calls and pinning nothing.
- * Filtering by the calling frame is what makes the ablation red.
+ * imported `buildExpandFields`, which consults the SAME shared object once per
+ * schema field on every render. While `resolveDisplay` still held a read of its
+ * own, a bare `vi.spyOn(...).mock.calls` pin therefore stayed GREEN with that
+ * site re-forked — measured, not feared: the first draft of this file did
+ * exactly that and survived its own ablation, so the pin was reporting on
+ * `buildExpandFields`' calls and pinning nothing.
  *
- * The frame name IS the read site's identifier. Renaming `resolveDisplay` must
+ * objectui#6063 deleted that second site, so `buildExpandFields` is now the
+ * only reader in this render (pinned executably below) and the filter is
+ * currently equivalent to no filter. It is kept so that the day a second reader
+ * appears it cannot silently satisfy this pin — the failure this file has
+ * already been bitten by once.
+ *
+ * The frame name IS the read site's identifier. Renaming the read site must
  * update this helper — the pin naming the site it guards is the point.
  */
 function hasCallsFrom(site: string, exercise: () => Promise<unknown>) {
@@ -175,40 +187,54 @@ afterEach(() => {
 });
 
 describe("the kanban card's relation rule is core's object, not a copy (objectui#5874)", () => {
-  it('`resolveDisplay` asks `@object-ui/core` EXPANDABLE_FIELD_TYPES', async () => {
+  it('the board asks `@object-ui/core` EXPANDABLE_FIELD_TYPES on the lookup path', async () => {
     // The spy is installed on the Set exported by core and records a call only
     // if THAT object was consulted, from THIS read site. A member-identical
     // private copy leaves it empty, so this fails where a value check passes.
-    const calls = await hasCallsFrom('resolveDisplay', () =>
-      renderBoard({ account: 'lookup' }),
+    // `owner` is typed OUT of the family here so the recorded `lookup` can only
+    // have come from the field this case is about.
+    const calls = await hasCallsFrom('buildExpandFields', () =>
+      renderBoard({ account: 'lookup', owner: 'text' }),
     );
     expect(calls).toContain('lookup');
+    expect(calls).not.toContain('user');
   });
 
   it('reaches that object on the person path too, not just the lookup path', async () => {
     // `user` and `lookup` are different members of the same set; a convergence
-    // that reconnected one spelling only would leave the other forked. This is
-    // as close to the restoration half as this face can be checked — see the
-    // subsumption note in the file docblock for why there is no behavioural
-    // probe to pair with it.
-    const calls = await hasCallsFrom('resolveDisplay', () =>
-      renderBoard({ account: 'user' }),
+    // that reconnected one spelling only would leave the other forked. Typed
+    // symmetrically to the case above, so neither spelling can be supplied by
+    // the other field.
+    const calls = await hasCallsFrom('buildExpandFields', () =>
+      renderBoard({ account: 'text', owner: 'user' }),
     );
     expect(calls).toContain('user');
+    expect(calls).not.toContain('lookup');
   });
 
-  it('the UNattributed spy would NOT have failed — why the frame filter is here', async () => {
-    // `buildExpandFields`, imported into the same module, consults the same
-    // shared object on every render. So "some call happened" is satisfied by a
-    // face that never converged. This assertion is what the two pins above
-    // would degrade into without the frame filter, and it is green either way.
+  it('that builder is the only reader in this render — what the frame filter rests on', async () => {
+    // The frame filter is only equivalent to an unattributed spy while this
+    // holds, and it did NOT hold for these pins' ancestors: until objectui#6063
+    // deleted `resolveDisplay`'s dead read, an unattributed spy was satisfied
+    // by THIS call site while the site under test was forked. Red here means a
+    // second reader has appeared and the filter has become load-bearing again —
+    // keep the filter and update the docblock, don't relax this.
+    // `real` is bound BEFORE the spy is installed. Bound after, it would be
+    // the spy itself and the implementation below would recurse into it —
+    // which is not a red assertion but a broken render, measured the hard way.
+    const real = EXPANDABLE_FIELD_TYPES.has.bind(EXPANDABLE_FIELD_TYPES);
+    const stacks: string[] = [];
     const spy = vi.spyOn(EXPANDABLE_FIELD_TYPES, 'has');
+    spy.mockImplementation((key: string) => {
+      stacks.push(new Error().stack ?? '');
+      return real(key);
+    });
     try {
       await renderBoard({ account: 'lookup' });
-      const fromAnywhere = spy.mock.calls.map(([k]) => k);
-      expect(fromAnywhere.length).toBeGreaterThan(0);
-      const stacksAttributed = fromAnywhere.length;
-      expect(stacksAttributed).toBeGreaterThan(1);
+      expect(stacks.length).toBeGreaterThan(0);
+      expect(stacks.filter((st) => st.includes('buildExpandFields'))).toHaveLength(
+        stacks.length,
+      );
     } finally {
       spy.mockRestore();
     }
@@ -257,5 +283,46 @@ describe('the `reference` drop is a no-op on real data — the measured directio
     // question reopens — deliberately, rather than the drop remaining correct
     // only by accident.
     expect(SPEC_FIELD_TYPES).not.toContain('reference');
+  });
+});
+
+describe('the membership delta is OBSERVABLE on this read — the counter-probe #5874 could not write', () => {
+  /**
+   * What #5874 had to record as missing. Attributed identity says the face
+   * consulted core's object; this says what consulting it CHANGES, on the one
+   * surface where the difference is visible — the query the board sends.
+   *
+   * `owner` is `user`-typed, and `user` is a member the literal that used to
+   * stand in `resolveDisplay` lacked. So this pair is exactly the delta the
+   * convergence introduced, read off the wire instead of off the DOM.
+   *
+   * ⚠️ The board fetches TWICE: once before the object schema resolves (no
+   * field types are known yet, so no `$expand` can be computed) and again once
+   * `objectDef` arrives. Only the second call can carry the delta, so both
+   * cases below wait for it — otherwise the negative case would be green
+   * against a query that had not been built yet, which is the vacuous form of
+   * this assertion.
+   */
+  const awaitSchemaFetch = (adapter: ReturnType<typeof makeAdapter>) =>
+    waitFor(() => expect(adapter.find.mock.calls.length).toBeGreaterThanOrEqual(2));
+
+  const everyExpand = (adapter: ReturnType<typeof makeAdapter>): string[] =>
+    adapter.find.mock.calls.flatMap(
+      ([, query]) => ((query as Record<string, unknown>).$expand as string[] | undefined) ?? [],
+    );
+
+  it('a `user`-typed field is expanded', async () => {
+    const { adapter } = await renderBoardWith(makeAdapter({ account: 'text', owner: 'user' }));
+    await awaitSchemaFetch(adapter);
+    expect(everyExpand(adapter)).toContain('owner');
+    // The control travels with the subject: a field typed OUT of the family in
+    // the same query, so "everything is expanded" cannot pass as the delta.
+    expect(everyExpand(adapter)).not.toContain('account');
+  });
+
+  it('the same field typed `text` is NOT expanded — the other direction', async () => {
+    const { adapter } = await renderBoardWith(makeAdapter({ account: 'text', owner: 'text' }));
+    await awaitSchemaFetch(adapter);
+    expect(everyExpand(adapter)).not.toContain('owner');
   });
 });

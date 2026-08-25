@@ -1,0 +1,13 @@
+{
+  "type": "object-form",
+  "objectName": "users",
+  "mode": "edit",
+  "recordId": "1",
+  "formType": "tabbed",
+  "defaultTab": "identity",
+  "sections": [
+    { "name": "identity", "label": "Identity", "columns": 2, "fields": ["name", "email"] },
+    { "name": "organisation", "label": "Organisation", "fields": ["department", "created_at"] }
+  ],
+  "submitText": "Save changes"
+}

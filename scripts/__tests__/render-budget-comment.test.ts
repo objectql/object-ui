@@ -311,6 +311,66 @@ describe('per-half closure verdicts', () => {
     expect(body).not.toContain('Which half objected');
   });
 
+  /**
+   * objectui#6245 — the fourth half. Also exit 2, also the not-measured branch,
+   * and it must NOT borrow the drifted-ceiling wording above: the gauge is fine
+   * here and the bundle is fine; the ceiling they were weighed against has been
+   * replaced on the base branch. A reader who takes "broken gauge" at face value
+   * goes hunting a report that cannot be read, and one who takes it for a size
+   * failure widens a ceiling — the one repair this must never suggest.
+   */
+  it('names a superseded ceiling as its own verdict, not as a broken gauge', () => {
+    const { kind, body } = renderBudgetComment({
+      status: 'error',
+      ...halves,
+      closureFreshnessStatus: 'error',
+      message: 'a ceiling was replaced on the base branch after this checkout was made',
+      budgetOutcome: 'failure',
+      buildOutcome: 'success',
+    });
+
+    expect(kind).toBe('not-measured');
+    expect(body).toContain('| Ceiling freshness (checkout vs. base branch) | ⚠️ superseded ceiling |');
+    expect(body).toContain('neither a size regression nor a drifted gauge');
+    expect(body).toContain('Nothing grew');
+    expect(body).toContain('do not widen a ceiling to clear it');
+    // The OTHER exit-2 note is about a different thing and must stay away.
+    expect(body).not.toContain('a verdict about the ceiling, not about the bundle');
+    expect(body).not.toContain('❌');
+    expect(body).not.toContain('FAIL');
+  });
+
+  it('keeps the two exit-2 notes separate when both halves object', () => {
+    const { body } = renderBudgetComment({
+      status: 'error',
+      ...halves,
+      closureHeadroomStatus: 'error',
+      closureFreshnessStatus: 'error',
+      budgetOutcome: 'failure',
+      buildOutcome: 'success',
+    });
+
+    expect(body).toContain('| Ceiling sensitivity (headroom) | ⚠️ broken gauge |');
+    expect(body).toContain('| Ceiling freshness (checkout vs. base branch) | ⚠️ superseded ceiling |');
+    expect(body).toContain('a verdict about the ceiling, not about the bundle');
+    expect(body).toContain('neither a size regression nor a drifted gauge');
+  });
+
+  it('renders no freshness row on a run the half does not apply to', () => {
+    // The checker publishes an EMPTY freshness verdict off a pull_request. An
+    // empty half is silence, and a green comment must stay byte-for-byte what
+    // it was before this half existed.
+    const { body } = renderBudgetComment({
+      status: 'fail',
+      ...halves,
+      closureChunkStatus: 'fail',
+      closureFreshnessStatus: '',
+    });
+
+    expect(body).toContain('| Per-chunk ceilings | ❌ over its ceiling |');
+    expect(body).not.toContain('Ceiling freshness');
+  });
+
   it('renders no half table when no half status was handed over', () => {
     // The objectui#3152 failure mode, in its per-half form: blanks must render
     // as silence, never be inferred into verdicts.
@@ -320,6 +380,7 @@ describe('per-half closure verdicts', () => {
       closureStatus: '',
       closureChunkStatus: '',
       closureHeadroomStatus: '',
+      closureFreshnessStatus: '',
     });
 
     expect(body).not.toContain('Which half objected');
@@ -439,11 +500,119 @@ describe('performance-budget.yml contract', () => {
     expect(published).toContain('closure_status');
     expect(published).toContain('closure_chunk_status');
     expect(published).toContain('closure_headroom_status');
+    expect(published).toContain('closure_freshness_status');
 
     for (const key of published) {
       expect(workflow, `workflow must pass steps.budget.outputs.${key} to the comment step`)
         .toContain(`steps.budget.outputs.${key}`);
     }
+  });
+
+  /**
+   * objectui#6245. The freshness half's inputs do NOT travel as `steps.*` env —
+   * they are the checker's, not the comment's — so the env-contract test above
+   * cannot see them, and without these three the wiring could rot silently while
+   * every other test in this file stayed green. The half would then report
+   * `error` on every PR, or, if `GITHUB_EVENT_NAME` stopped being the
+   * discriminator, quietly stop asking.
+   */
+  describe('ceiling freshness inputs', () => {
+    const checker = fs.readFileSync(checkerPath, 'utf8');
+
+    it('fetches deep enough to see the base commit the merge ref was built on', () => {
+      expect(workflow).toContain('fetch-depth: 2');
+    });
+
+    it('resolves both base-branch readings on pull_request runs only', () => {
+      expect(workflow).toContain('- name: Resolve the base-branch ceiling constants');
+      expect(workflow).toContain("if: ${{ github.event_name == 'pull_request' }}");
+    });
+
+    it('exports exactly the variables the checker reads', () => {
+      for (const name of [
+        'EAGER_CLOSURE_PR_BASE_SOURCE',
+        'EAGER_CLOSURE_BASE_SOURCE',
+        'EAGER_CLOSURE_PR_BASE_SHA',
+        'EAGER_CLOSURE_BASE_SHA',
+        'EAGER_CLOSURE_BASE_REF',
+      ]) {
+        expect(workflow, `workflow must export ${name}`).toContain(`echo "${name}=`);
+        expect(checker, `checker must read env.${name}`).toContain(`env.${name}`);
+      }
+    });
+
+    /**
+     * objectui#6245, second and third pass. The freshness half shipped a
+     * workflow half that `Bundle Analysis` could never run on: the PR editing it
+     * touched no `packages/**` path, so the gate never appeared on its own PR.
+     * Adding the YAML to the filters fixed that — and was still not enough. A PR
+     * touching only `check-eager-closure-budget.mjs`, the file that computes the
+     * verdict and the one this card is about, ALSO did not trigger the gate.
+     *
+     * The convention measured on `origin/main` is the gate's RUNTIME CLOSURE,
+     * not merely its own YAML: `half-state-patrol.yml` lists both the script it
+     * runs and `scripts/invoked-as.mjs`, that script's dependency.
+     *
+     * A wiring bug in any of these is fail-CLOSED — freshness `error`, exit 2 —
+     * so an untriggered gate does not fail quietly; it turns a REQUIRED context
+     * red on the next `packages/**` PR, belonging to another seat, reading to
+     * them as a bundle problem in their own diff.
+     */
+    const TRIGGER_CLOSURE = [
+      '.github/workflows/performance-budget.yml',
+      'scripts/check-eager-closure-budget.mjs',
+      'scripts/render-budget-comment.mjs',
+      // `isEntrypoint` decides whether `main()` runs at all — a regression here
+      // makes the checker exit 0 having measured nothing.
+      'scripts/invoked-as.mjs',
+    ];
+
+    it('triggers on its whole runtime closure, so no part of this gate ships unexercised', () => {
+      // `#` lines are part of the block — an entry that needs explaining carries
+      // its reason inline — and `[ \t]*` rather than `\s*` so the run cannot walk
+      // past the end of the list into the next key.
+      const filters = [...workflow.matchAll(/^[ \t]*paths:\n((?:[ \t]*(?:- |#).*\n)+)/gm)].map(
+        (m) => m[1],
+      );
+      // Guard the guard: `push` and `pull_request` both carry one, and they must
+      // not drift apart — a gate that runs on a PR but not on the merge (or the
+      // reverse) is worse than one that runs on neither.
+      expect(filters).toHaveLength(2);
+      for (const filter of filters) {
+        for (const entry of TRIGGER_CLOSURE) {
+          expect(filter, `every paths: filter must list ${entry}`).toContain(entry);
+        }
+      }
+    });
+
+    /**
+     * The closure is defined by what the JOB EXECUTES, which is why the
+     * `__tests__` files are deliberately absent from it: this job runs two
+     * `node scripts/*.mjs` commands and never vitest, so a test-only edit cannot
+     * move this gate's verdict, and those tests already run on every PR in the
+     * root vitest `unit` project. This asserts the definition rather than the
+     * list, so the two stay in step.
+     */
+    it('lists every script the job runs, and nothing it merely tests', () => {
+      const invoked = [...workflow.matchAll(/^\s*(?:run: )?node (scripts\/[\w./-]+\.mjs)/gm)].map(
+        (m) => m[1],
+      );
+      expect(invoked.length).toBeGreaterThan(0);
+      for (const script of new Set(invoked)) {
+        expect(TRIGGER_CLOSURE, `${script} is executed by this job, so it belongs in the closure`)
+          .toContain(script);
+      }
+      expect(TRIGGER_CLOSURE.some((e) => e.includes('__tests__'))).toBe(false);
+    });
+
+    it('lets the bundle be measured even when the resolve step fails', () => {
+      // The checker turns absent inputs into a freshness ERROR, so failing the
+      // job here instead would only cost the run its numbers (objectui#3152).
+      const step = workflow.slice(workflow.indexOf('- name: Resolve the base-branch ceiling'));
+      const budgetStep = step.indexOf('- name: Check console performance budget');
+      expect(step.slice(0, budgetStep)).toContain('continue-on-error: true');
+      expect(budgetStep).toBeGreaterThan(-1);
+    });
   });
 
   it('writes budget_status on every path the budget step can exit through', () => {

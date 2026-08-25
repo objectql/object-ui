@@ -65,8 +65,17 @@ interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> 
 
 `subtitle` is the canonical key: `@objectstack/spec/ui`'s `PageHeaderProps` — the contract
 for the authored `page:header` node — declares `title / subtitle / breadcrumb / actions /
-recordChrome / showStar / showCopyId / aria` and has no `description`. Both `title` and
-`subtitle` interpolate `{field.path}` tokens against the surrounding record context.
+recordChrome / showStar / showCopyId / maxVisible / mobileMaxVisible / aria` and has no
+`description`. Both `title` and `subtitle` interpolate `{field.path}` tokens against the
+surrounding record context.
+
+`maxVisible` and `mobileMaxVisible` are the canonical node's action-overflow budget, and
+they belong to that contract rather than to this component: the `page:header` renderer in
+`@object-ui/components` reads them, and `@object-ui/layout`'s `PageHeader` — the component
+documented above — does not. The shape describes them as "How many header actions render as
+inline buttons before the rest fold into the overflow menu (renderer default 3)" and "The
+`maxVisible` budget on mobile viewports (renderer default 1)";
+[Slotted pages](/docs/guide/slotted-pages) shows them authored on a page.
 
 `icon` is deliberately **not** in that list, and the distinction matters because this page
 documents a React component while the spec governs an authored node. `PageHeaderProps.icon`

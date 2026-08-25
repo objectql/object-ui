@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import type { FormField, DataSource } from '@object-ui/types';
+import type { FormField, DataSource, ObjectFormSchema } from '@object-ui/types';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
@@ -145,6 +145,21 @@ export interface TabbedFormSchema {
    */
   readOnly?: boolean;
   
+  /**
+   * Override persistence — the seam a host uses to own the write. Declared as
+   * `ObjectFormSchema['submitHandler']` rather than restated, so this variant
+   * and the canonical key `ObjectForm` forwards can never drift apart.
+   * When supplied, the form validates and hands the collected values
+   * to this handler INSTEAD of calling `dataSource.create` /
+   * `dataSource.update`; the returned record is passed on to `onSuccess`.
+   *
+   * `MasterDetailForm` supplies it to route the parent AND its child
+   * collections through one atomic `batchTransaction` (#2679 / ADR-0034
+   * item 4). A renderer that does not read it writes the parent on its own and
+   * escapes that transaction — objectui#6176.
+   */
+  submitHandler?: ObjectFormSchema['submitHandler'];
+
   /**
    * Callbacks
    */
@@ -302,14 +317,25 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
     try {
       let result;
       
-      if (schema.mode === 'create') {
-        // Omit the fields the producer owns (#4069) — see
-        // `omitServerResolvedDefaults` for why an empty key is not the same as
-        // no key at insert time.
-        result = await dataSource.create(
-          schema.objectName,
-          omitServerResolvedDefaults(data, objectSchema),
-        );
+      // Omit the fields the producer owns (#4069) — see
+      // `omitServerResolvedDefaults` for why an empty key is not the same as
+      // no key at insert time. Create only: on an edit form a cleared column is
+      // a real removal. Computed ONCE so every persistence route below — the
+      // host-owned seam included — writes the identical payload.
+      const writePayload = schema.mode === 'create'
+        ? omitServerResolvedDefaults(data, objectSchema)
+        : data;
+
+      if (schema.submitHandler) {
+        // The host owns persistence (e.g. MasterDetailForm batching the parent
+        // + its child collections into ONE atomic transaction). The form
+        // validates and hands the values over; it does NOT create/update
+        // itself. Same seam and same precedence as SimpleObjectForm — every
+        // renderer `ObjectForm` routes to must check it FIRST, or a declared
+        // host-owned write silently becomes an independent one (objectui#6176).
+        result = await schema.submitHandler(writePayload);
+      } else if (schema.mode === 'create') {
+        result = await dataSource.create(schema.objectName, writePayload);
       } else if (schema.mode === 'edit' && schema.recordId) {
         // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
         // user to keep editing (skip the success path) or overwrite.
@@ -317,7 +343,7 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
           dataSource,
           objectName: schema.objectName,
           recordId: schema.recordId,
-          payload: data,
+          payload: writePayload,
           baseRecord: formData,
         });
         if (outcome.status === 'cancelled') return;

@@ -21,6 +21,21 @@ import {
   ContextMenuShortcut
 } from '../../ui';
 import { renderChildren } from '../../lib/utils';
+// Same-package sibling import, the path `renderers/complex/data-table.tsx`
+// already uses. `icon` on a menu item is an authored lucide NAME. The twin
+// `dropdown-menu.tsx` rendered it into a text node; THIS renderer never
+// referenced the key at all, so the catalog fixture
+// `basic-context-menu.json` shipped four live names — `copy`, `scissors`,
+// `clipboard`, `trash` — that drew NOTHING (objectui#6278).
+//
+// Routed through the RECORD surface (`icons` from 'lucide-react'), which is
+// what `action:*` and `ui:button` next door resolve against, so a retired
+// spelling renders NOTHING rather than a word. The dynamic surface
+// (`LazyIcon`) is deliberately NOT used: it degrades an unknown name to the
+// `Database` glyph, trading a no-icon failure for a WRONG-icon one, recorded
+// as ruled out for authored icon fields by objectui#5622 and #5633 and
+// re-affirmed for this exact shape by objectui#5930.
+import { resolveIcon } from '../action/resolve-icon';
 
 // Reuse helper for recursive menu items if I could share it, but for now duplicate concise logic
 const renderContextMenuItems = (items: any[]) => {
@@ -28,10 +43,15 @@ const renderContextMenuItems = (items: any[]) => {
   return items.map((item: any, i: number) => {
     if (item.type === 'separator') return <ContextMenuSeparator key={i} />;
     if (item.type === 'label') return <ContextMenuLabel key={i}>{item.label}</ContextMenuLabel>;
+    // Resolved once per item and read by BOTH arms below. The submenu-trigger
+    // arm carries the identical defect; repairing only the leaf would be a
+    // narrower version of the same bug (objectui#5930, objectui#6278).
+    const Icon = resolveIcon(item.icon);
     if (item.children) {
         return (
             <ContextMenuSub key={i}>
                 <ContextMenuSubTrigger inset={item.inset}>
+                    {Icon && <Icon className="mr-2 h-4 w-4" />}
                     {item.label}
                 </ContextMenuSubTrigger>
                 <ContextMenuSubContent>
@@ -43,6 +63,7 @@ const renderContextMenuItems = (items: any[]) => {
     
     return (
       <ContextMenuItem key={i} disabled={item.disabled} inset={item.inset} onSelect={item.onSelect}>
+        {Icon && <Icon className="mr-2 h-4 w-4" />}
         {item.label}
         {item.shortcut && <ContextMenuShortcut>{item.shortcut}</ContextMenuShortcut>}
       </ContextMenuItem>
@@ -83,7 +104,7 @@ ComponentRegistry.register('context-menu',
         name: 'items', 
         type: 'array', 
         label: 'Items',
-        description: 'Recursive structure: { type?: "separator"|"label", label, shortcut, children }'
+        description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, children }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
     ],

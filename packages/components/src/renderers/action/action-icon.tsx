@@ -123,6 +123,10 @@ const ActionIconRenderer = forwardRef<
           // OAuth secret). Without it the runner falls back to the success
           // toast and the value the user was meant to copy is gone.
           resultDialog: (schema as any).resultDialog,
+          // See action-button.tsx — the declared post-success hop
+          // (objectui#5493). The runner reads it off the forwarded def; dropped
+          // here the action succeeds and the authored navigation never runs.
+          onSuccess: (schema as any).onSuccess,
         };
 
         await execute({ ...forwarded, ...localContext });

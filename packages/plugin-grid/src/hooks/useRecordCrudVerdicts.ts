@@ -54,24 +54,23 @@
  * cookie-session hosts.
  */
 import * as React from 'react';
-import { SchemaRendererContext } from '@object-ui/react';
-
-/** The two write verbs a list row's kebab can offer. */
-export type RecordCrudOperation = 'update' | 'delete';
-
 /**
  * Hard cap on `recordIds` per batch explain request — the SERVER's contract
  * (`EXPLAIN_BATCH_MAX_RECORD_IDS`, objectstack#8326): over-cap requests are
  * refused with `400 VALIDATION_FAILED`, never truncated, and the spec's own
  * TSDoc directs a consumer with more records to paginate under it. A page
- * larger than the cap is therefore split into ceil(N / 200) requests per
+ * larger than the cap is therefore split into ceil(N / cap) requests per
  * operation — still amortized, never one per row.
  *
- * Declared locally because the pinned `@objectstack/spec@17.0.0-rc.6` predates
- * the batch form and exports neither the constant nor the request/response
- * types; the pin bump (objectui#4636) supersedes this declaration.
+ * Imported from the package that OWNS the contract, never re-declared: a hand
+ * copy passes every value comparison on the day it is written and drifts
+ * silently on the day the server moves the cap.
  */
-const EXPLAIN_BATCH_MAX_RECORD_IDS = 200;
+import { EXPLAIN_BATCH_MAX_RECORD_IDS } from '@objectstack/spec/security';
+import { SchemaRendererContext } from '@object-ui/react';
+
+/** The two write verbs a list row's kebab can offer. */
+export type RecordCrudOperation = 'update' | 'delete';
 
 /**
  * One entry of the batch response's `records` array, narrowed to what this hook

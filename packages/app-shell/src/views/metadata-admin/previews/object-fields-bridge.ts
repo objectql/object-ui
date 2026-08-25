@@ -43,7 +43,9 @@ interface FrameworkFieldDef {
   placeholder?: string;
   options?: Array<{ label?: string; value: string; color?: string }>;
   reference?: string;
-  formula?: string;
+  // No declared `formula` (objectui#6043) — nothing reads or writes it any
+  // more. A legacy def that still carries one reaches this type through the
+  // index signature below, and a QUARANTINED field round-trips verbatim.
   group?: string;
   [k: string]: unknown;
 }
@@ -139,7 +141,6 @@ export function bridgeFromDraft(fieldsInput: unknown): FieldsBridgeResult {
           }))
         : undefined,
       referenceTo: typeof def?.reference === 'string' ? def.reference : undefined,
-      formula: typeof def?.formula === 'string' ? def.formula : undefined,
     });
   }
 
@@ -207,6 +208,12 @@ function serializeDesignerField(f: DesignerFieldDefinition): FrameworkFieldDef {
   if (f.group) out.group = f.group;
   if (f.options && f.options.length > 0) out.options = f.options;
   if (f.referenceTo) out.reference = f.referenceTo;
-  if (f.formula) out.formula = f.formula;
+  // No `formula` (objectui#6043). This bridge was a THIRD emit site for the
+  // key, named by neither the card nor `check-designer-field-key-parity.mjs` —
+  // `FrameworkFieldDef` is not one of that gate's declared `PAYLOAD_SHAPES`, so
+  // the gate was green over it. `FieldSchema` refuses `formula` BY NAME, and it
+  // is not renamed to `expression` here for the same reason as everywhere else
+  // on this card: the schema accepts the key without parsing the CEL, so a
+  // rename ships an unevaluatable expression under a valid name.
   return out;
 }

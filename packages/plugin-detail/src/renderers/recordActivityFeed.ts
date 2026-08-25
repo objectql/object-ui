@@ -191,20 +191,6 @@ export interface SysActivityRow {
 }
 
 /**
- * Coerce an authored `filterMode` to a value the timeline understands.
- *
- * Unknown values fall back to `'all'` rather than being passed through: a
- * `<Select>` handed a value with no matching item renders blank and the
- * dropdown reads as broken. Same posture as objectui#3151 — an unrecognised
- * filter token is skipped, never turned into a filter that can't match.
- */
-export function normalizeFilterMode(value: unknown): FeedFilterMode {
-  return typeof value === 'string' && FILTER_MODE_VALUES.includes(value)
-    ? (value as FeedFilterMode)
-    : 'all';
-}
-
-/**
  * Warn ONCE per distinct key on a channel, never again for a key already named.
  *
  * One plumbing for both diagnostics in this file rather than two conventions.
@@ -239,6 +225,70 @@ const warnedUnrecognisedFeedTypes = new Set<string>();
 /** Test seam: forget which `types` entries have already been named. */
 export function resetUnrecognisedFeedTypeWarnings(): void {
   warnedUnrecognisedFeedTypes.clear();
+}
+
+/** Authored `filterMode` values already named as unrecognised. See {@link warnOnce}. */
+const warnedUnrecognisedFilterModes = new Set<string>();
+
+/** Test seam: forget which `filterMode` values have already been named. */
+export function resetUnrecognisedFilterModeWarnings(): void {
+  warnedUnrecognisedFilterModes.clear();
+}
+
+/**
+ * Coerce an authored `filterMode` to a value the timeline understands.
+ *
+ * Unknown values fall back to `'all'` rather than being passed through: a
+ * `<Select>` handed a value with no matching item renders blank and the
+ * dropdown reads as broken. Same posture as objectui#3151 — an unrecognised
+ * filter token is skipped, never turned into a filter that can't match.
+ *
+ * ## Why that fallback needs a diagnostic (objectui#5891)
+ *
+ * `'all'` is the WIDEST of the four declared modes — `filterItems` in
+ * `RecordActivityTimeline` narrows to ONE feed type for each of the other three
+ * and returns the feed untouched for `'all'` — so every unrecognised value
+ * lands on the one option that shows the author MORE than they asked for. A
+ * near-miss like `comments-only` or `commentsOnly` therefore opens the panel on
+ * the unfiltered stream, and the tell is a PLAUSIBLE result (a populated
+ * timeline) rather than an empty one that gets investigated. That is the same
+ * shape objectui#5841 removed from the sibling `types` sanitiser.
+ *
+ * The ruling on this card (triage, 2026-08-25) is that the defect is the
+ * INVISIBILITY, not the fallback: `filterMode` seeds a control the user can
+ * change, and there is no defensible narrower default to fall back to instead.
+ * So nothing that renders changes here — what changes is that the fold is now
+ * SAID OUT LOUD, once per distinct offending value (see {@link warnOnce}).
+ *
+ * Absent (`undefined` / `null`) is silent: no `filterMode` was authored, which
+ * is not a mistake, and a warning about a decision teaches authors to ignore
+ * the channel. Only a value the author actually wrote is reported.
+ *
+ * The declared modes named in the message are read from `@objectstack/spec`'s
+ * `FeedFilterMode` at runtime, never re-typed here — see the file header for
+ * what a hand copy of a spec enum cost.
+ */
+export function normalizeFilterMode(value: unknown): FeedFilterMode {
+  if (typeof value === 'string' && FILTER_MODE_VALUES.includes(value)) {
+    return value as FeedFilterMode;
+  }
+
+  // Absent means no `filterMode` was authored — not a mistake, nothing to report.
+  // Anything else is a value the author wrote and this block cannot honour.
+  if (value !== undefined && value !== null) {
+    const shown = typeof value === 'string' ? `"${value}"` : typeof value;
+    const key = typeof value === 'string' ? value : `non-string ${shown}`;
+    warnOnce(warnedUnrecognisedFilterModes, [key], () =>
+      `[record:activity] ignoring an unrecognised \`filterMode\` (${shown}) and opening `
+        + 'on "all" instead — the WIDEST mode, which shows EVERY activity rather than the '
+        + 'slice that was asked for. No declared filter mode matches it. The fallback is '
+        + 'kept rather than passing the value through because a dropdown handed a value '
+        + 'with no matching item renders blank (objectui#3151), so this is a diagnostic, '
+        + 'not a refusal. Declared filter modes: '
+        + `${FILTER_MODE_VALUES.join(', ')}.`);
+  }
+
+  return 'all';
 }
 
 /**

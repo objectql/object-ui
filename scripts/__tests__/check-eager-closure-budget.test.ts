@@ -14,9 +14,12 @@ import {
   PER_CHUNK_GZIP_CEILINGS,
   REGRESSION_THIS_GATE_MUST_CATCH_BYTES,
   SUPPORTED_REPORT_VERSION,
+  VERDICT_CEILING_CONSTANTS,
+  evaluateCeilingFreshness,
   evaluateClosureBudget,
   evaluateHeadroomSensitivity,
   evaluatePerChunkBudgets,
+  extractCeilingDeclarations,
   main,
   measureChunksByName,
   renderTopChunks,
@@ -26,6 +29,7 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workflowPath = path.join(repoRoot, '.github/workflows/performance-budget.yml');
 const viteConfigPath = path.join(repoRoot, 'apps/console/vite.config.ts');
+const checkerPath = path.join(repoRoot, 'scripts/check-eager-closure-budget.mjs');
 
 /**
  * A report shaped exactly like `emitEagerClosureReport`'s output, with the
@@ -561,15 +565,31 @@ describe('renderTopChunks', () => {
 });
 
 describe('main', () => {
-  function run(reportBody: unknown) {
+  /**
+   * Hermetic by construction: `main`'s environment is INJECTED here, never
+   * inherited from the process.
+   *
+   * objectui#6245 — `main(argv, env = process.env)` is the right PRODUCTION
+   * default, but a test that leans on it is measuring the machine it runs on.
+   * `GITHUB_EVENT_NAME=pull_request` is ambient inside GitHub Actions, so this
+   * helper omitting `env` silently switched the ceiling-freshness half ON in
+   * CI — where its two source paths are unset, so the half correctly returned
+   * `error` and `main` correctly returned 2, into four assertions written when
+   * 0 and 1 were the only outcomes it could produce. Every one of them passed
+   * locally, for the single reason that proves nothing: the variable happened
+   * not to be set.
+   *
+   * `GITHUB_EVENT_NAME` is absent from the injected object ON PURPOSE — that is
+   * what makes these cases exercise the non-pull_request path deterministically
+   * instead of by luck. Pass it through `env` to opt a case in.
+   */
+  function run(reportBody: unknown, env: Record<string, string> = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'closure-budget-'));
     const reportPath = path.join(dir, 'eager-closure.json');
     const outputPath = path.join(dir, 'github-output');
     if (reportBody !== undefined) fs.writeFileSync(reportPath, JSON.stringify(reportBody));
-    const previous = process.env.GITHUB_OUTPUT;
-    process.env.GITHUB_OUTPUT = outputPath;
     try {
-      const code = main(['--report', reportPath]);
+      const code = main(['--report', reportPath], { GITHUB_OUTPUT: outputPath, ...env });
       const outputs = Object.fromEntries(
         fs
           .readFileSync(outputPath, 'utf8')
@@ -579,11 +599,33 @@ describe('main', () => {
       );
       return { code, outputs };
     } finally {
-      if (previous === undefined) delete process.env.GITHUB_OUTPUT;
-      else process.env.GITHUB_OUTPUT = previous;
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
+
+  /**
+   * The guard for the defect above, and it has to be a TEST rather than a note
+   * in the helper: the failure is invisible on a developer machine and appears
+   * only inside Actions, which is the worst place to find it — on the next
+   * person's unrelated PR. Setting the variable here reproduces CI's ambient
+   * environment in-process, so if `run()` ever goes back to inheriting
+   * `process.env` this reds locally, immediately, on the change that caused it.
+   */
+  it('is unaffected by an ambient GITHUB_EVENT_NAME, the way Actions sets it', () => {
+    const previous = process.env.GITHUB_EVENT_NAME;
+    process.env.GITHUB_EVENT_NAME = 'pull_request';
+    try {
+      const { code, outputs } = run(budgeted());
+      expect(code).toBe(0);
+      // The freshness half must stay dormant. This run injects no base-branch
+      // sources, so an ACTIVE half would correctly report `error` and exit 2 —
+      // precisely how the ambient variable turned four green assertions red.
+      expect(outputs.closure_freshness_status).toBe('');
+    } finally {
+      if (previous === undefined) delete process.env.GITHUB_EVENT_NAME;
+      else process.env.GITHUB_EVENT_NAME = previous;
+    }
+  });
 
   // `budgeted()` rather than the bare `report()` fixture: since objectui#5490
   // the checker weighs BOTH halves, and a report missing the budgeted chunks is
@@ -758,6 +800,317 @@ describe('main', () => {
     // number here would render as a verdict about a bundle nobody weighed.
     expect(outputs.closure_gzip_kb).toBe('');
     expect(outputs.closure_chunks).toBe('');
+  });
+});
+
+/**
+ * objectui#6245 — the fourth half. `Bundle Analysis` is a required context, and
+ * GitHub does not re-run a PR's checks when the base branch moves, so a green
+ * verdict can be computed against ceilings `main` has since replaced.
+ *
+ * Not hypothetical: run 32804357171 started 6m50s after `0409b766d` lowered the
+ * aggregate ceiling from 4,086,000 to 3,345,000 and published
+ * `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — 4,086,000 bytes — with conclusion
+ * `success`. `theRealIncident` below replays exactly that pair of numbers.
+ */
+describe('ceiling freshness (objectui#6245)', () => {
+  const checkerSource = fs.readFileSync(checkerPath, 'utf8');
+
+  /**
+   * A copy of the real checker with one ceiling moved, so these fixtures track
+   * a future re-baseline instead of pinning today's digits in a second place.
+   *
+   * The `expect` is the guard on the guard: a `String.replace` whose pattern
+   * matches nothing returns the subject unchanged and throws nothing, which
+   * would leave every case below comparing a file with itself and passing for
+   * the wrong reason.
+   */
+  function withAggregateCeiling(bytes: number) {
+    const moved = checkerSource.replace(
+      /^export const MAX_EAGER_CLOSURE_GZIP_BYTES = .*;$/m,
+      `export const MAX_EAGER_CLOSURE_GZIP_BYTES = ${bytes};`,
+    );
+    expect(moved, 'the fixture anchor no longer matches the real declaration').not.toBe(
+      checkerSource,
+    );
+    return moved;
+  }
+
+  const onPullRequest = (overrides: Record<string, unknown> = {}) =>
+    evaluateCeilingFreshness({
+      eventName: 'pull_request',
+      headSource: checkerSource,
+      prBaseSource: checkerSource,
+      baseSource: checkerSource,
+      baseRef: 'main',
+      ...overrides,
+    });
+
+  describe('extractCeilingDeclarations', () => {
+    it('finds every constant a verdict is computed from, in the real file', () => {
+      const { declarations, missing } = extractCeilingDeclarations(checkerSource);
+      expect(missing).toEqual([]);
+      expect([...declarations.keys()]).toEqual([...VERDICT_CEILING_CONSTANTS]);
+      expect(declarations.get('MAX_EAGER_CLOSURE_GZIP_BYTES')).toBe(
+        String(MAX_EAGER_CLOSURE_GZIP_BYTES),
+      );
+    });
+
+    it('reads an expression as text, so both sides of a comparison are read alike', () => {
+      // `89 * 1024` must not be evaluated: the base-branch side is a blob that
+      // cannot be imported, so an evaluated 91136 here would never match it.
+      expect(extractCeilingDeclarations(checkerSource).declarations.get(
+        'REGRESSION_THIS_GATE_MUST_CATCH_BYTES',
+      )).toBe('89 * 1024');
+    });
+
+    it('erases formatting that cannot move a ceiling', () => {
+      const a = "export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_345_000;";
+      const b = "export const MAX_EAGER_CLOSURE_GZIP_BYTES =\n  3345000;";
+      const read = (s: string) =>
+        extractCeilingDeclarations(s, ['MAX_EAGER_CLOSURE_GZIP_BYTES']).declarations.get(
+          'MAX_EAGER_CLOSURE_GZIP_BYTES',
+        );
+      expect(read(a)).toBe(read(b));
+    });
+
+    it('erases comments and trailing commas inside an object ceiling', () => {
+      const plain = "export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({ a: 1, b: 2 });";
+      const noisy =
+        'export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({\n' +
+        '  // objectui#5490 — why this one is here\n' +
+        '  a: 1,\n' +
+        '  b: 2,\n' +
+        '});';
+      const read = (s: string) =>
+        extractCeilingDeclarations(s, ['PER_CHUNK_GZIP_CEILINGS']).declarations.get(
+          'PER_CHUNK_GZIP_CEILINGS',
+        );
+      expect(read(noisy)).toBe(read(plain));
+    });
+
+    it('reports a name it cannot find rather than skipping the comparison', () => {
+      const { declarations, missing } = extractCeilingDeclarations('export const OTHER = 1;');
+      expect(missing).toEqual([...VERDICT_CEILING_CONSTANTS]);
+      expect(declarations.size).toBe(0);
+    });
+
+    it('does not mistake a nested `;` for the end of the declaration', () => {
+      const source =
+        'export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({ a: 1, b: 2 });\n' +
+        'export const AFTER = 9;';
+      expect(
+        extractCeilingDeclarations(source, ['PER_CHUNK_GZIP_CEILINGS']).declarations.get(
+          'PER_CHUNK_GZIP_CEILINGS',
+        ),
+      ).toBe('Object.freeze({ a: 1, b: 2 })');
+    });
+  });
+
+  describe('evaluateCeilingFreshness', () => {
+    it('is not applicable off a pull_request — the checkout IS the branch', () => {
+      for (const eventName of ['push', 'workflow_dispatch', undefined]) {
+        const verdict = evaluateCeilingFreshness({ eventName, headSource: checkerSource });
+        expect(verdict.status).toBe('not-applicable');
+        expect(verdict.superseded).toEqual([]);
+      }
+    });
+
+    it('passes when the base branch has not moved a ceiling since this checkout', () => {
+      const verdict = onPullRequest();
+      expect(verdict.status).toBe('pass');
+      expect(verdict.moved).toEqual([]);
+    });
+
+    /**
+     * The case that makes this a three-reading check and not a two-reading one.
+     * A re-baseline PR differs from the base branch DELIBERATELY, and failing it
+     * would make the one PR that must land unlandable.
+     */
+    it('passes a PR that re-baselines a ceiling itself', () => {
+      const verdict = onPullRequest({ headSource: withAggregateCeiling(3_000_000) });
+      expect(verdict.status).toBe('pass');
+      expect(verdict.moved).toEqual([]);
+      expect(verdict.superseded).toEqual([]);
+    });
+
+    it('passes when the base branch moved a ceiling and this checkout carries it', () => {
+      const moved = withAggregateCeiling(3_000_000);
+      const verdict = onPullRequest({ headSource: moved, baseSource: moved });
+      expect(verdict.status).toBe('pass');
+      expect(verdict.moved).toEqual(['MAX_EAGER_CLOSURE_GZIP_BYTES']);
+      expect(verdict.superseded).toEqual([]);
+      expect(verdict.message).toContain('already carries the new value');
+    });
+
+    it('ERRORS when the base branch replaced a ceiling this run weighed against', () => {
+      const verdict = onPullRequest({ baseSource: withAggregateCeiling(3_000_000) });
+      expect(verdict.status).toBe('error');
+      expect(verdict.superseded).toEqual(['MAX_EAGER_CLOSURE_GZIP_BYTES']);
+      expect(verdict.message).toContain(String(MAX_EAGER_CLOSURE_GZIP_BYTES));
+      expect(verdict.message).toContain('3000000');
+    });
+
+    /**
+     * The live incident, with its own numbers. #6229 moved the aggregate ceiling
+     * from 4,086,000 to 3,345,000 at 03:06:37Z; a PR run seven minutes later was
+     * still weighing against 4,086,000 and reported success.
+     */
+    it('catches the incident this card was filed for', () => {
+      const theRealIncident = onPullRequest({
+        headSource: withAggregateCeiling(4_086_000),
+        prBaseSource: withAggregateCeiling(4_086_000),
+        baseSource: withAggregateCeiling(3_345_000),
+        prBaseSha: '48e53814e',
+        baseSha: '0409b766d',
+      });
+      expect(theRealIncident.status).toBe('error');
+      expect(theRealIncident.message).toContain('weighed here : 4086000');
+      expect(theRealIncident.message).toContain('in force now : 3345000');
+      expect(theRealIncident.message).toContain('48e53814e -> 0409b766d');
+    });
+
+    /**
+     * The whole point of routing this to exit 2 rather than exit 1. A reader who
+     * takes a freshness failure for a size failure goes hunting a regression
+     * that is not there — and the fix they reach for is widening the ceiling,
+     * which is the one thing this must never teach.
+     */
+    it('reads as a superseded ceiling and NOT as a bundle that grew', () => {
+      const { message } = onPullRequest({ baseSource: withAggregateCeiling(3_000_000) });
+      expect(message).toContain('NOTHING GREW');
+      expect(message).toContain('not a size regression');
+      expect(message).toContain('Do NOT widen a ceiling');
+      expect(message).toMatch(/update this branch/i);
+      // The size half's vocabulary must not appear here.
+      expect(message).not.toMatch(/over the .* budget|over budget|BUDGET EXCEEDED/);
+    });
+
+    it('ERRORS rather than passing when the base branch could not be read', () => {
+      for (const missing of ['prBaseSource', 'baseSource'] as const) {
+        const verdict = onPullRequest({ [missing]: null });
+        expect(verdict.status).toBe('error');
+        expect(verdict.message).toContain('NOT that the ceilings agree');
+      }
+    });
+
+    it('ERRORS rather than passing when a ceiling declaration cannot be located', () => {
+      const verdict = onPullRequest({ baseSource: 'export const SOMETHING_ELSE = 1;' });
+      expect(verdict.status).toBe('error');
+      expect(verdict.message).toContain('could not be located');
+      expect(verdict.message).toContain('MAX_EAGER_CLOSURE_GZIP_BYTES');
+    });
+  });
+
+  /**
+   * Through `main`, because the exit code and the published verdict are what the
+   * workflow acts on — and because these two assertions hold against the whole
+   * pipeline rather than one exported function.
+   */
+  describe('main folds freshness into the exit code', () => {
+    /**
+     * A within-budget report carrying the whole closure, not just the budgeted
+     * chunks — a report holding only those is an ERROR (objectui#5924), so a
+     * thinner fixture would exit 2 for the wrong reason and prove nothing about
+     * freshness. Local rather than shared: `describe('main')` has its own copy
+     * and reaching across describes to borrow it would couple these two blocks.
+     */
+    function healthyReport() {
+      const named = [
+        { fileName: 'assets/index-A.js', name: 'index', bytes: 0, gzipBytes: 25_910 },
+        ...Object.entries(PER_CHUNK_BASELINE).map(([name, gzipBytes]) => ({
+          fileName: `assets/${name}-hash.js`,
+          name,
+          bytes: 0,
+          gzipBytes,
+        })),
+      ];
+      const namedTotal = named.reduce((n, f) => n + f.gzipBytes, 0);
+      const files = [
+        ...named,
+        {
+          fileName: 'assets/rest-of-closure.js',
+          name: 'rest-of-closure',
+          bytes: 0,
+          gzipBytes: BASELINE.gzipBytes - namedTotal,
+        },
+      ];
+      return report({
+        files,
+        eagerChunkCount: files.length,
+        eagerGzipBytes: files.reduce((n, f) => n + f.gzipBytes, 0),
+        eagerRawBytes: 0,
+      });
+    }
+
+    function runWithEnv({
+      eventName,
+      prBase,
+      base,
+    }: {
+      eventName: string;
+      prBase?: string;
+      base?: string;
+    }) {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'closure-freshness-'));
+      const reportPath = path.join(dir, 'eager-closure.json');
+      const outputPath = path.join(dir, 'github-output');
+      fs.writeFileSync(reportPath, JSON.stringify(healthyReport()));
+      const write = (name: string, body: string) => {
+        const at = path.join(dir, name);
+        fs.writeFileSync(at, body);
+        return at;
+      };
+      try {
+        const code = main(['--report', reportPath], {
+          GITHUB_OUTPUT: outputPath,
+          GITHUB_EVENT_NAME: eventName,
+          EAGER_CLOSURE_PR_BASE_SOURCE: prBase === undefined ? undefined : write('pr-base.mjs', prBase),
+          EAGER_CLOSURE_BASE_SOURCE: base === undefined ? undefined : write('base.mjs', base),
+          EAGER_CLOSURE_BASE_REF: 'main',
+        });
+        const outputs = Object.fromEntries(
+          fs
+            .readFileSync(outputPath, 'utf8')
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => {
+              const at = line.indexOf('=');
+              return [line.slice(0, at), line.slice(at + 1)] as [string, string];
+            }),
+        );
+        return { code, outputs };
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('exits 2 and publishes `error` when the ceiling it used was superseded', () => {
+      const { code, outputs } = runWithEnv({
+        eventName: 'pull_request',
+        prBase: checkerSource,
+        base: withAggregateCeiling(3_000_000),
+      });
+      // 2, not 1: the bundle is under budget and nothing grew.
+      expect(code).toBe(2);
+      expect(outputs.closure_freshness_status).toBe('error');
+      expect(outputs.closure_status).toBe('pass');
+      expect(outputs.closure_headroom_status).toBe('pass');
+    });
+
+    it('exits 2 on a pull_request run whose base branch was never resolved', () => {
+      const { code, outputs } = runWithEnv({ eventName: 'pull_request' });
+      expect(code).toBe(2);
+      expect(outputs.closure_freshness_status).toBe('error');
+    });
+
+    it('publishes an EMPTY freshness verdict off a pull_request, never a pass', () => {
+      // An absent half is filtered out of the PR comment; a `pass` would assert
+      // a comparison that never happened.
+      const { code, outputs } = runWithEnv({ eventName: 'push' });
+      expect(code).toBe(0);
+      expect(outputs.closure_freshness_status).toBe('');
+    });
   });
 });
 

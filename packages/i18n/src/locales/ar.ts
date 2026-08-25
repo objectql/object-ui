@@ -23,6 +23,7 @@ const ar = {
       setup_access: "الوصول إلى الإعداد",
       setup_write: "كتابة الإعدادات",
       studio_access: "الوصول إلى Studio",
+      manage_sharing: "إدارة المشاركة",
     },
     group: {
       platform: 'منصة',

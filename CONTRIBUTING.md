@@ -20,8 +20,8 @@ Thank you for your interest in contributing to Object UI! This document provides
 
 ### Prerequisites
 
-- **Node.js** 18.0 or higher
-- **pnpm** (recommended package manager)
+- **Node.js** 22.11 or higher (the floor root `package.json` declares in `engines.node`)
+- **pnpm** 10 or higher (the required package manager — the workspace pins `pnpm@10.31.0` via `packageManager`)
 - **Git** for version control
 - Basic knowledge of React, TypeScript, and Tailwind CSS
 
@@ -375,7 +375,7 @@ Our repository includes several automated GitHub workflows that will run when yo
 - **Type Checking**: Validates TypeScript types
 - **Tests**: Runs unit and integration tests
 - **Build**: Ensures all packages build successfully
-- **Matrix Testing**: Tests on Node.js 18.x and 20.x
+- **Sharded Testing**: Tests run across 4 shards, all on Node.js 22.x — the only Node version any workflow declares
 - **Coverage Thresholds**: Enforces minimum test coverage (see below)
 
 ##### Test Coverage Requirements

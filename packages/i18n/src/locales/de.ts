@@ -23,6 +23,7 @@ const de = {
       setup_access: "Zugriff auf die Einrichtung",
       setup_write: "Einstellungen schreiben",
       studio_access: "Studio-Zugriff",
+      manage_sharing: "Freigaben verwalten",
     },
     group: {
       platform: 'Plattform',
