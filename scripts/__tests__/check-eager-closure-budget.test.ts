@@ -342,7 +342,7 @@ describe('per-chunk ceilings', () => {
 
     it('errors when the report carries no chunk names (a build from before v2)', () => {
       const base = budgetedReport();
-      const files = base.files.map(({ name, ...rest }) => rest);
+      const files = base.files.map(({ name: _name, ...rest }) => rest);
       expect(validateReport(report({ ...base, files })).join(' ')).toContain('no chunk `name`');
       const result = evaluatePerChunkBudgets({ report: report({ ...base, files }) });
       expect(result.status).toBe('error');
