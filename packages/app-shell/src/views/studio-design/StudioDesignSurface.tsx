@@ -2243,6 +2243,16 @@ export function DataPillar({
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
   // Records grid must not fire data SQL against it.
   const [hasBaseline, setHasBaseline] = React.useState(true);
+  /**
+   * The field names that EXIST on the server for the current object — i.e. the
+   * ones a data query may name in `select`.
+   *
+   * Measured, not assumed (cloud#1652): saving a field as a DRAFT returns 200
+   * and `state=draft`, and the very next `select` naming it still answers
+   * `400 INVALID_FIELD`. Materialisation happens at PUBLISH, so the draft body
+   * is the wrong source for a projection even after a successful save.
+   */
+  const [publishedFieldNames, setPublishedFieldNames] = React.useState<Set<string>>(new Set());
   // The package's object-name namespace (framework#2694). New objects are
   // auto-prefixed with `<namespace>_` so an author can never draft a prefix-less
   // object that publish would later reject (code NAMESPACE_PREFIX).
@@ -2333,6 +2343,10 @@ export function DataPillar({
         setObjDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
         setHasDraft(!!draftBody);
         setHasBaseline(!!(lay.effective ?? lay.code));
+        // The projection baseline: the object as the SERVER has it. `objDraft`
+        // below merges the draft on top, which is right for the editor and
+        // wrong for a `select`.
+        setPublishedFieldNames(new Set(readFields(baseline.fields).entries.map((e) => e.name)));
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -2378,8 +2392,20 @@ export function DataPillar({
     () =>
       readFields(objDraft.fields)
         .entries.map((e) => e.name)
-        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions'),
-    [objDraft.fields],
+        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions')
+        // cloud#1652 — a column the server does not have yet must not reach the
+        // `select`. "+ add field" appends `field_<N>` to the DRAFT, this array
+        // is a fetch input, and the data API refuses an unknown projection key
+        // by design (dropping it would silently answer a NARROWER projection
+        // with a WIDER one). The result was that adding a field replaced the
+        // whole grid with "该视图的查询被拒绝" — on the most ordinary edit there is.
+        //
+        // Filtering here rather than at the fetch keeps ONE source of truth for
+        // what the grid asks for. The new field is still selected in the
+        // inspector, which is where it gets configured; it joins the grid once
+        // it is published and therefore queryable.
+        .filter((n) => publishedFieldNames.has(n)),
+    [objDraft.fields, publishedFieldNames],
   );
 
   /**
