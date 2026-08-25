@@ -24,14 +24,45 @@ const HUMAN_WORDS: Record<string, string> = {
 };
 
 /**
+ * A translator for tool titles. Takes the i18n key and the English fallback
+ * this module would otherwise have produced, and returns whatever the active
+ * locale has — or the fallback when that locale carries no entry.
+ *
+ * Shaped to accept `useSafeTranslate()` directly, so a caller passes the hook's
+ * result and nothing else changes.
+ */
+export type ToolTitleTranslator = (key: string, fallback: string) => string;
+
+/** The i18n key a tool title is looked up under. */
+export function toolTitleKey(name: string): string {
+  return `chatbot.tool.${String(name).trim()}`;
+}
+
+/**
  * Convert a snake_case / kebab-case tool name into a human-readable title.
  *
+ * With no translator this is what it always was: an ENGLISH title-caser. That
+ * is why a fully Chinese conversation still read
+ * `Describe object 已完成 / Visualize data 已完成` (cloud#1658) — every other
+ * string on the card was localized and the tool name could not be, because the
+ * name never passed through i18n at all. The step the user most needs to read
+ * ("what is it doing right now?") was the one left in a foreign language.
+ *
+ * Pass `translate` (e.g. `useSafeTranslate()`) to look the title up as
+ * `chatbot.tool.<tool_name>`; a locale with no entry for that tool falls back
+ * to the same English title as before, so packs can be filled in gradually and
+ * an unknown//custom tool is never worse off than today.
+ *
  * @example
- *   humanizeToolName('list_objects')        // → 'List objects'
- *   humanizeToolName('query_records')       // → 'Query records'
- *   humanizeToolName('describe-api-tool')   // → 'Describe API tool'
+ *   humanizeToolName('list_objects')                 // → 'List objects'
+ *   humanizeToolName('query_records')                // → 'Query records'
+ *   humanizeToolName('describe-api-tool')            // → 'Describe API tool'
+ *   humanizeToolName('describe_object', tt)          // → '查看对象结构' (zh)
  */
-export function humanizeToolName(name: string | undefined | null): string {
+export function humanizeToolName(
+  name: string | undefined | null,
+  translate?: ToolTitleTranslator,
+): string {
   if (!name) return '';
   const trimmed = String(name).trim();
   if (!trimmed) return '';
@@ -41,7 +72,7 @@ export function humanizeToolName(name: string | undefined | null): string {
     .split(/\s+/)
     .filter(Boolean);
   if (words.length === 0) return trimmed;
-  return words
+  const english = words
     .map((word, idx) => {
       const lower = word.toLowerCase();
       if (HUMAN_WORDS[lower]) return HUMAN_WORDS[lower];
@@ -51,6 +82,10 @@ export function humanizeToolName(name: string | undefined | null): string {
       return lower;
     })
     .join(' ');
+  // The English title is the FALLBACK, not a second choice computed only on
+  // miss: building it either way keeps this function total and side-effect
+  // free, and costs one string join.
+  return translate ? translate(toolTitleKey(trimmed), english) : english;
 }
 
 /**
