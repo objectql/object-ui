@@ -35,6 +35,7 @@ one has its own section below.
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
 | `pre-install-import-graph.yml` | Pre-Install Import Graph Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a gate a workflow runs *before* `pnpm install` reaches a package anywhere in its import graph |
 | `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
+| `shell-escape-residue.yml` | Shell Escape Residue Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a fenced block in `AGENTS.md`, `CLAUDE.md`, `skills/**` or `content/docs/**` carries the enumerated machine-produced shell escape, or a scan root fails to resolve |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -831,6 +832,62 @@ that the suite goes red. Run it locally with `pnpm check:vi-mock-specifiers`, or
 `node scripts/check-vi-mock-specifiers.mjs --list` to see every call site the walk found. It needs no
 install and no build.
 
+## Shell Escape Residue (`shell-escape-residue.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. The scan surface is markdown that any shape of pull request can touch, and a
+markdown-only change is exactly the shape `ci.yml` and `lint.yml` skip their expensive steps on. It
+appears in the checks list as **Shell Escape Residue Scan**.
+
+Runs `scripts/check-shell-escape-residue.mjs`. It walks `AGENTS.md`, `CLAUDE.md`, every `.md`/`.mdx`
+under `skills/` and every one under `content/docs/`, and fails when a **fenced code block** contains
+one of the enumerated machine-produced shell-quote escape runs.
+
+**Why it needed a gate.** In [#5150](https://github.com/objectstack-ai/objectui/issues/5150) the
+`git commit -F -` example in `AGENTS.md` §9 shipped with its heredoc terminator wrapped in the
+single-quote-inside-single-quote shell escape. Copied verbatim, that example does not fail with a
+message — it **hangs**, on a terminator that never matches, and a reader does not attribute a hung
+terminal to the document. [#5151](https://github.com/objectstack-ai/objectui/issues/5151) then ran the
+full derived gate union against the replanted bytes: `check-control-bytes`, `check-doc-links`,
+`check-changeset-presence` and `check-changeset-no-major` **all exited 0**. None of them was
+negligent — the residue is printable ASCII inside a code block, and no scan surface in this repository
+reached it. The amplifier is that `AGENTS.md`, `CLAUDE.md` and `skills/**` are re-read **once per
+session** by every agent seat, so a bad example is not paid once; it is paid by every reader.
+
+**⛔ What this gate does not do.** It checks an **enumerated literal** — one entry today, the sequence
+#5150 leaked. It does **not** make fenced shell examples executable-by-construction, and nothing in
+this repository does: a ```bash block may be syntactically invalid, may never terminate, or may name
+a flag that does not exist, and this gate is green on all of it. Running `bash -n` over every block is
+#5151's **unbuilt** "direction 1"; it was ruled out of that card rather than rejected on the merits,
+and it carries a dependency worth recording — it is only as good as its **extraction convention**. In
+#5150's own example the block sat inside a numbered list, so both lines carried a two-space indent,
+and a quoted heredoc terminator must reach **column 0**. Rendered markdown strips the container indent
+and the block looks fine; agents read these files by `cat`, not by rendering them, so a verbatim copy
+including the indent hangs exactly as the original defect did. The boundary is asserted as a *fact* in
+`scripts/__tests__/check-shell-escape-residue.test.ts` — broken shell is fed to the gate and a pass is
+required — rather than pinned as a sentence, so the claim cannot rot into a false one.
+
+**It is green at rest, so its census is part of the verdict.** There are zero occurrences in the tree
+and there should stay zero, which means the run's output alone cannot distinguish a working gate from
+one that matches nothing. The verdict line therefore prints the **per-root population** — files and
+fenced blocks for each of the four roots — rather than a bare `OK`, and the scan **fails when that
+population collapses**: a root that does not resolve, a root that walks to fewer documents than its
+floor, or a total fence count under the floor is a broken walk, not a clean tree. A scan root that has
+moved or been mistyped is reported **by name**, because a mistyped root and a clean root produce
+identical output otherwise. The evidence that the gate works is the ablation in its test suite, which
+replants #5150's exact line in each root on a fixture tree.
+
+**Scope:** fenced blocks only. An occurrence in prose or an inline code span is **counted in the
+census and not judged**, because documentation about this defect class has to be able to name the
+literal. That is a known narrowing, and the census figure is what keeps it visible.
+
+**If it fails:** it names the file, line and column, the fence language and the line the fence opened
+on. Note that `AGENTS.md`, `CLAUDE.md` and `skills/**` are **governed surface** — a finding in one of
+those is reported for a human to fix in its own change, not folded into an unrelated pull request. A
+finding under `content/docs/**` is an ordinary docs fix. Run it locally with
+`pnpm check:shell-escape-residue`, or `node scripts/check-shell-escape-residue.mjs --list` to see the
+per-root census. It needs no install and no build.
+
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Weekly cron (`17 4 * * 0` — Sundays, off the top of the hour, when the scheduled-run
@@ -935,6 +992,54 @@ repository stays the human merge of the version PR. The publish lane runs
 the Published Dist Gate above. A published package whose `dist/` carries tooling material stops
 the publish before a single tarball reaches npm, which is where that defect actually costs
 anything ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+#### The release PR runs no CI, so the refresh lane validates the tree itself
+
+The version PR gets **no checks of its own, and cannot be given any**. Measured 2026-08-25:
+`ci.yml` has **849** runs on `changeset-release/main` and every recent one is `action_required`
+with `created_at == run_started_at == updated_at` — created and immediately parked, nothing
+executed. GitHub does not start workflow runs from events raised by `GITHUB_TOKEN`, and the
+refresh force-pushes that branch, so there is no stable head to re-run against either. On the
+17.6.0 release PR the check-runs endpoint returned `total_count: 1`: one job, started **7 seconds
+after the merge**. The release commit is therefore the only commit that reaches `main` without
+passing the merge queue ([#5397](https://github.com/objectstack-ai/objectui/issues/5397)).
+
+So the refresh lane renders `pnpm changeset:version` into the runner's working tree, validates it,
+restores the tree, and only then invokes the action — which does its own versioning and owns the
+commit and the push.
+
+**What it validates, and why that is not `pnpm test`.** The version step cannot move a source
+byte. Measured against the real tree (328 pending changesets, 17.6.0 → 17.7.0) it touches 411
+paths: 330 `.changeset/*.md` deleted, 40 `package.json` (the `"version"` key and nothing else), 40
+generated `CHANGELOG.md`, and `QUICK_REFERENCE.md`. The source in the post-version tree is
+byte-identical to the `main` commit `ci.yml`'s push lane just tested under coverage across four
+shards, so a suite run here would re-test tested bytes at ~40 minutes a go, four times a day —
+~2.7 h of daily runner time for a PR nobody reads until release day, which is the cost
+[objectstack#10850](https://github.com/objectstack-ai/objectstack/issues/10850) was closed to
+remove. The validation is scoped to the surfaces the diff can move instead:
+
+| Command | Covers | Measured |
+|---|---|---|
+| `pnpm quick-reference:check` | `QUICK_REFERENCE.md` | ~1 s |
+| `pnpm check:control-bytes` | the 40 generated `CHANGELOG.md` | ~4 s |
+| `pnpm test scripts/__tests__` | 73 files / 1996 tests — every test that reads a manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` | ~50 s |
+
+`check:spec-floors` and `check:published-dist` are deliberately **not** here: they read dependency
+ranges and built `dist/`, neither of which the version step moves, and `pnpm changeset:publish`
+runs both first on the publish lane anyway.
+
+There is also **no "only when the PR content changed" condition**, for a measured reason: across
+the seven consecutive 6-hourly windows from 2026-08-23T06:08Z to 2026-08-25T00:10Z, six carried
+new changeset files (median 18). Such a predicate would skip about one refresh in seven while
+adding a local prediction of another project's state that can be wrong silently — the shape
+[#6081](https://github.com/objectstack-ai/objectui/issues/6081) just deleted from this file.
+
+**Failure semantics.** A red validation fails the job and the refresh never runs, so the standing
+PR keeps its last validated content rather than being force-pushed to a broken one. Nothing here
+can touch the publish lane: all three steps are scoped to `schedule` / `workflow_dispatch`. The
+restore step is load-bearing — with `.changeset/` left consumed the action would find nothing
+pending, take its no-op branch and return, and the PR would fossilise with nothing failing
+anywhere — so the restoration is asserted, not assumed.
 
 Both lanes configure a pnpm-lock.yaml merge driver to prevent lock file conflicts.
 

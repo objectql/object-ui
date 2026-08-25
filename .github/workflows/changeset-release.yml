@@ -92,6 +92,17 @@ name: Changeset Release
 #                                          someone can get wrong.
 #   dispatch without the input          -> NOTHING, loudly. See the input's note.
 #
+# THE REFRESH LANE VALIDATES WHAT IT IS ABOUT TO RENDER (objectui#5397)
+# ---------------------------------------------------------------------
+# The release PR runs no CI and cannot be made to — 849 `ci.yml` runs on
+# `changeset-release/main`, every recent one `action_required`, created and
+# parked with nothing executed — so the release commit is the only commit that
+# reaches `main` without passing the merge queue. Before the refresh step
+# invokes the action, this job therefore renders the post-version tree itself,
+# validates the surfaces the version step can move, and puts the tree back. The
+# ruling, the measurements that chose that scope over a 40-minute `pnpm test`,
+# and why the restore is load-bearing are at "POST-VERSION VALIDATION" below.
+#
 # WHY THE PUBLISH LANE IS KEYED ON npm AND NOT ON `.changeset/`
 # -------------------------------------------------------------
 # It used to be keyed on "does this commit carry pending changesets?", and that
@@ -843,6 +854,196 @@ jobs:
 
           echo "::error::${ANCHOR_PKG}@${EXPECTED} is STILL not on npm after a publish run that reported success. The repository declares a version the registry has never seen — this is objectui#5442's silent failure, made loud. Check the 'Publish to npm' step's log for which branch changesets/action took."
           exit 1
+
+      # ══════════════════════════════════════════════════════════════════════
+      # POST-VERSION VALIDATION — THE ONLY GATE THE RELEASE COMMIT EVER PASSES
+      # (objectui#5397)
+      # ══════════════════════════════════════════════════════════════════════
+      # The release PR runs NO CI, and cannot be made to. Re-measured
+      # 2026-08-25: `ci.yml` has 849 runs on `changeset-release/main` and every
+      # recent one is `action_required` with
+      # `created_at == run_started_at == updated_at` — created and immediately
+      # parked, nothing executed. GitHub does not start workflow runs from
+      # events raised by `GITHUB_TOKEN`, and the refresh step below force-pushes
+      # that branch, so there is no stable head for a human to re-run against
+      # either. On the 17.6.0 release PR the check-runs endpoint returned
+      # `total_count: 1` — one job, started 7 SECONDS AFTER the merge. The
+      # largest machine-generated diff of the week is therefore the only commit
+      # that reaches `main` without passing the merge queue.
+      #
+      # Maintainer ruling 2026-08-22 (「接受所有」): validate the POST-VERSION
+      # tree HERE, before the action opens or updates the PR. Not by giving the
+      # PR a PAT / GitHub App token (widens the supply-chain trust surface and
+      # adds rotation obligations), and not by guaranteeing outputs one artifact
+      # at a time (objectui#5396 saved exactly one doc row and did not
+      # generalise). The ruling attached a condition — PRICE IT FIRST — and the
+      # price is what chose the shape below.
+      #
+      # WHY THIS IS NOT `pnpm test` (measured 2026-08-25, not argued)
+      # ------------------------------------------------------------
+      # The naive reading of the ruling is "run the suite on the post-version
+      # tree". It is the wrong shape, because THE VERSION STEP CANNOT MOVE A
+      # SOURCE BYTE. Rendered against this repository's real tree (328 pending
+      # changesets, 17.6.0 -> 17.7.0) `pnpm changeset:version` touches 411 paths
+      # and every one of them is one of four kinds:
+      #
+      #     330  .changeset/*.md      deleted (consumed by the version)
+      #      40  */package.json       the `"version"` key and NOTHING else —
+      #                               80 changed lines, all of them `"version":`
+      #      40  */CHANGELOG.md       generated from the changeset bodies
+      #       1  QUICK_REFERENCE.md   rewritten by `changeset:version`'s
+      #                               `sync-quick-reference-release.mjs`
+      #
+      # Zero `.ts`, zero `.tsx`, zero config. The source in the post-version
+      # tree is byte-identical to the `main` commit this run checked out, and
+      # `ci.yml`'s push lane already ran the whole suite over that commit under
+      # coverage across four shards. A `pnpm test` here would re-test bytes that
+      # were tested ~13 min ago and would report nothing new — at 40 minutes a
+      # go (`ci.yml` measured its own unsharded suite at 39 min 51 s of tests /
+      # 40 min 19 s of job), four times a day on the cron below, i.e. ~2.7 h of
+      # runner time daily for a PR nobody reads until release day. That is the
+      # cost objectstack#10850 was closed to REMOVE, walking back in.
+      #
+      # So the validation is scoped to what the diff can actually move, and the
+      # union — `ci.yml` on the source, these steps on the version outputs — is
+      # the whole post-version tree.
+      #
+      #     pnpm quick-reference:check   QUICK_REFERENCE.md          ~1 s
+      #     pnpm check:control-bytes     the 40 generated CHANGELOGs  ~4 s
+      #     pnpm test scripts/__tests__  73 files / 1996 tests       ~50 s
+      #
+      # The tooling suite is named as a DIRECTORY rather than as a list of test
+      # files, deliberately: every test in this repository that reads a
+      # manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` lives in it
+      # (measured — 7 of 7 matches), `doc-version-claims.test.ts` among them,
+      # and a list would go stale the first time someone adds an eighth.
+      # Measured green on a real rendered tree: 1 s + 4 s + 50 s.
+      #
+      # ⛔ WHAT IS DELIBERATELY NOT RUN, AND WHY IT IS NOT AN OMISSION.
+      # `check:spec-floors` and `check:published-dist` read dependency RANGES
+      # and built `dist/` output. The measurement above is what rules them out:
+      # no range moved (the only changed key is `"version"`) and no source moved,
+      # so on this tree they can only restate the verdict they gave on `main`.
+      # `check:published-dist` also costs a full build (8 m 39 s cold, measured),
+      # and `pnpm changeset:publish` runs both of them first on the publish lane
+      # anyway, where the tree they judge is the one being shipped.
+      #
+      # ⛔ WHY THERE IS NO "ONLY WHEN THE PR CONTENT CHANGED" CONDITION. That
+      # layer was the other half of the ruling's condition, and the measurement
+      # retired it: across the seven consecutive 6-hourly windows from
+      # 2026-08-23T06:08Z to 2026-08-25T00:10Z, SIX carried new changeset files
+      # (median 18 per window; 219, 46, 23, 18, 13, 9, and one zero). This
+      # repository lands ~18 merges a working day and most carry a changeset, so
+      # a content-change predicate would skip about one refresh in seven — it
+      # would buy ~14% of 70 seconds while adding exactly the thing
+      # objectui#6081 just deleted from this file: a local prediction of another
+      # project's state that is free to be wrong silently. The cost was solved
+      # by SCOPE, so frequency does not need solving.
+      #
+      # FAILURE SEMANTICS. A red validation fails the job and the refresh step
+      # below never runs, so the standing PR keeps its last VALIDATED content
+      # instead of being force-pushed to a broken one. If the post-version tree
+      # stays broken the PR goes stale — but loudly, on a red run every six
+      # hours, which is the opposite of this card's defect. Nothing here can
+      # block the publish lane: every step is scoped to `schedule` /
+      # `workflow_dispatch`, and `push` skips all three.
+      #
+      # ⚠️ THE RESTORE STEP IS LOAD-BEARING — DO NOT DROP IT. These steps render
+      # the version into the runner's working tree, and `changesets/action`
+      # picks its branch from that tree: with `.changeset/` already consumed it
+      # would find `hasChangesets` false, and with no `publish:` input on the
+      # refresh step `hasPublishScript` is false too, so v1 takes
+      # `case !hasChangesets && !hasPublishScript` (`src/index.ts` line 68),
+      # logs "No changesets present or were removed by merging release PR", and
+      # RETURNS. The refresh becomes a permanent no-op and the PR fossilises
+      # with nothing failing anywhere — this file's own failure class, one lane
+      # over. So the tree is put back and the restoration is ASSERTED rather
+      # than assumed, in the same shape the clear step asserts its own work.
+      # The action then runs `pnpm changeset:version` itself, on the inputs
+      # these steps measured, and it — not this job — owns the commit and the
+      # push.
+      - name: Render the post-version tree
+        id: post_version
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # `/^README\.md$/i` is how `@changesets/read` spells its exclusion, so
+          # the comparison is case-folded rather than matching one spelling.
+          count_pending() {
+            local n=0 file
+            for file in .changeset/*.md .changeset/pre/*.md; do
+              if [ "$(printf '%s' "${file##*/}" | tr '[:upper:]' '[:lower:]')" = 'readme.md' ]; then
+                continue
+              fi
+              n=$((n + 1))
+            done
+            printf '%s' "$n"
+          }
+
+          pending_before=$(count_pending)
+          echo "pending_before=${pending_before}" >> "$GITHUB_OUTPUT"
+
+          pnpm changeset:version
+
+          changed=$(git status --porcelain | wc -l | tr -d ' ')
+          {
+            echo "- post-version tree rendered from \`${GITHUB_SHA}\`"
+            echo "- pending changesets consumed: \`${pending_before}\`"
+            echo "- paths the version step moved: \`${changed}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate the post-version tree
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          pnpm quick-reference:check
+          pnpm check:control-bytes
+          pnpm test scripts/__tests__
+
+      - name: Restore the pre-version tree
+        if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          PENDING_BEFORE: ${{ steps.post_version.outputs.pending_before }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          if [ -z "${PENDING_BEFORE}" ]; then
+            echo "The render step did not run, so there is nothing to restore."
+            exit 0
+          fi
+
+          git checkout -- .
+          # Narrow on purpose: the version step can only create files beside a
+          # package manifest, and a `git clean` in a job that also publishes
+          # should never be able to reach further than the thing it undoes.
+          git clean -fdq -- packages apps examples .changeset
+
+          count_pending() {
+            local n=0 file
+            for file in .changeset/*.md .changeset/pre/*.md; do
+              if [ "$(printf '%s' "${file##*/}" | tr '[:upper:]' '[:lower:]')" = 'readme.md' ]; then
+                continue
+              fi
+              n=$((n + 1))
+            done
+            printf '%s' "$n"
+          }
+
+          pending_after=$(count_pending)
+          # `--untracked-files=no`: the build that ran earlier in this job
+          # leaves its own untracked output around, and none of it is part of
+          # what the version step moved or of what the action reads. Tracked
+          # state plus the pending count is the whole restoration.
+          dirty=$(git status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+
+          if [ "${pending_after}" != "${PENDING_BEFORE}" ] || [ "${dirty}" -ne 0 ]; then
+            echo "::error::The pre-version tree was not restored (${PENDING_BEFORE} changesets before, ${pending_after} after; ${dirty} tracked path(s) still modified). changesets/action would read this tree, find nothing pending and return without refreshing the PR — a silent permanent no-op (objectui#5397)."
+            exit 1
+          fi
+          echo "Pre-version tree restored: ${pending_after} pending changeset(s), working tree clean."
 
       # REFRESH. No `publish:` input, so `runPublish` is unreachable; no npm
       # credentials in `env:`, so it is unreachable a second time over. Both are

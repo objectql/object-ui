@@ -59,6 +59,7 @@
     "check:entry-guard": "node scripts/check-entry-guard.mjs",
     "check:pre-install-import-graph": "node scripts/check-pre-install-import-graph.mjs",
     "check:vi-mock-specifiers": "node scripts/check-vi-mock-specifiers.mjs",
+    "check:shell-escape-residue": "node scripts/check-shell-escape-residue.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",
