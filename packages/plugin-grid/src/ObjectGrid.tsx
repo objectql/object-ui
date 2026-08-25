@@ -23,7 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema, ListViewExportFormat } from '@object-ui/types';
-import { isSystemManagedField } from '@object-ui/types';
+import { isSystemManagedField, normalizeTableColumnType } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -2245,7 +2245,35 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       next.editable = false;
     }
     return next;
-  });
+  })
+    // ⭐ THE EMIT SEAM (objectui#5853, maintainer ruling 2026-08-25, Option B).
+    //
+    // Every column this component hands to `data-table` passes through here, so
+    // it is the one place that can guarantee `TableColumn.type` only ever holds
+    // a value that type DECLARES. Five paths above write `type`: the four
+    // column literals inside `generateColumns()` and the `fieldDef.type`
+    // enrichment in the map above — all of them forward an OBJECT SCHEMA's
+    // field type verbatim, whose vocabulary is `@objectstack/spec`'s `FieldType`
+    // (49 values, only 7 of them members of the declared union). That verbatim
+    // forwarding is why the renderer had to read this key through an `as any`.
+    //
+    // ⛔ Deliberately a SEPARATE pass, not folded into the map above: that map
+    // early-returns for `_actions` and for any column whose `accessorKey` has no
+    // `fieldDef`, and a heuristic `inferColumnType()` type (`select`, `user`)
+    // rides out on exactly those columns. Normalizing there would miss them.
+    //
+    // An out-of-union type drops the `type` KEY — never the column. See
+    // `normalizeTableColumnType` for why absence beats folding onto `'text'`.
+    .map((col: any) => {
+      if (!col || col.type == null) return col;
+      const normalized = normalizeTableColumnType(col.type);
+      if (normalized === col.type) return col;
+      if (normalized === undefined) {
+        const { type: _undeclared, ...rest } = col;
+        return rest;
+      }
+      return { ...col, type: normalized };
+    });
 
   // Apply persisted column order and widths
   let persistedColumns = [...columns];
