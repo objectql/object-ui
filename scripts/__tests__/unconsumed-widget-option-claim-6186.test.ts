@@ -70,10 +70,14 @@ import { blank, maskComments, scanSource } from '../js-comment-mask.mjs';
  * inside a string is prose there. But a computed access spells its key AS a
  * string literal (`x['thresholds']`), so blanking literals erases the very
  * thing being looked for — that leg reads source with COMMENTS ONLY blanked.
- * Its residual blind spot, stated: a whole computed access quoted inside a
- * string literal would be counted. That is the red-on-a-true-claim direction,
- * it is rare, and it is why the fixture table below spells its self-reference
- * case as a member access.
+ * Keeping literals visible costs one thing back, and it is paid rather than
+ * declared: an access merely QUOTED inside a string (`"options['thresholds']"`)
+ * looks identical to a real one. The literal flags settle it — in real code the
+ * `[` is code and the key is the literal; in a quoted access the `[` is literal
+ * too — so that leg requires the bracket itself to be code. This is not
+ * theoretical: the gate reddened on its OWN fixture table and diagnostic
+ * message the moment it was committed, which is the moment a tracked-files
+ * population first contained it.
  *
  * Masking is what lets this scan read its own negative-control table, the
  * census header and this very docblock — all of which spell the key — without
@@ -122,7 +126,9 @@ function codeOnly(source: string): string {
  */
 function thresholdsKeySites(source: string): string[] {
   const code = codeOnly(source);
-  const lineOf = (index: number) => code.slice(0, index).split('\n').length;
+  // Every mask BLANKS rather than deletes, so offsets are shared across all
+  // three views and one line lookup serves them all.
+  const lineOf = (index: number) => source.slice(0, index).split('\n').length;
   const sites: string[] = [];
 
   // Member access, `.thresholds` and `?.thresholds` alike. The trailing `\b`
@@ -137,10 +143,21 @@ function thresholdsKeySites(source: string): string[] {
   // could never fire (it silently did not, until the positive control caught
   // it). A variable key (`x[k]`) is invisible to any text scan and is declared
   // as such in this file's header.
+  //
+  // ⭐ The bracket must ITSELF be code. Keeping literals visible is what lets
+  // this leg see `x['thresholds']`, but it also lets it see an access merely
+  // QUOTED inside a string — which this very file does, in its fixture table and
+  // in the diagnostic message three lines below. `scanSource`'s literal flags
+  // answer the difference exactly: in real code the `[` is code and the KEY is
+  // the literal; in a quoted access the `[` is literal too. Measured, not
+  // assumed — the gate went red on its own source the moment it became a
+  // tracked file, which is also when it first entered its own population.
   const commentMasked = maskComments(source);
-  const lineOfRaw = (index: number) => commentMasked.slice(0, index).split('\n').length;
+  const { literal } = scanSource(source);
   for (const m of commentMasked.matchAll(/\[\s*(['"])thresholds\1\s*\]/g)) {
-    sites.push(`${lineOfRaw(m.index ?? 0)}: computed access \`['thresholds']\``);
+    const at = m.index ?? 0;
+    if (literal[at]) continue;
+    sites.push(`${lineOf(at)}: computed access \`['thresholds']\``);
   }
 
   // Destructuring. The trailing `=` is what separates a destructuring PATTERN
@@ -195,6 +212,8 @@ describe('objectui#6186 claim 2 — the matcher discriminates before it is trust
       'export function apply(thresholds: number[]) { return thresholds.length; }',
       '// widget.options.thresholds is not read by any renderer', // ⭐ self-reference: this repo's own prose
       "const fixture = 'const t = widget.options.thresholds;';", // ⭐ self-reference: a fixture table
+      'const msg = `computed access [\'thresholds\']`;', //      ⭐ a template QUOTING an access
+      "const fixture2 = \"const t = options['thresholds'];\";", // ⭐ this file's own fixture shape
     ]) {
       expect(thresholdsKeySites(source), source).toEqual([]);
     }
