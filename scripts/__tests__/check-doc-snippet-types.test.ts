@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 // Plain-JS CI helper; its types are inferred from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
 import {
+  EXIT_CODES,
   FRAGMENT_MARKER_EXAMPLES,
   UNDECLARED_CONTROL_PACKAGE,
   UNGATED_DOCS,
   analyze,
+  blockingPreconditions,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
   findInstalledCopy,
@@ -45,6 +47,11 @@ import {
  *     therefore pins both directions — a declared dependency IS mapped, and an
  *     installed-but-undeclared one is NOT — plus the two preconditions the
  *     UNDECLARED control needs in order to mean anything.
+ *  7. **The exit path tells "I could not run" from "I ran and found errors"**
+ *     (objectui#5465). A run that resolved against nothing produced no verdict
+ *     about any document; leaving through the same code as a real snippet
+ *     failure makes neither actionable, and leaving through 0 would be zero
+ *     information wearing a green tick.
  *
  * Fixtures are throwaway trees, never `content/docs`: a committed fixture page
  * would have to contain a deliberately broken snippet, and this very gate scans
@@ -363,6 +370,58 @@ describe('third-party resolution reaches exactly as far as the imported packages
   });
 });
 
+describe('the exit path — "I could not run" is not "I ran and found errors" (objectui#5465)', () => {
+  /** A workspace package that DECLARES built types, with nothing built. */
+  const unbuiltTree = (types: string): string =>
+    tempTree({
+      'content/docs/a.mdx': [`${FENCE}ts`, "import '@fixture/pkg-a';", FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types }),
+    });
+
+  it('gives the two failure modes different codes, and neither of them is 0', () => {
+    expect(EXIT_CODES.verified).toBe(0);
+    expect(EXIT_CODES.documentsFailed).not.toBe(0);
+    expect(
+      EXIT_CODES.couldNotRun,
+      'exit 0 with nothing run reads as coverage — the failure shape this gate family exists to prevent',
+    ).not.toBe(0);
+    expect(
+      EXIT_CODES.couldNotRun,
+      'an unbuilt tree and a broken snippet are different facts; a caller must be able to tell them apart',
+    ).not.toBe(EXIT_CODES.documentsFailed);
+  });
+
+  it('reads an unbuilt package as a precondition, never as a documentation defect', () => {
+    const findings = analyze({ root: unbuiltTree('./dist/index.d.ts'), ungated: {} })
+      .findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('unbuilt-package');
+    expect(blockingPreconditions(findings).length).toBeGreaterThan(0);
+  });
+
+  it('reads a source-typed package the same way — it too judges nothing', () => {
+    const findings = analyze({ root: unbuiltTree('./src/index.ts'), ungated: {} })
+      .findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('source-typed-package');
+    expect(blockingPreconditions(findings).length).toBeGreaterThan(0);
+  });
+
+  it('leaves ledger findings OUT of the preconditions — those ARE verdicts, and they exit 1', () => {
+    const findings: Finding[] = [
+      { reason: 'stale-ungated-entry', site: 'content/docs/gone.mdx' },
+      { reason: 'unexplained-fragment', site: 'content/docs/a.mdx:3' },
+      { reason: 'stale-fragment-marker', site: 'content/docs/a.mdx:7' },
+    ];
+    expect(blockingPreconditions(findings)).toEqual([]);
+  });
+
+  it('states all three codes in its own header, so the contract cannot drift out of the source', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    const header = source.slice(0, source.indexOf('## What this gate answers'));
+    expect(header).toContain('1 = THE GATE RAN AND FOUND ERRORS');
+    expect(header).toContain('2 = THE GATE COULD NOT RUN');
+  });
+});
+
 describe('wiring — a script nothing runs is not a gate', () => {
   const workflowDir = path.join(repoRoot, '.github/workflows');
   const workflowPath = path.join(workflowDir, 'doc-snippet-types.yml');
@@ -405,6 +464,18 @@ describe('wiring — a script nothing runs is not a gate', () => {
     expect(yaml, 'the 2026-08-16 ruling on objectui#4846 rejected a per-PR full-repo build').not.toMatch(
       /run: pnpm( exec turbo run)? build\s*$/m,
     );
+  });
+
+  it('builds BEFORE it invokes the gate, so a precondition exit is not a state CI can reach', () => {
+    const yaml = yamlOf('doc-snippet-types.yml');
+    const build = yaml.indexOf('turbo run build');
+    const invoke = yaml.search(new RegExp(`run: node ${SCRIPT.replace(/[.\\/]/g, '\\$&')}\\s*$`, 'm'));
+    expect(build, 'the workflow must build the packages the covered snippets import').toBeGreaterThan(-1);
+    expect(invoke, 'the workflow must invoke the gate itself').toBeGreaterThan(-1);
+    expect(
+      build,
+      'invoked before its own build, the gate would red a healthy pull request on a precondition',
+    ).toBeLessThan(invoke);
   });
 
   it('is reachable by name from the workspace root', () => {

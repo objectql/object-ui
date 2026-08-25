@@ -8,7 +8,36 @@
  *       node scripts/check-doc-snippet-types.mjs --build-filter   (turbo filter args)
  * Exit: 0 = every covered snippet parses and type-checks, the harness proved
  *       itself on its own controls, and the coverage ledger is exact.
- *       1 = a snippet failed, a control failed, or the ledger is stale.
+ *       1 = THE GATE RAN AND FOUND ERRORS. A snippet failed to parse or to
+ *       type-check, or the coverage ledger is stale. Everything printed above
+ *       the summary is a verdict about a document.
+ *       2 = THE GATE COULD NOT RUN, so nothing printed above is a verdict about
+ *       any document: the packages the covered snippets import are not built (or
+ *       are typed from source), or one of the harness's own controls failed.
+ *       Fix the tree and re-run. Never read this as a documentation defect, and
+ *       never as a pass.
+ *
+ * ## Why "could not run" is its own exit code (objectui#5465)
+ *
+ * Both 1 and 2 are non-zero, so no caller's pass/fail changes: this gate is
+ * invoked from exactly one workflow step (`doc-snippet-types.yml`), which fails
+ * on any non-zero, and which builds this gate's own `--build-filter` closure
+ * BEFORE invoking it — an unbuilt tree is not a state CI can reach. The
+ * distinction exists for the reader. "I could not run" and "I ran and found
+ * errors" are different facts, and while they shared one exit code they were
+ * indistinguishable at the exit-code level: three separate agents in one evening
+ * (objectui#6171, #6186, #5259) each had to notice the printed message and
+ * rebuild before their exit code meant anything, and #6171 wrote it down as
+ * "an unbuilt-tree exit is indistinguishable from a real failure at the
+ * exit-code level". `scripts/check-eager-closure-budget.mjs` had already drawn
+ * this same line for this same reason — 1 for "over budget" (a verdict about the
+ * bundle), 2 for "the gauge produced nothing" (a verdict about the gauge) — so
+ * this is the repository's convention, not a new one.
+ *
+ * ⛔ What is NOT an option here: printing the reason and exiting 0. Zero with
+ * nothing run reads as coverage, which is the exact failure shape this whole
+ * gate family exists to prevent (objectui#4846: an unexaminable package must not
+ * read as a clean one).
  *
  * ## What this gate answers, and the three things it does NOT (read this first)
  *
@@ -1027,6 +1056,34 @@ function formatDiagnostic(diagnostic, block) {
   return `${where}  TS${diagnostic.code}: ${message}`;
 }
 
+/**
+ * The gate's exit codes, named so that callers and tests can talk about them.
+ * `couldNotRun` is deliberately distinct from `documentsFailed`: see the "Why
+ * 'could not run' is its own exit code" section in this file's header.
+ */
+export const EXIT_CODES = {
+  /** Every covered snippet compiled, the controls held, the ledger is exact. */
+  verified: 0,
+  /** The gate RAN. A snippet or the ledger is at fault — a verdict was read. */
+  documentsFailed: 1,
+  /** The gate COULD NOT RUN. Nothing it printed is a verdict about a document. */
+  couldNotRun: 2,
+};
+
+/**
+ * The findings that stop the snippet program from being built at all, so no
+ * verdict about any document can be read from the run. Kept separate from the
+ * findings that ARE verdicts (a stale ledger entry, an unexplained fragment)
+ * because the two leave through different exit codes.
+ *
+ * @param {{ reason: string }[]} findings
+ */
+export function blockingPreconditions(findings) {
+  return findings.filter(
+    (f) => f.reason === 'unbuilt-package' || f.reason === 'source-typed-package',
+  );
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const state = analyze({});
@@ -1034,20 +1091,33 @@ function main() {
   if (argv.includes('--build-filter')) {
     // Turbo filter arguments for exactly the packages the covered snippets
     // import. Coverage grows -> the build grows, and nothing else does.
+    // ⛔ This query answers from an UNBUILT tree by design and must keep exiting
+    // 0 there: it is what the workflow runs to learn what to build, one step
+    // BEFORE the build. Making it share the precondition exit would deadlock the
+    // gate against its own build step.
     process.stdout.write([...state.neededPackages].sort().map((n) => `--filter=${n}`).join(' '));
     process.stdout.write('\n');
     return 0;
   }
 
-  const blocking = state.findings.filter(
-    (f) => f.reason === 'unbuilt-package' || f.reason === 'source-typed-package',
-  );
+  const blocking = blockingPreconditions(state.findings);
   if (blocking.length > 0) {
     for (const f of state.findings) console.error(`  ${f.site}  [${f.reason}]  ${f.detail}`);
     console.error(
-      '\nThe snippet program was NOT run: the packages it resolves against are not built, or are typed from source.',
+      '\nPRECONDITION NOT MET (exit ' +
+        EXIT_CODES.couldNotRun +
+        ') — The snippet program was NOT run: the packages it resolves against are not built, or are typed from source.',
     );
-    return 1;
+    console.error(
+      `This is "I could not run", NOT "I ran and found errors" (exit ${EXIT_CODES.documentsFailed}). ` +
+        'No line above is a verdict about any document, and this run says nothing about whether the ' +
+        'documentation compiles. Build what the gate needs, then re-run:',
+    );
+    console.error(
+      '  pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter) --concurrency=2\n' +
+        '  pnpm check:doc-snippets',
+    );
+    return EXIT_CODES.couldNotRun;
   }
 
   const run = compileSnippets({
@@ -1154,13 +1224,19 @@ function main() {
   if (controlFailures.length > 0) {
     console.error('\nHARNESS CONTROL FAILED — no verdict about the documents can be read from this run:');
     for (const c of controlFailures) console.error(`  - ${c}`);
+    console.error(
+      `\nThe gate COULD NOT RUN (exit ${EXIT_CODES.couldNotRun}). The sentence above is this run's own ` +
+        'wording, and the exit code now agrees with it: a broken harness is a verdict about the ' +
+        'harness, never about the documents.',
+    );
+    return EXIT_CODES.couldNotRun;
   }
   if (failed) {
     console.error('\nDocumentation snippets must compile against the built types. See the header of this script.');
-    return 1;
+    return EXIT_CODES.documentsFailed;
   }
   console.log('\nEvery covered documentation snippet compiles against the built types.');
-  return 0;
+  return EXIT_CODES.verified;
 }
 
 if (isEntrypoint(import.meta.url)) {
