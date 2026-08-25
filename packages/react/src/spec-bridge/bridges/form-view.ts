@@ -110,6 +110,58 @@ export interface FormFieldSpec {
   visibleWhen?: FormFieldInput['visibleWhen'];
   /** @deprecated ADR-0089 -> `visibleWhen`. */
   visibleOn?: FormFieldInput['visibleOn'];
+
+  // ── Keys restored by objectui#5898 ──────────────────────────────────────────
+  // Every one below was a spec key this declaration did not name, so `mapField`
+  // could not copy it and the authored value ended at this seam. Each has a
+  // destination on the runtime `FormField` that `normalizeSectionField`
+  // (@object-ui/plugin-form) already pins by name in
+  // `sectionFields.spec-parity.test.ts` — the SAME slot, so a bridged field and
+  // a directly-normalised one carry the value identically. Types are bound to
+  // the contract rather than restated, per this file's derivation policy.
+  /** Text length constraints. */
+  maxLength?: FormFieldInput['maxLength'];
+  minLength?: FormFieldInput['minLength'];
+  /** Numeric constraints. */
+  min?: FormFieldInput['min'];
+  max?: FormFieldInput['max'];
+  precision?: FormFieldInput['precision'];
+  scale?: FormFieldInput['scale'];
+  /** Multi-value flag — part of the (type, multiple) pair the widget id derives from. */
+  multiple?: FormFieldInput['multiple'];
+  /** Editable on create, locked once the record exists. */
+  immutable?: FormFieldInput['immutable'];
+  /** Relative field width (`'auto' | 'full'`) — preferred over the legacy `colSpan`. */
+  span?: FormFieldInput['span'];
+  /** Code-editor language, for `type: 'code'` fields. */
+  language?: FormFieldInput['language'];
+  /** Record-typed field key column config (ADR-0007). */
+  keyField?: FormFieldInput['keyField'];
+  /** Composite rendering mode: inline box or summary + popover (ADR-0007). */
+  disclosure?: FormFieldInput['disclosure'];
+  /**
+   * Sub-fields for `composite` / `repeater` / `record` types. Forwarded
+   * VERBATIM, in the spec vocabulary (`field`, not `name`): the runtime slot is
+   * the pass-through `base.fields = fd.fields` in `normalizeSectionField`, and
+   * its pinned row asserts the authored shape survives (`{ field: 'inner' }`).
+   * Recursing through `mapField` here would rewrite the sub-field identity key
+   * and hand the widget a shape its own gate says it must not receive.
+   */
+  fields?: FormFieldInput['fields'];
+
+  // `publicPicker` is NOT declared here, and that is the deliberate half of
+  // #2545's promise — an explained refusal, not a silent drop. It is a
+  // SERVER-side authorization opt-in, not a presentation delta: it gates
+  // objectstack's public-lookup route (`GET /forms/:slug/lookup/:field` answers
+  // `403 LOOKUP_NOT_PUBLIC` for a field whose form declaration lacks it), and
+  // the public-form resolve route strips undeclared lookup fields before the
+  // metadata ever reaches a renderer. This bridge builds the `object-form` node
+  // for an in-app authenticated form and has no destination for it — zero read
+  // points repo-wide. Carrying it onto the node would invent a client-side
+  // meaning for a capability only the server enforces. Same reasoned exemption
+  // the downstream chokepoint already records, on the same delegated ruling
+  // (objectui#4648 item 5, 2026-08-15); it becomes an implementation card if
+  // ObjectUI ever renders anonymous public forms.
 }
 
 /** One section of a form layout, as authored. */
@@ -125,6 +177,31 @@ export interface FormSectionSpec {
   /** Section-level conditional-visibility predicate (ADR-0089), bound to the contract. */
   visibleWhen?: FormSection['visibleWhen'];
   /**
+   * @deprecated ADR-0089 -> `visibleWhen`.
+   *
+   * Declared and FOLDED, not carried (objectui#5898). The contract accepts this
+   * spelling and normalises it away in `FormSectionSchema`'s own
+   * `.transform(normalizeVisibleWhen)`, so a section that has been through the
+   * parser never presents it — but this bridge is also the seam for the
+   * never-parsed input class it already reads `groups` and field `visibleOn`
+   * for, and on that input the section path read only `visibleWhen`. The
+   * deprecated spelling was therefore dropped on exactly the documents the
+   * fallback exists for. Folding here reproduces the contract's own
+   * normalisation rather than teaching the node a second key.
+   */
+  visibleOn?: FormSection['visibleOn'];
+  /**
+   * Which pane of a split form this section renders in (`type: 'split'` only —
+   * the contract rejects the key on any other form type at parse). Restored by
+   * objectui#5898: the node declares the same slot (`ObjectFormSection.pane`),
+   * `ObjectForm`'s split branch copies it, and `SplitForm`'s `paneOf` reads it.
+   * Dropped here, a spec-authored split form fell back to the legacy positional
+   * rule (first section primary, the rest secondary) — so reordering sections
+   * moved them across the divider, the exact failure `pane` was added to
+   * prevent.
+   */
+  pane?: FormSection['pane'];
+  /**
    * The authored field list. A bare string is the spec's shorthand for "this
    * object's own field, rendered with its defaults" — the same shorthand
    * `mapColumn` already honours on the list bridge.
@@ -137,6 +214,16 @@ export interface FormSectionSpec {
  * Every serializable spec key is either mapped onto the `object-form` node
  * or listed here with an explicit reason for being ignored — the bridge must
  * never silently drop spec configuration (#2545).
+ *
+ * ⚠️ That promise was FALSE for 18 keys until objectui#5898, and the way it
+ * stayed false is the part worth keeping: the conformance test that enforces it
+ * ran its completeness loop over `Object.keys(FIXTURE)`, so a key nobody
+ * remembered to put in the fixture was a key the loop never asked about. A
+ * hand-listed subset is legitimate here (its NON-declarations are a retirement
+ * ledger a blanket `Omit` would erase) — a hand-listed *check* of that subset is
+ * not. The loop now derives its key set from the contract's own shape at all
+ * three levels, so a spec key that is neither mapped nor explained fails the
+ * suite by construction rather than by recall.
  */
 export interface FormViewSpec {
   type?: string;
@@ -166,6 +253,23 @@ export interface FormViewSpec {
   groups?: FormSectionSpec[];
   /** Inline master-detail child collections. */
   subforms?: any[];
+  /**
+   * Structured action-button config (`submit` / `cancel` / `reset` visibility +
+   * label). Restored by objectui#5898: the node declares the same slot
+   * (`ObjectFormSchema.buttons`) and `ObjectForm` folds it down onto the flat
+   * `showSubmit` / `submitText` / … props at render. The spec key exists FOR
+   * this consumer — its own description names ObjectUI's ObjectForm as what
+   * consumes it (framework#1894 / #2998) — so an ignore-list entry would have
+   * been the wrong repair.
+   */
+  buttons?: FormView['buttons'];
+  /**
+   * Create-mode initial field values, keyed by field machine name. Restored by
+   * objectui#5898 for the same reason as `buttons`: `ObjectFormSchema.defaults`
+   * is the declared slot and `ObjectForm` folds it into `initialValues` at
+   * render.
+   */
+  defaults?: FormView['defaults'];
   // `defaultSort` and `aria` are NOT declared here on purpose — see the
   // retirement note above `bridgeFormView`'s trailing key copies (#3901/#3974).
   // Re-adding either to this mirror is the first half of re-adding a read that
@@ -206,6 +310,30 @@ function mapField(field: FormFieldSpec): Record<string, any> {
   if (field.hidden != null) mapped.hidden = field.hidden;
   if (field.colSpan != null) mapped.colSpan = field.colSpan;
   if (field.widget) mapped.widget = field.widget;
+  // objectui#5898 — the constraint / presentation / composite keys the
+  // declaration above had never named. Every one is a SAME-NAME copy, matching
+  // the destination `normalizeSectionField` gives it when it normalises an
+  // authored spec field directly (`base.maxLength = fd.maxLength`, …), so the
+  // two routes to a runtime `FormField` agree key for key. `!= null` rather
+  // than truthiness throughout: `min: 0`, `precision: 0`, `multiple: false` and
+  // `immutable: false` are all authored decisions, and a truthiness test would
+  // drop them exactly as the missing declaration did.
+  if (field.maxLength != null) mapped.maxLength = field.maxLength;
+  if (field.minLength != null) mapped.minLength = field.minLength;
+  if (field.min != null) mapped.min = field.min;
+  if (field.max != null) mapped.max = field.max;
+  if (field.precision != null) mapped.precision = field.precision;
+  if (field.scale != null) mapped.scale = field.scale;
+  if (field.multiple != null) mapped.multiple = field.multiple;
+  if (field.immutable != null) mapped.immutable = field.immutable;
+  if (field.span != null) mapped.span = field.span;
+  if (field.language != null) mapped.language = field.language;
+  if (field.keyField != null) mapped.keyField = field.keyField;
+  if (field.disclosure != null) mapped.disclosure = field.disclosure;
+  // Verbatim, in the spec vocabulary — see the declaration's note: the runtime
+  // slot is a pass-through and its pinned row asserts `{ field: 'inner' }`
+  // survives unrewritten.
+  if (Array.isArray(field.fields)) mapped.fields = field.fields;
   // Forwarded unread into the node's `dependsOn`, which is declared with the
   // same type and read by `@object-ui/core`'s cascading-option resolver.
   if (field.dependsOn) mapped.dependsOn = field.dependsOn;
@@ -246,8 +374,19 @@ function mapSection(section: FormSectionSpec): Record<string, any> {
   if (section.collapsible != null) mapped.collapsible = section.collapsible;
   if (section.collapsed != null) mapped.collapsed = section.collapsed;
   if (section.columns != null) mapped.columns = normalizeColumns(section.columns);
-  // Whole, both arms — same predicate contract as the field above.
-  if (section.visibleWhen) mapped.visibleWhen = section.visibleWhen;
+  // Whole, both arms — same predicate contract as the field above. The
+  // deprecated `visibleOn` spelling folds onto the canonical slot exactly as
+  // `FormSectionSchema`'s own `.transform(normalizeVisibleWhen)` does, so a
+  // never-parsed document reaches the node saying what a parsed one would
+  // (objectui#5898). Canonical wins when both are authored, matching the
+  // contract's precedence and the field path directly above.
+  const sectionPredicate = section.visibleWhen ?? section.visibleOn;
+  if (sectionPredicate) mapped.visibleWhen = sectionPredicate;
+  // objectui#5898 — explicit split-pane placement. `ObjectFormSection.pane` is
+  // the node slot; `ObjectForm`'s split branch copies it and `SplitForm`'s
+  // `paneOf` reads it, falling back to the positional rule only when it is
+  // absent. Dropped here, every spec-authored placement took that fallback.
+  if (section.pane != null) mapped.pane = section.pane;
 
   return mapped;
 }
@@ -280,6 +419,11 @@ const PASSTHROUGH_KEYS = [
   'drawerWidth',
   'modalSize',
   'subforms',
+  // objectui#5898 — the spec's structured authoring surface for the form's
+  // action buttons and its create-mode initial values. Same name and semantics
+  // on `ObjectFormSchema`, where `ObjectForm` folds both down at render.
+  'buttons',
+  'defaults',
 ] as const;
 
 /** Transforms a FormView spec into a Form SchemaNode */
