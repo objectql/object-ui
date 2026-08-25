@@ -1007,7 +1007,27 @@ jobs:
       - name: Get Playwright version
         if: steps.relevant.outputs.should_run == 'true'
         id: playwright-version
-        run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+        run: |
+          # This pipeline's exit status is load-bearing: the value it produces
+          # becomes the Playwright browser cache key in the next step. Without
+          # `pipefail` a failing `pnpm list` is masked by `jq`, and `jq -r`
+          # prints the string `null` and exits 0 when the field is missing — so
+          # either failure used to yield a *successful* step and a key that had
+          # silently degraded to `playwright-Linux-` / `playwright-Linux-null`.
+          # That wrong bucket is stable, so two Playwright versions can share
+          # one cache entry and restore a stale browser (objectui#6231).
+          # The same block is duplicated verbatim in `ci.yml` and `live-e2e.yml`
+          # — keep them byte-identical so they stay greppable as a pair.
+          set -eo pipefail
+          if ! version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version'); then
+            echo "::error::Reading the @playwright/test version failed (pnpm list --json | jq). Refusing to write a Playwright browser cache key from it."
+            exit 1
+          fi
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::Could not resolve the @playwright/test version (got: '${version}'). Refusing to write an empty or null version into the Playwright browser cache key."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         if: steps.relevant.outputs.should_run == 'true'
