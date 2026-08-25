@@ -50,7 +50,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import { getI18n, useTranslation } from 'react-i18next';
 import { I18nProvider, useObjectTranslation } from '../index';
@@ -66,11 +66,12 @@ function Probe({
   tKey?: string;
 }) {
   const { t } = useObjectTranslation();
-  return (
-    <span data-testid="out">
-      {options === undefined ? t(tKey) : t(tKey, options as never)}
-    </span>
-  );
+  // `as string`: with an options object react-i18next's overload widens to
+  // `string | TFunctionDetailedResult`, and the detailed shape only appears
+  // under `returnObjects`/`returnDetails`, which nothing here passes. Casting
+  // at the probe keeps the assertions about text rather than about types.
+  const value = (options === undefined ? t(tKey) : t(tKey, options as never)) as string;
+  return <span data-testid="out">{value}</span>;
 }
 
 const out = () => screen.getByTestId('out').textContent;
@@ -220,11 +221,13 @@ describe('the wrapper adds no identity churn of its own (objectui#6219)', () => 
     function StabilityProbe() {
       const { t: ours } = useObjectTranslation();
       const { t: raw } = useTranslation();
-      // Lazy-init ref: the initializer runs on the first render only, so this
-      // records what the first render saw without writing during later ones.
-      const first = useRef({ ours, raw });
-      const sameOurs = ours === first.current.ours;
-      const sameRaw = raw === first.current.raw;
+      // `useState`'s lazy initializer, not a ref: it runs on the first render
+      // only, so this records what the first render saw without writing during
+      // later ones — and unlike `ref.current` it is a value React expects to be
+      // read while rendering (`react-hooks/refs` flags the ref spelling).
+      const [first] = useState(() => ({ ours, raw }));
+      const sameOurs = ours === first.ours;
+      const sameRaw = raw === first.raw;
       return <span data-testid="out">{`${sameRaw ? 'raw-same' : 'raw-moved'}/${sameOurs ? 'ours-same' : 'ours-moved'}`}</span>;
     }
     const { rerender } = render(<StabilityProbe />);
