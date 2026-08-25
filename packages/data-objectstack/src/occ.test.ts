@@ -98,4 +98,82 @@ describe('Optimistic Concurrency Control errors', () => {
       expect(normalised.currentRecord).toBeNull();
     });
   });
+
+  // ---------------------------------------------------------------------
+  // objectui#6375 — the discriminator truth table, one row per input class.
+  //
+  // `normaliseClientError`'s re-wrap is decided by the wire `code` ALONE;
+  // `httpStatus` participates in no outcome. That was already true before
+  // objectui#6375 deleted the subsumed `code !== ... && httpStatus !== 409`
+  // guard, and it is still true after — the deletion is a no-op by
+  // construction, so "behaviour unchanged" on its own would pin nothing.
+  //
+  // What earns these rows their keep is the ASYMMETRY: the two 409-carrying
+  // passthrough rows below go RED under the *other* possible deletion (drop
+  // the `code !== 'CONCURRENT_UPDATE'` line and keep the conjunction), under
+  // which a 409 whose code is something else would fall through and be
+  // re-wrapped as a ConcurrentUpdateError it never was. So this block is
+  // about which line was deleted, not about the function existing.
+  // ---------------------------------------------------------------------
+  describe('normaliseClientError: the wire code alone decides the re-wrap', () => {
+    /** A client error carrying exactly the fields under test (`name` stays `Error`). */
+    const clientError = (props: Record<string, unknown>) =>
+      Object.assign(new Error('upstream'), props);
+
+    it('passes through an error with neither the code nor a 409', () => {
+      const e = clientError({ code: 'NOT_FOUND', httpStatus: 404 });
+      expect(normaliseClientError(e)).toBe(e);
+    });
+
+    // ASYMMETRY ROW: red under the wrong deletion, green under this one.
+    it('passes through a 409 whose code is NOT CONCURRENT_UPDATE', () => {
+      const e = clientError({ code: 'PRECONDITION_FAILED', httpStatus: 409 });
+      expect(normaliseClientError(e)).toBe(e);
+      expect(normaliseClientError(e)).not.toBeInstanceOf(ConcurrentUpdateError);
+    });
+
+    // ASYMMETRY ROW: red under the wrong deletion, green under this one.
+    it('passes through a bare 409 carrying no code at all', () => {
+      const e = clientError({ httpStatus: 409 });
+      expect(normaliseClientError(e)).toBe(e);
+      expect(normaliseClientError(e)).not.toBeInstanceOf(ConcurrentUpdateError);
+    });
+
+    it('re-wraps the canonical 409 + CONCURRENT_UPDATE', () => {
+      const e = clientError({ code: 'CONCURRENT_UPDATE', httpStatus: 409 });
+      expect(normaliseClientError(e)).toBeInstanceOf(ConcurrentUpdateError);
+    });
+
+    // The two rows that show `httpStatus` decides nothing on the accepting
+    // side either: the code re-wraps with a wrong status, and with none.
+    it('re-wraps CONCURRENT_UPDATE carrying no httpStatus', () => {
+      const e = clientError({ code: 'CONCURRENT_UPDATE' });
+      expect(normaliseClientError(e)).toBeInstanceOf(ConcurrentUpdateError);
+    });
+
+    it('re-wraps CONCURRENT_UPDATE carrying a non-409 httpStatus', () => {
+      const e = clientError({ code: 'CONCURRENT_UPDATE', httpStatus: 500 });
+      expect(normaliseClientError(e)).toBeInstanceOf(ConcurrentUpdateError);
+    });
+  });
+
+  // The accepted set of the exported predicate, pinned because objectui#6375
+  // DECIDED to keep its `name === 'ConcurrentUpdateError'` limb rather than
+  // narrow it to the code. The limb is the cross-realm discriminator — see
+  // the rationale quoted in the doc comment above `isConcurrentUpdateError`
+  // and stated in full above `isViewConfigPermissionDeniedError`. A future
+  // reader who removes it as drift meets this row first.
+  describe('isConcurrentUpdateError: code OR class name, and never the status', () => {
+    it('accepts the class name with no wire code — the cross-realm limb', () => {
+      expect(isConcurrentUpdateError({ name: 'ConcurrentUpdateError' })).toBe(true);
+    });
+
+    it('rejects a bare 409: the status is not a discriminator here either', () => {
+      expect(isConcurrentUpdateError({ httpStatus: 409 })).toBe(false);
+    });
+
+    it('rejects a different class name', () => {
+      expect(isConcurrentUpdateError({ name: 'ValidationError' })).toBe(false);
+    });
+  });
 });

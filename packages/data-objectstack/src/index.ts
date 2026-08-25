@@ -1036,6 +1036,25 @@ export class ConcurrentUpdateError extends Error {
  * Detect "concurrent update" errors raised by the platform. The wire
  * shape is `409` + `code: 'CONCURRENT_UPDATE'`. The client surfaces
  * extra details on `error.details` (full response body).
+ *
+ * Accepts EITHER that wire `code` OR `name === 'ConcurrentUpdateError'`, and
+ * reads `httpStatus` for neither. This paragraph exists because the doc used
+ * to name only the wire shape, which left the `name` limb reading as drift
+ * (objectui#6375). It is not drift: it is the deliberate cross-realm
+ * duck-check that {@link isViewConfigPermissionDeniedError} documents and
+ * cites *this* function as its precedent for — a host that bundles this
+ * package twice (or re-throws across a worker boundary) ends up holding two
+ * copies of the class, `instanceof` fails, and the `name` string is the only
+ * discriminator left. That host is out of tree by construction, so an in-repo
+ * consumer census cannot see the case the limb was written for and is not
+ * evidence against it; `@object-ui/plugin-form` and `@object-ui/plugin-detail`
+ * each carry their own copy of the same two-limb check for adapters they must
+ * not depend on.
+ *
+ * Deliberately WIDER than {@link normaliseClientError}'s re-wrap, which keys
+ * on the wire `code` alone: an error carrying only the class name is
+ * recognised here and passed through there. Both accepted sets are pinned in
+ * `occ.test.ts`.
  */
 export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpdateError {
   if (!error || typeof error !== 'object') return false;
@@ -1147,7 +1166,14 @@ export function normaliseClientError(error: unknown): unknown {
     );
   }
 
-  if (e.code !== 'CONCURRENT_UPDATE' && e.httpStatus !== 409) return error;
+  // The wire `code` is the sole discriminator. A
+  // `code !== 'CONCURRENT_UPDATE' && httpStatus !== 409` guard used to sit
+  // directly above this line and could never decide an outcome: its condition
+  // is strictly stronger, so everything it would have returned is returned
+  // here anyway. Its `httpStatus !== 409` half advertised a second acceptance
+  // path — a bare 409 still getting re-wrapped — that never existed, on the
+  // one function whose whole job is deciding what gets re-wrapped
+  // (objectui#6375). The truth table is pinned in `occ.test.ts`.
   if (e.code !== 'CONCURRENT_UPDATE') return error;
   return new ConcurrentUpdateError({
     currentVersion: typeof details.currentVersion === 'string' ? details.currentVersion : null,
