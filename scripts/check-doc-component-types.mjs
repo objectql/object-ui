@@ -2,7 +2,10 @@
 /**
  * Every `type` string literal in a `content/docs/**` code block — `.mdx` and
  * `.md` alike — must name a component the repository actually registers, or be
- * declared, per file, as belonging to some other vocabulary.
+ * declared, per file, as belonging to some other vocabulary. Since objectui#5106
+ * the same question is also asked of the KEY TABLES that document a plugin's
+ * registrations, on BOTH halves of the row: the namespaced key and the bare-name
+ * fallback (see "The second surface" below).
  *
  * Run:  node scripts/check-doc-component-types.mjs   (also `pnpm check:doc-types`)
  * Exit: 0 = every teaching snippet names a registered type (or a declared
@@ -132,6 +135,68 @@
  * A site is reported with `file:line` so the author can go straight to it, and
  * the exemption is keyed without the line so ordinary editing above a snippet
  * does not invalidate the table.
+ *
+ * ## The second surface: plugin key tables (objectui#5106)
+ *
+ * The rule above reads FENCED CODE ONLY, on purpose — prose that mentions a type
+ * in backticks is not a snippet. That scope had a measured cost. The objectui#5002
+ * family (PRs #5071 / #5078 / #5079 / #5085 / #5089 / #5093 / #5100 / #5104)
+ * replaced a fictional "manual `*Components` registration loop" on eight plugin
+ * pages with one canonical form — a markdown table of the keys the plugin's entry
+ * really registers. The new form is the right one, and it landed entirely OUTSIDE
+ * the scan surface, while the code blocks it replaced had been inside it. Net
+ * effect: the fact "which keys does this plugin claim" moved from a checked place
+ * to an unchecked one, guarded only by hand comparison.
+ *
+ * So key tables are now read, and the anchor is the TABLE HEADER, not the row:
+ *
+ *     | Namespaced key | Bare-name fallback | Renderer behind it |
+ *
+ * Anchoring on the header rather than pattern-matching rows is the whole design,
+ * and it was chosen after measuring the alternative. The obvious row heuristic —
+ * "first cell is a backticked token containing a colon, second cell is a
+ * backticked token" — was run over this tree and matched 33 rows, of which only
+ * 22 were keys. The other 11 are a `:`-bearing vocabulary this repo writes in
+ * tables constantly:
+ *
+ *   guide/console-architecture.md:104   `/apps/:appName/:objectName` | `ObjectView`
+ *   utilities/runner.mdx:99             `http://localhost:5173/`     | `LocalBundleLoader`
+ *   guide/metadata-diagnostics.md:43    `GET /api/v1/meta/items/:type/:name?layered=true`
+ *   guide/designing-app-navigation.md:21 `{ "type": "object", … }`
+ *
+ * React route patterns, URLs, HTTP routes and JSON literals — every one of them a
+ * false RED on correct documentation, which is the expensive direction for a gate
+ * whose whole job is to be trusted about docs. The header is a DECLARATION by the
+ * page that the rows beneath it are registry keys, so it discriminates perfectly
+ * where a row shape cannot, and it costs an author nothing they were not already
+ * writing.
+ *
+ * Both halves of the row are judged, and judging the namespaced half is the point
+ * objectui#5106 was filed for: this gate never judged a namespace at all. It
+ * compared bare keys against a universe that happens to contain namespaced keys
+ * too, so `view:dashboard` documented as `plugin-dashboard:dashboard` produced no
+ * signal from any static check — the bare `dashboard` matched and the row passed.
+ * Flip `namespace: 'view'` to `'dash'` in `plugin-dashboard/src/index.tsx` and
+ * `deriveRegistryKeys` follows it live to `dash:dashboard`, while every doc that
+ * teaches `view:dashboard` stays green. That is the hole; the namespaced cell
+ * closes it.
+ *
+ * What is deliberately NOT checked, and why: when the fallback cell reads
+ * "none — `skipFallback: true`", this gate does not assert that the bare name is
+ * absent from the universe. It cannot. The universe is a deliberate UNION across
+ * every package in the repo (see "generous" above), so `view:grid` skipping its
+ * own bare fallback says nothing about whether some other package registers a
+ * bare `grid` — and one does. Asserting the negative would red
+ * `plugins/plugin-grid.mdx:185`, which is correct. The positive half is checkable
+ * and is checked; the negative half needs per-host registration modelling this
+ * gate deliberately does not do.
+ *
+ * `DOC_TYPE_EXEMPTIONS` does not apply to table rows, and that is deliberate
+ * rather than an omission. An exemption declares "this value belongs to another
+ * vocabulary" — but a row under a header that says "Namespaced key" has already
+ * declared its vocabulary, and there is no other one it could be. A row that
+ * cannot be registered is a wrong row (or a header being borrowed for a table
+ * that is not a key table), and both are worth fixing rather than silencing.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -165,6 +230,29 @@ const DOCS_ROOT = 'content/docs';
  *  covered nor declared ungated. Anything else under the tree (the `meta.json`
  *  sidecars) holds no prose and is not a page. */
 const DOC_EXTENSIONS = ['.mdx', '.md'];
+
+/** The header that marks a markdown table as a plugin KEY TABLE — the canonical
+ *  form the objectui#5002 family standardised on, and the anchor this gate uses
+ *  to read tables without reading prose. See "The second surface" in the header
+ *  for the measurement that rejected row-shape matching in favour of this.
+ *
+ *  Matched on the first two cells only: pages spell the third column
+ *  "Renderer behind it", and pinning a description column would make the gate
+ *  brittle about wording that carries no meaning for it. Anchored with `^` and a
+ *  literal `|` so it cannot match the same words in prose. */
+const KEY_TABLE_HEADER = /^\s*\|\s*Namespaced key\s*\|\s*Bare-name fallback\s*\|/i;
+
+/** A markdown delimiter row (`| --- | --- |`), which is what makes the line above
+ *  it a header rather than an ordinary row that happens to read like one. */
+const TABLE_DELIMITER = /^\s*\|[\s:|-]+\|\s*$/;
+
+/** A table cell holding exactly one backticked token, and nothing else. */
+const BACKTICKED_CELL = /^`([^`]+)`$/;
+
+/** The fallback cell's "this registration passes `skipFallback: true`" spelling.
+ *  Recognised so the row is still JUDGED on its namespaced half rather than
+ *  skipped — a row this gate cannot read is a row it silently stops guarding. */
+const NO_FALLBACK_CELL = /^none\b/i;
 
 /** Where registrations live. Every workspace source root that can register. */
 const SOURCE_ROOTS = ['packages', 'apps', 'examples'];
@@ -503,10 +591,27 @@ const DOC_TYPE_EXEMPTIONS = {
  * verdict depends on has a size the tree is known to clear by a wide margin.
  */
 const FLOORS = {
-  docFiles: 100,
+  // `files`, not `docFiles`: the counter `scanDocs` publishes is `files`, so the
+  // key used to name a counter that has never existed. `undefined < 100` is
+  // `false`, so this floor — the one that catches the walk finding NOTHING —
+  // silently passed an empty tree for its whole life. Found while adding the key
+  // table floors below (objectui#5106); the mis-key is now unspellable, because
+  // `analyze` fails on any FLOORS key that names no counter.
+  files: 100,
   codeBlocks: 400,
   typeSites: 300,
   registryKeys: 300,
+  // objectui#5106. Roughly half of what this tree holds today (4 tables, 24 rows,
+  // 45 judged keys), matching the margin the four floors above keep: a floor is a
+  // collapse detector, not a ratchet, and one set at today's exact count turns
+  // every legitimate docs edit red. What it must catch is the scan silently
+  // finding NOTHING — a renamed header, a broken walk, a regex that stopped
+  // matching — because zero rows compared against a universe passes while
+  // asserting nothing at all, which is the failure this whole surface exists to
+  // prevent one level up.
+  keyTables: 2,
+  keyTableRows: 12,
+  keyTableKeys: 20,
 };
 
 // ── Source utilities ─────────────────────────────────────────────────────────
@@ -847,12 +952,24 @@ export function deriveRegistryKeys(root, options = {}) {
  * Collect every `type: '<value>'` / `"type": "<value>"` site inside a fenced
  * code block. Fences are tracked so prose that merely mentions a type in
  * backticks is not read as a snippet.
+ *
+ * In the SAME walk, collect the rows of every plugin key table — the tables
+ * introduced by the objectui#5002 family and anchored by `KEY_TABLE_HEADER`.
+ * One walk rather than two because two collectors over one tree is the defect
+ * this file's `DOC_EXTENSIONS` note already warns about, one level down: they
+ * drift, and a page ends up covered by the surface it passes and invisible to
+ * the one it fails.
+ *
+ * Key tables are read OUTSIDE fences, which is the opposite of the snippet rule
+ * and correct for both: a table is prose-level markdown, and a table drawn
+ * inside a ``` block is an example OF a table, not a claim about this repo.
  */
 export function scanDocs(root) {
   const docsDir = join(root, DOCS_ROOT);
   const files = walkFiles(docsDir, (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext))).sort();
   const sites = [];
-  const counters = { files: files.length, codeBlocks: 0, typeSites: 0 };
+  const tableRows = [];
+  const counters = { files: files.length, codeBlocks: 0, typeSites: 0, keyTables: 0, keyTableRows: 0 };
 
   for (const abs of files) {
     const rel = relative(root, abs).split(sep).join('/');
@@ -872,7 +989,32 @@ export function scanDocs(root) {
         }
         continue;
       }
-      if (!inFence) continue;
+      if (!inFence) {
+        if (KEY_TABLE_HEADER.test(lines[i]) && TABLE_DELIMITER.test(lines[i + 1] ?? '')) {
+          counters.keyTables++;
+          const header = i + 1;
+          // Consume the body until the table ends. A table ends at the first line
+          // that is not a row; markdown needs no terminator, so "not a row" is the
+          // only signal there is.
+          for (let j = i + 2; j < lines.length && /^\s*\|/.test(lines[j]); j++) {
+            const cells = lines[j]
+              .split('|')
+              .slice(1, -1)
+              .map((c) => c.trim());
+            counters.keyTableRows++;
+            tableRows.push({
+              file: rel,
+              line: j + 1,
+              header,
+              namespaced: cells[0] ?? '',
+              fallback: cells[1] ?? '',
+              text: lines[j].trim(),
+            });
+            i = j;
+          }
+        }
+        continue;
+      }
       for (const m of lines[i].matchAll(/(?:"type"|'type'|(?<![\w$.])type)\s*:\s*(['"])([^'"]*)\1/g)) {
         const value = m[2];
         if (!value) continue;
@@ -886,7 +1028,7 @@ export function scanDocs(root) {
       sites.push({ file: rel, line: lines.length, lang: 'unterminated', value: null, unterminated: true });
     }
   }
-  return { sites, counters };
+  return { sites, tableRows, counters };
 }
 
 // ── Verdict ──────────────────────────────────────────────────────────────────
@@ -914,6 +1056,8 @@ export function analyze(root, options = {}) {
     ...registry.counters,
     registered: 0,
     exempted: 0,
+    keyTableKeys: 0,
+    keyTableRegistered: 0,
   };
 
   const exemptionHits = new Map();
@@ -944,6 +1088,66 @@ export function analyze(root, options = {}) {
       lang: site.lang,
       text: site.text,
     });
+  }
+
+  // Key-table rows. Judged on BOTH halves and NOT routed through
+  // `DOC_TYPE_EXEMPTIONS` — see "The second surface" in the file header for why a
+  // row under this header has no other vocabulary it could belong to.
+  for (const row of docs.tableRows) {
+    const namespaced = BACKTICKED_CELL.exec(row.namespaced);
+    if (!namespaced) {
+      findings.push({
+        reason: 'unreadable-key-table-row',
+        site: `${row.file}:${row.line}`,
+        detail:
+          `the first cell of this row under the key table at :${row.header} is not a single ` +
+          'backticked key. Either write it as `namespace:type`, or — if this table does not ' +
+          'document registrations — give it a header other than "Namespaced key | Bare-name ' +
+          'fallback", which is what tells this gate to judge the rows.',
+      });
+      continue;
+    }
+    counters.keyTableKeys++;
+    if (registry.keys.has(namespaced[1])) {
+      counters.keyTableRegistered++;
+    } else {
+      findings.push({
+        reason: 'unregistered-key-table-key',
+        site: `${row.file}:${row.line}`,
+        value: namespaced[1],
+        half: 'namespaced',
+        text: row.text,
+      });
+    }
+
+    const fallback = BACKTICKED_CELL.exec(row.fallback);
+    if (!fallback) {
+      // "none — `skipFallback: true`" is the declared no-fallback spelling. The
+      // namespaced half above was still judged, which is the half that matters.
+      if (!NO_FALLBACK_CELL.test(row.fallback)) {
+        findings.push({
+          reason: 'unreadable-key-table-row',
+          site: `${row.file}:${row.line}`,
+          detail:
+            'the bare-name fallback cell is neither a single backticked key nor the declared ' +
+            '"none — `skipFallback: true`" spelling, so this gate cannot tell whether the row ' +
+            'claims a bare key or claims there is none.',
+        });
+      }
+      continue;
+    }
+    counters.keyTableKeys++;
+    if (registry.keys.has(fallback[1])) {
+      counters.keyTableRegistered++;
+    } else {
+      findings.push({
+        reason: 'unregistered-key-table-key',
+        site: `${row.file}:${row.line}`,
+        value: fallback[1],
+        half: 'bare fallback',
+        text: row.text,
+      });
+    }
   }
 
   for (const [file, values] of Object.entries(exemptions)) {
@@ -981,6 +1185,21 @@ const HINTS = {
     'name), or — if the value belongs to another vocabulary (an action schema, a validation rule, a ' +
     'field data type, a nav item kind) — declare it in DOC_TYPE_EXEMPTIONS with a reason naming that ' +
     'vocabulary. See objectui#4823.',
+  'unregistered-key-table-key':
+    'A plugin KEY TABLE — a table headed `| Namespaced key | Bare-name fallback | … |` — documents a ' +
+    'key that nothing in this repository registers. This table is the canonical way a plugin page ' +
+    'states which schema types its entry claims (objectui#5002 family), so a wrong cell here ' +
+    'misdocuments the plugin\'s whole public surface. Both halves are judged: the NAMESPACED half ' +
+    'against the `namespace:` the registration really passes, and the bare half against the ' +
+    'fallback it publishes. If the namespaced half is the one reported, check the `namespace` option ' +
+    'in the plugin\'s `ComponentRegistry.register(` call before editing the doc — the registration ' +
+    'may be what moved. Unlike a fenced snippet this is NOT exemptible: the header has already ' +
+    'declared these rows to be registry keys. See objectui#5106.',
+  'unreadable-key-table-row':
+    'A row under a key-table header could not be read as a key. Either the row is malformed, or the ' +
+    'header `| Namespaced key | Bare-name fallback | … |` is being used for a table that does not ' +
+    'document registrations — give that one a different header, since this one is what tells the gate ' +
+    'to judge the rows beneath it.',
   'stale-exemption':
     'An entry in DOC_TYPE_EXEMPTIONS no longer matches the tree. Re-point it or delete it — an ' +
     'exemption whose site has gone silently widens the hole for the next snippet that lands there.',
@@ -1021,6 +1240,19 @@ if (invokedDirectly) {
   const { findings, counters } = result;
 
   for (const [key, floor] of Object.entries(FLOORS)) {
+    // A floor naming a counter that does not exist is not a floor. It compares
+    // `undefined`, which is never below anything, so it reads as permanently
+    // satisfied — the exact shape that let `docFiles` stand as a dead floor. A
+    // collapse detector that can itself collapse is worth less than none, so this
+    // is checked before the comparison rather than left to review.
+    if (!Object.hasOwn(counters, key)) {
+      console.error(
+        `FLOORS names \`${key}\`, which is not a counter this scan publishes ` +
+          `(${Object.keys(counters).sort().join(', ')}). A floor over a missing counter compares ` +
+          '`undefined` and can never fail, so it guards nothing. Fix the spelling or drop the entry.',
+      );
+      process.exit(1);
+    }
     if (counters[key] < floor) {
       console.error(
         `The scan collapsed: ${key} = ${counters[key]}, below the floor of ${floor}. The docs walk or ` +
@@ -1036,7 +1268,10 @@ if (invokedDirectly) {
       `${counters.typeSites} \`type\` literal(s) against ${counters.registryKeys} registered key(s) ` +
       `derived from ${counters.sourceFiles} source file(s) (${counters.resolved} resolved call site(s), ` +
       `${counters.indirect} indirect, ${counters.open} open): ` +
-      `${counters.registered} registered, ${counters.exempted} exempted.`,
+      `${counters.registered} registered, ${counters.exempted} exempted; ` +
+      `${counters.keyTables} key table(s), ${counters.keyTableRows} row(s), ` +
+      `${counters.keyTableKeys} table key(s) judged (namespaced + bare), ` +
+      `${counters.keyTableRegistered} registered.`,
   );
 
   if (findings.length === 0) {
@@ -1048,6 +1283,11 @@ if (invokedDirectly) {
   for (const finding of findings) {
     if (finding.reason === 'unregistered-doc-type') {
       console.error(`      ${finding.site}  [${finding.reason}]  type '${finding.value}' (${finding.lang})`);
+      console.error(`          ${finding.text}`);
+      continue;
+    }
+    if (finding.reason === 'unregistered-key-table-key') {
+      console.error(`      ${finding.site}  [${finding.reason}]  ${finding.half} '${finding.value}'`);
       console.error(`          ${finding.text}`);
       continue;
     }
