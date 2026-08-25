@@ -14,6 +14,14 @@ export default defineConfig({
       // this package's `rootDir` — which would emit TS6059 rootDir errors.
       compilerOptions: { rootDir: path.resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
+      // Deliberately NOT spreading `createDtsFailOnTypeErrors` here, unlike the
+      // other 21 `dts(` call sites — objectui#5483. This package's build script is
+      // `tsc && vite build && node scripts/build-css.mjs`, and that leading `tsc` is
+      // not redundant: it is what makes a type error fatal for this package, and it
+      // exits non-zero BEFORE `vite build` ever runs, so a dts-leg exit code could
+      // never be what decides this build. Drop the `tsc &&` prefix and this package
+      // owes the factory instead — `scripts/__tests__/vite-dts-wiring-ratchet.test.ts`
+      // reads that script and fails here if the prefix goes away.
     }),
   ],
   resolve: {

@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
+import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
+
 export default defineConfig({
   plugins: [
     react(),
@@ -15,6 +17,9 @@ export default defineConfig({
       // this package's `rootDir` — which would emit TS6059 rootDir errors.
       compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
+      // A type error the declaration program already found and printed used to
+      // leave `vite build` exiting 0 — objectui#5370 / #5483. This makes it fatal.
+      ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
     }),
   ],
   resolve: {

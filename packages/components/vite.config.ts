@@ -12,6 +12,7 @@ import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
 import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
+import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
 
 export default defineConfig({
   plugins: [
@@ -35,6 +36,9 @@ export default defineConfig({
       // verdict about specifier-preserving `.js` builds — correctly never
       // scanned this package. See the module header for the full argument.
       ...createDtsExplicitExtensions({ packageDir: __dirname }),
+      // A type error the declaration program already found and printed used to
+      // leave `vite build` exiting 0 — objectui#5370 / #5483. This makes it fatal.
+      ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
     }),
   ],
   resolve: {

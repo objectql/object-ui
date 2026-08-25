@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
+import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
+
 export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
@@ -19,6 +21,9 @@ export default defineConfig({
       aliasesExclude: [/^@object-ui\//],
       include: ['src'],
       exclude: ['**/*.test.ts', '**/*.test.tsx', 'node_modules'],
+      // A type error the declaration program already found and printed used to
+      // leave `vite build` exiting 0 — objectui#5370 / #5483. This makes it fatal.
+      ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
     }),
   ],
   resolve: {
