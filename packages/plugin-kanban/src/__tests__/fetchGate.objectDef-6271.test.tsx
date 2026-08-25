@@ -103,10 +103,10 @@ function makeAdapter(
     delete: vi.fn(),
   };
   if (getObjectSchema) {
-    adapter.getObjectSchema = vi.fn(async (...args: unknown[]) => {
+    adapter.getObjectSchema = vi.fn(async () => {
       order.push('schema:issued');
       try {
-        return await getObjectSchema.apply(null, args as []);
+        return await getObjectSchema();
       } finally {
         order.push('schema:settled');
       }
