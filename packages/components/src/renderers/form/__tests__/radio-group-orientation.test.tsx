@@ -41,10 +41,6 @@
  * that divergence is objectui#6157's scope and is deliberately not touched by
  * this branch. Until it lands, the two shipped docs demos still render
  * identically to each other even with this renderer fix in place.
- *
- * The two fixtures differ in EXACTLY one key. Same `id`, same options, same
- * order — so a difference in the rendered roots cannot come from anywhere but
- * `orientation`, and the byte comparison stays a real measurement.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -55,20 +51,29 @@ import type { RadioGroupSchema } from '@object-ui/types';
 // `hookTimeout`. See object-ui/no-dynamic-import-in-test-hook (objectui#3010).
 import '../../../renderers';
 
-const BASE = {
-  type: 'radio-group',
-  id: 'os6158-size',
-  options: [
-    { value: 'sm', label: 'Small' },
-    { value: 'md', label: 'Medium' },
-    { value: 'lg', label: 'Large' },
-  ],
-} as const;
+/**
+ * One factory, one parameter — so "the fixtures differ in EXACTLY one key" is
+ * a property of the code rather than a claim in a comment. Same `id`, same
+ * options, same order; a difference in the rendered roots cannot come from
+ * anywhere but `orientation`.
+ */
+function fixture(orientation?: 'horizontal' | 'vertical'): RadioGroupSchema {
+  return {
+    type: 'radio-group',
+    id: 'os6158-size',
+    options: [
+      { value: 'sm', label: 'Small' },
+      { value: 'md', label: 'Medium' },
+      { value: 'lg', label: 'Large' },
+    ],
+    ...(orientation ? { orientation } : {}),
+  };
+}
 
-const HORIZONTAL: RadioGroupSchema = { ...BASE, orientation: 'horizontal' };
-const VERTICAL: RadioGroupSchema = { ...BASE, orientation: 'vertical' };
+const HORIZONTAL = fixture('horizontal');
+const VERTICAL = fixture('vertical');
 /** `orientation` omitted entirely — the `@default 'vertical'` case. */
-const DEFAULTED: RadioGroupSchema = { ...BASE };
+const DEFAULTED = fixture();
 
 function renderRoot(schema: RadioGroupSchema): HTMLElement {
   const Component = ComponentRegistry.get(schema.type);
