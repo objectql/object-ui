@@ -35,6 +35,7 @@ one has its own section below.
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
 | `pre-install-import-graph.yml` | Pre-Install Import Graph Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a gate a workflow runs *before* `pnpm install` reaches a package anywhere in its import graph |
 | `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
+| `readme-exports.yml` | README Export Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `packages/**/README.md` imports a name from its own package that the package does not export, or the scan's population collapses |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -830,6 +831,71 @@ specifier, then confirm the mock is really installed by reverting the code under
 that the suite goes red. Run it locally with `pnpm check:vi-mock-specifiers`, or
 `node scripts/check-vi-mock-specifiers.mjs --list` to see every call site the walk found. It needs no
 install and no build.
+
+## README Exports (`readme-exports.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**. It appears in the checks list as **README Export Check**.
+
+The absent filter is the point. The two edits that introduce this drift are a README change and a
+source change that renames or drops an export, and `ci.yml` structurally cannot see the first: every
+one of its jobs opens with the `id: relevant` short-circuit whose diff excludes `**/*.md`, so on a
+README-only pull request its expensive steps are skipped by design. A gate against fabricated README
+imports living behind that switch would rebuild the hole it exists to close.
+
+Runs `scripts/check-readme-exports.mjs` (`pnpm check:readme-exports`). For every `README.md` under
+`packages/`, it extracts the fenced code blocks, parses each one with the TypeScript parser, walks the
+`ImportDeclaration` nodes, and for every binding that names the README's **own** package checks the
+name against that package's real export surface.
+
+**Why it needed a gate.** A README teaching `import { X } from '@object-ui/<pkg>'` for an `X` the
+package does not export gave the reader a `TypeError` at runtime or a TS2305/TS2724 at build time, and
+these READMEs are listed in each package's `files`, so they ship in the npm tarball. Nothing checked
+them: `check-doc-links.mjs` parses links and never looks inside a code block, and
+`check-doc-component-types.mjs` scans `content/docs` and never enters `packages/`. One manual sweep
+([#5043](https://github.com/objectstack-ai/objectui/issues/5043)) found drift in **seven** packages
+(#5010–#5016) and recorded that number as a *lower bound*, because the method it used could only see
+single-line import statements.
+
+**It parses, it does not match.** The card's first sketch was a cross-line regex; measured on
+`plugin-gantt` it reported five words of prose as fabricated import names and missed both real
+fabrications, because a **side-effect import** (`import '@object-ui/plugin-gantt';`, no `from`) lets a
+lazy quantifier run on to the next `from` twenty lines later. Parsing makes that unrepresentable: a
+multi-line block is one node, a trailing `//` comment is trivia that can never contribute a name, and
+`A as B` exposes the export name separately from the local alias — the gate judges **`A`**.
+
+**The export set is symbols, never a grep.** It comes from the TypeScript checker's
+`getExportsOfModule` over each package's *declared* type entry, with aliases resolved before the
+value/type flags are read. A text-level set is measurably wrong here: `GanttSchema` grepped in
+`packages/types/src` has six hits, every one of them a substring of `ObjectGanttSchema`.
+
+**Three verdicts, because two of them have different fixes.** `real`; `fabricated` (no package exports
+it — delete or rename); and `wrong-path` (the name is real but belongs to another package, so the
+*path* is what to change). #5010's `CalendarViewSchema` was the third kind, and the first run of this
+gate found one more: `packages/core/src/adapters/README.md` imported `ObjectStackAdapter` and
+`createObjectStackAdapter` from `@object-ui/core` when both live in `@object-ui/data-objectstack`.
+
+**It builds first, and refuses to guess when it cannot.** The declared type entry is a built
+`dist/index.d.ts` for almost every package, so the workflow installs and runs `turbo run build` before
+the check (measured cold, concurrency 2, on a contended container: 2m42s for all 39 packages). If a
+package's type entry is missing anyway, that is a **failure**, never a skip: counting it as "exports
+nothing" would mark every import in its README fabricated, and skipping it would shrink the judged
+population with nothing in the output to say so.
+
+**It is green at rest, so its census is part of the verdict** — READMEs scanned, blocks parsed,
+bindings judged, packages whose exports were read — and the scan **fails when that population
+collapses**. The evidence that it can fail lives in `scripts/__tests__/check-readme-exports.test.ts`,
+which plants four mutations on a fixture tree: a fabricated name in a multi-line block, one in a
+trailing comment (which must **not** be reported), an `X as Y` with `X` fabricated, and one mid-block
+in a type import.
+
+**Out of scope, deliberately:** compiling the extracted blocks (a separate card — it has pre-existing
+reds that need a baseline decision first), and authorable-JSON *key* surfaces, which no type check can
+reject while `BaseSchema` carries an index signature and its Zod mirror is `.passthrough()`.
+
+**If it fails:** it names the README, the line of the offending specifier, and which package really
+exports the name. Run it locally with `pnpm check:readme-exports` after a build, or
+`node scripts/check-readme-exports.mjs --list` to see every self-import it judged.
 
 ## Link Checking (`check-links.yml`)
 

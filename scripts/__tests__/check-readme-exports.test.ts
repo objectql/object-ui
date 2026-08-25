@@ -87,11 +87,6 @@ const FIXTURE_PACKAGES = ['packages/alpha', 'packages/beta'];
 const scanFixture = (root: string) =>
   scan(root, { readmes: ['packages/alpha/README.md'], packageDirs: FIXTURE_PACKAGES, floors: {} });
 
-const verdicts = (root: string) =>
-  scanFixture(root)
-    .findings.map((f) => `${f.verdict}:${f.exportName}`)
-    .sort();
-
 /**
  * The README shape this whole family uses, and the one that broke the regex:
  * a SIDE-EFFECT import, then twenty lines of prose, then a multi-line value
