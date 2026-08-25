@@ -14,11 +14,12 @@ import {
   columnIdentity,
   columnHeader,
 } from '@object-ui/core';
-import type { DrillDownConfig } from '@object-ui/types';
+import type { DrillDownConfig, TableColumn } from '@object-ui/types';
 import { normalizeTableColumnType } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import { resolveFilterPlaceholders, humanizeFieldKey } from './utils';
+import type { FieldMeta } from './recordFields';
 import {
   buildFieldMeta,
   renderFieldValue,
@@ -54,6 +55,79 @@ interface NormalizedColumn {
   accessorKey: string;
   [key: string]: any;
 }
+
+/**
+ * What this widget's column producer is allowed to EMIT (objectui#6373).
+ *
+ * `enrich` below hands its result to `data-table`, whose columns slot is
+ * `DataTableSchema.columns: TableColumn[]`. It used to return
+ * `NormalizedColumn`, whose `[key: string]: any` accepts anything, so nothing
+ * checked the emit against the slot's declaration at all: `{ ...col,
+ * ...fieldMeta }` wrote SEVEN keys `TableColumn` does not declare — `name`,
+ * `label`, `options`, `referenceTo`, `format`, `currency`, `decimals`.
+ *
+ * ## ⭐ Why this is not just `: TableColumn`
+ *
+ * Measured on this program before choosing the shape: annotating the return
+ * `TableColumn` and leaving the spread in place raises NO error. TypeScript's
+ * excess-property check is a FRESHNESS check on the properties an object
+ * literal WRITES OUT; properties arriving through a spread are exempt. So the
+ * plain annotation the card suggested is blind to the exact defect the card is
+ * about — it would have type-checked the seam without enforcing it, converting
+ * a surfaced-key census into a silenced one.
+ *
+ * The `?: never` members are what make the annotation able to fail. They are
+ * ADR-0049 retirement tombstones — this repo's convention for a key that is
+ * refused rather than merely absent (`StaticTableColumn` in
+ * `@object-ui/types`, `crud.ts` `confirm`) — and they bite by ASSIGNABILITY,
+ * not freshness: `FieldMeta['label']` is `string`, which is not assignable to
+ * `undefined`, so re-introducing `{ ...fieldMeta }` here is a compile error
+ * (TS2322) naming the first offending key. Writing one out explicitly is the
+ * other error (TS2353). Both directions were run before this type was written.
+ *
+ * ## The rule, so the next producer gets the same answer
+ *
+ * A producer may write into a `TableColumn[]` slot only keys the CONSUMER of
+ * that slot reads, and the consumer's read set is MEASURED from the consumer's
+ * source, never assumed. Then: a key the consumer reads and `TableColumn`
+ * declares is written; a key the consumer reads and `TableColumn` does not
+ * declare is held as an alias only where a ruling already holds it; a key the
+ * consumer does not read is RETIRED from the emit — never declared, because
+ * declaring a key nothing reads is the same `declared != enforced` defect
+ * facing the other way (objectui#5453's forwarded `wrap` key).
+ *
+ * Measured read set of the consumer (`data-table.tsx`, comments stripped):
+ * `accessorKey`, `width`, `align`, `header`, `className`, `cellClassName`,
+ * `sortable`, `resizable`, `editable`, `type`, `cell`, `headerIcon`,
+ * `fitContent`, and `name`. Not one of `label`, `options`, `referenceTo`,
+ * `format`, `currency`, `decimals` appears — so all six retire here.
+ *
+ * Retiring them is behaviour-preserving because none of them was the live path
+ * for its own value: everything they carried is read off `fieldMeta` by the
+ * `cell` closure below, which is where this widget's type-aware rendering
+ * actually happens. That check — does the value still reach its consumer by
+ * another road? — is part of the rule, not an aside: a key with no second road
+ * is not inert, and retiring it would change behaviour.
+ *
+ * `type` is not adjudicated here. objectui#5853 already settled it at this
+ * seam, and its fold (`normalizeTableColumnType`) stands unchanged.
+ *
+ * `name` is HELD, not retired, and not adjudicated here either: it is
+ * objectui#5120's, still open. `data-table` reads `col.accessorKey || col.name`
+ * and holds that alias deliberately, because two PUBLISHED skill guides teach a
+ * `data-table` column spelled `{ name, label }`. So this producer keeps writing
+ * it, byte for byte what it wrote before, and the hold is now DECLARED at the
+ * seam instead of arriving anonymously inside a spread. When #5120 retires the
+ * consumer alias, this member becomes a tombstone with it.
+ */
+export type EnrichedColumn =
+  TableColumn
+  /** HELD alias, objectui#5120 — see above. Not declared by `TableColumn`. */
+  & { name?: string }
+  /** RETIRED at this emit seam, objectui#6373 — derived, never hand-listed, so
+   *  a future `FieldMeta` member is tombstoned by default and has to be
+   *  adjudicated to escape. */
+  & { [K in Exclude<keyof FieldMeta, keyof TableColumn | 'name'>]?: never };
 
 /**
  * Shared empty fallback for the resolved row list (objectui#4629).
@@ -389,13 +463,22 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // is set, prefer translated field labels via the convention-based hook so that
   // headers automatically pick up i18n bundles.
   //
-  // Each column is also enriched with `type/options/referenceTo/format` from
-  // the bound object schema and gets a `cell:` render function that delegates
-  // to `getCellRenderer` from `@object-ui/fields`. This produces the same
-  // type-aware rendering as ObjectGrid / list views and the report viewer
-  // (Badge for select, link for lookup, ✓/✗ for boolean, mailto:/tel: links,
-  // currency/percent/date formatting honouring the column's `format` prop).
-  const derivedColumns = useMemo(() => {
+  // Each column is also enriched from the bound object schema — `options`,
+  // `referenceTo`, `format`, `currency`, `decimals` — and gets a `cell:` render
+  // function that delegates to `getCellRenderer` from `@object-ui/fields`. This
+  // produces the same type-aware rendering as ObjectGrid / list views and the
+  // report viewer (Badge for select, link for lookup, ✓/✗ for boolean,
+  // mailto:/tel: links, currency/percent/date formatting honouring the column's
+  // `format` prop).
+  //
+  // ⭐ THAT ENRICHMENT REACHES THE CELL, NOT THE COLUMN (objectui#6373). Those
+  // five values live on the `FieldMeta` the `cell` closure captures, which is
+  // the only thing that reads them. They used to ALSO be spread onto the column
+  // object handed to `data-table`, which declares none of them and reads none of
+  // them — five keys that were inert wherever they landed. The emit is checked
+  // against `EnrichedColumn` now; see its docstring for the rule and for why
+  // annotating `TableColumn` alone could not have enforced it.
+  const derivedColumns = useMemo<EnrichedColumn[]>(() => {
     const objectName = schema.objectName;
     const fieldsByName: Record<string, any> = {};
     if (objectSchema?.fields) {
@@ -436,7 +519,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       return objectName ? fieldLabel(objectName, k, humanized) : humanized;
     };
 
-    const enrich = (col: NormalizedColumn): NormalizedColumn => {
+    const enrich = (col: NormalizedColumn): EnrichedColumn => {
       // Build the shared FieldMeta (translated select options, resolved
       // referenceTo / currency / decimals). Column-level props override the
       // schema-derived values. Lookup fields just pass `referenceTo` through —
@@ -465,8 +548,11 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
 
       // ⭐ THE SECOND EMIT SEAM (objectui#5853). `buildFieldMeta` returns
       // `type: overrides.type ?? meta?.type` — the OBJECT SCHEMA's field type —
-      // and spreading `...fieldMeta` writes it straight into the column's
-      // `type`, the same verbatim forwarding `ObjectGrid` does at its own seam.
+      // which the `...fieldMeta` spread that used to stand here wrote straight
+      // into the column's `type`, the same verbatim forwarding `ObjectGrid` does
+      // at its own seam. (The spread itself has since retired — objectui#6373 —
+      // but this fold is unchanged and still load-bearing: `type` is written out
+      // explicitly below, so the value still has to be folded before it lands.)
       // The card's census named ObjectGrid as the only inference producer; this
       // is the second one, and it gets the same fold so `TableColumn.type` only
       // ever holds a value that type declares. An out-of-union type drops the
@@ -474,11 +560,11 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       // which reads `fieldMeta`, not `col.type`, so it is unaffected.
       const columnType = normalizeTableColumnType(fieldMeta.type);
 
-      if (typeof col.cell === 'function') return { ...col, ...fieldMeta, type: columnType, align: inferredAlign };
+      if (typeof col.cell === 'function') return { ...col, name: fieldMeta.name, type: columnType, align: inferredAlign };
 
       // Tenant-default currency backstops a currency column with no explicit code.
       const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency, displayLocale);
-      return { ...col, ...fieldMeta, type: columnType, align: inferredAlign, cell };
+      return { ...col, name: fieldMeta.name, type: columnType, align: inferredAlign, cell };
     };
 
     if (schema.columns && schema.columns.length > 0) {
