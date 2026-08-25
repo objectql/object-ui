@@ -7,7 +7,7 @@ The AppShell component provides the main application layout structure with an in
 
 ## Basic Usage
 
-```plaintext
+```tsx
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
 import { Home, Settings, Users } from 'lucide-react';
 
@@ -32,7 +32,9 @@ const navItems: NavItem[] = [
 
 ## Component Props
 
-```plaintext
+```ts
+import type { AppShellBranding } from '@object-ui/layout';
+
 interface AppShellProps {
   sidebar?: React.ReactNode;     // Sidebar content (usually SidebarNav)
   navbar?: React.ReactNode;      // Top navbar content (logo, search, user menu)
@@ -111,14 +113,21 @@ The AppShell renders no toggle button of its own. What it does give you is the
 - Programmatic control — `useSidebar().toggleSidebar()` from any component inside the shell
 - A toggle button you render yourself; it belongs in the `navbar` slot:
 
-```plaintext
+```tsx
 import { SidebarTrigger } from '@object-ui/components';
+import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
+import { Home, Settings } from 'lucide-react';
+
+const navItems: NavItem[] = [
+  { title: 'Dashboard', href: '/', icon: Home },
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
 
 <AppShell
   navbar={<SidebarTrigger />}
   sidebar={<SidebarNav items={navItems} />}
 >
-  {/* Your page content */}
+  <div>Your page content</div>
 </AppShell>
 ```
 
@@ -160,7 +169,7 @@ navbar={
 
 ## Complete Example
 
-```plaintext
+```tsx
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
 import { Avatar, AvatarFallback, Button, Input } from '@object-ui/components';
 import { Bell, Folder, LayoutDashboard, Settings, Users } from 'lucide-react';

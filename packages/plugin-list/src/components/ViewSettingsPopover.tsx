@@ -185,7 +185,7 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
           <div className="text-sm font-semibold">{triggerLabel}</div>
           <div className="text-[11px] text-muted-foreground">
             {t('list.viewSettingsHint', {
-              defaultValue: 'Grouping, color, density, and visible fields.',
+              defaultValue: 'Grouping, color, density, and visible fields. Applies to everyone who uses this view.',
             })}
           </div>
         </div>

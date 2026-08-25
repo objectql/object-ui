@@ -175,6 +175,7 @@ them draw the notification's `severity` icon unless it declares an `icon`
 override naming a real Lucide icon. See the
 [notifications guide](https://objectui.org/docs/guide/notifications).
 
+<!-- doc-snippet: fragment — router-layout excerpt: `Outlet` is react-router's, supplied by the host application -->
 ```tsx
 import { NotificationBanners, NotificationAlerts } from '@object-ui/components';
 
