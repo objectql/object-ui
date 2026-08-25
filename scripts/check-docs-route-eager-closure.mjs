@@ -476,6 +476,14 @@ function packageOfFile(packages) {
  * `root` is a parameter so the unit test can drive the whole thing over a
  * fixture tree — including a tree where the answer must be RED. A gate whose
  * failing direction is only ever asserted by reading it is not verified.
+ *
+ * The `ledger` parameter is typed as a plain record rather than left to be
+ * inferred from {@link MEASURED_PAYLOAD}: inference would freeze the fixture
+ * ledger out of the signature (`allowJs` reads the default's literal keys as
+ * the type), and a test that cannot pass its own ledger cannot exercise the
+ * ledger halves at all.
+ *
+ * @param {{ root?: string, ledger?: Record<string, string> }} [options]
  */
 export function analyse({ root = REPO_ROOT, ledger = MEASURED_PAYLOAD } = {}) {
   const packages = readWorkspacePackages(root);
