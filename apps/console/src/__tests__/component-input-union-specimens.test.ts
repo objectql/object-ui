@@ -49,9 +49,15 @@
  * than folded in, and land here in their own `describe` below. Their arms are
  * derived from the spec's own verdicts rather than restated, which is the
  * discipline `text-input-inputs-spec-parity.test.ts` adopted for the fifth
- * specimen: the gap #3832 closed is EXPRESSIVENESS, and whether a declared arm
- * matches the contract is nobody's gate (objectui#4971), so per-key derivation
- * is what stands in for one.
+ * specimen: the gap #3832 closed is EXPRESSIVENESS, and per-key derivation is
+ * how a specimen states the contract half for itself.
+ *
+ * That half is no longer only per-key. objectui#4971 landed the repo-wide arm
+ * direction in `registry-inputs-spec-parity.test.ts`: every declared arm must be
+ * a kind the spec accepts on that key. It does NOT subsume this file — it judges
+ * DECLARATIONS against the contract, while this one drives `manifestFromConfigs`
+ * + `validateTree` and judges the GATE against the declarations. A regression in
+ * either is invisible to the other.
  */
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';

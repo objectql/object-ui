@@ -46,6 +46,12 @@ export interface SplitFormSectionConfig {
    */
   pane?: 'primary' | 'secondary';
   fields: (string | FormField)[];
+  /**
+   * ADR-0089 `FormSection.visibleWhen` — conditional visibility for the
+   * section's divider HEADER, evaluated by the form renderer with the canonical
+   * engine and the host predicate scope (#6010/#6111). Fails OPEN.
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
   /** Custom CSS class for the section's header row. */
   className?: string;
   /**
@@ -339,6 +345,9 @@ export const SplitForm: React.FC<SplitFormProps> = ({
           label: section.label,
           description: section.description,
           type: 'section-divider',
+          // ADR-0089 section predicate (#6111) — the renderer evaluates it on
+          // this pseudo-field with the host predicate scope bound (#6010).
+          visibleWhen: section.visibleWhen,
           colSpan: 4,
           className: section.className,
         } as any);

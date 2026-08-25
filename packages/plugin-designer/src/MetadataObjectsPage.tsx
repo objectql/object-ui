@@ -38,14 +38,22 @@ import type { ObjectDefinition } from '@object-ui/types';
 import { MetadataClient, type MetadataClientConfig } from '@object-ui/data-objectstack';
 import { ObjectManager } from './ObjectManager';
 
-/** Minimal shape we consume from a framework ObjectSchema payload. */
+/**
+ * Minimal shape we consume from a framework ObjectSchema payload — and, merged
+ * back in {@link MetadataObjectsPage}, the body of `PUT /api/v1/meta/object/:name`.
+ */
 interface ServerObjectSchema {
   name: string;
   label?: string;
   pluralLabel?: string;
   description?: string;
   icon?: string;
-  group?: string;
+  // No `group` (objectui#6223): `ObjectSchema` has no object-level grouping key
+  // and refuses this one BY NAME, so the merged save-back made the whole PUT a
+  // 422 `INVALID_METADATA` — which then blocks EVERY later save of that object.
+  // Nothing is lost by dropping it: a key the schema refuses was never stored,
+  // so `raw.group` was always absent on the way back in. The manager's grouping
+  // is a display category and `toObjectDefinition` derives it below.
   isSystem?: boolean;
   fields?: Record<string, unknown>;
   [key: string]: unknown;
@@ -87,7 +95,13 @@ function toObjectDefinition(raw: ServerObjectSchema): ObjectDefinition {
     pluralLabel: raw.pluralLabel,
     description: raw.description,
     icon: raw.icon,
-    group: raw.group,
+    // Derived, never round-tripped (objectui#6223). `group` is the Object
+    // Manager's display category; `ObjectSchema` has no object-level grouping
+    // key, so the server neither stores nor serves one. Deriving it from the
+    // spec key that IS accepted (`isSystem`) keeps the grouping control
+    // populated with the same two `OBJECT_GROUPS` entries the sibling
+    // converter uses, instead of reading a key that can only ever be absent.
+    group: (raw.isSystem ?? false) ? 'System Objects' : 'Custom Objects',
     isSystem: raw.isSystem ?? false,
     fieldCount,
   };
@@ -191,9 +205,16 @@ export function MetadataObjectsPage({
         pluralLabel: updated.pluralLabel,
         description: updated.description,
         icon: updated.icon,
-        group: updated.group,
+        // `group` is deliberately not merged back (objectui#6223) — see the
+        // note on `ServerObjectSchema`.
         isSystem: updated.isSystem,
       };
+      // `...base` is a verbatim spread of whatever the server sent, so simply
+      // not writing `group` is not enough: an object that already has the key
+      // stored from before this fix would spread it straight back out and stay
+      // permanently unsaveable. Strip it on the way out too — the objectui#4644
+      // strip-on-load shape, applied on the write side where the spread is.
+      delete merged.group;
       // Don't issue redundant saves if nothing visible changed.
       if (
         prev[updated.name]
@@ -201,7 +222,6 @@ export function MetadataObjectsPage({
         && prev[updated.name].pluralLabel === merged.pluralLabel
         && prev[updated.name].description === merged.description
         && prev[updated.name].icon === merged.icon
-        && prev[updated.name].group === merged.group
       ) {
         continue;
       }

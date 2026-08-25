@@ -927,6 +927,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const resizingColumn = useRef<string | null>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
+  /**
+   * Final width produced by the in-flight drag, so `handleResizeEnd` can report
+   * it once. It has to be a ref, not state: the document-level listeners are one
+   * render's closures and cannot observe a later `columnWidths` update.
+   */
+  const lastResizeWidth = useRef<number | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   // When an edit ends via Enter (already saved) or Escape (cancelled), the
   // input also blurs. This flag tells the blur handler not to save again so we
@@ -1282,6 +1288,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     
     resizingColumn.current = columnKey;
     startX.current = e.clientX;
+    lastResizeWidth.current = null;
     
     const headerCell = (e.target as HTMLElement).closest('th');
     if (headerCell) {
@@ -1302,12 +1309,25 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       ...prev,
       [resizingColumn.current!]: newWidth
     }));
+    lastResizeWidth.current = newWidth;
   };
 
   const handleResizeEnd = () => {
+    const resizedColumn = resizingColumn.current;
+    const finalWidth = lastResizeWidth.current;
     resizingColumn.current = null;
+    lastResizeWidth.current = null;
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleResizeEnd);
+    // objectui#6175: report the SETTLED width, once, at mouseup — never per
+    // mousemove. `onColumnResize` was declared here and invoked nowhere, which
+    // is why ObjectGrid's `saveColumnState` never ran and column widths never
+    // persisted. The host turns this into a real write (localStorage plus
+    // `onColumnStateChange` -> `dataSource.updateViewConfig`), so a per-move
+    // callback would be a write storm on shared view config.
+    if (resizedColumn && finalWidth != null) {
+      schema.onColumnResize?.(resizedColumn, finalWidth);
+    }
   };
 
   // Column reordering handlers

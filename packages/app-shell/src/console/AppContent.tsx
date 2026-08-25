@@ -1099,8 +1099,8 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 showSubmit: true,
                 showCancel: true,
                 submitText: editingRecord
-                  ? t('form.update', { defaultValue: t('common.save', { defaultValue: 'Save' }) })
-                  : t('form.create', { defaultValue: t('common.create', { defaultValue: 'Create' }) }),
+                  ? t('form.update', { defaultValue: 'Update' })
+                  : t('form.create', { defaultValue: 'Create' }),
                 cancelText: t('common.cancel'),
               }}
               dataSource={dataSource}

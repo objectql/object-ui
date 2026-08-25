@@ -690,7 +690,7 @@ export const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.toolbar.densityCycleHint': '{{label}} (click to cycle)',
   'grid.toolbar.densityCycleShortHint': 'Click to cycle',
   'list.viewSettings': 'View settings',
-  'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
+  'list.viewSettingsHint': 'Grouping, color, density, and visible fields. Applies to everyone who uses this view.',
   // Heading of the record-detail overlay this view opens when a child view's
   // row is clicked (objectui#3426). Borrowed from the `detail.*` namespace
   // rather than minted as `list.recordDetail`: `NavigationOverlay` already

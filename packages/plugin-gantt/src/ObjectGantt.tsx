@@ -26,6 +26,11 @@ import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } 
 import { toast } from 'sonner';
 import type { ObjectGanttSchema, ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
+// Aliased on import, following PR #4169's convention: this repo has its OWN
+// `resolveI18nLabel` over a DIFFERENT vocabulary (the KEYED `{ key, defaultValue }`
+// ref, `resolveKeyedI18nLabel` in `@object-ui/react`), and neither accepts the
+// other's shape. This one resolves the spec's INLINE locale MAP.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
@@ -1505,8 +1510,33 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             // Explicit view config first (e.g. "Shift Plan Gantt") — the host strips
             // `label` off the schema it hands us — then the bound object's
             // label, then its API name.
+            //
+            // `schema.label` is `BaseSchema['label']` = `string | I18nLabel` since
+            // #4580's revised Q1-A ruling — `I18nLabel` being the spec's INLINE
+            // locale MAP (`{ en: 'Shift Plan', 'zh-CN': '排班计划' }`). `String()`
+            // renders a map as `[object Object]`, so a gantt whose label was
+            // authored as a map exported `[object Object]-<ts>.png` (#6052).
+            // `resolveI18nLabel` from `@objectstack/spec/ui` is the producer's own
+            // resolver for that vocabulary; the locale is the same
+            // `useDisplayLocale()` the tooltip formatters already take. It answers
+            // `undefined` on an absent label or a total miss, which is why it sits
+            // INSIDE the `??` chain — a miss falls through to the next link exactly
+            // as a missing label always did.
+            //
+            // `objectSchema?.label`, the very next link, deliberately does NOT get
+            // the same treatment: that is the DATA object's label, declared
+            // `label: z.string().optional()` on the spec's `ObjectSchemaBase` —
+            // a `strictObject`, so a locale map there is REJECTED by the producer,
+            // not resolved by us. Resolving it here would be accepting a second
+            // vocabulary at the consumer, which AGENTS.md #0.1 rules out; if that
+            // object-metadata slot ever needs locale maps, it widens in the spec
+            // first and this link follows.
             String(
-              ganttConfig?.exportFileName ?? schema.label ?? objectSchema?.label ?? schema.objectName ?? ''
+              ganttConfig?.exportFileName
+                ?? resolveInlineI18nLabel(schema.label, displayLocale)
+                ?? objectSchema?.label
+                ?? schema.objectName
+                ?? ''
             ) || undefined
           }
           inlineEdit

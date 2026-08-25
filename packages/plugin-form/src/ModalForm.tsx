@@ -78,6 +78,12 @@ export interface ModalFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
+  /**
+   * ADR-0089 `FormSection.visibleWhen` — conditional visibility for the
+   * section's divider HEADER, evaluated by the form renderer with the canonical
+   * engine and the host predicate scope (#6010/#6111). Fails OPEN.
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
   /** Custom CSS class for the section's header row (stacked layout). */
   className?: string;
   /**
@@ -616,6 +622,9 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             key: sectionKey(section, index),
             title: sectionTitle(section),
             description: section.description,
+            // Key-by-key rebuild: an uncopied key never reaches the divider
+            // synthesis below (#6111).
+            visibleWhen: section.visibleWhen,
             className: section.className,
             gridClassName: section.gridClassName,
             fields: formColumns > 1
@@ -665,6 +674,9 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             label: g.title,
             description: g.description,
             type: 'section-divider',
+            // ADR-0089 section predicate (#6111) — the renderer evaluates it on
+            // this pseudo-field with the host predicate scope bound (#6010).
+            visibleWhen: g.visibleWhen,
             colSpan: 4,
             className: g.className,
           } as any);
@@ -695,6 +707,8 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             name: `__section_${section.name || index}`,
             label: title,
             type: 'section-divider',
+            // ADR-0089 section predicate (#6111).
+            visibleWhen: (section as any).visibleWhen,
           } as any);
         }
         allFields.push(...(columns > 1 ? applyAutoColSpan(body, columns) : body));

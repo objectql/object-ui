@@ -107,16 +107,103 @@
  *     `record:details.sections`, `record:highlights.fields` and
  *     `record:related_list.add` publish their members in prose and are pinned by
  *     per-block tests next to their renderers. PR #3795's open question;
- *   - types. This gate compares key NAMES only, so a key can be in perfect name
- *     parity while publishing a type the contract does not match — narrower, or
- *     (since objectui#3832 gave `ComponentInput.type` the array form) wider by an
- *     arm the spec rejects. The expressiveness half of that gap is closed: a
- *     union key can now declare its real arms, and the five specimens do. The
- *     COMPARISON half is not, and is nobody's check yet — each of those five is
- *     pinned against the spec's verdicts by a per-block test next to its
- *     renderer, which is per-block discipline, not a gate.
+ *   - types, NARROWER than the contract. A key can be in perfect name parity
+ *     while declaring fewer arms than the spec accepts, and this gate does not
+ *     look. That half is deliberately left to per-block discipline, for the
+ *     reason the ARM DIRECTION section below sets out: narrowing is NOISY, and
+ *     noise is at least audible.
  *
- * A pass means the top-level key names are in parity, nothing more.
+ * A pass means the top-level key names are in parity, and that no declared arm
+ * is one the contract refuses outright — nothing more.
+ *
+ * ── THE ARM DIRECTION, AND WHY ONLY ONE OF ITS TWO HALVES IS GATED ──────────
+ *                                                             (objectui#4971)
+ *
+ * `ComponentInput.type` used to carry ONE coarse kind. objectui#3832 gave it
+ * the ARRAY form so a key whose contract is a union can declare its real arms —
+ * and in doing so created a SECOND way for a declaration to disagree with the
+ * contract. The two are not symmetric, and the asymmetry is the whole argument
+ * for gating one and not the other:
+ *
+ *   - NARROWING — declaring FEWER arms than the spec accepts — produces NOISE.
+ *     `sdui-parser`'s `checkType` reports `type-mismatch` on a value the
+ *     contract is perfectly happy with; the author is warned off a legal write.
+ *     Annoying, occasionally harmful (noise on legal writes trains authors, AI
+ *     authors included, to dismiss the reports that ARE real) — but AUDIBLE.
+ *     Somebody sees it.
+ *   - WIDENING — declaring an arm the spec REJECTS — is SILENT. `checkType`
+ *     clears a value the contract refuses, the manifest and the generated
+ *     `.d.ts` publish it as legal, and `os validate` / `os build` are the first
+ *     thing in the chain to say no, long after the metadata was written.
+ *     `declared = enforced` inverts, and NOTHING announces it.
+ *
+ * Before #3832 only the narrow mode existed, so the gap self-announced. After
+ * it, the silent mode is live and needs a gate. That is this one, and it is
+ * ONE-DIRECTIONAL on purpose: every declared arm must be a shape the contract
+ * accepts (a SUBSET of what the spec takes on that key). It does not ask the
+ * reverse question.
+ *
+ * MEASURED, and this is what "done" meant for #4971. Two fake arms were added
+ * on the #3832 branch, one per specimen. `element:text_input.defaultValue` grew
+ * an `'object'` arm the spec rejects and the per-block
+ * `text-input-inputs-spec-parity.test.ts` pinned it red. `page:card.title` grew
+ * a `'number'` arm the spec rejects and the WHOLE SUITE stayed green — 856
+ * tests, not one gate noticing. The only difference between the two is that
+ * `element:text_input` happens to have a per-block test and `page:card` does
+ * not: the property held by DISCIPLINE, block by block, not by a gate.
+ *
+ * ## What an arm is compared against — the COARSE-KIND ceiling
+ *
+ * An arm names a value's KIND, never its DOMAIN (`ComponentInput.type`, and the
+ * maintainer ruling of 2026-08-17 quoted there: "the coarse arm plus
+ * `description` IS the publication face's expression ceiling today, and SPEC IS
+ * THE SOLE JUDGE OF VALUES"). `page:header.maxVisible` is the worked example —
+ * its contract is a POSITIVE SAFE INTEGER, its arm is `'number'`, and `0` /
+ * `-1` / `1.5` pass this layer by design.
+ *
+ * So the question this gate asks is the one the ruling leaves it: does the
+ * contract accept ANY value of that kind on that key? A `'number'` arm on a key
+ * whose contract is `1..n` is in scope of the ruling and stays green. A
+ * `'number'` arm on a key whose contract is a STRING accepts nothing the
+ * contract accepts, and is what `declared = enforced` cannot survive.
+ *
+ * ## Kind-refusal vs value-refusal — the trap this gate is built around
+ *
+ * The naive probe ("does `safeParse` accept a representative value of this
+ * kind?") is WRONG in two measured ways, and both make a CORRECT arm read as
+ * invented — the false red triage flagged when this card was scoped:
+ *
+ *   1. ENUM CONTRACTS. `record:quick_actions.variant` is a spec enum, declared
+ *      with a `'string'` arm. A representative string is refused — as a VALUE,
+ *      not as a kind. Reading that as "the string arm is fake" would condemn a
+ *      declaration the ruling above expressly permits.
+ *   2. REQUIRED SIBLINGS. `{ filter: … }` alone fails `element:number`'s schema
+ *      for the missing `object` / `aggregate`, and would report every arm of
+ *      every key on such a block as fake.
+ *
+ * `specArmVerdict` therefore reads the ISSUES rather than the boolean: it looks
+ * only at issues about THIS key (so siblings cannot speak for it), and it
+ * refutes an arm only when the refusal is at the key's own node AND is a KIND
+ * refusal (`invalid_type`, or an `invalid_union` whose every branch refuses the
+ * kind). A refusal deeper in the value, or of any other code, means the kind got
+ * in and the CONTENT was judged — which is precisely the ceiling above, so the
+ * arm stands.
+ *
+ * That is the exemption for enum CONTRACTS, and it is a rule rather than a list.
+ * The one thing it must not do is let #4971's own measurement through, so the
+ * calibration is asserted by name: `page:card.title` + `42` must read
+ * `refuses-kind` (the fake arm reds), while `record:quick_actions.variant` +
+ * `'Account'` must read `refuses-content` (the enum arm does not).
+ *
+ * An `enum` ARM is judged differently and exactly, because it is the one arm
+ * whose admitted set is FINITE and written down: `armAccepts` consults the
+ * input's own `enum` list, so every declared member must be a value the spec
+ * accepts. No coarseness is needed and none is taken.
+ *
+ * Two arm kinds are EXEMPT, listed rather than silent: `'slot'` (it describes a
+ * CHILD POSITION, not a value — `armAccepts` admits everything for it, so there
+ * is no value-shaped claim to compare), and an `'enum'` arm that declares NO
+ * members (it admits nothing, so it can widen nothing).
  *
  * `retiredKey()` TOMBSTONES USED TO BE THE THIRD — CLOSED, objectui#3809.
  * ADR-0087 D2 retirement replaces a member with `z.never().optional()` instead
@@ -145,6 +232,8 @@
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { ComponentPropsMap } from '@objectstack/spec/ui';
+import { MANIFEST_INPUT_TYPES, inputTypeArms } from '@object-ui/sdui-parser';
+import type { ComponentInput } from '@object-ui/types';
 import {
   authorableShapeKeys,
   isShapeKeyTombstoned,
@@ -201,11 +290,24 @@ const specListedKeys = (type: string): string[] => listedShapeKeys(specSchema(ty
 /** The listed top-level keys this block's spec schema rejects by name. */
 const specTombstonedKeys = (type: string): string[] => tombstonedShapeKeys(specSchema(type));
 
-/** Declared input names for a registered block, or `null` when not registered. */
-function declaredInputs(type: string): string[] | null {
+/**
+ * Declared input ENTRIES for a registered block, or `null` when not registered.
+ *
+ * The arm direction (objectui#4971) needs more of an input than its name — the
+ * declared `type` arms, and an `enum` arm's own member list — so the registry
+ * read happens once, here, and `declaredInputs` projects it. Two readers of
+ * `config.inputs` would be two chances to disagree about which registration a
+ * verdict came from.
+ */
+function declaredInputEntries(type: string): ComponentInput[] | null {
   const config = ComponentRegistry.getConfig(type);
   if (!config) return null;
-  return (config.inputs ?? []).map((input) => input.name);
+  return (config.inputs ?? []) as ComponentInput[];
+}
+
+/** Declared input names for a registered block, or `null` when not registered. */
+function declaredInputs(type: string): string[] | null {
+  return declaredInputEntries(type)?.map((input) => input.name) ?? null;
 }
 
 /** Top-level inputs this block declares that its spec props schema rejects. */
@@ -853,6 +955,305 @@ const unpublishedExemptedFor = (type: string): string[] =>
     .filter((key) => key.startsWith(`${type}.`))
     .map((key) => key.slice(type.length + 1));
 
+// ── the ARM direction (objectui#4971) ────────────────────────────────────────
+//
+// Same `covered` set, same derived-not-restated expectations, same exemption
+// discipline as the two key-name directions above. What moves is the SUBJECT:
+// not which keys a block publishes, but which coarse KINDS it publishes them
+// with. One direction only — see the header: widening is silent, narrowing is
+// merely noisy.
+
+/**
+ * One Zod issue, as far as the arm judge needs to see it.
+ *
+ * Structural rather than imported: the contract's issues arrive as plain data
+ * through `safeParse`, and the three fields read here (`code`, `path`, and the
+ * per-branch `errors` of a union) are the stable shape of that data. `keys` is
+ * the `unrecognized_keys` payload — see `specArmVerdict`.
+ */
+interface SpecIssue {
+  code?: string;
+  path?: readonly unknown[];
+  keys?: readonly string[];
+  values?: readonly unknown[];
+  errors?: readonly (readonly SpecIssue[])[];
+}
+
+interface SpecParser {
+  safeParse: (value: unknown) => { success: boolean; error?: { issues?: readonly SpecIssue[] } };
+}
+
+/** This block's spec props schema as a parser, or `null` when this pin has none. */
+function specParser(type: string): SpecParser | null {
+  const schema = specSchema(type) as Partial<SpecParser> | undefined;
+  return typeof schema?.safeParse === 'function' ? (schema as SpecParser) : null;
+}
+
+/**
+ * Representative values per coarse arm, in the vocabulary `armAccepts` uses
+ * (`packages/sdui-parser/src/validate.ts`) — the arms are KINDS, so one value
+ * of the kind is what witnesses it.
+ *
+ * More than one per structured kind on purpose. `[]` witnesses any array
+ * contract regardless of its element type, and `{}` witnesses an object
+ * contract whose members are all optional; the second entry is what witnesses
+ * the opposite case — a contract with required members, where the empty value
+ * fails on CONTENT (which `specArmVerdict` reads as the kind being accepted).
+ * Either one answering is enough, which is why the verdict is `some`, not
+ * `every`.
+ *
+ * `color` / `date` / `code` / `file` are the string-family kinds `armAccepts`
+ * treats as `typeof value === 'string'`. No registration in this repo declares
+ * one today, so their probes are unexercised vocabulary rather than measured —
+ * they are here so that a first such declaration is JUDGED rather than silently
+ * unjudged, which is what `the probe vocabulary covers every arm a manifest can
+ * carry` asserts.
+ */
+const COARSE_ARM_PROBES: Record<string, readonly unknown[]> = {
+  string: ['Account'],
+  number: [42],
+  boolean: [true],
+  array: [[], ['Account']],
+  object: [{}, { en: 'Account', 'zh-CN': '客户' }],
+  color: ['#336699'],
+  date: ['2026-01-01T00:00:00.000Z'],
+  code: ['const total = 1;'],
+  file: ['logo.png'],
+};
+
+/**
+ * Arm kinds that carry no value-shaped claim, and so cannot be compared to a
+ * contract at all. Listed, never silent (the header's exemption rule).
+ *
+ * `slot` is the whole list: it names a CHILD POSITION rather than a value, and
+ * `armAccepts` admits everything for it (`default: return true`), so "the spec
+ * accepts some value of this kind" is not a question about the declaration.
+ * `page:card.children` / `.footer` and the three `page:*` container `children`
+ * are the five that use it.
+ */
+const ARM_KINDS_WITHOUT_A_VALUE_CLAIM = new Set(['slot']);
+
+/**
+ * The coarse kind of a value, in `armAccepts`'s vocabulary
+ * (`packages/sdui-parser/src/validate.ts`).
+ *
+ * Only ever asked about a value the gate itself produced — a probe, or a
+ * declared enum member — so the question is "which arm would admit this", not a
+ * general type test. The string family (`color` / `date` / `code` / `file`)
+ * collapses to `string` because `armAccepts` makes no distinction between them
+ * either: all five admit exactly `typeof value === 'string'`.
+ */
+function coarseKindOf(value: unknown): string {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  return typeof value;
+}
+
+/**
+ * Is this rejection about the VALUE'S KIND at the node itself, rather than
+ * about its CONTENT?
+ *
+ * `issues` are RELATIVE to the node under judgement — which is why the union
+ * recursion below is not a formality. A union's per-branch issues come back
+ * with paths relative to the union node (measured: `page:card.title` refused a
+ * number as `invalid_union` at `["title"]`, its two branch issues at `[]`), so
+ * a judge that kept matching them against the absolute key path would find
+ * nothing to refute and pass EVERY union key — including objectui#4971's own
+ * `page:card.title` measurement, the one reading this gate exists to turn red.
+ *
+ *  - an issue DEEPER than the node means the kind was accepted and the content
+ *    judged (a missing required member, a bad element) — not a kind refusal;
+ *  - `invalid_type` at the node is the kind refusal itself;
+ *  - `invalid_union` at the node is one only if EVERY branch refuses the kind;
+ *  - `invalid_value` at the node — a closed list of literals — is decided by
+ *    the list: a probe of a kind NO listed value has is refused for its kind,
+ *    while one that shares a kind with some listed value is refused for its
+ *    VALUE. Both halves are load-bearing and were measured on
+ *    `record:quick_actions.variant`, a spec enum of strings: `'Account'` must
+ *    read as a value refusal (or the block's correct `'string'` arm reads as
+ *    invented — the false red triage flagged), and `42` must read as a KIND
+ *    refusal (or a `'number'` arm on an enum contract would be exactly the
+ *    silent widening this gate exists for, waved through by the same rule that
+ *    protects the string arm). One key, both directions, so the two cannot be
+ *    collapsed into one answer;
+ *  - anything else at the node (`too_small`, `invalid_format`, a custom
+ *    refinement) is a VALUE refusal, and the coarse-kind ceiling
+ *    (`ComponentInput.type`, maintainer 2026-08-17) puts it outside what an arm
+ *    claims.
+ */
+function refusesKind(issues: readonly SpecIssue[], probed: unknown): boolean {
+  const here = issues.filter((issue) => (issue.path ?? []).length === 0);
+  if (issues.length > here.length) return false;
+  if (here.length === 0) return false;
+  return here.every(
+    (issue) =>
+      issue.code === 'invalid_type' ||
+      (issue.code === 'invalid_value' &&
+        Array.isArray(issue.values) &&
+        issue.values.length > 0 &&
+        !issue.values.some((allowed) => coarseKindOf(allowed) === coarseKindOf(probed))) ||
+      (issue.code === 'invalid_union' &&
+        (issue.errors ?? []).length > 0 &&
+        (issue.errors ?? []).every((branch) => refusesKind(branch, probed))),
+  );
+}
+
+type ArmVerdict = 'accepts' | 'refuses-content' | 'refuses-kind' | 'no-schema';
+
+/**
+ * What the contract says about ONE value on ONE key — scoped to that key.
+ *
+ * Scoped is the load-bearing word. A whole-parse boolean cannot answer this
+ * question on any block with a REQUIRED key: `{ filter: {} }` fails
+ * `element:number`'s schema for the missing `object` / `aggregate`, and reading
+ * that as a verdict on `filter` would report every arm of every key on such a
+ * block as invented. So only issues about this key count, and a parse whose
+ * every complaint is about a sibling reads as `accepts`.
+ */
+function specArmVerdict(type: string, key: string, value: unknown): ArmVerdict {
+  const parser = specParser(type);
+  if (!parser) return 'no-schema';
+  const result = parser.safeParse({ [key]: value });
+  if (result.success) return 'accepts';
+  const issues = result.error?.issues ?? [];
+  // The key refused BY NAME — strict-mode contracts report it this way, at the
+  // parent with the offending names in `keys`. Defensive: the walk below only
+  // judges keys the accepted set already carries.
+  if (issues.some((issue) => issue.code === 'unrecognized_keys' && (issue.keys ?? []).includes(key)))
+    return 'refuses-kind';
+  const mine = issues
+    .filter((issue) => (issue.path ?? [])[0] === key)
+    .map((issue) => ({ ...issue, path: (issue.path ?? []).slice(1) }));
+  if (mine.length === 0) return 'accepts';
+  return refusesKind(mine, value) ? 'refuses-kind' : 'refuses-content';
+}
+
+/**
+ * The values an `enum` arm admits, flattened from either declaration form.
+ *
+ * The same flattening `enumValues` does in `packages/sdui-parser/src/validate.ts`
+ * — that function is module-private, and the two forms (`['a', 'b']` or
+ * `[{ label, value }]`) are `ComponentInput.enum`'s own published shape rather
+ * than a judgement, so this is a re-read of a data shape, not a second
+ * classifier.
+ */
+function declaredEnumValues(input: ComponentInput): unknown[] {
+  return (input.enum ?? []).map((entry) =>
+    typeof entry === 'object' && entry !== null ? (entry as { value: unknown }).value : entry,
+  );
+}
+
+interface ArmJudgement {
+  /** `BLOCK.INPUT:ARM` — the exemption key format. */
+  id: string;
+  type: string;
+  input: string;
+  arm: string;
+  verdict: 'witnessed' | 'refused' | 'exempt-slot' | 'exempt-empty-enum';
+  /** What the contract actually answered, for the failure message. */
+  evidence: string;
+}
+
+/**
+ * Judge every arm of every declared input on one block.
+ *
+ * Inputs whose NAME the contract does not accept are skipped, not judged: they
+ * are the FORWARD direction's subject (and its exemption list's), and asking
+ * what kind a contract accepts on a key it does not declare has no answer worth
+ * reporting. Today that set is empty — `no covered block declares an off-spec
+ * input` is what the forward direction asserts — so the skip removes nothing.
+ */
+function judgeArms(type: string): ArmJudgement[] {
+  const accepted = new Set(specTopLevelKeys(type));
+  const judgements: ArmJudgement[] = [];
+  for (const input of declaredInputEntries(type) ?? []) {
+    if (!accepted.has(input.name)) continue;
+    for (const arm of inputTypeArms(input.type)) {
+      const id = `${type}.${input.name}:${arm}`;
+      if (ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm)) {
+        judgements.push({ id, type, input: input.name, arm, verdict: 'exempt-slot', evidence: 'describes a child position, not a value' });
+        continue;
+      }
+      if (arm === 'enum') {
+        // EXACT, not coarse: `armAccepts` admits precisely the declared members,
+        // so every one of them must be a value the contract accepts. This is
+        // where an enum arm is judged — the coarse rule never sees it.
+        const members = declaredEnumValues(input);
+        if (members.length === 0) {
+          judgements.push({ id, type, input: input.name, arm, verdict: 'exempt-empty-enum', evidence: 'declares no members, so it admits nothing' });
+          continue;
+        }
+        const refused = members.filter(
+          (member) => specArmVerdict(type, input.name, member) !== 'accepts',
+        );
+        judgements.push({
+          id,
+          type,
+          input: input.name,
+          arm,
+          verdict: refused.length === 0 ? 'witnessed' : 'refused',
+          evidence:
+            refused.length === 0
+              ? `all ${members.length} declared members accepted`
+              : `the contract refuses the declared member(s) ${JSON.stringify(refused)}`,
+        });
+        continue;
+      }
+      const probes = COARSE_ARM_PROBES[arm] ?? [];
+      const verdicts = probes.map((probe) => specArmVerdict(type, input.name, probe));
+      const witnessed = verdicts.some((verdict) => verdict === 'accepts' || verdict === 'refuses-content');
+      judgements.push({
+        id,
+        type,
+        input: input.name,
+        arm,
+        verdict: witnessed ? 'witnessed' : 'refused',
+        evidence: witnessed
+          ? `probe verdicts ${JSON.stringify(verdicts)}`
+          : `the contract refuses the KIND itself — probe verdicts ${JSON.stringify(verdicts)}`,
+      });
+    }
+  }
+  return judgements;
+}
+
+/** Every arm judgement this gate makes, computed once. */
+const ARM_JUDGEMENTS: ArmJudgement[] = covered.flatMap(judgeArms);
+
+/** Arms of `type` the contract refuses outright, as `BLOCK.INPUT:ARM`. */
+const refusedArms = (type: string): string[] =>
+  ARM_JUDGEMENTS.filter((judgement) => judgement.type === type && judgement.verdict === 'refused').map(
+    (judgement) => judgement.id,
+  );
+
+/**
+ * Declared arms the contract refuses, ACCEPTED for now, each with the reason.
+ * Key format: `BLOCK.INPUT:ARM`.
+ *
+ * Third instance of this file's one exemption discipline, and the bar is the
+ * same as `OFF_SPEC_EXEMPTIONS`': the divergence has to be owned by a named,
+ * open piece of work, because neither `@objectstack/spec` nor a declaration is
+ * edited to make a gate green (AGENTS.md #0 / #0.1). Every reason cites an
+ * issue, which `every arm exemption states a reason and references a tracking
+ * issue` asserts, and an entry that stops describing anything is DELETED by
+ * `carries no stale arm exemption`.
+ *
+ * BOTH ENTRIES ARE RED-ON-ARRIVAL FINDINGS, not regressions this change
+ * introduced. objectui#4971 was filed believing there were ZERO fake arms —
+ * true of what it had measured, which was #3832's five multi-arm specimens,
+ * each checked against spec and its renderer. These two are SINGLE-arm
+ * declarations, the form that predates #3832's array `type` entirely, and
+ * nothing had ever compared one to the contract. Finding them on arrival is the
+ * gate working, and the dispatched scope of #4971 is explicit that a red on
+ * arrival gets REPORTED rather than declared away by editing the declaration.
+ */
+const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
+  'element:number.filter:array':
+    'Declared `array` (every other `filter` input in the repo is — object-grid, object-metric, record:related_list, plugin-list, data-list), while ComponentPropsMap[element:number].filter is a record/object ("Filter criteria") and refuses an array outright. The renderer is an opaque passthrough (elements.tsx:375-451, `filter?: unknown` → adapter.aggregate / find), so nothing in-tree settles which side moves: widening the spec entry to the ViewFilterRule array form every sibling filter uses, or re-declaring this one block. A contract question, filed as objectui#6206.',
+  'object-grid.data:object':
+    'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
+};
+
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
   it('judges every spec-carried block that declares an authoring surface', () => {
     // Non-vacuity guard. Every per-block assertion below is generated from
@@ -1236,6 +1637,144 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         .map((key) => `${type}.${key}`),
     );
     expect(exemptedTombstones).toEqual([]);
+  });
+
+  // ── the ARM direction (objectui#4971) ──────────────────────────────────────
+
+  it.each(covered)('%s declares no arm the spec refuses outright', (type) => {
+    const unregistered = refusedArms(type).filter((id) => !(id in OFF_SPEC_ARM_EXEMPTIONS));
+    const evidence = ARM_JUDGEMENTS.filter((judgement) => unregistered.includes(judgement.id))
+      .map((judgement) => `${judgement.id} — ${judgement.evidence}`)
+      .join('; ');
+    expect(unregistered, evidence).toEqual([]);
+  });
+
+  it('judges a non-vacuous census — every covered block, every key, every arm', () => {
+    // THE NON-VACUITY GUARD, and the verdict line objectui#4971 asked for. Every
+    // per-block assertion above is generated from `ARM_JUDGEMENTS`; a walk that
+    // resolved nothing — a registry that stopped loading, an `inputTypeArms`
+    // that stopped seeing the array form, a `specTopLevelKeys` that returned
+    // `[]` and skipped every key as off-spec — produces an EMPTY judgement list,
+    // and `[] === []` is what every one of those assertions would then report.
+    // So the census is asserted before anything is derived from it.
+    const keysJudged = new Set(
+      ARM_JUDGEMENTS.map((judgement) => `${judgement.type}.${judgement.input}`),
+    );
+    const exemptSlot = ARM_JUDGEMENTS.filter((j) => j.verdict === 'exempt-slot');
+    const exemptEmptyEnum = ARM_JUDGEMENTS.filter((j) => j.verdict === 'exempt-empty-enum');
+    const census =
+      `blocks ${covered.length} · keys judged ${keysJudged.size} · arms judged ` +
+      `${ARM_JUDGEMENTS.length} · exempt(slot — describes a child position, not a value) ` +
+      `${exemptSlot.length} · exempt(enum arm with no declared members — admits nothing) ` +
+      `${exemptEmptyEnum.length} · refused ${ARM_JUDGEMENTS.filter((j) => j.verdict === 'refused').length} ` +
+      `· registered exemptions ${Object.keys(OFF_SPEC_ARM_EXEMPTIONS).length}`;
+
+    expect(covered.length, census).toBeGreaterThan(0);
+    expect(keysJudged.size, census).toBeGreaterThan(0);
+    expect(ARM_JUDGEMENTS.length, census).toBeGreaterThan(0);
+
+    // …and per block, which is the half a global count cannot see: a block whose
+    // keys all stopped resolving would vanish from the walk while the totals
+    // stayed comfortably non-zero.
+    for (const type of covered) {
+      expect(
+        ARM_JUDGEMENTS.some((judgement) => judgement.type === type),
+        `${type} contributed no arm judgement — ${census}`,
+      ).toBe(true);
+    }
+
+    // The exact arms are NOT pinned here: they are a property of the
+    // registrations, which `EXPECTED_COVERED` and the forward direction already
+    // pin by name. What is pinned is that there is at least one arm per judged
+    // key — the walk cannot report a key it judged nothing about.
+    expect(ARM_JUDGEMENTS.length, census).toBeGreaterThanOrEqual(keysJudged.size);
+  });
+
+  it('the arm judge tells a refused KIND from a refused VALUE — objectui#4971 mutation 3b, by name', () => {
+    // CALIBRATION, and the assertion that keeps this gate honest in BOTH
+    // directions at once. Every other assertion in this section is satisfied by
+    // a judge that never refutes anything, and the enum treatment above is
+    // exactly the kind of rule that could quietly become that judge.
+    //
+    // Reading 1 — the card's own measurement. `page:card.title` is
+    // `string | Record<string,string>`; a `'number'` arm on it is a value the
+    // contract refuses, and adding one is the mutation that left all 856 tests
+    // green before this gate existed. It must read as a KIND refusal.
+    expect(specArmVerdict('page:card', 'title', 42)).toBe('refuses-kind');
+    // …with the control that says the probe is not just refusing everything.
+    expect(specArmVerdict('page:card', 'title', 'Account')).toBe('accepts');
+    expect(specArmVerdict('page:card', 'title', { en: 'Account', 'zh-CN': '客户' })).toBe('accepts');
+
+    // Reading 2 — the false red triage flagged, and the reason the exemption for
+    // enum CONTRACTS is a rule and not a list. `record:quick_actions.variant` is
+    // a spec enum declared with a `'string'` arm: the contract refuses a
+    // representative string as a VALUE, and the coarse-kind ceiling
+    // (`ComponentInput.type`, maintainer 2026-08-17) puts that outside what the
+    // arm claims. A judge that read this as a kind refusal would condemn a
+    // correct declaration.
+    expect(specArmVerdict('record:quick_actions', 'variant', 'Account')).toBe('refuses-content');
+    // …and the same key is proof the two readings cannot collapse into one:
+    // whatever makes the enum arm survive must NOT be what lets `42` through.
+    expect(specArmVerdict('record:quick_actions', 'variant', 42)).toBe('refuses-kind');
+
+    // Reading 3 — a verdict is scoped to its own key. `element:number` requires
+    // `object` and `aggregate`; a whole-parse boolean would call every arm on
+    // the block invented because of two keys the probe never set.
+    expect(specParser('element:number')?.safeParse({ prefix: 'US$' }).success).toBe(false);
+    expect(specArmVerdict('element:number', 'prefix', 'US$')).toBe('accepts');
+  });
+
+  it('the probe vocabulary covers every arm a manifest can carry', () => {
+    // An arm kind with no probe is an arm kind that is silently never judged —
+    // `COARSE_ARM_PROBES[arm] ?? []` yields no verdicts, `some` over nothing is
+    // false, and the judgement would be `refused` on no evidence. So the
+    // vocabulary is compared against the manifest's own set rather than a copy:
+    // an eleventh kind arriving upstream fails here, naming itself.
+    const needsProbe = [...MANIFEST_INPUT_TYPES].filter(
+      (arm) => arm !== 'enum' && !ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm),
+    );
+    expect(needsProbe.length).toBeGreaterThan(0);
+    expect(needsProbe.filter((arm) => (COARSE_ARM_PROBES[arm] ?? []).length === 0)).toEqual([]);
+    // The two kinds judged by another route, asserted so a deletion of either
+    // branch shows up here rather than as silence.
+    expect(MANIFEST_INPUT_TYPES.has('enum')).toBe(true);
+    expect([...ARM_KINDS_WITHOUT_A_VALUE_CLAIM].every((arm) => MANIFEST_INPUT_TYPES.has(arm))).toBe(
+      true,
+    );
+  });
+
+  it('the exact enum branch is exercised — at least one enum arm with real members', () => {
+    // The enum arm is the one judged EXACTLY rather than by kind, so it is the
+    // one branch that could rot into dead code without any assertion noticing:
+    // if no covered block declared an `enum` arm with members, the exact
+    // comparison would run over nothing while the coarse rule kept the file
+    // green. Derived, not pinned to a block — any enum arm keeps it alive.
+    const enumArms = ARM_JUDGEMENTS.filter(
+      (judgement) => judgement.arm === 'enum' && judgement.verdict !== 'exempt-empty-enum',
+    );
+    expect(enumArms.length, 'no covered block declares an enum arm with members').toBeGreaterThan(0);
+  });
+
+  it('every arm exemption names an arm a covered block really declares', () => {
+    // Same reason as its key-name twins: a typo'd entry licenses nothing while
+    // reading as deliberate cover for a real divergence.
+    const declaredIds = new Set(ARM_JUDGEMENTS.map((judgement) => judgement.id));
+    expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !declaredIds.has(id))).toEqual([]);
+  });
+
+  it('every arm exemption states a reason and references a tracking issue', () => {
+    const unjustified = Object.entries(OFF_SPEC_ARM_EXEMPTIONS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([id]) => id);
+    expect(unjustified).toEqual([]);
+  });
+
+  it('carries no stale arm exemption — an arm the contract accepts must lose its entry', () => {
+    // The half that stops this list becoming a permanent allowlist. Once either
+    // side moves — the spec widening the key, or the declaration changing — the
+    // entry stops describing anything and has to be deleted in the same change.
+    const refused = new Set(ARM_JUDGEMENTS.filter((j) => j.verdict === 'refused').map((j) => j.id));
+    expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
   });
 
   it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {

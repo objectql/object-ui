@@ -412,6 +412,231 @@ describe('the scan cannot collapse quietly', () => {
   });
 });
 
+// ── objectui#5106: the key-table surface ─────────────────────────────────────
+
+/**
+ * objectui#5106 — the gate's second scan surface.
+ *
+ * Two measured facts on the card, both reproduced below as fixtures:
+ *
+ *  1. The objectui#5002 family replaced eight plugin pages' fictional
+ *     registration loops with a markdown KEY TABLE. The new form is right, and
+ *     it landed entirely outside a scan surface that reads fenced code only — so
+ *     a fake key in a table was GREEN while the same fake key in a fence was RED.
+ *  2. The gate never judged a NAMESPACE at all. It compared bare keys against a
+ *     universe that merely happens to contain namespaced ones, so flipping a
+ *     registration's `namespace` left every doc that teaches the old namespace
+ *     green.
+ *
+ * The false-positive corpus in `does not read a table that is not a key table`
+ * is the reason the anchor is the table HEADER rather than the row shape, and it
+ * is taken from this repository rather than invented — see the gate's header for
+ * the measurement (33 rows matched by the row heuristic, only 22 of them keys).
+ */
+describe('objectui#5106 — plugin key tables are judged, on both halves', () => {
+  /** A tree with one registration and one key table over it. */
+  const tableTree = (rows: string[], registration: string) =>
+    withTree((write) => {
+      write('packages/demo/src/index.tsx', registration);
+      write(
+        'content/docs/plugins/demo.mdx',
+        ['# Demo', '', '| Namespaced key | Bare-name fallback | Renderer behind it |', '| --- | --- | --- |', ...rows, ''].join(
+          '\n',
+        ),
+      );
+    }, (dir) => analyze(dir, BARE));
+
+  const REG = "ComponentRegistry.register('widget', W, { namespace: 'view' });\n";
+
+  it('passes a row whose halves both name registered keys', () => {
+    const { findings, counters } = tableTree(['| `view:widget` | `widget` | `W` |'], REG);
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTables).toBe(1);
+    expect(counters.keyTableRows).toBe(1);
+    expect(counters.keyTableKeys).toBe(2);
+  });
+
+  it('reds a table row that names a key nothing registers — the surface that was green', () => {
+    // The card's own reproduction: a fake key in the TABLE, which produced
+    // `rc=0, Every documented component type is registered.` before this landed.
+    const findings = tableTree(
+      ['| `view:widget` | `widget` | `W` |', '| `view:phantom-widget` | `phantom-widget` | nothing registers this |'],
+      REG,
+    ).findings as Finding[];
+    expect(findings.map((f) => `${f.reason} :: ${f.value}`)).toEqual([
+      'unregistered-key-table-key :: view:phantom-widget',
+      'unregistered-key-table-key :: phantom-widget',
+    ]);
+  });
+
+  it('⭐ judges the NAMESPACED half — a namespace move reds the doc that teaches the old one', () => {
+    // The half objectui#5106 was filed for. Same table, same bare name, only the
+    // registration's `namespace` differs: `deriveRegistryKeys` follows it live,
+    // so the row's namespaced cell is the ONLY thing that can notice.
+    const rows = ['| `view:widget` | `widget` | `W` |'];
+    expect(tableTree(rows, REG).findings as Finding[]).toEqual([]);
+
+    const moved = tableTree(rows, "ComponentRegistry.register('widget', W, { namespace: 'dash' });\n");
+    const findings = moved.findings as Finding[];
+    expect(
+      findings.map((f) => `${f.reason} :: ${f.value}`),
+      'the bare half still matches, so a gate that judges only bare keys stays green here',
+    ).toEqual(['unregistered-key-table-key :: view:widget']);
+  });
+
+  it('accepts the declared "none — `skipFallback: true`" fallback, and does not assert the negative', () => {
+    // The universe is a UNION across the repo, so a call skipping its own bare
+    // fallback says nothing about whether another package registers that bare
+    // name — and in this tree one does. Asserting the negative would red a
+    // correct row (`plugins/plugin-grid.mdx:185` is the live specimen).
+    const { findings, counters } = tableTree(
+      ['| `view:widget` | none — `skipFallback: true` | `W` |'],
+      "ComponentRegistry.register('widget', W, { namespace: 'view', skipFallback: true });\n" +
+        "OtherRegistry.register('widget', Other);\n",
+    );
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTableRows).toBe(1);
+    expect(counters.keyTableKeys, 'only the namespaced half is a judgeable key here').toBe(1);
+  });
+
+  it('does not read a table that is not a key table — the false-positive corpus', () => {
+    // Every row here matches the rejected row heuristic ("backticked cell with a
+    // colon, then a backticked cell") and none of them is a component key. They
+    // are the real shapes this repository writes: React route patterns, URLs,
+    // HTTP routes and JSON literals. A gate that reds on these is worse than no
+    // gate, because false RED on correct docs is the expensive direction.
+    const findings = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/guide/routes.md',
+        [
+          '| Route Pattern | Component | Purpose |',
+          '| --- | --- | --- |',
+          '| `/apps/:appName/:objectName` | `ObjectView` | Object list |',
+          '| `http://localhost:5173/` | `LocalBundleLoader` | bundled JSON |',
+          '| `GET /api/v1/meta/items/:type` | `effective._diagnostics` | per item |',
+          '| `{ "type": "object", "objectName": "project" }` | `/apps/my_app/project` | default view |',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) => analyze(dir, BARE).findings as Finding[]);
+    expect(findings).toEqual([]);
+  });
+
+  it('does not read a key table drawn INSIDE a code fence', () => {
+    // A table inside a fence is an example OF a table, not a claim about this
+    // repository — the mirror of the rule that a fenced `type` IS a claim.
+    const { findings, counters } = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/plugins/demo.mdx',
+        [
+          '# Demo',
+          '',
+          '```markdown',
+          '| Namespaced key | Bare-name fallback | Renderer behind it |',
+          '| --- | --- | --- |',
+          '| `view:phantom-widget` | `phantom-widget` | nothing registers this |',
+          '```',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) => analyze(dir, BARE));
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTables).toBe(0);
+  });
+
+  it('reports a row it cannot read rather than skipping it', () => {
+    // A row this gate cannot parse is a row it silently stops guarding, which is
+    // how a scan narrows itself into vacuity one page at a time.
+    const findings = tableTree(['| ObjectGrid | `widget` | prose, not a key |'], REG).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toEqual(['unreadable-key-table-row']);
+  });
+
+  it('does not let DOC_TYPE_EXEMPTIONS silence a table row', () => {
+    // Exemptions declare "this value belongs to another vocabulary". A row under
+    // a header that says "Namespaced key" has already declared its vocabulary, so
+    // an exemption there would be a lie rather than a fact — the escape hatch is
+    // deliberately absent.
+    const findings = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/plugins/demo.mdx',
+        [
+          '| Namespaced key | Bare-name fallback | Renderer behind it |',
+          '| --- | --- | --- |',
+          '| `view:phantom-widget` | `phantom-widget` | nothing registers this |',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) =>
+      analyze(dir, {
+        ...BARE,
+        exemptions: { 'content/docs/plugins/demo.mdx': { 'view:phantom-widget': 'a written reason', 'phantom-widget': 'ditto' } },
+      }).findings as Finding[],
+    );
+    expect(findings.map((f) => f.reason)).toEqual([
+      'unregistered-key-table-key',
+      'unregistered-key-table-key',
+      // The exemptions went unhit, which is itself reported — an exemption that
+      // matches nothing widens the hole for the next snippet that lands there.
+      'stale-exemption',
+      'stale-exemption',
+    ]);
+  });
+
+  it('this repository has key tables, and every key in them is registered', () => {
+    // The repo-level half. The fixtures above prove the mechanism; this proves
+    // the mechanism is pointed at something. `content/docs` carries the
+    // objectui#5002 family's four plugin key tables.
+    const { counters, findings } = analyze(repoRoot);
+    expect(counters.keyTables, 'the family form vanished, or the header was renamed').toBeGreaterThanOrEqual(4);
+    expect(counters.keyTableRows).toBeGreaterThanOrEqual(24);
+    expect(counters.keyTableKeys).toBeGreaterThanOrEqual(45);
+    expect(counters.keyTableKeys).toBe(counters.keyTableRegistered);
+    expect((findings as Finding[]).filter((f) => f.reason.includes('key-table'))).toEqual([]);
+  });
+
+  it('really reads the four plugin pages, not just some table somewhere', () => {
+    const { tableRows } = scanDocs(repoRoot) as { tableRows: { file: string; namespaced: string }[] };
+    expect([...new Set(tableRows.map((r) => r.file))].sort()).toEqual([
+      'content/docs/plugins/plugin-dashboard.mdx',
+      'content/docs/plugins/plugin-form.mdx',
+      'content/docs/plugins/plugin-grid.mdx',
+      'content/docs/plugins/plugin-view.mdx',
+    ]);
+    expect(tableRows.map((r) => r.namespaced)).toContain('`view:dashboard`');
+  });
+});
+
+describe('objectui#5106 — a floor that names no counter is not a floor', () => {
+  // `FLOORS.docFiles` named a counter that never existed (`scanDocs` publishes
+  // `files`), so it compared `undefined`, which is never below anything. The one
+  // floor whose job is to catch the walk finding NOTHING was inert for its whole
+  // life. Fixed by spelling, and the CLASS closed by the guard this pins.
+  const script = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+
+  it('every FLOORS key names a counter `analyze` really publishes', () => {
+    const block = /const FLOORS = \{([\s\S]*?)\n\};/.exec(script);
+    expect(block, 'FLOORS moved or changed shape').not.toBeNull();
+    const keys = [...block![1].matchAll(/^\s*([A-Za-z]\w*):\s*\d+,/gm)].map((m) => m[1]);
+    expect(keys.length, 'no floors parsed — the assertion below would be vacuous').toBeGreaterThan(4);
+    const counters = analyze(repoRoot).counters as Record<string, number>;
+    for (const key of keys) {
+      expect(Object.hasOwn(counters, key), `FLOORS.${key} names no counter, so it can never fail`).toBe(true);
+    }
+  });
+
+  it('does not reintroduce the `docFiles` spelling', () => {
+    expect(script, 'the counter is `files`; `docFiles` compares undefined').not.toMatch(/\bdocFiles\b\s*:/);
+  });
+
+  it('the guard rejects a mis-keyed floor at runtime, not just in review', () => {
+    expect(script).toMatch(/Object\.hasOwn\(counters, key\)/);
+    expect(script).toContain('A floor over a missing counter compares');
+  });
+});
+
 describe('the three snippets this gate found on its first run stay fixed', () => {
   // Named rather than left to the repo-wide green assertion: these are the live
   // specimens of objectui#4823's shape, and a revert would otherwise read as an

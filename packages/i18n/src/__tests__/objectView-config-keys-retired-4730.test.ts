@@ -66,7 +66,12 @@ const at = (pack: unknown, path: string): unknown =>
 /**
  * The 116 retired keys, listed BY NAME in the packs' own order rather than
  * counted. A count passes when one key returns and another leaves; the names do
- * not. 209 keys existed in the namespace; 116 were retired; 93 survive.
+ * not. 209 keys existed in the namespace; 116 were retired; 93 survived — 94
+ * since objectui#5232 added `viewConfigPermissionDenied`, the refusal shown when
+ * a session without `manage_metadata` tries to change ORG-WIDE view config
+ * (objectstack#7494's ruling). An ADDITION to a live namespace is not a
+ * regression of the retirement this file pins: none of the 116 retired keys
+ * came back, which is what the `it` below actually asserts.
  */
 const RETIRED_OBJECT_VIEW_KEYS = [
   'accessibility',
@@ -188,7 +193,7 @@ const RETIRED_OBJECT_VIEW_KEYS = [
 ] as const;
 
 /** How many keys the namespace keeps — the live + indirect-reference remainder. */
-const SURVIVING_KEY_COUNT = 93;
+const SURVIVING_KEY_COUNT = 94;
 
 describe('console.objectView config-panel keys are retired (objectui#4730)', () => {
   it('the retired list is the measured set', () => {
@@ -196,7 +201,13 @@ describe('console.objectView config-panel keys are retired (objectui#4730)', () 
     // stops holding, the assertions below are checking a set nobody chose.
     expect(RETIRED_OBJECT_VIEW_KEYS).toHaveLength(116);
     expect(new Set(RETIRED_OBJECT_VIEW_KEYS).size).toBe(116);
-    expect(RETIRED_OBJECT_VIEW_KEYS.length + SURVIVING_KEY_COUNT).toBe(209);
+    // 209 at objectui#4730's landing; 210 since objectui#5232 added
+    // `viewConfigPermissionDenied`. The RETIRED half is the ratchet that must
+    // never move — it is pinned twice above — while the surviving half is a
+    // live namespace that legitimately grows. Splitting them is the point:
+    // folding a new key into the total would be indistinguishable from a
+    // retired key coming back.
+    expect(RETIRED_OBJECT_VIEW_KEYS.length + SURVIVING_KEY_COUNT).toBe(210);
     expect(LANGS).toHaveLength(10);
   });
 
@@ -214,7 +225,7 @@ describe('console.objectView config-panel keys are retired (objectui#4730)', () 
     expect(revived).toEqual([]);
   });
 
-  it('the namespace root survives, with the same 93-key shape in every pack', () => {
+  it('the namespace root survives, with the same 94-key shape in every pack', () => {
     // Deliberately NOT "the root is gone": most of this namespace is live. The
     // shape to pin is the surviving key SET, identical across packs — a root
     // that regrows a retired key is the regression this file exists for, and a

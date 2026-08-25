@@ -34,7 +34,7 @@ The PageHeader component provides a consistent header for pages with title, subt
 
 ## Basic Usage
 
-```plaintext
+```tsx
 import { PageHeader } from '@object-ui/layout';
 
 <PageHeader
@@ -49,7 +49,7 @@ import { PageHeader } from '@object-ui/layout';
 
 ## Component Props
 
-```plaintext
+```ts
 interface PageHeaderComponentProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;                      // Page title (required); {field.path} tokens interpolated
   subtitle?: string;                  // Secondary line under the title — the canonical key
@@ -268,7 +268,7 @@ rename it to `subtitle`, and do not assume objectui#3789 touched it.
 
 ## Complete Example
 
-```plaintext
+```tsx
 import { PageHeader } from '@object-ui/layout';
 import { Button } from '@object-ui/components';
 import { Plus, Download, Settings } from 'lucide-react';

@@ -513,7 +513,13 @@ const schema: ObjectGridSchema = {
 `onDelete`, `onBulkDelete` and `onAddRecord` are React props on
 `ObjectGridComponentProps` — they are functions, so no metadata document can hold
 them, and writing one into a schema does nothing at all: the grid builds the inner
-table's handlers itself and never reads a callback off the schema.
+table's handlers itself and never reads any of these nine off the schema.
+
+The one callback the grid does read off the schema is `onNavigate`, declared on
+`ObjectGridSchema` for programmatic callers only. It is a function value too, so
+it is no more authorable than the nine — it is deliberately absent from the
+manifest and the designer panel, and prefer passing it as a prop
+(objectui#5234, maintainer ruling of 2026-08-19).
 
 ```tsx
 import { ObjectGrid } from '@object-ui/plugin-grid';

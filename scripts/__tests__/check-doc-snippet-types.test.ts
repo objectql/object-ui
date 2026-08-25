@@ -3,14 +3,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
 
 // Plain-JS CI helper; its types are inferred from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
 import {
+  EXIT_CODES,
   FRAGMENT_MARKER_EXAMPLES,
   UNDECLARED_CONTROL_PACKAGE,
   UNGATED_DOCS,
   analyze,
+  blockingPreconditions,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
   findInstalledCopy,
@@ -45,6 +49,11 @@ import {
  *     therefore pins both directions — a declared dependency IS mapped, and an
  *     installed-but-undeclared one is NOT — plus the two preconditions the
  *     UNDECLARED control needs in order to mean anything.
+ *  7. **The exit path tells "I could not run" from "I ran and found errors"**
+ *     (objectui#5465). A run that resolved against nothing produced no verdict
+ *     about any document; leaving through the same code as a real snippet
+ *     failure makes neither actionable, and leaving through 0 would be zero
+ *     information wearing a green tick.
  *
  * Fixtures are throwaway trees, never `content/docs`: a committed fixture page
  * would have to contain a deliberately broken snippet, and this very gate scans
@@ -363,6 +372,58 @@ describe('third-party resolution reaches exactly as far as the imported packages
   });
 });
 
+describe('the exit path — "I could not run" is not "I ran and found errors" (objectui#5465)', () => {
+  /** A workspace package that DECLARES built types, with nothing built. */
+  const unbuiltTree = (types: string): string =>
+    tempTree({
+      'content/docs/a.mdx': [`${FENCE}ts`, "import '@fixture/pkg-a';", FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types }),
+    });
+
+  it('gives the two failure modes different codes, and neither of them is 0', () => {
+    expect(EXIT_CODES.verified).toBe(0);
+    expect(EXIT_CODES.documentsFailed).not.toBe(0);
+    expect(
+      EXIT_CODES.couldNotRun,
+      'exit 0 with nothing run reads as coverage — the failure shape this gate family exists to prevent',
+    ).not.toBe(0);
+    expect(
+      EXIT_CODES.couldNotRun,
+      'an unbuilt tree and a broken snippet are different facts; a caller must be able to tell them apart',
+    ).not.toBe(EXIT_CODES.documentsFailed);
+  });
+
+  it('reads an unbuilt package as a precondition, never as a documentation defect', () => {
+    const findings = analyze({ root: unbuiltTree('./dist/index.d.ts'), ungated: {} })
+      .findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('unbuilt-package');
+    expect(blockingPreconditions(findings).length).toBeGreaterThan(0);
+  });
+
+  it('reads a source-typed package the same way — it too judges nothing', () => {
+    const findings = analyze({ root: unbuiltTree('./src/index.ts'), ungated: {} })
+      .findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('source-typed-package');
+    expect(blockingPreconditions(findings).length).toBeGreaterThan(0);
+  });
+
+  it('leaves ledger findings OUT of the preconditions — those ARE verdicts, and they exit 1', () => {
+    const findings: Finding[] = [
+      { reason: 'stale-ungated-entry', site: 'content/docs/gone.mdx' },
+      { reason: 'unexplained-fragment', site: 'content/docs/a.mdx:3' },
+      { reason: 'stale-fragment-marker', site: 'content/docs/a.mdx:7' },
+    ];
+    expect(blockingPreconditions(findings)).toEqual([]);
+  });
+
+  it('states all three codes in its own header, so the contract cannot drift out of the source', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    const header = source.slice(0, source.indexOf('## What this gate answers'));
+    expect(header).toContain('1 = THE GATE RAN AND FOUND ERRORS');
+    expect(header).toContain('2 = THE GATE COULD NOT RUN');
+  });
+});
+
 describe('wiring — a script nothing runs is not a gate', () => {
   const workflowDir = path.join(repoRoot, '.github/workflows');
   const workflowPath = path.join(workflowDir, 'doc-snippet-types.yml');
@@ -407,8 +468,125 @@ describe('wiring — a script nothing runs is not a gate', () => {
     );
   });
 
+  it('builds BEFORE it invokes the gate, so a precondition exit is not a state CI can reach', () => {
+    const yaml = yamlOf('doc-snippet-types.yml');
+    const build = yaml.indexOf('turbo run build');
+    const invoke = yaml.search(new RegExp(`run: node ${SCRIPT.replace(/[.\\/]/g, '\\$&')}\\s*$`, 'm'));
+    expect(build, 'the workflow must build the packages the covered snippets import').toBeGreaterThan(-1);
+    expect(invoke, 'the workflow must invoke the gate itself').toBeGreaterThan(-1);
+    expect(
+      build,
+      'invoked before its own build, the gate would red a healthy pull request on a precondition',
+    ).toBeLessThan(invoke);
+  });
+
   it('is reachable by name from the workspace root', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
     expect(pkg.scripts['check:doc-snippets']).toBe(`node ${SCRIPT}`);
+  });
+});
+
+/**
+ * The step's own shell, executed — objectui#6221.
+ *
+ * The defect this pins was not in the gate but in the SHELL wrapped around it:
+ * `echo "args=$(node …)" >> "$GITHUB_OUTPUT"` gives the step `echo`'s status, so
+ * a gate that exited non-zero read as a gate that named no packages, and the
+ * build step below it expanded to a bare `turbo run build` over the whole
+ * workspace — the one thing this workflow's header forbids, with no signal
+ * anywhere. A regex over the YAML would pin the letter of the fix; these run the
+ * step scripts the workflow actually carries, under the runner's own default
+ * shell (`bash -e {0}`), with `node` and `pnpm` shimmed so that what is measured
+ * is the shell's handling of a failure rather than the gate's behaviour.
+ */
+describe('the build-filter steps propagate failure instead of silently building everything (objectui#6221)', () => {
+  const stepScript = (name: string): string => {
+    const workflow = parseYaml(fs.readFileSync(path.join(repoRoot, '.github/workflows/doc-snippet-types.yml'), 'utf8')) as {
+      jobs: Record<string, { steps?: { name?: string; run?: string }[] }>;
+    };
+    const step = Object.values(workflow.jobs)
+      .flatMap((job) => job.steps ?? [])
+      .find((s) => s.name === name);
+    expect(step?.run, `doc-snippet-types.yml must keep a step named "${name}" with a run: script`).toBeTypeOf(
+      'string',
+    );
+    return step!.run!;
+  };
+
+  /** Run a step's `run:` script as the runner does, with the named executables shimmed. */
+  const runStep = (script: string, shims: Record<string, string>, env: Record<string, string> = {}) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-snippet-step-'));
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    for (const [name, body] of Object.entries(shims)) {
+      fs.writeFileSync(path.join(bin, name), body);
+      fs.chmodSync(path.join(bin, name), 0o755);
+    }
+    const scriptPath = path.join(dir, 'step.sh');
+    fs.writeFileSync(scriptPath, script);
+    const githubOutput = path.join(dir, 'github_output');
+    fs.writeFileSync(githubOutput, '');
+    const turboArgv = path.join(dir, 'turbo_argv');
+    // `bash -e {0}` is the default shell for a `run:` step on a Linux runner.
+    const proc = spawnSync('bash', ['-e', scriptPath], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: githubOutput, TURBO_ARGV: turboArgv, ...env },
+    });
+    return {
+      status: proc.status,
+      stderr: proc.stderr,
+      githubOutput: fs.readFileSync(githubOutput, 'utf8'),
+      turboInvoked: fs.existsSync(turboArgv),
+      turboArgv: fs.existsSync(turboArgv) ? fs.readFileSync(turboArgv, 'utf8').trim() : null,
+    };
+  };
+
+  const failingGate = '#!/usr/bin/env bash\necho "the filter could not be derived" >&2\nexit 3\n';
+  const healthyGate = '#!/usr/bin/env bash\necho "--filter=@object-ui/core --filter=@object-ui/react"\n';
+  const recordingPnpm = '#!/usr/bin/env bash\necho "$*" > "$TURBO_ARGV"\n';
+
+  it('fails the filter step when the gate fails, and writes no output at all', () => {
+    const result = runStep(stepScript('Derive the packages the covered snippets import'), { node: failingGate });
+    expect(result.status, 'a failed filter must not read as a successful step').not.toBe(0);
+    expect(result.stderr, 'the step must say what failed, not just fail').toContain('--build-filter');
+    expect(result.stderr, 'a failure the log does not annotate is a failure someone has to go looking for').toContain(
+      '::error::',
+    );
+    expect(
+      result.githubOutput,
+      'an `args=` line written after a failed gate is the empty filter that becomes an unfiltered build',
+    ).toBe('');
+  });
+
+  it('writes the derived filter through unchanged when the gate succeeds', () => {
+    const result = runStep(stepScript('Derive the packages the covered snippets import'), { node: healthyGate });
+    expect(result.status).toBe(0);
+    expect(result.githubOutput.trim()).toBe('args=--filter=@object-ui/core --filter=@object-ui/react');
+  });
+
+  it('refuses an empty filter in the build step rather than building the whole workspace', () => {
+    const result = runStep(stepScript('Build those packages'), { pnpm: recordingPnpm }, { FILTER_ARGS: '' });
+    expect(result.status, 'an empty filter can only mean something upstream went wrong').not.toBe(0);
+    expect(result.turboInvoked, 'turbo must not run at all on an empty filter').toBe(false);
+    expect(result.stderr, 'the refusal must be the step\'s own, not a shell error that happens to mention a filter').toContain(
+      '::error::',
+    );
+  });
+
+  it('hands turbo the derived packages as separate words when the filter is real', () => {
+    const result = runStep(stepScript('Build those packages'), { pnpm: recordingPnpm }, {
+      FILTER_ARGS: '--filter=@object-ui/core --filter=@object-ui/react',
+    });
+    expect(result.status).toBe(0);
+    expect(result.turboArgv).toBe(
+      'exec turbo run build --filter=@object-ui/core --filter=@object-ui/react --concurrency=2',
+    );
+  });
+
+  it('never puts the gate back inside a command substitution whose status is discarded', () => {
+    expect(
+      stepScript('Derive the packages the covered snippets import'),
+      'the step status would be `echo`\'s again, and a failed gate would read as an empty filter',
+    ).not.toMatch(/echo\s+"?args=\$\(/);
   });
 });

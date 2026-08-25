@@ -88,9 +88,14 @@ jobs:
           # `scripts/check-eager-closure-budget.mjs` next to the reasoning that
           # produced it, so a re-baseline is one edit against a documented
           # argument rather than a number in YAML: today's measured payload plus
-          # ~2% of headroom, chosen to pass on today's `main` while staying
-          # NARROWER than the 89 KiB regression the gate exists to catch. It is a
-          # truthful current-state ceiling, not a statement that 3.79 MB is fine.
+          # half the 89 KiB regression the gate exists to catch, which keeps the
+          # headroom NARROWER than that regression while leaving as much room for
+          # the payload to shrink as to grow. Since objectui#5924 the checker
+          # enforces that itself, against the report it just read rather than
+          # against a frozen constant, for the aggregate ceiling and each
+          # per-chunk one — a ceiling that has drifted out of range of the
+          # regression it must catch is exit 2, a verdict about the gauge. It is
+          # a truthful current-state ceiling, not a statement that 3.15 MB is fine.
           #
           # Both measurements run before either may fail the step: a run that
           # reports one number and hides the other teaches readers to distrust
@@ -147,7 +152,16 @@ jobs:
           echo ""
           echo "📦 Eager closure (what a page load actually pays for):"
           # Writes closure_status / closure_gzip_kb / closure_budget_kb /
-          # closure_chunks to $GITHUB_OUTPUT itself. Exit codes are distinct on
+          # closure_chunks / closure_chunk_status / closure_headroom_status to
+          # $GITHUB_OUTPUT itself. EVERY key it publishes is passed into the
+          # comment step below and rendered there — a verdict published to
+          # $GITHUB_OUTPUT that no consumer reads is a verdict the PR comment
+          # cannot name, which is what objectui#6230 was (the per-chunk and
+          # sensitivity halves both went unread). A fourth half added here must
+          # be wired through too; `render-budget-comment.test.ts` fails if it is
+          # not.
+          #
+          # Exit codes are distinct on
           # purpose: 1 = over budget (a verdict about the bundle), 2 = no
           # trustworthy measurement (a verdict about the gauge). Reporting one as
           # the other is how a broken gauge gets read as a size regression, and a
@@ -238,6 +252,12 @@ jobs:
           BUDGET_CLOSURE_GZIP_KB: ${{ steps.budget.outputs.closure_gzip_kb }}
           BUDGET_CLOSURE_BUDGET_KB: ${{ steps.budget.outputs.closure_budget_kb }}
           BUDGET_CLOSURE_CHUNKS: ${{ steps.budget.outputs.closure_chunks }}
+          # The per-chunk (objectui#5490) and sensitivity (objectui#5924) halves.
+          # The step's exit code folds all three halves into one `budget_status`,
+          # so without these the comment can say a budget objected but not which
+          # half did — the reader has to open the job log to find out.
+          BUDGET_CLOSURE_CHUNK_STATUS: ${{ steps.budget.outputs.closure_chunk_status }}
+          BUDGET_CLOSURE_HEADROOM_STATUS: ${{ steps.budget.outputs.closure_headroom_status }}
           BUDGET_STEP_OUTCOME: ${{ steps.budget.outcome }}
           BUILD_PACKAGES_OUTCOME: ${{ steps.build_packages.outcome }}
         run: node scripts/render-budget-comment.mjs > budget-comment.md

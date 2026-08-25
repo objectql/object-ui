@@ -117,6 +117,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
@@ -591,5 +594,266 @@ describe('a view-level toolbar block must not shadow the object CRUD predicates 
       'a view-level toolbar block is shadowing the object CRUD predicates again: the projection'
         + ' lost `status`. The read at the `$select` harvest must stay object-only.',
     ).toContain('status');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The SIXTH key the census reached — `onNavigate` — a NON-AUTHOR key that is
+// nevertheless DECLARED, and the one callback the grid reads off the schema
+// (objectui#5234, maintainer ruling 2026-08-19, Option C).
+//
+// ## Why it is not a sixth entry in NON_AUTHOR_KEYS above
+//
+// Those four are CAST reads: `@object-ui/types` does not declare them, which is
+// what makes `(schema as any).key` the only way to read them. `onNavigate` is
+// the opposite — it is an explicitly declared member of `ObjectGridSchema` with
+// its own doc comment, so the read at the `useNavigationOverlay` call is plain.
+//
+// The card originally argued the reverse: that the key was ABSENT from the
+// interface and type-checked only because `BaseSchema`'s `[key: string]: any`
+// absorbed it. Its own author withdrew that on 2026-08-18 after re-measuring —
+// the evidence had been a grep bounded to lines 532-760 of an interface that
+// runs past 760. So `declaresOnNavigate` below is not decoration: it pins the
+// corrected fact, and it is the assertion that would have stopped the original
+// error. Do not re-describe this key as drift or as an oversight.
+//
+// ## What the ruling actually decided, and what pins it
+//
+// Option C: keep the declaration, keep the read, and SAY that it is an
+// exception — an exemption comment at the read site in the shape PR #5241
+// established for the four above, and a programmatic-only note on the type.
+// Option A (remove the key) was rejected as a breaking public type change for
+// zero measured harm; option B (declare it in `GRID_QUERY_INPUTS`) as
+// publishing to the designer a key no author can ever express.
+//
+// That makes this card's deliverable PROSE, and prose is exactly what a pin
+// normally cannot see. Every assertion about the world — not published, spec
+// rejects it, parser says unknown-prop, the renderer still reads it, the type
+// still declares it — was already TRUE before this card and stays true if its
+// change is reverted. They are the ledger's premises and are pinned so the
+// exemption cannot decay, but on their own they would pin nothing.
+//
+// So the two `documents its exemption` cases below read the SOURCE, the way
+// `ObjectGrid.exportOptionsKeys.test.ts` in this directory does. They are the
+// only assertions here that can tell the two states of the world apart, and
+// they are anchored on text that exists in BOTH — the read line itself and the
+// declaration line itself — so a failure means the comment went missing, never
+// that the anchor moved.
+// ---------------------------------------------------------------------------
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+// packages/plugin-grid/src/__tests__ -> repo root
+const repoRoot = path.resolve(here, '../../../..');
+const GRID_SOURCE = path.join(repoRoot, 'packages/plugin-grid/src/ObjectGrid.tsx');
+const TYPES_SOURCE = path.join(repoRoot, 'packages/types/src/objectql.ts');
+
+const gridLines = readFileSync(GRID_SOURCE, 'utf8').split('\n');
+const typesLines = readFileSync(TYPES_SOURCE, 'utf8').split('\n');
+
+/**
+ * The contiguous comment block immediately above `index` — `//` lines or a
+ * `/** ... *\/` block, stopping at the first line that is neither. Adjacency is
+ * the point: a matching phrase anywhere else in a 3500-line file would satisfy
+ * a whole-file `toContain` while the read site itself carried nothing.
+ */
+const commentBlockAbove = (lines: string[], index: number): string => {
+  const out: string[] = [];
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const t = lines[i].trim();
+    if (t === '' && out.length === 0) continue;
+    if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) out.unshift(t);
+    else break;
+  }
+  return out.join('\n');
+};
+
+/** Indices of every line whose trimmed form satisfies `match`. */
+const indicesWhere = (lines: string[], match: (t: string) => boolean): number[] =>
+  lines.map((l, i) => (match(l.trim()) ? i : -1)).filter((i) => i >= 0);
+
+/** `export interface ObjectGridSchema` .. its closing brace, as line indices. */
+const objectGridSchemaSpan = (): [number, number] => {
+  const start = typesLines.findIndex((l) => l.startsWith('export interface ObjectGridSchema'));
+  const end = typesLines.findIndex((l, i) => i > start && l === '}');
+  return [start, end];
+};
+
+/** The nine sibling callbacks the type note and the README claim are props-only. */
+const NINE_SIBLINGS = [
+  'onRowClick', 'onRowSelect', 'onCellChange', 'onRowSave', 'onBatchSave',
+  'onEdit', 'onDelete', 'onBulkDelete', 'onAddRecord',
+] as const;
+
+describe('`onNavigate` — the ledger premises (objectui#5234)', () => {
+  it.each(GRID_TAGS)('$label does not publish it as authoring surface', ({ type, namespace }) => {
+    expect(
+      declaredInputNames(type, namespace),
+      '`onNavigate` is now published to the manifest, the designer panel and the generated'
+        + ' `sdui-intrinsics.d.ts`. That is option B, which the 2026-08-19 ruling on objectui#5234'
+        + ' rejected as the most AI-error-prone of the three: it advertises to an author a key that'
+        + ' is a FUNCTION VALUE, and therefore one no JSON or YAML document can ever carry.',
+    ).not.toContain('onNavigate');
+    // The control from the four above, restated here so "not published" cannot
+    // pass against a registration that published nothing at all.
+    expect(declaredInputNames(type, namespace)).toContain(DECLARED_CONTROL);
+  });
+
+  it('the spec refuses it as an unrecognized key', () => {
+    const result = specVerdict('onNavigate', () => {});
+    expect(
+      result.success,
+      '`@objectstack/spec` now ACCEPTS object-grid.onNavigate — re-open the 2026-08-19 ruling.',
+    ).toBe(false);
+    // A KEY verdict, not a document one: the rest of the fixture is legal.
+    const unrecognized = (result as { error: { issues: Array<{ code: string; keys?: string[] }> } }).error.issues
+      .filter((issue) => issue.code === 'unrecognized_keys')
+      .flatMap((issue) => issue.keys ?? []);
+    expect(unrecognized).toContain('onNavigate');
+  });
+
+  it('the parser reports it as unknown-prop — the ruled outcome, not a defect', () => {
+    const codes = diagnose({ onNavigate: () => {} }).filter((d) => d.code === 'unknown-prop');
+    expect(
+      codes.map((d) => d.message).join('\n'),
+      '`onNavigate` no longer draws `unknown-prop`. If that is deliberate it means the key was'
+        + ' declared to the manifest — which the 2026-08-19 ruling forbids for this key.',
+    ).toContain('onNavigate');
+  });
+
+  it('`@object-ui/types` DOES declare it — the corrected premise, pinned', () => {
+    // The fact the card got wrong. `onNavigate` appears three times in
+    // `objectql.ts` (also on `ObjectViewSchema` and `ListViewRuntimeProps`), so
+    // the search is bounded to the interface rather than run over the file —
+    // the unbounded-versus-mis-bounded read is what produced the original error.
+    const [start, end] = objectGridSchemaSpan();
+    expect(start, 'ObjectGridSchema is gone from objectql.ts').toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const declarations = indicesWhere(typesLines, (t) => t.startsWith('onNavigate?:'))
+      .filter((i) => i > start && i < end);
+    expect(
+      declarations.length,
+      'ObjectGridSchema no longer declares `onNavigate` exactly once. If it was REMOVED, that is'
+        + ' option A — a breaking public type change the 2026-08-19 ruling declined to take in the'
+        + ' launch window, so it needs its own ruling, not a tidy-up.',
+    ).toBe(1);
+  });
+
+  it('…and does NOT declare the nine siblings, which is the contrast the note draws', () => {
+    // The type note and both docs pages say the nine live only on
+    // `ObjectGridComponentProps`. Measured here so the claim cannot go stale
+    // under them: a tenth callback arriving on the schema would make the note
+    // false while every other assertion in this file stayed green.
+    const [start, end] = objectGridSchemaSpan();
+    const declaredInSpan = new Set(
+      typesLines
+        .slice(start, end)
+        .map((l) => l.trim().match(/^([A-Za-z_$][\w$]*)\??\s*:/)?.[1])
+        .filter(Boolean) as string[],
+    );
+    // Non-vacuity: the scan found the interface's members at all.
+    expect(declaredInSpan.size).toBeGreaterThan(20);
+    expect(declaredInSpan.has('onNavigate')).toBe(true);
+    for (const sibling of NINE_SIBLINGS) {
+      expect(
+        declaredInSpan.has(sibling),
+        `\`${sibling}\` is now declared on ObjectGridSchema. The programmatic-only note on`
+          + ' `onNavigate` and the README both say the nine live ONLY on'
+          + ' `ObjectGridComponentProps` — one of them is now wrong.',
+      ).toBe(false);
+    }
+  });
+
+  it('the renderer still reads it — the half a reader of "non-author surface" would delete', async () => {
+    // Behavioural, not textual: the schema-supplied callback must still reach
+    // `useNavigationOverlay` and fire on a row click in the default `page`
+    // mode. Deleting the read is the one move that makes a programmatic
+    // caller's grid quietly stop navigating.
+    const onNavigate = vi.fn();
+    const { container } = renderGrid({ id: 'nav-read', navigation: { mode: 'page' }, onNavigate });
+    await settled();
+    const cell = Array.from(container.querySelectorAll('tbody td')).find(
+      (td) => td.textContent?.trim() === 'Alice',
+    );
+    expect(cell, 'the fixture row never rendered, so a silent no-call would look like a pass').toBeTruthy();
+    (cell as HTMLElement).click();
+    await waitFor(() =>
+      expect(
+        onNavigate,
+        'the schema-supplied `onNavigate` no longer fires on a row click — the read at the'
+          + ' `useNavigationOverlay` call was dropped.',
+      ).toHaveBeenCalled(),
+    );
+    expect(onNavigate.mock.calls[0][0]).toBe('1');
+  });
+});
+
+describe('`onNavigate` — the exemption is DOCUMENTED, which is what this card delivered (objectui#5234)', () => {
+  it('the read site in ObjectGrid.tsx carries the exemption comment', () => {
+    // Anchored on the read line, which exists in both states of the world, so a
+    // red here means the COMMENT went missing — never that the anchor moved.
+    const reads = indicesWhere(gridLines, (t) => t === 'onNavigate: schema.onNavigate,');
+    expect(
+      reads.length,
+      'the `onNavigate: schema.onNavigate` read is gone or duplicated; re-aim this pin before'
+        + ' trusting anything else in this describe.',
+    ).toBe(1);
+
+    const block = commentBlockAbove(gridLines, reads[0]);
+    expect(block.length, 'the read site carries no comment at all').toBeGreaterThan(0);
+    for (const phrase of [
+      'NON-AUTHOR SURFACE',
+      '`onNavigate`',
+      '`GRID_QUERY_INPUTS`',
+      'FUNCTION VALUE',
+      'SERIALISABLE DOCUMENT',
+      '`ObjectGridComponentProps`',
+      'objectui#5234',
+      'gridNonAuthorKeys.test.tsx',
+    ]) {
+      expect(
+        block,
+        `the exemption comment at the \`onNavigate\` read site no longer states ${phrase}.`
+          + ' The 2026-08-19 ruling on objectui#5234 chose option C precisely because the key stays'
+          + ' and the EXCEPTION is stated; without this comment the ruling left nothing behind.',
+      ).toContain(phrase);
+    }
+  });
+
+  it('the declaration in objectql.ts carries the programmatic-only note', () => {
+    const [start, end] = objectGridSchemaSpan();
+    const declarations = indicesWhere(typesLines, (t) => t.startsWith('onNavigate?:'))
+      .filter((i) => i > start && i < end);
+    expect(declarations.length).toBe(1);
+
+    const block = commentBlockAbove(typesLines, declarations[0]);
+    expect(block.length, 'the declaration carries no doc comment at all').toBeGreaterThan(0);
+    for (const phrase of [
+      'PROGRAMMATIC ONLY',
+      'GRID_QUERY_INPUTS',
+      'FUNCTION VALUE',
+      'SERIALISABLE DOCUMENT',
+      'ObjectGridComponentProps',
+      'objectui#5234',
+    ]) {
+      expect(
+        block,
+        `the programmatic-only note on \`ObjectGridSchema.onNavigate\` no longer states ${phrase}.`
+          + ' The 2026-08-19 ruling required it on the declaration itself, because an agent that'
+          + ' reads the type and finds a documented callback concludes callbacks are authorable.',
+      ).toContain(phrase);
+    }
+  });
+
+  it('and the four keys ruled in objectui#5091 still carry theirs — this extension weakened nothing', () => {
+    // The control for the two cases above: they assert "a comment is present",
+    // which would also pass if this file had quietly stopped being able to see
+    // comments at all. The four older exemptions are the independent witness.
+    const gridSource = gridLines.join('\n');
+    for (const { key } of NON_AUTHOR_KEYS) {
+      expect(
+        gridSource,
+        `the objectui#5091 exemption comment for \`${key}\` is gone from ObjectGrid.tsx.`,
+      ).toContain(`NON-AUTHOR SURFACE — \`${key}\``);
+    }
   });
 });

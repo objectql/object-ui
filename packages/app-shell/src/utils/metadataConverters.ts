@@ -83,6 +83,12 @@ export function toObjectDefinition(obj: MetadataObject, index: number): ObjectDe
     pluralLabel: obj.pluralLabel || obj.plural_label || undefined,
     description: typeof obj.description === 'object' ? obj.description.defaultValue : (obj.description || undefined),
     icon: obj.icon || undefined,
+    // `group` and `sortOrder` are DISPLAY values of the Object Manager, derived
+    // here and belonging to the UI model only (objectui#6223). `ObjectSchema`
+    // has no object-level grouping or ordering key and refuses both BY NAME, so
+    // they must never be copied into an object payload — see the tombstones on
+    // `ObjectMetadataPayload`. Note what populates them: the `sys_` prefix and
+    // the array index, i.e. facts about this list, not about the object.
     group: obj.name?.startsWith('sys_') ? 'System Objects' : 'Custom Objects',
     sortOrder: index,
     isSystem: obj.name?.startsWith('sys_') || false,

@@ -11,6 +11,7 @@ import { renderBudgetComment, renderFromEnv } from '../render-budget-comment.mjs
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const workflowPath = path.join(repoRoot, '.github/workflows/performance-budget.yml');
 const rendererPath = path.join(repoRoot, 'scripts/render-budget-comment.mjs');
+const checkerPath = path.join(repoRoot, 'scripts/check-eager-closure-budget.mjs');
 const NO_SUCH_REPORT = path.join(repoRoot, 'scripts/__tests__/__no-size-report__.md');
 
 /**
@@ -190,6 +191,142 @@ describe('renderBudgetComment', () => {
   });
 });
 
+/**
+ * objectui#6230: the closure checker evaluates THREE halves — the aggregate
+ * ceiling, the per-chunk ceilings (objectui#5490) and ceiling sensitivity
+ * (objectui#5924) — and publishes a verdict for each. The step's exit code
+ * folds all three into one `budget_status`, so a comment rendering only that
+ * says "something objected" and nothing more: a reader had to open the job log
+ * to learn whether the total grew, one chunk grew, or a ceiling had stopped
+ * measuring anything.
+ *
+ * The per-chunk case is the one the whole gate family exists for. objectui#5266
+ * was a 89 KiB regression that landed OUTSIDE the entry chunk and inside the
+ * aggregate ceiling's headroom — exactly the shape where both numbers the
+ * comment prints are green and the verdict is still FAIL.
+ */
+describe('per-half closure verdicts', () => {
+  const halves = {
+    gzipKb: '28.1',
+    budgetKb: '350',
+    entryFile: 'index-BRKCVm_4.js',
+    closureGzipKb: '3222.6',
+    closureBudgetKb: '3266.6',
+    closureChunks: '58',
+    closureStatus: 'pass',
+    closureChunkStatus: 'pass',
+    closureHeadroomStatus: 'pass',
+  };
+
+  /**
+   * The load-bearing leg. An observability change that rewrites the HEALTHY
+   * output is a regression: every green PR comment in the repo would change
+   * shape to report nothing new.
+   */
+  it('adds nothing at all to the comment when every half passed', () => {
+    const { kind, body } = renderBudgetComment({ status: 'pass', ...halves });
+
+    expect(kind).toBe('pass');
+    expect(body).not.toContain('Which half objected');
+    expect(body).not.toContain('Eager-closure half');
+    expect(body).toContain('| Status | **PASS** | — |');
+    expect(body).not.toContain('FAIL');
+  });
+
+  it('names the AGGREGATE half when the total is over its ceiling', () => {
+    const { body } = renderBudgetComment({
+      status: 'fail',
+      ...halves,
+      closureGzipKb: '3400.0',
+      closureStatus: 'fail',
+    });
+
+    expect(body).toContain('**Which half objected:**');
+    expect(body).toContain('| Aggregate closure ceiling | ❌ over its ceiling |');
+    expect(body).toContain('| Per-chunk ceilings | ✅ pass |');
+    expect(body).toContain('| Ceiling sensitivity (headroom) | ✅ pass |');
+  });
+
+  /**
+   * The objectui#5266 shape. Note the numbers here are IDENTICAL to the
+   * all-pass case above: before this wiring the two comments differed only in
+   * `PASS` vs `FAIL`, with both printed metrics comfortably inside budget and
+   * nothing anywhere in the body saying why.
+   */
+  it('names the PER-CHUNK half when one chunk is over while the total is not', () => {
+    const { kind, body } = renderBudgetComment({
+      status: 'fail',
+      ...halves,
+      closureChunkStatus: 'fail',
+    });
+
+    expect(kind).toBe('fail');
+    // Both printed metrics are green; only the half table explains the FAIL.
+    expect(body).toContain('| **Eager closure** (gzip, 58 chunks) | **3222.6 KB** | 3266.6 KB |');
+    expect(body).toContain('| Status | **FAIL** | — |');
+    expect(body).toContain('| Per-chunk ceilings | ❌ over its ceiling |');
+    expect(body).toContain('| Aggregate closure ceiling | ✅ pass |');
+  });
+
+  /**
+   * A drifted ceiling is exit 2, which `performance-budget.yml` maps to
+   * `budget_status=error` — so it lands in the NOT-MEASURED branch, not the
+   * verdict branch. It must read as a verdict about the gauge, and must never
+   * acquire a ❌: nothing grew.
+   */
+  it('names a drifted ceiling as a broken GAUGE, never as a size failure', () => {
+    const { kind, body } = renderBudgetComment({
+      status: 'error',
+      ...halves,
+      closureHeadroomStatus: 'error',
+      message: 'the eager-closure gauge produced no trustworthy measurement',
+      budgetOutcome: 'failure',
+      buildOutcome: 'success',
+    });
+
+    expect(kind).toBe('not-measured');
+    expect(body).toContain('| Ceiling sensitivity (headroom) | ⚠️ broken gauge |');
+    expect(body).toContain('a verdict about the ceiling, not about the bundle');
+    expect(body).not.toContain('❌');
+    expect(body).not.toContain('FAIL');
+    // The closure WAS measured on this path, so the comment must not claim the
+    // opposite two lines above a table showing two ceilings that passed.
+    expect(body).not.toContain('Nothing was measured');
+    expect(body).toContain('gauge not trustworthy');
+  });
+
+  it('keeps the "not measured" wording when nothing really was measured', () => {
+    // dist missing / no JS / cancelled: the checker never ran, so it published
+    // no closure numbers. This branch must be untouched by the above.
+    const { kind, body } = renderBudgetComment({
+      status: 'error',
+      message: 'Build output not found at apps/console/dist/assets',
+      budgetOutcome: 'failure',
+      buildOutcome: 'success',
+    });
+
+    expect(kind).toBe('not-measured');
+    expect(body).toContain('## ℹ️ Console Performance Budget — not measured');
+    expect(body).toContain('Nothing was measured');
+    expect(body).not.toContain('Which half objected');
+  });
+
+  it('renders no half table when no half status was handed over', () => {
+    // The objectui#3152 failure mode, in its per-half form: blanks must render
+    // as silence, never be inferred into verdicts.
+    const { body } = renderBudgetComment({
+      status: 'fail',
+      ...halves,
+      closureStatus: '',
+      closureChunkStatus: '',
+      closureHeadroomStatus: '',
+    });
+
+    expect(body).not.toContain('Which half objected');
+    expect(body).not.toContain('| Per-chunk ceilings |');
+  });
+});
+
 describe('renderFromEnv', () => {
   it('reads the exact env names the workflow sets', () => {
     const { kind, body } = renderFromEnv(
@@ -280,6 +417,32 @@ describe('performance-budget.yml contract', () => {
     expect(declared.length).toBeGreaterThan(0);
     for (const name of declared) {
       expect(renderer, `renderer must read env.${name}`).toContain(`env.${name}`);
+    }
+  });
+
+  /**
+   * objectui#6230: `closure_chunk_status` (objectui#5490) and
+   * `closure_headroom_status` (objectui#5924) were both published to
+   * `$GITHUB_OUTPUT` and never read, each following the precedent of the last.
+   * The card's explicit ask was that a THIRD round of this not happen — so the
+   * obligation is pinned mechanically rather than left to review: a half added
+   * to the checker fails here until it reaches the comment.
+   */
+  it('passes every closure verdict the checker publishes into the comment step', () => {
+    const checker = fs.readFileSync(checkerPath, 'utf8');
+    const call = checker.slice(checker.lastIndexOf('writeGithubOutput({'));
+    const published = [...call.slice(0, call.indexOf('});')).matchAll(/(closure_\w+):/g)].map(
+      (m) => m[1],
+    );
+
+    // Guard the guard: a regex that matched nothing would pass silently.
+    expect(published).toContain('closure_status');
+    expect(published).toContain('closure_chunk_status');
+    expect(published).toContain('closure_headroom_status');
+
+    for (const key of published) {
+      expect(workflow, `workflow must pass steps.budget.outputs.${key} to the comment step`)
+        .toContain(`steps.budget.outputs.${key}`);
     }
   });
 

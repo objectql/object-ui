@@ -1,0 +1,84 @@
+name: Shell Escape Residue
+
+# Why this is its own workflow rather than a step in `ci.yml` or `lint.yml`: both
+# of those decide inside the job whether the change "needs a full run", with an
+# exclusion list that skips every expensive step on a markdown-only or
+# changeset-only change — and a markdown-only change is precisely the shape that
+# can introduce this defect. A gate that cannot see the pull request shape most
+# likely to trip it "rebuilds the hole it exists to close": the conclusion
+# `docs-links.yml`, `control-bytes.yml`, `skills-paths.yml`,
+# `changeset-presence.yml`, `pre-install-import-graph.yml` and
+# `vi-mock-specifiers.yml` have each reached in their own headers. One gate, one
+# home.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-shell-escape-residue.test.ts` fails if either is ever
+# added, and fails too if a second workflow starts running the same script.
+# Reporting on every pull request is also what makes the check requirable, and
+# `scripts/dependabot-merge-gate.mjs` classifies it as a required context — an
+# unclassified blocking check is one a Dependabot merge would be let past
+# (objectui#6135), and the `merge_group` floor now DERIVES from that same list
+# (objectui#6160).
+#
+# It needs no install and no build — a checkout plus one `node` call over ~200
+# markdown documents and ~1300 fenced blocks. Keep it that way; the import graph
+# is builtins plus repo-relative modules only, which `pre-install-import-graph.yml`
+# enforces (objectui#6148).
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that can become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: shell-escape-residue-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shell-escape-residue:
+    name: Shell Escape Residue Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # objectui#5150: the `git commit -F -` example in AGENTS.md §9 shipped with
+      # its heredoc terminator wrapped in the single-quote-inside-single-quote
+      # shell escape. Copied verbatim it does not fail with a message — it HANGS,
+      # on a terminator that never matches, and a reader does not attribute a hung
+      # terminal to the document. objectui#5151 measured the full derived gate
+      # union against the replanted bytes: control-bytes, doc-links and both
+      # changeset gates all exited 0, none of them negligently — the residue is
+      # printable ASCII inside a code block and no scan surface reached it.
+      #
+      # ⛔ This gate checks an ENUMERATED LITERAL. It does NOT make fenced shell
+      # examples executable-by-construction, and nothing in this repository does;
+      # `bash -n` per block is objectui#5151's unbuilt "direction 1". The script
+      # header states the boundary and the test suite asserts it as a fact.
+      #
+      # GREEN AT REST — there is nothing to find on an ordinary day — so it prints
+      # its per-root census rather than a bare "OK", and it FAILS when a scan root
+      # does not resolve or the population collapses. A scan that silently finds
+      # nothing reads as coverage, which is this gate's own defect one level up.
+      - name: Check for machine-produced shell-escape residue in fenced examples
+        run: node scripts/check-shell-escape-residue.mjs
