@@ -75,6 +75,15 @@ describe('data-table reports column resizes to the host', () => {
     expect(onColumnResize).toHaveBeenCalledWith('name', 160);
   });
 
+  /**
+   * ⚠️ Measured: this case is the ONE assertion here that still PASSES on a
+   * revert of the fix — the unfixed renderer fires nothing at all, so "did not
+   * fire" is trivially true there. It is a guard against over-firing (a future
+   * per-mousemove or per-mouseup-without-drag callback would redden it), NOT a
+   * pin of the fix. The three cases that DO distinguish the two states of the
+   * world are the one above and both cases in
+   * `plugin-grid/src/__tests__/columnStatePersistence.test.tsx`.
+   */
   it('does not fire when the drag never moved', () => {
     const onColumnResize = vi.fn();
     renderTable({ resizableColumns: true, onColumnResize });

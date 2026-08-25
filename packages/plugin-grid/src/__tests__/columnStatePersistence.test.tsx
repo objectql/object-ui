@@ -65,7 +65,7 @@ function renderGrid(onColumnStateChange: (s: any) => void, opts?: Record<string,
 }
 
 /** Drag the resize handle of the header cell whose label is `header`. */
-function dragResize(container: HTMLElement, header: string, byPx: number) {
+function dragResize(header: string, byPx: number) {
   const th = screen.getByText(header).closest('th') as HTMLElement;
   expect(th).toBeTruthy();
   const handle = th.querySelector('.cursor-col-resize') as HTMLElement;
@@ -78,13 +78,13 @@ function dragResize(container: HTMLElement, header: string, byPx: number) {
 describe('ObjectGrid column-state persistence (outbound half)', () => {
   it('writes the new width to localStorage AND notifies the host when a column is resized', async () => {
     const onColumnStateChange = vi.fn();
-    const { container } = renderGrid(onColumnStateChange);
+    renderGrid(onColumnStateChange);
     await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
 
     expect(onColumnStateChange).not.toHaveBeenCalled();
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
 
-    dragResize(container, 'Name', 160);
+    dragResize('Name', 160);
 
     // Channel 1 — the host callback that reaches dataSource.updateViewConfig.
     await waitFor(() => expect(onColumnStateChange).toHaveBeenCalled());

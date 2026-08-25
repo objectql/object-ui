@@ -985,13 +985,19 @@ interface UnmirroredDeclared {
 interface RuntimeOnlyDeclared {
   /**
    * 12 of `DataTableSchema`'s former 29. OVERSIGHT group — this mirror already
-   * declares four callbacks. ⚠️ Two of these are additionally read NOWHERE:
-   * `onColumnResize`/`onColumnReorder` are the only call sites of `saveColumnState`
-   * and `data-table.tsx` invokes neither, so column-state persistence never fires
-   * (objectui#6175, filed separately — NOT fixed by this reclassification). And
-   * `onColumnReorder` is a near-duplicate of the MIRRORED `onColumnsReorder`: one
-   * event, two declared spellings, different signatures. Which spelling survives is
-   * an open ruling and is deliberately not settled here.
+   * declares four callbacks. ⚠️ `onColumnReorder` is still read NOWHERE, and
+   * deliberately so. objectui#6175 repaired the persistence half this entry used to
+   * describe: `onColumnResize` is now invoked by `data-table.tsx` (at the end of a
+   * resize drag), and ObjectGrid now emits the MIRRORED near-duplicate
+   * `onColumnsReorder` — the spelling the renderer already invoked — instead of the
+   * singular `onColumnReorder` it used to write and nothing read. So column-state
+   * persistence DOES fire now, and `onColumnReorder` is left declared, mirrored by
+   * nothing, and wired to nothing.
+   *
+   * That residue is the open question, not an oversight: one event, two declared
+   * spellings, different signatures. objectui#6175 wired persistence WITHOUT
+   * retiring anything, because retiring either spelling is a declared-surface change
+   * and that ruling is still OPEN. Nothing about this entry's membership changed.
    */
   'data-display.zod.ts#DataTableSchema':
     | 'onAddRecord' | 'onBatchSave' | 'onCellChange' | 'onColumnReorder' | 'onColumnResize'
