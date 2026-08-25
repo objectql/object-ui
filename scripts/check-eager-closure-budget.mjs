@@ -155,6 +155,27 @@
  * fails loudly instead of passing by weighing nothing. See that constant's
  * comment for the reasoning and for how to move one.
  *
+ * ## Is the ceiling still the one in force? (objectui#6245)
+ *
+ * The three halves above all read this file's constants and take them as given.
+ * None of them can ask whether the constants THEMSELVES are current, and on a
+ * `pull_request` run that question has a wrong answer that is invisible from
+ * inside the checkout: `Bundle Analysis` is a required context, GitHub does not
+ * re-run a PR's checks when the base branch moves, so a green verdict can be
+ * computed against ceilings `main` has since replaced — and the merge is gated
+ * on it. Measured, not inferred: run 32804357171 started 6m50s AFTER
+ * `0409b766d` lowered the aggregate ceiling to 3,345,000 and published
+ * `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — the retired 4,086,000 — as a success.
+ *
+ * {@link evaluateCeilingFreshness} is the fourth half and closes that window
+ * inside the tool: it compares {@link VERDICT_CEILING_CONSTANTS} across three
+ * readings of this file — this checkout, the base commit the checkout was made
+ * from, and the base branch tip — and calls a ceiling the base branch moved out
+ * from under this run an ERROR (exit 2). Three readings rather than two because
+ * a re-baseline PR differs from the base branch deliberately and must still
+ * land; see that function for the rule and for the residual window it cannot
+ * close.
+ *
  * ## Raising it
  *
  * Re-baselining is legitimate — it is how a ratchet advances — but it is a
@@ -165,6 +186,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isEntrypoint } from './invoked-as.mjs';
 
 /**
@@ -814,6 +836,319 @@ export function evaluateHeadroomSensitivity({
 }
 
 /**
+ * The constants a verdict from this file is COMPUTED FROM — the three the three
+ * evaluators above take as their defaults, and no others.
+ *
+ * {@link BASELINE} and {@link PER_CHUNK_BASELINE} are deliberately absent. They
+ * record the measurements the ceilings were derived from and are read by the
+ * unit test and by a human; no verdict depends on them. Listing them here would
+ * make a baseline-only or comment-only edit on the base branch read as a
+ * superseded ceiling, and a freshness check that cries wolf is one people learn
+ * to click past.
+ */
+export const VERDICT_CEILING_CONSTANTS = Object.freeze([
+  'MAX_EAGER_CLOSURE_GZIP_BYTES',
+  'PER_CHUNK_GZIP_CEILINGS',
+  'REGRESSION_THIS_GATE_MUST_CATCH_BYTES',
+]);
+
+/**
+ * Read one `export const NAME = ...;` initializer out of module SOURCE TEXT,
+ * with comments dropped and formatting normalised.
+ *
+ * Text, not values, because the two sides of the freshness comparison are this
+ * file at two different commits and only one of them can be imported: the other
+ * is a blob from the base branch. Comparing `89 * 1024` against `91136` would
+ * be comparing an expression with an evaluation, so both sides are read the
+ * same way — through this function — and a difference means a difference.
+ *
+ * What normalisation deliberately erases, because none of it moves a ceiling:
+ * comments, line breaks and indentation, trailing commas, and the `_` numeric
+ * separators (`3_345_000` and `3345000` are the same number). What it keeps is
+ * everything else, so a changed digit is a changed ceiling.
+ *
+ * @param {string} source
+ * @param {number} from index just past the `=`
+ * @returns {string | null} the normalised initializer, or null if unterminated
+ */
+function readInitializer(source, from) {
+  let depth = 0;
+  const out = [];
+  let i = from;
+  while (i < source.length) {
+    const ch = source[i];
+    const pair = source.slice(i, i + 2);
+    if (pair === '//') {
+      while (i < source.length && source[i] !== '\n') i += 1;
+      out.push(' ');
+      continue;
+    }
+    if (pair === '/*') {
+      const end = source.indexOf('*/', i + 2);
+      if (end === -1) return null;
+      i = end + 2;
+      out.push(' ');
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const literal = readStringLiteral(source, i);
+      if (literal === null) return null;
+      out.push(literal.text);
+      i = literal.end;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+    if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+    if (ch === ';' && depth === 0) return normaliseDeclaration(out.join(''));
+    out.push(ch);
+    i += 1;
+  }
+  return null;
+}
+
+/** @param {string} source @param {number} start index of the opening quote */
+function readStringLiteral(source, start) {
+  const quote = source[start];
+  let i = start + 1;
+  while (i < source.length) {
+    if (source[i] === '\\') {
+      i += 2;
+      continue;
+    }
+    if (source[i] === quote) return { text: source.slice(start, i + 1), end: i + 1 };
+    i += 1;
+  }
+  return null;
+}
+
+/** @param {string} text */
+function normaliseDeclaration(text) {
+  return text
+    .replace(/(\d)_(?=\d)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .replace(/,(\s*[}\])])/g, '$1')
+    .trim();
+}
+
+/**
+ * Pull the {@link VERDICT_CEILING_CONSTANTS} declarations out of module source.
+ *
+ * A name this cannot find goes in `missing` and is an ERROR upstream, never a
+ * skipped comparison: "I could not read the ceiling" and "the ceiling agrees"
+ * are the two answers a freshness check must never confuse, and only one of
+ * them is safe to be quiet about.
+ *
+ * @param {string | null | undefined} source
+ * @param {readonly string[]} [names]
+ * @returns {{ declarations: Map<string, string>, missing: string[] }}
+ */
+export function extractCeilingDeclarations(source, names = VERDICT_CEILING_CONSTANTS) {
+  const declarations = new Map();
+  const missing = [];
+  const text = typeof source === 'string' ? source : '';
+  for (const name of names) {
+    const anchor = new RegExp(`^export const ${name}\\s*=`, 'm').exec(text);
+    const initializer = anchor === null ? null : readInitializer(text, anchor.index + anchor[0].length);
+    if (initializer === null || initializer === '') {
+      missing.push(name);
+      continue;
+    }
+    declarations.set(name, initializer);
+  }
+  return { declarations, missing };
+}
+
+/**
+ * The FOURTH half: is the ceiling this run weighed against still the ceiling in
+ * force on the base branch? (objectui#6245)
+ *
+ * ## The race
+ *
+ * `Bundle Analysis` is a required context, and a `pull_request` run checks out
+ * the MERGE REF — a merge of the PR head with the base branch as GitHub last
+ * computed it. GitHub does not re-run a PR's checks when the base branch moves,
+ * so a green verdict can be computed against ceiling constants that `main` has
+ * since replaced, and the merge is then gated on a verdict about a ceiling that
+ * no longer exists.
+ *
+ * Observed live rather than reasoned about: run 32804357171 started at
+ * 03:13:27Z, six minutes and fifty seconds after `0409b766d` lowered
+ * {@link MAX_EAGER_CLOSURE_GZIP_BYTES} from 4,086,000 to 3,345,000 on `main`,
+ * and published `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — 4,086,000 bytes, the
+ * retired ceiling — with `conclusion: success`. It did not bite: the payload was
+ * 3222.6 KB, under both numbers. With the aggregate headroom now 44.0 KB against
+ * an 89.0 KB regression class, the next one has half a regression of room to
+ * hide in.
+ *
+ * ## Why THREE readings and not two
+ *
+ * Comparing this checkout's ceilings against the base branch's is not enough: a
+ * re-baseline PR differs from the base branch ON PURPOSE, and failing it would
+ * make the one PR that must land unlandable. So the question is not "do they
+ * differ" but "did the BASE BRANCH move them out from under this checkout":
+ *
+ *   - `prBaseSource` — the checker at the base commit this checkout was
+ *     computed from. What the base branch said when the merge ref was made.
+ *   - `baseSource` — the checker at the base branch tip right now. What the
+ *     merge would actually land on.
+ *   - `headSource` — the checker in this checkout. What the verdict used.
+ *
+ * A ceiling is SUPERSEDED when it moved between the first two AND this checkout
+ * does not carry the move. A re-baseline PR moves it in `headSource` only, the
+ * first two agree, and nothing fires.
+ *
+ * ## Why `error` (exit 2) and not `fail`
+ *
+ * `fail` is a verdict about the BUNDLE — it grew past a line. Nothing has grown
+ * here and no ceiling has drifted; the measurement above is sound and the
+ * ceilings on the base branch are sound. What is wrong is that they were never
+ * weighed against each other. That is a verdict about the GAUGE, which is what
+ * exit 2 means in this file, and the message says so in as many words — a
+ * freshness failure that reads like "the bundle grew" would send its reader
+ * hunting a regression that is not there.
+ *
+ * ## What this closes, and what it does not
+ *
+ * It closes the window this card recorded: a run that EXECUTES after the
+ * constants move, with a checkout that predates it. It cannot close the window
+ * where the run finishes BEFORE the constants move and the PR is merged after —
+ * no code of ours runs at that moment. That residual is what the `push`-on-main
+ * run detects after the fact, and closing it needs "require branches to be up to
+ * date before merging", a repository setting and a maintainer-floor decision
+ * this file has no business making.
+ *
+ * @param {object} input
+ * @param {string} [input.eventName]     `GITHUB_EVENT_NAME`
+ * @param {string | null} [input.headSource]     this checkout's copy of this file
+ * @param {string | null} [input.prBaseSource]   this file at the checkout's base commit
+ * @param {string | null} [input.baseSource]     this file at the base branch tip
+ * @param {string} [input.prBaseSha]
+ * @param {string} [input.baseSha]
+ * @param {string} [input.baseRef]
+ * @returns {{ status: 'pass' | 'error' | 'not-applicable', message: string,
+ *             moved: string[], superseded: string[] }}
+ */
+export function evaluateCeilingFreshness({
+  eventName,
+  headSource,
+  prBaseSource,
+  baseSource,
+  prBaseSha,
+  baseSha,
+  baseRef,
+} = {}) {
+  const base = { moved: [], superseded: [] };
+  const branch = baseRef ? `\`${baseRef}\`` : 'the base branch';
+
+  // A `push` run's checkout IS the branch being weighed, and a local run has no
+  // merge to gate. Neither can hold a superseded ceiling, so neither gets a
+  // verdict — this half exists for the merge ref and nothing else.
+  if (eventName !== 'pull_request') {
+    return {
+      ...base,
+      status: 'not-applicable',
+      message:
+        `Ceiling freshness: not applicable to a ${eventName ? `\`${eventName}\`` : 'local'} run. ` +
+        `This check compares a pull_request merge ref against the branch it would land on; a ` +
+        `checkout that IS that branch cannot be behind it.`,
+    };
+  }
+
+  const absent = [
+    prBaseSource ? null : 'EAGER_CLOSURE_PR_BASE_SOURCE',
+    baseSource ? null : 'EAGER_CLOSURE_BASE_SOURCE',
+  ].filter((name) => name !== null);
+  if (absent.length > 0) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `Ceiling freshness cannot be judged on this pull_request run: ${absent.join(' and ')} ` +
+        `named no readable file.\n` +
+        `Those are exported by the \`Resolve the base-branch ceiling constants\` step in ` +
+        `.github/workflows/performance-budget.yml; on a pull_request run their absence means ` +
+        `that step did not complete, NOT that the ceilings agree.\n` +
+        `An unreadable base branch is an ERROR and never a quiet pass: from inside this ` +
+        `checkout a superseded ceiling looks exactly like a current one.`,
+    };
+  }
+
+  const sides = /** @type {[string, string | null | undefined][]} */ ([
+    ['this checkout', headSource],
+    ['the base commit this checkout was made from', prBaseSource],
+    [`the ${baseRef ? `\`${baseRef}\`` : 'base branch'} tip`, baseSource],
+  ]);
+  const read = sides.map(([label, source]) => ({ label, ...extractCeilingDeclarations(source) }));
+  const unreadable = read.filter((side) => side.missing.length > 0);
+  if (unreadable.length > 0) {
+    return {
+      ...base,
+      status: 'error',
+      message:
+        `Ceiling freshness cannot be judged — the ceiling declarations could not be located:\n` +
+        unreadable
+          .map((side) => `  - in ${side.label}: ${side.missing.map((n) => `\`${n}\``).join(', ')}`)
+          .join('\n') +
+        `\nBoth sides are read by \`extractCeilingDeclarations\`, which looks for ` +
+        `\`export const NAME = ... ;\` at the top level of this file. A name it cannot find has ` +
+        `been renamed, moved, or reshaped — re-point VERDICT_CEILING_CONSTANTS at the ceilings ` +
+        `the verdict is now computed from. It is an error rather than a skipped comparison for ` +
+        `the same reason an absent budgeted chunk is: a check that weighs nothing passes forever.`,
+    };
+  }
+
+  const [head, prBase, current] = read.map((side) => side.declarations);
+  const moved = [...VERDICT_CEILING_CONSTANTS].filter(
+    (name) => prBase.get(name) !== current.get(name),
+  );
+  const superseded = moved.filter((name) => head.get(name) !== current.get(name));
+
+  if (superseded.length === 0) {
+    return {
+      ...base,
+      moved,
+      status: 'pass',
+      message:
+        moved.length === 0
+          ? `Ceiling freshness: all ${VERDICT_CEILING_CONSTANTS.length} ceiling constants are ` +
+            `unchanged on ${branch} since this checkout's base${baseSha ? ` (${baseSha})` : ''}, ` +
+            `so the verdicts above were weighed against the ceilings actually in force.`
+          : `Ceiling freshness: ${moved.map((n) => `\`${n}\``).join(', ')} moved on ${branch} ` +
+            `since this checkout's base, and this checkout already carries the new ` +
+            `value${moved.length === 1 ? '' : 's'} — the verdicts above are current.`,
+    };
+  }
+
+  const table = superseded
+    .map(
+      (name) =>
+        `  ❌ ${name}\n` +
+        `       weighed here : ${head.get(name)}\n` +
+        `       in force now : ${current.get(name)}`,
+    )
+    .join('\n');
+
+  return {
+    moved,
+    superseded,
+    status: 'error',
+    message:
+      `${superseded.length} ceiling constant${superseded.length === 1 ? '' : 's'} this run ` +
+      `weighed against ${superseded.length === 1 ? 'has' : 'have'} been SUPERSEDED: ${branch} ` +
+      `moved ${superseded.length === 1 ? 'it' : 'them'} after this checkout was made` +
+      `${prBaseSha && baseSha ? ` (${prBaseSha} -> ${baseSha})` : ''}, and nothing re-ran the ` +
+      `verdicts above.\n${table}\n` +
+      `⛔ NOTHING GREW. This is not a size regression and it is not a drifted ceiling: the ` +
+      `measurement above is sound, and so are the ceilings on ${branch}. The only thing wrong is ` +
+      `that they were never weighed against each other, so a green tick here would gate the ` +
+      `merge on a ceiling that no longer exists (objectui#6245).\n` +
+      `Fix: update this branch onto ${branch} — merge or rebase — and let Bundle Analysis run ` +
+      `again. ⛔ Do NOT widen a ceiling to clear this; re-baselining is a separate, deliberate ` +
+      `act and this run has no evidence for one.`,
+  };
+}
+
+/**
  * The biggest eager chunks, so a failure names suspects instead of a total.
  * @param {{ files?: { fileName: string, gzipBytes: number }[] }} report
  * @param {number} [limit]
@@ -821,6 +1156,21 @@ export function evaluateHeadroomSensitivity({
 export function renderTopChunks(report, limit = 12) {
   const files = [...(report?.files ?? [])].sort((a, b) => b.gzipBytes - a.gzipBytes).slice(0, limit);
   return files.map((f) => `  ${kb(f.gzipBytes).padStart(9)} KB  ${f.fileName}`).join('\n');
+}
+
+/**
+ * Read a source file for {@link evaluateCeilingFreshness}, or null when the
+ * path is absent or unreadable. Null is never "the same as" — it routes to a
+ * loud ERROR upstream.
+ * @param {string | undefined} sourcePath
+ */
+export function readSource(sourcePath) {
+  if (!sourcePath) return null;
+  try {
+    return fs.readFileSync(sourcePath, 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 /** @param {string} reportPath */
@@ -841,21 +1191,25 @@ function writeGithubOutput(entries, outputPath = process.env.GITHUB_OUTPUT) {
 
 /**
  * Exit codes: `0` within budget, `1` over budget — the aggregate ceiling or any
- * per-chunk ceiling — and `2` no trustworthy measurement (report missing,
- * stale-shaped, internally inconsistent, missing a budgeted chunk, or governed
- * by a ceiling that has drifted out of range of the regression it must catch).
+ * per-chunk ceiling — and `2` no trustworthy verdict (report missing,
+ * stale-shaped, internally inconsistent, missing a budgeted chunk, governed by
+ * a ceiling that has drifted out of range of the regression it must catch, or —
+ * objectui#6245 — weighed against a ceiling the base branch has since replaced).
+ *
+ * The last of those is the one exit 2 case with a PERFECTLY GOOD measurement
+ * behind it, so nothing downstream may word exit 2 as "nothing was measured".
  *
  * `2` covers the unbuilt tree, and deliberately so: with no
  * `apps/console/dist/eager-closure.json` this check reports a BROKEN GAUGE and
  * the workflow fails the step. It never prints a verdict about a bundle nobody
  * weighed, and it never exits 0 having measured nothing.
  *
- * All three halves are evaluated and printed before any of them decides the
+ * All FOUR halves are evaluated and printed before any of them decides the
  * code: a run that reports the total and hides which chunk moved (or hides
- * whether either line still means anything) teaches readers to ignore the half
- * they cannot see.
+ * whether either line still means anything, or whether the line it used is the
+ * line in force) teaches readers to ignore the half they cannot see.
  */
-export function main(argv = process.argv.slice(2)) {
+export function main(argv = process.argv.slice(2), env = process.env) {
   const flagIndex = argv.indexOf('--report');
   const reportPath = flagIndex === -1 ? DEFAULT_REPORT_PATH : argv[flagIndex + 1];
   const resolved = path.resolve(reportPath);
@@ -863,6 +1217,19 @@ export function main(argv = process.argv.slice(2)) {
   const result = evaluateClosureBudget({ report, reportPath });
   const perChunk = evaluatePerChunkBudgets({ report, reportPath });
   const sensitivity = evaluateHeadroomSensitivity({ report, reportPath });
+  // The fourth half asks about the CEILING rather than the payload, so its
+  // inputs are source texts and not the report: this file as checked out,
+  // and this file at two commits on the base branch. See
+  // {@link evaluateCeilingFreshness}.
+  const freshness = evaluateCeilingFreshness({
+    eventName: env.GITHUB_EVENT_NAME,
+    headSource: readSource(fileURLToPath(import.meta.url)),
+    prBaseSource: readSource(env.EAGER_CLOSURE_PR_BASE_SOURCE),
+    baseSource: readSource(env.EAGER_CLOSURE_BASE_SOURCE),
+    prBaseSha: env.EAGER_CLOSURE_PR_BASE_SHA,
+    baseSha: env.EAGER_CLOSURE_BASE_SHA,
+    baseRef: env.EAGER_CLOSURE_BASE_REF,
+  });
 
   if (result.status === 'pass') {
     console.log(`✅ ${result.message}`);
@@ -879,6 +1246,16 @@ export function main(argv = process.argv.slice(2)) {
   } else {
     console.error(`❌ ${sensitivity.message}`);
   }
+  // `not-applicable` is printed rather than skipped. A half that says nothing
+  // is indistinguishable from a half that was switched off, and this file's
+  // whole argument is that silence must never read as a pass.
+  if (freshness.status === 'pass') {
+    console.log(`✅ ${freshness.message}`);
+  } else if (freshness.status === 'not-applicable') {
+    console.log(`ℹ️  ${freshness.message}`);
+  } else {
+    console.error(`❌ ${freshness.message}`);
+  }
   if (report?.files?.length) {
     console.log('');
     console.log('Largest eagerly loaded chunks (gzipped):');
@@ -892,7 +1269,13 @@ export function main(argv = process.argv.slice(2)) {
     closure_chunks: result.chunkCount === null ? '' : String(result.chunkCount),
     closure_chunk_status: perChunk.status,
     closure_headroom_status: sensitivity.status,
-  });
+    // Empty on a run this half does not apply to, so the PR comment's half
+    // table filters it out instead of rendering a blank verdict as a row.
+    closure_freshness_status: freshness.status === 'not-applicable' ? '' : freshness.status,
+    // `env`, not `process.env`: every other input this function reads comes from
+    // the injected environment, and a default that reaches around it would make
+    // the outputs untestable through the same seam as the verdicts.
+  }, env.GITHUB_OUTPUT);
 
   // Distinct codes so the workflow can tell "over budget" (a real verdict about
   // the bundle) from "the gauge produced nothing" (a verdict about the gauge).
@@ -900,13 +1283,15 @@ export function main(argv = process.argv.slice(2)) {
   // regression, and a size regression reported as a broken report — each of
   // which teaches readers to ignore the other.
   //
-  // `error` outranks `fail` across ALL THREE halves for the same reason it does
+  // `error` outranks `fail` across ALL FOUR halves for the same reason it does
   // within one: a report that cannot be trusted — or a ceiling that no longer
-  // measures the thing it names — makes its own size verdict meaningless,
-  // whichever half noticed first. objectui#5490 established that ordering over
-  // two halves; objectui#5924 adds the third under the same rule rather than
-  // giving sensitivity a code of its own.
-  const statuses = [result.status, perChunk.status, sensitivity.status];
+  // measures the thing it names, or that is no longer the ceiling in force —
+  // makes its own size verdict meaningless, whichever half noticed first.
+  // objectui#5490 established that ordering over two halves; objectui#5924
+  // added the third and objectui#6245 the fourth, each under the same rule
+  // rather than taking a code of its own. `not-applicable` is inert in the
+  // fold: it is the absence of a question, not the answer `pass`.
+  const statuses = [result.status, perChunk.status, sensitivity.status, freshness.status];
   if (statuses.includes('error')) return 2;
   return statuses.includes('fail') ? 1 : 0;
 }

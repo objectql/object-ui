@@ -15,8 +15,10 @@
  *
  *   `pass`  the console bundle was measured and is within budget
  *   `fail`  the console bundle was measured and is OVER budget
- *   `error` the budget step ran but the build produced nothing measurable
- *           (no `dist` directory, or no JS in it)
+ *   `error` the budget step ran but produced no trustworthy verdict — nothing
+ *           measurable (no `dist` directory, or no JS in it), a ceiling that has
+ *           drifted out of range of the regression it must catch, or one the
+ *           base branch replaced after this checkout (objectui#6245)
  *   absent  the budget step never ran at all — an earlier step failed, or the
  *           run was cancelled
  *
@@ -50,6 +52,7 @@ const text = (value) => (typeof value === 'string' ? value.trim() : '');
  * @param {string} [input.closureChunks]  how many chunks the eager closure spans
  * @param {string} [input.closureChunkStatus]    `closure_chunk_status` — the per-chunk half
  * @param {string} [input.closureHeadroomStatus] `closure_headroom_status` — the sensitivity half
+ * @param {string} [input.closureFreshnessStatus] `closure_freshness_status` — the freshness half
  * @param {string} [input.message]       human-readable reason when `status` is `error`
  * @param {string} [input.budgetOutcome] `steps.budget.outcome`
  * @param {string} [input.buildOutcome]  `steps.build_packages.outcome`
@@ -70,6 +73,7 @@ export function renderBudgetComment(input = {}) {
     chunks: text(input.closureChunks),
     chunkStatus: text(input.closureChunkStatus),
     headroomStatus: text(input.closureHeadroomStatus),
+    freshnessStatus: text(input.closureFreshnessStatus),
   };
 
   // A verdict needs an affirmative status AND the numbers that status was
@@ -93,17 +97,35 @@ export function renderBudgetComment(input = {}) {
 }
 
 /**
- * The eager-closure checker evaluates three halves and publishes a verdict for
- * each. The step's exit code folds all three into ONE `budget_status`, so a
+ * The eager-closure checker evaluates four halves and publishes a verdict for
+ * each. The step's exit code folds all four into ONE `budget_status`, so a
  * comment that renders only that says "something objected" and sends the reader
- * to the job log to learn which — the aggregate total, one chunk, or a ceiling
- * that has stopped measuring anything (objectui#6230). These labels name the
- * halves the way the step log names them.
+ * to the job log to learn which — the aggregate total, one chunk, a ceiling that
+ * has stopped measuring anything (objectui#6230), or a ceiling the base branch
+ * replaced after this checkout (objectui#6245). These labels name the halves the
+ * way the step log names them.
+ *
+ * The optional third element overrides the verdict wording for one half.
+ * Freshness needs it: `⚠️ broken gauge` would be FALSE there — the gauge is
+ * fine, it was simply pointed at a retired number — and a reader who takes
+ * "broken gauge" at face value goes looking for a report that cannot be read.
  */
+const FRESHNESS_HALF = 'freshnessStatus';
+
 const CLOSURE_HALVES = [
   ['status', 'Aggregate closure ceiling'],
   ['chunkStatus', 'Per-chunk ceilings'],
   ['headroomStatus', 'Ceiling sensitivity (headroom)'],
+  [
+    FRESHNESS_HALF,
+    'Ceiling freshness (checkout vs. base branch)',
+    // Spelled out rather than spread from HALF_VERDICT: that constant is
+    // declared below this one, and a spread here would read it in its temporal
+    // dead zone. `fail` is absent because this half cannot produce one — it
+    // answers pass / error / not-applicable, and an unexpected status falls
+    // through to `halfVerdict`'s raw spelling rather than being dressed up.
+    { pass: '✅ pass', error: '⚠️ superseded ceiling' },
+  ],
 ];
 
 /**
@@ -117,7 +139,7 @@ const HALF_VERDICT = {
   error: '⚠️ broken gauge',
 };
 
-const halfVerdict = (status) => HALF_VERDICT[status] ?? `\`${status}\``;
+const halfVerdict = (status, verdicts = HALF_VERDICT) => verdicts[status] ?? `\`${status}\``;
 
 /**
  * Renders the per-half breakdown, and renders NOTHING in the two cases where it
@@ -130,10 +152,13 @@ const halfVerdict = (status) => HALF_VERDICT[status] ?? `\`${status}\``;
  *     objectui#3152 failure mode this whole file exists to prevent.
  */
 function closureHalfLines(closure) {
-  const rows = CLOSURE_HALVES.map(([key, label]) => [label, closure[key] ?? '']).filter(
-    ([, status]) => status !== '',
-  );
-  if (rows.length === 0 || rows.every(([, status]) => status === 'pass')) {
+  const rows = CLOSURE_HALVES.map(([key, label, verdicts]) => [
+    key,
+    label,
+    closure[key] ?? '',
+    verdicts,
+  ]).filter(([, , status]) => status !== '');
+  if (rows.length === 0 || rows.every(([, , status]) => status === 'pass')) {
     return [];
   }
   const lines = [
@@ -141,12 +166,22 @@ function closureHalfLines(closure) {
     '',
     '| Eager-closure half | Verdict |',
     '|--------------------|---------|',
-    ...rows.map(([label, status]) => `| ${label} | ${halfVerdict(status)} |`),
+    ...rows.map(([, label, status, verdicts]) => `| ${label} | ${halfVerdict(status, verdicts)} |`),
     '',
   ];
-  if (rows.some(([, status]) => status === 'error')) {
+  // The two notes are mutually exclusive per half and BOTH can appear, because
+  // they say opposite things about the same exit code. Emitting the broken-gauge
+  // wording for a freshness error would deny a measurement this run actually
+  // took — the objectui#6230 mistake, one level in.
+  if (rows.some(([key, , status]) => status === 'error' && key !== FRESHNESS_HALF)) {
     lines.push(
       '> ⚠️ A **broken gauge** half is a verdict about the ceiling, not about the bundle: that line has drifted out of range of the regression it exists to catch, or the report behind it cannot be trusted. It does not say anything grew. The `Check console performance budget` step log carries the ceiling and the number it was compared against.',
+      '',
+    );
+  }
+  if (rows.some(([key, , status]) => key === FRESHNESS_HALF && status === 'error')) {
+    lines.push(
+      '> ⚠️ A **superseded ceiling** is neither a size regression nor a drifted gauge. The bundle was measured correctly and the ceilings on the base branch are correct — but this checkout predates a change to them, so the verdicts above were weighed against numbers that are no longer in force. **Nothing grew.** Update this branch onto the base branch and let `Bundle Analysis` run again; do not widen a ceiling to clear it. The `Check console performance budget` step log names each superseded constant with both values (objectui#6245).',
       '',
     );
   }
@@ -284,6 +319,7 @@ export function renderFromEnv(env = process.env, sizeReportPath = 'size-report.m
     closureChunks: env.BUDGET_CLOSURE_CHUNKS,
     closureChunkStatus: env.BUDGET_CLOSURE_CHUNK_STATUS,
     closureHeadroomStatus: env.BUDGET_CLOSURE_HEADROOM_STATUS,
+    closureFreshnessStatus: env.BUDGET_CLOSURE_FRESHNESS_STATUS,
     budgetOutcome: env.BUDGET_STEP_OUTCOME,
     buildOutcome: env.BUILD_PACKAGES_OUTCOME,
     sizeReport: readSizeReport(sizeReportPath),
