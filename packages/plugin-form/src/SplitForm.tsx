@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import type { FormField, DataSource } from '@object-ui/types';
+import type { FormField, DataSource, ObjectFormSchema } from '@object-ui/types';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
@@ -106,9 +106,10 @@ export interface SplitFormSchema {
   initialData?: Record<string, any>;
   readOnly?: boolean;
   /**
-   * Override persistence — the seam a host uses to own the write. Mirrors
-   * `ObjectFormSchema.submitHandler`, the key `ObjectForm` forwards into this
-   * variant. When supplied, the form validates and hands the collected values
+   * Override persistence — the seam a host uses to own the write. Declared as
+   * `ObjectFormSchema['submitHandler']` rather than restated, so this variant
+   * and the canonical key `ObjectForm` forwards can never drift apart.
+   * When supplied, the form validates and hands the collected values
    * to this handler INSTEAD of calling `dataSource.create` /
    * `dataSource.update`; the returned record is passed on to `onSuccess`.
    *
@@ -117,7 +118,7 @@ export interface SplitFormSchema {
    * item 4). A renderer that does not read it writes the parent on its own and
    * escapes that transaction — objectui#6176.
    */
-  submitHandler?: (values: Record<string, any>) => any | Promise<any>;
+  submitHandler?: ObjectFormSchema['submitHandler'];
 
   onSuccess?: (data: any) => void | Promise<void>;
   onError?: (error: Error) => void;
