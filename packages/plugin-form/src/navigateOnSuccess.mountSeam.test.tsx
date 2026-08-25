@@ -14,58 +14,62 @@
  * `window.location.assign`. So the change under test is a wiring change, and
  * these tests are about which function ends up receiving the destination.
  *
- * ## What is deliberately NOT touched, and why it is re-measured here
+ * ## WHICH destinations are accepted, and where that is pinned
  *
- * WHICH destinations are accepted is `resolveSuccessNavigate`'s answer and
- * objectui#5548 is open on exactly that contract: the same-origin guard admits
- * ABSOLUTE same-origin URLs, the interpolation dialect is single-brace
- * `{id}`/`{recordId}`, and the substituted value is not escaped. None of those
- * are this card's to settle — answering one here would answer a formally open
- * contract question on the maintainer's behalf. The last describe block below
- * re-measures those verdicts, unchanged, so that a future edit to WHO travels
- * cannot quietly widen or narrow WHAT is accepted.
+ * That is `resolveSuccessNavigate`'s answer, and it was ruled by the maintainer
+ * on 2026-08-17 and implemented as this card's point 3: relative-only (a
+ * same-origin ABSOLUTE is refused like any other out-of-contract value), the
+ * interpolated id URL-escaped, and the single-brace `{id}` / `{recordId}`
+ * dialect kept for existing authors of this compat key. The contract's own suite
+ * is `navigateOnSuccess.urlContract.test.tsx`. The last describe block here
+ * restates the verdicts next to the navigation arm, so that a future edit to WHO
+ * travels cannot quietly widen or narrow WHAT is accepted.
  *
- * ## The arm split, and why it is required rather than cautious
+ * ## Why there is no longer an arm split
  *
- * `submitBehavior.url` is relative-only (objectstack#7496), so the shared hook
- * is correct to hand the host everything it ever holds. This key is not
- * relative-only — its same-origin guard accepts `https://own-host/record/1`
- * too — and `HostNavigationValue.navigate` declares `to` to be "an
- * already-resolved, application-relative path, never an absolute URL … It is
- * the CALLER's job to have judged the destination". So this call site judges:
- * an app-relative destination goes through the seam, anything else keeps the
- * browser-level `window.location.assign` it has always had. That is the same
- * judgement objectui#5112 made on `thankYouPage.redirectUrl`, whose acceptance
- * set has exactly this shape, and its predicate (`isAppRelativeDestination`) is
- * reused rather than re-derived.
+ * Until point 3 landed, this key was NOT relative-only — its same-origin guard
+ * accepted `https://own-host/record/1` — while `HostNavigationValue.navigate`
+ * declares `to` to be "an already-resolved, application-relative path, never an
+ * absolute URL … It is the CALLER's job to have judged the destination". So the
+ * call sites forked: app-relative through the seam, anything else through the
+ * browser-level `window.location.assign` they had always had.
+ *
+ * Point 3 removed the values that fork existed for. Every accepted destination
+ * is now a relative reference, so the browser arm became unreachable and was
+ * deleted; the caller's judgement happens once, at the admission door. What
+ * survives unchanged is the ABSENT-SEAM fallback inside
+ * `useSubmitRedirectNavigation` — a host with no router still gets
+ * `window.location.assign`, and the negative control below pins it.
  *
  * ## Reverse verification — direction PREDICTED before running, measured after
  *
  * The file holds 17 cases. Predicted counts, written before either was run:
  *
- * Mutation A, replacing the arm split at both call sites with the pre-change
+ * Mutation A, replacing the seam handoff at both call sites with the pre-seam
  * body (a bare `window.location.assign(nav)`), leaving point 2 in place:
  *   - RED, expected — **3**: the 2 cases (one per component) asserting a host
  *     navigate RECEIVED an app-relative destination, plus the 1 mounted-host
  *     placement case. The seam would never be reached.
- *   - GREEN, expected — **14**, and two groups of those are deliberate rather
- *     than incidental: the 2 absent-seam cases and the 2 same-origin-absolute
- *     cases describe behaviour that was already correct and is unchanged by
- *     this card. They are the NEGATIVE CONTROL — without them, an
- *     implementation that also replaced the no-provider fallback, or that
- *     laundered an absolute URL through the host router, would pass this file
- *     just as well. The 8 point-2 cases survive because the refusal note is
- *     independent of the navigation site: mutation A is not a change detector
- *     for them, and counting them as one would overstate this file.
+ *   - GREEN, expected — **14**, and one group of those is deliberate rather
+ *     than incidental: the 2 absent-seam cases describe behaviour that was
+ *     already correct and is unchanged. They are the NEGATIVE CONTROL — without
+ *     them, an implementation that also replaced the no-provider fallback would
+ *     pass the cases above just as well. The 8 point-2 cases survive because the
+ *     refusal note is independent of the navigation site, and the 2 same-origin
+ *     absolute cases survive because point 3 refuses those before either
+ *     traveller is chosen; counting either group as a detection would overstate
+ *     this file.
  *
  * Mutation B, dropping the `{ description }` argument from both success toasts
  * and leaving point 1 in place:
- *   - RED, expected — **7**: the 3 "declared but refused" cases per component
- *     (6) plus the cross-component agreement case.
- *   - GREEN, expected — **10**: the 2 "no key declared" cases assert the
- *     ABSENCE of a note and are unaffected by removing it — they exist to make
- *     the distinction the defect is about measurable, not to detect this
- *     mutation — and the 7 point-1 cases plus the verdict table are untouched.
+ *   - RED, expected — **9**: the 3 "declared but refused" cases per component
+ *     (6), the cross-component agreement case, and the 2 same-origin-absolute
+ *     cases, which since point 3 assert the refusal note rather than a
+ *     browser-level navigation.
+ *   - GREEN, expected — **8**: the 2 "no key declared" cases assert the ABSENCE
+ *     of a note and are unaffected by removing it — they exist to make the
+ *     distinction the defect is about measurable, not to detect this mutation —
+ *     and the 5 remaining point-1 cases plus the verdict table are untouched.
  *
  * The measured outcome of both is recorded in the PR body.
  *
@@ -242,27 +246,32 @@ describe('objectui#5034 point 1 — a mounted host places the destination inside
   });
 });
 
-// ─── Point 1, arm 2: a same-origin ABSOLUTE destination ────────────────────
+// ─── A same-origin ABSOLUTE destination: refused at the door (point 3) ─────
 
 describe.each([
   ['ObjectForm', false],
   ['WizardForm', true],
-] as const)('objectui#5034 point 1 — %s navigateOnSuccess, same-origin absolute', (_name, wizard) => {
-  it('keeps browser-level navigation even when a host supplied a navigate', async () => {
+] as const)('objectui#5034 point 3 — %s navigateOnSuccess, same-origin absolute', (_name, wizard) => {
+  it('is refused before either traveller: nobody navigates, and the toast says so', async () => {
     const navigate = vi.fn();
     const absolute = `${window.location.origin}/apps/x/o/record/{id}`;
-    const resolved = `${window.location.origin}${RELATIVE_RESOLVED}`;
 
     await submitWith(absolute, makeDS(), { navigate, wizard });
 
-    // The seam's declared input is an application-relative path, and it is the
-    // caller's job to have judged that. Handing over a full address would mean
-    // this package rewriting the author's address into a path a mounted router
-    // then places at a DIFFERENT one. An author who spelled the whole address
-    // asked for that address.
-    await waitFor(() => expect(assign).toHaveBeenCalledWith(resolved));
+    // MOVED by the 2026-08-17 maintainer ruling. This case used to assert
+    // browser-level navigation to the resolved absolute — the arm split points
+    // 1 and 2 deliberately left alone while the acceptance set was unruled.
+    // Point 3 rules it: as a compat alias this key runs under the
+    // objectstack#7496 semantics, and a same-origin absolute is refused like any
+    // other out-of-contract value. So there is no destination for either
+    // traveller to take, and the refusal note is what the submitter gets.
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    expect(toastSuccess).toHaveBeenCalledWith(
+      'Created',
+      { description: NAVIGATE_ON_SUCCESS_REFUSED_NOTE },
+    );
     expect(navigate).not.toHaveBeenCalled();
-    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).not.toHaveBeenCalled();
   });
 });
 
@@ -353,33 +362,40 @@ describe('objectui#5034 point 2 — the two forms tell the submitter the same th
   });
 });
 
-// ─── The acceptance set this card does not touch (objectui#5548) ───────────
+// ─── The acceptance set, restated next to the code that consumes it ────────
 
-describe('objectui#5034 — `resolveSuccessNavigate` verdicts are unchanged', () => {
-  it('answers exactly what it answered before the arm split', () => {
-    // Restated next to the arm split so an edit that widens or narrows WHICH
-    // destinations are accepted cannot pass as an edit to WHO travels. Each line
-    // here is a shape objectui#5548 is open on; none is this card's to change.
+describe('objectui#5034 — `resolveSuccessNavigate` verdicts', () => {
+  it('answers the ruled acceptance set', () => {
+    // Restated next to the navigation arm so an edit that widens or narrows
+    // WHICH destinations are accepted cannot pass as an edit to WHO travels. The
+    // contract's own suite — corpus properties, the escaping cases, the
+    // no-widening proof — is `navigateOnSuccess.urlContract.test.tsx`; this is
+    // the local cross-check, kept small on purpose.
     const origin = window.location.origin;
 
     // Relative, interpolated from `id` — the ordinary case.
     expect(resolveSuccessNavigate('/r/{id}', { id: 'r1' })).toBe('/r/r1');
-    // The single-brace `{recordId}` dialect, and the `recordId` / `_id` fallbacks.
+    // The single-brace `{recordId}` dialect, and the `recordId` / `_id`
+    // fallbacks. Ruled to STAY for existing authors of this compat key.
     expect(resolveSuccessNavigate('/r/{recordId}', { recordId: 'r2' })).toBe('/r/r2');
     expect(resolveSuccessNavigate('/r/{id}', { _id: 'r3' })).toBe('/r/r3');
-    // A same-origin ABSOLUTE url is still ACCEPTED — it is only navigated
-    // differently. This is the line that would move if #5548 ruled convergence.
-    expect(resolveSuccessNavigate('{id}', { id: `${origin}/r` })).toBe(`${origin}/r`);
-    expect(resolveSuccessNavigate(`${origin}/r/{id}`, { id: 'r1' })).toBe(`${origin}/r/r1`);
-    // Cross-origin is refused by the same-origin guard.
+    // MOVED (2026-08-17 ruling, escaping clause). This used to answer the origin
+    // URL itself — the id becoming the whole destination. Escaped, the id can
+    // only ever be one opaque segment.
+    expect(resolveSuccessNavigate('{id}', { id: `${origin}/r` }))
+      .toBe(encodeURIComponent(`${origin}/r`));
+    // MOVED (2026-08-17 ruling, relative-only clause). This used to be ACCEPTED
+    // and navigated at browser level; a same-origin absolute is now refused like
+    // any other out-of-contract value.
+    expect(resolveSuccessNavigate(`${origin}/r/{id}`, { id: 'r1' })).toBeNull();
+    // Cross-origin was refused before and is refused now.
     expect(resolveSuccessNavigate('https://evil.example.com/r/{id}', { id: 'r1' })).toBeNull();
-    // No template, and no usable id, are both refusals.
+    // No template, and no usable id, are both refusals. Unchanged.
     expect(resolveSuccessNavigate(undefined, { id: 'r1' })).toBeNull();
     expect(resolveSuccessNavigate('/r/{id}', {})).toBeNull();
     expect(resolveSuccessNavigate('/r/{id}', { id: '' })).toBeNull();
-    // The interpolated value is still NOT escaped. Pinned as a fact rather than
-    // fixed: it is one of the three shapes #5548 exists to rule on, and quietly
-    // escaping it here would answer that question in a PR that claims not to.
-    expect(resolveSuccessNavigate('/r/{id}', { id: 'a/b c' })).toBe('/r/a/b c');
+    // MOVED (2026-08-17 ruling, escaping clause). This used to answer
+    // `/r/a/b c` — an id silently growing a path segment.
+    expect(resolveSuccessNavigate('/r/{id}', { id: 'a/b c' })).toBe('/r/a%2Fb%20c');
   });
 });

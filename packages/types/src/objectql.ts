@@ -1200,8 +1200,18 @@ export interface ObjectFormSchema extends BaseSchema {
 
   /**
    * Navigate here after a successful create/update (declarative; falls back to
-   * a toast). Supports `{id}`/`{recordId}` interpolation from the saved record;
-   * same-origin-guarded. Takes precedence over `successMessage`.
+   * a toast). Takes precedence over `successMessage`.
+   *
+   * The value is a RELATIVE path only — an absolute URL is refused even when it
+   * is same-origin — and it supports `{id}`/`{recordId}` interpolation from the
+   * saved record, URL-escaped when the destination is built. A refused
+   * destination is reported on the success toast rather than silently dropped.
+   *
+   * @deprecated Write `submitBehavior` instead — it is the one ruled shape for
+   * post-submit behaviour, it already takes precedence over this key, and it
+   * carries the richer `{{record.field_name}}` interpolation. This key keeps
+   * working for forms that already declare it (maintainer ruling, 2026-08-17,
+   * objectui#5034).
    */
   navigateOnSuccess?: string;
 

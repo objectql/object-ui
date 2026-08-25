@@ -31,7 +31,6 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
-import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { useOccSave } from './occSave';
 import type { FormSectionConfig } from './TabbedForm';
 
@@ -57,8 +56,8 @@ import type { FormSectionConfig } from './TabbedForm';
  * same-origin guard refused) and returns no discriminant, so a reason in this
  * copy could only be re-derived by reimplementing that helper's internals at the
  * call site — where it would drift from the helper, and would additionally bake
- * today's acceptance rule into user-visible prose while objectui#5548 is still
- * open on exactly that rule. The diagnosable detail — the template the author
+ * an acceptance rule into user-visible prose, which objectui#5034 has since
+ * narrowed once already. The diagnosable detail — the template the author
  * actually wrote — goes to `console.warn` at each call site instead.
  *
  * Lives here rather than in `successBehavior.ts` (the natural home, but read-only
@@ -673,16 +672,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.
             //
-            // WHO travels is the same split ObjectForm's arm makes; see the long
-            // comment there (objectui#5034 point 1). An app-relative destination
-            // goes to the state the seam-owning effect above reads, so a mounted
-            // host's basename is applied instead of the origin root; anything
-            // else keeps this synchronous `window.location.assign`.
-            if (isAppRelativeDestination(nav)) {
-              setPendingRedirect({ url: nav, delayMs: 0 });
-            } else {
-              window.location.assign(nav);
-            }
+            // WHO travels is what ObjectForm's arm does; see the long comment
+            // there (objectui#5034, points 1 and 3). The destination goes to the
+            // state the seam-owning effect above reads, so a mounted host's
+            // basename is applied instead of the origin root. Unconditionally,
+            // because `resolveSuccessNavigate` now accepts relative references
+            // only — the `window.location.assign` arm that used to stand here is
+            // unreachable and was deleted with the ruling that made it so.
+            setPendingRedirect({ url: nav, delayMs: 0 });
             return result;
           }
           if (schema.navigateOnSuccess) {

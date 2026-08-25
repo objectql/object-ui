@@ -25,7 +25,6 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
-import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
@@ -917,9 +916,8 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
         if (nav) {
-          // WHO travels to an ACCEPTED `navigateOnSuccess` destination —
-          // objectui#5034 point 1, the same mount-blindness class as
-          // objectui#4989 defect 4 and objectui#5112.
+          // An ACCEPTED `navigateOnSuccess` destination goes to the host —
+          // objectui#5034, points 1 and 3.
           //
           // A rooted path such as `/apps/x/o/record/r1` handed to
           // `window.location.assign` resolves against the ORIGIN root, so under a
@@ -928,37 +926,31 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           // an authored in-app destination left the application. Only the host
           // knows its mount, and the seam that landed with PR #5111 is already
           // wired into this component — the state below and the effect that owns
-          // it are 440 lines up. This arm was the one call site still bypassing
-          // it. `delayMs: 0` reuses that one mechanism rather than minting a
-          // second: this key declares no delay, and an unset delay was already a
-          // zero timer, i.e. "go now". Reuse also hands this arm the property
-          // objectui#5033 bought for the other one — unmounting cancels the wait,
-          // so a navigation cannot fire into a form the submitter has left.
+          // it are 440 lines up. `delayMs: 0` reuses that one mechanism rather
+          // than minting a second: this key declares no delay, and an unset delay
+          // was already a zero timer, i.e. "go now". Reuse also hands this arm the
+          // property objectui#5033 bought for the other one — unmounting cancels
+          // the wait, so a navigation cannot fire into a form the submitter has
+          // left.
           //
-          // WHICH destinations are accepted is deliberately UNTOUCHED here:
-          // `resolveSuccessNavigate` is the authority and objectui#5548 is open on
-          // its contract (same-origin absolutes, the single-brace `{id}` dialect,
-          // the unescaped interpolation). This edit changes only who travels.
+          // Handed over UNCONDITIONALLY, which is point 3's consequence rather
+          // than a relaxation. `resolveSuccessNavigate` now admits relative
+          // references only (maintainer ruling 2026-08-17: this key runs under the
+          // objectstack#7496 semantics, so a same-origin ABSOLUTE is refused at
+          // the door like any other out-of-contract value). `HostNavigationValue`
+          // declares `to` to be "an already-resolved, application-relative path,
+          // never an absolute URL … It is the CALLER's job to have judged the
+          // destination" — and the caller has now judged it, once, at the
+          // admission door instead of twice.
           //
-          // The split is not a conservatism — it is the seam's own declared input
-          // contract. `HostNavigationValue.navigate` documents `to` as "an
-          // already-resolved, application-relative path, never an absolute URL …
-          // It is the CALLER's job to have judged the destination", and this key,
-          // unlike `submitBehavior.url`, is NOT relative-only: its same-origin
-          // guard admits an absolute `https://own-host/record/1` too. So the
-          // shared hook — written for a relative-only key, and correct to hand
-          // over everything it holds — must not be handed a value its contract
-          // says it never receives. Routing an absolute through a router would
-          // also rewrite the author's full address into a path the host then
-          // places somewhere else; an author who spelled the whole address asked
-          // for that address. Same judgement, same predicate, as objectui#5112
-          // made on `thankYouPage.redirectUrl`, whose acceptance set has exactly
-          // this shape — reused rather than re-derived.
-          if (isAppRelativeDestination(nav)) {
-            setPendingRedirect({ url: nav, delayMs: 0 });
-          } else {
-            window.location.assign(nav);
-          }
+          // The `window.location.assign(nav)` arm that used to stand here was
+          // deleted as unreachable, not as unwanted: nothing can reach it once
+          // every accepted value is relative. That is proved rather than reasoned
+          // — `navigateOnSuccess.urlContract.test.tsx` pins, over a corpus,
+          // that every value this helper accepts satisfies the predicate the arm
+          // branched on. The absent-seam fallback is unchanged and still
+          // `window.location.assign`; it lives in `useSubmitRedirectNavigation`.
+          setPendingRedirect({ url: nav, delayMs: 0 });
           return result;
         }
         if (schema.navigateOnSuccess) {

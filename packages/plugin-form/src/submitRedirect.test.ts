@@ -50,8 +50,10 @@
  * ok/refuse BOOLEAN for every value in this table and still fail these, because
  * what they check is that the prose came from the schema.
  *
- * Deleting the CALL SITES instead (restoring `isSameOriginUrl` in the two
- * components) leaves this entire file GREEN — measured, not assumed: the module
+ * Deleting the CALL SITES instead (restoring the old same-origin guard in the
+ * two components — `isSameOriginUrl`, deleted from `successBehavior.ts` by
+ * objectui#5034 and spelled `new URL(u, location.href).origin ===
+ * location.origin`) leaves this entire file GREEN — measured, not assumed: the module
  * would simply be correct and unused. That is why the consumption is pinned in the
  * two rendered-component files and not here.
  *
@@ -88,7 +90,8 @@ const IN_CONTRACT = [
  * Values the ruling refuses, one per family the spec's check defends. Named by
  * what each one would have done had it been followed.
  *
- * The first entry is objectui#4989's defect 3 in one line: `isSameOriginUrl`
+ * The first entry is objectui#4989's defect 3 in one line: the same-origin
+ * guard of the day (`isSameOriginUrl`, since deleted by objectui#5034)
  * answered TRUE for it, so this consumer followed a spelling the authoring door
  * refuses.
  */

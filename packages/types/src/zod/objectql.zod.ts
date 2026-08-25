@@ -162,7 +162,7 @@ export const ObjectFormSchema = BaseSchema.extend({
   showSubmit: z.boolean().optional().describe('Show submit button'),
   submitText: z.string().optional().describe('Submit button text'),
   successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
-  navigateOnSuccess: z.string().optional().describe('Navigate here after success ({id}/{recordId} interpolated, same-origin-guarded); precedes the toast'),
+  navigateOnSuccess: z.string().optional().describe('DEPRECATED, write submitBehavior instead: navigate here after success (relative path only; {id}/{recordId} interpolated and URL-escaped); precedes the toast'),
   resetOnSuccess: z.boolean().optional().describe('Reset the form after a successful create for another entry'),
   submitBehavior: z.union([
     z.object({ kind: z.literal('thank-you'), title: z.string().optional(), message: z.string().optional() }),
