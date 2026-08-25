@@ -23,6 +23,7 @@ import {
 } from '../views/metadata-admin/index.js';
 import { PermissionMatrixEditPage } from '../views/metadata-admin/PermissionMatrixEditor.js';
 import { PackagesPage } from '../views/metadata-admin/PackagesPage.js';
+import { PackagedAutomationPage } from '../views/setup/PackagedAutomationPage.js';
 import {
   isAggregatedViewContainer,
   viewDisplayType,
@@ -51,6 +52,20 @@ registerAppComponent({
   label: 'Packages',
   source: '@object-ui/app-shell',
   component: PackagesPage,
+});
+
+/**
+ * ADR-0126 §7.4 — the Setup page for the flows installed packages ship:
+ * on/off for this scope, and clone. Contributed the way every other
+ * framework-owned Setup surface is, by ref rather than by route, so the Setup
+ * app's navigation names `automation:packaged` and `ComponentNavView` resolves
+ * it. Automation AUTHORING stays in Studio; this page is operational state.
+ */
+registerAppComponent({
+  ref: 'automation:packaged',
+  label: 'Packaged Automation',
+  source: '@object-ui/app-shell',
+  component: PackagedAutomationPage,
 });
 
 /* -------------------------------------------------------------------------- */
