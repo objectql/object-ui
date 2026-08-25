@@ -565,15 +565,31 @@ describe('renderTopChunks', () => {
 });
 
 describe('main', () => {
-  function run(reportBody: unknown) {
+  /**
+   * Hermetic by construction: `main`'s environment is INJECTED here, never
+   * inherited from the process.
+   *
+   * objectui#6245 — `main(argv, env = process.env)` is the right PRODUCTION
+   * default, but a test that leans on it is measuring the machine it runs on.
+   * `GITHUB_EVENT_NAME=pull_request` is ambient inside GitHub Actions, so this
+   * helper omitting `env` silently switched the ceiling-freshness half ON in
+   * CI — where its two source paths are unset, so the half correctly returned
+   * `error` and `main` correctly returned 2, into four assertions written when
+   * 0 and 1 were the only outcomes it could produce. Every one of them passed
+   * locally, for the single reason that proves nothing: the variable happened
+   * not to be set.
+   *
+   * `GITHUB_EVENT_NAME` is absent from the injected object ON PURPOSE — that is
+   * what makes these cases exercise the non-pull_request path deterministically
+   * instead of by luck. Pass it through `env` to opt a case in.
+   */
+  function run(reportBody: unknown, env: Record<string, string> = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'closure-budget-'));
     const reportPath = path.join(dir, 'eager-closure.json');
     const outputPath = path.join(dir, 'github-output');
     if (reportBody !== undefined) fs.writeFileSync(reportPath, JSON.stringify(reportBody));
-    const previous = process.env.GITHUB_OUTPUT;
-    process.env.GITHUB_OUTPUT = outputPath;
     try {
-      const code = main(['--report', reportPath]);
+      const code = main(['--report', reportPath], { GITHUB_OUTPUT: outputPath, ...env });
       const outputs = Object.fromEntries(
         fs
           .readFileSync(outputPath, 'utf8')
@@ -583,11 +599,33 @@ describe('main', () => {
       );
       return { code, outputs };
     } finally {
-      if (previous === undefined) delete process.env.GITHUB_OUTPUT;
-      else process.env.GITHUB_OUTPUT = previous;
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
+
+  /**
+   * The guard for the defect above, and it has to be a TEST rather than a note
+   * in the helper: the failure is invisible on a developer machine and appears
+   * only inside Actions, which is the worst place to find it — on the next
+   * person's unrelated PR. Setting the variable here reproduces CI's ambient
+   * environment in-process, so if `run()` ever goes back to inheriting
+   * `process.env` this reds locally, immediately, on the change that caused it.
+   */
+  it('is unaffected by an ambient GITHUB_EVENT_NAME, the way Actions sets it', () => {
+    const previous = process.env.GITHUB_EVENT_NAME;
+    process.env.GITHUB_EVENT_NAME = 'pull_request';
+    try {
+      const { code, outputs } = run(budgeted());
+      expect(code).toBe(0);
+      // The freshness half must stay dormant. This run injects no base-branch
+      // sources, so an ACTIVE half would correctly report `error` and exit 2 —
+      // precisely how the ambient variable turned four green assertions red.
+      expect(outputs.closure_freshness_status).toBe('');
+    } finally {
+      if (previous === undefined) delete process.env.GITHUB_EVENT_NAME;
+      else process.env.GITHUB_EVENT_NAME = previous;
+    }
+  });
 
   // `budgeted()` rather than the bare `report()` fixture: since objectui#5490
   // the checker weighs BOTH halves, and a report missing the budgeted chunks is
