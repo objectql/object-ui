@@ -145,8 +145,22 @@ export function summarizeChatError(err: unknown): {
   };
 }
 
-/** AI quota refusal codes emitted by the cloud token guardrail (HTTP 429). */
+/**
+ * AI quota refusal codes emitted by the cloud token guardrail (HTTP 429).
+ *
+ * TWO vocabularies, both live. cloud#1238 (the cloud#1168 convergence) landed
+ * the SCREAMING_SNAKE ledger codes — which is what a spec-conformant
+ * `error.code` must be, an `ErrorCode` ledger member. The lowercase trio is
+ * the legacy vocabulary that transition-period producers still emit, so it is
+ * KEPT rather than swapped out: dropping it would silently stop parsing every
+ * producer that has not converged yet (objectui#3804).
+ */
 export type AiQuotaCode =
+  // Ledger vocabulary (cloud#1238) — registered `ErrorCode` members.
+  | 'AI_DESIGN_QUOTA_EXHAUSTED'
+  | 'AI_DATA_CHAT_TRIAL_EXHAUSTED'
+  | 'AI_ALLOWANCE_EXHAUSTED'
+  // Legacy vocabulary — still emitted by producers that have not converged.
   | 'ai_design_quota_exhausted'
   | 'ai_data_chat_trial_exhausted'
   | 'ai_allowance_exhausted';
@@ -161,9 +175,23 @@ export interface AiQuotaError {
   upgrade: boolean;
   /** Paid tier -> buy a credit top-up pack. */
   topUp: boolean;
+  /**
+   * The allowance replenishes at the next daily reset, so "wait" is a real
+   * option alongside the CTA. Only set when the producer sends an actual
+   * boolean: the landed envelope carries this inside `error.details`
+   * (cloud#1238) and that POSITION is measured, but an absent or
+   * otherwise-typed value stays `undefined` rather than being coerced to a
+   * `false` no producer declared.
+   */
+  resetsTonight?: boolean;
 }
 
 const AI_QUOTA_CODES = new Set<string>([
+  // Ledger vocabulary (cloud#1238).
+  'AI_DESIGN_QUOTA_EXHAUSTED',
+  'AI_DATA_CHAT_TRIAL_EXHAUSTED',
+  'AI_ALLOWANCE_EXHAUSTED',
+  // Legacy vocabulary, still live during the transition.
   'ai_design_quota_exhausted',
   'ai_data_chat_trial_exhausted',
   'ai_allowance_exhausted',
@@ -186,6 +214,24 @@ function asText(value: unknown): string | undefined {
 }
 
 /**
+ * The first candidate that is an actual boolean, or undefined. Lets the
+ * declared `error.details` position win over the legacy top-level one while a
+ * non-boolean (`'true'`, `1`) is ignored exactly as the old `=== true` read
+ * ignored it.
+ */
+function asOptionalFlag(...candidates: unknown[]): boolean | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'boolean') return candidate;
+  }
+  return undefined;
+}
+
+/** {@link asOptionalFlag} for the CTA flags, which are never absent. */
+function asFlag(...candidates: unknown[]): boolean {
+  return asOptionalFlag(...candidates) ?? false;
+}
+
+/**
  * Recognize the cloud AI token guardrail's 429 quota refusals so the chat UI can
  * show a friendly upgrade / top-up CTA instead of a generic "response failed".
  *
@@ -194,26 +240,39 @@ function asText(value: unknown): string | undefined {
  * strip the same retry/format prefixes summarizeChatError handles, locate the
  * JSON object, and find the code in it. Returns null for anything else.
  *
- * ## Three dialects, one code set
+ * ## Four dialects, two vocabularies
  *
- * The two cloud 429 producers fill the same `error` key in OPPOSITE ways, and
- * ADR-0112 declares a third shape they are converging on (objectui#3491,
- * cloud#944). All three are read here so the consumer is ready BEFORE the
- * producers move (cloud#1168) — the alternative is a silent misfit at the
- * moment they converge:
+ * The two cloud 429 producers fill the same `error` key in OPPOSITE ways
+ * (objectui#3491, cloud#944), and ADR-0112's declared envelope has now LANDED
+ * on the producer side (cloud#1168 -> cloud PR #1238), adding a fourth
+ * dialect: the declared envelope carrying the SCREAMING_SNAKE ledger
+ * vocabulary with its companion fields inside `error.details`. All four are
+ * read here, because the producers converge asymmetrically and the legacy
+ * dialects are still live (objectui#3804):
  *
- * | dialect                      | shape                                          |
- * |------------------------------|------------------------------------------------|
- * | declared envelope (ADR-0112) | `{ success: false, error: { code, message } }`  |
- * | flat guardrail               | `{ error: CODE, message, upgrade, topUp }`     |
- * | service-ai sibling key       | `{ error: PROSE, code: CODE }`                 |
+ * | dialect                       | shape                                           |
+ * |-------------------------------|-------------------------------------------------|
+ * | declared envelope + ledger    | `{ error: { code: AI_*, message, details } }`    |
+ * | declared envelope + legacy    | `{ success: false, error: { code, message } }`   |
+ * | flat guardrail                | `{ error: CODE, message, upgrade, topUp }`       |
+ * | service-ai sibling key        | `{ error: PROSE, code: CODE }`                   |
  *
- * Only the code's LOCATION widens; the recognized code set is unchanged, so an
- * unknown shape still degrades to today's behavior (null). Note that a
- * spec-conformant `error.code` must be an `ErrorCode` ledger member
- * (SCREAMING_SNAKE) and none of these three codes is registered today, so the
- * nested branch matches the legacy vocabulary only — aligning the vocabulary is
- * cloud#1168's call and needs a follow-up here, not a guess now.
+ * Both the code's LOCATION and the recognized code SET widen; an unknown shape
+ * still degrades to today's behavior (null).
+ *
+ * ## What this deliberately does NOT recognize: generic `QUOTA_EXCEEDED`
+ *
+ * `POST /api/v1/ai/agents/:name/chat`'s per-turn message cap keeps emitting the
+ * standard `QUOTA_EXCEEDED` (`error.details.resetAt`, `category: 'rate_limit'`)
+ * and did NOT move to the three `AI_*` codes — it has no upgrade / top-up /
+ * trial next step, which is exactly the distinction the 2026-08-11 Option A
+ * ruling drew when it admitted the three codes to the closed ledger.
+ *
+ * It is NOT dropped, it is handled one branch along: `isUnsentSendError` +
+ * `isRateLimitError` route it to the "you're sending too quickly" notice, with
+ * the user's text restored. Returning an `AiQuotaError` for it here would put
+ * an "Upgrade plan" CTA in front of a user whose cap resets in a minute.
+ * `tool-display.test.ts` pins that routing so the split cannot close silently.
  *
  * ## Parse priority (a total order, deliberately)
  *
@@ -247,6 +306,15 @@ export function parseAiQuotaError(err: unknown): AiQuotaError | null {
       ? (body.error as Record<string, unknown>)
       : undefined;
 
+  // The declared envelope nests the companion fields under `error.details`
+  // (cloud#1238); the legacy flat dialects keep them top-level. Same total
+  // order as the code itself — the declared position wins, and the legacy limb
+  // stays reachable when the declared one is absent.
+  const details =
+    nested?.details && typeof nested.details === 'object' && !Array.isArray(nested.details)
+      ? (nested.details as Record<string, unknown>)
+      : undefined;
+
   const flatCode = asAiQuotaCode(body.error);
   const code = asAiQuotaCode(nested?.code) ?? flatCode ?? asAiQuotaCode(body.code);
   if (!code) return null;
@@ -261,13 +329,13 @@ export function parseAiQuotaError(err: unknown): AiQuotaError | null {
       // its own code ('ai_allowance_exhausted') to the user as the message.
       (flatCode ? undefined : asText(body.error)) ??
       '',
-    // Companion fields keep their established top-level read. Their position in
-    // the declared envelope is NOT presumed here (`error.details.upgrade`? a
-    // sibling of `error.code`?) — cloud#1168 decides the real shape, and
-    // inventing a nested key now would fossilize a contract nobody agreed to.
-    messageEn: asText(body.messageEn),
-    upgrade: body.upgrade === true,
-    topUp: body.topUp === true,
+    // Companion fields: `error.details` is the position cloud#1238 shipped, and
+    // it wins; the top-level read stays for the flat/legacy dialects that still
+    // emit them there. No longer a presumption — the position is measured.
+    messageEn: asText(details?.messageEn) ?? asText(body.messageEn),
+    upgrade: asFlag(details?.upgrade, body.upgrade),
+    topUp: asFlag(details?.topUp, body.topUp),
+    resetsTonight: asOptionalFlag(details?.resetsTonight, body.resetsTonight),
   };
 }
 
