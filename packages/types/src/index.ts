@@ -124,6 +124,7 @@ export type {
   IconSchema,
   SeparatorSchema,
   ContainerSchema,
+  FlexLayoutProps,
   FlexSchema,
   StackSchema,
   GridSchema,
