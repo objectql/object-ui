@@ -59,7 +59,7 @@
  * authored text still faults open, unchanged by this card.
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PredicateScopeProvider } from '@object-ui/react';
