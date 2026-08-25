@@ -205,11 +205,6 @@ export const PAYLOAD_SHAPES = [
  * answer even when a near-spelling exists.
  */
 export const KNOWN_UNPARSEABLE_KEYS = {
-  referenceTo: {
-    card: "objectui#6041",
-    spec: "reference",
-    note: "LIVE. FieldDesigner renders a control for it on `type == 'lookup'` and both write paths populate it, so authoring a lookup field produces the 422.",
-  },
   formula: {
     card: "objectui#6043",
     spec: "expression (+ returnType)",

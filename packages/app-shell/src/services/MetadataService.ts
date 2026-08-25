@@ -62,7 +62,12 @@ export interface FieldMetadataPayload {
   // `FieldSchema.safeParse` rejects the key by name, so writing it made
   // `PUT /api/v1/meta/object/:name` fail with 422 `INVALID_METADATA`.
   // Object-level `indexes[]` is the real surface.
-  referenceTo?: string;
+  // No `referenceTo` (objectui#6041): the spec spells the relationship
+  // target `reference`. `FieldSchema.safeParse` refuses `referenceTo` BY NAME
+  // ("Did you mean `referenceTo` -> `reference`?"), so a lookup field authored
+  // in the designer made `PUT /api/v1/meta/object/:name` fail 422
+  // `INVALID_METADATA` and blocked every later save of that object.
+  reference?: string;
   formula?: string;
   sortOrder?: number;
 }
@@ -103,7 +108,7 @@ function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
     options: field.options,
     externalId: field.externalId,
     trackHistory: field.trackHistory,
-    referenceTo: field.referenceTo,
+    reference: field.referenceTo,
     formula: field.formula,
     sortOrder: field.sortOrder,
   };
