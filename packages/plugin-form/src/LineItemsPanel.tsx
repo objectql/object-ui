@@ -162,6 +162,31 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
       setLoading(false);
       return;
     }
+    // Decline to fetch when the child object never resolved (objectui#6194) —
+    // the SIBLING site of the child-schema decline above (objectui#6188), and
+    // the second of this component's two reads of `schema.childObject`. Same
+    // reason it is a defect and not a shrug: nothing enforces the key (see the
+    // effect above), so an authored node reaches this renderer with it
+    // `undefined` and the fetch below then asked the data layer to `find` an
+    // object literally named `undefined`, scoped by
+    // `{ [relationshipField]: parentId }`.
+    //
+    // Ordered AFTER the dataSource/parentId guard on purpose, exactly as the
+    // child-schema effect orders its own: a designer palette renders this block
+    // with no dataSource at all while the author is still configuring it, and
+    // warning there would be noise about a panel nobody has finished authoring.
+    //
+    // `setLoading(false)` because this panel is NOT loading. It can never
+    // resolve, and holding `loading` true would only hide a permanent authoring
+    // error behind a spinner that never ends — the render below therefore reads
+    // `schema.childObject` ahead of `loading` and says what is wrong.
+    if (!schema.childObject) {
+      setLoading(false);
+      console.warn(
+        `[LineItemsPanel] a line-items panel has no childObject — refusing to fetch its rows. Set childObject to the child object the panel lists.`,
+      );
+      return;
+    }
     setLoading(true);
     try {
       // Parent relationship AND the panel's own criteria (objectstack#7137).
@@ -209,7 +234,18 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
   }, []);
 
   const save = useCallback(async () => {
-    if (!dataSource || !parentId) return;
+    // `childObject` joins this guard for the same reason both reads decline
+    // (objectui#6194): every child op below carries `object: schema.childObject`,
+    // so an unresolvable panel would WRITE rows into an object literally named
+    // `undefined` — strictly worse than the read this card was filed for.
+    // Measured on the pre-fix component, which is why this is not a guess: one
+    // keystroke in the grid's always-present ghost row materialised a non-blank
+    // row, that enabled Save, and Save reached
+    // `batchTransaction([{ object: undefined, action: 'create', … }])`.
+    // The render branch below closes that route by not offering the grid, but a
+    // write contract is not the render tree's to keep: this is the same one-line
+    // guard `load` takes, on the component's other data-layer entry point.
+    if (!dataSource || !parentId || !schema.childObject) return;
     setSaving(true);
     setError(null);
     try {
@@ -275,7 +311,28 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
       </CardHeader>
       <CardContent>
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
-        {loading ? (
+        {/* An unresolvable panel gets its OWN branch, ahead of `loading`
+            (objectui#6194) — following objectui#5940's config-hint precedent for
+            this exact key, and `AdvancedChartImpl`'s refusal placeholders
+            ("This chart cannot plot its category axis: no row has a `x` field").
+            Two things it must not do. It must not fall through to the grid: an
+            empty EDITABLE grid with an Add button, over an object that does not
+            exist, is a worse outcome than the unguarded fetch this card removes,
+            and it is exactly what made the save path reachable. And it must not
+            sit on `loading`, which would hide a permanent authoring error behind
+            a spinner that can never end. Checked BEFORE `loading` because
+            nothing here is pending — the schema itself already says this panel
+            can never resolve, so there is no first paint where "Loading…" is
+            true. */}
+        {!schema.childObject ? (
+          <p
+            className="py-6 text-center text-sm text-muted-foreground"
+            data-testid="line-items-no-child-object"
+          >
+            This panel has no child object configured: set{' '}
+            <code className="font-mono">childObject</code> to the object whose rows it lists.
+          </p>
+        ) : loading ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
         ) : !parentId ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
