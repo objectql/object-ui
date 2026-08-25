@@ -182,6 +182,41 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   'record:chatter': 'compatibility alias — same renderer as the offered canonical `record:discussion`; still renders, just no longer advertised',
 };
 
+/**
+ * Block types that are ONE renderer under several spellings — the DISPLAY
+ * counterpart to {@link PALETTE_EXCLUSIONS}.
+ *
+ * {@link BLOCK_TYPE_META} answers "what may an author drag IN". The page canvas
+ * asks a different question — "what may an author already HAVE in this page" —
+ * and for most exclusions the two answers coincide: `ai:chat_window`,
+ * `element:form`, `element:record_picker` and `element:text_input` are not page
+ * blocks an author composes with, so a node bearing one of those names is
+ * something the canvas cannot draw meaningfully, and {@link UnknownBlockIcon}
+ * plus the neutral `misc` tone is the honest chrome for it.
+ *
+ * An alias pair is where the two questions diverge. `record:discussion` and
+ * `record:chatter` are registered against the SAME renderer function
+ * (`plugin-detail/src/index.tsx`), and the palette deliberately offers exactly
+ * one of them so there is one entry per renderer — which leaves the other
+ * spelling rendering perfectly while the canvas drew it as an unknown grey box.
+ *
+ * The key here is RENDERER IDENTITY, not "is excluded". A group may only list
+ * spellings that resolve, through `ComponentRegistry`, to the very same
+ * component; `canvas-display-meta.test.tsx` asserts exactly that against the
+ * real registry, so a group cannot claim a renderability it does not have. That
+ * is what keeps `element:text_input` — excluded for an unrelated reason, and
+ * with no twin — from borrowing an icon it has not earned.
+ *
+ * Groups are UNORDERED and orientation-agnostic on purpose. Which spelling the
+ * palette advertises is a maintainer decision that has already flipped once
+ * (objectui#5495 moved it from the alias to the canonical name), so the
+ * resolver borrows from whichever member is offered TODAY rather than
+ * hard-coding a direction; a future flip cannot re-open this gap.
+ */
+export const BLOCK_RENDERER_ALIAS_GROUPS: readonly (readonly string[])[] = [
+  ['record:discussion', 'record:chatter'],
+];
+
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
   data:       'Data',
   layout:     'Layout',
@@ -250,8 +285,41 @@ export const BLOCK_CATEGORY_TONE: Record<BlockCategory, BlockCategoryTone> = {
   },
 };
 
+/**
+ * Icon + tone inputs for any block type the canvas can ENCOUNTER, as opposed to
+ * {@link BLOCK_TYPE_META}, which lists what the palette OFFERS.
+ *
+ * Deliberately narrower than {@link BlockTypeMeta}: no `label`. `blockLabel()`
+ * in `PageBlockCanvas` never consulted this catalogue — it falls back to the
+ * raw type string — and widening display resolution into labels would change
+ * author-visible naming, a separate decision from chrome.
+ */
+export interface BlockDisplayMeta {
+  Icon: LucideIcon;
+  category: BlockCategory;
+}
+
+/**
+ * Resolve the canvas chrome for a block `type`: its palette entry when it has
+ * one, otherwise an alias sibling's ({@link BLOCK_RENDERER_ALIAS_GROUPS}).
+ * `undefined` for everything else, so the caller draws
+ * {@link UnknownBlockIcon}. Nothing here makes a type offerable — the palette
+ * is built from {@link BLOCK_TYPE_META} alone ({@link TYPES_BY_CATEGORY}).
+ */
+export function resolveBlockDisplayMeta(type: string): BlockDisplayMeta | undefined {
+  const direct = BLOCK_TYPE_META[type as BlockTypeId];
+  if (direct) return { Icon: direct.Icon, category: direct.category };
+  for (const group of BLOCK_RENDERER_ALIAS_GROUPS) {
+    if (!group.includes(type)) continue;
+    for (const sibling of group) {
+      const meta = BLOCK_TYPE_META[sibling as BlockTypeId];
+      if (meta) return { Icon: meta.Icon, category: meta.category };
+    }
+  }
+  return undefined;
+}
+
 /** Resolve a category tone for any block `type` string (handles unknowns). */
 export function resolveBlockTone(type: string): BlockCategoryTone {
-  const meta = BLOCK_TYPE_META[type as BlockTypeId];
-  return BLOCK_CATEGORY_TONE[meta?.category ?? 'misc'];
+  return BLOCK_CATEGORY_TONE[resolveBlockDisplayMeta(type)?.category ?? 'misc'];
 }

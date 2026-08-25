@@ -24,8 +24,9 @@
  * REJECTED, not ignored), and the binding's own predicate
  * `isElementDataSourceConfig` decides on `object` — so a `resource`-only
  * binding was never a binding on any other renderer. `resource` IS a real key
- * elsewhere (`CRUDSchema.resource`, the `DataSource` adapter's first
- * parameter, `LiveExportOptions.resource`); none of those is this surface.
+ * elsewhere (the `DataSource` adapter's first parameter,
+ * `LiveExportOptions.resource`); none of those is this surface. (`CRUDSchema.resource`
+ * was a fourth until objectui#5373 retired `CRUDSchema` under ADR-0049.)
  *
  * Per AGENTS.md #0.1 the fix belongs at the producer, never as a renderer-side
  * alias — and the producer census found no producer to fix: nothing in this

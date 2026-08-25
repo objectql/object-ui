@@ -21,8 +21,6 @@ export default defineConfig({
       "@/hooks": path.resolve(__dirname, "../../packages/components/src/hooks"),
       
       "@": path.resolve(__dirname, "./src"),
-      // ⚡️ DX: App Data Symlink
-      "@app": path.resolve(__dirname, "./src/app-data"),
 
       // ⚡️ DX: Map imports to source code for Hot Module Replacement
       //

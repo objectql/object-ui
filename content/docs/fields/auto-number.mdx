@@ -19,20 +19,26 @@ The AutoNumber Field component displays auto-generated sequence numbers. This is
 
 ## Field Schema
 
-```plaintext
-interface AutoNumberFieldSchema {
-  type: 'auto_number';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: string | number;       // Generated value (read-only)
-  readonly: true;                // Always read-only
-  className?: string;            // Additional CSS classes
-  
-  // AutoNumber Configuration
-  format?: string;               // Number format template
-  starting_number?: number;      // Starting sequence number
-}
+An auto-number field is authored as `AutoNumberFieldMetadata` (`@object-ui/types`),
+which is the source of truth for the key set: it extends `BaseFieldMetadata` with the
+sequence format and its starting point.
+
+```ts
+import type { AutoNumberFieldMetadata } from '@object-ui/types';
+
+const invoiceNumber: AutoNumberFieldMetadata = {
+  type: 'auto_number',
+  name: 'invoice_number',
+  label: 'Invoice Number',
+  help: 'Assigned by the platform when the record is created.',
+  readonly: true,
+  format: 'INV-{0000}',
+  starting_number: 1000,
+};
 ```
+
+The generated value, and the `className` a host supplies, are **not** metadata keys —
+they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Format Templates
 
@@ -104,26 +110,33 @@ generateAutoNumber('ORD-{YYYY}-{0000}', 42);
 
 ## Sequence Management
 
-The backend maintains sequence counters:
+Allocating the next number is the backend's job, not the renderer's. ObjectUI
+never generates a value: `AutoNumberField` displays whatever the saved record
+already carries, and renders a muted placeholder dash while the field is still
+empty. What ObjectUI owns is the metadata the backend reads — where the
+sequence starts, and how each value is formatted:
 
-```plaintext
-interface SequenceCounter {
-  object: string;           // Object name
-  field: string;            // Field name
-  current_value: number;    // Current sequence number
-  prefix?: string;          // Optional prefix for partitioning
-}
+```ts
+import type { AutoNumberFieldMetadata } from '@object-ui/types';
 
-// Increment sequence atomically
-const getNextSequence = async (object: string, field: string) => {
-  return await db.transaction(async (tx) => {
-    const counter = await tx.findOne('sequences', { object, field });
-    const nextValue = (counter?.current_value || 0) + 1;
-    await tx.upsert('sequences', { object, field }, { current_value: nextValue });
-    return nextValue;
-  });
+const orderNumber: AutoNumberFieldMetadata = {
+  type: 'auto_number',
+  name: 'order_number',
+  label: 'Order Number',
+  format: 'ORD-{YYYY}-{0000}',
+  starting_number: 1,
 };
 ```
+
+On the backend, keep one counter per object-and-field pair and increment it in
+the same transaction that inserts the record, so two concurrent inserts cannot
+read the same current value. Partition the counter (per year, per prefix) only
+if the format resets — `'ORD-{YYYY}-{0000}'` needs one counter per year if the
+sequence is meant to restart each January.
+
+Because the number is assigned at insert time, it does not exist while the
+record is still being drafted: a create form shows the field empty, and the
+value appears once the saved record comes back.
 
 ## Use Cases
 

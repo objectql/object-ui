@@ -15,26 +15,29 @@ The Image Field component provides an image upload interface with thumbnail prev
 
 ## Field Schema
 
-```plaintext
-interface ImageFieldSchema {
-  type: 'image';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: FileMetadata | FileMetadata[];  // Current image(s)
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Image Options
-  multiple?: boolean;            // Allow multiple images
-  accept?: string[];             // Accepted image types
-  max_size?: number;             // Max file size in bytes
-  max_files?: number;            // Max number of images
-  max_width?: number;            // Max image width
-  max_height?: number;           // Max image height
-}
+An image field is authored as `ImageFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the upload limits
+and the two pixel bounds. A stored image is `UploadedFileMetadata`, the same value
+shape the file field stores.
+
+```ts
+import type { ImageFieldMetadata } from '@object-ui/types';
+
+const productPhotos: ImageFieldMetadata = {
+  type: 'image',
+  name: 'product_photos',
+  label: 'Product Photos',
+  multiple: true,
+  accept: ['image/png', 'image/jpeg', 'image/webp'],
+  max_size: 5 * 1024 * 1024,
+  max_files: 8,
+  max_width: 4096,
+  max_height: 4096,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Accepted Image Types
 
@@ -58,7 +61,7 @@ accept: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 
 In tables/grids, displays image thumbnails:
 
-```plaintext
+```ts
 import { ImageCellRenderer } from '@object-ui/fields';
 
 // Shows up to 3 thumbnails plus count if more

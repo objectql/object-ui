@@ -31,7 +31,7 @@ interface DatePickerSchema {
   placeholder?: string;           // Placeholder text
   
   // Events
-  onDateChange?: string | ActionConfig;
+  onChange?: (date: Date | undefined) => void;
   
   // States
   disabled?: boolean;

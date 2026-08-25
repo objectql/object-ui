@@ -28,10 +28,10 @@ The Sonner component provides beautiful toast notifications with a rich API.
 
 ```plaintext
 interface SonnerSchema {
-  action: 'sonner';
+  type: 'sonner';
   message: string;                // Toast message
   description?: string;           // Additional description
-  type?: 'default' | 'success' | 'error' | 'warning' | 'info';
+  variant?: 'default' | 'success' | 'error' | 'warning' | 'info';
   duration?: number;              // Auto-close duration (ms)
   
   // Action

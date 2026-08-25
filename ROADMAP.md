@@ -482,8 +482,8 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 - [x] Add Vitest tests (15 DashboardRenderer design mode + 9 DashboardEditor external selection + 8 DashboardView integration = 32 new tests)
 
 **Phase 7 — Non-Modal Drawer & Property Panel UX Fix:**
-- [x] `SheetContent` — added `hideOverlay` prop to conditionally skip the full-screen backdrop overlay
-- [x] `DesignDrawer` — `modal={false}` + `hideOverlay` so preview widgets are clickable while drawer is open
+- [x] `SheetContent` — added `hideOverlay` prop to conditionally skip the full-screen backdrop overlay (retained, and declared as a patch family in `scripts/shadcn-local-patches.mjs` since objectui#6090, so an upstream `--force` sync cannot drop it silently)
+- [x] `DesignDrawer` — `modal={false}` + `hideOverlay` so preview widgets are clickable while drawer is open — **superseded by Phase 8 below**: `DesignDrawer` was replaced by the inline config panels and no longer exists in this tree, so `hideOverlay` has **no current in-repo consumer**. It is retained regardless because `@object-ui/components` is published and external consumers of the prop are not visible from here.
 - [x] `DashboardEditor` — property panel renders above widget grid (stacked `flex-col` layout) for immediate visibility in narrow drawer
 - [x] `DashboardEditor` — property panel uses full width (removed fixed `w-72`) for better readability in drawer context
 - [x] Preview click → editor property panel linkage now works end-to-end (select, switch, deselect)

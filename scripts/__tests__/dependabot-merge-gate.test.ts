@@ -13,6 +13,12 @@ import {
   renderVerdict,
   waitForGate,
 } from '../dependabot-merge-gate.mjs';
+import {
+  type Workflow,
+  producedCheckNames,
+  pullRequestTrigger,
+  readWorkflows,
+} from './workflow-checks.js';
 
 /**
  * objectui#4973 — `dependabot-auto-merge.yml` merged a pull request 8m20s before
@@ -406,91 +412,14 @@ describe('the refusal is legible', () => {
 });
 
 // ── The buckets versus the workflows that actually produce the checks ────────
-
-type Workflow = {
-  file: string;
-  text: string;
-  /** Lines with comments stripped, so prose mentioning `pull_request:` cannot count. */
-  lines: string[];
-};
-
-function readWorkflows(): Workflow[] {
-  return fs
-    .readdirSync(workflowDir)
-    .filter((file) => file.endsWith('.yml') || file.endsWith('.yaml'))
-    .map((file) => {
-      const text = fs.readFileSync(path.join(workflowDir, file), 'utf8');
-      return { file, text, lines: text.split('\n').filter((line) => !/^\s*#/.test(line)) };
-    });
-}
-
-/** The `on:` block of a workflow, comment lines already stripped. */
-function triggerBlock(workflow: Workflow): string[] {
-  const start = workflow.lines.findIndex((line) => /^on:/.test(line));
-  if (start === -1) return [];
-  const rest = workflow.lines.slice(start + 1);
-  const end = rest.findIndex((line) => /^[A-Za-z]/.test(line));
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-/**
- * Does this workflow subscribe `pull_request`, and does that subscription carry
- * a path filter? `pull_request_target` deliberately does not count:
- * `cross-repo-issue-closer.yml` uses it with `types: [closed]`, so it acts after
- * a merge and has no verdict to contribute to one.
- */
-function pullRequestTrigger(workflow: Workflow): { subscribes: boolean; filtered: boolean } {
-  const block = triggerBlock(workflow);
-  const start = block.findIndex((line) => /^ {2}pull_request:\s*$/.test(line));
-  if (start === -1) return { subscribes: false, filtered: false };
-
-  const rest = block.slice(start + 1);
-  const end = rest.findIndex((line) => /^ {2}\S/.test(line));
-  const sub = end === -1 ? rest : rest.slice(0, end);
-  return { subscribes: true, filtered: sub.some((line) => /^ {4}paths(-ignore)?:/.test(line)) };
-}
-
-/**
- * The check names a workflow's jobs appear under. A job's `name:` if it has one,
- * else its id (`labeler.yml`'s job is simply `label`), with `matrix.shard`
- * expanded. Every job of a subscribing workflow produces a check run on a pull
- * request — including one skipped by a job-level `if:`, which reports
- * `conclusion=skipped` rather than not existing.
- */
-function checkNames(workflow: Workflow): string[] {
-  const jobsAt = workflow.lines.findIndex((line) => /^jobs:\s*$/.test(line));
-  if (jobsAt === -1) return [];
-  const body = workflow.lines.slice(jobsAt + 1);
-
-  const starts: number[] = [];
-  body.forEach((line, index) => {
-    if (/^ {2}[A-Za-z0-9_-]+:\s*$/.test(line)) starts.push(index);
-  });
-
-  return starts.flatMap((start, i) => {
-    const block = body.slice(start, starts[i + 1] ?? body.length);
-    const id = block[0].trim().replace(/:$/, '');
-    const named = block.find((line) => /^ {4}name:/.test(line));
-    const name = named ? named.replace(/^ {4}name:\s*/, '').trim() : id;
-
-    const shards = block.find((line) => /^ {8}shard: \[/.test(line));
-    if (!shards || !name.includes('matrix.shard')) return [name];
-
-    return (shards.match(/\[(.*)\]/)?.[1] ?? '')
-      .split(',')
-      .map((shard) => shard.trim())
-      .filter(Boolean)
-      .map((shard) => name.replace(/\$\{\{\s*matrix\.shard\s*\}\}/g, shard));
-  });
-}
+//
+// The parser these assertions run on now lives in `./workflow-checks.ts`, so
+// that `merge-queue-reporting.test.ts` can derive its `merge_group` floor from
+// the same answer instead of parsing the workflows a second time (objectui#6160).
 
 describe('the declared buckets partition what a pull request actually produces', () => {
   const workflows = readWorkflows().filter((workflow) => pullRequestTrigger(workflow).subscribes);
-
-  const produced = new Map<string, string>();
-  for (const workflow of workflows) {
-    for (const name of checkNames(workflow)) produced.set(name, workflow.file);
-  }
+  const produced = producedCheckNames();
 
   it('found the workflows and the shard matrix (the parser still parses)', () => {
     expect(workflows.map((w) => w.file)).toContain('ci.yml');

@@ -286,7 +286,7 @@ export interface TableColumn {
  * split the types).
  *
  * {@link TableColumn} above remains the rich shared shape that `data-table`
- * honours (`DataTableSchema`, `CRUDSchema`, detail-view relations) — it is
+ * honours (`DataTableSchema`, detail-view relations) — it is
  * deliberately NOT narrowed. The static renderer
  * (`packages/components/src/renderers/complex/table.tsx`) reads exactly five
  * column keys: `header`, `accessorKey`, `className`, `cellClassName`, `width`

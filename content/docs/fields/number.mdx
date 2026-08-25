@@ -19,25 +19,29 @@ The Number Field component provides a numeric input for collecting integer or de
 
 ## Field Schema
 
-```plaintext
-interface NumberFieldSchema {
-  type: 'number';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: number;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  min?: number;                  // Minimum value
-  max?: number;                  // Maximum value
-  precision?: number;            // Decimal places (default: 0)
-  step?: number;                 // Increment/decrement step
-}
+A number field is authored as `NumberFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the numeric
+bounds, the stored precision and scale, and the stepper increment.
+
+```ts
+import type { NumberFieldMetadata } from '@object-ui/types';
+
+const quantity: NumberFieldMetadata = {
+  type: 'number',
+  name: 'quantity',
+  label: 'Quantity',
+  placeholder: '0',
+  required: true,
+  min: 0,
+  max: 9999,
+  precision: 10,
+  scale: 0,
+  step: 1,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Use Cases
 
@@ -50,7 +54,7 @@ interface NumberFieldSchema {
 
 In tables/grids, numbers are displayed with tabular formatting:
 
-```plaintext
+```ts
 import { NumberCellRenderer } from '@object-ui/fields';
 
 // Renders with precision and tabular-nums font

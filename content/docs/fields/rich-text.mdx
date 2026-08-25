@@ -12,29 +12,39 @@ The Rich Text Field component provides a WYSIWYG editor for creating formatted t
 ## HTML Editor
 
 <SchemaExample id="fields-rich-text/html-editor" />
-
 ## Field Schema
 
-```plaintext
-interface RichTextFieldSchema {
-  type: 'markdown' | 'html';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string;                // Default value
-  rows?: number;                 // Editor height in rows
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Editor Configuration
-  toolbar?: boolean;             // Show formatting toolbar
-  preview?: boolean;             // Show preview panel
-  minHeight?: number;            // Minimum height in pixels
-  maxHeight?: number;            // Maximum height in pixels
-}
+`markdown` and `html` are two field types served by one widget, and each has its own
+exported metadata type — `MarkdownFieldMetadata` and `HtmlFieldMetadata`
+(`@object-ui/types`). Both extend `BaseFieldMetadata` and add a single length bound;
+there is no combined "rich text" metadata type.
+
+```ts
+import type { HtmlFieldMetadata, MarkdownFieldMetadata } from '@object-ui/types';
+
+const releaseNotes: MarkdownFieldMetadata = {
+  type: 'markdown',
+  name: 'release_notes',
+  label: 'Release Notes',
+  placeholder: 'Write the notes…',
+  max_length: 20000,
+};
+
+const emailBody: HtmlFieldMetadata = {
+  type: 'html',
+  name: 'email_body',
+  label: 'Email Body',
+  max_length: 50000,
+};
 ```
+
+The editor is a plain textarea today — there is no formatting toolbar, no preview pane
+and no pixel height to configure, so neither metadata type declares one. The widget
+does size its inline editor from a `rows` key, but neither type declares that either;
+that gap is tracked as [objectui#6140](https://github.com/objectstack-ai/objectui/issues/6140).
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Supported Formats
 
@@ -57,7 +67,7 @@ interface RichTextFieldSchema {
 
 In tables/grids, rich text is shown as plain text:
 
-```plaintext
+```ts
 import { TextCellRenderer } from '@object-ui/fields';
 
 // Strips formatting, shows plain text only

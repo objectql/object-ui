@@ -44,10 +44,10 @@ interface RadioGroupSchema {
   value?: string;                 // Selected value
   
   // Layout
-  direction?: 'vertical' | 'horizontal';
+  orientation?: 'horizontal' | 'vertical';
   
   // Events
-  onValueChange?: string | ActionConfig;
+  onChange?: (value: string | number) => void;
   
   // States
   disabled?: boolean;

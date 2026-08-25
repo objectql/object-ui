@@ -163,11 +163,21 @@ describe('paramToField', () => {
 /**
  * The reference-bearing rule is core's object, not a copy (objectui#5312).
  *
- * This module held the FOURTH and last hand-maintained answer to one question —
- * "does this widget resolve a foreign key, so hand it the reference target?" —
- * as the inline disjunction `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'`.
- * The other three converged on `@object-ui/core`'s `EXPANDABLE_FIELD_TYPES` in
- * objectui#4770 / #4790 / #4815.
+ * This module was the FOURTH CONVERSION of one hand-maintained answer to one
+ * question — "does this widget resolve a foreign key, so hand it the reference
+ * target?" — held here as the inline disjunction
+ * `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'`. The three conversions
+ * before it were objectui#4770 / #4790 / #4815.
+ *
+ * This docblock used to call this face the LAST copy as well as the fourth.
+ * Fourth converted, yes; last copy, no — objectui#5692 then found two older
+ * copies in `plugin-dashboard`, and objectui#5874 four more. No replacement
+ * count is written here on purpose: a hand-kept census is the thing that keeps
+ * going stale, and a bigger integer would only re-create the defect. The
+ * census and its falsification live once, in the family's canonical home — see
+ * the "One family, many consumers — and NO reliable count of them" section of
+ * `packages/core/src/utils/expand-fields.ts`. What is mechanical, rather than
+ * hand-kept, is the identity pin below (objectui#5875).
  *
  * Every membership assertion in this file is satisfied by a private
  * `new Set(['lookup', 'master_detail', 'user', 'tree'])` holding the same

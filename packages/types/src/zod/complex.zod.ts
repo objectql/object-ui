@@ -563,6 +563,18 @@ export const DashboardWidgetConfigSchema = z.object({
  * Dashboard Config Schema — Zod validator for DashboardConfigPanel data model.
  *
  * Validates the unified dashboard configuration used by create/edit workflows.
+ *
+ * The `aria` member is an ADR-0049 retirement tombstone (objectui#5852),
+ * following this package's convention (`data-display.zod.ts`
+ * `StaticTableColumnSchema`, the set `crud.zod.ts` `confirm` established):
+ * `z.never().optional()` REFUSES an authored value at parse time with the key
+ * named in the error path, rather than letting it be silently stripped the way
+ * an undeclared key would be on this non-`.strict()` object. Loud refusal is
+ * the ruled outcome — `aria` was accepted-and-preserved for as long as it was
+ * declared, so a plain deletion would have converted a preserved key into a
+ * silent drop. The TS twin (`../designer.ts` `DashboardConfig`) no longer
+ * declares it at all; both halves are pinned by
+ * `__tests__/dashboard-config.test.ts`.
  */
 export const DashboardConfigSchema = z.object({
   id: z.string().optional().describe('Dashboard identifier'),
@@ -592,10 +604,7 @@ export const DashboardConfigSchema = z.object({
     icon: z.string().optional(),
     variant: z.string().optional(),
   })).optional().describe('Header action buttons'),
-  aria: z.object({
-    label: z.string().optional(),
-    description: z.string().optional(),
-  }).optional().describe('ARIA accessibility attributes'),
+  aria: z.never({ error: 'RETIRED (objectui#5852) — `aria` is no longer part of DashboardConfig; delete the key. The `{ label, description }` spellings matched no renderer vocabulary and nothing ever read them.' }).optional().describe('RETIRED (objectui#5852) — the `{ label, description }` spellings matched no renderer vocabulary and no read point ever consumed them; delete the key. For real ARIA use the spec vocabulary (`ariaLabel` / `ariaDescribedBy` / `role`) on a surface that reads it.'),
 });
 
 /**

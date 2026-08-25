@@ -64,6 +64,7 @@
 import { readFileSync, readdirSync, statSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -802,6 +803,6 @@ export function main() {
 // imports `collect()` / `auditPackages()` from here and must not trigger a repo
 // scan (or a `process.exit`) on import. Same guard shape as
 // `scripts/check-skills-paths.mjs` and `scripts/check-control-bytes.mjs`.
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) main();

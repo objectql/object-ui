@@ -101,6 +101,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 import { SKIP_DIRS, TOOLING_FILE, discoverPackages, moduleSpecifiers } from './check-phantom-dependencies.mjs';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -844,7 +845,7 @@ function main(argv) {
   return failed ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   process.exit(main(process.argv.slice(2)));
 }
 

@@ -148,13 +148,15 @@ const REGISTRY_FIXTURES: Record<string, RegistryFixture> = {
     repoPath: 'apps/v4/public/r/styles/default/sheet.json',
     headSha: '8a7701ec27eb9cb8e0377db769fbe6d744113c52',
     sha256: '9051eb9d885a18c0521c63c945480effcfca29282d2a342cb3ce7f9d080c6d38',
-    // objectui#4996 measured this: `sheet.tsx` also carries the `hideOverlay`
-    // prop, an UNDECLARED local edit (`shadcn-components.json` documents it and
-    // says outright that, unlike the i18n patch, "it does depend on anyone
-    // remembering it"). So patched upstream is 2 lines short of the shipped
-    // file by design, and byte-equality is not available for this family until
-    // that edit is either declared here or upstreamed.
-    roundTrip: 'ships the undeclared `hideOverlay` prop (shadcn-components.json)',
+    // Promoted to `true` by objectui#6090. It read
+    // `'ships the undeclared `hideOverlay` prop'` until then: that edit was
+    // documented in `shadcn-components.json` but declared nowhere, so patched
+    // upstream came out exactly 3 lines short of the shipped file and equality
+    // was genuinely unavailable. Declaring the `hideOverlay` family closed the
+    // last gap, and this entry is the measurement — `sheet` now accounts for
+    // EVERY way it differs from upstream, which is a strictly stronger gate
+    // than the pinned-inequality branch it used to take.
+    roundTrip: true,
   },
   dialog: {
     url: 'https://ui.shadcn.com/r/styles/default/dialog.json',
@@ -215,9 +217,40 @@ const UPSTREAM_DIALOG = upstreamFor('dialog');
 const UPSTREAM_SLIDER = upstreamFor('slider');
 
 describe('shadcn local patches — application to fresh upstream (objectstack#5505)', () => {
+  /**
+   * Scoped to the close-label family's own `issue`, NOT to every patch declared
+   * for the primitive. `sheet` carries a second family since objectui#6090
+   * (`hideOverlay`), so a whole-list equality here would assert that no
+   * primitive may ever carry more than one — the same over-reach the
+   * `closeLabelComponents` derivation above exists to avoid. Order within the
+   * family still matters and is still asserted: the import must land before the
+   * label swap.
+   */
   it.each(closeLabelComponents)('%s declares the i18n close patch', (name: string) => {
-    const ids = LOCAL_PATCHES[name].map((p: { id: string }) => p.id);
+    const ids = LOCAL_PATCHES[name]
+      .filter((p: { issue: string }) => p.issue === 'objectstack#5505')
+      .map((p: { id: string }) => p.id);
     expect(ids).toEqual([`${name}-i18n-close-import`, `${name}-i18n-close-label`]);
+  });
+
+  /**
+   * The fourth family: sheet's `hideOverlay` prop (objectui#6090).
+   *
+   * All three halves are listed because dropping any one of them leaves a state
+   * that still compiles: without the prop declaration external consumers lose
+   * the API, without the destructure the value leaks to the DOM as
+   * `hideoverlay="true"` and the conditional reads `undefined`, and without the
+   * conditional the prop is accepted and silently ignored.
+   */
+  it('sheet declares the hideOverlay patches', () => {
+    const ids = LOCAL_PATCHES.sheet
+      .filter((p: { issue: string }) => p.issue === 'objectui#6090')
+      .map((p: { id: string }) => p.id);
+    expect(ids).toEqual([
+      'sheet-hide-overlay-prop',
+      'sheet-hide-overlay-destructure',
+      'sheet-hide-overlay-conditional',
+    ]);
   });
 
   /** The other declared family: the sidebar collapse-persistence patch. */
@@ -586,5 +619,183 @@ describe('declared anchors were written from REGISTRY bytes (objectui#4996)', ()
       .map((f: string) => f.replace(/\.registry\.txt$/, ''))
       .sort();
     expect(onDisk).toEqual([...patchedComponents()].sort());
+  });
+});
+
+/**
+ * objectui#6027 — the Tailwind v4 custom-property migration on the SHIPPED
+ * `sidebar.tsx`, guarded from the other side.
+ *
+ * `925051db6` converted every Tailwind arbitrary value holding a bare CSS
+ * custom property from the v3 spelling `w-[--sidebar-width]` to the v4
+ * spelling `w-(--sidebar-width)`. Under Tailwind 4.x the v3 spelling no longer
+ * resolves the variable — it compiles to a bare custom-property *name* as a
+ * value, which is invalid CSS that browsers silently discard, collapsing the
+ * sidebar to 0 width over the main content.
+ *
+ * That migration is an UNDECLARED local edit: it lives only as prose in
+ * `packages/components/shadcn-components.json` (`localEdits`), with nothing in
+ * `scripts/shadcn-local-patches.mjs` re-applying it. A `--force` sync — which
+ * bypasses the `localOnlyLines` refusal by design — drops it.
+ *
+ * ## Why only this one of the four undeclared edits is guarded here
+ *
+ * Declaring the migration as a patch family would mean anchoring ~20 class
+ * strings, each a maintenance surface that can drift out of agreement with
+ * upstream. This assertion buys the same protection from the other side, for
+ * one regex, and is the option objectui#6027 itself costed as "much cheaper".
+ * The other three undeclared edits are NOT guarded here because each already
+ * fails through an existing gate — recorded so a reader knows why:
+ *
+ *   | undeclared edit                          | file        | gate that catches its loss |
+ *   |------------------------------------------|-------------|----------------------------|
+ *   | `hideOverlay` prop suppressing overlay    | `sheet.tsx` | type-check — but see the caveat below |
+ *   | `eslint-disable react-hooks/purity`       | `sidebar.tsx` | Lint. The rule arrives via `reactHooks.configs.recommended.rules` (`eslint.config.js:39`) and is NOT downgraded by the repo's overrides (unlike `react-hooks/refs`, `immutability`, `set-state-in-effect`, …), so the skeleton's random width errors without the directive. |
+ *   | unconditional `data-collapsible` + `group-data-[state=collapsed]:` qualifiers | `sidebar.tsx` | Test locator — `packages/app-shell/src/__tests__/print-stylesheet-4462.test.ts` pins the selector `[data-collapsible][data-side][data-state]`. |
+ *   | Tailwind v4 `[--var]` → `(--var)`         | `sidebar.tsx` | **nothing — this block** |
+ *
+ * ⚠️ Caveat measured while writing this (objectui#6027): `hideOverlay` has
+ * **zero consumers** in the tree today — the `DesignDrawer` that ROADMAP.md
+ * credits no longer exists. It is an optional prop, so a `--force` sync
+ * dropping it would type-check clean. The type-check gate that card credits is
+ * vacuous as things stand; it re-arms the moment anything passes the prop.
+ * Filed separately rather than fixed here.
+ *
+ * Deliberately asserted against the file this repo SHIPS, not against a
+ * vendored fixture: the regression is "a forced sync overwrote the shipped
+ * file", which a fixture-based check would sail straight past.
+ */
+describe('shipped sidebar.tsx keeps the Tailwind v4 custom-property spelling (objectui#6027)', () => {
+  const sidebarRelPath = 'packages/components/src/ui/sidebar.tsx';
+  const sidebarPath = path.join(uiDir, 'sidebar.tsx');
+
+  /**
+   * The v3 spelling this refuses: `[` followed IMMEDIATELY by a custom-property
+   * name and closed by `]` — i.e. the whole arbitrary value is the bare
+   * variable name (`w-[--sidebar-width]`).
+   *
+   * What it deliberately does NOT match, so it stays a spelling check rather
+   * than a blanket "no `--var` in brackets" trap:
+   *
+   *   - `w-[calc(var(--sidebar-width-icon)_+_1rem)]` — a `var()` call inside an
+   *     arbitrary value is correct on v4; `[` is followed by `calc`, not `--`.
+   *   - `shadow-[0_0_0_1px_hsl(var(--sidebar-border))]` — same shape.
+   *   - `[--sidebar-width:16rem]` — the arbitrary *property* form, which SETS a
+   *     custom property and remains valid on v4. The trailing `:` breaks the
+   *     match, which is intentional: this guard is about arbitrary *values*.
+   */
+  const V3_BARE_VAR = /\[--[a-zA-Z0-9-]+\]/g;
+
+  /**
+   * The v4 spelling that must stay green. `(` preceded by the utility's `-`
+   * (`w-(--sidebar-width)`), which is what distinguishes the Tailwind shorthand
+   * from a plain CSS `var(--x)` call — there `(` is preceded by `r`.
+   */
+  const V4_SHORTHAND = /-\(--[a-zA-Z0-9-]+\)/g;
+
+  const readSidebar = () => fs.readFileSync(sidebarPath, 'utf-8');
+
+  /** Offending spellings with line numbers, so a failure names WHAT and WHERE. */
+  const findV3Spellings = (source: string): string[] =>
+    source
+      .split('\n')
+      .flatMap((line, i) =>
+        (line.match(V3_BARE_VAR) ?? []).map(
+          (spelling) => `${sidebarRelPath}:${i + 1}: ${spelling}`,
+        ),
+      );
+
+  /**
+   * The gate. Goes red on a `--force` sync that reverts the migration, offline,
+   * on every PR.
+   */
+  it('contains no Tailwind v3 `[--var]` arbitrary values', () => {
+    const offenders = findV3Spellings(readSidebar());
+
+    expect(
+      offenders,
+      `${sidebarRelPath} contains Tailwind v3 bare-custom-property arbitrary ` +
+        `value(s), which Tailwind 4.x compiles to invalid CSS that browsers ` +
+        `silently discard. Rewrite each \`[--var]\` as \`(--var)\` (see ` +
+        `925051db6). Offenders:\n  ${offenders.join('\n  ')}`,
+    ).toEqual([]);
+  });
+
+  /**
+   * The inverse guard. Without this the block above is satisfied by a file that
+   * has no custom-property utilities at all — including one where a bad sync
+   * stripped them — and it would equally be satisfied by a pattern so greedy it
+   * forbids the correct v4 spelling, making this a trap for the next person who
+   * does a migration RIGHT.
+   */
+  it('tolerates the v4 `(--var)` spellings that are supposed to be there', () => {
+    const source = readSidebar();
+    const v4 = source.match(V4_SHORTHAND) ?? [];
+
+    // The migration's own targets, still in their v4 form.
+    expect(source).toContain('w-(--sidebar-width)');
+    expect(source).toContain('w-(--sidebar-width-icon)');
+    expect(source).toContain('max-w-(--skeleton-width)');
+
+    expect(v4.length).toBeGreaterThanOrEqual(7);
+    expect(findV3Spellings(source)).toEqual([]);
+  });
+
+  /**
+   * The distinguishing evidence: the pattern separates the two spellings rather
+   * than matching any `--var` occurrence. Asserted on literals, not on the file,
+   * so it keeps proving the pattern's shape even after the file changes.
+   */
+  it('distinguishes the v3 spelling from every valid v4 neighbour', () => {
+    const refused = [
+      'w-[--sidebar-width]',
+      'max-w-[--skeleton-width]',
+      'group-data-[collapsible=icon]:w-[--sidebar-width-icon]',
+    ];
+    for (const s of refused) {
+      expect(s.match(V3_BARE_VAR), `${s} must be refused as a v3 spelling`).not.toBeNull();
+    }
+
+    const tolerated = [
+      // v4 shorthand — the correct spelling.
+      'w-(--sidebar-width)',
+      'max-w-(--skeleton-width)',
+      // `var()` inside an arbitrary value — correct on v4, present in the file.
+      'w-[calc(var(--sidebar-width-icon)_+_1rem)]',
+      'left-[calc(var(--sidebar-width)*-1)]',
+      'shadow-[0_0_0_1px_hsl(var(--sidebar-border))]',
+      // arbitrary *property* form — sets the variable, still valid on v4.
+      '[--sidebar-width:16rem]',
+      // unrelated arbitrary values that merely use brackets.
+      'group-data-[collapsible=offcanvas]:left-0',
+      '[[data-side=left][data-collapsible=offcanvas]_&]:-right-2',
+    ];
+    for (const s of tolerated) {
+      expect(s.match(V3_BARE_VAR), `${s} must NOT be flagged`).toBeNull();
+    }
+  });
+
+  /**
+   * The counts objectui#6027 asked to be reported alongside each other: what the
+   * pattern tolerates vs. what it refuses, measured on the shipped file. Pinned
+   * so that a sync which quietly deletes the custom-property utilities — rather
+   * than respelling them — cannot pass as "no v3 spellings found".
+   */
+  it('reports the v4 spellings it tolerates alongside the v3 it refuses', () => {
+    const source = readSidebar();
+
+    const v4Shorthand = source.match(V4_SHORTHAND) ?? [];
+    const varCalls = source.match(/var\(--[a-zA-Z0-9-]+\)/g) ?? [];
+    const v3 = findV3Spellings(source);
+
+    expect({
+      v4Shorthand: v4Shorthand.length,
+      varCallsInsideArbitraryValues: varCalls.length,
+      v3BareVar: v3.length,
+    }).toEqual({
+      v4Shorthand: 7,
+      varCallsInsideArbitraryValues: 6,
+      v3BareVar: 0,
+    });
   });
 });

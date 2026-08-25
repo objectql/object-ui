@@ -1155,9 +1155,23 @@ export class MetadataClient {
   async publish<T = unknown>(
     type: string,
     name: string,
-    options: { message?: string } = {},
+    options: { message?: string; packageId?: string } = {},
   ): Promise<T> {
-    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish`;
+    // objectstack#10354 (`@objectstack/rest` 17.2.0) — this door accepts
+    // `?package=<id>` and forwards it as the promotion's package binding, so
+    // #9612's package-closure narrowing at the runtime publish gate is
+    // reachable from an HTTP-driven promotion at all. Deliberately the SAME
+    // wire spelling and the same conditional as `save()` a few hundred lines
+    // up: ONE value, ONE spelling, both steps of the save->publish loop.
+    //
+    // The parameter is OMITTED, never sent empty, when there is no binding.
+    // `?package=` with an empty value and no `package` key at all are folded
+    // together by the framework's normaliser today (`all` and the empty value
+    // both mean "env-local overlay, no package"), so this is not a behaviour
+    // difference on the current server — it is the shape the save door already
+    // follows, and the two calls of one loop must not disagree about it.
+    const qs = options.packageId ? `?package=${encodeURIComponent(options.packageId)}` : '';
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish${qs}`;
     const headers: Record<string, string> = {
       ...this.headers,
       'Content-Type': 'application/json',

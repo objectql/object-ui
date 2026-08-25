@@ -302,6 +302,28 @@ const sampleFor = (input: any): unknown => {
     return [{ name: 'probe_section', label: 'Probe Section', fields: ['name'] }];
   }
   if (input.name === 'formType') return 'simple';
+  // `object-master-detail-form.details` is the SEVENTH instance of the lesson,
+  // and it is keyed by NAME for the same reason `sections` is: the declared TYPE
+  // is `array`, which carries no information about the ENTRY. Decided on the
+  // DECLARED SHAPE, not on the bad call going away (the #3840 discriminator):
+  // an entry is `MasterDetailDetailConfig` (MasterDetailForm.tsx), whose
+  // `childObject: string` is REQUIRED and is what every downstream read is keyed
+  // on — `deriveDetail(d.childObject, …)`, the child-schema cache, and the FK
+  // scope of each child fetch. A bare `'name'` is therefore not a detail
+  // collection any author could publish: the generic sample left `childObject`
+  // `undefined`, and the renderer asked the data layer for an object literally
+  // named `undefined` (objectui#5940). That defect is fixed at the source — the
+  // renderer now declines to fetch, matching `RelatedList` — so this sample is
+  // spec-valid on its own merit, NOT as a way to stop the bad call.
+  // Only `childObject` is set: everything else on the entry is optional and
+  // derived from the child's metadata, so this is the minimal publishable
+  // configuration, and leaving it minimal keeps the derive path (a real data
+  // reach) exercised instead of short-circuited. `PROBE_OBJECT` as the child
+  // follows `add` above, which names it inside a nested object key for the same
+  // reason: it is the only object this fixture declares.
+  if (input.name === 'details') {
+    return [{ childObject: PROBE_OBJECT, title: 'Probe Detail' }];
+  }
   if (input.defaultValue !== undefined) return input.defaultValue;
   switch (input.type) {
     case 'number':

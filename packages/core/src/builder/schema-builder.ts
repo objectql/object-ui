@@ -20,9 +20,6 @@ import type {
   BaseSchema,
   FormSchema,
   FormField,
-  CRUDSchema,
-  TableColumn,
-  ActionSchema,
   ButtonSchema,
   InputSchema,
   CardSchema,
@@ -158,153 +155,6 @@ export class FormBuilder extends SchemaBuilder<FormSchema> {
    */
   onSubmit(handler: (data: Record<string, any>) => void | Promise<void>): this {
     this.schema.onSubmit = handler;
-    return this;
-  }
-}
-
-/**
- * CRUD builder
- */
-export class CRUDBuilder extends SchemaBuilder<CRUDSchema> {
-  constructor() {
-    super('crud');
-    this.schema.columns = [];
-  }
-
-  /**
-   * Set resource name
-   */
-  resource(resource: string): this {
-    this.schema.resource = resource;
-    return this;
-  }
-
-  /**
-   * Set API endpoint
-   */
-  api(api: string): this {
-    this.schema.api = api;
-    return this;
-  }
-
-  /**
-   * Set title
-   */
-  title(title: string): this {
-    this.schema.title = title;
-    return this;
-  }
-
-  /**
-   * Set description
-   */
-  description(description: string): this {
-    this.schema.description = description;
-    return this;
-  }
-
-  /**
-   * Add a column
-   */
-  column(column: TableColumn): this {
-    this.schema.columns = [...(this.schema.columns || []), column];
-    return this;
-  }
-
-  /**
-   * Set all columns
-   */
-  columns(columns: TableColumn[]): this {
-    this.schema.columns = columns;
-    return this;
-  }
-
-  /**
-   * Set form fields
-   */
-  fields(fields: FormField[]): this {
-    this.schema.fields = fields;
-    return this;
-  }
-
-  /**
-   * Enable create operation
-   */
-  enableCreate(label?: string): this {
-    if (!this.schema.operations) this.schema.operations = {};
-    this.schema.operations.create = {
-      enabled: true,
-      label: label || 'Create',
-      api: this.schema.api,
-      method: 'POST'
-    };
-    return this;
-  }
-
-  /**
-   * Enable update operation
-   */
-  enableUpdate(label?: string): this {
-    if (!this.schema.operations) this.schema.operations = {};
-    this.schema.operations.update = {
-      enabled: true,
-      label: label || 'Update',
-      api: `${this.schema.api}/\${id}`,
-      method: 'PUT'
-    };
-    return this;
-  }
-
-  /**
-   * Enable delete operation
-   */
-  enableDelete(label?: string, confirmText?: string): this {
-    if (!this.schema.operations) this.schema.operations = {};
-    this.schema.operations.delete = {
-      enabled: true,
-      label: label || 'Delete',
-      api: `${this.schema.api}/\${id}`,
-      method: 'DELETE',
-      confirmText: confirmText || 'Are you sure?'
-    };
-    return this;
-  }
-
-  /**
-   * Set pagination
-   */
-  pagination(pageSize: number = 20): this {
-    this.schema.pagination = {
-      enabled: true,
-      pageSize,
-      pageSizeOptions: [10, 20, 50, 100],
-      showTotal: true,
-      showSizeChanger: true
-    };
-    return this;
-  }
-
-  /**
-   * Enable row selection
-   */
-  selectable(mode: 'single' | 'multiple' = 'multiple'): this {
-    this.schema.selectable = mode;
-    return this;
-  }
-
-  /**
-   * Add a batch action
-   */
-  batchAction(action: ActionSchema): this {
-    this.schema.batchActions = [...(this.schema.batchActions || []), action];
-    return this;
-  }
-
-  /**
-   * Add a row action
-   */
-  rowAction(action: ActionSchema): this {
-    this.schema.rowActions = [...(this.schema.rowActions || []), action];
     return this;
   }
 }
@@ -576,7 +426,6 @@ export class FlexBuilder extends SchemaBuilder<FlexSchema> {
 
 // Export factory functions
 export const form = () => new FormBuilder();
-export const crud = () => new CRUDBuilder();
 export const button = () => new ButtonBuilder();
 export const input = () => new InputBuilder();
 export const card = () => new CardBuilder();

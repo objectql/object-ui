@@ -24,7 +24,14 @@ import type { DataSource, ViewData } from '@object-ui/types';
 import { useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
-import { extractRecords, buildExpandFields, columnIdentity } from '@object-ui/core';
+import {
+  extractRecords,
+  buildExpandFields,
+  columnIdentity,
+  isExpandableFieldType,
+  getRecordDisplayName,
+  humanizeLabel,
+} from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 
 /**
@@ -224,8 +231,97 @@ function initialExpanded(roots: TreeNode[], depth?: number): Set<string> {
   return set;
 }
 
-function formatValue(value: any): string {
+/**
+ * One entry of a field's `options`. The index signature is not incidental — it
+ * is what `useSafeFieldLabel().translateOptions` declares, and this alias exists
+ * to be assignable to that signature rather than to re-describe it.
+ */
+interface FieldOption {
+  value: string;
+  label: string;
+  [key: string]: unknown;
+}
+
+/** Translates one field's `options` for the session locale. */
+type TranslateOptions = (
+  objectName: string,
+  fieldName: string,
+  options: FieldOption[],
+) => FieldOption[];
+
+/** What {@link formatCellValue} needs to format one cell of one column. */
+interface CellFormatContext {
+  /** The object schema's definition for this column, when one was fetched. */
+  fieldDef: any;
+  /** The column's field key — the i18n option keys are scoped by it. */
+  fieldName: string;
+  /** The object the tree is rendering; absent for a schema-less inline mount. */
+  objectName?: string;
+  /** `useSafeFieldLabel().translateOptions` — identity without a provider. */
+  translateOptions: TranslateOptions;
+}
+
+/**
+ * Format one cell the way the flat table formats the same field — objectui#6014.
+ *
+ * Both branches DELEGATE the decision rather than re-deciding it, so the tree
+ * cannot drift from the surfaces it is supposed to agree with:
+ *
+ *  - **select-family** (any field carrying `options`): the stored value is
+ *    resolved to its option label through `translateOptions`, which is the
+ *    exact call `ObjectGrid` makes when it builds a column's `fieldMeta`
+ *    (`packages/plugin-grid/src/ObjectGrid.tsx`, the `fieldMeta.options =
+ *    translateOptions(...)` line), so both tabs read one `fieldOptions.*` i18n
+ *    key. Matching is exact-then-case-insensitive and falls back to
+ *    `humanizeLabel`, mirroring `SelectCellRenderer` in `@object-ui/fields`
+ *    (seed data stores `Referral` against a declared `referral`). Keying the
+ *    branch on "has options" rather than on a list of select spellings is
+ *    deliberate: `select` / `status` / `multiselect` / `radio` / `checkboxes` /
+ *    `tags` all resolve identically, and a copied type list is one more thing
+ *    that can fall behind the registry.
+ *
+ *  - **reference-family**: an expanded record resolves through
+ *    `getRecordDisplayName`, THE unified display-name resolver (ADR-0079), and
+ *    the family is judged by `isExpandableFieldType` — the SAME predicate that
+ *    decided what to put in `$expand` a few lines up, so "what we expanded" and
+ *    "what we unwrap as a reference" cannot disagree.
+ *
+ * A value with no field definition (an untyped column, or a mount that never
+ * fetched a schema) keeps the previous conservative unwrap.
+ */
+function formatCellValue(value: any, ctx?: CellFormatContext): string {
   if (value == null) return '';
+
+  const options: FieldOption[] | null = Array.isArray(ctx?.fieldDef?.options)
+    ? (ctx!.fieldDef.options as FieldOption[])
+    : null;
+  if (options && options.length > 0) {
+    const translated = ctx!.objectName
+      ? ctx!.translateOptions(ctx!.objectName, ctx!.fieldName, options)
+      : options;
+    const labelFor = (raw: unknown): string => {
+      const exact = translated.find((opt) => opt?.value === raw);
+      if (exact) return String(exact.label ?? raw);
+      const normalized = String(raw).toLowerCase();
+      const insensitive = translated.find(
+        (opt) => String(opt?.value).toLowerCase() === normalized,
+      );
+      if (insensitive) return String(insensitive.label ?? raw);
+      return humanizeLabel(String(raw));
+    };
+    return Array.isArray(value)
+      ? value.filter((v) => v != null).map(labelFor).join(', ')
+      : labelFor(value);
+  }
+
+  if (typeof value === 'object' && isExpandableFieldType(ctx?.fieldDef)) {
+    // No schema for the REFERENCED object here, so this lands on ADR-0079's
+    // record-key derivation (`name` / `full_name` / `*_name` / …) and, for an
+    // expanded record that came back without any name-ish field, its
+    // `Record #<id>` floor — the same string every other surface shows.
+    return getRecordDisplayName(undefined, value);
+  }
+
   if (typeof value === 'object') {
     return String(value.name ?? value.label ?? value.id ?? value._id ?? '');
   }
@@ -243,14 +339,41 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
+  /**
+   * Whether the object-schema fetch below has finished — settled, not
+   * successful: a dataSource that cannot serve a schema, an object with no
+   * name, and a rejected fetch all count, so the record fetch can never be
+   * blocked forever by a schema that is never going to arrive.
+   *
+   * A one-way latch on purpose. Re-arming it on every run of that effect would
+   * mean a `setState` in the effect body, and this component's dependency list
+   * includes `dataConfig` — a `useMemo` over the `schema` PROP object — so a
+   * host that rebuilds its schema each render would turn a benign re-run into a
+   * render loop. Not re-arming costs at most one fetch against a stale schema
+   * when `objectName` changes mid-life, which is exactly what happened on every
+   * fetch before this.
+   */
+  const [schemaSettled, setSchemaSettled] = useState(false);
 
   const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
-  const hasInlineData =
-    Array.isArray((rest as any).data) ||
-    Array.isArray((schema as any).data) ||
-    dataConfig?.provider === 'value';
 
-  // Fetch object schema (for parent-field auto-detection + column labels).
+  // Fetch the object schema whenever the dataSource can serve one.
+  //
+  // It feeds FOUR things: parent-field auto-detection, column labels, the
+  // `$expand` list built below, and (objectui#6014) the per-field definitions
+  // the cell formatter reads to resolve select options and reference values.
+  //
+  // This used to be gated on "the host passed no inline data", which read as a
+  // cheap skip but disagreed with the record-fetch effect below: THAT branch
+  // prefers a live object dataSource over any inline `data`, so on the one
+  // mount shape `ListView` actually uses (objectName + dataSource + its own
+  // pre-fetched `data`) the tree ran its own query with
+  // `buildExpandFields(undefined)` → `[]` → no `$expand` at all, and had no
+  // field definitions to format cells with. That is the whole of objectui#6014:
+  // lookups rendered as bare ids and selects as raw stored values, on the very
+  // page whose flat-table tab rendered both correctly. The guard inside
+  // `fetchSchema` already no-ops without a dataSource, so dropping the gate
+  // costs nothing on the pure inline/static path.
   useEffect(() => {
     let cancelled = false;
     const fetchSchema = async () => {
@@ -263,13 +386,17 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         if (!cancelled) setObjectSchema(result);
       } catch (err) {
         console.error('[ObjectTree] Failed to fetch object schema:', err);
+      } finally {
+        // `finally`, so the two early `return`s and a rejected fetch all settle
+        // too — see the latch's docstring.
+        if (!cancelled) setSchemaSettled(true);
       }
     };
-    if (!hasInlineData) fetchSchema();
+    fetchSchema();
     return () => {
       cancelled = true;
     };
-  }, [schema.objectName, dataSource, dataConfig, hasInlineData]);
+  }, [schema.objectName, dataSource, dataConfig]);
 
   // Fetch records.
   useEffect(() => {
@@ -286,6 +413,13 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         // tree. Fetching our own records (no column projection) guarantees the
         // parent field is present so the hierarchy resolves.
         if (dataConfig?.provider === 'object' && dataSource && typeof dataSource.find === 'function') {
+          // Wait for the schema before querying. `$expand` is DERIVED from it,
+          // so firing early guaranteed one query whose lookup columns came back
+          // as bare ids — the user saw those raw ids painted, then replaced a
+          // moment later once the real query landed. `loading` stays true here
+          // so the tree shows its spinner instead of a wrong first answer, and
+          // this effect re-runs the moment the latch flips.
+          if (!schemaSettled) return;
           const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(dataConfig.object, {
             $filter: schema.filter,
@@ -331,7 +465,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataConfig, dataSource, schema.filter, objectSchema, (rest as any).data]);
+  }, [dataConfig, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
 
   const config = useMemo(() => getTreeConfig(schema), [schema]);
   const parentField = useMemo(
@@ -374,6 +508,18 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
       def?.label || field.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
     return headerObjectName ? i18n.fieldLabel(headerObjectName, field, fallback) : fallback;
   };
+
+  /**
+   * Everything {@link formatCellValue} needs for one column. Built per cell
+   * from the SAME `objectSchema.fields` map the header labels read, so a column
+   * cannot be labelled from the schema and then formatted without it.
+   */
+  const cellContext = (field: string): CellFormatContext => ({
+    fieldDef: objectSchema?.fields?.[field],
+    fieldName: field,
+    objectName: headerObjectName,
+    translateOptions: i18n.translateOptions,
+  });
 
   const navigation = useNavigationOverlay({
     navigation: (schema as any).navigation,
@@ -461,7 +607,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
                       <span className="inline-block h-5 w-5" />
                     )}
                     <span className="truncate">
-                      {formatValue(node.record[config.labelField]) || '—'}
+                      {formatCellValue(node.record[config.labelField], cellContext(config.labelField)) || '—'}
                     </span>
                   </div>
                 </td>
@@ -469,7 +615,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
                   .filter((f) => f !== config.labelField)
                   .map((f) => (
                     <td key={f} className="px-3 py-2 text-muted-foreground">
-                      {formatValue(node.record[f])}
+                      {formatCellValue(node.record[f], cellContext(f))}
                     </td>
                   ))}
               </tr>
@@ -495,7 +641,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     {key.replace(/_/g, ' ')}
                   </span>
-                  <span className="text-sm">{formatValue(value) || '—'}</span>
+                  <span className="text-sm">{formatCellValue(value, cellContext(key)) || '—'}</span>
                 </div>
               ))}
             </div>

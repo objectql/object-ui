@@ -24,6 +24,12 @@
  *   - A legacy column therefore stays unsaveable before AND after an edit.
  *     That closed loop is the RULED OUTCOME, not an oversight; what this change
  *     removes is its invisibility.
+ *
+ * The last case in this suite was written by objectui#5344 as a pin DOCUMENTED
+ * TO FLIP: the column list rendered beside these controls read the same retired
+ * aliases through `previews/view-column-io.ts`, which was outside that card's
+ * granted surface. objectui#5725 retired that read, and the pin is flipped
+ * accordingly — the panel now gives one answer instead of two.
  */
 
 import '@testing-library/jest-dom/vitest';
@@ -154,22 +160,33 @@ describe('ViewColumnInspector — identity is read in the canonical spelling onl
     expect(parses(['title'])).toBe(true);
   });
 
-  it('records the residue this card is fenced out of: the column LIST still shows the legacy name', () => {
+  it('the whole panel agrees: no surface presents the refused spelling as an identity', () => {
     mount([{ accessorKey: 'name', header: 'Name' }]);
 
-    // `FieldsListEditor` renders inside this same panel and reads its row
-    // labels through `previews/view-column-io.ts`, which still carries the very
+    // FLIPPED, as objectui#5344 wrote this pin to be. It used to assert
+    // `toHaveLength(1)` and carried the residue objectui#5344 was fenced out
+    // of: `FieldsListEditor` renders inside this same panel and read its row
+    // labels through `previews/view-column-io.ts`, which still carried the
     // alias retired above (`o.label ?? o.header ?? o.field ?? o.accessorKey`).
-    // So the panel's identity controls stop presenting the refused spelling
-    // while the list one line above still does. That file is outside this
-    // card's granted surface; filed as objectui#5725. When that lands, this
-    // expectation flips — deliberately, so the boundary is visible rather than
-    // silently forgotten.
+    // So the panel's identity controls stopped presenting the refused spelling
+    // while the list one line above still did — one panel, two answers.
+    // objectui#5725 retired that read too, so the count goes 2 → 1 → 0 across
+    // the two cards and the disagreement is closed.
     //
-    // Counted, not merely asserted present: post-change EXACTLY ONE element
-    // says `Name`, the list row. Against the pre-change source there were two
-    // (the panel title read `header` as the column's label as well), which is
-    // why this reverse-verifies as a "found multiple elements" failure.
-    expect(screen.getAllByText('Name')).toHaveLength(1);
+    // This is the observable the objectui#5344 ruling required and did not get:
+    // asserted as a COUNT over the whole panel, so a surface re-acquiring the
+    // alias reverse-verifies as a "found N elements" failure rather than
+    // passing unnoticed.
+    expect(screen.queryAllByText('Name')).toHaveLength(0);
+
+    // …and the list row is not nameless: it names the column positionally, so
+    // the author still has a row to click. Measured end-to-end (including that
+    // the row selects) in FieldsListEditor.retiredAliases.test.tsx.
+    expect(screen.getByText('col 1')).toBeInTheDocument();
+
+    // The identity controls are unchanged by objectui#5725 — pinned here so the
+    // "agree" claim is two-sided rather than a claim about the list alone.
+    expect(shownFieldKey()).toEqual({ widget: 'input', text: '' });
+    expect(shownHeader()).toBe('');
   });
 });

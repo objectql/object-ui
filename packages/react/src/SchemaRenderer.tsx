@@ -296,6 +296,45 @@ function winningVisibilityKey(node: Record<string, unknown>): string | undefined
 }
 
 /**
+ * The registry key that differs from `type` only in case, when there is one.
+ *
+ * objectui#5247 ruled Option C — keep lookup strict, make the failure teach.
+ * Registry lookup stays exactly case-sensitive (`ComponentRegistry.get` is a
+ * plain `Map.get`), so a node typed `Page` still MISSES `page` and still
+ * renders the OBJUI-001 panel below. What changes is only what that panel
+ * SAYS: when the miss is a case mismatch and nothing else, it names the
+ * spelling that would have worked. Making `Page` resolve is the REJECTED
+ * option B — it would legalise `PAGE` / `pAge` across docs, the designer,
+ * `sdui-intrinsics.d.ts` and every registration site, permanently.
+ *
+ * The candidate set is read from the LIVE registry — `getKnownTypes()`, which
+ * is loaded registrations plus pending `registerLazy` stubs — never from a
+ * list typed alongside it. A hand-kept copy goes stale silently and then
+ * confidently suggests a type nothing registers any more; objectui#5115
+ * measured exactly that drift on the CLI's copy, in both directions at once.
+ *
+ * Case is the ONLY trigger the ruling grants. This is deliberately not an edit
+ * distance: `pge` suggests nothing.
+ *
+ * `objectui check` emits the same clause from
+ * `packages/cli/src/utils/known-type-case-suggestion.ts`. The two surfaces
+ * cannot share one implementation because they cannot share a candidate SET:
+ * the published CLI runs inside a USER's project and depends on neither
+ * `@object-ui/core` nor the plugin packages that register most types, so it
+ * answers from the generated `KNOWN_SCHEMA_TYPES` snapshot instead — the
+ * measurement is in `scripts/regenerate-known-schema-types.mjs`. Keep the
+ * emitted wording in step with that file; both are pinned by tests.
+ */
+function suggestTypeByCase(type: unknown): string | undefined {
+  if (typeof type !== 'string' || type === '') return undefined;
+  const wanted = type.toLowerCase();
+  for (const candidate of ComponentRegistry.getKnownTypes()) {
+    if (candidate !== type && candidate.toLowerCase() === wanted) return candidate;
+  }
+  return undefined;
+}
+
+/**
  * Per-component Error Boundary for SchemaRenderer.
  * Catches render errors in individual components, preventing one broken
  * component from crashing the entire page.
@@ -935,9 +974,21 @@ export const SchemaRenderer: ForwardRefExoticComponent<
 
     debugLog('schema', 'Component not found in registry', { type: evaluatedSchema.type });
     const errorInfo = ERROR_CODES['OBJUI-001'];
+    // objectui#5247 — the lookup above still missed and this node still fails.
+    // The suggestion only names the spelling that would have resolved.
+    const caseSuggestion = suggestTypeByCase(evaluatedSchema.type);
     return (
       <div className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2" role="alert">
-        <p className="font-medium">Unknown component type: <strong>{evaluatedSchema.type}</strong></p>
+        <p className="font-medium">
+          Unknown component type: <strong>{evaluatedSchema.type}</strong>
+          {caseSuggestion !== undefined ? (
+            <>
+              {" — did you mean '"}
+              <strong>{caseSuggestion}</strong>
+              {"'?"}
+            </>
+          ) : null}
+        </p>
         {lazyError && (
           <p className="text-xs mt-1">Failed to load plugin: {lazyError.message}</p>
         )}

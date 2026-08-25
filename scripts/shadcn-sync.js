@@ -22,9 +22,9 @@
  */
 
 import fs from 'fs/promises';
-import { realpathSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isEntrypoint } from './invoked-as.mjs';
 import https from 'https';
 import { spawnSync } from 'child_process';
 import crypto from 'crypto';
@@ -1036,27 +1036,14 @@ async function main() {
   }
 }
 
-/**
- * Is this file the process entry point?
- *
- * The CLI must keep running exactly as before when invoked as
- * `node scripts/shadcn-sync.js …`, while an `import` of this module (the tests
- * in `scripts/__tests__/shadcn-sync-fetch-cache.test.ts`) must NOT execute it.
- * Compared through `realpathSync` because ESM resolves `import.meta.url` to the
- * real path while `process.argv[1]` may still carry a symlink.
- */
-function invokedAsCli() {
-  const entry = process.argv[1];
-  if (!entry) return false;
-  const resolved = path.resolve(entry);
-  try {
-    return realpathSync(resolved) === __filename;
-  } catch {
-    return resolved === __filename;
-  }
-}
-
-if (invokedAsCli()) {
+// This file is the ONE of objectui#6092's 29 hand-typed guards that was not
+// wrong: the deleted `invokedAsCli()` compared through `realpathSync`, so it
+// already answered correctly through a symlink. Replacing it with the shared
+// predicate is therefore a SIMPLIFICATION, not a fix — one spelling fewer for a
+// reader to re-derive, and one fewer place for the realpath leg to be dropped
+// by a later edit. `scripts/invoked-as.mjs` carries the rationale, and adds the
+// `node <dir>` case this hand-typed copy never had.
+if (isEntrypoint(import.meta.url)) {
   main().catch(error => {
     log(`Fatal error: ${error.message}`, 'red');
     console.error(error);

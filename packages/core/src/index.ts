@@ -31,6 +31,12 @@ export * from './utils/expand-fields.js';
 // name, so its published surface is unchanged.
 export * from './utils/retired-field-types.js';
 export * from './utils/unmaterialized-fields.js';
+// [#5729] The consumer half of objectstack#10235's ruling: the SERVED
+// per-column sortability projection, and the one spelling of its contract
+// (`entry exists && sortable: true`). Homed beside the storage-fact set above
+// because a consumer that reaches for one must be able to see the other and
+// know which one the platform actually served.
+export * from './utils/column-sortability.js';
 export * from './utils/column-identity.js';
 export * from './utils/sort-values.js';
 export * from './utils/sort-query.js';

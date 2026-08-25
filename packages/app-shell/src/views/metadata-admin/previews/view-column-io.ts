@@ -3,15 +3,25 @@
 /**
  * Column-IO helpers for the View column configurator.
  *
- * A View variant's `columns` array holds entries in one of two
- * canonical shapes:
- *   • `string`                       — bare field name (kanban-style)
- *   • `{ field, label, ... }`        — ObjectStack canonical shape
- *   • `{ accessorKey, header, ... }` — legacy/imported TanStack shape
+ * A View variant's `columns` array holds entries in one of two canonical
+ * shapes, and these helpers read a column's identity in those spellings ONLY:
+ *   • `string`                — bare field name (kanban-style)
+ *   • `{ field, label, ... }` — ObjectStack canonical shape
  *
- * These helpers read either shape without mutating it and build new
- * entries that respect a variant's all-strings invariant so round-trips
- * stay lossless.
+ * The legacy/imported TanStack spelling `{ accessorKey, header, ... }` is NOT
+ * an identity these helpers understand. `ListColumn` refuses both keys by name
+ * (`unrecognized_keys`), so a column carrying them has no field key and no
+ * label as far as the spec is concerned; reading them here would present a
+ * spec-refused spelling as a valid column identity — the same consumer-side
+ * tolerance alias `ObjectGrid` retired in objectui#5068, and that
+ * {@link ViewColumnInspector} retired one file over in objectui#5344. This is
+ * the editor-side half of that retirement (objectui#5725): the inspector's
+ * identity controls and the column list rendered beside them in the SAME panel
+ * now agree about what a column is called.
+ *
+ * These helpers still read every shape without mutating it, and build new
+ * entries that respect a variant's all-strings invariant so round-trips stay
+ * lossless — the WRITE path is untouched, so no stored document is rewritten.
  */
 
 export interface VariantInfo {
@@ -21,22 +31,42 @@ export interface VariantInfo {
   allStrings: boolean;
 }
 
-/** Human label for a column entry (falls back to a positional label). */
+/**
+ * Human label for a column entry, read in the canonical spelling ONLY.
+ *
+ * `o.header` and `o.accessorKey` are deliberately not consulted. The retired
+ * chain was not merely tolerant, it was INVERTED: `header` was preferred over
+ * `field`, so a canonical column that also carried a stray `header` key
+ * displayed the undeclared alias INSTEAD of its own declared identity. A
+ * declared identity must outrank an undeclared one under every reading.
+ *
+ * A column the canonical keys cannot name falls through to the positional
+ * label `col N`, which is what the row shows and what the author clicks — the
+ * list never renders nameless.
+ */
 export function colLabel(c: unknown, i: number): string {
   if (typeof c === 'string') return c || `col ${i + 1}`;
   if (c && typeof c === 'object') {
     const o = c as Record<string, unknown>;
-    return String(o.label ?? o.header ?? o.field ?? o.accessorKey ?? `col ${i + 1}`);
+    return String(o.label ?? o.field ?? `col ${i + 1}`);
   }
   return `col ${i + 1}`;
 }
 
-/** Bound field name for a column entry, if any. */
+/**
+ * Bound field name for a column entry, if any — canonical `field` only.
+ *
+ * This one backs more than a label: it feeds {@link usedFieldNames}, which is
+ * what the Add-field picker consults to mark a field as already taken. Reading
+ * `accessorKey` here let a spec-refused column reserve a field name the author
+ * is entitled to add, so the picker reported "Added" for a field no accepted
+ * column actually binds.
+ */
 export function colFieldName(c: unknown): string | undefined {
   if (typeof c === 'string') return c || undefined;
   if (c && typeof c === 'object') {
     const o = c as Record<string, unknown>;
-    const v = o.field ?? o.accessorKey;
+    const v = o.field;
     return typeof v === 'string' && v ? v : undefined;
   }
   return undefined;

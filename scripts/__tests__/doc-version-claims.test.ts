@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -1307,22 +1308,70 @@ describe('doc version claims - the scan itself', () => {
   });
 
   it('exercises the version-heading exemption, so the exemption is not decorative', () => {
-    // objectui#3697 names two lines as the control group that must stay green:
+    // objectui#3697 named two lines as the control group that must stay green:
     // release-notes.md's `Bump every @object-ui/* dependency to ^3.3.0` upgrade step
-    // and the `| Node.js | >= 18 |` row of the v3.3.0 compatibility matrix. Green by
-    // NOT MATCHING would prove nothing, so the floor asserts the exemption path is
-    // actually taken, and the file assertion names where.
-    expect(
-      exemptClaims.length,
-      'no claim was structurally exempted - either release-notes.md lost its version ' +
-        'sections or VERSION_HEADING stopped matching them, and the exemption this gate ' +
-        'depends on is now untested',
-    ).toBeGreaterThanOrEqual(8);
+    // and the `| Node.js | >= 18 |` row of its v3.3.0 compatibility matrix. Both are
+    // gone: objectui#5786 retired that page's hand-written version table — it had
+    // drifted ~14 majors behind the packages it described and the maintainer ruled it
+    // away in favour of the per-package `CHANGELOG.md` files — and it was the corpus's
+    // ONLY version-heading section. Measured across that change: `exemptClaims` went
+    // from 8 to 0, and this assertion was the one gate that noticed.
+    //
+    // So the control group cannot be a corpus file any more, and a floor over
+    // `exemptClaims.length` would now be a pin demanding that SOME published page keep
+    // carrying release sections — a shape this repository deliberately no longer has.
+    // The exemption is still live code that every corpus claim passes through, so it is
+    // exercised here against a fixture, via `claimsIn`, the same function the corpus
+    // goes through. The fixture keeps the retired compatibility row verbatim and states
+    // the spec range the way that page did (name, then version, within `SEP`'s six
+    // characters — `Bump every @object-ui/* dependency to ^3.3.0` is a sentence, and a
+    // sentence is not a claim: its name and version sit fourteen characters apart). The
+    // assertion is strictly stronger than the one it replaces: BOTH directions are
+    // pinned on one document, which the corpus arrangement never did — there, "green by
+    // NOT MATCHING" was ruled out only for the exempt side.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-'));
+    try {
+      const fixture = path.join(dir, 'release-notes-shaped.md');
+      fs.writeFileSync(
+        fixture,
+        [
+          '# Release Notes',
+          '',
+          'At the time of writing it aligned with `@objectstack/spec` ^4.0.4.',
+          '',
+          '## v3.3.0 — 2026-04-17 · First Official Release',
+          '',
+          '### Compatibility Matrix',
+          '',
+          '| Node.js | >= 18 |',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
 
-    const exemptFiles = new Set(exemptClaims.map((c) => c.file));
-    expect(exemptFiles, 'the v3.3.0 release section must still be reached by the exemption').toContain(
-      'content/docs/guide/release-notes.md',
-    );
+      const claims = claimsIn(fixture);
+      const exempt = claims.filter((c) => c.underVersionHeading !== null);
+      const flagged = claims.filter((c) => c.underVersionHeading === null);
+
+      expect(
+        flagged.map((c) => c.claim),
+        'the claim ABOVE the release heading must stay SCANNED - an exemption that ' +
+          'swallowed the whole file would report green over a live claim',
+      ).toEqual([expect.stringContaining('^4.0.4')]);
+
+      expect(
+        exempt.map((c) => c.claim),
+        'the claim under the release heading must be exempt, or the frozen history this ' +
+          'gate refuses to ratchet would start failing it',
+      ).toEqual([expect.stringContaining('>= 18')]);
+
+      // Via an ANCESTOR heading: the matrix row sits under `### Compatibility Matrix`,
+      // not directly under the release heading. That walk is the part of `collect` a
+      // narrower "nearest heading" rule would silently break.
+      expect(exempt[0].underVersionHeading).toBe('v3.3.0 — 2026-04-17 · First Official Release');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('does not treat a numbered section heading as a release section', () => {

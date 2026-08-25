@@ -107,7 +107,7 @@ const schema = {
   model?: string,
   streamingEnabled?: boolean,
   headers?: Record<string, string>,
-  body?: Record<string, unknown>,
+  requestBody?: Record<string, unknown>,
   maxToolRoundtrips?: number, // deprecated - inert, see below
   onError?: (error: Error) => void,
 }
@@ -151,7 +151,7 @@ const schema = {
 | `model` | string | - | AI model identifier (e.g., `gpt-4o`) |
 | `streamingEnabled` | boolean | `true` | Enable SSE streaming for AI responses |
 | `headers` | object | - | Additional headers for API requests |
-| `body` | object | - | Additional body params for API requests |
+| `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
 | `surface` | `'card' \| 'plain'` | `'card'` | Controls whether the chat renders as a bordered panel or a frameless full-page workspace |
 | `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | Controls how much agent reasoning and tool detail is shown |

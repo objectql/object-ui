@@ -45,7 +45,29 @@
  * pin goes red too and its `reference` pin flips; the ordinary-relation
  * regression controls stay GREEN in both directions, which is what makes them
  * controls rather than duplicates of the pins.
+ *
+ * ## objectui#5876 — one predicate, and why NO behavioural test can pin it
+ *
+ * #5692 left the package with TWO byte-identical bodies: `isLookupType` here
+ * and a local `isLookup` inside `computeLookupExpand`. Collapsing the second
+ * into the first is observationally FREE — every boolean claim about `$expand`
+ * (`tree` expands, `reference` does not, ordinary relations do) answers the
+ * same before and after, so every assertion in the three describes above would
+ * stay GREEN on a revert. They are controls for this change, not pins of it.
+ * The `reportRetiredFieldType` count does not move either: its dedupe key is
+ * the SPELLING, in one module-level Set inside `@object-ui/core`, which both
+ * bodies already shared (`retired-field-types.ts` — "the dedupe is per
+ * SPELLING, not per face").
+ *
+ * So the pin below is IDENTITY at the call level, in two halves that fail for
+ * different reasons: `computeLookupExpand` must be observed CALLING
+ * `isLookupType`, and `ObjectDataTable.tsx` must hold no second body for it to
+ * call instead. Predicted ablation: restore the local `isLookup` and BOTH go
+ * RED while everything above stays green.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
 import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { FieldType } from '@objectstack/spec/data';
@@ -112,6 +134,72 @@ describe("the dashboard's relation rule is core's object, not a copy (objectui#5
         spy.mockRestore();
       }
     }
+  });
+});
+
+describe('one relation predicate, not two that agree by coincidence (objectui#5876)', () => {
+  it('`computeLookupExpand` CALLS `isLookupType` — in BOTH column modes', () => {
+    // Surgical by construction: `vi.doMock` is not hoisted, so it binds only
+    // the dynamic import below and leaves every other test in this file on the
+    // real module. The double delegates to the real implementation, so the
+    // exercise still answers correctly — what is being read is WHO answered.
+    return (async () => {
+      const actual = await import('../recordFields');
+      const double = vi.fn(actual.isLookupType);
+      vi.resetModules();
+      vi.doMock('../recordFields', () => ({ ...actual, isLookupType: double }));
+      try {
+        const { computeLookupExpand: subject } = await import('../ObjectDataTable');
+        const modes: [string, () => string[]][] = [
+          ['explicit whitelist', () => subject({ columns: ALL_COLUMNS }, objectSchema())],
+          ['auto-derive', () => subject({}, objectSchema())],
+        ];
+        for (const [label, exercise] of modes) {
+          double.mockClear();
+          // Control: the mode still answers, so an assertion about WHO was
+          // asked cannot pass on a subject that did nothing at all.
+          expect(exercise(), `${label} expanded nothing`).toContain('account');
+          expect(
+            double.mock.calls.map(([t]) => t),
+            `${label} answered the relation question without asking isLookupType`,
+          ).toContain('lookup');
+        }
+      } finally {
+        vi.doUnmock('../recordFields');
+        vi.resetModules();
+      }
+    })();
+  });
+
+  it('`ObjectDataTable.tsx` holds no second predicate body', () => {
+    // The call pin above can be satisfied while a dead copy still sits in the
+    // file; this half is what makes "one predicate" true of the SOURCE. Read
+    // with comments stripped, so the prose that NAMES these symbols in the
+    // convergence note cannot fake a hit.
+    const code = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ObjectDataTable.tsx'),
+      'utf8',
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+
+    // Controls — chosen to be INVARIANT under the ablation this pin guards
+    // against, so that a mis-resolved path or an over-eager stripper fails
+    // HERE, as a broken probe, while a genuine revert fails on the subject
+    // lines below with an honest message. (Measured: an earlier draft used the
+    // `isLookupType` call count as its control, and a real revert then reported
+    // itself as "probe stripped the code away" — the two failures were
+    // indistinguishable, which is the whole thing a control exists to prevent.)
+    expect(code, 'probe read the wrong file').toContain('export function computeLookupExpand(');
+    expect(code, 'probe stripped the code away').toContain('out.add(acc)');
+
+    // Subject — each of these moves if the local copy comes back.
+    expect(
+      code.match(/isLookupType\(/g) ?? [],
+      'computeLookupExpand stopped calling the shared predicate',
+    ).toHaveLength(2);
+    expect(code, 'a second family read lives here').not.toContain('EXPANDABLE_FIELD_TYPES');
+    expect(code, 'a second retirement gate lives here').not.toContain('RetiredFieldType');
   });
 });
 

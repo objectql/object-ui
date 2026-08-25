@@ -31,6 +31,7 @@ import {
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
   UnknownBlockIcon,
+  resolveBlockDisplayMeta,
   resolveBlockTone,
   type BlockTypeId,
 } from './block-types.js';
@@ -619,7 +620,12 @@ function BlockRow({
   onRenameLabel: (nextLabel: string) => void;
 }) {
   const typeStr = String(block.type ?? '');
-  const meta = BLOCK_TYPE_META[typeStr as BlockTypeId];
+  // DISPLAY meta, not the palette catalogue. `BLOCK_TYPE_META` answers "what may
+  // an author drag in"; a node already in the page may be a spelling the palette
+  // does not offer yet the app renders fine — the `record:discussion` /
+  // `record:chatter` alias pair. See BLOCK_RENDERER_ALIAS_GROUPS in
+  // block-types.ts; nothing here makes a type offerable.
+  const meta = resolveBlockDisplayMeta(typeStr);
   const Icon = meta?.Icon ?? UnknownBlockIcon;
   const tone = resolveBlockTone(typeStr);
   const label = blockLabel(block);

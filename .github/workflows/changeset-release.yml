@@ -257,7 +257,6 @@ jobs:
     permissions:
       contents: read
     outputs:
-      pending_changesets: ${{ steps.detect.outputs.pending_changesets }}
       manifest_version: ${{ steps.npm.outputs.manifest_version }}
       version_on_npm: ${{ steps.npm.outputs.version_on_npm }}
     steps:
@@ -273,64 +272,52 @@ jobs:
             .changeset
             packages/core
 
-      # ⛔ This must stay a faithful mirror of `readChangesetState` in
-      # `changesets/action`'s `src/index.ts` (it re-exports `@changesets/read`),
-      # because the release job's guard is only correct while the two agree:
+      # This step no longer PREDICTS anything: it reports the lane's inputs and
+      # says why a bare "Run workflow" did nothing. That is all it does.
       #
-      #   - every `.changeset/*.md` counts EXCEPT `README.md`;
-      #   - an EMPTY changeset still counts (this repository declares "nothing to
-      #     release" with empty frontmatter — see `changeset-presence.yml` — and
-      #     the action's `hasChangesets` counts those too, which is why a commit
-      #     carrying only empty changesets skips this job's release half. The
-      #     action would have taken its `!hasNonEmptyChangesets` branch and done
-      #     nothing anyway, so the observable behaviour is unchanged);
-      #   - in pre mode ONLY, the ids already listed in `pre.json.changesets` are
-      #     filtered out, because the action filters them and would therefore
-      #     publish where a naive file count says "pending". This repository is
-      #     not in pre mode and has no `pre.json`, so that branch is dormant — it
-      #     is written because the failure it prevents (a pre-mode release that
-      #     silently never publishes) is invisible until release day.
+      # It used to also mirror, in bash and before any install, the file scan
+      # that `changesets/action` performs through `readChangesetState`, and
+      # publish the result as a `pending_changesets` output gating the release
+      # job's "Clear pending changesets" step. objectui#6081 DELETED that mirror.
       #
-      # It fails LOUDLY rather than guessing a lane: this is deterministic file
-      # I/O, so an error here means something is wrong that a default would hide.
-      - name: Detect pending changesets
-        id: detect
+      # ⛔ Do not reintroduce it. The thing it mirrored has no stable referent,
+      # which is why no amount of care could keep it honest: `changesets/action`
+      # is used at a MOVING TAG, its bundled `@changesets/read@^0.6.7` is a
+      # different major from the `1.0.0` this repository installs, the two
+      # disagree in OPPOSITE directions (`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`
+      # count for one and not the other; `.changeset/pre/*.md` the other way),
+      # and the bundled copy is a minified chunk that nothing here installs — so
+      # no test could execute it and no lockfile recorded it. A retag of `v1` in
+      # place changed what the mirror was mirroring and NOTHING in this
+      # repository failed. On the release lane, where objectui#5442 already
+      # produced one silent lost release, that is the worst available property.
+      #
+      # What replaced it is not a better prediction but the absence of one: the
+      # clear step is IDEMPOTENT and a measured no-op on the very input where
+      # this output used to skip it — `Removed 0 pending changeset file(s)`,
+      # exit 0, byte-identical tree, and a rerun after a real clear also removes
+      # 0. A step that does nothing when there is nothing to do does not need
+      # something else to predict whether there is anything to do.
+      #
+      # ⛔ Nor should anyone reintroduce it to "save" the clear step a run. It
+      # costs a directory glob and some `rm -f` on a job whose other steps take
+      # ~90s, and the price of buying that back is a hand-maintained copy of
+      # another project's minified file scan.
+      #
+      # ⚠️ `.changeset` stays in the sparse-checkout above: the `npm` step below
+      # reads `.changeset/config.json` for the `fixed` group. It is no longer
+      # read for changeset FILES.
+      - name: Report the lane
         env:
           REFRESH_VERSION_PR: ${{ inputs.refresh_version_pr }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-
-          in_pre_mode=false
-          consumed=''
-          if [ -f .changeset/pre.json ]; then
-            if [ "$(jq -r '.mode // ""' .changeset/pre.json)" = 'pre' ]; then
-              in_pre_mode=true
-              consumed=$(jq -r '.changesets[]? // empty' .changeset/pre.json)
-            fi
-          fi
-
-          pending=false
-          for file in .changeset/*.md; do
-            name="${file##*/}"
-            if [ "$name" = 'README.md' ]; then
-              continue
-            fi
-            if [ "$in_pre_mode" = true ] && printf '%s\n' "$consumed" | grep -qxF -- "${name%.md}"; then
-              continue
-            fi
-            echo "pending changeset: ${name}"
-            pending=true
-          done
-
-          echo "pending_changesets=${pending}" >> "$GITHUB_OUTPUT"
 
           {
             echo '### Changeset Release lane'
             echo
             echo "- event: \`${GITHUB_EVENT_NAME}\`"
             echo "- commit: \`${GITHUB_SHA}\`"
-            echo "- pending changesets: \`${pending}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
           # A bare "Run workflow" reports instead of vanishing — see the input's
@@ -430,11 +417,12 @@ jobs:
     #   dispatch WITH the input       -> the same refresh, on demand.
     #   dispatch WITHOUT it           -> skipped; the `lane` job says why.
     #
-    # ⚠️ The push half reads `version_on_npm`, NOT `pending_changesets`. That is
-    # the whole of objectui#5442: pending changesets belong to the next version
-    # and say nothing about whether THIS one shipped. `pending_changesets` is
-    # still produced and still load-bearing, but for the step that clears the
-    # tree for the action — not for deciding whether there is a release to make.
+    # ⚠️ The push half reads `version_on_npm`, NOT a count of pending
+    # changesets. That is the whole of objectui#5442: pending changesets belong
+    # to the next version and say nothing about whether THIS one shipped. Since
+    # objectui#6081 nothing counts them at all — `.changeset/` reaches the
+    # release only through the step that CLEARS it for the action, never through
+    # a decision about whether there is a release to make.
     #
     # `inputs.refresh_version_pr` is guarded by its event test rather than read
     # bare: the `inputs` context exists only on `workflow_dispatch`, so on a
@@ -657,11 +645,24 @@ jobs:
       # plausibly the shape that makes the clear step unnecessary — which is an
       # argument for revisiting the pin eventually, not for bumping it blind.
       #
-      # Same class of drift, and live under any bump: objectui#5775 records that
-      # the `lane` job's declared mirror of `readChangesetState` already
-      # understates what the installed `@changesets/read` ignores. Any upgrade
-      # re-opens that question, because the mirror tracks a bundled copy this
-      # file does not pin.
+      # ⛔ WHAT NOTICES A BUMP. This `@v1` ref is pinned by exactly one thing:
+      # `scripts/__tests__/changeset-release-action-ref-pin.test.ts`. It fails on
+      # a bump of EITHER `uses: changesets/action@v1` line in this file and names
+      # the two properties above as what a bump must re-establish. There is no
+      # second guard — the type checker and the linters do not read this file at
+      # all — so ⛔ do not delete that test as collateral of some other cleanup.
+      #
+      # It is deliberately a pin on the REF and not a copy of the action's
+      # behaviour. objectui#5775 tried the other shape: the `lane` job carried a
+      # bash mirror of the action's file scan, measured against BOTH readers and
+      # found at different majors (this action bundles `@changesets/read@^0.6.7`,
+      # the repository installs `1.0.0`, and they disagree on `AGENTS.md` /
+      # `CLAUDE.md` / `GEMINI.md` and on `.changeset/pre/`). objectui#6081
+      # deleted that mirror, because the bundled copy is a minified chunk behind
+      # a MOVING tag and cannot be pinned from here at any effort — a retag of
+      # `v1` in place changed it and nothing here failed. A ref pin cannot catch
+      # a retag either, but it does not pretend to: it catches the DELIBERATE
+      # bump, which is the only moment anyone can act on.
 
       # ⚠️ THE STEP THAT LETS THE PREDICATE REACH THE ACTION (objectui#5442).
       #
@@ -694,8 +695,37 @@ jobs:
       # `.changeset/config.json` is NOT touched: `changeset publish` reads the
       # `fixed` group from it, and so does `check-published-dist-tooling.mjs`,
       # which `pnpm changeset:publish` runs first.
+      #
+      # ⛔ THE `github.event_name == 'push'` TEST IS LOAD-BEARING. DO NOT DROP IT.
+      #
+      # This guard used to carry a second half that read the `lane` job's
+      # `pending_changesets` output. objectui#6081 deleted that half — the
+      # step is idempotent and a measured no-op on an empty tree, so predicting
+      # whether it has work was buying nothing at the price of a mirror of
+      # another project's file scan (see the `lane` job's report step).
+      #
+      # ⚠️ The EVENT half is a different thing entirely and dropping it kills the
+      # release SILENTLY. On the refresh lane this step would empty the tree
+      # before the action runs, so `hasChangesets` is false — and the refresh
+      # step passes no `publish:` input, so `hasPublishScript` is false too.
+      # v1 then takes `case !hasChangesets && !hasPublishScript` (`src/index.ts`
+      # line 68), logs "No changesets present or were removed by merging release
+      # PR", and RETURNS. The 6-hourly refresh becomes a permanent no-op and the
+      # standing "chore: release packages" PR fossilises forever, with nothing
+      # failing anywhere. That is this file's own failure class, on the other
+      # lane. What objectui#6081 deleted is the PREDICTION, not the event scoping.
+      #
+      # ⚠️ ONE CASE WHERE THIS STEP IS NOT LITERALLY A NO-OP — dormant here, real
+      # later. In PRE mode, the ids already listed in `pre.json.changesets` are
+      # consumed records; the deleted mirror filtered them out and this step does
+      # not, so it removes them (measured: `Removed 2`) while `pre.json` itself
+      # SURVIVES, so pre mode is still detected. Harmless on three independent
+      # grounds — the deletion is runner-local (property (2) above), the next
+      # `changeset version` deletes those records anyway, and this repository has
+      # no `pre.json` and no `.changeset/pre/` directory today. Written down
+      # because a pre-release is precisely when nobody wants to rediscover it.
       - name: Clear pending changesets for the publish branch
-        if: github.event_name == 'push' && needs.lane.outputs.pending_changesets == 'true'
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           shopt -s nullglob

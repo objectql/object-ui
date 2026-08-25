@@ -136,9 +136,21 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
   // `EXPANDABLE_FIELD_TYPES` from `@object-ui/core`, the one relational-field
   // family that `buildExpandFields`, the predicate-record projection, the object
   // form's `needsDataSourceWiring` and the grid's `bulkParamToField` already
-  // read (objectui#4770 / #4790 / #4815). This face held the fourth and last
-  // private copy of it — `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'`,
+  // read (objectui#4770 / #4790 / #4815). This face was the fourth CONVERSION
+  // of it — the private copy `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'`,
   // once with a fifth spelling `owner` that objectui#4814 retired (ruling A′).
+  //
+  // This comment used to add "and last". It was true as far as it had been
+  // measured and is now known false, twice over: objectui#5692 found two older
+  // copies in `plugin-dashboard`, and objectui#5874 four more (kanban, detail
+  // ×2, `resolveActionParams`). No count is restated here on purpose — a
+  // hand-kept census of this table is exactly what keeps going stale, and
+  // writing a bigger integer would only re-create the defect. The census, its
+  // falsification and the lineage of the conversions live in ONE place, the
+  // family's canonical home: see the "One family, many consumers — and NO
+  // reliable count of them" and "The LAST-private-copy claim was false"
+  // sections of `packages/core/src/utils/expand-fields.ts`. The mechanical
+  // fact, here and on every converted face, is the identity pin (objectui#5875).
   //
   // The comment that stood here claimed the disjunction "moves in lockstep with
   // plugin-grid's `bulkParamToField` twin — the two param faces are never

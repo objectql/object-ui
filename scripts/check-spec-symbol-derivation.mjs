@@ -152,6 +152,7 @@ import { createRequire } from "module";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { resolve, dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -1176,5 +1177,5 @@ process.exit(1);
 // `scanFileForClaims` / `normalizeDoc` from here and must not trigger a repo
 // scan (or a process.exit) on import. Same guard shape as
 // scripts/check-control-bytes.mjs.
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) main();

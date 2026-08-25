@@ -13,6 +13,7 @@ import { join } from 'path';
 import { parse as parseJsonc, printParseErrorCode, type ParseError } from 'jsonc-parser';
 
 import { isKnownSchemaType } from '../utils/known-schema-types.js';
+import { didYouMeanClause } from '../utils/known-type-case-suggestion.js';
 
 /**
  * Root keys that positively identify a file as an ObjectUI schema node.
@@ -103,8 +104,25 @@ const OBJECTUI_STRUCTURAL_KEYS: readonly string[] = [
  * ⚠️ The structural arm is a TRANSITIONAL fallback, not the contract. It is
  * drawn for precision over recall on purpose: a foreign file wrongly judged is
  * this card's defect reappearing in a user's project, while a real schema
- * wrongly skipped is a coverage debt that the corpus migration repays and that
- * the skipped-file count below keeps visible in the meantime.
+ * wrongly skipped is a RECALL DEBT — real, unpaid, and kept visible by the
+ * skipped-file count printed below.
+ *
+ * ⛔ Nothing repays that debt today, and no corpus migration can. The marker a
+ * migration would stamp is the `$schema` URL the 2026-08-20 ruling declined to
+ * mint: `OBJECTUI_SCHEMA_URL` and `pointsAtObjectUi()` were deleted before
+ * objectui#5334 merged, so there is no arm for a stamped file to match — see
+ * the block above, which records the same absence from the other side.
+ * Measured rather than reasoned: injecting a `$schema` key into a
+ * currently-skipped real corpus file leaves the skipped count unmoved, while
+ * injecting a structural key into the same file moves it by exactly one. A
+ * corpus-wide `$schema` sweep is therefore a no-op here, not an unfinished
+ * chore — an earlier card was written, claimed and worked on the belief that
+ * this sentence promised one.
+ *
+ * The debt is tracked as objectui#6075, blocked on objectui#5392
+ * (`@object-ui/types` shipping a generated JSON Schema to point at). Waiting
+ * forecloses nothing: matching would be host-based, so adding the arm then
+ * invalidates not a single file.
  */
 function isObjectUiSchemaFile(content: Record<string, unknown>): boolean {
   return OBJECTUI_STRUCTURAL_KEYS.some((key) => key in content);
@@ -200,7 +218,15 @@ export async function check(cwd: string = process.cwd()) {
               // registration calls (see `packages/cli/src/utils/known-schema-types.ts`
               // and the script that writes it), not typed by hand. The array that
               // used to sit here had drifted both ways at once — objectui#5115.
-              console.log(chalk.yellow(`⚠️ Unknown schema type "${content.type}" in ${file}`));
+              // objectui#5247 — the type is still UNKNOWN and still reported;
+              // the clause only names the spelling that would have resolved,
+              // and is empty whenever no known type differs by case alone.
+              console.log(
+                chalk.yellow(
+                  `⚠️ Unknown schema type "${content.type}" in ${file}` +
+                    didYouMeanClause(content.type)
+                )
+              );
             }
           }
         }

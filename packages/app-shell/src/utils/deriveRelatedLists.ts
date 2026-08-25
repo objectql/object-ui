@@ -21,6 +21,13 @@
  *   - `relatedListTitle` / `relatedListColumns` on the FK field override the
  *     derived title / columns (columns default to the child object's own list
  *     columns when omitted — resolved by the renderer).
+ *   - ROW ORDER is inherited from the child object's DEFAULT LIST VIEW `sort`
+ *     (objectui#5795). There is deliberately no field-level `relatedListSort`
+ *     to pair with the keys above: the contract question was ruled on
+ *     objectstack#11345 (maintainer, 2026-08-23) as direction 1 — inherit the
+ *     child's list-view sort, and add NO new spec key. A related list is just
+ *     another surface that lists that object, so it orders the way that
+ *     object's own list orders, exactly as `columns` already defaults.
  *   - Audit FKs (`created_by` / `updated_by` / `owner_id`) are skipped — they
  *     exist on virtually every object and would balloon the detail page into
  *     dozens of duplicate cards.
@@ -41,6 +48,8 @@
  *     button that would 403 on save. Data access was always enforced
  *     server-side; this closes the UI/DX gap.
  */
+
+import { convertSortToQueryParams } from '@object-ui/core';
 
 /** Audit/ownership FKs that exist on nearly every object — never related lists. */
 const AUDIT_FK_FIELDS = new Set(['created_by', 'updated_by', 'owner_id']);
@@ -64,12 +73,65 @@ export interface DerivedRelatedList {
    * while non-primary lists collapse into a single "Related" tab.
    */
   isPrimary: boolean;
+  /**
+   * Default row order, INHERITED from the child object's default list view
+   * `sort` (objectui#5795; ruled on objectstack#11345, maintainer 2026-08-23:
+   * direction 1 — inherit the child list view's sort, NO new spec key).
+   *
+   * Always the ARRAY arm of the `record:related_list.sort` union, never the
+   * string arm. Both surfaces declare `string | Array<{field, order}>`, but
+   * the two string arms are DIFFERENT dialects: a ListView string is the
+   * legacy space-separated `'seq_no desc'`, while the related list's own
+   * `normalizeSortSpec` reads `'field'` / `'-field'`. Passing the ListView
+   * string through verbatim would order by a field literally named
+   * `"seq_no desc"`. Translating at this boundary — the one place that knows
+   * it is reading a ListView and writing a related list — is the whole point;
+   * a tolerant reader on the consuming end would be the wrong fix (#0.1).
+   *
+   * Absent (never `[]`) when the child declares no default list view sort, so
+   * the related list's query stays byte-identical to what it sent before.
+   */
+  sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
 }
 
 interface ObjectLike {
   name?: string;
   label?: string;
   fields?: Record<string, any> | any[];
+  /**
+   * The object's DEFAULT list view, as merged onto the object def by
+   * `MetadataProvider.mergeViewsIntoObjects` (`merged.list = extra.primary`,
+   * where `primary` is the expanded view item flagged `isDefault`). Its `sort`
+   * is what a derived related list inherits.
+   *
+   * Optional on purpose: metadata of type `view` may arrive AFTER the objects
+   * do, in which case this is undefined on the first derivation pass and the
+   * descriptor carries no `sort`. That is not a silent hole — `objects` is a
+   * fresh array once the views merge, so the memo over this derivation
+   * recomputes and the sort appears.
+   */
+  list?: { sort?: string | Array<{ field?: string; order?: 'asc' | 'desc' }> };
+}
+
+/**
+ * The child object's inherited default row order, normalized to the ARRAY arm.
+ *
+ * Both arms are lowered through `convertSortToQueryParams` — the repo's ONE
+ * definition of the authored-`sort` dialects (`@object-ui/core`) — so no second
+ * parser of the legacy `'field desc'` string can drift from it. Its return is a
+ * field→direction map; re-expanding it preserves the authored key order because
+ * every ObjectStack field name matches `^[a-z_][a-z0-9_]*$` (spec
+ * `field.zod.ts`), so none is an integer-like key that JS would hoist.
+ *
+ * Returns `undefined` — never `[]` — when nothing orderable was declared.
+ */
+function inheritedListViewSort(
+  list: ObjectLike['list'],
+): Array<{ field: string; order: 'asc' | 'desc' }> | undefined {
+  const map = convertSortToQueryParams(list?.sort as any);
+  if (!map) return undefined;
+  const entries = Object.entries(map).map(([field, order]) => ({ field, order }));
+  return entries.length > 0 ? entries : undefined;
 }
 
 /** Normalize an object's `fields` (record or array) into `[name, def]` pairs. */
@@ -121,6 +183,10 @@ export function deriveRelatedLists(
     // it requires read access on the child — the FK's mere existence does not
     // grant the current user anything (objectui#2359).
     if (canRead && !canRead(child.name)) continue;
+    // objectui#5795: every related list derived from this child inherits the
+    // child's own default list-view order, so compute it once per child
+    // rather than once per FK.
+    const inheritedSort = inheritedListViewSort(child.list);
     for (const [fieldName, fieldDef] of fieldEntries(child.fields)) {
       if (!fieldDef) continue;
       const type = fieldDef.type;
@@ -136,6 +202,7 @@ export function deriveRelatedLists(
         referenceField: fieldName,
         isOwned: type === 'master_detail',
         isPrimary: fieldDef.relatedList === 'primary',
+        ...(inheritedSort ? { sort: inheritedSort } : {}),
         _fkLabel: (typeof fieldDef.label === 'string' && fieldDef.label) || fieldName,
         ...(typeof fieldDef.relatedListTitle === 'string' && fieldDef.relatedListTitle
           ? { title: fieldDef.relatedListTitle }

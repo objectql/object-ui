@@ -1,5 +1,5 @@
 ---
-title: "Report Schema (ReportSchema)"
+title: "Report Schema (ReportComponentSchema)"
 description: "Enterprise reports with aggregation, export, and scheduling"
 ---
 
@@ -7,11 +7,11 @@ import { SchemaExample } from '@/app/components/ComponentDemo';
 
 # Report Schema
 
-The `ReportSchema` enables creating comprehensive data reports with field aggregation, multiple export formats, and automated scheduling.
+The `ReportComponentSchema` enables creating comprehensive data reports with field aggregation, multiple export formats, and automated scheduling.
 
 ## Overview
 
-ReportSchema provides:
+ReportComponentSchema provides:
 - **Field aggregation** - Sum, average, count, min, max, distinct
 - **Export formats** - PDF, Excel, CSV, JSON, HTML
 - **Scheduled reports** - Daily, weekly, monthly, quarterly, yearly
@@ -72,6 +72,11 @@ const salesReport: ReportComponentSchema = {
 ```
 
 ## Properties
+
+The tables in this section describe `ReportComponentSchema`, declared by
+`@object-ui/types` (`packages/types/src/reports.ts`) and imported by name in the
+example above. They group its properties by topic; the declaration remains the
+complete list.
 
 ### Basic Configuration
 
@@ -450,7 +455,7 @@ if (result.success) {
 
 ## Use Cases
 
-ReportSchema is perfect for:
+ReportComponentSchema is perfect for:
 
 - **Analytics dashboards** - Display key business metrics and KPIs
 - **Business intelligence** - Generate insights from operational data

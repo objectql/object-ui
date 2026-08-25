@@ -285,12 +285,98 @@ const sliderThumbPassThroughPatches = [
 ];
 
 /**
+ * The sheet `hideOverlay` patch (objectui#6090).
+ *
+ * `SheetContent` renders `<SheetOverlay />` unconditionally upstream, which
+ * dims and pointer-blocks everything behind the drawer. A non-modal sheet —
+ * one whose host page must stay clickable while it is open — needs the
+ * backdrop suppressed, so objectui added an optional `hideOverlay` prop.
+ *
+ * ## Why this is declared rather than left as a documented hand edit
+ *
+ * It was a hand edit for months, recorded only in `shadcn-components.json`,
+ * and objectui#6090 measured what that actually bought: nothing. The
+ * protection it was credited with was a type error at the call sites a
+ * `--force` sync would break — and there are no call sites in this repo (still
+ * none, re-measured on `main` at 0c282d979). `hideOverlay` is OPTIONAL, so a
+ * sync that dropped it would type-check clean and the prop would vanish
+ * silently.
+ *
+ * `@object-ui/components` is PUBLISHED, though, so "no call sites" is a
+ * statement about this repository and not about the population that would
+ * break. Retiring the prop on the strength of an in-repo grep would be a
+ * breaking change to a published API justified by evidence that cannot see its
+ * own consumers. Declaring it instead makes the loss loud regardless of
+ * whether a consumer exists — which is the property the type-check gate was
+ * wrongly credited with, now held by `verifyLocalPatches` and by the round-trip
+ * assertion in `scripts/__tests__/shadcn-local-patches.test.ts`.
+ *
+ * ## Why the payload is inline here, unlike every family above
+ *
+ * The families above deliberately keep their payload out of `src/ui/**` and
+ * anchor a one-line reference to `src/lib/`. That is not available here and not
+ * being skipped: the payload IS the primitive's own prop surface — an optional
+ * member on `SheetContentProps`, its destructuring, and the conditional it
+ * guards. There is no implementation to host elsewhere. What the rule is really
+ * protecting against — a large inlined body that upstream churn will shred — is
+ * absent: three anchors, each one line, all of them structural lines of
+ * `SheetContent` rather than incidental formatting.
+ *
+ * All three `find` strings were written from the vendored registry bytes in
+ * `scripts/__tests__/fixtures/shadcn-registry/sheet.registry.txt`, not from the
+ * shipped file (objectui#4976 is what happens otherwise), and the round-trip
+ * assertion holds them to it.
+ *
+ * @type {LocalPatch[]}
+ */
+const sheetHideOverlayPatches = [
+  {
+    id: 'sheet-hide-overlay-prop',
+    issue: 'objectui#6090',
+    reason:
+      'Declares the optional `hideOverlay` prop on SheetContentProps. Anchored ' +
+      "on upstream's empty interface body `{}`, which is what makes the prop " +
+      'visible to consumers of the published package at all — drop it and every ' +
+      'external `hideOverlay` call site becomes a type error.',
+    find: '    VariantProps<typeof sheetVariants> {}',
+    replace: '    VariantProps<typeof sheetVariants> {\n  hideOverlay?: boolean\n}',
+    marker: 'hideOverlay?: boolean',
+    occurrences: 1,
+  },
+  {
+    id: 'sheet-hide-overlay-destructure',
+    issue: 'objectui#6090',
+    reason:
+      'Withholds `hideOverlay` from the `...props` spread that lands on ' +
+      'SheetPrimitive.Content. Without this half the prop is forwarded to the ' +
+      'DOM as `hideoverlay="true"` (React unknown-attribute leak) AND the ' +
+      'conditional below has nothing to read.',
+    find: '>(({ side = "right", className, children, ...props }, ref) => (',
+    replace: '>(({ side = "right", className, children, hideOverlay, ...props }, ref) => (',
+    marker: 'children, hideOverlay, ...props',
+    occurrences: 1,
+  },
+  {
+    id: 'sheet-hide-overlay-conditional',
+    issue: 'objectui#6090',
+    reason:
+      'The behaviour itself: skip the dimming, pointer-blocking backdrop when ' +
+      'the host asked for a non-modal sheet. Upstream renders SheetOverlay ' +
+      'unconditionally, so this is the only line that can honour the prop.',
+    find: '    <SheetOverlay />\n',
+    replace: '    {!hideOverlay && <SheetOverlay />}\n',
+    marker: '{!hideOverlay && <SheetOverlay />}',
+    occurrences: 1,
+  },
+];
+
+/**
  * Component name (as tracked in `shadcn-components.json`) → patches it needs.
  *
  * @type {Record<string, LocalPatch[]>}
  */
 export const LOCAL_PATCHES = {
-  sheet: i18nCloseLabelPatches('Sheet'),
+  sheet: [...i18nCloseLabelPatches('Sheet'), ...sheetHideOverlayPatches],
   dialog: i18nCloseLabelPatches('Dialog'),
   sidebar: sidebarCookieReadPatches,
   slider: sliderThumbPassThroughPatches,

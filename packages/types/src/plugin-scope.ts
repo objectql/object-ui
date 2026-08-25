@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 
-import type { ComponentInput } from './base.js';
+import type { ComponentMeta } from './base.js';
 
 /**
  * Plugin Scope Interface
@@ -145,25 +145,36 @@ export interface PluginScope {
 
 /**
  * Component metadata for registration
+ *
+ * The plugin-scoped twin of `base.ts`' {@link ComponentMeta} is no longer a
+ * twin: it is the SAME declaration, RE-EXPORTED rather than restated
+ * (objectui#5893), following the shape objectui#5671 executed for the sibling
+ * type `ComponentInput` in this same file. This is objectui#4580's ruling
+ * applied to the second member of the family — *a structural copy would
+ * reproduce the defect the moment either side moved.*
+ *
+ * Either side HAD moved, which is why this was not hypothetical. `base.ts`
+ * carried eleven keys; this copy carried nine — `tags` and `description` were
+ * missing here. A plugin author typing against the plugin-facing declaration
+ * could not write two keys the main surface advertises, and which the runtime
+ * validator (`ComponentMetaSchema` in `zod/base.zod.ts`) already accepted: two
+ * of the three authorities agreed and this one did not. Nothing a user hits
+ * was broken today, because no plugin registration had tried to write one yet.
+ *
+ * Re-exported under this name so that `index.ts`' public
+ * `ComponentMeta as PluginComponentMeta` alias keeps naming a real export.
+ * That alias is `@deprecated` as of the same card, on objectui#5674's pattern:
+ * with the declaration shared, the second published name carries no
+ * information the first does not.
+ *
+ * Note for whoever completes that retirement: this re-export is a SEPARATE
+ * binding from the `import type { ComponentMeta }` at the top of the file. The
+ * import is what types `PluginScope.registerComponent`'s `meta` parameter and
+ * stays regardless; this re-export's only consumer is the aliased specifier in
+ * `index.ts`, so it goes dead the moment that alias is deleted and should be
+ * removed with it.
  */
-export interface ComponentMeta {
-  label?: string;
-  icon?: string;
-  category?: string;
-  inputs?: ComponentInput[];
-  defaultProps?: Record<string, any>;
-  examples?: Record<string, any>;
-  isContainer?: boolean;
-  resizable?: boolean;
-  resizeConstraints?: {
-    width?: boolean;
-    height?: boolean;
-    minWidth?: number;
-    maxWidth?: number;
-    minHeight?: number;
-    maxHeight?: number;
-  };
-}
+export type { ComponentMeta } from './base.js';
 
 /**
  * Component input definition
@@ -179,11 +190,14 @@ export interface ComponentMeta {
  * That alias is now `@deprecated` (objectui#5674): with the declaration shared,
  * the second published name carries no information the first does not.
  *
- * Note for whoever completes that retirement: this re-export is a SEPARATE
- * binding from the `import type { ComponentInput }` at the top of the file.
- * The import is what types `ComponentMeta.inputs` and stays regardless; this
- * re-export's only consumer is the aliased specifier in `index.ts`, so it goes
- * dead the moment that alias is deleted and should be removed with it.
+ * Note for whoever completes that retirement: this file no longer imports
+ * `ComponentInput` by name at all. Until objectui#5893 it did, to type the
+ * local `ComponentMeta.inputs`; that local declaration is now itself a
+ * re-export, so this line is the ONLY mention left and its only consumer is
+ * the aliased specifier in `index.ts`. It goes dead the moment that alias is
+ * deleted and should be removed with it — unlike the `ComponentMeta`
+ * re-export above, whose sibling `import type` is still load-bearing for
+ * `PluginScope.registerComponent`.
  */
 export type { ComponentInput } from './base.js';
 

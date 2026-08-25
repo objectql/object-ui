@@ -354,11 +354,6 @@ export type {
 // ============================================================================
 export type {
   ActionSchema,
-  CRUDOperation,
-  CRUDFilter,
-  CRUDToolbar,
-  CRUDPagination,
-  CRUDSchema,
   DetailSchema,
   CRUDDialogSchema,
   CRUDComponentSchema,
@@ -474,11 +469,9 @@ export type {
   RatingFieldMetadata,
   MasterDetailFieldMetadata,
   FieldMetadata,
-  ObjectTrigger,
   ObjectSchemaMetadata,
   ObjectSchemaClientExtensions,
   ObjectIndex,
-  ObjectRelationship,
 } from './field-types.js';
 
 // System / audit / ownership field classification — runtime helper + name set,
@@ -939,6 +932,21 @@ export type {
   PluginScopeConfig,
   AppPluginContext,
   AppMetadataPlugin,
+  /**
+   * @deprecated Use `ComponentMeta` instead. Since objectui#5893 converged the
+   * plugin-scoped declaration onto `base.ts`, this alias names the SAME type
+   * under a second name — it carries no information `ComponentMeta` does not.
+   * Before that convergence it named a genuinely different nine-key interface,
+   * which is why it is deprecated only now and not alongside
+   * `PluginComponentInput`: deprecating it earlier would have warned about a
+   * name that was still about to change meaning. Retirement follows
+   * objectui#5674's two-stage pattern (maintainer ruling, 2026-08-22:
+   * deprecate for a release, then remove). This deprecation window exists for
+   * consumers outside this repository, which cannot be measured from here;
+   * in-repo the name has zero importers. Removal ships as a `minor` under this
+   * repo's version policy (objectui's own breaking changes never declare
+   * `major`).
+   */
   ComponentMeta as PluginComponentMeta,
   /**
    * @deprecated Use `ComponentInput` instead. Since objectui#4972 converged the

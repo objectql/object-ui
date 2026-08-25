@@ -714,13 +714,26 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // renderer cannot honour, which is this gate's own failure mode one layer in
   // (the `page:tabs.alwaysShowStrip` note above).
   //
-  // Also blocked on a real contract question, so it is not merely unbuilt: the
-  // item shape is `ReferenceRailEntrySchema`, whose `$strict` object REFUSES the
-  // `icon` key this repo's own local `ReferenceRailEntry` declares and the
-  // renderer reads. Publishing an entries editor means first deciding whether
-  // `icon` survives — objectui#5494.
+  // NOT blocked on a contract question any more — that half is settled. The
+  // maintainer ruled Option B (2026-08-22) and objectui#5494 landed it:
+  // `ReferenceRailEntry` is now DERIVED from `@objectstack/spec/ui`
+  // (re-exported, never re-declared — `check:spec-symbols` enforces that), and
+  // the `icon` key the old local interface carried retired with the
+  // derivation. The spec's `ReferenceRailEntrySchema` is `$strict` over
+  // {objectName, relationshipField, title?, limit?, displayField?} and refuses
+  // `icon` at save, so it survives on neither side of the contract.
+  //
+  // The note this replaces also asserted that the renderer READ that key. It
+  // did not — that premise was false when it was written, which is the whole
+  // reason this block was rewritten (objectui#5792). Measured twice,
+  // independently: the spec's `ui-reference-rail-unknown-keys-refused`
+  // migration entry, and a grep over `plugin-detail/src` where the only
+  // surviving `icon` mention in `record-reference-rail.tsx` is prose, while the
+  // same grep finds real reads of `entry.objectName`, `.relationshipField`,
+  // `.title`, `.limit` and `.displayField`. So the SHAPE limit above is the
+  // entire justification for this exemption — it always was sufficient alone.
   'record:reference_rail.entries':
-    'An array of {objectName, relationshipField, title, limit, displayField} objects; `inputs` is a flat scalar carrier and cannot express it. Newly judged rather than newly missing — @objectstack/spec 17.1.0 added record:reference_rail to ComponentPropsMap, and the registration (plugin-detail/src/index.tsx:675) has always published only `hideEmpty`. An entries editor also needs the `icon` divergence settled first: objectui#5494.',
+    'An array of {objectName, relationshipField, title, limit, displayField} objects; `inputs` is a flat scalar carrier and cannot express it. Newly judged rather than newly missing — @objectstack/spec 17.1.0 added record:reference_rail to ComponentPropsMap, and the registration (plugin-detail/src/index.tsx:675) has always published only `hideEmpty` — the 17.1.0 pin, objectui#5328. The flat-carrier shape limit is the entire reason: the `icon` divergence that once also blocked an entries editor was settled by Option B (maintainer 2026-08-22, objectui#5494).',
 };
 
 /**

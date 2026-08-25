@@ -16,6 +16,7 @@ import zlib from 'node:zlib';
 // `native` becomes the default loader (objectui#3384).
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub.ts';
 import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
+import { resolveClientDistInjection } from '../../scripts/vite-objectstack-client-dist.ts';
 import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
 import { viteIneffectiveDynamicImports } from '../../scripts/vite-ineffective-dynamic-imports.ts';
 import { compression } from 'vite-plugin-compression2';
@@ -292,7 +293,40 @@ function emitEagerClosureReport(reportFileName = 'eager-closure.json'): Plugin {
       }
 
       const files = [...eager].sort().map((fileName) => {
-        const raw = fs.readFileSync(path.join(outDir, fileName));
+        const filePath = path.join(outDir, fileName);
+
+        // A closure member with no file on disk is not a missing build output —
+        // it is an UNRESOLVED BARE IMPORT that the walk above swept in. Rolldown
+        // lists a chunk's EXTERNAL imports in `chunk.imports` beside the file
+        // names of real chunks, and the walk follows that array without asking
+        // whether the name is in `chunks`, so a specifier vite could not resolve
+        // joins `eager` under its own name and is then read as a path. Left
+        // unguarded that is a bare `ENOENT` from `node:fs`, several frames from
+        // the cause and naming neither this plugin nor the import (objectui#5996).
+        if (!fs.existsSync(filePath)) {
+          const importers = [...chunks.values()]
+            .filter((chunk) => (chunk.imports ?? []).includes(fileName))
+            .map((chunk) => chunk.fileName);
+          this.error(
+            `[emit-eager-closure-report] eager-closure member \`${fileName}\` has no file in ` +
+              `\`${outDir}\`, so its bytes cannot be weighed. It is almost certainly an ` +
+              `UNRESOLVED BARE IMPORT, not a missing build output: rolldown lists a chunk's ` +
+              `EXTERNAL imports in \`chunk.imports\` beside the file names of real chunks, and ` +
+              `the walk above follows that array, so a specifier vite could not resolve enters ` +
+              `the closure under its own name and is then read as a path. The name is the tell — ` +
+              `a real chunk here is \`assets/<name>-<hash>.js\`, and this one is not a key of the ` +
+              `output bundle map at all. (imported by: ${importers.join(', ') || 'NONE'}) ` +
+              `Fix the import rather than skipping the member here: a bare specifier the browser ` +
+              `cannot load is a broken bundle, not a measurement gap, and dropping it from the ` +
+              `walk would make this report under-count — the one direction the counter-probes ` +
+              `above exist to refuse. The known source is an out-of-tree override whose own ` +
+              `dependencies do not resolve from where it lives: check \`OBJECTSTACK_CLIENT_DIST\` ` +
+              `and \`OBJECTSTACK_SPEC_DIST\`, and vite's own "could not be resolved" warnings ` +
+              `earlier in this build.`,
+          );
+        }
+
+        const raw = fs.readFileSync(filePath);
         // Level 6 — zlib's default, and the level `gzip -c` uses in the
         // workflow's entry-chunk check, so the two numbers in one PR comment
         // are measured the same way.
@@ -437,16 +471,24 @@ const workspaceAliases: Record<string, string> = {
 // console before that client ships, point OBJECTSTACK_CLIENT_DIST at a locally
 // built client (its dist entry or package dir). Inert when unset — production
 // and CI builds use the installed client unchanged.
-const clientDistOverride = process.env.OBJECTSTACK_CLIENT_DIST;
+//
+// No longer a bare string alias: the value is VALIDATED before it is aliased —
+// the path must exist, it must sit inside a `@objectstack/client` package
+// (directory, `dist/`, or an entry file all resolve to the same package), and
+// that package's own declared `dependencies` must resolve from where it lives.
+// Without that last check an out-of-tree override produced a fully written
+// bundle whose bare specifiers no browser can load, and nothing in the build
+// output named this variable — objectui#6094, the client twin of the spec
+// hook's objectui#5391. See the module for the measurement and for why the
+// check is re-stated there rather than shared with the spec hook.
+const clientDistInjection = resolveClientDistInjection(process.env.OBJECTSTACK_CLIENT_DIST);
+if (clientDistInjection) workspaceAliases['@objectstack/client'] = clientDistInjection.aliasTarget;
+
 // Extra dirs the dev server may read the override from — it lives outside the
 // workspace root, so Vite's default `server.fs.allow` would 403 it (blank page).
-const clientFsAllow: string[] = [];
-if (clientDistOverride) {
-  const resolved = path.resolve(clientDistOverride);
-  workspaceAliases['@objectstack/client'] = resolved;
-  // Allow the containing package (…/dist/index.mjs → …/<pkg>) so Vite can serve it.
-  clientFsAllow.push(path.dirname(resolved), path.resolve(path.dirname(resolved), '..'));
-}
+// Unchanged values: the containing package (…/dist/index.mjs → …/<pkg>) and its
+// parent, now computed beside the validation that vouches for the path.
+const clientFsAllow: string[] = clientDistInjection ? clientDistInjection.fsAllow : [];
 
 // Deps pre-bundled for the dev server. Build-time pre-bundling was removed in
 // Vite 5.1, so this list is read by `pnpm dev` only, never by `vite build`.
