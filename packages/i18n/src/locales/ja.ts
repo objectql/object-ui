@@ -3415,8 +3415,10 @@ const ja = {
   // フロー、引用符は「」。⛔ 系譜・ドリフトを示す語はこのグループに置きません (§9)。
   packagedAutomation: {
     title: "パッケージ自動化",
-    subtitle: "インストール済みパッケージが提供するフローです。このデプロイでオフにするか、新しい名前でクローンしてカスタマイズできます。編集は Studio で行います。",
+    subtitle: "インストール済みパッケージが提供するフローとアクションです。このデプロイでオフにできます。フローは新しい名前でクローンしてカスタマイズすることもできます。編集は Studio で行います。",
     refresh: "更新",
+    flowsHeading: "パッケージフロー",
+    actionsHeading: "パッケージアクション",
     colFlow: "フロー",
     colActivation: "有効状態",
     colActions: "操作",
@@ -3438,6 +3440,13 @@ const ja = {
     toggleFailed: "有効状態を変更できませんでした。",
     cloneFailedHttp: "このフローをクローンできませんでした (HTTP {{status}})。",
     cloneFailed: "このフローをクローンできませんでした。",
+    actionsSubtitle: "インストール済みパッケージが提供するアクションです。このデプロイでオフにすると、提供されているすべての場所で実行されなくなります。自分のアクションを別途 Studio で作成することは引き続き可能です。",
+    colAction: "アクション",
+    colObject: "オブジェクト",
+    actionToggleLabel: "{{object}} の {{label}} の有効状態",
+    actionsEmptyTitle: "パッケージアクションはありません",
+    actionsEmptyBody: "このデプロイには、アクションを宣言するインストール済みパッケージがありません。自分で作成したアクションは Studio にあります。",
+    actionsLoadFailed: "パッケージアクションを読み込めませんでした。",
   },
 };
 

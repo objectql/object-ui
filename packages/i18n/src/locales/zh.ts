@@ -3472,8 +3472,10 @@ const zh = {
   // 不是一次副本粘贴。⛔ 本组不含任何血缘/漂移措辞(§9)。
   packagedAutomation: {
     title: '打包自动化',
-    subtitle: '由已安装软件包提供的流程。可在本部署中关闭某个流程,或以新名称克隆后再自定义。编辑在 Studio 中进行。',
+    subtitle: '由已安装软件包提供的流程与动作。可在本部署中关闭其中之一,流程还可以新名称克隆后再自定义。编辑在 Studio 中进行。',
     refresh: '刷新',
+    flowsHeading: '打包流程',
+    actionsHeading: '打包动作',
     colFlow: '流程',
     colActivation: '启用状态',
     colActions: '操作',
@@ -3495,6 +3497,13 @@ const zh = {
     toggleFailed: '无法更改启用状态。',
     cloneFailedHttp: '无法克隆此流程(HTTP {{status}})。',
     cloneFailed: '无法克隆此流程。',
+    actionsSubtitle: '由已安装软件包提供的动作。在本部署中关闭后,它在所有提供它的位置都不再运行。你仍然可以在 Studio 中另行编写自己的动作。',
+    colAction: '动作',
+    colObject: '对象',
+    actionToggleLabel: '{{object}} 上 {{label}} 的启用状态',
+    actionsEmptyTitle: '没有打包动作',
+    actionsEmptyBody: '本部署中没有任何已安装软件包声明动作。你自己编写的动作在 Studio 中。',
+    actionsLoadFailed: '无法加载打包动作。',
   },
 } as const;
 

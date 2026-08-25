@@ -3413,8 +3413,10 @@ const pt = {
   // grupo (§9).
   packagedAutomation: {
     title: "Automação de pacotes",
-    subtitle: "Fluxos fornecidos pelos pacotes instalados. Desligue um nesta implantação ou clone-o com um novo nome para personalizá-lo. A edição acontece no Studio.",
+    subtitle: "Fluxos e ações fornecidos pelos pacotes instalados. Desligue um nesta implantação ou clone um fluxo com um novo nome para personalizá-lo. A edição acontece no Studio.",
     refresh: "Atualizar",
+    flowsHeading: "Fluxos de pacote",
+    actionsHeading: "Ações de pacote",
     colFlow: "Fluxo",
     colActivation: "Ativação",
     colActions: "Ações",
@@ -3436,6 +3438,13 @@ const pt = {
     toggleFailed: "Não foi possível alterar a ativação.",
     cloneFailedHttp: "Não foi possível clonar este fluxo (HTTP {{status}}).",
     cloneFailed: "Não foi possível clonar este fluxo.",
+    actionsSubtitle: "Ações fornecidas pelos pacotes instalados. Desligue uma nesta implantação e ela deixa de ser executada em todos os lugares onde é oferecida. Criar sua própria ação ao lado dela continua disponível no Studio.",
+    colAction: "Ação",
+    colObject: "Objeto",
+    actionToggleLabel: "Ativação de {{label}} em {{object}}",
+    actionsEmptyTitle: "Nenhuma ação de pacote",
+    actionsEmptyBody: "Nenhum pacote instalado declara uma ação nesta implantação. As ações que você mesmo cria ficam no Studio.",
+    actionsLoadFailed: "Não foi possível carregar as ações de pacote.",
   },
 };
 

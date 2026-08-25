@@ -148,6 +148,25 @@ beforeEach(() => {
         if (row) row.enabled = enabled;
         return response(200, { success: true, data: { name, enabled } });
       }
+      // The packaged-ACTIONS section (ADR-0126 §8 item 2) shares this page and
+      // issues its own three reads. Answered EMPTY here on purpose: this file
+      // owns the flows half, and its assertions must keep measuring that half
+      // and not the sibling section — whose own behaviour, refusals and §9
+      // absences are pinned in `PackagedActionsSection.test.tsx`. Leaving them
+      // unanswered would not be neutral: the stub below throws, so every test
+      // in this file would render a section-level load error.
+      if (url.includes('/meta/object')) {
+        return response(200, { items: [] });
+      }
+      if (url.includes('/meta/action')) {
+        return response(200, { items: [] });
+      }
+      if (url.includes('/data/sys_metadata_activation')) {
+        return response(200, {
+          success: true,
+          data: { object: 'sys_metadata_activation', records: [] },
+        });
+      }
       if (url.includes('/clone')) {
         const next = fixture.clone.shift();
         if (next) return response(next.status, next.body);

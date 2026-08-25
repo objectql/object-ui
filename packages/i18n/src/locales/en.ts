@@ -3767,9 +3767,14 @@ const en = {
   // last-resort fallbacks for a response that carried no message at all.
   packagedAutomation: {
     title: 'Packaged automation',
+    // Covers BOTH sections since ADR-0126 §8 item 2 put packaged actions on
+    // this page: only flows can be cloned, so the clone clause names them.
     subtitle:
-      'Flows shipped by installed packages. Turn one off for this deployment, or clone it under a new name to customize it. Editing happens in Studio.',
+      'Flows and actions shipped by installed packages. Turn one off for this deployment, or clone a flow under a new name to customize it. Editing happens in Studio.',
     refresh: 'Refresh',
+    // Section headings — the page carries two tables.
+    flowsHeading: 'Packaged flows',
+    actionsHeading: 'Packaged actions',
     colFlow: 'Flow',
     colActivation: 'Activation',
     colActions: 'Actions',
@@ -3793,10 +3798,28 @@ const en = {
     // Two keys per action, not one: the response arm has an HTTP status to
     // name and the transport-exception arm does not, and a single key cannot
     // carry a hole only half its call sites can fill.
+    // Artifact-neutral by wording, and shared by BOTH sections' toggles: the
+    // sentence says nothing about flows, so the actions half reuses it rather
+    // than defining a second key with the same English in ten packs.
     toggleFailedHttp: 'Could not change activation (HTTP {{status}}).',
     toggleFailed: 'Could not change activation.',
     cloneFailedHttp: 'Could not clone this flow (HTTP {{status}}).',
     cloneFailed: 'Could not clone this flow.',
+
+    // ── Packaged ACTIONS section (ADR-0126 §8 item 2, ruling 3) ────────────
+    // ⛔ No clone key here on purpose: the action-clone half is unchartered,
+    // and a string is the cheapest way for an unchartered surface to appear.
+    actionsSubtitle:
+      'Actions shipped by installed packages. Turn one off for this deployment and it stops running everywhere it is offered. Authoring your own action alongside it stays open in Studio.',
+    colAction: 'Action',
+    colObject: 'Object',
+    // The object is part of the accessible name because it is part of the
+    // identity — two objects may declare the same action name.
+    actionToggleLabel: 'Activation for {{label}} on {{object}}',
+    actionsEmptyTitle: 'No packaged actions',
+    actionsEmptyBody:
+      'No installed package declares an action on this deployment. Actions you author yourself live in Studio.',
+    actionsLoadFailed: 'Could not load packaged actions.',
   },
 } as const;
 

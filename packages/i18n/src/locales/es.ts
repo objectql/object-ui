@@ -3418,8 +3418,10 @@ const es = {
   // linaje o desviación en este grupo (§9).
   packagedAutomation: {
     title: "Automatización de paquetes",
-    subtitle: "Flujos incluidos en los paquetes instalados. Desactiva uno en esta implementación o clónalo con un nombre nuevo para personalizarlo. La edición se hace en Studio.",
+    subtitle: "Flujos y acciones incluidos en los paquetes instalados. Desactiva uno en esta implementación o clona un flujo con un nombre nuevo para personalizarlo. La edición se hace en Studio.",
     refresh: "Actualizar",
+    flowsHeading: "Flujos de paquete",
+    actionsHeading: "Acciones de paquete",
     colFlow: "Flujo",
     colActivation: "Activación",
     colActions: "Acciones",
@@ -3441,6 +3443,13 @@ const es = {
     toggleFailed: "No se pudo cambiar la activación.",
     cloneFailedHttp: "No se pudo clonar este flujo (HTTP {{status}}).",
     cloneFailed: "No se pudo clonar este flujo.",
+    actionsSubtitle: "Acciones incluidas en los paquetes instalados. Desactiva una en esta implementación y dejará de ejecutarse en todos los lugares donde se ofrece. Crear tu propia acción junto a ella sigue estando disponible en Studio.",
+    colAction: "Acción",
+    colObject: "Objeto",
+    actionToggleLabel: "Activación de {{label}} en {{object}}",
+    actionsEmptyTitle: "Sin acciones de paquete",
+    actionsEmptyBody: "Ningún paquete instalado declara una acción en esta implementación. Las acciones que creas tú están en Studio.",
+    actionsLoadFailed: "No se pudieron cargar las acciones de paquete.",
   },
 };
 

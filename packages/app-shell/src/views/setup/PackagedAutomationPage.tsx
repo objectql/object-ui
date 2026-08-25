@@ -6,8 +6,13 @@
  * ## What this page is, and what it deliberately is not
  *
  * Automation AUTHORING lives in Studio and stays there. This page is the
- * OPERATIONAL surface for the flows a code package shipped: per packaged flow
- * it does exactly two things, and claims nothing beyond them —
+ * OPERATIONAL surface for the automation a code package shipped, in two
+ * sections: the packaged FLOWS below, and the packaged ACTIONS in
+ * `PackagedActionsSection.tsx` (ADR-0126 §8 item 2, amendment ruling 3 — its
+ * own header carries that charter and the reasons its section has no clone).
+ *
+ * Per packaged flow this half does exactly two things, and claims nothing
+ * beyond them —
  *
  *   1. **on/off for this scope** — reads the activation state the engine
  *      reports (`GET /api/v1/automation/_status`, backed by the ADR-0126 §7.2
@@ -106,6 +111,7 @@ import {
   type FlowRuntimeStateRow,
   type PackagedFlowRow,
 } from './packagedFlows.js';
+import { PackagedActionsSection } from './PackagedActionsSection.js';
 
 /* -------------------------------------------------------------------------- */
 /* Fetch helpers                                                               */
@@ -328,7 +334,7 @@ export function PackagedAutomationPage() {
           <p className="text-sm text-muted-foreground max-w-2xl">
             {t('packagedAutomation.subtitle', {
               defaultValue:
-                'Flows shipped by installed packages. Turn one off for this deployment, or clone it under a new name to customize it. Editing happens in Studio.',
+                'Flows and actions shipped by installed packages. Turn one off for this deployment, or clone a flow under a new name to customize it. Editing happens in Studio.',
             })}
           </p>
         </div>
@@ -342,6 +348,13 @@ export function PackagedAutomationPage() {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Two sections, each named: the page carries flows AND actions since
+          ADR-0126 §8 item 2, and an unlabelled first table beside a labelled
+          second one reads as though the second were an afterthought. */}
+      <h2 className="text-base font-semibold">
+        {t('packagedAutomation.flowsHeading', { defaultValue: 'Packaged flows' })}
+      </h2>
 
       {cloneResult && (
         <div role="status" className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-1">
@@ -452,6 +465,12 @@ export function PackagedAutomationPage() {
           </TableBody>
         </Table>
       )}
+
+      {/* The packaged-ACTIONS half (ADR-0126 §8 item 2). It reads and writes
+          through its own doors and keeps its own state, so the flows half above
+          is untouched by it; the page's one Refresh control drives both, which
+          is why the nonce is handed down rather than duplicated. */}
+      <PackagedActionsSection nonce={nonce} />
 
       <Dialog open={!!clone} onOpenChange={(open: boolean) => !open && setClone(null)}>
         <DialogContent>

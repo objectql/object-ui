@@ -3414,8 +3414,10 @@ const de = {
   // in dieser Gruppe (§9).
   packagedAutomation: {
     title: "Paketautomatisierung",
-    subtitle: "Flows aus installierten Paketen. Schalten Sie einen für diese Installation ab oder klonen Sie ihn unter einem neuen Namen, um ihn anzupassen. Bearbeitet wird im Studio.",
+    subtitle: "Flows und Aktionen aus installierten Paketen. Schalten Sie eines für diese Installation ab oder klonen Sie einen Flow unter einem neuen Namen, um ihn anzupassen. Bearbeitet wird im Studio.",
     refresh: "Aktualisieren",
+    flowsHeading: "Paket-Flows",
+    actionsHeading: "Paket-Aktionen",
     colFlow: "Flow",
     colActivation: "Aktivierung",
     colActions: "Aktionen",
@@ -3437,6 +3439,13 @@ const de = {
     toggleFailed: "Aktivierung konnte nicht geändert werden.",
     cloneFailedHttp: "Dieser Flow konnte nicht geklont werden (HTTP {{status}}).",
     cloneFailed: "Dieser Flow konnte nicht geklont werden.",
+    actionsSubtitle: "Aktionen aus installierten Paketen. Schalten Sie eine für diese Installation ab, und sie läuft überall dort nicht mehr, wo sie angeboten wird. Eine eigene Aktion daneben zu erstellen, bleibt Ihnen im Studio offen.",
+    colAction: "Aktion",
+    colObject: "Objekt",
+    actionToggleLabel: "Aktivierung für {{label}} auf {{object}}",
+    actionsEmptyTitle: "Keine Paket-Aktionen",
+    actionsEmptyBody: "In dieser Installation deklariert kein installiertes Paket eine Aktion. Selbst erstellte Aktionen finden Sie im Studio.",
+    actionsLoadFailed: "Paket-Aktionen konnten nicht geladen werden.",
   },
 };
 

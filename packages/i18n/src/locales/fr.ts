@@ -3416,8 +3416,10 @@ const fr = {
   // d'ascendance ou de dérive dans ce groupe (§9).
   packagedAutomation: {
     title: "Automatisation des packages",
-    subtitle: "Flux fournis par les packages installés. Désactivez-en un pour ce déploiement, ou clonez-le sous un nouveau nom pour le personnaliser. La modification se fait dans Studio.",
+    subtitle: "Flux et actions fournis par les packages installés. Désactivez-en un pour ce déploiement, ou clonez un flux sous un nouveau nom pour le personnaliser. La modification se fait dans Studio.",
     refresh: "Actualiser",
+    flowsHeading: "Flux des packages",
+    actionsHeading: "Actions des packages",
     colFlow: "Flux",
     colActivation: "Activation",
     colActions: "Actions",
@@ -3439,6 +3441,13 @@ const fr = {
     toggleFailed: "Impossible de modifier l'activation.",
     cloneFailedHttp: "Impossible de cloner ce flux (HTTP {{status}}).",
     cloneFailed: "Impossible de cloner ce flux.",
+    actionsSubtitle: "Actions fournies par les packages installés. Désactivez-en une pour ce déploiement et elle cesse de s'exécuter partout où elle est proposée. Vous pouvez toujours créer votre propre action à côté, dans Studio.",
+    colAction: "Action",
+    colObject: "Objet",
+    actionToggleLabel: "Activation de {{label}} sur {{object}}",
+    actionsEmptyTitle: "Aucune action de package",
+    actionsEmptyBody: "Aucun package installé ne déclare d'action sur ce déploiement. Les actions que vous créez vous-même se trouvent dans Studio.",
+    actionsLoadFailed: "Impossible de charger les actions des packages.",
   },
 };
 

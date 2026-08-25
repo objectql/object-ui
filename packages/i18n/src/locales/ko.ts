@@ -3412,8 +3412,10 @@ const ko = {
   // 인용부호는 「」. ⛔ 계보·드리프트를 나타내는 표현은 이 그룹에 두지 않습니다 (§9).
   packagedAutomation: {
     title: "패키지 자동화",
-    subtitle: "설치된 패키지가 제공하는 플로우입니다. 이 배포에서 끄거나, 새 이름으로 복제해 사용자 지정할 수 있습니다. 편집은 Studio에서 합니다.",
+    subtitle: "설치된 패키지가 제공하는 플로우와 액션입니다. 이 배포에서 끌 수 있으며, 플로우는 새 이름으로 복제해 사용자 지정할 수도 있습니다. 편집은 Studio에서 합니다.",
     refresh: "새로고침",
+    flowsHeading: "패키지 플로우",
+    actionsHeading: "패키지 액션",
     colFlow: "플로우",
     colActivation: "활성화 상태",
     colActions: "작업",
@@ -3435,6 +3437,13 @@ const ko = {
     toggleFailed: "활성화 상태를 변경하지 못했습니다.",
     cloneFailedHttp: "이 플로우를 복제하지 못했습니다 (HTTP {{status}}).",
     cloneFailed: "이 플로우를 복제하지 못했습니다.",
+    actionsSubtitle: "설치된 패키지가 제공하는 액션입니다. 이 배포에서 끄면 액션이 제공되는 모든 곳에서 실행되지 않습니다. Studio에서 직접 액션을 따로 작성하는 것은 계속 가능합니다.",
+    colAction: "액션",
+    colObject: "오브젝트",
+    actionToggleLabel: "{{object}}의 {{label}} 활성화 상태",
+    actionsEmptyTitle: "패키지 액션 없음",
+    actionsEmptyBody: "이 배포에는 액션을 선언하는 설치된 패키지가 없습니다. 직접 작성한 액션은 Studio에 있습니다.",
+    actionsLoadFailed: "패키지 액션을 불러오지 못했습니다.",
   },
 };
 
