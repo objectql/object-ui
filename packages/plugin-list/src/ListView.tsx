@@ -15,13 +15,13 @@ import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@obje
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
-import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
+import { SchemaRenderer, useNavigationOverlay, classifyLoadError, usePredicateScope } from '@object-ui/react';
 import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -1178,6 +1178,61 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     if (objectDeleteAllowed) return declared;
     return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
   }, [schema.bulkActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
+
+  /**
+   * [objectui#4420] The PER-RECORD half of the same key, for the same bar.
+   *
+   * `permittedBulkActions` above reads `userActions.delete` as a BOOLEAN — the
+   * object-level verdict — and that is all it ever read. Since objectui#2614
+   * the key also accepts `{ enabled?, visibleWhen?, disabledWhen? }`, whose
+   * `visibleWhen` gates the affordance **per record**; the row kebab has
+   * honoured it since, and this bar did not. Tick only a record the predicate
+   * excludes and the bar still offered the red Delete — the same declared key
+   * meaning two different things on two surfaces.
+   *
+   * ## What was ruled (maintainer, 2026-08-17 — behaviour 1 of three)
+   *
+   * Filter the operation and report the skipped. The bar evaluates
+   * `visibleWhen` once per selected record, Delete runs over the allowed
+   * SUBSET, and the excluded records are reported rather than silently
+   * dropped. Two rejected alternatives, restated because each is a way to
+   * misread this code: the button is **never hidden or disabled** by the
+   * predicate (behaviour 2 — one stray tick would disable the whole bar), and
+   * the predicate is **not** declared out of scope for set operations
+   * (behaviour 3 — the key must not mean different things on two surfaces).
+   * A selection where EVERY row is excluded therefore still renders the
+   * button; what the user gets is a legible refusal, not an absence.
+   *
+   * ## Why `evalRowPredicate`, never `useRowPredicate`
+   *
+   * A bulk gate evaluates N records in a LOOP, and React forbids a hook per
+   * iteration. `partitionRowsByPredicate` is that loop — the shared,
+   * fail-closed fold in `@object-ui/core` that the grid's own bulk bar reads
+   * through `partitionBulkRows`, so the two bars cannot drift on what
+   * "eligible" means.
+   *
+   * ## Why `objectDef`, and only the built-in `delete`
+   *
+   * The predicates come off the OBJECT's `userActions` block (the CRUD
+   * predicate vocabulary), never the VIEW's `schema.userActions` (toolbar
+   * policy) — the same name collision `toolbarFlags` above is pinned against.
+   * Only the built-in `delete` entry is filtered: custom action ids route
+   * through the action runner carrying their own gates, exactly as the
+   * object-level gate above leaves them alone.
+   */
+  const deleteVisibleWhen = React.useMemo(
+    () => resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).deletePredicates?.visibleWhen,
+    [objectDef, effectiveApiOps],
+  );
+  const predicateScope = usePredicateScope();
+  const bulkDeleteEligibility = React.useMemo(
+    () => partitionRowsByPredicate(deleteVisibleWhen as never, selectedRows as Array<Record<string, unknown>>, {
+      scope: predicateScope,
+      fields: objectDef?.fields,
+      label: 'delete',
+    }),
+    [deleteVisibleWhen, selectedRows, predicateScope, objectDef],
+  );
 
   /**
    * [#4647] Is the grid toolbar's inline-edit toggle offered at all?
@@ -3532,13 +3587,23 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               const actionStr = String(action).toLowerCase();
               const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');
               const Icon = isDestructive ? Trash2 : null;
+              // [objectui#4420] The built-in `delete` runs over the ALLOWED
+              // SUBSET — the records `userActions.delete.visibleWhen` admits —
+              // never the raw tick list. The button itself is untouched by the
+              // predicate (ruled: never hidden, never disabled); what shrinks
+              // is what it acts on, and the notice below owns up to it. Only
+              // the canonical `delete` is filtered: every other id routes
+              // through the action runner with its own gates.
+              const rowsForAction = actionStr === 'delete'
+                ? (bulkDeleteEligibility.eligible as any[])
+                : selectedRows;
               return (
                 <Button
                   key={action}
                   variant={isDestructive ? 'destructive' : 'outline'}
                   size="sm"
                   className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => props.onBulkAction?.(action, selectedRows)}
+                  onClick={() => props.onBulkAction?.(action, rowsForAction)}
                   data-testid={`bulk-action-${action}`}
                 >
                   {Icon && <Icon className="h-3 w-3" />}
@@ -3547,6 +3612,30 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               );
             })}
           </div>
+          {/* [objectui#4420] The report half of the ruling, on the surface that
+              has one. This bar dispatches straight through `onBulkAction` — it
+              never opens `BulkActionDialog`, so there is no confirm step to
+              carry the grid's `bulk-skipped-notice`; the bar states it up
+              front instead, which also makes the all-excluded case a legible
+              refusal BEFORE the click rather than a dead press. Same testid as
+              the dialog's slot: one name for one fact, whichever surface says
+              it. */}
+          {bulkDeleteEligibility.skipped > 0
+            && permittedBulkActions.some((a: any) => String(a).toLowerCase() === 'delete') && (
+            <span
+              className="text-muted-foreground ml-3"
+              data-testid="bulk-skipped-notice"
+            >
+              {/* The grid dialog's own key, deliberately: this is the same
+                  sentence about the same fact, already translated in every
+                  locale pack. A `list.*` alias would be a second spelling of
+                  one string — ten packs to keep in step for no new meaning. */}
+              {t('grid.bulk.skippedIneligible', {
+                count: bulkDeleteEligibility.skipped,
+                defaultValue: `${bulkDeleteEligibility.skipped} selected record(s) are not eligible for this action and will be skipped.`,
+              })}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"

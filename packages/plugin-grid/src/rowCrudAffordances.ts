@@ -151,6 +151,20 @@ export function resolveRowCrudAffordances(opts: {
   objectCanDelete: boolean;
   editPredicates?: RowCrudPredicates;
   deletePredicates?: RowCrudPredicates;
+  /**
+   * [objectui#4420] The per-record delete predicates tied to
+   * {@link objectCanDelete} rather than to `canDelete` — the BULK bar's half.
+   *
+   * `deletePredicates` above rides `canDelete`, which folds in the ROW wiring
+   * (`operations.delete`/`rowActions` ∧ `onDelete`). That is right for the row
+   * kebab and wrong for the selection bar for the same reason `objectCanDelete`
+   * exists: bulk delete rides `onBulkDelete`, so a consumer that wires only the
+   * bulk handler would otherwise have its author-declared `visibleWhen`
+   * silently dropped — judged by whether the *row* handler happens to be
+   * present. Same predicates, gated on the same verdict the bulk bar itself is
+   * gated on.
+   */
+  objectDeletePredicates?: RowCrudPredicates;
 } {
   // The object-level verdict comes from the shared policy — bucket default,
   // `userActions` override, then the server's effective operation set. The row
@@ -174,6 +188,7 @@ export function resolveRowCrudAffordances(opts: {
     objectCanDelete,
     editPredicates: canEdit ? aff.editPredicates : undefined,
     deletePredicates: canDelete ? aff.deletePredicates : undefined,
+    objectDeletePredicates: objectCanDelete ? aff.deletePredicates : undefined,
   };
 }
 
