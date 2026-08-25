@@ -441,6 +441,58 @@
  * objectui#3536 — these files are read on GitHub (and, for a published
  * package, on npm), never served by the site.
  *
+ * ## Why this file changed again (objectui#6026): the nested READMEs
+ *
+ * The gap the section above names, closed. `exclude` leaves a basename out at
+ * EVERY depth, so `README.md` on the `packages/*` / `apps/*` rows hid four
+ * files nothing else could reach either — the rows above them are exact
+ * top-level globs, and a nested README is not at that path:
+ *
+ *     packages/components/src/__tests__/README.md
+ *     packages/core/src/adapters/README.md
+ *     packages/plugin-gantt/docs/verification/README.md
+ *     packages/types/src/zod/README.md
+ *
+ * **Price: 4 files, 97 markdown links, 96 of them decidable here, 0 dead** —
+ * objectui#3572's shape, the one an extension should have: the row arrives at
+ * a surface already green rather than towing its own backlog (contrast
+ * objectui#3479's 16 dead targets and objectui#3490's 18). Nearly all of that
+ * is one file: `packages/plugin-gantt/docs/verification/README.md` carries 94
+ * of the 97, a verification log of relative links to sibling scripts, source
+ * files and its own screenshots. The other three carry 3 links between them,
+ * one of which is external.
+ *
+ * Because the price is zero, a passing run proves nothing on its own — so the
+ * tests pin the SURFACE (these files are opened, each by exactly one row) and
+ * not only the verdict.
+ *
+ * ### The mechanism: `collect`, and a row rooted one directory down
+ *
+ * `collect` is `exclude`'s inverse — the ONLY basenames `walk()` keeps, again
+ * at every depth. The two new rows add a second wildcard segment to
+ * `packages/*` and `apps/*` (the table below carries the literal paths; a
+ * block comment cannot, because the two characters that close a wildcard
+ * segment also close a comment). `expandWildcard()` turns each segment into
+ * the directories at that level, so these rows are rooted at the SUBdirectories
+ * of each package/app — and a package's own top-level `README.md` is not
+ * inside any of them, so it cannot be reached from here at all.
+ *
+ * That is the whole no-double-parse guarantee, and it is structural rather
+ * than a filter someone has to keep in sync: nothing in these rows mentions
+ * "top level", and `walk()` still has no notion of depth. The alternative
+ * considered — narrowing the `exclude` on `packages/*` to the top-level README
+ * only — needed exactly that notion, and it would then have been load-bearing
+ * for every future row rather than for this one.
+ *
+ * Together the three package rows partition the surface: the exact top-level
+ * `README.md`, every nested `README.md`, and everything that is neither a
+ * README nor a `CHANGELOG.md`. Every file is opened by exactly one row —
+ * asserted over the real tree, not left to reading.
+ *
+ * `CHANGELOG.md` stays excluded at every depth, unchanged. There is no nested
+ * one today; the exclusion is about what the name means (changesets output,
+ * never authored prose), not about where the file sits.
+ *
  * ## Code spans are stripped before scanning
  *
  * Required, not tidiness. Extending the scan to relative hrefs turns markdown's
@@ -491,6 +543,14 @@ const SITE_ORIGIN_RE = /^https?:\/\/(?:www\.)?objectui\.org(\/[^\s]*)?$/i;
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
 /** Shared empty exclude set — a fresh `Set()` per call would work identically, this just avoids allocating one on every `walk()`/`collectFiles()` call that has no row-level `exclude`. */
 const EMPTY_EXCLUDE = new Set();
+/**
+ * Collecting BY basename and excluding BY basename are opposite readings of
+ * one list, so a row carrying both has no defensible meaning — and what it
+ * would produce is the silent failure this file refuses everywhere else, a
+ * surface quietly narrowed to nothing. Same stance as `expandWildcard()`:
+ * throw rather than guess (objectui#6026).
+ */
+const BOTH_FILTERS = 'A SCAN_ROOTS row may set `exclude` OR `collect`, never both';
 
 /**
  * The scan surfaces, and the link semantics each one actually has.
@@ -513,8 +573,12 @@ const EMPTY_EXCLUDE = new Set();
  * objectui#4148 the app READMEs and the rest of the repo root.
  *
  * A row's `path` is a directory to walk, a single markdown file, or a pattern
- * whose one wildcard SEGMENT stands for every directory at that level — see
+ * whose wildcard SEGMENTS each stand for every directory at that level — see
  * `expandWildcard()` below, which is all the glob syntax this table has.
+ *
+ * A directory row may narrow what the walk keeps, by basename, at every depth:
+ * `exclude` names what to leave out, `collect` names the only names to take.
+ * They are opposite readings of one list, and a row may carry at most one.
  */
 export const SCAN_ROOTS = [
   { path: 'content/docs', rule: 'docs' },
@@ -530,6 +594,15 @@ export const SCAN_ROOTS = [
   // See "Why this file changed again (objectui#4938)" in the header.
   { path: 'packages/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
   { path: 'apps/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
+  // The nested `README.md` files: left out of the two rows above by their
+  // every-depth `exclude`, and never in range of the exact top-level globs
+  // above those, so nothing had ever opened them (objectui#6026). The SECOND
+  // wildcard segment is what keeps the top-level README out of these rows —
+  // they are rooted at each package/app's subdirectories, and the file the
+  // earlier row already scans is not inside any of them. See that card's
+  // section in the header.
+  { path: 'packages/*/*', rule: 'disk', collect: ['README.md'] },
+  { path: 'apps/*/*', rule: 'disk', collect: ['README.md'] },
   // The rest of the root-level markdown, completing that surface (objectui#4148).
   // `README.md`, `CONTRIBUTING.md` and `ROADMAP.md` are already above, in the
   // positions the rows that bought them left them in.
@@ -542,7 +615,20 @@ export const SCAN_ROOTS = [
 
 const blank = (text) => text.replace(/[^\n]/g, ' ');
 
-export function walk(dir, files = [], exclude = EMPTY_EXCLUDE) {
+/**
+ * Every markdown file under `dir`, at any depth, minus the directory names
+ * nothing of ours is ever the source of.
+ *
+ * The two basename filters are alternatives, and both apply at EVERY depth —
+ * `walk()` does not know how deep it has recursed, and deliberately still does
+ * not (objectui#6026: a row needing "top level only" says so with an extra
+ * wildcard segment in its `path`, not with a depth rule in here):
+ *
+ *   - `exclude` — the names to leave out (objectui#4938);
+ *   - `collect` — when given, the ONLY names to take, which is what makes
+ *     `exclude` meaningless alongside it.
+ */
+export function walk(dir, files = [], exclude = EMPTY_EXCLUDE, collect = null) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -552,12 +638,12 @@ export function walk(dir, files = [], exclude = EMPTY_EXCLUDE) {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!UNSCANNED_DIRS.has(entry.name)) walk(fullPath, files, exclude);
+      if (!UNSCANNED_DIRS.has(entry.name)) walk(fullPath, files, exclude, collect);
       continue;
     }
-    if (/\.(md|mdx)$/.test(entry.name) && !exclude.has(entry.name)) {
-      files.push(fullPath);
-    }
+    if (!/\.(md|mdx)$/.test(entry.name)) continue;
+    if (collect ? !collect.has(entry.name) : exclude.has(entry.name)) continue;
+    files.push(fullPath);
   }
   return files;
 }
@@ -566,7 +652,10 @@ export function walk(dir, files = [], exclude = EMPTY_EXCLUDE) {
  * Expands the leftmost wildcard segment of a scan root into one path per
  * directory at that level, sorted so the scan order — and therefore the report
  * order — does not depend on the filesystem's (objectui#3622). `collectFiles`
- * recurses, so a later wildcard segment expands on the next pass.
+ * recurses, so a later wildcard segment expands on the next pass — which is
+ * how the two-wildcard rows added by objectui#6026 come to mean "every
+ * subdirectory of every package/app", and therefore why a `README.md` sitting
+ * at a package's top level is outside those rows by construction.
  *
  * Deliberately not a glob library: a whole segment that is exactly `*`, and
  * nothing else. Anything richer THROWS rather than quietly matching nothing,
@@ -605,20 +694,26 @@ function expandWildcard(pattern) {
  *
  * `exclude` (objectui#4938) names BASENAMES to leave out at every depth under a
  * directory root — `README.md` and `CHANGELOG.md` for the two package/app
- * "everything else" rows below, so a directory walk can be added on top of the
- * single-file README row it duplicates without re-judging the same file twice
- * or pulling in a nested `README.md` this card never measured (see the
- * header). It has no effect on a single-file root: a row names its own file
- * outright, not by basename, so there is nothing for `exclude` to filter.
+ * "everything else" rows, so a directory walk can be added on top of the
+ * single-file README row it duplicates without re-judging the same file twice.
+ *
+ * `collect` (objectui#6026) is its inverse: the only basenames to KEEP, again
+ * at every depth — `README.md` for the two nested-README rows, whose paths
+ * carry a second wildcard segment so the top-level README the earlier rows own
+ * is not underneath them to begin with.
+ *
+ * Neither has any effect on a single-file root: a row names its own file
+ * outright, not by basename, so there is nothing to filter.
  */
-export function collectFiles(root, exclude = EMPTY_EXCLUDE) {
-  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded, exclude));
+export function collectFiles(root, exclude = EMPTY_EXCLUDE, collect = null) {
+  if (collect && exclude.size > 0) throw new Error(`${BOTH_FILTERS}, and got both for "${root}".`);
+  if (root.includes('*')) return expandWildcard(root).flatMap((expanded) => collectFiles(expanded, exclude, collect));
   try {
     if (statSync(root).isFile()) return /\.(md|mdx)$/.test(root) ? [root] : [];
   } catch {
     return [];
   }
-  return walk(root, [], exclude);
+  return walk(root, [], exclude, collect);
 }
 
 /**
@@ -947,7 +1042,8 @@ export function collectBrokenLinks(repoRoot) {
 
   for (const scanRoot of SCAN_ROOTS) {
     const exclude = scanRoot.exclude ? new Set(scanRoot.exclude) : undefined;
-    for (const file of collectFiles(path.join(repoRoot, scanRoot.path), exclude)) {
+    const collect = scanRoot.collect ? new Set(scanRoot.collect) : undefined;
+    for (const file of collectFiles(path.join(repoRoot, scanRoot.path), exclude, collect)) {
       const source = stripCode(readFileSync(file, 'utf8'));
       MARKDOWN_LINK_RE.lastIndex = 0;
       let match;
