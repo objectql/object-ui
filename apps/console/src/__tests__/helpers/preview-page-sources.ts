@@ -62,6 +62,30 @@ export function readHarness(file: string): string {
   return text;
 }
 
+/**
+ * `typescript-eslint` exports its parser typed as a minimal COMPATIBILITY SHIM —
+ * `parseForESLint(text: string): { ast: unknown; scopeManager: unknown }` — which
+ * hides both the real `@typescript-eslint/parser` signature (`(code,
+ * parserOptions)`) and the AST type. Importing `@typescript-eslint/parser`
+ * directly to get the real declarations would be a phantom dependency: nothing
+ * in this workspace declares it, it is only a transitive one
+ * (`scripts/check-phantom-dependencies.mjs`). So the signature is restated here,
+ * at the one boundary that needs it, and everything downstream still trusts no
+ * more than `unknown`.
+ */
+interface PreviewHarnessParser {
+  parseForESLint(
+    text: string,
+    options: {
+      sourceType: 'module';
+      ecmaVersion: 'latest';
+      ecmaFeatures: { jsx: boolean };
+    },
+  ): { ast: unknown };
+}
+
+const harnessParser = tseslint.parser as unknown as PreviewHarnessParser;
+
 type Node = Record<string, unknown> & { type: string };
 
 function isNode(value: unknown): value is Node {
@@ -119,10 +143,11 @@ function staticKey(property: Node): string | null {
  * Deliberately throws rather than skipping when a page's source cannot be
  * resolved: an extractor that silently finds zero pages is indistinguishable
  * from a clean file, which is the exact way a count-based guard rots
- * (objectui#5470).
+ * (objectui#5470 — that card's own 79 was a whole-file `grep -c`, i.e. LINES,
+ * harness JSX included; the rule's own count over the source strings is 95).
  */
 export function pagesOf(text: string, label = 'harness'): HarnessPage[] {
-  const { ast } = tseslint.parser.parseForESLint(text, {
+  const { ast } = harnessParser.parseForESLint(text, {
     sourceType: 'module',
     ecmaVersion: 'latest',
     ecmaFeatures: { jsx: true },
