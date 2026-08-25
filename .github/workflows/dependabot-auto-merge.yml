@@ -102,12 +102,31 @@ jobs:
           # pnpm store doesn't exist and setup-node's post-job cache save fails
           # with "Path Validation Error", which marks the whole job as failed.
 
-      - name: Configure Git merge driver for pnpm-lock.yaml
-        run: |
-          # Configure custom merge driver for pnpm-lock.yaml
-          # This allows Git to automatically resolve lockfile conflicts by regenerating it
-          git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
-          git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+      # No lockfile merge driver here, deliberately (objectui#6369).
+      #
+      # This job configured one until 2026-08-25. A merge driver is invoked by
+      # git only when git itself has to MERGE the attributed path, on the
+      # runner. The only merge this job performs is the last step's `gh pr
+      # merge --auto --squash`, and GitHub executes that SERVER-SIDE: the merge
+      # commit is produced by GitHub's own machinery in the merge queue, so the
+      # runner's local git config is never consulted and cannot participate.
+      # The driver therefore had no occasion to fire.
+      #
+      # Swept before removing: this file contains no `git merge`, `rebase`,
+      # `pull`, `cherry-pick`, `am`, `apply` or `revert` -- the `git config`
+      # pair this comment replaces was the only `git` in it. `actions/checkout`
+      # fetches a ref and checks it out; on a `pull_request` event that ref is
+      # the merge commit GitHub has ALREADY computed, so checking it out merges
+      # nothing locally (and `submodules: true` finds no `.gitmodules` here).
+      # `scripts/dependabot-merge-gate.mjs` imports `node:fs` and one local
+      # helper -- it shells out to nothing.
+      #
+      # Same no-occasion property as `changelog.yml` (objectui#6358), reached by
+      # a different route: that job never merged at all, this one merges only
+      # where local config cannot reach.
+      #
+      # Restoring it needs a real LOCAL merge in this job first. A server-side
+      # merge is not one, and missing that distinction is what put the step here.
 
       - name: Dependabot metadata
         id: metadata
