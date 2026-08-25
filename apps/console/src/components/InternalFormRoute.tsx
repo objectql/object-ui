@@ -44,7 +44,13 @@
  */
 
 import { useMemo } from 'react';
-import { DefaultHomeLayout, useMetadata, useNavigationContext } from '@object-ui/app-shell';
+import {
+  buildExpressionUser,
+  DefaultHomeLayout,
+  ExpressionProvider,
+  useMetadata,
+  useNavigationContext,
+} from '@object-ui/app-shell';
 import { useAuth } from '@object-ui/auth';
 import { FormPage } from './FormPage';
 import { buildCreatedRecordPath, type HostAppLike } from './createdRecordPath';
@@ -65,10 +71,18 @@ export function InternalFormRoute() {
     [apps, currentAppName],
   );
 
+  // The session principal, in the shape `ExpressionProvider` publishes it. The
+  // SAME normaliser `AppContent` uses, imported rather than re-derived: it is
+  // what supplies `positions: []` and `role`, and an absent key makes a
+  // predicate FAULT (fail-open) instead of resolving false — see #6110.
+  const expressionUser = useMemo(() => buildExpressionUser(user), [user]);
+
   return (
-    <DefaultHomeLayout userId={user?.id}>
-      <FormPage mode="internal" recordPath={recordPath} />
-    </DefaultHomeLayout>
+    <ExpressionProvider user={expressionUser}>
+      <DefaultHomeLayout userId={user?.id}>
+        <FormPage mode="internal" recordPath={recordPath} />
+      </DefaultHomeLayout>
+    </ExpressionProvider>
   );
 }
 

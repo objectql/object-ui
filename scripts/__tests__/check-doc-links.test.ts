@@ -113,6 +113,19 @@ import {
  * left out (see the script's header). The live instance: a dead link in
  * `packages/components/src/renderers/complex/TIMELINE.md` pointing at an
  * example app deleted whole months earlier, fixed in the same PR as the row.
+ *
+ * objectui#6026 bought the gap objectui#4938 had measured and deliberately
+ * left: a `README.md` that is not at a package's top level was excluded from
+ * the new rows by basename at every depth, and was never in range of the exact
+ * top-level globs above them either, so four real files were seen by no gate.
+ * The last describe pins the row that takes them, and two things there are
+ * worth reading before editing it. First, ENTRY PRICE ZERO: the four files
+ * carried no dead link, so a green run proves nothing on its own — the tests
+ * therefore assert the SURFACE (derived from the tree, not from a list in this
+ * file) rather than the verdict. Second, the no-double-parse guarantee is now
+ * asserted repo-wide instead of argued: every file the scan opens is opened by
+ * exactly one row, which is what makes the new rows safe to sit alongside the
+ * two rows that already walk the same directories.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -163,6 +176,46 @@ function brokenHrefs(files: Record<string, string>): string[] {
   const docsRoot = docsRootWith(files);
   const repo = path.resolve(docsRoot, '../..');
   return scan(repo).map((item) => item.href);
+}
+
+/** A `SCAN_ROOTS` row, as this file reads it — the module is `.mjs`, so untyped. */
+interface ScanRoot {
+  readonly path: string;
+  readonly rule: string;
+  readonly exclude?: string[];
+  readonly collect?: string[];
+}
+
+/** Every file the real scan opens, tagged with the row that opened it. */
+function scannedByRow(): { file: string; row: string }[] {
+  const opened: { file: string; row: string }[] = [];
+  for (const row of SCAN_ROOTS as ScanRoot[]) {
+    const files = collectFiles(
+      path.join(repoRoot, row.path),
+      row.exclude ? new Set(row.exclude) : undefined,
+      row.collect ? new Set(row.collect) : undefined,
+    ) as string[];
+    for (const file of files) opened.push({ file: path.relative(repoRoot, file), row: row.path });
+  }
+  return opened;
+}
+
+/**
+ * The nested-README population, derived from the tree rather than listed here
+ * (objectui#6026). An UNFILTERED walk of the same two wildcard roots is the
+ * oracle: whatever markdown is really under a package or app directory, minus
+ * the top-level `README.md` each package row already owns — which is a path
+ * shape (`<top>/<name>/README.md`), not a rule `walk()` knows.
+ */
+function nestedReadmes(): string[] {
+  const found: string[] = [];
+  for (const top of ['packages/*', 'apps/*']) {
+    for (const file of collectFiles(path.join(repoRoot, top)) as string[]) {
+      const segments = path.relative(repoRoot, file).split(path.sep);
+      if (segments[segments.length - 1] === 'README.md' && segments.length > 3) found.push(segments.join('/'));
+    }
+  }
+  return found.sort();
 }
 
 afterAll(() => {
@@ -401,9 +454,13 @@ describe('the repo it guards', () => {
     // in `docs` would then leave the whole tree unopened and every test above
     // green. Every root carries its own floor for that reason.
     const scanned = Object.fromEntries(
-      SCAN_ROOTS.map((root: { path: string; rule: string; exclude?: string[] }) => [
+      (SCAN_ROOTS as ScanRoot[]).map((root) => [
         root.path,
-        collectFiles(path.join(repoRoot, root.path), root.exclude ? new Set(root.exclude) : undefined).length,
+        collectFiles(
+          path.join(repoRoot, root.path),
+          root.exclude ? new Set(root.exclude) : undefined,
+          root.collect ? new Set(root.collect) : undefined,
+        ).length,
       ]),
     );
 
@@ -418,6 +475,8 @@ describe('the repo it guards', () => {
       'apps/*/README.md',
       'packages/*',
       'apps/*',
+      'packages/*/*',
+      'apps/*/*',
       'AGENTS.md',
       'CHANGELOG.md',
       'CLAUDE.md',
@@ -443,8 +502,22 @@ describe('the repo it guards', () => {
     // apps/*) the day the row landed; a floor rather than an exact count for
     // the same reason as every wildcard row above — the surface is meant to
     // pick up the next file someone adds, not stay pinned to today's.
-    expect(scanned['packages/*']).toBeGreaterThanOrEqual(12);
+    // objectui#5965 removed `packages/vscode-extension/SUMMARY.md` (a one-off
+    // session artifact asserting a CodeQL scan this repo never ran), taking
+    // the packages/* population from 12 to 11. The floor moves down by exactly
+    // that one deliberate deletion — it still fails if the scanner itself
+    // stops walking the tree, which is what this row guards.
+    expect(scanned['packages/*']).toBeGreaterThanOrEqual(11);
     expect(scanned['apps/*']).toBeGreaterThanOrEqual(3);
+    // objectui#6026. Four nested READMEs today, all under `packages/*`; the
+    // `apps/*` side of the pair is deliberately empty, which is why it gets NO
+    // count floor — a `toBe(0)` here would redden the first PR that writes a
+    // nested README under an app, and that PR is the row working. What keeps
+    // the empty row honest instead is the partition test in that card's
+    // describe: it derives the nested-README population from the tree and
+    // requires every one of them to be opened, so an `apps/*` row that stopped
+    // expanding would fail there the day it started mattering.
+    expect(scanned['packages/*/*']).toBeGreaterThanOrEqual(4);
     for (const rootFile of ['AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md', 'LICENSE-THIRD-PARTY.md', 'QUICK_REFERENCE.md']) {
       expect(scanned[rootFile], `${rootFile} is a SCAN_ROOTS row that opened no file`).toBe(1);
     }
@@ -475,6 +548,14 @@ describe('the repo it guards', () => {
     // of this pin too: it is what keeps the new rows from re-judging the
     // README rows right above them, or from silently widening onto the
     // per-package `CHANGELOG.md` files this card explicitly did not buy.
+    //
+    // objectui#6026 added the nested-README rows, `disk` again. Two parts of
+    // them are pinned here rather than left to reading: `collect` (the only
+    // basenames the walk keeps — the inverse of `exclude`, and the thing that
+    // stops these rows from becoming a second copy of the two above them), and
+    // the SECOND wildcard segment in each path, which is the whole reason the
+    // top-level README cannot be reached from these rows. A row quietly losing
+    // that segment would start double-parsing every package README.
     expect(SCAN_ROOTS).toEqual([
       { path: 'content/docs', rule: 'docs' },
       { path: 'examples', rule: 'disk' },
@@ -486,6 +567,8 @@ describe('the repo it guards', () => {
       { path: 'apps/*/README.md', rule: 'disk' },
       { path: 'packages/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
       { path: 'apps/*', rule: 'disk', exclude: ['README.md', 'CHANGELOG.md'] },
+      { path: 'packages/*/*', rule: 'disk', collect: ['README.md'] },
+      { path: 'apps/*/*', rule: 'disk', collect: ['README.md'] },
       { path: 'AGENTS.md', rule: 'disk' },
       { path: 'CHANGELOG.md', rule: 'disk' },
       { path: 'CLAUDE.md', rule: 'disk' },
@@ -1526,22 +1609,24 @@ describe('objectui#4938 — the rest of each package/app directory', () => {
     ]);
   });
 
-  it('excludes README.md and CHANGELOG.md at EVERY depth, not only the top level', () => {
+  it('excludes CHANGELOG.md at EVERY depth, not only the top level', () => {
     // `exclude` (new with this row) is a basename filter `walk()` applies at
     // every level it recurses into, not only the directory the scan root
-    // itself names. A nested README.md — real on main today, e.g.
-    // `packages/core/src/adapters/README.md` — is therefore left alone by this
-    // row too: it falls outside what objectui#4938 measured ("non-README
-    // markdown"), a still-open gap filed as its own card rather than folded in
-    // here. A nested CHANGELOG.md is excluded for the same reason the
-    // top-level one is: neither is authored prose.
+    // itself names. A nested CHANGELOG.md is therefore excluded for the same
+    // reason the top-level one is: neither is authored prose, wherever it sits.
+    //
+    // `README.md` is on this same every-depth exclude and stays there —
+    // objectui#6026 did NOT narrow it. That card added rows of its own for the
+    // nested READMEs (last describe), so the file a nested README carries is
+    // judged by exactly one row, and it is not this one. The distinct hrefs
+    // below are what makes that visible: a rejection here names the row that
+    // produced it.
     expect(
       rejections({
-        'packages/core/src/adapters/README.md': '[gone](./NOWHERE.md)',
-        'packages/core/src/adapters/CHANGELOG.md': '[also gone](./NOWHERE.md)',
-        'packages/core/src/adapters/NOTES.md': '[also gone](./NOWHERE.md)',
+        'packages/core/src/adapters/CHANGELOG.md': '[gone](./NOWHERE-changelog.md)',
+        'packages/core/src/adapters/NOTES.md': '[gone](./NOWHERE-notes.md)',
       }),
-    ).toEqual([['./NOWHERE.md', 'example-relative']]);
+    ).toEqual([['./NOWHERE-notes.md', 'example-relative']]);
   });
 
   it('does not re-report the top-level README the earlier row already scans', () => {
@@ -1603,7 +1688,10 @@ describe('objectui#4938 — the rest of each package/app directory', () => {
       ...(collectFiles(path.join(repoRoot, packagesRoot!.path), new Set(packagesRoot!.exclude)) as string[]),
       ...(collectFiles(path.join(repoRoot, appsRoot!.path), new Set(appsRoot!.exclude)) as string[]),
     ];
-    expect(files.length).toBeGreaterThanOrEqual(15);
+    // objectui#5965 removed `packages/vscode-extension/SUMMARY.md`, so the
+    // combined population is 14 (11 + 3) rather than the 15 measured when the
+    // row landed. Still a floor, for the reasoning above.
+    expect(files.length).toBeGreaterThanOrEqual(14);
 
     let decidable = 0;
     for (const file of files) {
@@ -1614,5 +1702,151 @@ describe('objectui#4938 — the rest of each package/app directory', () => {
       }
     }
     expect(decidable).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('objectui#6026 — the nested READMEs', () => {
+  /**
+   * The gap objectui#4938 measured and left open, named in its own header
+   * section: `exclude` drops a basename at EVERY depth, so `README.md` on the
+   * two rows above hid every README that is not at a package's top level —
+   * and the rows above THOSE are exact top-level globs, which such a file is
+   * not at. Four real files were therefore seen by no gate at all.
+   *
+   * Entry price was ZERO dead links (4 files, 97 markdown links, 96 decidable
+   * here). That makes a green run worthless as evidence on its own, and it is
+   * why the real-tree tests at the bottom of this describe assert the SCAN
+   * SURFACE — which files are opened, and by how many rows — instead of the
+   * verdict. The fixture tests above them are the ones that prove the rows can
+   * go red at all.
+   *
+   * The mechanism is `collect` (the inverse of `exclude`: the only basenames
+   * the walk keeps) plus a second wildcard segment in the row path. The second
+   * segment is what makes the no-double-parse guarantee structural: the rows
+   * are rooted at each package/app's SUBdirectories, so the top-level README
+   * the earlier row owns is not underneath them and no filter has to remember
+   * to leave it out.
+   */
+  it('judges a dead link in a nested README, and accepts a live one', () => {
+    // The row's whole purpose, in both directions at once.
+    const repo = repoWith({
+      'packages/core/src/adapters/README.md': '[gone](./NOWHERE.md) and [live](./adapter.ts)',
+      'packages/core/src/adapters/adapter.ts': 'export {};',
+    });
+
+    expect(scan(repo).map((item) => [path.relative(repo, item.file), item.href, item.reason])).toEqual([
+      [path.join('packages', 'core', 'src', 'adapters', 'README.md'), './NOWHERE.md', 'example-relative'],
+    ]);
+  });
+
+  it('reaches a nested README at any depth, and under an app as well as a package', () => {
+    // `apps/*` has no nested README on main today, so the fixture is the only
+    // place that row's mechanism is exercised — buying the surface while it is
+    // empty is the cheapest this ever gets, and an empty row that was never
+    // shown to work is not a surface at all.
+    expect(
+      rejections({
+        'packages/types/src/zod/README.md': '[gone](./NOWHERE-zod.md)',
+        'packages/plugin-gantt/docs/verification/deep/deeper/README.md': '[gone](./NOWHERE-deep.md)',
+        'apps/console/src/pages/README.md': '[gone](./NOWHERE-app.md)',
+      }),
+    ).toEqual([
+      // Scan order is SCAN_ROOTS order, then `expandWildcard()`'s sort — so
+      // `plugin-gantt` precedes `types`, and both precede the `apps` row.
+      ['./NOWHERE-deep.md', 'example-relative'],
+      ['./NOWHERE-zod.md', 'example-relative'],
+      ['./NOWHERE-app.md', 'example-relative'],
+    ]);
+  });
+
+  it('still does not re-report the top-level README — the second wildcard is what keeps it out', () => {
+    // The constraint this card must not break. `packages/*` + one more
+    // wildcard segment is rooted at `packages/core/src`, not `packages/core`,
+    // so the top-level README is outside these rows by construction rather
+    // than by a filter. One dead link, one report — not two.
+    expect(
+      rejections({
+        'packages/core/README.md': '[gone](./NOWHERE-top.md)',
+        'packages/core/src/adapters/README.md': '[gone](./NOWHERE-nested.md)',
+      }),
+    ).toEqual([
+      ['./NOWHERE-top.md', 'example-relative'],
+      ['./NOWHERE-nested.md', 'example-relative'],
+    ]);
+  });
+
+  it('takes only README.md — the other markdown beside it stays with the packages/* row', () => {
+    // `collect` is a whitelist, so the nested rows cannot widen onto a
+    // neighbouring file, and the CHANGELOG exclusion the row above owns is
+    // untouched by this card. Distinct hrefs so a double report would be
+    // visible rather than hidden behind two identical entries.
+    expect(
+      rejections({
+        'packages/core/src/adapters/README.md': '[gone](./NOWHERE-readme.md)',
+        'packages/core/src/adapters/NOTES.md': '[gone](./NOWHERE-notes.md)',
+        'packages/core/src/adapters/CHANGELOG.md': '[gone](./NOWHERE-changelog.md)',
+      }),
+    ).toEqual([
+      ['./NOWHERE-notes.md', 'example-relative'],
+      ['./NOWHERE-readme.md', 'example-relative'],
+    ]);
+  });
+
+  it('does not walk into a dependency tree looking for READMEs', () => {
+    // A published dependency's own README is not ours to judge — same
+    // exclusion every other walk in this file applies.
+    expect(
+      rejections({
+        'packages/core/src/adapters/README.md': '[gone](./NOWHERE-ours.md)',
+        'packages/core/node_modules/dep/src/README.md': '[gone](./NOWHERE-theirs.md)',
+      }),
+    ).toEqual([['./NOWHERE-ours.md', 'example-relative']]);
+  });
+
+  it('refuses a row that names both a collect list and an exclude list', () => {
+    // Opposite readings of one list. Guessing which was meant would narrow a
+    // surface silently, the one failure mode this gate must not have — same
+    // stance as `expandWildcard()` throwing on a partial-segment glob.
+    expect(() =>
+      collectFiles(path.join(repoRoot, 'packages'), new Set(['CHANGELOG.md']), new Set(['README.md'])),
+    ).toThrow(/`exclude` OR `collect`/);
+
+    expect(
+      (SCAN_ROOTS as ScanRoot[]).filter((row) => row.exclude && row.collect).map((row) => row.path),
+      'a SCAN_ROOTS row carrying both filters has no defensible meaning',
+    ).toEqual([]);
+  });
+
+  it('opens every nested README that is really in the tree — the surface, not the verdict', () => {
+    // The assertion this card actually needs. Entry price was zero dead links,
+    // so the green above proves nothing on its own; what has to be true is
+    // that these files are now LOOKED AT. The population is derived from an
+    // unfiltered walk of the same roots rather than listed here, so the day
+    // someone writes the fifth nested README this test covers it without an
+    // edit — and a row that stopped expanding fails here rather than going
+    // quietly green.
+    const nested = nestedReadmes();
+    const opened = new Set(scannedByRow().map((entry) => entry.file.split(path.sep).join('/')));
+
+    expect(nested.length, 'floor under the floor: an empty population would make the next line vacuous').toBeGreaterThanOrEqual(4);
+    expect(nested.filter((file) => !opened.has(file)), 'a nested README no SCAN_ROOTS row opens').toEqual([]);
+  });
+
+  it('opens every file exactly once — the rows partition the tree, they do not overlap', () => {
+    // The other half, and the constraint that makes it safe for three rows to
+    // walk the same package directory: a file opened twice is judged twice and
+    // reported twice. Repo-wide rather than package-only, because the cheapest
+    // way to break it is a new row elsewhere, not a change to these.
+    const rowsByFile = new Map<string, string[]>();
+    for (const entry of scannedByRow()) {
+      rowsByFile.set(entry.file, [...(rowsByFile.get(entry.file) ?? []), entry.row]);
+    }
+
+    const twice = [...rowsByFile.entries()]
+      .filter(([, rows]) => rows.length > 1)
+      .map(([file, rows]) => `${file} <- ${rows.join(' + ')}`);
+
+    expect(twice, 'these files are opened by more than one SCAN_ROOTS row').toEqual([]);
+    expect(rowsByFile.size, 'floor under the floor: nothing scanned would make the line above vacuous').toBeGreaterThanOrEqual(250);
   });
 });

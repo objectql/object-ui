@@ -585,11 +585,42 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     );
   }, []);
 
-  const rawDataConfig = getDataConfig(schema);
-  // Memoize dataConfig using deep comparison to prevent infinite loops
-  const dataConfig = useMemo(() => {
-    return rawDataConfig;
-  }, [JSON.stringify(rawDataConfig)]);
+  /**
+   * Memoized on the ONE value `getDataConfig` reads, and nothing else
+   * (objectui#6018) — the same shape `mapConfig` below landed for
+   * objectui#5976, now that the two lines agree.
+   *
+   * `dataConfig` is a dependency of the fetch effect, and that effect calls
+   * `setData`, so a fresh identity here is a refetch loop rather than mere
+   * waste. That hazard is real and is what the previous form's "prevent
+   * infinite loops" comment recorded. What has changed is the PRICE of the
+   * guard, not the guard: identity was bought by calling `getDataConfig` bare
+   * in the render body and re-serializing the result with `JSON.stringify` on
+   * EVERY render, only to hand back the object the memo already held.
+   *
+   * `[schema]` is the whole dependency, not a shorthand for one: `getDataConfig`
+   * is a pure function of `schema` and reads exactly three keys off it
+   * (`data`, `staticData`, `objectName`), nothing ambient. So no deep-compare
+   * key is needed to make the identity hold — the identity that reaches this
+   * component is already stable across the renders that matter. Every
+   * re-render `ObjectMap` causes ITSELF (data landing, the object definition
+   * landing, search typing, zoom, selection, geolocation) leaves the prop
+   * untouched by construction, which is precisely the loop path; and the three
+   * callers upstream each hand over a memoized node: `SchemaRenderer`'s
+   * `evaluatedSchema`, the gate's `mapped` in `useElementDataSourceSchema`,
+   * and `ListView`'s `viewComponentSchema`.
+   *
+   * Dropping the serialize is also a correctness move, not only a cost one.
+   * `JSON.stringify` is not a total function — it THROWS on a value it cannot
+   * serialize — and the passthrough branch of `getDataConfig` returns the
+   * author's own `schema.data` object verbatim, inline `value` rows included.
+   * So a record graph carrying a back-reference (an `$expand`-ed lookup handed
+   * to the block as inline data) or a `BigInt` id took the whole map subtree
+   * down from the render body. Comparing identities never serializes, so the
+   * config no longer has to be serializable at all.
+   * `ObjectMap.dataConfigMemo.test.tsx` pins both halves.
+   */
+  const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
   
   /**
    * Memoized on the ONE value `getMapConfig` reads, and nothing else
@@ -610,13 +641,15 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
    * memoized node: `SchemaRenderer`'s `evaluatedSchema`, the gate's `mapped`
    * in `useElementDataSourceSchema`, and `ListView`'s `viewComponentSchema`.
    *
-   * So this deliberately does NOT copy the `JSON.stringify` dep key the
-   * `dataConfig` line above uses. That idiom buys stability by paying a
-   * serialize on every render, and it is also key-order sensitive and drops
-   * `undefined` values — an equality this config cannot afford, since an
-   * ABSENT `titleField` is load-bearing here (objectui#5953) and must never
-   * compare equal to a present one. Identity is enough; nothing here needs
-   * value equality.
+   * This deliberately did NOT copy the `JSON.stringify` dep key the
+   * `dataConfig` line above used to carry, and as of objectui#6018 that line
+   * no longer carries it either — both are keyed on `[schema]` now. The
+   * serialize idiom bought stability by paying a full serialize on every
+   * render; it is also key-order sensitive and drops `undefined` values — an
+   * equality THIS config in particular cannot afford, since an ABSENT
+   * `titleField` is load-bearing here (objectui#5953) and must never compare
+   * equal to a present one. Identity is enough; nothing here needs value
+   * equality.
    */
   const mapConfig = useMemo(() => getMapConfig(schema), [schema]);
   const hasInlineData = dataConfig?.provider === 'value';

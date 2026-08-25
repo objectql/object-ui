@@ -5,7 +5,8 @@
  * reader who copies it actually imports.
  *
  * Run:  node scripts/check-doc-snippet-types.mjs   (also `pnpm check:doc-snippets`)
- *       node scripts/check-doc-snippet-types.mjs --build-filter   (turbo filter args)
+ *       node scripts/check-doc-snippet-types.mjs --build-filter   (filter args for
+ *       turbo or pnpm; each carries the `...` dependency-closure suffix)
  * Exit: 0 = every covered snippet parses and type-checks, the harness proved
  *       itself on its own controls, and the coverage ledger is exact.
  *       1 = THE GATE RAN AND FOUND ERRORS. A snippet failed to parse or to
@@ -1082,18 +1083,56 @@ export function blockingPreconditions(findings) {
   );
 }
 
+/**
+ * The filter arguments that name the packages the covered snippets import, each
+ * carrying pnpm/turbo's DEPENDENCY-CLOSURE suffix `...` ("this package AND the
+ * packages it depends on").
+ *
+ * The closure suffix is why this is a function and not an inline `map`. The set
+ * this gate computes is the packages the DOCUMENTS import, which is not a
+ * buildable unit: a package the docs import pulls in workspace packages no
+ * snippet ever names, and those still have to be built before the imported one
+ * can compile. Emitting the bare names left that gap to the caller's tool to
+ * close by accident (objectui#5911):
+ *
+ *   - `turbo run build <args>` closed it silently, because this repository's
+ *     `build` task declares `dependsOn: ["^build"]`. Measured on this tree, the
+ *     bare list and the `...` list select the IDENTICAL 33 tasks, so the suffix
+ *     changes nothing for the workflow that consumes this — it is a no-op where
+ *     the closure was already right.
+ *   - `pnpm <args> run build` did NOT, because pnpm's `--filter` selects exactly
+ *     what it matches and runs each package's own script. Measured on this tree:
+ *     21 packages selected instead of 33, and the build died at
+ *     `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL @object-ui/components` on
+ *     `TS2307: Cannot find module '@object-ui/sdui-parser'` — a workspace
+ *     package no snippet imports, so nothing put it in the list.
+ *
+ * Both spellings wear the same `--filter=` flag, so which one closes the gap was
+ * invisible at the point of use. Carrying the closure in the emitted list makes
+ * the answer independent of the tool the reader reaches for, which matters most
+ * for the reader who is here because the gate just told them to build something.
+ *
+ * @param {Iterable<string>} packages package names the covered snippets import
+ * @returns {string} space-separated `--filter=<pkg>...` words, sorted
+ */
+export function buildFilterArgs(packages) {
+  return [...packages].sort().map((n) => `--filter=${n}...`).join(' ');
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const state = analyze({});
 
   if (argv.includes('--build-filter')) {
-    // Turbo filter arguments for exactly the packages the covered snippets
-    // import. Coverage grows -> the build grows, and nothing else does.
+    // Filter arguments for exactly the packages the covered snippets import,
+    // plus their dependency closure. Coverage grows -> the build grows, and
+    // nothing else does. Why the closure travels in the list: see
+    // `buildFilterArgs` above.
     // ⛔ This query answers from an UNBUILT tree by design and must keep exiting
     // 0 there: it is what the workflow runs to learn what to build, one step
     // BEFORE the build. Making it share the precondition exit would deadlock the
     // gate against its own build step.
-    process.stdout.write([...state.neededPackages].sort().map((n) => `--filter=${n}`).join(' '));
+    process.stdout.write(buildFilterArgs(state.neededPackages));
     process.stdout.write('\n');
     return 0;
   }

@@ -169,6 +169,30 @@ expect allow 'grep -rn "he said \"sed -i\" once" .claude/'
 expect block 'node -e "console.log(\"hi\")" > pkg/out.json'
 expect block 'sed -i "s/\"a\"/\"b\"/" pkg/x.ts'
 
+echo "== an UNQUOTED \\\" opens no quote, so the write behind it is still seen (objectstack#11131) =="
+CWD="$MAIN"
+# The measured hole: segmentation read the escaped `"` as OPENING a quoted region that never
+# closed. Every separator behind it went inert, the command collapsed into one `echo`
+# segment, and the real in-place write was just another argument. tokenize() always had the
+# backslash branch; this is the pass agreement.
+expect block 'echo \" ; sed -i s/a/b/ pkg/x.ts'
+expect block 'echo \" ; rm -rf pkg/x.ts'
+expect block 'printf \" ; tee pkg/a.ts'
+expect block "$(printf 'echo \\"\nsed -i s/a/b/ pkg/x.ts\n')"
+# Precision twins: the escape must not manufacture a target where nothing is written, and
+# the same command aimed at a linked worktree stays allowed.
+expect allow 'echo \" ; echo hello'
+expect allow 'echo \" ; cat README.md'
+expect allow 'echo a\ b'
+expect allow 'echo \\ ; grep -n worktree README.md'
+# NOT a discriminating case for this fix, kept as a plain regression pin: a `>` target is
+# collected wherever it appears, so this blocked even while the passes disagreed. What the
+# disagreement lost was the COMMAND-NAME writers (sed -i / rm / tee) — once the command
+# collapsed into one segment the head word became `echo` and they were mere arguments.
+expect block 'echo \" && echo x > pkg/x.ts'
+CWD="$WT"
+expect allow 'echo \" ; sed -i s/a/b/ pkg/x.ts'
+
 echo "== a shell COMMENT is text, not a command (objectstack#10570) =="
 CWD="$MAIN"
 # The measured false blocks: prose in a comment put a real `>` in operator position and the
@@ -197,6 +221,32 @@ expect block 'echo ${#TOK[@]} > pkg/x.ts'
 expect block 'echo ${x#a} > pkg/x.ts'
 # an escaped `\#` outside quotes is a literal, not a comment opener
 expect allow 'echo \# not a comment'
+
+echo "== a heredoc introducer NAMED in a comment introduces nothing (objectstack#11133) =="
+CWD="$MAIN"
+# The measured hole: `<<EOF` inside prose registered as a real introducer. `EOF` never
+# appeared on a line of its own, so the pending heredoc was never satisfied and every
+# remaining line — including the real write — was dropped before analysis.
+expect block "$(printf '# use cat > /tmp/n <<EOF for notes\nsed -i s/a/b/ pkg/x.ts\n')"
+expect block "$(printf '# see the <<EOF trick\necho x >> pkg/x.ts\n')"
+expect block "$(printf 'git status   # cat <<MARKER writes notes\nrm -rf pkg/x.ts\n')"
+expect block "$(printf '# heredocs: <<-EOF and <<"Q" both introduce\ntouch pkg/new.ts\n')"
+# Real heredocs are untouched: a body is still prose, and the introducing line's own
+# redirect is still a write.
+expect allow "$(printf "cat > /tmp/notes.md <<'EOF'\nsed -i 's/a/b/' %s/pkg/x.ts\nEOF\n" "$MAIN")"
+expect block "$(printf 'cat > %s/notes.md <<EOF\nhello\nEOF\n' "$MAIN")"
+# An inline comment AFTER a real introducer must not cancel it — the body is still stripped,
+# and the negative twin shows a real write after the terminator is still caught.
+expect allow "$(printf 'cat > /tmp/n.md <<EOF   # notes\nsed -i s/a/b/ pkg/x.ts\nEOF\n')"
+expect block "$(printf 'cat > /tmp/n.md <<EOF   # notes\nhello\nEOF\nsed -i s/a/b/ pkg/x.ts\n')"
+# A QUOTED `#` on the introducing line is not a comment: truncating there would lose the
+# real introducer and expose the body as commands. This is the load-bearing precision case.
+expect allow "$(printf "grep '#' README.md <<EOF\nsed -i 's/a/b/' pkg/x.ts\nEOF\n")"
+# Ordering pin: an unbalanced apostrophe inside a heredoc BODY must not desynchronise the
+# comment rule for the lines that follow. Body lines never reach the comment scan, so the
+# real write after the terminator is still analysed.
+expect block "$(printf "cat > /tmp/n.md <<'EOF'\n# it's a note, don't strip me\nEOF\nsed -i s/a/b/ pkg/x.ts\n")"
+expect allow "$(printf "cat > /tmp/n.md <<'EOF'\n# it's a note, don't strip me\nEOF\ngit status\n")"
 
 echo "== shapes this guard deliberately does NOT claim (documented fail-open) =="
 CWD="$MAIN"

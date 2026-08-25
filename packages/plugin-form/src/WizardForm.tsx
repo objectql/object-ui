@@ -20,7 +20,7 @@ import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-r
 import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
@@ -405,6 +405,24 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // form and gated as an edit one.
   const isCreateWizard = isCreateFormMode(schema);
 
+  /**
+   * The host shell's global predicate scope (`ExpressionProvider` →
+   * `PredicateScopeProvider`) — `current_user` plus the ADR-0068 `user` /
+   * `ctx.user` / `os.user` aliases, `app`, `data`, `features`. Empty `{}` when
+   * no provider is mounted, which is the same "nothing to bind" the renderer
+   * sees (objectui#6110).
+   *
+   * Read HERE, at the component's top level, because the only consumer is a
+   * `useCallback` — a hook cannot be called inside one, and the gate below is
+   * invoked from a submit handler where no React context is readable at all.
+   * It joins that callback's dependency list for the same reason it joins the
+   * renderer's (#6010): a scope change — the host switching organisations, so
+   * `current_user.positions` changes — can flip a `visibleWhen` exactly as a
+   * keystroke can, and a memoized gate holding the old scope would answer the
+   * final submit with a principal the user no longer is.
+   */
+  const predicateScope = usePredicateScope();
+
   // Current section fields
   const currentSectionFields = useMemo(() => {
     if (currentStep >= 0 && currentStep < totalSteps) {
@@ -458,7 +476,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               serverOwnedValue: isServerOwnedValue(field, isCreateWizard),
             },
             undefined,
-            undefined,
+            // The host predicate scope, so `current_user` resolves here exactly
+            // as it does in the form renderer that DREW this field (#6010).
+            // Without it this gate faults on every `current_user` predicate and
+            // fails OPEN, demanding a field the wizard itself hid (#6110).
+            predicateScope,
             `field '${name}'`,
           );
           // View-level FormField.visibleOn hides the field the same way a
@@ -468,7 +490,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // receives the ADR-0089 canonical view-level `visibleWhen` spelling.
           const viewVisible =
             (field as any).visibleOn == null ||
-            evalFieldPredicate((field as any).visibleOn, record, true, undefined, undefined, {
+            evalFieldPredicate((field as any).visibleOn, record, true, undefined, predicateScope, {
               context: `visibleOn of field '${name}'`,
             });
           // A hidden or read-only field is not the user's to fill in.
@@ -479,7 +501,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       });
       return out;
     },
-    [schema.sections, buildSectionFields, isCreateWizard],
+    [schema.sections, buildSectionFields, isCreateWizard, predicateScope],
   );
 
   // Handle step data collection (merge partial data into formData)
