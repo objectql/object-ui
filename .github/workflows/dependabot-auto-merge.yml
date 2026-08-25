@@ -88,19 +88,34 @@ jobs:
         with:
           submodules: true
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Verify pnpm version
-        run: pnpm --version
-
+      # No pnpm setup here, deliberately (objectui#6392).
+      #
+      # This job ran `corepack enable` + `pnpm --version` until 2026-08-25,
+      # as a leftover of the lockfile merge driver removed in objectui#6389
+      # (see the "No lockfile merge driver here" note below) -- that driver
+      # step was the only thing in this job that ever needed pnpm. Once it
+      # was gone, enabling corepack and printing a pnpm version was a package
+      # manager set up for zero consumers: the Setup Node.js step right below
+      # already explains that this job never runs `pnpm install`, and nothing
+      # else here shells out to `pnpm`.
+      #
+      # Considered and rejected: keeping `pnpm --version` alone as a "proves
+      # corepack activated" fail-fast, so a future pnpm dependency would fail
+      # clearly instead of confusingly. Rejected because that failure mode
+      # has no occasion to matter until something in this job actually calls
+      # pnpm, and nothing does today -- an unexplained two-line "just in
+      # case" setup with no consumer is exactly the residue this issue is
+      # about, and keeping half of it recreates the same shape. If a future
+      # step here grows a real pnpm dependency, add `corepack enable` back
+      # next to that step, where a reader can see what it's for.
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '22.x'
-          # No `cache: 'pnpm'` here: this job never runs `pnpm install`, so the
-          # pnpm store doesn't exist and setup-node's post-job cache save fails
-          # with "Path Validation Error", which marks the whole job as failed.
+          # No `cache: 'pnpm'` here: this job doesn't set up pnpm at all (see
+          # the note above) and never runs `pnpm install`, so the pnpm store
+          # doesn't exist and setup-node's post-job cache save would fail
+          # with "Path Validation Error", marking the whole job as failed.
 
       # No lockfile merge driver here, deliberately (objectui#6369).
       #
