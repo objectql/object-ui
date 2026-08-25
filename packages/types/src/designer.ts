@@ -711,9 +711,9 @@ export interface ObjectManagerSchema extends BaseSchema {
  * Single runtime source for every surface that enumerates the designer's
  * vocabulary: `FieldDesigner` renders its palette in exactly this order (its
  * `FIELD_TYPE_META` is a `Record<DesignerFieldType, …>`, so adding a member
- * here without presentation is a compile error), and app-shell's
- * `object-fields-bridge` derives its editable-subset check from it instead of
- * restating the list (objectui#3017).
+ * here without presentation is a compile error), and `MetadataFieldsPage`
+ * derives its editable-subset check from it instead of restating the list
+ * (objectui#3017).
  */
 export const DESIGNER_FIELD_TYPES = [
   'text',
