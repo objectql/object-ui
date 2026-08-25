@@ -25,16 +25,55 @@ name: Changeset Guard
 #
 # It needs no install and no build — a checkout plus one `node` call, a few
 # seconds — so keep it that way if you add checks to it.
+#
+# ── Self-coverage (objectui#6321) ────────────────────────────────────────────
+#
+# The `.changeset/**` entry above is the inverse trigger this file exists for;
+# the two entries below it are a DIFFERENT thing — ordinary self-coverage, so a
+# change to the gate itself is exercised by the PR that makes it rather than by
+# the next unrelated PR that happens to touch `.changeset/**`. Before this,
+# neither this YAML nor the script it runs was in the filter at all: measured
+# against the other six path-filtered workflows in this repo, 5 of 7
+# self-include and this was one of the two that did not (the other,
+# `performance-budget.yml`, was closed in #6315).
+#
+# The convention those five follow is "list what the `run:` step below actually
+# executes" — own YAML plus the invoked script — not the transitive import
+# graph. `half-state-patrol.yml` additionally lists `scripts/invoked-as.mjs`,
+# but that is a documented one-off (its own header's divergence #2, tied to
+# objectui#5791's port from objectstack) and NOT the pattern the other three
+# self-including, script-running gates follow: `node-esm-load-gate.yml`,
+# `published-dist-gate.yml` and `spec-range-floors.yml` all import
+# `scripts/invoked-as.mjs` too (same `isEntrypoint` helper) and none of them
+# lists it — it is a widely shared utility (40+ importers under `scripts/`),
+# and a change to it is already caught by `check-entry-guard.mjs` /
+# `entry-guard-wiring.test.ts` in the ordinary vitest suite, not by re-running
+# every gate that happens to import it. So this filter matches the
+# three-of-four majority and does not add it either.
+#
+# Also deliberately NOT listed: `scripts/__tests__/check-changeset-no-major.test.ts`.
+# That file matches the `~ partial` pattern `published-dist-gate.yml` and
+# `spec-range-floors.yml` already set for their own gate scripts' `__tests__`
+# files — the test lives under `scripts/**`, which the `Decide whether this
+# change needs a full run` step in `ci.yml`/`lint.yml` does NOT exclude, so any
+# PR that edits it (or the script) already gets a real run of the root vitest
+# suite that executes it. Adding it here would duplicate coverage `pnpm test`
+# already provides on exactly the PRs where it matters, for no PR it would add
+# it on.
 
 on:
   pull_request:
     branches: [main, develop]
     paths:
       - '.changeset/**'
+      - '.github/workflows/changeset-guard.yml'
+      - 'scripts/check-changeset-no-major.mjs'
   push:
     branches: [main]
     paths:
       - '.changeset/**'
+      - '.github/workflows/changeset-guard.yml'
+      - 'scripts/check-changeset-no-major.mjs'
 
 concurrency:
   group: changeset-guard-${{ github.event.pull_request.number || github.ref }}
