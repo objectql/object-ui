@@ -1429,6 +1429,171 @@ export interface ObjectFormSchema extends BaseSchema {
 }
 
 /**
+ * The `ObjectGridSchema` keys a view's `table` slot may carry: every member
+ * `ObjectGridSchema` declares, minus the identity keys the view itself fixes
+ * (`type`, `objectName`). 59 keys.
+ *
+ * ⚠️ This is an explicit list, and NOT `Omit<ObjectGridSchema, 'type' | 'objectName'>`,
+ * because `Omit` collapses here (objectui#6269). `Omit<T, K>` is
+ * `Pick<T, Exclude<keyof T, K>>`, and `keyof T` on a type carrying a string
+ * index signature is `string | number` — the literal member names are ABSORBED.
+ * `ObjectGridSchema` inherits `BaseSchema`'s `[key: string]: any`
+ * (objectui#5155), so the `Omit` rebuilt a type holding the index signature and
+ * NONE of the 61 named members: measured through the checker,
+ * `Omit<ObjectGridSchema, 'type' | 'objectName'>` declared 0 properties. The
+ * slot accepted anything (`table: { colunms: 3 }` type-checked), offered no
+ * editor completion, and the doc comment promised an inheritance it did not
+ * deliver. `Pick` with LITERAL keys never computes `keyof T`, so it cannot
+ * collapse the same way.
+ *
+ * 🔒 The duplicate-list hazard — a member added to `ObjectGridSchema` and not to
+ * this list — is pinned by
+ * `src/__tests__/object-view-slot-key-lists.test.ts`, which recomputes the
+ * source schema's declared members through the TypeScript checker and requires
+ * set equality with this list.
+ *
+ * 🗑️ When a #5155 phase removes `BaseSchema`'s root index signature, `Omit`
+ * stops collapsing: this list, `ObjectFormSlotKey` below, and their pin all
+ * become removable in favour of the original `Omit` form.
+ */
+type ObjectGridSlotKey =
+  | 'aggregations'
+  | 'ariaLabel'
+  | 'batchActions'
+  | 'body'
+  | 'bulkActionDefs'
+  | 'bulkActions'
+  | 'bulkSpecActions'
+  | 'children'
+  | 'className'
+  | 'columns'
+  | 'conditionalFormatting'
+  | 'data'
+  | 'defaultFilters'
+  | 'defaultSort'
+  | 'description'
+  | 'disabled'
+  | 'disabledOn'
+  | 'editable'
+  | 'emptyState'
+  | 'exportOptions'
+  | 'fields'
+  | 'filter'
+  | 'frozenColumns'
+  | 'grouping'
+  | 'hidden'
+  | 'hiddenOn'
+  | 'id'
+  | 'keyboardNavigation'
+  | 'label'
+  | 'name'
+  | 'navigation'
+  | 'onNavigate'
+  | 'operations'
+  | 'pageSize'
+  | 'pagination'
+  | 'placeholder'
+  | 'reorderableColumns'
+  | 'resizable'
+  | 'resizableColumns'
+  | 'rowActions'
+  | 'rowColor'
+  | 'rowHeight'
+  | 'rowSpecActions'
+  | 'searchableFields'
+  | 'selectable'
+  | 'selection'
+  | 'showColumnTypeIcons'
+  | 'showFilters'
+  | 'showPagination'
+  | 'showSearch'
+  | 'singleClickEdit'
+  | 'sort'
+  | 'staticData'
+  | 'style'
+  | 'testId'
+  | 'title'
+  | 'visible'
+  | 'visibleOn'
+  | 'visibleWhen';
+
+/**
+ * The `ObjectFormSchema` keys a view's `form` slot may carry: every member
+ * `ObjectFormSchema` declares, minus the identity keys the view itself fixes
+ * (`type`, `objectName`, `mode`). 64 keys.
+ *
+ * Same mechanism, same pin, same removal condition as `ObjectGridSlotKey` above
+ * — see its comment. Measured before the fix:
+ * `Omit<ObjectFormSchema, 'type' | 'objectName' | 'mode'>` declared 0 of
+ * `ObjectFormSchema`'s 67 members.
+ */
+type ObjectFormSlotKey =
+  | 'allowSkip'
+  | 'ariaLabel'
+  | 'body'
+  | 'buttons'
+  | 'cancelText'
+  | 'children'
+  | 'className'
+  | 'columns'
+  | 'customFields'
+  | 'data'
+  | 'defaultTab'
+  | 'defaults'
+  | 'description'
+  | 'disabled'
+  | 'disabledOn'
+  | 'drawerSide'
+  | 'drawerWidth'
+  | 'fields'
+  | 'formType'
+  | 'groups'
+  | 'hidden'
+  | 'hiddenOn'
+  | 'id'
+  | 'initialData'
+  | 'initialValues'
+  | 'label'
+  | 'layout'
+  | 'mobile'
+  | 'modalCloseButton'
+  | 'modalSize'
+  | 'name'
+  | 'navigateOnSuccess'
+  | 'nextText'
+  | 'onCancel'
+  | 'onError'
+  | 'onOpenChange'
+  | 'onStepChange'
+  | 'onSuccess'
+  | 'open'
+  | 'placeholder'
+  | 'prevText'
+  | 'readOnly'
+  | 'recordId'
+  | 'resetOnSuccess'
+  | 'sections'
+  | 'showCancel'
+  | 'showReset'
+  | 'showStepIndicator'
+  | 'showSubmit'
+  | 'splitDirection'
+  | 'splitResizable'
+  | 'splitSize'
+  | 'style'
+  | 'subforms'
+  | 'submitBehavior'
+  | 'submitHandler'
+  | 'submitText'
+  | 'successMessage'
+  | 'tabPosition'
+  | 'testId'
+  | 'title'
+  | 'visible'
+  | 'visibleOn'
+  | 'visibleWhen';
+
+/**
  * ObjectView Schema
  * A complete object management interface combining ObjectGrid and ObjectForm.
  * Provides list view with search, filters, and integrated create/edit dialogs.
@@ -1484,16 +1649,22 @@ export interface ObjectViewSchema extends BaseSchema {
   navigation?: ViewNavigationConfig;
   
   /**
-   * Table/Grid configuration
-   * Inherits from ObjectGridSchema
+   * Table/Grid configuration.
+   *
+   * Every `ObjectGridSchema` member except the identity keys this view already
+   * fixes (`type`, `objectName`) — see `ObjectGridSlotKey` for why the key list
+   * is spelled out instead of `Omit`-ed (objectui#6269).
    */
-  table?: Partial<Omit<ObjectGridSchema, 'type' | 'objectName'>>;
+  table?: Partial<Pick<ObjectGridSchema, ObjectGridSlotKey>>;
   
   /**
-   * Form configuration
-   * Inherits from ObjectFormSchema
+   * Form configuration.
+   *
+   * Every `ObjectFormSchema` member except the identity keys this view already
+   * fixes (`type`, `objectName`, `mode`) — see `ObjectFormSlotKey` for why the
+   * key list is spelled out instead of `Omit`-ed (objectui#6269).
    */
-  form?: Partial<Omit<ObjectFormSchema, 'type' | 'objectName' | 'mode'>>;
+  form?: Partial<Pick<ObjectFormSchema, ObjectFormSlotKey>>;
   
   /**
    * Fields that support text search

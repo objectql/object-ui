@@ -25,7 +25,7 @@ one has its own section below.
 |---|---|---|---|
 | `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but the two coverage-lane jobs (`test-coverage` and `coverage-report`, push only) runs on PRs and on queue builds |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
-| `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
+| `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` or the gate itself | **Yes** |
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
@@ -65,8 +65,10 @@ The path filters explain most "why did nothing run on my PR?" questions:
   the whole point: a check that is never *created* cannot be a required check — it leaves the PR
   pending rather than failing it — so while the filter sat on the trigger, none of these could be
   required at all.
-- `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
-  which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
+- `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes
+  (plus its own YAML and `scripts/check-changeset-no-major.mjs`, so a change to the gate itself is
+  exercised by the PR that makes it — objectui#6321), which is precisely why it is a separate
+  workflow instead of a job inside `ci.yml`.
 - `changeset-presence.yml` is that guard's mirror image and the reason there are two: a PR which
   *forgot* its changeset does not touch `.changeset/**`, so the inverse filter guarantees the one
   check that could notice never runs. It therefore carries **no** filter and decides from the diff
@@ -134,8 +136,9 @@ Two things follow for anyone editing this directory:
   reading; they are examples rather than a census, so a further workflow carrying any of these
   shapes is just as unrequirable without appearing here.
   - **Changeset Bump Policy** (`changeset-guard.yml`) — an **inverse** path filter: its
-    `pull_request` trigger declares `paths: ['.changeset/**']`, so on a PR that touches nothing
-    under `.changeset/**` the context is never created at all.
+    `pull_request` trigger declares
+    `paths: ['.changeset/**', '.github/workflows/changeset-guard.yml', 'scripts/check-changeset-no-major.mjs']`,
+    so on a PR that touches none of those three the context is never created at all.
   - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
     trigger, with the same consequence for every PR that matches none of its paths.
   - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
@@ -1261,6 +1264,18 @@ inverse of every other workflow's filter. It was carved out of `ci.yml` because 
 changeset started nothing at all. Since [#3523](https://github.com/objectstack-ai/objectui/issues/3523) such a PR does start both — and every
 job in them short-circuits, because `.changeset/**` is still on the in-job ignore list. The check
 that has to read the changeset therefore still lives here.
+
+The same `paths:` list also carries the gate's own YAML and
+`scripts/check-changeset-no-major.mjs` ([#6321](https://github.com/objectstack-ai/objectui/issues/6321))
+— self-coverage, not the inverse trigger above: without it, a PR that edits the gate is not the PR
+that runs it, and the first real execution lands on someone else's unrelated `.changeset/**` PR.
+Deliberately not listed: `scripts/invoked-as.mjs` (a dependency the gate script imports, but a
+widely shared one — 40+ importers under `scripts/` — that `published-dist-gate.yml`,
+`spec-range-floors.yml` and `node-esm-load-gate.yml` also import without listing; only
+`half-state-patrol.yml` lists it, as a documented one-off) and the script's own
+`__tests__/check-changeset-no-major.test.ts` (it already runs in the root vitest suite on any PR
+that touches `scripts/**`, the same `~ partial` reasoning `published-dist-gate.yml` and
+`spec-range-floors.yml` apply to their own gate scripts' `__tests__` files).
 
 Runs `scripts/check-changeset-no-major.mjs`, which fails if any pending changeset declares a
 `major` bump. Every publishable package is in one `fixed` group (39 packages), so a single
