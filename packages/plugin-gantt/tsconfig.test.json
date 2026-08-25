@@ -9,12 +9,21 @@
     // The package build emits `dist`; this project emits nothing, so it must
     // not inherit `composite` / `declaration` from the build config.
     "composite": false,
-    // No `types` override: nothing in this package's 39 test files reaches for a
-    // global augmentation. They assert on DOM nodes directly rather than through
-    // `@testing-library/jest-dom`'s matchers, and none of them touches a Node
-    // global — so the default automatic `@types/*` inclusion is exactly right
-    // here, and naming `types` would only switch it off. Same shape as
-    // `packages/providers/tsconfig.test.json`.
+    // These tests still assert on DOM nodes directly rather than through
+    // `@testing-library/jest-dom`'s matchers, so no matcher augmentation is
+    // named here. `node` is, and only because one test needs it:
+    // `readme-navigation-example.test.ts` reads this package's README off disk
+    // to hold the published `navigation` example to the schema that validates
+    // it (objectui#6050) — the same reason `packages/plugin-calendar` and
+    // `packages/layout` name it in their own test configs. Naming `types` at all
+    // switches off automatic `@types/*` inclusion, which is why this is a list
+    // rather than a single addition; `@types/react` / `@types/react-dom` keep
+    // resolving through the `react` imports the `.tsx` tests already make, as
+    // they do in `packages/plugin-calendar/tsconfig.test.json`.
+    //
+    // It stays OUT of `tsconfig.json`: package SOURCE ships to browsers and must
+    // not compile against Node APIs.
+    "types": ["node"],
     //
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built

@@ -45,8 +45,8 @@
  * copy drifts from the file it claims to pin and therefore pins nothing — a
  * snippet nobody re-measured is the defect this test exists to prevent, so
  * reproducing it inside the test would be self-defeating. A moved heading, a
- * removed fence or a non-JSON body fails LOUDLY here rather than vacuously
- * passing on an empty fixture.
+ * removed fence or a non-JSON body throws out of the extractor rather than
+ * vacuously passing on an empty fixture.
  *
  * ## The green carries its own control
  *
@@ -128,12 +128,12 @@ function readmeExample(): Record<string, unknown> {
   const fence = /^[ \t]*```json[ \t]*\n([\s\S]*?)\n[ \t]*```/m.exec(after);
   if (!fence) throw new Error('no ```json fence follows the navigation-override sentence in the README');
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fence[1]);
-  } catch (err) {
-    throw new Error(`the README's navigation example is not valid JSON: ${String(err)}\n${fence[1]}`);
-  }
+  // Not wrapped in a try/catch: `JSON.parse`'s own `SyntaxError` names the
+  // offending token and is thrown from this line, which is louder than anything
+  // a re-throw could add. (A wrapper would also have to attach the caught error
+  // as a `cause` to satisfy `preserve-caught-error`, and `Error.cause` is ES2022
+  // — above this project's ES2020 lib.)
+  const parsed: unknown = JSON.parse(fence[1]);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('the README\'s navigation example is not a JSON object');
   }
