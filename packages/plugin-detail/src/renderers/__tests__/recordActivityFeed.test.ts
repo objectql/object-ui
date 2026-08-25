@@ -30,6 +30,7 @@ import {
   normalizeLimit,
   resetUnknownActivityTypeWarnings,
   resetUnrecognisedFeedTypeWarnings,
+  resetUnrecognisedFilterModeWarnings,
   UNMAPPED_ACTIVITY_FEED_TYPE,
 } from '../recordActivityFeed';
 
@@ -371,6 +372,10 @@ describe('a scheduled activity reaches the feed (objectui#5840)', () => {
 
 describe('input normalisation reads its vocabulary from the spec', () => {
   it('accepts every FeedFilterMode the spec declares, and only those', () => {
+    // Spied and reset because the unrecognised legs below now also emit a
+    // diagnostic (objectui#5891). This case pins the RETURN VALUE only; the
+    // emission is pinned in its own suite, which owns the dedupe bucket.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const mode of SpecFilterMode.options) {
       expect(normalizeFilterMode(mode)).toBe(mode);
     }
@@ -379,6 +384,8 @@ describe('input normalisation reads its vocabulary from the spec', () => {
     expect(normalizeFilterMode('x')).toBe('all');
     expect(normalizeFilterMode(undefined)).toBe('all');
     expect(normalizeFilterMode(7)).toBe('all');
+    resetUnrecognisedFilterModeWarnings();
+    warn.mockRestore();
   });
 
   it('accepts every FeedItemType the spec declares, read from the spec itself', () => {
@@ -619,5 +626,117 @@ describe('mergeFeedItems', () => {
     );
     expect(merged.map((i) => i.id)).toEqual(['a', 'b']);
     expect(merged[1].body).toBe('newer');
+  });
+});
+
+/**
+ * objectui#5891 — the `filterMode` fold is SAID OUT LOUD.
+ *
+ * Ruled in-lane by triage (2026-08-25) as option A: the `'all'` fallback stays
+ * (there is no defensible narrower default, and passing an unrecognised value
+ * through renders a blank dropdown — objectui#3151's posture), and what is
+ * repaired is its INVISIBILITY. So the deliverable is a diagnostic, not a
+ * behaviour change, and this suite is written accordingly.
+ *
+ * ⚠️ The trap this suite exists to avoid: a pin that asserts only "still
+ * returns `'all'`" is green before AND after the fix, forever — it never
+ * touches the verdict channel the card is about. Every case below therefore
+ * spies on the channel the diagnostic writes to, and the suite asserts BOTH
+ * directions: an unrecognised value emits (once, naming itself and the declared
+ * modes), and a recognised or absent one emits NOTHING.
+ *
+ * ⚠️ The dedupe bucket is module scope, so a case could see an empty channel
+ * purely because an earlier case already consumed the one warning for that
+ * value. Two independent guards: the bucket is cleared in `afterEach` through
+ * the exported seam, AND every case uses a value no other case uses.
+ */
+describe('an unrecognised `filterMode` still folds onto `all`, but says so (objectui#5891)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetUnrecognisedFilterModeWarnings();
+  });
+
+  const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  /**
+   * The near-miss the card was filed for: the declared spelling is
+   * `comments_only`. Its unrecognisedness is DERIVED from the spec rather than
+   * asserted by hand — if it ever became declared, the guard below fails loudly
+   * instead of this suite quietly testing nothing.
+   */
+  const NEAR_MISS = 'comments-only';
+
+  it('the value this suite treats as a near-miss is outside the declared vocabulary', () => {
+    expect(SpecFilterMode.options).not.toContain(NEAR_MISS);
+    // …and it really is a near-miss of a declared mode, not an arbitrary string.
+    expect(SpecFilterMode.options).toContain(NEAR_MISS.replace('-', '_'));
+  });
+
+  it('names the offending value AND every declared mode, exactly once', () => {
+    const warn = quiet();
+
+    expect(normalizeFilterMode(NEAR_MISS)).toBe('all');
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    // The author has to be able to see WHICH value was dropped…
+    expect(message).toContain(NEAR_MISS);
+    // …and WHAT they could have written instead. The list is read from the
+    // spec here for the same reason the source reads it from the spec: a pin
+    // that re-states the enum it is pinning cannot fail when the enum moves.
+    expect(message).toContain(SpecFilterMode.options.join(', '));
+    // And the widening is stated, because that is the severity of the fold.
+    expect(message).toContain('WIDEST');
+  });
+
+  it('warns once per distinct value, not once per call', () => {
+    // A page re-runs this on every render; an authoring mistake is ONE mistake.
+    const warn = quiet();
+    for (let i = 0; i < 5; i += 1) {
+      expect(normalizeFilterMode('changes-only')).toBe('all');
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    // A DIFFERENT typo is a different mistake and is still named.
+    expect(normalizeFilterMode('tasksOnly')).toBe('all');
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(String(warn.mock.calls[1][0])).toContain('tasksOnly');
+  });
+
+  it('reports a value of the wrong TYPE by its type, and still opens on `all`', () => {
+    const warn = quiet();
+    expect(normalizeFilterMode(7)).toBe('all');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('number');
+  });
+
+  it('stays SILENT for every mode the spec declares', () => {
+    // The control that stops the emit assertions above from passing for the
+    // wrong reason: a helper that warned unconditionally would satisfy them.
+    const warn = quiet();
+    for (const mode of SpecFilterMode.options) {
+      expect(normalizeFilterMode(mode)).toBe(mode);
+    }
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('stays SILENT when no `filterMode` was authored at all', () => {
+    // Absent is not a mistake, and a warning about a non-mistake teaches
+    // authors to ignore the channel — the reason the sibling `sys_activity`
+    // diagnostic does not fire for deliberate exclusions either.
+    const warn = quiet();
+    expect(normalizeFilterMode(undefined)).toBe('all');
+    expect(normalizeFilterMode(null)).toBe('all');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps its channel apart from the `types` channel', () => {
+    // Same reasoning as the `types` ↔ `sys_activity.type` pair: one channel
+    // having spoken must not silence another that shares a spelling.
+    const warn = quiet();
+    normalizeFilterMode('comment');       // a declared FeedItemType, not a filter mode
+    normalizeFeedTypes(['comments_only']); // a declared filter mode, not a feed type
+    expect(warn).toHaveBeenCalledTimes(2);
+    resetUnrecognisedFeedTypeWarnings();
   });
 });
