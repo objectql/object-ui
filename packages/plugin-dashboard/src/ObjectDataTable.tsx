@@ -130,6 +130,132 @@ export type EnrichedColumn =
   & { [K in Exclude<keyof FieldMeta, keyof TableColumn | 'name'>]?: never };
 
 /**
+ * What this widget's column producer is allowed to READ off the AUTHORED
+ * column as a field-meta override (objectui#6425) — the READ half of the seam
+ * {@link EnrichedColumn} above fences on the WRITE side. objectui#6373 fenced
+ * what `enrich` emits; nothing yet fenced what it consumes.
+ *
+ * `enrich` hands `buildFieldMeta` six values taken off the authored column.
+ * Five of them — `format`, `options`, `referenceTo`, `currency`, `decimals` —
+ * are declared by neither `TableColumn` (`@object-ui/types`) nor its
+ * `TableColumnSchema` zod mirror. Three were reached through `(col as any)`;
+ * the other two through {@link NormalizedColumn}'s `[key: string]: any`, which
+ * answers `any` just as loudly without the tell. So the widget honoured an
+ * authoring vocabulary the published types refuse, and no artefact in the repo
+ * said which keys those were or why.
+ *
+ * ## ⛔ This declares nothing and retires nothing
+ *
+ * Declaring these five on `TableColumn` widens a PUBLISHED type — the runtime
+ * accepted set would not move, but the promise would, and a declared key
+ * cannot be withdrawn later without a breaking change. Retiring any of them
+ * removes a published capability that ships and is tested today. Both are
+ * maintainer decisions; objectui#6425 stays open for one. What this type does
+ * instead is make the tolerance VISIBLE and OWNED — every honoured key written
+ * down with a verdict and an owning card, every other candidate refused by
+ * default rather than admitted by silence. Same shape objectui#6461 landed for
+ * `plugin-grid` (`ObjectGridColumnHolds` / `RetiredListColumnKey`); the
+ * identifiers differ because this producer's seam is a READ, not an emit.
+ *
+ * ## The band is DERIVED, and it bites by assignability
+ *
+ * `FieldMeta` is the override vocabulary — `buildFieldMeta`'s `overrides` is a
+ * subset of it — so it is the pool a new tolerance would come from, and the
+ * same pool {@link EnrichedColumn}'s tombstones derive from. Deriving means a
+ * seventh `FieldMeta` member is refused here on the day it is added, without
+ * anyone remembering to extend a hand-written list.
+ *
+ * ⚠️ Measured on this program, in both directions, before this shape was
+ * written:
+ *  - `?: never` bites by ASSIGNABILITY, not by freshness, so the refusal
+ *    survives a spread — `const s: AuthoredColumnOverrides = someBag` fails on
+ *    a source that DECLARES a banded key, and passes on one that does not.
+ *  - `accessorKey` is required here for a reason that is not decoration:
+ *    without one property in common, TypeScript's weak-type check rejects the
+ *    assignment below outright (TS2559), and a type that refuses everything
+ *    pins nothing. It is the same key {@link NormalizedColumn} already
+ *    declares required, so this makes no new claim about the authored object.
+ *
+ * ## A VIEW, not a census of the object
+ *
+ * The banded members say "this producer must not SOURCE this override from the
+ * authored column" — not "this key is absent at run time". `normalizeColumns`
+ * deliberately leaves the authored spelling in place, so a column really can
+ * carry `name` / `label`; they are refused HERE because this seam already has
+ * answers for both and they do not come from the column: `name` comes from
+ * `accessorKey` and `label` from `col.header`, which objectui#5351 made the one
+ * place the authored label is translated.
+ */
+
+/**
+ * The undeclared-but-live override keys this producer holds. Each carries the
+ * verdict measured on this tree and the card that owns it; all five are
+ * objectui#6425's, and none is settled by this file.
+ */
+export interface ObjectDataTableColumnHolds {
+  /**
+   * HELD, objectui#6425 — the strongest authoring story of the five. The
+   * package README documents it (`"Author overrides always win"`, three
+   * `format` columns in its `object-data-table` example) and
+   * `ObjectDataTable.cells.test.tsx` renders `$150,000` / `60%` from it.
+   * Read by `renderFieldValue`'s currency / percent / date branches, by
+   * `isNumericFieldMeta` (which decides `align`), and by
+   * `resolveCellRendererType`.
+   */
+  format?: string;
+  /**
+   * HELD, objectui#6425 — named as an author override by the package README.
+   * Read by `SelectCellRenderer` (`field.options`) after `buildFieldMeta`'s
+   * per-option translation pass.
+   */
+  options?: FieldMeta['options'];
+  /**
+   * HELD, objectui#6425 — named as an author override by the package README,
+   * but MEASURED with no reader on this path: `LookupCellRenderer` resolves
+   * its target from `reference_to` / `reference`, and `computeLookupExpand`
+   * builds `$expand` from the OBJECT SCHEMA's field types, never from this
+   * key. Held rather than retired because retiring a published-documented key
+   * is objectui#6425's ruling to make, not this file's.
+   */
+  referenceTo?: unknown;
+  /**
+   * HELD, objectui#6425 — live but undocumented: no README line and no test
+   * authored it at column level before this card. Read by `renderFieldValue`
+   * (`fieldMeta.currency`, the `$`-format branch) and by `resolveFieldCurrency`
+   * inside `CurrencyCellRenderer`, both ahead of the tenant default (ADR-0053).
+   */
+  currency?: string;
+  /**
+   * HELD, objectui#6425 — MEASURED with no reader anywhere: zero `.decimals`
+   * reads across `@object-ui/fields`, `@object-ui/i18n` and
+   * `@object-ui/components`. `NumberCellRenderer` reads `scale`,
+   * `PercentCellRenderer` reads `precision`, and `renderFieldValue`'s percent
+   * branch parses its digit count out of the format string. Held, not retired,
+   * for the same reason as `referenceTo`.
+   */
+  decimals?: number;
+}
+
+/**
+ * The candidate keys this seam refuses — DERIVED from the override vocabulary,
+ * never hand-listed, so a future `FieldMeta` member has to be adjudicated onto
+ * {@link ObjectDataTableColumnHolds} to escape. `type` is excluded because
+ * `TableColumn` declares it (objectui#5853 owns its VALUE set, folded below by
+ * `normalizeTableColumnType`).
+ */
+export type UnheldFieldMetaOverrideKey =
+  Exclude<keyof FieldMeta, keyof TableColumn | keyof ObjectDataTableColumnHolds>;
+
+/** The keyhole `enrich` reads the authored column through. See the docblock above. */
+export type AuthoredColumnOverrides =
+  { accessorKey: string }
+  /** DECLARED by `TableColumn`; widened to `string` because the authored value
+   *  is folded onto the published union downstream, not at the read. */
+  & { type?: string }
+  & ObjectDataTableColumnHolds
+  & { [K in UnheldFieldMetaOverrideKey]?: never };
+
+/**
  * Shared empty fallback for the resolved row list (objectui#4629).
  *
  * `Array.isArray(rawData) ? rawData : []` evaluates a FRESH array on every
@@ -520,6 +646,14 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     };
 
     const enrich = (col: NormalizedColumn): EnrichedColumn => {
+      // ⭐ THE READ SEAM (objectui#6425). Every override below is taken through
+      // `AuthoredColumnOverrides` rather than off the bag directly, so each key
+      // arrives with the type and the written verdict its docblock gives it,
+      // and an unadjudicated `FieldMeta` member is a compile error here instead
+      // of an `any` nobody had to justify. This assignment is the enforcement —
+      // it is what fails if the authored shape ever grows a banded key.
+      const authored: AuthoredColumnOverrides = col;
+
       // Build the shared FieldMeta (translated select options, resolved
       // referenceTo / currency / decimals). Column-level props override the
       // schema-derived values. Lookup fields just pass `referenceTo` through —
@@ -532,12 +666,12 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
         objectName,
         fieldOptionLabel,
         overrides: {
-          type: col.type,
-          format: col.format,
-          options: col.options,
-          referenceTo: (col as any).referenceTo,
-          currency: (col as any).currency,
-          decimals: (col as any).decimals,
+          type: authored.type,
+          format: authored.format,
+          options: authored.options,
+          referenceTo: authored.referenceTo,
+          currency: authored.currency,
+          decimals: authored.decimals,
         },
       });
 
