@@ -135,12 +135,18 @@
  * page carrying a demo. The gallery page's own modal preview is unaffected — it
  * renders after `SchemaThumbnail` has already registered these on that page.
  *
- * IMPORT ORDER IS CONTRACT. Several packages register the same bare keyword
- * (`chart` is claimed by plugin-charts, plugin-dashboard and plugin-report;
- * `calendar` by plugin-calendar over `@object-ui/components`' `ui:calendar`),
- * and the last registration of a key wins. The first two lines keep the order
- * objectui#4600 established; the rest are appended, which is the order the
- * census above was measured in.
+ * IMPORT ORDER IS CONTRACT. The last registration of a bare keyword wins, so
+ * where two of the packages below claim one, the order decides what draws.
+ * Re-derived with `deriveRegistryKeys` (`scripts/check-doc-component-types.mjs`)
+ * on `origin/main` @ `e929c562a`, none of them do today (objectui#6442): bare
+ * `chart` is `plugin-charts`' alone — neither `plugin-dashboard` nor
+ * `plugin-report` registers it, and the two `apps/console` sites that also hold
+ * the key are `registerLazy` stubs whose loader is `plugin-charts` itself — and
+ * bare `calendar` is `plugin-calendar`'s alone, because `@object-ui/components`
+ * passes `skipFallback` on `ui:calendar` precisely to stay out of that keyword.
+ * The order stays fixed against the day that changes: the first two lines keep
+ * the order objectui#4600 established; the rest are appended, which is the
+ * order the census above was measured in.
  *
  * Guarded by two pins in `examples/schema-catalog/test/`:
  * `plugin-dashboard-gallery-render.test.tsx` (objectui#4600, the dashboard
