@@ -67,6 +67,7 @@ import {
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
+import { useStableIdentity } from './stableIdentity';
 
 /**
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
@@ -719,6 +720,44 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const currentActiveViewId = activeViewId || viewsPropResolved?.[0]?.id;
   const activeView = viewsPropResolved?.find(v => v.id === currentActiveViewId) || viewsPropResolved?.[0];
 
+  /**
+   * ⭐ objectui#6460 — everything the NON-GRID FETCH EFFECT below needs from the
+   * active view, as ONE reference that only changes when one of those values
+   * changes.
+   *
+   * `activeView` is an ELEMENT of the `views` prop array, so a host that builds
+   * that array inline (`views={[{ id: 'cal', type: 'calendar', label: … }]}` —
+   * how this component's own docs write it) hands over a fresh object every
+   * time it renders. Listing `activeView` itself made the fetch effect re-run
+   * once per PARENT render: measured 4 `find` calls where a hoisted array gives
+   * 1, and because `ObjectView` passes `data={data}` down, each of those also
+   * re-delivered a fresh row array to the child view.
+   *
+   * ⚠️ The three members are not interchangeable with "whatever the effect
+   * touches", and objectui#6460's own body got this wrong — it said the effect
+   * reads `filter` and `type`. Measured in the effect body, it reads `filter`
+   * and **`sort`** (`type` reaches it only via `currentViewType`, its own
+   * dependency). Dropping `sort` would stop a host that changes only a view's
+   * sort from ever re-querying — a worse defect than the churn, and invisible
+   * to any test written from that sentence.
+   *
+   * `id` is carried deliberately even though the effect does not read it: it is
+   * the host's own answer to "which view is active", it is a string and so
+   * cannot churn, and pinning it keeps switching views observably re-fetching
+   * even between two views whose filter and sort happen to coincide. Same
+   * ingredients as the display key this file already derives further down
+   * (`${schema.objectName}-${activeNamedView || activeView?.id || 'default'}-…`).
+   *
+   * Precedence is NOT flattened here. Both values still lose to
+   * `currentNamedViewConfig` at the read sites in the effect, exactly as before;
+   * this only decides WHEN the effect re-runs, never which source wins.
+   */
+  const activeViewQueryInputs = useStableIdentity(
+    activeView
+      ? { id: activeView.id, filter: activeView.filter, sort: activeView.sort }
+      : undefined,
+  );
+
   // Current view type from named view, multi-view prop, or default
   const currentViewType: string = useMemo(() => {
     if (currentNamedViewConfig?.type) return currentNamedViewConfig.type;
@@ -822,7 +861,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // one only as its alias (objectui#5102). The two view segments ahead of
         // it are untouched — this extends the last segment only.
         const finalFilter = mergeFilterNodes(
-          currentNamedViewConfig?.filter || activeView?.filter
+          currentNamedViewConfig?.filter || activeViewQueryInputs?.filter
             || schema.table?.filter || schema.table?.defaultFilters,
         );
 
@@ -857,7 +896,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // Precedence is unchanged: the canonical `table.sort` still outranks the
         // deprecated `table.defaultSort`, and both still lose to a view's sort —
         // the same order the grid path and `mergedSort` express.
-        const sort = currentNamedViewConfig?.sort || activeView?.sort
+        const sort = currentNamedViewConfig?.sort || activeViewQueryInputs?.sort
           || schema.table?.sort
           || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
@@ -913,7 +952,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     // before the gate opens return above without querying.
   }, [
     schema.objectName, dataSource, currentViewType, refreshKey,
-    currentNamedViewConfig, activeView, renderListView,
+    currentNamedViewConfig, activeViewQueryInputs, renderListView,
     objectSchemaReady, objectSchema,
   ]);
 
