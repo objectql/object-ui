@@ -36,6 +36,7 @@ import {
 } from '../context/UserStateAdapters.js';
 import { ThemeProvider } from '../chrome/ThemeProvider.js';
 import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { RedirectWithSplash } from '../chrome/RedirectWithSplash.js';
 import { RemediationOverlay } from './RemediationOverlay.js';
 import { HostNavigationBridge } from './HostNavigationBridge.js';
 import { ImpersonationBanner } from '../layout/ImpersonationBanner.js';
@@ -348,12 +349,21 @@ export function RequireOrganization({ children }: { children: ReactNode }) {
   if (isOrganizationsLoading) return <LoadingFallback />;
   const orgList = organizations ?? [];
   const orgFeatureEnabled = orgList.length > 0 || !!activeOrganization;
-  if (orgFeatureEnabled && !activeOrganization) return <Navigate to="/organizations" replace />;
+  // `RedirectWithSplash` at every DECIDE below, not a bare `<Navigate>`
+  // (objectui#6378 / #6507): this gate renders `LoadingFallback` while it waits
+  // (one line up), and a bare redirect renders null — so the splash the user is
+  // looking at is dropped and nothing replaces it until `/organizations`
+  // renders at transition priority. Measured on the three sibling gates #6506
+  // fixed: 41-147 ms of empty `#root`, a white flash on 67/87 boots. The
+  // replacement paints the SAME `LoadingScreen` this gate was already showing,
+  // so the handoff changes no pixels.
+  if (orgFeatureEnabled && !activeOrganization)
+    return <RedirectWithSplash to="/organizations" replace />;
   // No org at all: on multi-org, send them to /organizations (the create
   // screen); wait for the flag so we don't flash /home then redirect.
   if (orgList.length === 0 && !activeOrganization) {
     if (multiOrgEnabled === null) return <LoadingFallback />;
-    if (multiOrgEnabled) return <Navigate to="/organizations" replace />;
+    if (multiOrgEnabled) return <RedirectWithSplash to="/organizations" replace />;
   }
   return <>{children}</>;
 }
@@ -379,7 +389,14 @@ export function RequireAiSurface({
 }) {
   const { enabled, isLoading } = useAiSurfaceEnabled();
   if (isLoading) return <LoadingFallback />;
-  if (!enabled) return <Navigate to={redirectTo} replace />;
+  // Splash-preserving handoff (objectui#6507). This is a BOOT-path redirect
+  // even though `/ai` is reachable from inside the console: every in-app entry
+  // point gates on this same `useAiSurfaceEnabled` signal (`AppHeader`'s
+  // assistant button, `ConsoleLayout`'s dock, `HomeLayout`/`HomePage`), so on a
+  // runtime where this branch fires none of them is rendered. What reaches it
+  // is a stale bookmark or an external link — a first navigation, with the
+  // splash still up and no layout underneath.
+  if (!enabled) return <RedirectWithSplash to={redirectTo} replace />;
   return <>{children}</>;
 }
 
@@ -398,7 +415,18 @@ export function AuthenticatedRoute({
   loginPath?: string;
 }) {
   return (
-    <AuthGuard fallback={<Navigate to={loginPath} />} loadingFallback={<LoadingFallback />}>
+    // The same splash-preserving handoff as the gates above, written as two
+    // props rather than two returns (objectui#6507): `loadingFallback` paints
+    // while the session resolves and `fallback` is what replaces it the moment
+    // it decides. A bare `<Navigate>` there renders null, which is the same
+    // blank viewport #6378 measured — and `apps/console` already converted its
+    // own copy of this composition (`ProtectedRoute.tsx`) under #6506, so a
+    // consumer assembling protected routes from THIS wrapper would otherwise
+    // get the unfixed handoff.
+    <AuthGuard
+      fallback={<RedirectWithSplash to={loginPath} />}
+      loadingFallback={<LoadingFallback />}
+    >
       <ConnectedShell>
         {requireOrganization ? <RequireOrganization>{children}</RequireOrganization> : children}
       </ConnectedShell>
@@ -413,7 +441,12 @@ export function AuthenticatedRoute({
 export function RootRedirect() {
   const { loading } = useMetadata();
   if (loading) return <LoadingFallback />;
-  return <Navigate to="/home" replace />;
+  // Splash-preserving handoff (objectui#6507). `apps/console` mounts its own
+  // `RootLandingRedirect` rather than this one, and #6506 converted that twin
+  // after measuring the WIDEST window of the campaign on it (147 ms) — this is
+  // byte-for-byte the same shape, published to consumers via
+  // `@object-ui/app-shell`.
+  return <RedirectWithSplash to="/home" replace />;
 }
 
 /**
@@ -427,6 +460,18 @@ export function RootRedirect() {
  * that makes the hub mount at all.
  */
 export function SystemRedirect() {
+  // ⚠️ DELIBERATELY a bare `<Navigate>`, unlike every other redirect in this
+  // file (objectui#6507). It does carry the null-render shape on a first
+  // navigation — but it is the one site here that ALSO fires with the console
+  // already painted: `SettingsView.tsx` navigates to `/system/settings` from a
+  // button, and `AppSidebar.tsx` links to `/system`. Neither is gated on
+  // anything, so both are live in exactly the runtimes this component serves.
+  // The #6507 triage ruling is explicit that a redirect firing under an
+  // already-painted layout must KEEP that layout rather than gain a splash, so
+  // converting this one would trade a boot-path blank for a full-screen splash
+  // flashing over a working console. Splitting the two paths (deep link vs
+  // in-app navigation) needs a measurement neither #6378 nor #6507 has taken.
+  // Pinned as unconverted by `__tests__/bootRedirectCoverage.test.tsx`.
   const location = useLocation();
   const suffix = location.pathname.replace(/^\/system/, '');
   const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup/system';
@@ -512,5 +557,11 @@ export function SetupRedirect() {
   const location = useLocation();
   if (loading) return <LoadingFallback />;
   const target = resolveSetupAppPath(apps as SetupAppLike[] | undefined);
-  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+  // Splash-preserving handoff (objectui#6507) — the gate one line up renders
+  // `LoadingFallback`, so a bare redirect would drop it for nothing. Unlike
+  // `SystemRedirect` beside it, `/setup` has no in-app producer: it is mounted
+  // as a route and reached by bookmark, deep link or runbook, i.e. always as a
+  // first navigation with the splash up. (The home launcher's card links to
+  // `/apps/<segment>` directly, not through this alias.)
+  return <RedirectWithSplash to={`${target}${location.search}${location.hash}`} replace />;
 }

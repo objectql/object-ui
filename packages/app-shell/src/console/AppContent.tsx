@@ -40,6 +40,7 @@ import { ConsoleLayout } from '../layout/ConsoleLayout.js';
 import { CommandPalette } from '../chrome/CommandPalette.js';
 import { ErrorBoundary } from '../chrome/ErrorBoundary.js';
 import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { RedirectWithSplash } from '../chrome/RedirectWithSplash.js';
 import { ObjectView } from '../views/ObjectView.js';
 import { KeyboardShortcutsDialog } from '../chrome/KeyboardShortcutsDialog.js';
 import { OnboardingWalkthrough } from '../chrome/OnboardingWalkthrough.js';
@@ -805,7 +806,18 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // envelope (objectstack#8013 → objectui#4252). Nothing here waits on it: the
   // guard reads only the per-user-filtered list that ships today.
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute && !isWorkspaceAdmin) {
-    return <Navigate to="/home" replace />;
+    // `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378 / #6507).
+    // Every readiness gate above this branch renders `LoadingScreen`, and the
+    // branch returns ABOVE the single `ConsoleLayout` mount — so a bare
+    // redirect, which renders null, hands the WHOLE viewport back to the page
+    // background while `/home` renders at transition priority. Measured on the
+    // three sibling gates #6506 fixed: 41-147 ms of empty `#root`. This one is
+    // a boot-path gate on the same evidence rule and keeps the splash painted
+    // across the handoff; the URL-rewrite redirects further down this file
+    // (`LegacyMetadataRedirect`, `ShorthandRecordRedirect`) deliberately do NOT
+    // convert -- they fire INSIDE `ConsoleLayout`, with the console already on
+    // screen, and a splash there would cover a layout that never went away.
+    return <RedirectWithSplash to="/home" replace />;
   }
 
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute) return (
