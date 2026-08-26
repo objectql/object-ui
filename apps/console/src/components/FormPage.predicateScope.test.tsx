@@ -65,6 +65,31 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PredicateScopeProvider } from '@object-ui/react';
 import { FormPage } from './FormPage';
 
+/**
+ * `InternalFormRoute` is imported HERE, at module scope, and deliberately NOT
+ * with a dynamic `await import()` inside `hop1SessionPrincipal` below —
+ * AGENTS.md §测试纪律, "an unbounded module load counted inside a bounded
+ * window".
+ *
+ * This module's graph is the first VALUE request for `@object-ui/app-shell` in
+ * the file (`FormPage` only `import type`s it), so it is what runs the
+ * `vi.mock('@object-ui/app-shell')` factory's `importOriginal()` below — and
+ * that specifier is aliased to `packages/app-shell/src`
+ * (`apps/console/vite.config.ts`), a barrel carrying eight side-effect imports,
+ * transformed on demand. Measured on an IDLE machine it cost **10204ms** of
+ * `hop1SessionPrincipal`'s 15000ms budget; the render and the assertions cost
+ * ~12ms, the same as the seven cases above. Nothing was wrong with the test —
+ * it was racing the module loader, and lost whenever the transform pipeline was
+ * saturated by a full-project run.
+ *
+ * Module scope moves that cost into the IMPORT phase, which no test or hook
+ * timeout bounds. `beforeAll` would not do: it is bounded by `hookTimeout`
+ * (10s), narrower than the 15s it replaces. The specifier is unchanged, so this
+ * is the same module and the same binding as the `await import()` was — only
+ * loaded before the timed window instead of inside it.
+ */
+import { InternalFormRoute } from './InternalFormRoute';
+
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 /**
@@ -312,6 +337,10 @@ describe('#6110 controls — green before AND after the fix, by construction', (
  * REAL, because they are the thing under test. `DefaultHomeLayout` is a
  * pass-through: the chrome is #4109's subject, not this card's, and stubbing it
  * cannot hide the provider, which the route mounts itself.
+ *
+ * These still apply to the module-scope `InternalFormRoute` import above:
+ * `vi.mock` calls are hoisted above every import in the file, so the factories
+ * are registered before that import executes.
  */
 vi.mock('@object-ui/app-shell', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -341,7 +370,6 @@ describe('#6110 hop 1 — `/forms/:name` publishes the SESSION principal', () =>
     // `/apps/:appName/*` subtree) and in app-shell's `RecordFormPage`, and
     // NEITHER is above `/forms/:name`. Binding the evaluator call sites without
     // this hop would have shipped a fix that reads `{}` forever.
-    const { InternalFormRoute } = await import('./InternalFormRoute');
     vi.stubGlobal(
       'fetch',
       stubFetch([
