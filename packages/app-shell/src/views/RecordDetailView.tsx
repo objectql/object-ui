@@ -2512,7 +2512,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         }}
       />
 
-      {/* Action Param Collection Dialog */}
+      {/* Action Param Collection Dialog.
+
+          The close is field-preserving and that is load-bearing, not incidental:
+          Radix holds the dialog mounted through its 200ms exit animation, so
+          whatever this writes is what the user watches fade out. This side was
+          already correct; `useConsoleActionRuntime` — the second runtime mounted
+          into this same dialog — was the one that blanked, and objectui#6431
+          converged it onto this shape. The measurement and the full rationale
+          live at that close site; the parity is pinned by
+          `RecordDetailView.paramRuntimeParity-6431.test.tsx`. */}
       <ActionParamDialog
         state={paramState}
         onOpenChange={(open) => {

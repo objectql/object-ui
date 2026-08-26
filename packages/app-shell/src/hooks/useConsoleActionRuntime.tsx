@@ -712,8 +712,40 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       <ActionConfirmDialog state={confirmState} onOpenChange={(open) => {
         if (!open) setConfirmState(s => ({ ...s, open: false }));
       }} />
+      {/*
+        Close = flip `open` and KEEP every other field (objectui#6431), the same
+        shape the confirm pair converged on above — and for the same reason,
+        re-measured on THIS dialog rather than inherited from #6034.
+
+        `DialogContent` carries `duration-200 data-[state=closed]:animate-out`,
+        so Radix holds the content mounted through its exit animation and
+        `ActionParamDialog` goes on rendering off `state` for the whole
+        fade-out. The `{ open: false, params: [] }` this replaced dropped
+        `title`, `description` and `resolve` and emptied `params`, so the
+        closing dialog re-titled itself to the generic `actionDialog.title`,
+        swapped the action's description for the generic one, and dropped every
+        param row — a form the user just filled in blanks out and re-labels
+        itself while it fades.
+
+        This is NOT the params form deliberately dropping stale values: the
+        user's typed values never lived in `paramState`. They live in the
+        dialog's own `values` state, which its `useEffect` reseeds from the
+        param defaults on every `state.open` false→true edge — so a reopen
+        starts blank under BOTH reset shapes, and nothing a user can observe
+        beyond the fade-out frame differs between them.
+
+        The retained `resolve` is inert, as on the confirm path: the dialog
+        settles the promise before it asks for the close, and the open path
+        above replaces the whole state object, so nothing stale survives a
+        reopen.
+
+        `RecordDetailView` mounts a SECOND runtime into this same dialog and
+        already closed this way; that both runtimes now reset it identically is
+        pinned by `views/RecordDetailView.paramRuntimeParity-6431.test.tsx`,
+        which also renders the real dialog across the exit-animation frame.
+      */}
       <ActionParamDialog state={paramState} onOpenChange={(open) => {
-        if (!open) setParamState({ open: false, params: [] });
+        if (!open) setParamState(s => ({ ...s, open: false }));
       }} />
       <ActionResultDialog
         state={resultDialogState}
