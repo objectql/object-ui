@@ -115,11 +115,15 @@ describe('objectui#6443 — controls', () => {
   it('CONTROL — FAIL-OPEN IS UNCHANGED: the excluded role still sees the item', () => {
     // GREEN BOTH WAYS, and that is the point: this card is diagnostics only.
     // The cell guards the future wrong shape where a diagnostic change also
-    // flips fail-open to fail-closed. Asserted on the OBSERVABLE OUTCOME —
-    // whether the nav item survives the real guard `AppSidebar` runs — not on
-    // the helper's return value alone, because "a fault was reported" is also
-    // true of a site that stopped rendering the item entirely.
-    const warn = spyWarn();
+    // flips fail-open to fail-closed — a permission-boundary change wearing an
+    // observability costume. It carries NO assertion about the console, so it
+    // cannot go red for the reason the discriminating cells do.
+    //
+    // Asserted on the OBSERVABLE OUTCOME — whether the nav item survives the
+    // real guard `AppSidebar` runs — not on the helper's return value alone,
+    // because "a fault was reported" is also true of a site that stopped
+    // rendering the item entirely.
+    spyWarn(); // keep the fault line off the suite's own output
     const evaluator = makeEvaluator({ id: 'u1', positions: ['worker'] });
     const fault = "'org_admin' in nosuchroot6443ctl.positions";
 
@@ -131,9 +135,6 @@ describe('objectui#6443 — controls', () => {
         { evaluateVisibility: (e) => evaluateVisibility(e as any, evaluator) },
       ),
     ).toBe(true);
-
-    // ...and the fault is now on the console, which is the ONLY thing that moved.
-    expect(reports(warn)).toHaveLength(1);
   });
 
   it('CONTROL — a HEALTHY predicate stays silent, on BOTH verdicts', () => {
@@ -154,11 +155,20 @@ describe('objectui#6443 — controls', () => {
 
 describe('objectui#6443 — every dialect from the card`s measured table now reports', () => {
   it('BARE STRING — the dialect that printed NOTHING, and the one a live gate broke on', () => {
+    // Pairs the log with the OBSERVABLE OUTCOME in one cell, so this cannot go
+    // green on a site that reported a fault by refusing to render the item.
     const warn = spyWarn();
     const evaluator = makeEvaluator();
     const fault = 'nosuchroot6443bare.x > 1';
 
     expect(evaluateVisibility(fault, evaluator)).toBe(true); // verdict unchanged
+    expect(
+      hasVisibleNavigationItems(
+        [{ type: 'link', id: 'reports', label: 'Reports', href: '/r', visible: fault }] as any,
+        { evaluateVisibility: (e) => evaluateVisibility(e as any, evaluator) },
+      ),
+    ).toBe(true); // still visible to the excluded role — fail-open, unchanged
+
     expect(reports(warn)).toHaveLength(1);
     expect(allWarnings(warn)).toHaveLength(1); // and nothing else was added
   });
@@ -188,8 +198,12 @@ describe('objectui#6443 — every dialect from the card`s measured table now rep
     expect(evaluateVisibility(fault, evaluator)).toBe(true);
     expect(evaluateVisibility(fault, evaluator)).toBe(true);
 
-    expect(reports(warn)).toHaveLength(1);
+    // TOTAL first, on purpose: it is the assertion that MEASURES the built-in
+    // flood when this cell is run against the pre-fix site (it reads 3 there,
+    // one per evaluation). Asserting `reports()` first would short-circuit
+    // before the number this cell exists to show.
     expect(allWarnings(warn)).toHaveLength(1);
+    expect(reports(warn)).toHaveLength(1);
   });
 
   it('the line NAMES the surface, the gate key, the predicate source and the engine reason', () => {
