@@ -100,8 +100,10 @@ The declared configuration input. Every key is optional:
 
 **The block replaces the field-name defaults, it is not merged with them.** With
 no map configuration at all the component falls back to the field names
-`latitude` / `longitude` / `location` / `name` / `description`; the moment a `map`
-block is present, only what it declares is read. So `map: { titleField: 'name' }`
+`latitude` / `longitude` / `location` / `description` — no title field, because an
+unconfigured marker takes its title from the record-title precedence above rather
+than from a guessed `name`; the moment a `map` block is present, only what it
+declares is read. So `map: { titleField: 'name' }`
 on its own names no coordinate field, places nothing, and renders an empty map
 under the excluded-records notice — the defaults do not fill the gap.
 

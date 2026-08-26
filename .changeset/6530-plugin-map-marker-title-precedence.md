@@ -38,5 +38,16 @@ Two details the row states deliberately:
   probe is the only rung that can produce a title —
   `ObjectMap.markerTitle.test.tsx` pins exactly that case.
 
+A second row falsified by the same commit goes with it. Two lines below the table,
+the field-name defaults paragraph listed what an unconfigured map falls back to as
+"`latitude` / `longitude` / `location` / `name` / `description`". objectui#5953 removed
+the title default: `getMapConfig`'s default branch returns coordinate keys and
+`descriptionField` only, under a comment that spells out why — "Deliberately NO
+`titleField` (objectui#5953)… `getRecordDisplayName` resolves it from the object
+definition, and it does so better than any literal here could". The paragraph now
+lists the four defaults that exist and says where an unconfigured marker's title
+actually comes from. Left alone in the same sentence: `map: { titleField: 'name' }`
+still names no coordinate field and still renders an empty map, which is accurate.
+
 Prose only: no behaviour changes, and the placeholders were already pinned in
 order by `ObjectMap.markerTitle.test.tsx`.
