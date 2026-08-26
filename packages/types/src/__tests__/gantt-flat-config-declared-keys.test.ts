@@ -40,6 +40,9 @@
  *     `markers`, `criticalPath`, `showBaselines`, `readOnly`, `mobileReadOnly`)
  *     are disjoint from them.
  *
+ * 27 of the 28 are declared here. The 28th, `gantt`, is severed to objectui#6475
+ * — see the section below.
+ *
  * The residue is four LARGER than the card's list, and #5903 is why. The card
  * scored "declared by neither `ObjectGanttSchema` nor `ObjectGridSchema`" over
  * `getGanttConfig`'s flat branch only. #5903 retyped `ObjectGanttProps.schema`
@@ -56,20 +59,28 @@
  * keeps that true as either side moves is the type-level pin at the bottom:
  * every key of `GanttConfig` is declared on the node's flat face.
  *
- * ## `gantt` is the one key whose VALUES get stricter, and it was already enforced
+ * ## Why `gantt` is measured here but NOT declared here
  *
- * The other 27 are new optional members: additive on both sides. `gantt` is a new
- * optional member too, but it carries a TYPE where the mirror previously had no
- * entry at all, so a block that used to ride through `.passthrough()` unvalidated
- * is now parsed. `GanttConfig` derives from the spec's `GanttConfigSchema`, which
- * REQUIRES `startDateField`, `endDateField` and `titleField` — so a block missing
- * one is refused where it used to pass.
+ * The 27 declared below are new OPTIONAL members: additive on both sides, nothing
+ * previously legal loses its slot. `gantt` is the one that would not have been.
+ * It has no mirror entry at all, so a block rides through `.passthrough()`
+ * unvalidated; declaring it as `GanttConfig` means it gets parsed, and
+ * `GanttConfig` derives from the spec's `GanttConfigSchema`, which REQUIRES
+ * `startDateField`, `endDateField` and `titleField`. `ObjectGanttSchema` is a
+ * member of `AnyComponentSchema`, so that reaches `safeValidateSchema` and with
+ * it the CLI's `validate` / `check` — a block missing one of the three would move
+ * from "accepted, then warned about at runtime" to "refused at authoring time".
  *
- * That is not a new contract. `getGanttConfig`'s block branch already fed the
- * block to `GanttConfigSchema.safeParse` and logged `[ObjectGantt] Invalid gantt
- * configuration` when it failed; the flat branch returns before reaching it.
- * Declaring `gantt` as `GanttConfig` makes the declared face equal the face the
- * renderer was already checking, rather than inventing a stricter one.
+ * PM ruling (2026-08-26): sever it, so a published CLI's refusal behaviour is
+ * decided on its own card rather than inside a 27-key declaration PR.
+ * objectui#6475 carries the full measurement, including the case FOR enforcing —
+ * `getGanttConfig`'s block branch already feeds the block to
+ * `GanttConfigSchema.safeParse` and logs `[ObjectGantt] Invalid gantt
+ * configuration`, so declaring it restores declared = enforced rather than
+ * inventing a stricter contract.
+ *
+ * Today's behaviour is pinned below rather than left implicit, so the omission is
+ * a measured state and not a silent gap.
  *
  * ## What the pin has teeth against, and what it does not
  *
@@ -94,10 +105,11 @@ const MINIMAL = {
 } as const;
 
 /**
- * The 28 keys this card declared, each with a value its declared type refuses.
+ * The 27 keys this card declared, each with a value its declared type refuses.
  *
- * 24 flattened `GanttConfig` members, the `gantt` block, and the three query keys
- * (`staticData` / `filter` / `sort`).
+ * 24 flattened `GanttConfig` members and the three query keys (`staticData` /
+ * `filter` / `sort`). The 28th measured key, `gantt`, is severed to objectui#6475
+ * and is pinned separately below as an UNDECLARED read.
  */
 const DECLARED: ReadonlyArray<readonly [string, unknown]> = [
   // — the flattened GanttConfig face —
@@ -125,8 +137,6 @@ const DECLARED: ReadonlyArray<readonly [string, unknown]> = [
   ['exportFileName', 5],
   ['timeZone', 5],
   ['dependencyTypes', 'yes'],
-  // — the block face —
-  ['gantt', 'flat'],
   // — the query keys the fetch path reads —
   ['staticData', { id: 1 }],
   ['filter', 'name = 1'],
@@ -163,25 +173,13 @@ const GOOD = {
   exportFileName: 'Shift Plan',
   timeZone: 'Asia/Shanghai',
   dependencyTypes: false,
-  gantt: {
-    // `startDateField` / `endDateField` / `titleField` are REQUIRED by the spec's
-    // `GanttConfigSchema`, so they are required inside this block — and they were
-    // already enforced at runtime: `getGanttConfig`'s block branch feeds the block
-    // to `GanttConfigSchema.safeParse` and warns when it fails. Declaring `gantt`
-    // as `GanttConfig` makes the declared face equal that already-enforced face.
-    startDateField: 'start',
-    endDateField: 'end',
-    titleField: 'name',
-    lockField: 'locked',
-    timeSegments: { bands: [{ label: 'Day shift', start: '08:00', end: '20:00' }] },
-  },
   staticData: [{ id: 1, name: 'Task' }],
   filter: [['name', '=', 'Task']],
   sort: 'name desc',
 };
 
 describe('ObjectGanttSchema — the flattened gantt config is declared (objectui#6051)', () => {
-  it('the mirror declares every one of the 28', () => {
+  it('the mirror declares every one of the 27', () => {
     const shape = Object.keys(ObjectGanttSchema.shape);
     for (const [key] of DECLARED) expect(shape, `mirror is missing ${key}`).toContain(key);
   });
@@ -190,14 +188,14 @@ describe('ObjectGanttSchema — the flattened gantt config is declared (objectui
     // Non-vacuity for the loops below: they iterate DECLARED, so a truncated
     // DECLARED would pass everything while checking less. The number is the
     // measured residue stated in this file's header.
-    expect(DECLARED).toHaveLength(28);
-    expect(new Set(DECLARED.map(([k]) => k)).size).toBe(28);
+    expect(DECLARED).toHaveLength(27);
+    expect(new Set(DECLARED.map(([k]) => k)).size).toBe(27);
     expect(Object.keys(GOOD).sort()).toEqual(DECLARED.map(([k]) => k).sort());
   });
 
-  it('declares them all OPTIONAL — none of the 28 may become required', () => {
+  it('declares them all OPTIONAL — none of the 27 may become required', () => {
     // Requiredness is the half the zod-mirror-parity ratchet compares against
-    // `../objectql.ts`, where all 28 are `?:`. A mirror that required one would
+    // `../objectql.ts`, where all 27 are `?:`. A mirror that required one would
     // reject every gantt already published.
     const result = ObjectGanttSchema.safeParse(MINIMAL);
     expect(result.success ? null : result.error.issues).toBe(null);
@@ -230,18 +228,17 @@ describe('ObjectGanttSchema — the flattened gantt config is declared (objectui
     expect(result.success ? null : result.error.issues).toBe(null);
   });
 
-  it('the block face accepts the same vocabulary as the flat face', () => {
-    // Both are built from one field map in the mirror. Feed the whole flat payload
-    // to `gantt` and it must parse — the property this card exists to make true.
-    const flatOnly = { ...GOOD } as Record<string, unknown>;
-    delete flatOnly.gantt;
-    delete flatOnly.staticData;
-    delete flatOnly.filter;
-    delete flatOnly.sort;
-    // Plus the three the spec requires of a `GanttConfig` (see `GOOD.gantt`).
-    const block = { ...flatOnly, startDateField: 'start', endDateField: 'end', titleField: 'name' };
-    const result = ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: block });
-    expect(result.success ? null : result.error.issues).toBe(null);
+  it('the `gantt` BLOCK face is still undeclared, and today rides through UNVALIDATED', () => {
+    // The 28th measured key, severed to objectui#6475. Pinned rather than left
+    // implicit so the omission is a measured state: a block missing the trio the
+    // spec's `GanttConfigSchema` REQUIRES parses green today, because the mirror
+    // has no `gantt` entry and `BaseSchema` is `.passthrough()`.
+    expect(Object.keys(ObjectGanttSchema.shape)).not.toContain('gantt');
+    const missingTrio = ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: { lockField: 'locked' } });
+    expect(missingTrio.success).toBe(true);
+    // Not even a wrong-TYPED block is refused — that is what "no entry" means, and
+    // it is exactly what objectui#6475 proposes to change.
+    expect(ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: 'flat' }).success).toBe(true);
   });
 
   it('does NOT reject an undeclared key — objectui#5155 ceiling, measured not assumed', () => {
@@ -368,8 +365,6 @@ describe('ObjectGanttSchema (TS) — compile-time pin on every declared key', ()
     const timeZone: ObjectGanttSchemaTS['timeZone'] = 5;
     // @ts-expect-error — `dependencyTypes` is declared `boolean | undefined`.
     const dependencyTypes: ObjectGanttSchemaTS['dependencyTypes'] = 'yes';
-    // @ts-expect-error — `gantt` is declared `GanttConfig | undefined`, an object.
-    const gantt: ObjectGanttSchemaTS['gantt'] = 'flat';
     // @ts-expect-error — `staticData` is declared `any[] | undefined`.
     const staticData: ObjectGanttSchemaTS['staticData'] = { id: 1 };
     // @ts-expect-error — `filter` is declared `any[] | undefined`.
@@ -382,9 +377,9 @@ describe('ObjectGanttSchema (TS) — compile-time pin on every declared key', ()
       lockField, objectField, summaryExtent, defaultCollapsedDepth, tooltipFields,
       baselineStartField, baselineEndField, groupByField, resourceView, assigneeField,
       effortField, capacity, quickFilters, autoZoomToFilter, timeSegments,
-      interactions, exportFileName, timeZone, dependencyTypes, gantt,
+      interactions, exportFileName, timeZone, dependencyTypes,
       staticData, filter, sort,
-    ]).toHaveLength(28);
+    ]).toHaveLength(27);
   });
 
   it('accepts the well-typed value on every declared key', () => {
@@ -392,7 +387,6 @@ describe('ObjectGanttSchema (TS) — compile-time pin on every declared key', ()
     // to `never` would satisfy every one of them.
     const ok: ObjectGanttSchemaTS = { ...MINIMAL, ...GOOD };
     expect(ok.summaryExtent).toBe('self');
-    expect(ok.gantt?.lockField).toBe('locked');
     expect(ok.interactions?.resize).toBe(false);
   });
 });

@@ -600,9 +600,11 @@ export const ObjectTreeSchema = BaseSchema.extend({
  * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
  * `timeSegments` was already there).
  *
- * Held as ONE field map and spread into BOTH faces below — the flattened
- * top-level spelling and the nested `gantt` block — so the two cannot drift on
- * this side either, the same way the TS side derives both from `GanttConfig`.
+ * Held as ONE field map rather than inlined, so the flattened top-level spelling
+ * below is built from a single source — the same way the TS side derives its
+ * flattened members from `GanttConfig`. It is deliberately the shape the nested
+ * `gantt` block would ALSO be built from, one line, if objectui#6475 rules that
+ * block in; today that entry is severed and this map has one consumer.
  *
  * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
  * `^export const` out of this directory and would require a registered TS
@@ -720,12 +722,16 @@ export const ObjectGanttSchema = BaseSchema.extend({
   autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
   // …and objectui's own ten, from the one field map above.
   ...GanttConfigExtensionFields,
-  // The BLOCK face — the same vocabulary nested under one key, which is what
-  // `getGanttConfig`'s second branch reads. Built from the SAME field map, so the
-  // block and the flat spelling above are one schema expressed twice.
-  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields)
-    .optional()
-    .describe('Gantt configuration (the block face; the flattened top-level spelling wins when both are present)'),
+  // ⛔ `gantt` — the BLOCK face `getGanttConfig`'s second branch reads — is
+  // DELIBERATELY still unmirrored (objectui#6475). It would be one line here,
+  // `SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional()`, built
+  // from the same field map as the flat face above; the reason it is not is that
+  // it is the one entry that NARROWS. With no entry a block rides through
+  // `.passthrough()` unvalidated; with one it is parsed against the spec's
+  // `GanttConfigSchema`, which REQUIRES startDateField/endDateField/titleField —
+  // and this mirror reaches the CLI's `validate`/`check` through
+  // `AnyComponentSchema`, so that is a published refusal change. See the TS
+  // declaration's note in `../objectql.ts` and objectui#6475.
   // The query/data keys the fetch path reads. They were declared on
   // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
   // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.

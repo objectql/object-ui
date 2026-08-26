@@ -223,12 +223,14 @@ export interface ObjectGanttProps {
    * that hid even that. Removing the casts without moving the type would have
    * changed nothing — the reads would still land on the index signature.
    *
-   * The grid-style `{ gantt: { … } }` block keeps working exactly as before, and
-   * since objectui#6051 it is DECLARED rather than read through that index
-   * signature: `gantt`, the 24 flattened `GanttConfig` keys `getGanttConfig`'s
-   * first branch reads, and the `staticData`/`filter`/`sort` the fetch path reads
-   * all sit on `ObjectGanttSchema` now. The registered renderer (`index.tsx`)
-   * still passes `schema: any`, so no runtime shape is turned away.
+   * objectui#6051 declared what the FLAT branch reads: the 24 flattened
+   * `GanttConfig` keys `getGanttConfig`'s first branch consumes, plus the
+   * `staticData` / `filter` / `sort` the fetch path reads. The grid-style
+   * `{ gantt: { … } }` block keeps working exactly as before and is still read
+   * through the index signature — declaring it is the one change that would not
+   * have been additive, and it is severed to objectui#6475. The registered
+   * renderer (`index.tsx`) still passes `schema: any`, so no runtime shape is
+   * turned away either way.
    */
   schema: ObjectGanttSchema;
   dataSource?: DataSource;

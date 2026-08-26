@@ -2468,22 +2468,27 @@ export interface ObjectGanttSchema extends BaseSchema {
   /** Whether the store persists dependency link TYPES (fs/ss/ff/sf). */
   dependencyTypes?: GanttConfig['dependencyTypes'];
 
-  /**
-   * The BLOCK face — the same `GanttConfig` vocabulary nested under one key
-   * (`ObjectGridSchema` style, and what the spec's `ListView.gantt` carries).
-   *
-   * Read at `ObjectGantt.tsx` (`getGanttConfig`, branch 2) and honoured in full;
-   * it was undeclared here for the same reason the flat keys were. Declaring it
-   * as {@link GanttConfig} is what makes the two faces provably one vocabulary.
-   *
-   * ⚠️ `GanttConfig` derives from the spec's `GanttConfigSchema`, which REQUIRES
-   * `startDateField`, `endDateField` and `titleField` — so those three are
-   * required INSIDE this block while their flattened twins above stay optional.
-   * That asymmetry is the spec's, and it is already enforced at runtime: the
-   * block branch feeds the block to `GanttConfigSchema.safeParse` and warns when
-   * it fails, while the flat branch returns before reaching that check.
-   */
-  gantt?: GanttConfig;
+  // ⛔ `gantt` — the BLOCK face — is DELIBERATELY still undeclared here
+  // (objectui#6475). It is the 28th key of this card's residue and the only one
+  // objectui#6051 did not declare; the omission is a scoping decision, not an
+  // oversight, and reading it as "nothing reads `gantt`" would be wrong —
+  // `getGanttConfig`'s second branch reads it and honours it in full.
+  //
+  // Declaring it is not additive the way the 27 above are. It has no mirror entry
+  // at all today, so a block rides through `.passthrough()` UNVALIDATED; declaring
+  // it as {@link GanttConfig} means it gets parsed, and `GanttConfig` derives from
+  // the spec's `GanttConfigSchema`, which REQUIRES `startDateField`,
+  // `endDateField` and `titleField`. Because `ObjectGanttSchema` is a member of
+  // `AnyComponentSchema`, that reaches `safeValidateSchema` and therefore the
+  // CLI's `validate` / `check` commands: a block missing one of the three moves
+  // from "accepted, then warned about at runtime" to "refused at authoring time".
+  //
+  // That is very likely the RIGHT change — the renderer already feeds the block to
+  // `GanttConfigSchema.safeParse` and warns, so enforcing restores
+  // declared = enforced rather than inventing a contract — but it is a published
+  // CLI's refusal behaviour, and an in-repo census cannot see authored metadata
+  // living outside this tree. objectui#6475 carries the full measurement and the
+  // decision.
 
   // ── The query/data keys the fetch path reads (objectui#6051) ────────────────
   //
