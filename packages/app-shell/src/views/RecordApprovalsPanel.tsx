@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/react';
 import {
+  isSubmitterOf,
   listApprovalActions,
   remindApprovalRequest,
   type ApprovalActionLite,
@@ -268,11 +269,14 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
    * Remind is the submitter's lever (server-authorized): prefer the
    * server-resolved `viewer.is_submitter` from the enriched pending row and
    * fall back to a plain id match for backends predating framework#3310.
+   *
+   * The derivation moved to `isSubmitterOf` unchanged (objectui#6464) so the
+   * record band's Recall gate reads the SAME answer — two copies of it would be
+   * two definitions of who submitted. `?? false` restates this call site's own
+   * reading of "no pending request": there is nothing to remind about, so the
+   * button is gone either way.
    */
-  const isSubmitter = pendingRequest
-    ? pendingRequest.viewer?.is_submitter
-      ?? (!!currentUserId && pendingRequest.submitter_id === currentUserId)
-    : false;
+  const isSubmitter = isSubmitterOf(pendingRequest, currentUserId) ?? false;
 
   const handleRemind = React.useCallback(async () => {
     if (!pendingRequest) return;

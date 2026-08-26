@@ -199,6 +199,43 @@ export function recordLockedByApproval(request: ApprovalRequestLite | null | und
   return request.lock_record !== false;
 }
 
+/**
+ * Did the current viewer submit this approval request?
+ *
+ * The submitter's levers — Remind on the approvals panel, Recall on the record
+ * band (objectui#6464) — are the ones the server authorizes on submitter
+ * identity and refuses to anyone else. This is the ONE place that answer is
+ * derived, so the two surfaces cannot drift into disagreeing about who the
+ * submitter is (the identical hazard `utils/approverIdentity` exists for on the
+ * display side).
+ *
+ * Source order, and it matters: the server-resolved `viewer.is_submitter`
+ * (framework#3310) wins, because the server already did the resolution the
+ * recall endpoint will enforce. The id comparison is the FALLBACK for backends
+ * that predate the `viewer` block — `??` and not `||`, so a server that
+ * resolved `false` is believed rather than being re-litigated client-side.
+ *
+ * Returns `undefined` — "unknown", not "no" — when there is no request to
+ * consult. A caller feeding a feedback gate must keep its prior behaviour on
+ * `undefined` rather than reading it as a denial; a caller that needs a plain
+ * boolean coerces explicitly. With a request in hand, an unresolvable viewer is
+ * a definite `false`: the authoritative row is present and nothing in it
+ * identifies this viewer as the submitter.
+ *
+ * ⚠️ FEEDBACK ONLY — this decides which affordances are SHOWN, never who MAY
+ * act. Every lever it gates is authorized server-side independently.
+ */
+export function isSubmitterOf(
+  request: ApprovalRequestLite | null | undefined,
+  currentUserId: string | null | undefined,
+): boolean | undefined {
+  if (!request) return undefined;
+  return (
+    request.viewer?.is_submitter
+    ?? (!!currentUserId && request.submitter_id === currentUserId)
+  );
+}
+
 interface UseRecordApprovalsResult {
   loading: boolean;
   available: boolean;
