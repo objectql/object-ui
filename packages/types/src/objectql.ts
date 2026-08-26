@@ -2417,7 +2417,14 @@ export interface ObjectGanttSchema extends BaseSchema {
   // instead of being dropped silently. So a node carrying both spellings renders
   // the `gantt` block's values — the reverse of the pre-#6469 order.
 
-  /** Record field carrying the bar fill colour. See {@link GanttConfig}. */
+  /**
+   * Record field carrying the bar's FILL colour: any CSS colour or a semantic
+   * palette name (red/orange/…), typically a server-computed status colour.
+   * When it is unset — or when the record's value is empty — the bar falls back
+   * to the record's own `status`/`state`/`priority`/`severity` value, so the
+   * timeline tells the same colour story as list/kanban. With neither, bars
+   * take the platform default blue.
+   */
   colorField?: GanttConfig['colorField'];
   /** Per-task alert stroke colour field. See {@link GanttConfig.borderColorField}. */
   borderColorField?: GanttConfig['borderColorField'];
@@ -2428,7 +2435,14 @@ export interface ObjectGanttSchema extends BaseSchema {
    * alias and this one wins.
    */
   dependenciesField?: GanttConfig['dependenciesField'];
-  /** Single-parent pointer field building the task tree. See {@link GanttConfig}. */
+  /**
+   * Record field holding this row's PARENT id — the single-parent pointer the
+   * task tree is built from: indentation, expand/collapse and summary rollup
+   * all follow it. An empty value, or one naming no loaded row, renders that
+   * row as a root. Leave unset for a flat chart; `groupByField` is the
+   * alternative, bucketing leaves under synthesized rows instead of a
+   * record-declared hierarchy.
+   */
   parentField?: GanttConfig['parentField'];
   /** Record field mapping onto a node kind (task/summary/milestone/group). */
   typeField?: GanttConfig['typeField'];
@@ -2440,7 +2454,16 @@ export interface ObjectGanttSchema extends BaseSchema {
   summaryExtent?: GanttConfig['summaryExtent'];
   /** Auto-collapse depth on first render. See {@link GanttConfig.defaultCollapsedDepth}. */
   defaultCollapsedDepth?: GanttConfig['defaultCollapsedDepth'];
-  /** Extra record fields listed in the bar tooltip. See {@link GanttConfig}. */
+  /**
+   * Extra record fields listed as label/value rows in a bar's hover tooltip, in
+   * the order given. Each entry is a field name (dot-paths allowed) or
+   * `{ field, label }` to set the label explicitly; otherwise the label comes
+   * from the object schema, falling back to a humanized field name, and the
+   * value is formatted by field type the way a list cell would render it. A row
+   * whose value is empty is DROPPED rather than dashed, so a mixed-object tree
+   * can list the union of every level's fields here. Any surviving rows replace
+   * the tooltip's default date · duration · progress line.
+   */
   tooltipFields?: GanttConfig['tooltipFields'];
   /** Baseline (planned) start field → planned-vs-actual reference bars. */
   baselineStartField?: GanttConfig['baselineStartField'];
@@ -2456,7 +2479,14 @@ export interface ObjectGanttSchema extends BaseSchema {
   effortField?: GanttConfig['effortField'];
   /** Per-resource capacity ceiling (default 1); loads above it flag overload. */
   capacity?: GanttConfig['capacity'];
-  /** Quick-filter dropdowns rendered above the chart. See {@link GanttConfig}. */
+  /**
+   * Quick-filter dropdowns rendered above the chart — a row of multi-selects,
+   * each narrowing the visible bars by one record field. A dimension's options
+   * resolve from the object schema (a select's options, or the referenced
+   * records for a lookup), so the dropdown offers that field's full domain
+   * rather than only the values present in the loaded page; declare `options`
+   * on the dimension to override that with a fixed list.
+   */
   quickFilters?: GanttConfig['quickFilters'];
   /** Recompute the timeline range when filtering (default true). */
   autoZoomToFilter?: GanttConfig['autoZoomToFilter'];
