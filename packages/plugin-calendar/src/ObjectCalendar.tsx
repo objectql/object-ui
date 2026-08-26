@@ -22,7 +22,7 @@
  * - Works with object/value data providers
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
 import { CalendarView } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
@@ -177,7 +177,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
-  const [objectSchema, setObjectSchema] = useState<any>(null);
+  // The object-schema read and the fact that it has SETTLED are ONE piece of
+  // state, keyed by the object it belongs to (objectui#6453). The derived
+  // `objectSchema` / `objectSchemaReady` pair lives further down, next to
+  // `dataConfig`, because the key is the object the RECORD QUERY will use.
+  const [schemaResolution, setSchemaResolution] =
+    useState<{ key: string; def: any } | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const isMobile = useIsMobile();
   const schemaDefaultView = (schema as any).defaultView as 'month' | 'week' | 'day' | undefined;
@@ -237,9 +242,33 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   ]);
   const hasInlineData = dataConfig?.provider === 'value';
 
-  // Use ref for objectSchema to avoid double-fetch on mount
-  const objectSchemaRef = useRef<any>(null);
-  objectSchemaRef.current = objectSchema;
+  // ⭐ objectui#6453 — this replaces a `useRef` written in the render body
+  // (`objectSchemaRef.current = objectSchema`), which existed so the fetch
+  // effect below could read the schema without listing it as a dependency.
+  // That bought the effect one run per mount and paid for it with the
+  // expansion, permanently: on that one run the ref was still `null`,
+  // `buildExpandFields` saw no fields, and the standalone calendar's query went
+  // out with no `$expand` at all — so every lookup / master_detail / user /
+  // tree field rendered from its raw foreign-key id, forever.
+  //
+  // The KEY is the object the record query will use, which on this component is
+  // NOT simply `schema.objectName`: an authored `data` block can name a
+  // different object. Comparing it during render means switching objects closes
+  // the gate in the same commit that changes it, not one commit later, so no
+  // query can carry the previous object's expand set.
+  const schemaObjectName =
+    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+  const schemaKey = schemaObjectName ?? '';
+  /**
+   * Has the object schema for THIS object finished resolving? Note what this is
+   * NOT: "`objectSchema` is truthy". A calendar whose adapter exposes no
+   * `getObjectSchema`, or whose schema read failed, must still fetch its
+   * records — gating on a truthy schema would leave those calendars empty
+   * forever. "Settled with nothing" and "not yet settled" are different states
+   * and only the second may hold the query.
+   */
+  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
+  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
 
   // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
   useEffect(() => {
@@ -258,6 +287,23 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   useEffect(() => {
     // Skip internal fetch when data is managed by a parent component
     if (hasExternalData) return;
+
+    // ⭐ objectui#6453 — the object schema GATES this query; it does not refine
+    // it afterwards. Measured on THIS component (instrumented adapter, three
+    // latency profiles), the alternative — putting `objectSchema` in the
+    // dependency list below — costs two queries and, when the schema read is
+    // the slower of the two, a THREE-step paint: raw ids, back to the
+    // "Loading calendar..." placeholder (this effect calls `setLoading(true)`
+    // on re-run, and `loading` is an early return above), then the expanded
+    // rows. When the schema read is the faster one the first response is
+    // instead discarded on arrival — a round trip bought and thrown away.
+    // Gating is the only shape that is right in every profile.
+    //
+    // Scoped to the `object` provider deliberately: an inline (`value`) data
+    // set has no expand set to derive and issues no metadata read at all, so
+    // gating it would hold a query open on a resolution nothing was going to
+    // produce.
+    if (dataConfig?.provider === 'object' && !objectSchemaReady) return;
 
     let isMounted = true;
     const fetchData = async () => {
@@ -280,7 +326,11 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
         if (dataConfig?.provider === 'object') {
           const objectName = dataConfig.object;
           // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(objectSchemaRef.current?.fields);
+          // Reached only with the schema resolved (the gate above), so a
+          // calendar whose object declares relations queries WITH its
+          // expansion the first time. `objectSchema` is `null` here only
+          // when there was nothing to resolve it from.
+          const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
@@ -309,31 +359,40 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [hasExternalData, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
+  }, [hasExternalData, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort,
+      refreshKey, objectSchemaReady, objectSchema]);
 
-  // Fetch object schema for field metadata
+  // Fetch object schema for field metadata.
+  //
+  // Every exit settles the resolution — success, failure, and "there is nothing
+  // to read from" alike — because the record query above WAITS on this
+  // (objectui#6453). A path that returned without settling would not merely
+  // skip the expansion, it would hold that query open forever.
   useEffect(() => {
+    let isMounted = true;
+    const key = schemaKey;
     const fetchObjectSchema = async () => {
+      // No source for a schema — including an inline (`value`) data set, which
+      // issues no metadata read here and did not before. Settle with none, so
+      // anything gated on this still runs (unexpanded: with no schema there is
+      // no expand set to derive, which is the same query these cases produced
+      // before).
+      if (hasInlineData || !dataSource || !key || typeof dataSource.getObjectSchema !== 'function') {
+        if (isMounted) setSchemaResolution({ key, def: null });
+        return;
+      }
       try {
-        if (!dataSource) return;
-        
-        const objectName = dataConfig?.provider === 'object' 
-          ? dataConfig.object 
-          : schema.objectName;
-          
-        if (!objectName) return;
-        
-        const schemaData = await dataSource.getObjectSchema(objectName);
-        setObjectSchema(schemaData);
+        const schemaData = await dataSource.getObjectSchema(key);
+        if (isMounted) setSchemaResolution({ key, def: schemaData });
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
+        if (isMounted) setSchemaResolution({ key, def: null });
       }
     };
 
-    if (!hasInlineData && dataSource) {
-      fetchObjectSchema();
-    }
-  }, [schema.objectName, dataSource, hasInlineData, dataConfig]);
+    fetchObjectSchema();
+    return () => { isMounted = false; };
+  }, [schemaKey, dataSource, hasInlineData]);
 
   // Transform data to calendar events
   const events = useMemo(() => {
