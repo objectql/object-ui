@@ -698,8 +698,9 @@ export const ObjectGanttSchema = BaseSchema.extend({
   readOnly: z.boolean().optional().describe('Disable every write path and lock the record drawer'),
   mobileReadOnly: z.boolean().optional().describe('Auto read-only on narrow viewports — defaults ON, only an explicit false disables'),
   // objectui#6051 — the FLATTENED `GanttConfig` face. `getGanttConfig` builds its
-  // config from these top-level keys and returns early whenever `startDateField`
-  // and `endDateField` are both present; nothing declared them, on either side,
+  // config from these top-level keys when the node carries no `gantt` block and
+  // `startDateField` / `endDateField` are both present — the block OUTRANKS this
+  // face (objectui#6469); nothing declared them, on either side,
   // because `BaseSchema`'s index signature admits them untyped. Mirrored at the
   // SAME requiredness as `../objectql.ts` (all optional) so the zod-mirror-parity
   // ratchet stays at zero drift for this pair.

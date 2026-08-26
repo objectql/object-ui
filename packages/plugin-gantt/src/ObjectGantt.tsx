@@ -308,6 +308,26 @@ const isDev = (): boolean =>
     ?.NODE_ENV !== 'production';
 
 /**
+ * `keyof T` with the string / number INDEX SIGNATURE stripped out.
+ *
+ * Load-bearing, not tidiness. `GanttConfig` derives from the spec's
+ * `GanttConfigSchema`, which carries an index signature, so a bare
+ * `keyof GanttConfig` widens to `string` — and every guard written against it
+ * (the `satisfies` below, the coverage pin in
+ * `ObjectGantt.blockPrecedence.test.tsx`) then constrains NOTHING while looking
+ * exactly like a guard that does. That is the same blind instrument
+ * objectui#6051's declaration pin records: an index signature absorbs precisely
+ * the evidence a type annotation would have produced. Measured here — the pin
+ * came back `string` before this alias existed.
+ */
+type KnownKeys<T> = keyof {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/** The DECLARED members of `GanttConfig` — its index signature removed. */
+export type KnownGanttConfigKey = KnownKeys<GanttConfig>;
+
+/**
  * objectui's own `GanttConfig` members — the ten the spec's `GanttConfigSchema`
  * does not model. They lived in this file's private `GanttConfigEx` until
  * objectui#6472 lifted them into `@object-ui/types`, which is what makes
@@ -330,7 +350,7 @@ const GANTT_CONFIG_EXTENSION_KEYS = [
   'exportFileName',
   'interactions',
   'timeSegments',
-] as const satisfies readonly (keyof GanttConfig)[];
+] as const satisfies readonly KnownGanttConfigKey[];
 
 /**
  * The FLAT spelling of `GanttConfig`'s keys — what `getGanttConfig`'s flat

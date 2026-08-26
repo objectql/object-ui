@@ -40,7 +40,7 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { GanttConfig } from '@object-ui/types';
-import { ObjectGantt, FLAT_GANTT_CONFIG_KEYS } from './ObjectGantt';
+import { ObjectGantt, FLAT_GANTT_CONFIG_KEYS, type KnownGanttConfigKey } from './ObjectGantt';
 
 vi.mock('./GanttView', () => ({
   GanttView: ({ tasks }: any) => (
@@ -107,10 +107,12 @@ afterEach(() => {
   warn.mockRestore();
 });
 
-/** Every `console.warn` argument list, flattened to one searchable string. */
-const warnText = () => warn.mock.calls.map((c) => c.map(String).join(' ')).join('\n');
+/** Every recorded `console.warn` argument list. */
+const calls = (): unknown[][] => warn.mock.calls as unknown as unknown[][];
+/** …flattened to one searchable string. */
+const warnText = () => calls().map((c) => c.map(String).join(' ')).join('\n');
 const shadowWarnings = () =>
-  warn.mock.calls.filter((c) => String(c[0]).includes('so these top-level keys are'));
+  calls().filter((c) => String(c[0]).includes('so these top-level keys are'));
 
 describe('precedence: the `gantt` block outranks the flat spelling (objectui#6469)', () => {
   it('renders the BLOCK values when a node carries both spellings', async () => {
@@ -184,6 +186,28 @@ describe('the losing face is NAMED, not dropped silently (objectui#6469)', () =>
     expect(shadowWarnings()).toHaveLength(0);
   });
 
+  it('names GanttConfig keys hoisted beside a block, with no top-level date pair', async () => {
+    // The shape published authoring guidance actually produces: a `gantt` block
+    // plus GanttConfig keys hoisted to the top level as if they were node-level
+    // options. There is no top-level date pair, so this node took the BLOCK
+    // branch before the flip too — the hoisted keys were already inert, just
+    // silently. The warning is what changes for it.
+    await rendered({
+      type: 'object-gantt',
+      gantt: { ...BLOCK },
+      quickFilters: [{ field: 'status' }],
+      autoZoomToFilter: true,
+      data: { provider: 'value', items: INLINE },
+      objectName: 'hoisted_beside_block',
+    } as any);
+
+    const hits = shadowWarnings();
+    expect(hits).toHaveLength(1);
+    const text = String(hits[0][0]);
+    expect(text).toContain('`quickFilters`');
+    expect(text).toContain('`autoZoomToFilter`');
+  });
+
   it('does NOT fire for a block with no flat keys beside it', async () => {
     await rendered({
       type: 'object-gantt',
@@ -254,5 +278,5 @@ describe('the named key set cannot drift from `GanttConfig` (objectui#6469)', ()
  */
 type AssertNever<T extends never> = T;
 export type UncoveredGanttConfigKey = AssertNever<
-  Exclude<keyof GanttConfig, (typeof FLAT_GANTT_CONFIG_KEYS)[number]>
+  Exclude<KnownGanttConfigKey, (typeof FLAT_GANTT_CONFIG_KEYS)[number]>
 >;
