@@ -237,13 +237,48 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
         );
       })}
 
+      {/*
+        Close = flip `open` and KEEP every other field (objectui#6473), the
+        shape the other two `ActionParamDialog` consumers in this package
+        already carry: `hooks/useConsoleActionRuntime.tsx` and
+        `views/RecordDetailView.tsx` converged on it in objectui#6431. This was
+        the third consumer and the last one still blanking.
+
+        `DialogContent` carries `duration-200 data-[state=closed]:animate-out`,
+        so Radix holds the content mounted through its exit animation and the
+        dialog goes on rendering off `state` for the whole fade-out. The
+        `{ open: false, params: [] }` this replaced dropped `title` and emptied
+        `params`, so the closing dialog re-titled itself from the action's own
+        label to the generic `actionDialog.title` and dropped every param row
+        while it faded. `run()` opens with a real title (`action.label ??
+        action.name`), so this site does have something to lose. (`description`
+        is the one field of the sibling shape this site never supplies — it is
+        the generic string under both shapes here, so it is not what was lost.)
+
+        This is NOT the form deliberately dropping stale values: the user's
+        typed values never lived in `paramState`. They live in
+        `ActionParamDialog`'s own `values`, reseeded from the param defaults on
+        every `state.open` false-to-true edge, so a reopen starts from the
+        defaults under either shape.
+
+        The `paramState.resolve?.(null)` that used to run before the reset is
+        GONE rather than retained, and that is an enumeration, not an appeal to
+        "resolving twice is a no-op". This callback is reachable from exactly
+        three places, all inside `ActionParamDialog`, and every one settles the
+        promise BEFORE it asks for the close: `handleSubmit`
+        (`state.resolve?.(serializeParamValues(...))`), `handleCancel`
+        (`state.resolve?.(null)`), and the Radix root's own `onOpenChange`,
+        which delegates to `handleCancel` and is the route Escape, an
+        overlay/outside click and the header X button all take. No path arrives
+        here unsettled. `MetadataTypeActions.paramDialogClose-6473.test.tsx`
+        drives all four routes and asserts the settle precedes this callback, so
+        a future path that skipped it is red there rather than a pending promise
+        here.
+      */}
       <ActionParamDialog
         state={paramState}
         onOpenChange={(open) => {
-          if (!open) {
-            paramState.resolve?.(null);
-            setParamState({ open: false, params: [] });
-          }
+          if (!open) setParamState((s) => ({ ...s, open: false }));
         }}
       />
       <ActionResultDialog
