@@ -1098,6 +1098,71 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     return newSchema;
   }, [schema, dataSource, predicateScope, pageVariables, boundRecord]);
 
+  /**
+   * SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
+   * id-scoped CSS injected as a `<style>` tag, and a scope class is appended to
+   * the node's className.
+   *
+   * ## Why this is a memo, and why it is HERE and not at its use site
+   *
+   * The scope-class branch rebuilds the schema object (`{ ...evaluatedSchema,
+   * className: mergedClassName }`) so renderers that read `schema.className`
+   * see the scope class. Unmemoised, that spread allocated a NEW object on
+   * every render of this component — even when the `evaluatedSchema` memo
+   * directly above it HELD — so every downstream renderer that memoises on
+   * `[schema]` (e.g. `ObjectMap`'s `dataConfig` / `mapConfig`, and the whole
+   * marker cascade below them) saw a fresh identity and re-ran (objectui#6270).
+   * Only nodes taking this branch were affected: a plain node was handed
+   * `evaluatedSchema` itself and was already stable.
+   *
+   * It is hoisted ABOVE the early returns below because it is a HOOK. Its use
+   * site sits after `if (!evaluatedSchema) return null`, the `_hidden` return
+   * and the unresolved-component returns, so a `useMemo` written there is a
+   * CONDITIONAL hook: a node toggling hidden -> visible would call one more
+   * hook than the previous render and React would throw "Rendered more hooks
+   * than during the previous render". Hoisting is what makes the memo legal,
+   * not a stylistic preference.
+   *
+   * `[evaluatedSchema, autoStyleId]` is the complete dependency set: every
+   * value below is a pure function of the evaluated node (`className`, `id`,
+   * `responsiveStyles`) and the `useId` fallback. `evaluatedSchema` is itself a
+   * fresh object whenever anything it interpolates changes, so a genuinely
+   * changed className, value or breakpoint still produces a NEW identity here —
+   * memoising cannot make a live value go stale.
+   *
+   * Non-object / primitive nodes fall through untouched: the render pass below
+   * returns them as text before any of this is read.
+   */
+  const scopedStyling = useMemo(() => {
+    const node = evaluatedSchema;
+    if (!node || typeof node !== 'object') {
+      return { scopeClass: '', scopedCss: '', mergedClassName: undefined, schemaForComponent: node };
+    }
+    const responsiveStyles = (node as Record<string, unknown>).responsiveStyles;
+    if (!hasResponsiveStyles(responsiveStyles)) {
+      // No scope class: hand the component `evaluatedSchema` ITSELF, which the
+      // memo above already keeps stable. Never a copy — a copy here would
+      // reintroduce the same instability for every node in the tree.
+      return {
+        scopeClass: '',
+        scopedCss: '',
+        mergedClassName: node.className,
+        schemaForComponent: node,
+      };
+    }
+    const scopeClass = scopeClassFor(node.id ?? autoStyleId);
+    const mergedClassName = [node.className, scopeClass].filter(Boolean).join(' ');
+    return {
+      scopeClass,
+      scopedCss: compileScopedStyles(`.${scopeClass}`, responsiveStyles),
+      mergedClassName,
+      // Some renderers read `schema.className` directly (e.g. element:text)
+      // while others read the `className` prop (e.g. flex/container). Set both
+      // so the scope class lands regardless of which channel a renderer honours.
+      schemaForComponent: { ...node, className: mergedClassName },
+    };
+  }, [evaluatedSchema, autoStyleId]);
+
   if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
   if (typeof evaluatedSchema === 'string') return <>{evaluatedSchema}</>;
@@ -1237,21 +1302,9 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     );
   }
 
-  // SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
-  // id-scoped CSS injected as a <style> tag, and a scope class is appended to
-  // the node's className. Build-independent, collision-free, responsive-correct.
-  const hasScopedStyles = hasResponsiveStyles(_responsiveStyles);
-  const scopeClass = hasScopedStyles ? scopeClassFor(evaluatedSchema.id ?? autoStyleId) : '';
-  const scopedCss = hasScopedStyles ? compileScopedStyles(`.${scopeClass}`, _responsiveStyles) : '';
-  const mergedClassName = scopeClass
-    ? [evaluatedSchema.className, scopeClass].filter(Boolean).join(' ')
-    : evaluatedSchema.className;
-  // Some renderers read `schema.className` directly (e.g. element:text) while
-  // others read the `className` prop (e.g. flex/container). Set both so the
-  // scope class lands regardless of which channel a renderer honours.
-  const schemaForComponent = scopeClass
-    ? { ...evaluatedSchema, className: mergedClassName }
-    : evaluatedSchema;
+  // SDUI scoped styling (ADR-0065) — computed in the memo hoisted above the
+  // early returns; see the doc comment there for why it cannot live here.
+  const { scopeClass, scopedCss, mergedClassName, schemaForComponent } = scopedStyling;
 
   // Extract AriaPropsSchema properties for accessibility
   const ariaProps = resolveAriaProps(evaluatedSchema);
