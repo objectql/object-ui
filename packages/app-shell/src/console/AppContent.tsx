@@ -22,14 +22,17 @@ import { useMetadata } from '../providers/MetadataProvider.js';
 import { useAdapter } from '../providers/AdapterProvider.js';
 import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
 import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState.js';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider.js';
+import {
+  ExpressionProvider,
+  createExpressionEvaluator,
+  evaluateVisibility,
+} from '../providers/ExpressionProvider.js';
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent.js';
 import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation.js';
 import { deriveRecordSurface, deriveRecordFlowSurface } from '@object-ui/plugin-view';
 import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams.js';
 import { matchAppBySegment } from '../utils/appRoute.js';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
-import { ExpressionEvaluator } from '@object-ui/core';
 
 // Components (eagerly loaded — always needed)
 import { ConsoleLayout } from '../layout/ConsoleLayout.js';
@@ -668,13 +671,25 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     navigate(`/apps/${newAppName}`);
   };
 
+  // Evaluator for the ModalForm's field-visibility gates below, over the SAME
+  // bag the `ExpressionProvider` this component mounts publishes — one builder,
+  // called with the same inputs (objectui#6493). This one sits ABOVE that
+  // provider in its own tree, so it cannot read it back through the hook; what
+  // it can do is stop hand-writing a second, narrower bag.
+  //
+  // Two roots the private bag dropped, both of which fail OPEN when named:
+  // `current_user` (and the `ctx.user` / `os.user` spellings of the same
+  // object) and `features`. Its `user` was hand-rolled too, without
+  // `positions` — so `'sales' in current_user.positions`, the gate the server
+  // enforces on write, faulted here rather than hiding the field.
   const expressionEvaluator = useMemo(
-    () => new ExpressionEvaluator({
-      user: user ? { name: user.name, email: user.email, role: user.role ?? 'user' } : {},
+    () => createExpressionEvaluator({
+      user: buildExpressionUser(user),
       app: activeApp || {},
       data: editingRecord || {},
+      features,
     }),
-    [user, activeApp, editingRecord],
+    [user, activeApp, editingRecord, features],
   );
 
   // objectui#5619 — `isWorkspaceAdminResolved` belongs in this readiness gate

@@ -40,6 +40,66 @@ export interface ExpressionContextValue {
 
 const ExprCtx = createContext<ExpressionContextValue | null>(null);
 
+/** The inputs an app-shell surface has when it needs a predicate scope. */
+export interface ExpressionScopeInput {
+  user?: Record<string, any>;
+  app?: Record<string, any>;
+  data?: Record<string, any>;
+  features?: Record<string, any>;
+}
+
+/**
+ * The ONE predicate scope this tier binds — the single declaration of what an
+ * app-shell expression can name.
+ *
+ * ADR-0068 D1: expose the SAME user object under the canonical `current_user`
+ * plus the back-compat `user` alias, the server-RLS-parity `ctx.user` alias,
+ * and the server-CEL-parity `os.user` alias (the spec's canonical identity
+ * scope — `{{os.user.id}}` per @objectstack/spec expression docs), so a
+ * predicate authored against any one form evaluates identically on client,
+ * server-formula, and server-RLS (#2358 trap 1). D1 names a client `visible`
+ * gate as one of the three surfaces that must agree.
+ *
+ * ## Why this is a function and not three literals
+ *
+ * It was three literals, and they drifted (objectui#6493). `ExpressionProvider`
+ * built the full bag, while `RecordFormPage` and `AppContent` each built a
+ * private `new ExpressionEvaluator({ user, app, data })` for the SAME kind of
+ * gate — an object field's `visible` — beside the provider they never read.
+ * Those bags bound `user` but not the other three spellings of the same object,
+ * and not `features` at all, so ONE authored predicate meant two things
+ * depending on which evaluator reached it: `current_user` resolved on a nav
+ * item and FAULTED on a field, and a fault fails OPEN (`evaluateVisibility`
+ * below), which is indistinguishable on screen from a gate that said yes.
+ * A copy of the bag is how that recurs; a call is not.
+ *
+ * `features` is renderer-tier, not contract — the same posture `@objectstack/
+ * spec`'s `page.zod.ts` documents for component `visibleWhen` ("the shipping
+ * renderer additionally mounts `app`, `features`, `os.user` … renderer
+ * behaviour, NOT contract-guaranteed"). It is bound here because it is what
+ * THIS tier's own diagnostic advice tells an author they may name.
+ */
+export function buildExpressionScope({
+  user = {},
+  app = {},
+  data = {},
+  features = {},
+}: ExpressionScopeInput = {}): Record<string, any> {
+  return { current_user: user, user, ctx: { user }, os: { user }, app, data, features };
+}
+
+/**
+ * An `ExpressionEvaluator` over {@link buildExpressionScope}.
+ *
+ * Every app-shell site that needs an evaluator imperatively (i.e. one it cannot
+ * take from `useExpressionContext()`, because it builds the field list ABOVE
+ * the provider it mounts) calls this instead of `new ExpressionEvaluator(...)`
+ * with a hand-written bag.
+ */
+export function createExpressionEvaluator(input: ExpressionScopeInput = {}): ExpressionEvaluator {
+  return new ExpressionEvaluator(buildExpressionScope(input));
+}
+
 interface ExpressionProviderProps {
   children: React.ReactNode;
   user?: Record<string, any>;
@@ -50,24 +110,17 @@ interface ExpressionProviderProps {
 
 export function ExpressionProvider({ children, user = {}, app = {}, data = {}, features = {} }: ExpressionProviderProps) {
   const value = useMemo(() => {
-    // ADR-0068: expose the SAME user object under the canonical `current_user`
-    // plus the back-compat `user` alias, the server-RLS-parity `ctx.user`
-    // alias, and the server-CEL-parity `os.user` alias (the spec's canonical
-    // identity scope — `{{os.user.id}}` per @objectstack/spec expression docs),
-    // so a predicate authored against any one form evaluates identically on
-    // client, server-formula, and server-RLS (#2358 trap 1).
-    const context = { current_user: user, user, ctx: { user }, os: { user }, app, data, features };
-    const evaluator = new ExpressionEvaluator(context);
+    const evaluator = createExpressionEvaluator({ user, app, data, features });
     return { user, app, data, features, evaluator };
   }, [user, app, data, features]);
 
   // Also feed the predicate scope used by useCondition/useExpression in
   // @object-ui/react so action visibility predicates (e.g. on toolbar
   // buttons) can see deployment-level flags like features.multiOrgEnabled.
-  // Mirror the canonical `current_user`/`user`/`ctx.user`/`os.user` aliases
-  // here too.
+  // The SAME bag the evaluator above got — one builder, so the imperative and
+  // the hook-driven halves of this provider cannot drift apart either.
   const scope = useMemo(
-    () => ({ current_user: user, user, ctx: { user }, os: { user }, app, data, features }),
+    () => buildExpressionScope({ user, app, data, features }),
     [user, app, data, features],
   );
 
@@ -85,10 +138,12 @@ export function ExpressionProvider({ children, user = {}, app = {}, data = {}, f
 export function useExpressionContext(): ExpressionContextValue {
   const ctx = useContext(ExprCtx);
   if (!ctx) {
-    // Return a safe default so components can be used outside the provider
+    // Return a safe default so components can be used outside the provider.
+    // Through the same builder: the hand-written version gave `current_user`,
+    // `ctx.user` and `os.user` three DIFFERENT empty objects, which ADR-0068 D1
+    // spells as aliases "pointing at the same object".
     const fallback = { user: {}, app: {}, data: {}, features: {} };
-    const evalContext = { current_user: {}, ctx: { user: {} }, os: { user: {} }, ...fallback };
-    return { ...fallback, evaluator: new ExpressionEvaluator(evalContext) };
+    return { ...fallback, evaluator: createExpressionEvaluator(fallback) };
   }
   return ctx;
 }

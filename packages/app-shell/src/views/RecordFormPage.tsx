@@ -37,11 +37,14 @@ import { toast } from 'sonner';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useAdapter } from '../providers/AdapterProvider.js';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider.js';
+import {
+  ExpressionProvider,
+  createExpressionEvaluator,
+  evaluateVisibility,
+} from '../providers/ExpressionProvider.js';
 import { SkeletonDetail } from '../skeletons/index.js';
 import { ManagedByBadge } from '../components/ManagedByBadge.js';
 import { useAuth } from '@object-ui/auth';
-import { ExpressionEvaluator } from '@object-ui/core';
 
 export interface RecordFormPageProps {
   /** Form mode — `'create'` for the `/new` route, `'edit'` for the `/edit` route. */
@@ -178,18 +181,31 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
     [user],
   );
 
-  // Build expression evaluator for field-visibility expressions, mirroring
-  // the global ModalForm setup in AppContent.
+  // Evaluator for the field-visibility expressions below, over the SAME bag
+  // the `ExpressionProvider` at the bottom of this file publishes to the form's
+  // descendants — one builder, called with the same four inputs (objectui#6493).
+  //
+  // It cannot simply READ that provider: the provider is mounted in this
+  // component's own returned tree, so `useExpressionContext()` here would
+  // resolve to whatever provider sits ABOVE this page (today `AppContent`'s,
+  // with a different `app`; nothing at all if the page is ever mounted
+  // elsewhere, which would silently unbind `user` too). Building the same scope
+  // from the same inputs is the fix that needs no new wiring.
+  //
+  // The private bag this replaced bound `user` alone, so an authored
+  // `current_user` / `ctx.user` / `os.user` / `features` gate on a field
+  // faulted here and failed OPEN while resolving normally on a nav item.
   const expressionEvaluator = useMemo(
     () =>
-      new ExpressionEvaluator({
+      createExpressionEvaluator({
         // expressionUser already handles the anonymous fallback, so we can
         // pass it through unconditionally.
         user: expressionUser,
         app: { name: appName },
         data: {},
+        features,
       }),
-    [expressionUser, appName],
+    [expressionUser, appName, features],
   );
 
   // Resolve the field list using the same visibility-aware logic as the
