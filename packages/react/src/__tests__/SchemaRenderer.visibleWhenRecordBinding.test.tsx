@@ -364,8 +364,26 @@ describe('#5454 leg 3 — an unresolvable predicate is loud, and its verdict is 
       cleanup();
       mountProd({ hidden: cel('record.nope.deeper == 1') }, undefined);
       expect(shown()).toBe(false);
-      // ...but with none of this module's diagnostic, which is dev-only.
-      expect(warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX))).toHaveLength(0);
+      // ...and, since objectui#6038, WITH this module's diagnostic — one line
+      // per distinct faulting predicate source, in production too.
+      //
+      // This assertion used to read `toHaveLength(0)`, and the change is the
+      // whole of the maintainer's 2026-08-25 ruling (option B): "A is rejected
+      // — the silence is no longer an accepted property." The pin is rewritten
+      // rather than deleted, because what it was really guarding is the half
+      // that did NOT move: every verdict above is untouched, and the branch is
+      // still the SINGLE-evaluation one (production never pays for the
+      // `throwOnError` probe — `EvaluationOptions.onFault` reports the fault
+      // the evaluator had already caught).
+      //
+      // TWO lines, not one: the two mounts above carry two DIFFERENT predicate
+      // sources (`record.status == 'in_review'` on `visibleWhen`, and
+      // `record.nope.deeper == 1` on `hidden`). One line each is the dedupe
+      // working; one line total would mean it had swallowed the second.
+      const produced = warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX));
+      expect(produced).toHaveLength(2);
+      expect(produced.some(m => m.includes("record.status == 'in_review'"))).toBe(true);
+      expect(produced.some(m => m.includes('record.nope.deeper == 1'))).toBe(true);
       core.ComponentRegistry.unregister?.(NAME, 'element');
     } finally {
       vi.unstubAllEnvs();

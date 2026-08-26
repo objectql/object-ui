@@ -159,8 +159,20 @@ export function __resetVisibilityPredicateWarnings(): void {
  * dev-only unresolvable-predicate report". What is load-bearing there — and
  * what the dispatch restated — is the reporter's POSTURE: same module, same
  * severity (`console.warn`), same dedupe key shape, same dedupe Set, same
- * dev-only gate at the same call site, same test-only reset. All of that is
- * shared below. The first LINE is not reused, because on this path it would
+ * gate at the same call site, same test-only reset. All of that is shared
+ * below.
+ *
+ * ⚠️ The two legs stopped sharing that gate's VALUE in objectui#6038, and only
+ * that. The unresolvable leg now reports in production as well, because the
+ * 2026-08-25 ruling retired its silence; THIS leg stays dev-only under its own
+ * 2026-08-22 ruling, and the difference is not an oversight. A fault is a
+ * predicate that could not be evaluated, and shipping a live gate that has
+ * stopped biting is the class-1 defect production has to be able to see. This
+ * leg reports something else: a predicate that evaluated perfectly, against the
+ * wrong object. Its trigger is a LEXICAL scan of the predicate source with a
+ * stated false-positive residue (the deliberate-absence idioms below), which is
+ * a cost worth paying for an author at their keyboard and not for every user of
+ * every production page. The first LINE is not reused, because on this path it would
  * state something false: the predicate did not fail to evaluate. It evaluated
  * perfectly, against the wrong object, and produced a constant. Telling an
  * author "could not be evaluated" would send them hunting for a syntax error
@@ -314,7 +326,9 @@ export function formatAdapterOnlyDataMessage(
  * objectui#5454 existed to remove, one path further along.
  *
  * Sharing the module means sharing the LIFECYCLE, which is the part that has to
- * match: one dedupe Set, one reset, one severity, one dev-only gate. The dedupe
+ * match: one dedupe Set, one reset, one severity. (One gate, too, until
+ * objectui#6038 — see the prefix constant above for why only the sibling leg
+ * crossed into production.) The dedupe
  * key is tagged with this leg's name so the two diagnostics cannot silence each
  * other for the same (type, key, source) triple — they are different faults,
  * and a node that faults one way is not evidence about the other.
