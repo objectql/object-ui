@@ -221,10 +221,11 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
      * It does not: React re-renders only the subtree below the component that
      * set state, so `SchemaRenderer` stays put and the consumer keeps the very
      * object React last handed it. This test fixes that as a property of the
-     * renderer rather than a fact people re-derive from React semantics — it
-     * is GREEN on both sides of the fix by design (the fix changes parent-render
-     * behaviour, not this), and turns red only if something upstream starts
-     * re-rendering `SchemaRenderer` in response to a consumer's state.
+     * renderer rather than a fact people re-derive from React semantics. It is
+     * green on both sides of the fix — the fix changes what a PARENT render
+     * hands down, and this measures renders no parent took part in — and turns
+     * red only if something upstream starts re-rendering `SchemaRenderer` in
+     * response to a consumer's own state.
      */
     it('a consumer re-rendering itself keeps the exact schema object it was handed', () => {
       const selfUpdates: any[] = [];
@@ -247,16 +248,31 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
           />
         );
 
-        const handedOnce = selfUpdates.length;
+        // Measured from the LAST render before the first click, not from mount.
+        //
+        // Mount is not a clean baseline: `SchemaRenderer` force-updates itself
+        // once after mounting (it re-checks `ComponentRegistry` for a lazily
+        // registered component), so mounting alone produces two SchemaRenderer
+        // renders — and before the fix those two already handed down two
+        // different schema objects. Counting from mount would fold that
+        // parent-render instability into this test and make it a second, worse
+        // copy of the fix-case test above instead of the independent property
+        // it is meant to pin. (Measured: this assertion goes red on the pre-fix
+        // tree when it starts at index 0, and stays green when it starts here.)
+        const mountRenders = selfUpdates.length;
+        const baseline = selfUpdates[mountRenders - 1];
+
         fireEvent.click(screen.getByTestId('bump-self'));
         fireEvent.click(screen.getByTestId('bump-self'));
 
         // Positive control: the consumer really did re-render on its own state.
-        expect(selfUpdates.length).toBeGreaterThan(handedOnce);
-        // …and every one of those renders saw the SAME schema object.
-        expect(new Set(selfUpdates).size).toBe(1);
+        expect(selfUpdates.length).toBeGreaterThan(mountRenders);
+        // The property: across the consumer's OWN re-renders, the schema object
+        // it holds never changes — SchemaRenderer did not re-run, so there was
+        // nothing to re-key. This is what makes the finding bounded.
+        expect(new Set(selfUpdates.slice(mountRenders - 1)).size).toBe(1);
         // The branch is genuinely taken here too — otherwise this pins nothing.
-        expect(selfUpdates[0].className).toContain('os-s-selfscoped');
+        expect(baseline.className).toContain('os-s-selfscoped');
       } finally {
         ComponentRegistry.unregister?.('self-updating-probe');
       }
