@@ -145,11 +145,13 @@ describe('ToastSchema — the two trigger-button keys are declared (objectui#649
     }
   });
 
-  it('is NOT `z.string()` — the shape `SonnerSchema`’s mirror uses for the same key', () => {
+  it('is NOT `z.string()` — the shape `SonnerSchema`’s mirror used for the same key', () => {
     // Stated as a pin because the obvious way to write this card was to copy the
-    // sibling mirror verbatim. Sonner's two faces disagree with each other
-    // (`z.string()` vs the six-member union); that disagreement is filed as
-    // objectui#6541 and deliberately NOT resolved here.
+    // sibling mirror verbatim, and at the time Sonner's two faces disagreed with
+    // each other (`z.string()` vs the six-member union). That disagreement was
+    // filed as objectui#6541 rather than fixed here, and #6541 has since
+    // narrowed Sonner's mirror to this same enum — so the two nodes now agree,
+    // and this pin keeps guarding the shape rather than the sibling.
     expect(ToastSchema.safeParse({ ...MINIMAL, buttonVariant: 'anything-at-all' }).success).toBe(false);
   });
 
