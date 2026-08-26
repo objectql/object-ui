@@ -6,7 +6,19 @@
  * LICENSE file in the root directory of this source tree.
  *
  * Builds `dist/index.css` from `src/index.css` — the file `@object-ui/fields`
- * has always PROMISED via its `"./style.css"` export and never once shipped.
+ * has always PROMISED via its `"./style.css"` export and, until objectui#4059,
+ * never once shipped.
+ *
+ * The subtraction itself — the components-sheet diff, its normalisation of
+ * Tailwind's inlined `var()` fallbacks, its at-rule context keys and the
+ * write-time assertions that guard it — lives in
+ * `scripts/build-plugin-stylesheet.mjs` at the repository root and is NOT
+ * repeated here. This file held the original copy of it; objectui#6405
+ * re-pointed it at that module against a byte-for-byte check of the emitted
+ * sheet, so there is now one implementation and a fix to it reaches every
+ * package that ships a supplement sheet. `src/index.css`'s own header explains
+ * the narrow `@reference` shape. What stays below is what is specific to THIS
+ * package — including the history, because this is where it was worked out.
  *
  * ## What was wrong (objectui#4059)
  *
@@ -45,22 +57,19 @@
  * objectui#3884 for costing 100 kB and buying 14 selectors; it applies with more
  * force to a stylesheet we ship ourselves.
  *
- * So this build emits the DIFFERENCE and nothing else:
- *
- *   1. `src/index.css` `@reference`s components' entry — theme tokens, the
- *      class-based `dark` variant and the animate plugin become available for
- *      resolution while emitting nothing — and imports only the utilities
- *      layer, so there is no preflight and no `:root` theme block to begin with.
- *   2. This script compiles components' stylesheet too, in-process, and
- *      subtracts every rule that sheet already ships.
- *
- * The result is a supplement of a few kB. It is only correct when loaded AFTER
- * the components sheet, which is what the `exports` docs and the guides now say.
+ * So this build emits the DIFFERENCE and nothing else: `src/index.css`
+ * `@reference`s components' entry — theme tokens, the class-based `dark`
+ * variant and the animate plugin become available for resolution while emitting
+ * nothing — and imports only the utilities layer, so there is no preflight and
+ * no `:root` theme block to begin with; the shared builder then subtracts every
+ * rule components' sheet already ships. The result is a supplement of a few kB.
+ * It is only correct when loaded AFTER the components sheet, which is what the
+ * `exports` docs, the guides and the banner below all say.
  *
  * ## The coupling, stated plainly
  *
  * `src/index.css` `@reference`s `packages/components/src/index.css` over a
- * build-time relative path, and this script reads that package's BUILT
+ * build-time relative path, and the builder reads that package's BUILT
  * `dist/index.css`. Both are inside the monorepo and neither is reachable from
  * the published tarball — the same shape of coupling `@object-ui/components`'
  * own `scripts/build-css.mjs` has to its `src/index.css`, one directory further
@@ -73,139 +82,19 @@
  * process cwd, so compiling components' entry from THIS package's directory
  * scanned `packages/fields` and folded fields' own classes into the set being
  * subtracted. Every fields-only rule then looked "already shipped" and the
- * verification below, which trusts that set, could not see it.
- *
- * ## Failure modes this script refuses to have
- *
- * A subtraction that drops too much would silently ship an under-styled
- * package — exactly the defect being fixed, wearing a green build. Three
- * assertions run BEFORE the file is written, and each throws rather than
- * writing a wrong sheet: every rule must be accounted for, the subtraction must
- * have removed something, and the utilities that only this build can produce
- * must still be present.
+ * verification, which trusts that set, could not see it.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import postcss from 'postcss';
-import tailwindPostcss from '@tailwindcss/postcss';
+import tailwind from '@tailwindcss/postcss';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
-const componentsRoot = resolve(root, '../components');
+import { isEntrypoint } from '../../../scripts/invoked-as.mjs';
+import { createPluginStylesheetBuilder } from '../../../scripts/build-plugin-stylesheet.mjs';
 
-const input = resolve(root, 'src/index.css');
-const output = resolve(root, 'dist/index.css');
-/**
- * The stylesheet a consumer already has from `@object-ui/components/style.css`
- * — that package's real build output, not a re-derivation of it.
- */
-const componentsSheetPath = resolve(componentsRoot, 'dist/index.css');
-
-async function compile(file) {
-  const css = await readFile(file, 'utf8');
-  const result = await postcss([tailwindPostcss()]).process(css, { from: file, to: output });
-  return postcss.parse(result.css, { from: file });
-}
-
-/**
- * `var(--x, <fallback>)` -> `var(--x)`, at any nesting depth.
- *
- * Tailwind inlines a fallback for every theme variable whose declaration is not
- * emitted in the same sheet. Ours never are — that is the entire point of the
- * `@reference` entry — so `.rounded-md` compiles here to
- * `var(--radius-md, calc(var(--radius) - 2px))` and in components' sheet to
- * `var(--radius-md)`. Same rule, same computed value once the components sheet
- * is loaded, different bytes. Comparing raw text therefore finds ~750 spurious
- * differences and keeps the whole duplicate sheet.
- *
- * Normalisation is applied ONLY to the comparison key; the emitted CSS keeps its
- * fallbacks, so a rule that does survive still degrades sensibly on its own.
- * Hand-written rather than a regex because the fallbacks nest (`calc(var(…))`,
- * `hsl(var(…))`) and a regex cannot match balanced parentheses.
- */
-function stripVarFallbacks(value) {
-  let out = '';
-  for (let i = 0; i < value.length; i += 1) {
-    if (!value.startsWith('var(', i)) {
-      out += value[i];
-      continue;
-    }
-    // Find this var()'s matching close paren, and the top-level comma inside it.
-    let depth = 0;
-    let comma = -1;
-    let end = -1;
-    for (let j = i + 3; j < value.length; j += 1) {
-      const ch = value[j];
-      if (ch === '(') depth += 1;
-      else if (ch === ')') {
-        depth -= 1;
-        if (depth === 0) {
-          end = j;
-          break;
-        }
-      } else if (ch === ',' && depth === 1 && comma === -1) comma = j;
-    }
-    if (end === -1) {
-      out += value.slice(i);
-      break;
-    }
-    const name = value.slice(i + 4, comma === -1 ? end : comma).trim();
-    out += `var(${name})`;
-    i = end;
-  }
-  return out;
-}
-
-/**
- * The at-rule context a node sits in, as a stable string — `@media (…)` and
- * `@layer utilities` and so on, outermost first.
- *
- * Without this, `.lg\:max-w-5xl` inside `@media (min-width:64rem)` and a
- * hypothetical top-level rule with the same selector would collide, and the
- * subtraction could drop a responsive variant because an unrelated base rule
- * matched. Keys are compared, never parsed, so the exact spelling only has to
- * be consistent between the two compilations — and both come from the same
- * Tailwind version in the same process.
- */
-function contextOf(node) {
-  const parts = [];
-  for (let p = node.parent; p && p.type !== 'root'; p = p.parent) {
-    parts.unshift(p.type === 'atrule' ? `@${p.name} ${(p.params ?? '').trim()}`.trim() : String(p.selector ?? ''));
-  }
-  return parts.join(' > ');
-}
-
-/** A rule's declarations, normalised so formatting differences cannot matter. */
-function bodyOf(rule) {
-  return rule.nodes
-    .map((n) =>
-      n.type === 'decl'
-        ? `${n.prop}:${stripVarFallbacks(String(n.value).trim())}${n.important ? '!important' : ''}`
-        : stripVarFallbacks(n.toString().replace(/\s+/g, ' ').trim()),
-    )
-    .join(';');
-}
-
-const ruleKey = (rule) => `${contextOf(rule)}||${rule.selector.trim()}`;
-/** Whole-node identity for at-rules that carry no selector (`@property`, `@keyframes`). */
-const atRuleKey = (at) => `${contextOf(at)}||@${at.name} ${(at.params ?? '').trim()}`.trim();
-const normalise = (node) => stripVarFallbacks(node.toString().replace(/\s+/g, ' ').trim());
-
-/** Class names a selector targets, with CSS escapes resolved (`.min-w-\[8ch\]` -> `min-w-[8ch]`). */
-function classesIn(selector) {
-  const found = [];
-  const re = /\.((?:\\.|[^\s.,>+~()[\]:#*'"\\])+)/g;
-  let m;
-  while ((m = re.exec(selector))) {
-    found.push(
-      m[1]
-        .replace(/\\([0-9a-fA-F]{1,6})\s?/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-        .replace(/\\(.)/g, '$1'),
-    );
-  }
-  return found;
-}
+export const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const PACKAGE_NAME = '@object-ui/fields';
 
 /**
  * Utilities that MUST survive the subtraction, spanning both reasons a rule can
@@ -222,7 +111,7 @@ function classesIn(selector) {
  * to be re-tuned every time a widget gains a class, and the edit that silences a
  * real regression would look exactly like the edit that keeps it current.
  */
-const MUST_SURVIVE = [
+export const MUST_SURVIVE = [
   'bg-primary/20',
   'hover:bg-accent/30',
   'ring-destructive/50',
@@ -231,168 +120,31 @@ const MUST_SURVIVE = [
   'hover:fill-yellow-500',
 ];
 
-/** Everything the components sheet already provides, indexed for lookup. */
-function indexSheet(rootNode) {
-  const rules = new Map();
-  const atRules = new Map();
-  rootNode.walkRules((rule) => {
-    const key = ruleKey(rule);
-    if (!rules.has(key)) rules.set(key, new Set());
-    rules.get(key).add(bodyOf(rule));
-  });
-  rootNode.walkAtRules((at) => {
-    // Container at-rules are represented by the rules inside them, via contextOf.
-    if (at.nodes?.some((n) => n.type === 'rule')) return;
-    const key = atRuleKey(at);
-    if (!atRules.has(key)) atRules.set(key, new Set());
-    atRules.get(key).add(normalise(at));
-  });
-  return { rules, atRules };
-}
-
-const fieldsSheet = await compile(input);
-
-let componentsSheet;
-try {
-  componentsSheet = postcss.parse(await readFile(componentsSheetPath, 'utf8'), { from: componentsSheetPath });
-} catch (error) {
-  if (error?.code !== 'ENOENT') throw error;
-  throw new Error(
-    [
-      `@object-ui/components has not been built: ${componentsSheetPath} does not exist.`,
-      '',
-      'This build subtracts the utilities that package already ships, so it needs that sheet to',
-      'exist before it can decide what is left over. `turbo run build` orders this correctly via',
-      "the `build` task's `dependsOn: [\"^build\"]`; a bare single-package build does not.",
-      '',
-      '  pnpm --filter @object-ui/components build',
-    ].join('\n'),
-  );
-}
-
-const shipped = indexSheet(componentsSheet);
-
-// Snapshot the full compilation BEFORE mutating it, so the verification below
-// has something independent to check the survivors against.
-const fullRules = [];
-fieldsSheet.walkRules((rule) => fullRules.push({ key: ruleKey(rule), body: bodyOf(rule), selector: rule.selector.trim() }));
-
-let droppedRules = 0;
-let droppedAtRules = 0;
-
-fieldsSheet.walkRules((rule) => {
-  if (shipped.rules.get(ruleKey(rule))?.has(bodyOf(rule))) {
-    rule.remove();
-    droppedRules += 1;
-  }
-});
-
-fieldsSheet.walkAtRules((at) => {
-  if (at.nodes?.some((n) => n.type === 'rule')) return;
-  if (shipped.atRules.get(atRuleKey(at))?.has(normalise(at))) {
-    at.remove();
-    droppedAtRules += 1;
-  }
-});
-
-// Drop at-rule shells the subtraction emptied out (`@media` wrappers whose every
-// rule was already shipped), innermost first.
-let pruned = true;
-while (pruned) {
-  pruned = false;
-  fieldsSheet.walkAtRules((at) => {
-    if (at.nodes && at.nodes.length === 0) {
-      at.remove();
-      pruned = true;
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Verification: nothing may go missing.
-// ---------------------------------------------------------------------------
-const survivors = new Set();
-fieldsSheet.walkRules((rule) => survivors.add(`${ruleKey(rule)}||${bodyOf(rule)}`));
-
-const lost = fullRules.filter(
-  (r) => !survivors.has(`${r.key}||${r.body}`) && !shipped.rules.get(r.key)?.has(r.body),
-);
-
-if (lost.length > 0) {
-  throw new Error(
-    [
-      `${lost.length} rule(s) vanished in the components-sheet subtraction and are in neither output.`,
-      'Shipping this file would under-style the package — the exact defect objectui#4059 fixed.',
-      '',
-      ...lost.slice(0, 20).map((r) => `  ${r.selector}  [${r.key}]`),
-    ].join('\n'),
-  );
-}
-
-// A subtraction that removed nothing means the two compilations stopped sharing
-// a key shape (a Tailwind upgrade changing layer names, say). The output would
-// still be CORRECT — merely the ~180 kB duplicate this variant exists to avoid —
-// so this is a loud failure rather than a silent regression to the wide shape.
-if (droppedRules === 0) {
-  throw new Error(
-    'The components sheet subtracted nothing at all. Expected ~1350 shared utilities to be removed; ' +
-      'the two sheets are no longer producing comparable keys, so this build would ship the wide ' +
-      'duplicate sheet instead of the narrow supplement (objectui#4059).',
-  );
-}
-
-const survivingClasses = new Set();
-fieldsSheet.walkRules((rule) => {
-  for (const sel of rule.selectors) for (const cls of classesIn(sel)) survivingClasses.add(cls);
-});
+/**
+ * Leak ceiling, not a budget. Measured on main@59df371f7: 157 classes correct,
+ * and 1923 when the `source(none)` pin was absent from `src/index.css` and the
+ * build ran from the repo root — a valid, much larger stylesheet full of other
+ * packages' utilities rather than a failure, which is why the ceiling has to
+ * assert the pin is still doing its job. It sits far above the real value on
+ * purpose: a number that needed re-tuning every time a widget gained a class
+ * would be edited into uselessness.
+ */
+export const CLASS_CEILING = 600;
 
 /**
- * The opposite failure to over-subtraction: a sheet that swallowed utilities
- * belonging to OTHER packages.
+ * The banner the emitted sheet opens with — passed to the shared builder rather
+ * than inherited from it.
  *
- * `src/index.css` pins its inputs with `source(none)` precisely so this cannot
- * happen — see the comment there. This ceiling is the assertion that the pin is
- * still doing its job, because the symptom is otherwise invisible: the build
- * succeeds, every check above passes (nothing was lost, plenty was dropped, the
- * sentinels survived) and the package just quietly publishes a stylesheet an
- * order of magnitude too big, carrying rules it has no business shipping.
- *
- * Measured on main@59df371f7: 157 classes correct, 1923 when the pin was absent
- * and the build ran from the repo root. The ceiling sits far above the real
- * value on purpose — it is a leak detector, not a budget, and a number that
- * needed re-tuning every time a widget gained a class would be edited into
- * uselessness.
+ * `@object-ui/fields` ships this stylesheet to consumers, and these exact bytes
+ * have been at the top of it since objectui#4059. The shared default says the
+ * same things in different words and names a different producing script;
+ * adopting it would have been a diff in a published file, and objectui#6405's
+ * acceptance gate was that re-pointing this build changes `dist/index.css` by
+ * not one byte. `build({ header })` is the documented per-package hook for
+ * exactly this, so the wording lives here and the subtraction lives there —
+ * neither is a second copy of the other.
  */
-const CLASS_CEILING = 600;
-
-if (survivingClasses.size > CLASS_CEILING) {
-  throw new Error(
-    [
-      `This sheet carries ${survivingClasses.size} classes; anything over ${CLASS_CEILING} means it is no longer just this package's.`,
-      '',
-      "Tailwind's automatic source detection resolves against the process cwd, so a lost",
-      "`source(none)` in src/index.css lets the candidate set expand to the whole workspace —",
-      'which builds a valid, much larger stylesheet full of other packages\' utilities rather',
-      'than failing (objectui#4059).',
-    ].join('\n'),
-  );
-}
-
-const vanished = MUST_SURVIVE.filter((cls) => !survivingClasses.has(cls));
-if (vanished.length > 0) {
-  throw new Error(
-    [
-      `The subtraction removed ${vanished.length} utility(ies) that only this build can produce:`,
-      ...vanished.map((c) => `  .${c}`),
-      '',
-      'That is over-subtraction, and it ships as an under-styled package with a green build —',
-      'the objectui#4059 defect restored. Check that the components sheet being subtracted is',
-      "that package's own build output and has not been widened to include this package's classes.",
-    ].join('\n'),
-  );
-}
-
-const header = [
+export const HEADER = [
   '/*! @object-ui/fields — utilities this package adds on top of @object-ui/components.',
   ' *',
   ' * IMPORT AFTER the components sheet; this is a supplement, not a standalone stylesheet:',
@@ -406,13 +158,22 @@ const header = [
   ' */',
 ].join('\n');
 
-await mkdir(dirname(output), { recursive: true });
-// Tailwind's own banner stays (it carries the upstream MIT attribution); ours goes after it.
-const css = `${header}\n${fieldsSheet.toString()}\n`;
-await writeFile(output, css, 'utf8');
+export const builder = createPluginStylesheetBuilder({ postcss, tailwind });
 
-console.log(
-  `✓ built dist/index.css (${(css.length / 1024).toFixed(2)} kB) — ` +
-    `${survivors.size} rules kept (${survivingClasses.size} classes), ` +
-    `${droppedRules} rules + ${droppedAtRules} at-rules already in @object-ui/components' sheet`,
-);
+export const buildOptions = {
+  packageRoot: PACKAGE_ROOT,
+  packageName: PACKAGE_NAME,
+  mustSurvive: MUST_SURVIVE,
+  classCeiling: CLASS_CEILING,
+  header: HEADER,
+};
+
+if (isEntrypoint(import.meta.url)) {
+  const { css, survivors, survivingClasses, droppedRules, droppedAtRules } =
+    await builder.build(buildOptions);
+  console.log(
+    `✓ built dist/index.css (${(css.length / 1024).toFixed(2)} kB) — ` +
+      `${survivors.size} rules kept (${survivingClasses.size} classes), ` +
+      `${droppedRules} rules + ${droppedAtRules} at-rules already in @object-ui/components' sheet`,
+  );
+}

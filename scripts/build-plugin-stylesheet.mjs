@@ -42,16 +42,16 @@
  * subtraction, ~8 kB after. Without this step each plugin would publish a
  * near-complete copy of the components sheet.
  *
- * ## Why this is shared code and `packages/fields/scripts/build-css.mjs` is not
+ * ## Why this is shared code
  *
- * That script came first and is where all of the reasoning above was worked out;
- * this module is its logic generalised over `packageRoot`, because the ruling
- * that ordered it says "the build step is the pattern any future plugin
- * inherits" and a pattern that has to be copy-pasted is not inherited. Fields'
- * copy is deliberately left alone here: it is a published package's build, its
- * rewrite belongs in its own change with its own byte-for-byte verification, and
- * this card scoped itself to two plugins. Collapsing the two is filed
- * separately.
+ * `packages/fields/scripts/build-css.mjs` came first and is where all of the
+ * reasoning above was worked out (objectui#4059); this module is its logic
+ * generalised over `packageRoot`, because the ruling that ordered the plugin
+ * sheets says "the build step is the pattern any future plugin inherits" and a
+ * pattern that has to be copy-pasted is not inherited. Fields was re-pointed at
+ * this module in objectui#6405, against a byte-for-byte check of its published
+ * `dist/index.css` — so every package that ships a supplement sheet now runs
+ * THIS subtraction, and a fix here reaches all of them.
  *
  * ## Failure modes this module refuses to have
  *
@@ -205,7 +205,17 @@ export function indexSheet(rootNode) {
   return { rules, atRules };
 }
 
-function header(packageName) {
+/**
+ * The banner every generated sheet opens with.
+ *
+ * A caller may replace it wholesale with `build({ header })` — the documented
+ * per-package hook, and the reason one exists at all: `@object-ui/fields` ships
+ * its sheet to consumers and carried its own wording before this module did, so
+ * those exact bytes are part of a published artifact (objectui#6405). Wording
+ * that would be an improvement everywhere else is a diff in a published file
+ * there. A package with no such history passes no `header` and inherits this.
+ */
+function defaultHeader(packageName) {
   return [
     `/*! ${packageName} — utilities this package adds on top of @object-ui/components.`,
     ' *',
@@ -286,6 +296,11 @@ export function createPluginStylesheetBuilder({ postcss, tailwind }) {
     mustSurvive,
     classCeiling,
     componentsSheetCss,
+    // Defaulted here, not at the use site, so the inferred type of this options
+    // object keeps `header` OPTIONAL — `pnpm type-check:scripts` reads these
+    // types through `scripts/__tests__/plugin-published-stylesheet.test.ts` and
+    // reported every existing caller broken when it had no default.
+    header = defaultHeader(packageName),
     write = true,
   }) {
     const entry = resolve(packageRoot, 'src/index.css');
@@ -347,7 +362,8 @@ export function createPluginStylesheetBuilder({ postcss, tailwind }) {
       throw new Error(
         [
           `${lost.length} rule(s) vanished in the components-sheet subtraction and are in neither output.`,
-          `Shipping this file would under-style ${packageName} — the exact defect objectui#4929 fixed.`,
+          `Shipping this file would under-style ${packageName} — the exact defect objectui#4059`,
+          'and objectui#4929 fixed.',
           '',
           ...lost.slice(0, 20).map((r) => `  ${r.selector}  [${r.key}]`),
         ].join('\n'),
@@ -363,7 +379,7 @@ export function createPluginStylesheetBuilder({ postcss, tailwind }) {
       throw new Error(
         `The components sheet subtracted nothing at all from ${packageName}. Expected ~1350 shared ` +
           'utilities to be removed; the two sheets are no longer producing comparable keys, so this ' +
-          'build would ship a near-complete copy of the components sheet (objectui#4929).',
+          'build would ship a near-complete copy of the components sheet (objectui#4059, objectui#4929).',
       );
     }
 
@@ -402,13 +418,14 @@ export function createPluginStylesheetBuilder({ postcss, tailwind }) {
           ...vanished.map((c) => `  .${c}`),
           '',
           'That is over-subtraction, and it ships as an under-styled package with a green build —',
-          'the objectui#4929 defect restored. Check that the components sheet being subtracted is',
-          "that package's own build output and has not been widened to include this package's classes.",
+          'the defect restored (objectui#4059, objectui#4929). Check that the components sheet being',
+          "subtracted is that package's own build output and has not been widened to include this",
+          "package's classes.",
         ].join('\n'),
       );
     }
 
-    const css = `${header(packageName)}\n${sheet.toString()}\n`;
+    const css = `${header}\n${sheet.toString()}\n`;
     if (write) {
       await mkdir(dirname(output), { recursive: true });
       await writeFile(output, css, 'utf8');
