@@ -32,6 +32,12 @@ import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { ActionLocation } from '@objectstack/spec/ui';
 import {
+  ACTION_PARAM_FIELD_TYPES,
+  OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
+  type ActionParam,
+  type ResolvableParamFieldType,
+} from '@object-ui/types';
+import {
   Button, Label, Textarea,
 } from '@object-ui/components';
 import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
@@ -98,6 +104,14 @@ const BODY_LANG_OPTS = [
   { value: 'js', label: 'Sandboxed JS (L2)' },
 ];
 
+/*
+ * `satisfies`, not a bare literal: every spelling this dropdown offers must be
+ * one the published `ActionParam.type` admits. The eight below are spec
+ * `FieldType` members, and the check is what stops a ninth from being added in
+ * a dialect the server's `.strict()` `ActionParamSchema` would reject on save —
+ * the way `long_text` reached `ActionPreview` while the local `type?: string`
+ * was still in force (objectui#6329).
+ */
 const PARAM_TYPE_OPTS = [
   { value: 'text', label: 'Text' },
   { value: 'textarea', label: 'Long text' },
@@ -107,7 +121,30 @@ const PARAM_TYPE_OPTS = [
   { value: 'date', label: 'Date' },
   { value: 'datetime', label: 'Date/time' },
   { value: 'lookup', label: 'Lookup' },
-];
+] satisfies { value: ResolvableParamFieldType; label: string }[];
+
+/**
+ * Every `type` spelling an authored param may carry, as a runtime set — the
+ * spec's `FieldType` members plus objectui's three declared param aliases,
+ * both taken BY REFERENCE from the witnesses `@object-ui/types` exports for
+ * exactly this (a hand-listed copy is what the drift guard in that package
+ * fails on).
+ */
+const RESOLVABLE_PARAM_TYPES: ReadonlySet<string> = new Set<string>([
+  ...ACTION_PARAM_FIELD_TYPES,
+  ...OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
+]);
+
+/**
+ * Narrow a dropdown commit — a DOM string — onto the published vocabulary.
+ *
+ * Returns `undefined` rather than coercing, so an unrecognised spelling clears
+ * the key instead of being written into metadata the server would refuse. This
+ * is a boundary check, not a lenient fallback: nothing off-spec gets accepted.
+ */
+function asParamFieldType(value: string): ResolvableParamFieldType | undefined {
+  return RESOLVABLE_PARAM_TYPES.has(value) ? (value as ResolvableParamFieldType) : undefined;
+}
 
 /**
  * Friendly labels for the spec's action locations.
@@ -263,16 +300,20 @@ function FieldPicker({ label, objectName, value, onCommit, disabled }: {
   return <InspectorSelectField label={label} value={value || undefined} options={[{ value: '', label: '—' }, ...options]} onCommit={onCommit} disabled={disabled} />;
 }
 
-interface ActionParam {
-  name?: string;
-  field?: string;
-  label?: unknown;
-  type?: string;
-  required?: boolean;
-  placeholder?: string;
-  defaultFromRow?: boolean;
-  [k: string]: unknown;
-}
+/*
+ * No local `ActionParam` here (objectui#6329). `@object-ui/types` publishes the
+ * authoring shape, derived from the spec's `ActionParamSchema` input; this
+ * panel WRITES that shape, so it reads the authority by reference.
+ *
+ * The copy that used to sit here carried `[k: string]: unknown`, which is the
+ * member that mattered: an index signature admits every key at type `unknown`,
+ * so `patchParam(i, { referenceTo: 'account' })` type-checked while
+ * `ActionParamSchema` — `.strict()` — rejects that key BY NAME on save. It is
+ * the same defect `FlowNodeInspector.specKeys.test.tsx` records for
+ * `description`, and it also made the copy look compatible with the preview's
+ * (which declared `options` / `helpText` / `defaultValue` outright) when the
+ * two were simply describing different authoring surfaces.
+ */
 
 /* ─────────────── inspector ─────────────── */
 
@@ -453,7 +494,7 @@ export function ActionDefaultInspector({
               )}
               <InspectorTextField label="Label" value={localize(p.label)} onCommit={(v) => patchParam(i, { label: v })} disabled={readOnly} />
               {!p.field && (
-                <InspectorSelectField label="Type" value={p.type || undefined} options={PARAM_TYPE_OPTS} onCommit={(v) => patchParam(i, { type: v })} disabled={readOnly} />
+                <InspectorSelectField label="Type" value={p.type || undefined} options={PARAM_TYPE_OPTS} onCommit={(v) => patchParam(i, { type: asParamFieldType(v) })} disabled={readOnly} />
               )}
               <InspectorTextField label="Placeholder" value={p.placeholder ?? ''} onCommit={(v) => patchParam(i, { placeholder: v })} disabled={readOnly} />
               <div className="flex flex-wrap gap-x-4 gap-y-1">

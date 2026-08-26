@@ -41,21 +41,23 @@ import {
   Workflow,
   icons as lucideIcons,
 } from 'lucide-react';
+import type { ActionParam } from '@object-ui/types';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
-interface ActionParam {
-  name?: string;
-  field?: string;
-  label?: string | { en?: string };
-  type?: string;
-  required?: boolean;
-  options?: Array<{ label: string | { en?: string }; value: string }>;
-  placeholder?: string;
-  helpText?: string;
-  defaultValue?: unknown;
-  defaultFromRow?: boolean;
-}
+/*
+ * No local `ActionParam` here (objectui#6329). `@object-ui/types` publishes the
+ * authoring shape, derived from the spec's `ActionParamSchema` input, and this
+ * package already read it by reference elsewhere. The copy that used to sit
+ * here restated ten of its members and got two of them wrong in a way that
+ * only ever narrowed the DECLARATION, never the code:
+ *
+ *   - `label?: string | { en?: string }` admitted the `en` tag and no other,
+ *     while `localize` below has always read `Object.values(o)[0]`. An inline
+ *     locale map keyed `fr-FR` rendered fine and failed `tsc`.
+ *   - `type?: string` admitted every string, which is how the two dead
+ *     branches in `renderFieldMock` survived — see the note there.
+ */
 
 interface ResultDialogField {
   path: string;
@@ -389,12 +391,21 @@ function renderFieldMock(p: ActionParam): React.ReactElement {
       </label>
     );
   }
-  if (p.type === 'textarea' || p.type === 'html' || p.type === 'long_text') {
+  // No `long_text` / `integer` branches (objectui#6329). Both are spellings
+  // from OTHER vocabularies — `long_text` from the console's form-builder
+  // dialect (`apps/console/src/components/FormPage.tsx`), `integer` from JSON
+  // Schema (`ToolPreview.tsx`, `json-schema-to-fields.ts`) — and neither is in
+  // `ResolvableParamFieldType`, which is the spec's 49-member `FieldType` plus
+  // objectui's three declared param aliases. `ActionParamSchema` is `.strict()`
+  // with a `FieldType` enum on `type`, so a param spelled either way is a parse
+  // rejection on the server and can never reach this preview. The local
+  // `type?: string` was the only thing that made the comparisons compile.
+  if (p.type === 'textarea' || p.type === 'html') {
     return <textarea className={`${cls} min-h-[48px]`} placeholder={placeholder} value={def != null ? String(def) : ''} readOnly />;
   }
   return (
     <input
-      type={p.type === 'number' || p.type === 'integer' ? 'number' : p.type === 'date' ? 'date' : 'text'}
+      type={p.type === 'number' ? 'number' : p.type === 'date' ? 'date' : 'text'}
       className={cls}
       placeholder={placeholder}
       value={def != null ? String(def) : ''}
