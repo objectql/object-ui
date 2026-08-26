@@ -232,19 +232,33 @@ describe('objectui#6223 · the whole body, and the honest limit of this fix', ()
     });
   });
 
-  it('does NOT parse green as a whole — `fields` is an array where the spec wants a map (objectui#6240)', async () => {
-    // Stated as an assertion rather than left as prose, because a reader who
-    // saw only the `unrecognized_keys` case above would reasonably conclude the
-    // designer's object payload is now spec-valid. It is not: this fix closes
-    // the KEY-NAME class, which is the class objectui#6223 and its parity gate
-    // are about. What remains is a VALUE-level rejection — the gate's coverage
-    // note 4 — and it is filed separately as objectui#6240.
-    const result = ObjectSchema.safeParse(await putFor());
-    expect(result.success).toBe(false);
+  it('parses green as a whole — the VALUE-level half closed too (objectui#6240)', async () => {
+    // ⭐ THIS CASE IS THE RED-TO-GREEN WITNESS OF objectui#6240, and it used to
+    // assert the OPPOSITE:
+    //
+    //     expect(result.success).toBe(false);
+    //     expect(issues).toEqual(['invalid_type @ fields']);
+    //
+    // That was correct and load-bearing while objectui#6240 was open. This file
+    // closed the KEY-NAME class (objectui#6223) and deliberately pinned the
+    // remaining VALUE-level rejection — the parity gate's coverage note 4 — so
+    // that it could not silently change. It has now changed, on purpose:
+    // `toObjectPayload` emits `fields` as the name-keyed MAP `ObjectSchema`
+    // requires instead of an array, so the whole document parses.
+    //
+    // The pin is REPLACED rather than deleted, because the claim it was really
+    // making — "judge the whole body, not just its key names" — is still the
+    // claim, and it is stronger green than red. The container shape itself,
+    // both writers, and the failure modes the conversion introduces are pinned
+    // in `MetadataService.objectPayloadFieldsMap.test.ts`.
+    const put = await putFor();
+    const result = ObjectSchema.safeParse(put);
     expect(unrecognizedKeys(result)).toEqual([]);
-    expect(result.error?.issues.map((i) => `${i.code} @ ${i.path.join('.')}`)).toEqual([
-      'invalid_type @ fields',
-    ]);
+    expect(result.error?.issues.map((i) => `${i.code} @ ${i.path.join('.')}`)).toBeUndefined();
+    expect(result.success).toBe(true);
+    // Falsification: green over a body that really carries the field, rather
+    // than over an emptied one.
+    expect(put.fields).toEqual({ name: { name: 'name', type: 'text', label: 'Name' } });
   });
 
   it('a half-filled object — no group, no sortOrder, no relationships — puts identical bytes, as it always did', async () => {

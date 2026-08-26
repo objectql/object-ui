@@ -52,7 +52,36 @@ export interface ObjectMetadataPayload {
   // `toObjectPayload`); the key reached the wire only through the tombstone
   // bodies the two delete methods wrote by hand, and those now go through the
   // metadata API's own delete door instead — see `deleteMetadataItem`.
-  fields?: FieldMetadataPayload[];
+  /**
+   * The object's fields, keyed by field NAME — the map `ObjectSchema` requires
+   * (objectui#6240). This used to be `FieldMetadataPayload[]`.
+   *
+   * An array is a VALUE-level refusal, which is the class the key-name parity
+   * gate (`scripts/check-designer-field-key-parity.mjs`, coverage note 4)
+   * cannot see: `fields` is in `ObjectSchema`'s accept set under either shape,
+   * so the gate was green for as long as the array was on the wire.
+   *
+   * Measured against the installed `@objectstack/spec` 17.2.0 (ESM build):
+   *
+   *   fields: [{ name: 'n', type: 'text', label: 'N' }]
+   *     => invalid_type @ fields  ("expected record, received array")
+   *   fields: []                        => invalid_type @ fields
+   *   fields: { n: { type: 'text' } }   => parses green
+   *   fields: {}                        => parses green
+   *   (key absent)                      => invalid_type @ fields — it is REQUIRED
+   *
+   * And the route is not lenient about it. `metadata-protocol`'s
+   * `saveMetaItem` resolves type `object` to this very `ObjectSchema`
+   * (`spec/kernel/metadata-type-schemas.ts`), `safeParse`s the whole item and
+   * THROWS `422 INVALID_METADATA` before anything is persisted — the array was
+   * refused, never stripped and never stored.
+   *
+   * Still OPTIONAL, deliberately — see `toObjectPayload`. `undefined` here
+   * means "the caller did not say what the fields are", and that must NOT be
+   * spelled `{}`: `{}` parses green and a PUT is an upsert, so it would land as
+   * "this object has no fields" and wipe them.
+   */
+  fields?: Record<string, FieldMetadataPayload>;
   // No `relationships` (objectui#6223): the spec models relationships on the
   // FIELD — `reference` / `master_detail` plus object-level `indexes` — and
   // `ObjectSchema` refuses an object-level `relationships` array by name. What
@@ -133,8 +162,86 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
     pluralLabel: obj.pluralLabel,
     description: obj.description,
     icon: obj.icon,
-    fields,
+    // No fields supplied means the CALLER DID NOT SAY, which is not the same
+    // statement as `{}` ("this object has no fields") — and a PUT is an upsert,
+    // so writing `{}` here would delete every field of the object on a save
+    // that only meant to rename it. The body then still fails `ObjectSchema`
+    // (`fields` is required), which is a loud 422 that persists nothing — the
+    // right outcome for a caller that under-specified an upsert, and the same
+    // outcome as before this change. `saveFields` is the opposite case and
+    // treats its argument as authoritative; see there.
+    fields: fields ? toFieldsMap(fields) : undefined,
   };
+}
+
+/**
+ * Key a list of field payloads by field NAME — the shape `ObjectSchema.fields`
+ * requires (objectui#6240).
+ *
+ * Declaration order is preserved, and that is load-bearing rather than
+ * incidental: the spec models field order as DECLARATION ORDER in this record
+ * and has no field-level ordering key at all (objectui#6045), so insertion
+ * order here IS the designer's order.
+ *
+ * ## Why a missing name THROWS instead of writing `{ undefined: … }`
+ *
+ * The key can only come from the field's `name`. Both writer inputs declare it
+ * required (`FieldMetadataPayload.name`, `DesignerFieldDefinition.name`), but
+ * neither writer owns its input at runtime: `saveObject`'s `existingFields` is
+ * public API (`MetadataService` is reachable from app-shell's barrel through
+ * `useMetadataService`) and `saveFields` is handed whatever the designer's
+ * in-memory model holds. A nameless field keys as the literal string
+ * `"undefined"` — and the spec does NOT catch that. Measured on 17.2.0:
+ *
+ *   ObjectSchema.safeParse({ …, fields: { undefined: { type: 'text', label: 'N' } } })
+ *     => success = true
+ *
+ * So the loud, immediate, harmless array-shaped 422 would have been traded for
+ * a silently corrupt STORED document. That is the AI-authored-metadata failure
+ * mode this repo keeps closing, and this conversion is exactly where it would
+ * have been opened.
+ *
+ * ## Why a duplicate name throws too
+ *
+ * That one is the conversion's OWN hazard rather than an inherited one: an
+ * array can carry two entries named `n` and a map cannot, so the later entry
+ * would silently swallow the earlier. Refusing is the only reading that does
+ * not lose a field the caller declared.
+ *
+ * ## Why `Object.fromEntries` and not assignment into a literal
+ *
+ * `map['__proto__'] = field` does not create a key — it invokes the prototype
+ * setter — and `__proto__` is a SPEC-LEGAL field name (the record's key schema
+ * is `/^[a-z_][a-z0-9_]*$/`). The assignment form would therefore drop such a
+ * field silently, which is this function's whole subject wearing a different
+ * spelling. `Object.fromEntries` defines an own property instead.
+ */
+function toFieldsMap(fields: FieldMetadataPayload[]): Record<string, FieldMetadataPayload> {
+  const entries: Array<[string, FieldMetadataPayload]> = [];
+  const seen = new Set<string>();
+
+  fields.forEach((field, index) => {
+    const name = field?.name;
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new Error(
+        `[MetadataService] cannot build the object's \`fields\` map: the field at index ${index} has no ` +
+          '`name`. `ObjectSchema.fields` is keyed by field name, so a nameless field would be written under ' +
+          'the literal key "undefined" — which the spec ACCEPTS, leaving a corrupt document stored with ' +
+          'nothing to report it. Give the field a name.',
+      );
+    }
+    if (seen.has(name)) {
+      throw new Error(
+        `[MetadataService] cannot build the object's \`fields\` map: duplicate field name \`${name}\` at ` +
+          `index ${index}. A name-keyed map cannot carry two fields under one name, so the later one would ` +
+          'silently replace the earlier. Rename or remove one of them.',
+      );
+    }
+    seen.add(name);
+    entries.push([name, field]);
+  });
+
+  return Object.fromEntries(entries);
 }
 
 /**
@@ -314,8 +421,38 @@ export class MetadataService {
   /**
    * Persist updated fields for an object.
    *
-   * Fetches the current object metadata, replaces its `fields` array with the
+   * Fetches the current object metadata, replaces its `fields` MAP with the
    * provided designer fields, and saves the whole object back.
+   *
+   * It used to write an ARRAY here (objectui#6240), and note which direction
+   * that ran in: the server's own document arrives with `fields` as a map, and
+   * `fields.map(toFieldPayload)` converted the correct shape INTO the refused
+   * one on every field save. `ObjectSchema` requires a record, so the resulting
+   * PUT was answered `422 INVALID_METADATA` (`invalid_type @ fields`) and
+   * nothing persisted — measured, not inferred: `metadata-protocol`'s
+   * `saveMetaItem` parses the whole item against `ObjectSchema` and throws
+   * before it writes.
+   *
+   * Two properties of this body are deliberate and are pinned in
+   * `MetadataService.objectPayloadFieldsMap.test.ts`:
+   *
+   *   - **The spread still preserves unknown server keys.** `...existingObject`
+   *     is what carries every key of the fetched document this service does not
+   *     model, and reshaping `fields` must not cost that. It now matters more
+   *     than it did, not less: while the body was refused, nothing it preserved
+   *     ever reached storage.
+   *   - **The field list is AUTHORITATIVE, so an empty one writes `{}`.** That
+   *     is the opposite of `saveObject`'s optional `existingFields`, and the
+   *     asymmetry is the point: here the designer is stating the object's
+   *     complete field set, so "no fields" is a thing it can mean; there, a
+   *     missing argument means the caller did not say.
+   *
+   * ⚠ Per-FIELD unknown keys are still not carried over — the entries are built
+   * fresh from the designer model, so a key the server sent inside one field
+   * (an `expression`, a `precision`) is dropped. That is unchanged by this
+   * card and its sibling writer already solves it (`MetadataFieldsPage`'s
+   * `carryOver`), but it becomes REACHABLE here for the first time now that the
+   * body is no longer refused. Filed separately rather than folded in.
    */
   async saveFields(objectName: string, fields: DesignerFieldDefinition[]): Promise<void> {
     const client = this.adapter.getClient();
@@ -332,7 +469,7 @@ export class MetadataService {
     const updatedObject = {
       ...existingObject,
       name: objectName,
-      fields: fields.map(toFieldPayload),
+      fields: toFieldsMap(fields.map(toFieldPayload)),
     };
 
     await client.meta.saveItem('object', objectName, updatedObject);
