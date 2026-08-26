@@ -165,6 +165,24 @@ export type EnrichedColumn =
  * seventh `FieldMeta` member is refused here on the day it is added, without
  * anyone remembering to extend a hand-written list.
  *
+ * ⚠️ It derives from the OVERRIDE VOCABULARY, not from the authored input
+ * type, and that difference is forced rather than stylistic. `plugin-grid`'s
+ * sibling band (`RetiredListColumnKey`, objectui#6461) is
+ * `Exclude<keyof ListColumn, …>` — it can derive from its authored type
+ * because `ListColumn` DECLARES its keys. This producer's authored type
+ * cannot: {@link NormalizedColumn} carries `[key: string]: any`, so `keyof` it
+ * is `string | number`. Measured on this program — a band built on it accepts
+ * `'totallyMadeUpKey'` as a member, so it would ban nothing at all. The pool
+ * therefore has to be the vocabulary the overrides are drawn FROM.
+ *
+ * That choice has a cost, and it is stated here rather than left to be
+ * discovered: a candidate key OUTSIDE `FieldMeta` can never land in the band.
+ * It is refused by the other half of this type instead —
+ * `AuthoredColumnOverrides` declares no index signature, so reading an
+ * unadjudicated key is TS2339 AT THE READ SITE, which is the enforcement
+ * `enrich` actually runs on (`(col as any).x` and the bag's index signature
+ * both answered `any` there). Both halves are pinned by the suite.
+ *
  * ⚠️ Measured on this program, in both directions, before this shape was
  * written:
  *  - `?: never` bites by ASSIGNABILITY, not by freshness, so the refusal
