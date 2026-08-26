@@ -1699,7 +1699,35 @@ One workflow carries that step:
 
 | Workflow | Why it needs the driver |
 |---|---|
-| `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
+| `changeset-release.yml` | ⚠️ configures it — but performs no local merge, see the measurement below |
+
+⚠️ **That row's stated reason was wrong, and the row is now the whole question**
+([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). It used to read "version bumps
+rewrite the lockfile on the release branch". A **rewrite is not a merge**: `changeset:version`
+overwrites `pnpm-lock.yaml` outright, and git runs a merge driver only when it has to *reconcile
+two versions* of an attributed path. Measured on `changeset-release.yml`, and recorded in the file
+itself so it is not re-derived a fourth time:
+
+- Every `git` in that workflow, enumerated rather than grepped for absence: the two `git config`
+  lines, `git status --porcelain` twice, and `git checkout -- .` plus `git clean -fdq` in "Restore
+  the pre-version tree". No `merge`, `rebase`, `pull`, `cherry-pick`, `am`, `apply` or `revert` —
+  every zero-hit taken with a control term that hit the same file.
+- `git checkout -- .` there takes tracked paths from the **index** to undo what the version step
+  wrote. That is a discard, not a merge.
+- The deciding fact is in the marketplace action, not the workflow. Read at `changesets/action`
+  v1.9.0 (`a45c4d5`), `src/git.ts` and the shipped `dist/` bundle agreeing: its entire git surface
+  is `checkout`, `reset --hard`, `add .`, `commit -m`, `push --force` and `config user.*`. The
+  version-branch update is a checkout, a `reset --hard` to the triggering commit, a commit, and a
+  **force-push**. A force-push resolves no merge, so the driver has no occasion to fire.
+
+⭐ **But the `.gitattributes` line is not dead, and that is why this is not simply a third
+removal.** The attribute is repository-wide, and its live consumer is the contributor path this
+page already points at: `CONTRIBUTING.md` tells contributors to configure this same driver and
+then to `git merge upstream/main`. Measured in a scratch repository, one variable changed between
+the two runs — **with** the attribute the driver fires and the lockfile is regenerated; **without**
+it, and nothing else altered, the identical merge ends in `CONFLICT (content)` with conflict
+markers left in `pnpm-lock.yaml`. So the CI half is dead and the repository half is live, while the
+pin below binds them together. Resolving that is a decision, not a cleanup.
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
 actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
@@ -1728,6 +1756,12 @@ needs no driver, and giving it one buys nothing while implying a lockfile hazard
 [#6369](https://github.com/objectstack-ai/objectui/issues/6369) for a merge it genuinely performs
 — `gh pr merge`. But GitHub executes that one itself, not on the runner, so no local git config
 takes part in it.
+
+⛔ **A rewrite is not a merge, and a force-push resolves none.** `changeset-release.yml` carries
+the step on the strength of "version bumps rewrite the lockfile"
+([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). Regenerating a file is not
+reconciling two versions of it, and the version branch is updated by `reset --hard` plus a
+force-push inside `changesets/action`, which merges nothing on the runner.
 
 ## Adding a New Workflow
 

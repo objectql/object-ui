@@ -518,6 +518,52 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
+      # ⚠️ MEASURED 2026-08-26 (objectui#6391): this job performs NO local merge,
+      # so the driver configured below has no occasion to fire HERE. The step is
+      # kept anyway — see the ⛔ at the bottom of this comment, which is the part
+      # that matters.
+      #
+      # The sweep, so nobody re-derives it a fourth time (objectui#6358 and
+      # objectui#6369 each re-derived it for a different workflow):
+      #
+      #   Every `git` in this file, enumerated rather than grepped-for-absence:
+      #   the two `git config` lines below, `git status --porcelain` (x2),
+      #   `git checkout -- .` and `git clean -fdq` in "Restore the pre-version
+      #   tree". No `merge`, `rebase`, `pull`, `cherry-pick`, `am`, `apply` or
+      #   `revert` anywhere in the file — each of those zero-hits was taken with
+      #   a control term that DID hit the same file, because a zero-hit with no
+      #   control is not a reading.
+      #
+      #   `git checkout -- .` (below, in the restore step) takes tracked paths
+      #   from the INDEX to undo what `pnpm changeset:version` wrote. That is a
+      #   discard, not a merge; no merge driver participates.
+      #
+      # ⭐ The load-bearing part is not in this file at all — it is what
+      # `changesets/action@v1` does, and it has to be read to be known. Read at
+      # v1.9.0 (`a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d`), `src/git.ts` and the
+      # executed `dist/` bundle agreeing: the action's COMPLETE git surface is
+      # `checkout <branch>` / `checkout -b`, `reset --hard <sha>`, `add .`,
+      # `commit -m`, `push origin HEAD:<branch> --force`, `push origin <tag>`
+      # and `config user.*`. The version-branch update is `prepareBranch`
+      # (checkout, then `reset --hard github.context.sha`) followed by a commit
+      # and a FORCE-PUSH. It never merges, rebases or three-ways anything, so on
+      # this side too the driver has no occasion to fire. (Its `commitMode:
+      # github-api` path — not selected here; the default is `git-cli` — builds
+      # the commit through the GitHub API instead, and the bundle reads no
+      # `.gitattributes` and implements no merge driver at all.)
+      #
+      # ⛔ DO NOT delete this step "because it is dead" without a ruling. It is
+      # dead only in the CI half. The `.gitattributes` line it depends on
+      # (`pnpm-lock.yaml merge=pnpm-merge`) is NOT dead: `CONTRIBUTING.md` tells
+      # contributors to configure this same driver locally and then to
+      # `git merge upstream/main`, which is a real local merge on the attributed
+      # path. Measured both ways in a scratch repo: with the attribute the driver
+      # fires and the lockfile is regenerated; with the attribute removed and
+      # nothing else changed, the same merge ends in `CONFLICT (content)` with
+      # conflict markers in `pnpm-lock.yaml`. Removing the CI half forces
+      # `ci-cd-pipeline-doc.test.ts` to demand the attribute's removal too, which
+      # would break that live contributor path — so the two must be decided
+      # together, not dropped as one more dead row. objectui#6391 carries it.
       - name: Configure Git merge driver for pnpm-lock.yaml
         run: |
           # Configure custom merge driver for pnpm-lock.yaml
