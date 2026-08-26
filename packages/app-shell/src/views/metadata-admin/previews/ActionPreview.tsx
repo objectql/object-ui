@@ -356,7 +356,7 @@ function DialogMock({ title, params, variant }: { title: string; params: ActionP
                 <span className="ml-1 font-mono text-[9px] text-muted-foreground">{fieldName}</span>
                 {p.type && <span className="font-mono text-[9px] text-muted-foreground">{p.type}</span>}
               </label>
-              {renderFieldMock(p)}
+              {renderFieldMock(p, fieldLabel)}
               {p.helpText && <div className="text-[10px] text-muted-foreground">{p.helpText}</div>}
             </div>
           );
@@ -420,13 +420,34 @@ function runtimeWidgetFor(p: ActionParam): { widget: string | undefined; degrade
   return { widget: degraded ? 'text' : resolveParamWidgetType(p.type), degraded };
 }
 
-function renderFieldMock(p: ActionParam): React.ReactElement {
+/**
+ * @param fieldLabel The label `DialogMock` already derived for this param, and
+ * renders directly above this control. Passed in rather than re-derived: the
+ * param-name chain behind it -- the one `DialogMock` computes as `fieldName` --
+ * is the ONE reader this file is allowed (objectui#3104's ratchet inventory
+ * records this file at a single `two-layer` read, "Action param name, same
+ * layering as resolveActionParams"), and re-deriving it here was a second
+ * open-coding of one concept: the shape objectui#3174 removed from
+ * `resolveActionParams` itself by routing every call site in that file through
+ * one named reader. Note for the next editor: that ratchet's scanner is a
+ * LINE-level heuristic and is blind to comments, so do not spell the chain out
+ * in prose here -- a comment quoting it counts as a second read.
+ *
+ * NOT converged onto `columnIdentity()`, and deliberately: that reader is
+ * canonical-first because a column IS the object field it shows, whereas a
+ * param merely BINDS one. The inventory's `resolveActionParams` entry refuses
+ * the same borrowing in the same words -- it would invert the param-name
+ * precedence and rename every field-backed param that also names itself.
+ *
+ * Passing it also makes the mock's placeholders name the param the way the
+ * visible label right above them does, instead of by a near-copy of it.
+ */
+function renderFieldMock(p: ActionParam, fieldLabel: string): React.ReactElement {
   const cls = 'w-full text-xs px-2 py-1 border rounded bg-background pointer-events-none';
   const placeholder = p.placeholder || (p.defaultFromRow ? '(from selected row)' : '');
   const def = p.defaultValue;
   const value = def != null ? String(def) : '';
   const options = Array.isArray(p.options) ? p.options : [];
-  const label = localize(p.label) || p.name || p.field || 'value';
   const { widget, degraded } = runtimeWidgetFor(p);
 
   const inputMock = (type: string) => (
@@ -434,7 +455,7 @@ function renderFieldMock(p: ActionParam): React.ReactElement {
   );
   const selectMock = (
     <select className={cls} disabled value="">
-      <option value="">{placeholder || `Select ${label}`}</option>
+      <option value="">{placeholder || `Select ${fieldLabel}`}</option>
       {options.map((o, i) => (
         <option key={i} value={o.value}>
           {localize(o.label)}
@@ -459,7 +480,7 @@ function renderFieldMock(p: ActionParam): React.ReactElement {
   if (degraded) {
     return (
       <div className="space-y-0.5">
-        <input type="text" className={cls} placeholder={placeholder || `Record id for ${label}`} value={value} readOnly />
+        <input type="text" className={cls} placeholder={placeholder || `Record id for ${fieldLabel}`} value={value} readOnly />
         {note(
           <>
             No <code className="font-mono">reference</code> object is configured, so the record picker is
