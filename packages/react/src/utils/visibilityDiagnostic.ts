@@ -7,8 +7,9 @@
  */
 
 /**
- * Dev-build diagnostic: a visibility predicate could not be evaluated
- * (objectui#5454, leg 3 of the 2026-08-21 ruling).
+ * Diagnostic: a visibility predicate could not be evaluated (objectui#5454,
+ * leg 3 of the 2026-08-21 ruling; production coverage added by objectui#6038,
+ * maintainer ruling 2026-08-25 option B).
  *
  * ## The defect this names
  *
@@ -93,15 +94,34 @@ export function formatUnresolvableVisibilityMessage(
  * repeat the line. Keyed on the predicate TEXT rather than the schema object:
  * the same broken predicate authored once and rendered over many rows is ONE
  * authoring bug, and an object key would report it once per row.
+ *
+ * This is the RATE LIMIT the 2026-08-25 ruling requires of the production leg,
+ * and it is why that leg can be a plain `console.warn`: the ceiling is not "one
+ * line per render" but "one line per distinct authored predicate", for the
+ * lifetime of the page. Two properties have to hold together, and a test that
+ * pins only the first cannot tell a working dedupe from one that suppresses
+ * everything — so objectui#6038 pins both: N renders of ONE faulting predicate
+ * emit exactly one line, and a SECOND distinct predicate source still emits.
  */
 const _warnedVisibilityPredicates = new Set<string>();
 
 /**
- * Dev-build only; the caller applies the gate, so this module is dead code in a
- * production build. `console.warn`, not `error`: the verdict is unchanged and
- * the page still renders, so this is a diagnostic about a predicate — not the
- * refusal `reportUnevaluatedExpressions` emits once raw source has reached the
- * DOM.
+ * Reports a visibility predicate that could not be evaluated — in DEVELOPMENT
+ * AND IN PRODUCTION since objectui#6038 (maintainer ruling 2026-08-25, option
+ * B: "the silence is no longer an accepted property").
+ *
+ * `console.warn`, not `error`: the verdict is unchanged and the page still
+ * renders, so this is a diagnostic about a predicate — not the refusal
+ * `reportUnevaluatedExpressions` emits once raw source has reached the DOM.
+ *
+ * ## `err` takes a reason, not only an `Error`
+ *
+ * The dev caller catches a throw and passes the `Error`; the production caller
+ * is handed the evaluator's own reason STRING through `EvaluationOptions.onFault`
+ * (no throw is raised there, because raising one would cost a second
+ * evaluation). `String(err)` already covered that shape, so both callers reach
+ * the same `Reason:` text and the same dedupe entry — which is what makes "dev
+ * and production print the identical line" true rather than approximately true.
  */
 export function reportUnresolvableVisibilityPredicate(
   type: unknown,

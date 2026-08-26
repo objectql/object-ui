@@ -22,7 +22,7 @@ import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
-import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -456,8 +456,22 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       page: pageVariables,
     });
     // evaluateCondition is fail-open (unparseable predicate → visible) — the
-    // same semantics SchemaRenderer applies to component-level `visibleWhen`.
-    return evaluator.evaluateCondition(it.visibleWhen);
+    // same semantics SchemaRenderer applies to component-level `visibleWhen`,
+    // and objectui#6038 gives it the same VOICE. The verdict is untouched: a
+    // faulting predicate still resolves to `true` and the tab still renders.
+    //
+    // This site is in the census for the reason the card's census clause names
+    // — it swallows the identical fault under a different helper. It is worse
+    // than the node gate was, in fact: `SchemaRenderer` at least reported in
+    // development, while an item-level `visibleWhen` that faulted here was
+    // silent in BOTH builds, on a gate whose false verdict removes an entire
+    // tab (header and panel) rather than one block. Reported through the SAME
+    // reporter and the SAME dedupe `Set` as the node gate, so one authored
+    // predicate is one line no matter which surface evaluates it.
+    return evaluator.evaluateCondition(it.visibleWhen, {
+      onFault: (reason) =>
+        reportUnresolvableVisibilityPredicate('page:tabs', schema?.id, 'visibleWhen', it.visibleWhen, reason),
+    });
   };
   const visibleFlags = rawItems.map(isItemVisible);
   // Keep the filtered array's identity stable while visibility is unchanged

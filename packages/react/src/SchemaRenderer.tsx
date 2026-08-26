@@ -623,7 +623,20 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * on which dialect they happened to write it in.
      *
      * Deduped per (node type, key, predicate source): a broken predicate is
-     * re-evaluated on every render, and the point is one line, not a wall.
+     * re-evaluated on every render, and the point is one line, not a wall. The
+     * key is the predicate SOURCE TEXT plus the gate it was authored on — never
+     * the render and never the schema object — so the same broken predicate
+     * rendered over two hundred rows reports once, and a SECOND distinct
+     * predicate still reports (objectui#6038 pins both halves).
+     *
+     * ## Production is loud too, since objectui#6038
+     *
+     * It was `__DEV__`-only, and the maintainer's 2026-08-25 ruling retired
+     * that silence: a gate that stops biting in production used to leave
+     * nothing on the console for the bare-string dialect, so a class-1 defect
+     * could sit live and undiscovered (measured in objectstack#11254). The
+     * `__DEV__` gate below no longer decides WHETHER the fault is reported,
+     * only HOW it is detected — see the two branches.
      *
      * ## Defined HERE, ahead of the `properties` evaluation loop below
      *
@@ -635,15 +648,33 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * on the POST-evaluation, POST-hoist schema, for the real verdict.
      */
     const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
-      // PRODUCTION IS THE UNTOUCHED CALL. `throwOnError` is how the fault is
-      // detected, and on the CEL branch `evaluateCelCondition` implements it by
-      // evaluating TWICE (once with each fallback — a value that tracks the
-      // fallback both times is a fault). Spec-parsed metadata normalizes
-      // `visibleWhen` into a `{ dialect: 'cel' }` envelope, so that branch is
-      // the common one in production: paying for the probe unconditionally
-      // would double the engine calls for every predicate of every node, to
-      // build a message no production build ever prints.
-      if (!__DEV__) return evaluator.evaluateCondition(raw);
+      // PRODUCTION STILL MAKES THE SINGLE CALL — it just no longer makes it
+      // in silence (objectui#6038, maintainer ruling 2026-08-25, option B).
+      //
+      // `throwOnError` remains the DEV probe and remains too expensive to ship:
+      // on the CEL branch `evaluateCelCondition` implements it by evaluating
+      // TWICE (once with each fallback — a value that tracks the fallback both
+      // times is a fault), and spec-parsed metadata normalizes `visibleWhen`
+      // into a `{ dialect: 'cel' }` envelope, so that branch is the common one
+      // in production. Paying for the probe here would double the engine calls
+      // for every predicate of every node.
+      //
+      // `onFault` is the way out of that trade: the evaluator hands back the
+      // reason at the point it ALREADY knows the predicate faulted, inside the
+      // catch it already runs, so the fault becomes observable at ONE engine
+      // call. The verdict is `evaluateCondition(raw)`'s, unchanged — this card
+      // is observability only, and the fail-open semantics are not its to move.
+      //
+      // The reporter is the SAME one the dev branch below uses: same message,
+      // same severity, same dedupe `Set`, same key. Production and development
+      // now print the identical line for the identical fault, which is the
+      // property the `__DEV__` gate used to cost us.
+      if (!__DEV__) {
+        return evaluator.evaluateCondition(raw, {
+          onFault: (reason) =>
+            reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, reason),
+        });
+      }
       try {
         const verdict = evaluator.evaluateCondition(raw, { throwOnError: true });
         // objectui#5687 — the NON-throwing half of the same silence, and it is

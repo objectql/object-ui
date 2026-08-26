@@ -20,6 +20,20 @@ export * from './element-data-source/ElementDataSourceGate.js';
 // i18n utilities
 export { resolveKeyedI18nLabel } from './utils/i18n.js';
 
+// Node-gate predicate diagnostics. Exported at the package entry (objectui#6038)
+// so every surface that evaluates a node `visibleWhen` reports a fault through
+// ONE reporter and ONE dedupe `Set` — `page:tabs` item predicates live in
+// `@object-ui/components`, which depends on this package. A second copy of the
+// reporter would mean a second rate limit, and the same broken predicate would
+// then be entitled to one line per package instead of one line, which is the
+// property the 2026-08-25 ruling asked for.
+export {
+  reportUnresolvableVisibilityPredicate,
+  formatUnresolvableVisibilityMessage,
+  UNRESOLVABLE_VISIBILITY_PREFIX,
+  __resetVisibilityPredicateWarnings,
+} from './utils/visibilityDiagnostic.js';
+
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).
 export { extractWriteErrorMessage, isPermissionError, extractFieldErrors, classifyLoadError, declaredUserMessage } from './utils/error-message.js';

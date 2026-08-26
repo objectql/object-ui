@@ -41,6 +41,70 @@ export interface EvaluationOptions {
    * @default true
    */
   sanitize?: boolean;
+
+  /**
+   * Fault passback: called with the failure reason when this evaluation could
+   * not be performed, at the moment the evaluator ALREADY knows it faulted.
+   *
+   * ## Why a passback and not a second evaluation (objectui#6038)
+   *
+   * The only fault-detection channel this class used to offer a fail-soft
+   * caller was `throwOnError`, and on the CEL branch `evaluateCelCondition`
+   * implements that by evaluating TWICE (once with each fallback — a value
+   * that tracks the fallback both times is a fault). A caller that wants to
+   * *observe* a fault while keeping the fail-soft verdict therefore had to pay
+   * for a second engine call per predicate per node per render. That price is
+   * exactly why the node gate in `SchemaRenderer` bought its diagnostic with a
+   * `__DEV__` gate and shipped production silent.
+   *
+   * This option costs nothing: every fault site below is already inside a
+   * `catch`, or already holds the engine's own failure reason. The verdict is
+   * untouched on every path — `onFault` is invoked for its side effect and its
+   * return value is ignored.
+   *
+   * ## Supplying it TRANSFERS reporting to the caller
+   *
+   * The built-in `console.warn`s on these paths are suppressed while it is
+   * set, so one fault stays one line — the caller's, which can name the node
+   * the predicate belongs to. This mirrors, one layer up, the contract
+   * `FieldPredicateDiagnostic` (`fieldRules.ts`) already documents for the
+   * canonical CEL engine: `warn: false` plus an `onFault` passback, so
+   * silencing the generic line never discards the description of *why* the
+   * predicate failed. On the CEL branch this option is forwarded to exactly
+   * that seam rather than reimplementing it.
+   *
+   * Independent of {@link throwOnError}, which converts a fault into a throw
+   * and is the fail-CLOSED contract; this one keeps the historical fail-soft
+   * answer and merely says so out loud. `throwOnError` still wins where both
+   * are set: the throw happens first and is the caller's own signal.
+   *
+   * Must not throw — it is invoked outside the evaluation guard, so an
+   * exception here propagates to the caller rather than being reported as an
+   * evaluation fault.
+   */
+  onFault?: (reason: string) => void;
+}
+
+/**
+ * One fault, one report: hand the reason to the caller's {@link
+ * EvaluationOptions.onFault} when it supplied one, otherwise fall back to this
+ * class's historical `console.warn`.
+ *
+ * Kept as a module-local function rather than repeating the ternary at each
+ * catch, so the "supplying `onFault` suppresses the built-in line" rule is
+ * stated once and cannot drift between the three sites that implement it.
+ */
+function reportEvaluationFault(
+  onFault: ((reason: string) => void) | undefined,
+  builtinMessage: string,
+  error: unknown,
+): void {
+  const reason = error instanceof Error ? error.message : String(error);
+  if (onFault) {
+    onFault(reason);
+    return;
+  }
+  console.warn(builtinMessage, error);
 }
 
 /**
@@ -91,7 +155,7 @@ export class ExpressionEvaluator {
       return expression;
     }
 
-    const { defaultValue, throwOnError = false, sanitize = true } = options;
+    const { defaultValue, throwOnError = false, sanitize = true, onFault } = options;
 
     try {
       // Check if string contains template expressions
@@ -117,7 +181,7 @@ export class ExpressionEvaluator {
           if (throwOnError) {
             throw error;
           }
-          console.warn(`Expression evaluation failed for: ${expr}`, error);
+          reportEvaluationFault(onFault, `Expression evaluation failed for: ${expr}`, error);
           return match; // Return original if evaluation fails
         }
       });
@@ -125,7 +189,7 @@ export class ExpressionEvaluator {
       if (throwOnError) {
         throw error;
       }
-      console.warn(`Failed to evaluate expression: ${expression}`, error);
+      reportEvaluationFault(onFault, `Failed to evaluate expression: ${expression}`, error);
       return defaultValue ?? expression;
     }
   }
@@ -266,6 +330,17 @@ export class ExpressionEvaluator {
       if (options.throwOnError) {
         throw error;
       }
+      // objectui#6038 — the dialect that reported NOTHING. Measured on the
+      // built evaluator against the other two: a `{ dialect: 'cel' }` envelope
+      // already warns here in production (`evalFieldPredicate`, deduped per
+      // source) and a `${…}` template already warns (the generic line above),
+      // while a BARE-STRING predicate that faults returned its fail-soft `true`
+      // in complete silence. That is the dialect objectstack#11254 measured a
+      // real gate breaking on, and the reason a node gate could stop biting
+      // with nothing on the console to say so. `onFault` is the only new
+      // channel: absent it this catch behaves exactly as it always has, so no
+      // existing caller's console output moves.
+      options.onFault?.(error instanceof Error ? error.message : String(error));
       return true;
     }
   }
@@ -287,8 +362,23 @@ export class ExpressionEvaluator {
       ? (rec as Record<string, unknown>)
       : (bag as Record<string, unknown>);
     if (!options.throwOnError) {
-      // Fast path: one evaluation, fail-soft to visible/enabled (legacy parity).
-      return evalFieldPredicate(source, record, true, undefined, bag);
+      // Fast path: ONE evaluation, fail-soft to visible/enabled (legacy parity).
+      //
+      // objectui#6038: when the caller passes `onFault`, forward it to the seam
+      // `evalFieldPredicate` already exposes for exactly this — `warn: false`
+      // plus the reason passback — rather than adding a second reporter. The
+      // caller then emits one line that can name the node; without `onFault`
+      // the built-in warning fires exactly as before. Either way this stays a
+      // SINGLE engine call: the `throwOnError` double-evaluation below is what
+      // this branch exists to avoid paying in production.
+      return evalFieldPredicate(
+        source,
+        record,
+        true,
+        undefined,
+        bag,
+        options.onFault ? { warn: false, onFault: options.onFault } : undefined,
+      );
     }
     // Fail-closed callers need to tell a genuine `false` from a fault. The
     // canonical helper fails soft to the fallback, so a value that tracks the

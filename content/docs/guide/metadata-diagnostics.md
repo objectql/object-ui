@@ -168,6 +168,30 @@ fires while its field stays visible is the classic symptom — open the
 browser console and the broken predicate identifies itself (most often a
 bare field name where `record.<field>` was meant).
 
+The same is now true of a **component node's own gate** — `visibleWhen` on a
+page component (and its `visible` / `visibleOn` / `visibility` / `hidden` /
+`hiddenOn` siblings), plus a `page:tabs` item's `visibleWhen`. These used to
+report in a development build only, so a gate that stopped biting in
+production left nothing on the console at all. They now warn in **both**
+builds, with the node type, the node id, the gate key, the predicate source
+and the engine's reason:
+
+```text
+[ObjectUI] A visibility predicate could not be evaluated - node "record:alert" (id: "a1")
+  visibleWhen: "nosuchroot.status == 'draft'"
+  Reason: Failed to evaluate expression "nosuchroot.status == 'draft'": nosuchroot is not defined
+The node was treated as its safe default, which on this surface means the
+gate did NOT bite - a predicate that cannot be evaluated reads on screen
+exactly like one that said yes.
+```
+
+The line is **rate limited to one per distinct predicate source**, so a broken
+predicate rendered down two hundred rows of a list is one line, not two
+hundred — while a second, differently-broken predicate still gets its own.
+The verdict is unchanged in every case: this is a diagnostic about a
+predicate, not a change to what the gate decides. A node gate that fails open
+renders exactly as it always did; the difference is that it now says so.
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every
