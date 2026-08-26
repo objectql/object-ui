@@ -446,7 +446,24 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // Must be called before any early returns to satisfy React hooks rules
   // When the local navigation mode is an overlay (drawer/modal), ignore the
   // inherited onRowClick so the local overlay wins over parent page-nav.
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
+  // No width is spelled here on purpose (objectui#6303, converging the calendar
+  // on the shape #6305 gave ObjectGantt). `width` is `@deprecated [#2578 ->
+  // size]` in the spec that owns this shape, and `resolveOverlayWidth` gives an
+  // explicit `width` priority OVER `size` — so spelling it kept the deprecated
+  // branch load-bearing on the path most calendars take (no declared
+  // `navigation`), and made the size buckets unreachable there. Omitting both
+  // leaves `resolveOverlayWidth` returning `undefined`, which is what
+  // RecordDetailDrawer's own `width` default is for; that default is the
+  // identical `min(960px, 60vw)`, so this is a zero-pixel change on every
+  // viewport. The absent width is deliberate, not an oversight — do not
+  // "restore" it. Pinned by `ObjectCalendar.navWidthDefault.test.tsx`, both
+  // halves, because the equivalence now depends on the drawer's default too.
+  //
+  // Deliberately NOT converged on `size: 'lg'` either: that bucket is
+  // `min(92vw, 960px)`, which agrees with the above only at viewport >= 1600px
+  // and is up to 53% wider below it. That move is a real behaviour change and
+  // stays open on #6303 for a human ruling.
+  const navConfig = (schema as any).navigation ?? { mode: 'drawer' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
@@ -760,7 +777,10 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
             recordId={recordId}
             dataSource={dataSource}
             objectSchema={objectSchema as any}
-            width={(navigation.width as any) ?? 'min(960px, 60vw)'}
+            // No `?? 'min(960px, 60vw)'` fallback on purpose — `undefined` has
+            // to reach the drawer for its OWN identical default to apply. See
+            // the `navConfig` comment above (objectui#6303).
+            width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
             onFieldSave={async (field, value) => {
               if (!dataSource?.update) return;
