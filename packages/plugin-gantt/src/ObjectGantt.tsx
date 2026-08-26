@@ -103,7 +103,36 @@ export interface QuickFilterDef {
  * Each key is now declared once and both faces derive from it: the `gantt` block
  * and the flattened top-level spelling on `ObjectGanttSchema`.
  */
-type GanttConfigEx = GanttConfig & {
+type GanttConfigEx = GanttConfig & GanttConfigRestated;
+
+/**
+ * The members this renderer states ON TOP of {@link GanttConfig} — twelve, as
+ * measured against the shipped `GanttConfig` on `main` (objectui#6471; the card
+ * counted eleven before objectui#6051/#6472 landed part of the lift).
+ *
+ * Ten are RESTATEMENTS: `GanttConfig` already declares them (nine of the ten
+ * arrive from the spec's `GanttConfigSchema`, which declares 19 keys), and the
+ * type written here is mutually assignable with the twin. They are kept, not
+ * deleted, for ONE reason — their JSDoc is the only prose in this repo describing
+ * what this renderer DOES with each key. The spec emits no per-member docs
+ * (`z.input<typeof GanttConfigSchema>` carries none), so deleting the members
+ * deletes the documentation, and JSDoc cannot be attached to a member a type
+ * merely inherits.
+ *
+ * Two are NARROWINGS and load-bearing: `quickFilters` and `timeSegments` pin the
+ * plugin's own runtime types (`QuickFilterDef[]` / {@link ShiftSegmentsConfig}),
+ * which is precision the intersection would otherwise lose.
+ *
+ * ⚠️ NAMED rather than inlined into the intersection above, and that is the
+ * whole mechanism: inside `GanttConfigEx` there is nothing left to compare,
+ * because `GanttConfigEx[K]` is ALREADY `GanttConfig[K] & <local>[K]` and is
+ * therefore assignable to `GanttConfig[K]` by construction — an assertion written
+ * against `GanttConfigEx` passes no matter how far the two declarations drift.
+ * Naming the local half is what gives `ObjectGantt.configPin.test.ts` two
+ * independent operands, so a spec bump that re-types one of the ten breaks the
+ * build at the pin instead of silently intersecting the old type back in.
+ */
+export type GanttConfigRestated = {
   parentField?: string;
   /**
    * Record field whose value maps onto a node kind (see {@link normalizeTaskType}):
