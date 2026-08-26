@@ -160,16 +160,24 @@ describe('#6038 — the seam moves no verdict and adds no evaluation', () => {
     expect(withProbe).toBeGreaterThan(plain);
   });
 
-  it('without onFault, nothing about the existing console output moves', () => {
-    // The compatibility half: every caller that does not opt in must see the
-    // exact lines it saw before. A bare-string fault stays silent (it always
-    // was), and the two loud dialects keep their own generic lines.
+  it('without onFault, the loud dialect still prints its own generic line', () => {
+    // The compatibility half: every caller that does not opt in must still see
+    // its line. A bare-string fault stays silent (it always was), and the
+    // `${…}` dialect keeps its own generic text.
+    //
+    // objectui#6444 rate limited that built-in line to ONE per authored source,
+    // module-wide, so this cell faults on a source no other cell in this file
+    // uses. Reusing `FAULT_TEMPLATE` here would read the dedupe entry the
+    // verdict-parity cell above already made and see silence — a green run
+    // that measured nothing. The rate limit itself is pinned in
+    // `ExpressionEvaluator.faultWarnDedupe.test.ts`.
+    const OWN_TEMPLATE = '${nosuchroot.compat_6038 > 1}';
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       expect(evaluator().evaluateCondition(FAULT_BARE)).toBe(true);
       expect(warn).not.toHaveBeenCalled();
 
-      expect(evaluator().evaluateCondition(FAULT_TEMPLATE)).toBe(true);
+      expect(evaluator().evaluateCondition(OWN_TEMPLATE)).toBe(true);
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0][0])).toContain('Failed to evaluate expression');
     } finally {
