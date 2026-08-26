@@ -299,14 +299,159 @@ function extractServerMessage(err: unknown): string | null {
 }
 
 /**
+ * Dev-only guard for the authoring diagnostics below. Mirrors `plugin-map`'s
+ * (`ObjectMap.tsx`): the warnings are feedback for whoever wrote the schema, and
+ * a production bundle should not pay for them.
+ */
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.NODE_ENV !== 'production';
+
+/**
+ * objectui's own `GanttConfig` members — the ten the spec's `GanttConfigSchema`
+ * does not model. They lived in this file's private `GanttConfigEx` until
+ * objectui#6472 lifted them into `@object-ui/types`, which is what makes
+ * `GanttConfig` the single declaration BOTH faces derive from.
+ *
+ * Listed here rather than derived because the runtime object that models them
+ * (`GanttConfigExtensionFields` in `@object-ui/types/zod`) is module-private
+ * there. `satisfies` keeps every entry a real `GanttConfig` key, and the
+ * coverage pin in `ObjectGantt.blockPrecedence.test.tsx` fails to compile if
+ * `GanttConfig` grows a key that neither source models.
+ */
+const GANTT_CONFIG_EXTENSION_KEYS = [
+  'borderColorField',
+  'lockField',
+  'objectField',
+  'summaryExtent',
+  'defaultCollapsedDepth',
+  'dependencyTypes',
+  'timeZone',
+  'exportFileName',
+  'interactions',
+  'timeSegments',
+] as const satisfies readonly (keyof GanttConfig)[];
+
+/**
+ * The FLAT spelling of `GanttConfig`'s keys — what `getGanttConfig`'s flat
+ * branch reads, and what `ObjectView` / `ListView` EMIT.
+ *
+ * Both flatteners build an `object-gantt` schema by spreading `options.gantt`'s
+ * CONTENTS at the top level (`plugin-view/src/ObjectView.tsx` `case 'gantt'`,
+ * `plugin-list/src/ListView.tsx` `case 'gantt'`); the product carries these keys
+ * and NO `gantt` key at all. That is an internal transport form, not a second
+ * authoring surface — and it is why the precedence flip below strands neither
+ * producer.
+ *
+ * The spec-modelled half is DERIVED from `GanttConfigSchema` — the same zod
+ * object the block branch validates against — so a key added to the spec reaches
+ * the shadow diagnostic without a second edit (the discipline
+ * `FLAT_MAP_CONFIG_KEYS` set in objectui#5177). `dependencyField` is the legacy
+ * singular alias the flat branch still reads beside `dependenciesField`; it is
+ * not a `GanttConfig` key, so it is named on its own.
+ */
+export const FLAT_GANTT_CONFIG_KEYS = [
+  ...(Object.keys(GanttConfigSchema.shape) as (keyof typeof GanttConfigSchema.shape)[]),
+  ...GANTT_CONFIG_EXTENSION_KEYS,
+  'dependencyField' as const,
+];
+
+/**
+ * Warn once per distinct shadowing, not once per evaluation: `getGanttConfig`
+ * runs on every render of the chart (hover, zoom, quick-filter changes all
+ * re-render it), and a warning that floods the console is a warning that gets
+ * muted. Same discipline as `plugin-map`'s `warnedShadowedFlatKeys`.
+ */
+const warnedShadowedFlatGanttKeys = new Set<string>();
+
+/**
+ * The `gantt` block won and the flat top-level keys alongside it were ignored —
+ * say which ones, in dev.
+ *
+ * Silence is what the precedence rule costs if it is not diagnosed: two
+ * spellings of ONE vocabulary (objectui#6051 proved they are one — both derive
+ * from `GanttConfig`) in a single schema, one of them inert. The ruling picks
+ * the author's block over the flatten product deliberately — maintainer on
+ * objectui#5018 (2026-08-17) for `plugin-map`, inherited here by objectui#6469 —
+ * so the diagnostic names what was dropped instead of leaving the author to
+ * infer it from a chart that renders the other spelling's values.
+ *
+ * It cannot fire on the ordinary ObjectView / ListView path, and that matters
+ * more here than it did for the map: the flat branch is the HOT path for gantt,
+ * because a hand-authored `gantt` block reaching this component through either
+ * view layer has already been flattened before `getGanttConfig` sees it. Both
+ * flatteners emit the flat keys and NO `gantt` key, so this function's block
+ * branch — the only caller of this warning — is not even reached for their
+ * output. Reaching it means one schema carries both spellings, which is exactly
+ * the case the flip changes.
+ */
+function warnOnShadowedFlatGanttKeys(schema: ObjectGanttSchema): void {
+  if (!isDev()) return;
+
+  const shadowed = FLAT_GANTT_CONFIG_KEYS.filter(
+    (key) => (schema as Record<string, unknown>)[key] !== undefined,
+  );
+  if (shadowed.length === 0) return;
+
+  const memo = `${schema.type ?? 'gantt'}::${schema.objectName ?? ''}::${shadowed.join(',')}`;
+  if (warnedShadowedFlatGanttKeys.has(memo)) return;
+  warnedShadowedFlatGanttKeys.add(memo);
+
+  console.warn(
+    '[ObjectGantt] The `gantt` block configures this chart, so these top-level keys are ' +
+      `IGNORED: ${shadowed.map((k) => `\`${k}\``).join(', ')}. The \`gantt\` block is the ` +
+      'authoring shape; the flat top-level spelling is the internal form ObjectView/ListView ' +
+      'produce when they flatten `options.gantt`, and what the author wrote outranks it. The ' +
+      'block is taken WHOLE — the flat keys are not merged into it — so move anything you ' +
+      'still need into `gantt`, or drop the `gantt` block. objectui#6469.',
+  );
+}
+
+/**
  * Helper to get gantt configuration from schema
+ *
+ * PRECEDENCE (objectui#6469, inheriting the maintainer ruling on objectui#5018,
+ * 2026-08-17): the `gantt` block is checked FIRST and wins outright; the
+ * flattened top-level spelling is consulted only when no `gantt` block is
+ * present. This REVERSES the pre-#6469 order, under which the flat branch
+ * returned early and every key inside an authored `gantt` block was discarded
+ * with no diagnostic at all. `plugin-map` had the identical two-faces shape
+ * ruled the other way (PR #5156); gantt's answer had never been ruled — it was
+ * just what the early `return` happened to do.
+ *
+ * Safe for the producer path: neither flattener emits a `gantt` key, so their
+ * output still takes branch 2 exactly as before — see `FLAT_GANTT_CONFIG_KEYS`.
+ *
+ * The block is taken WHOLE, not merged over the flat keys. That is the ruling's
+ * shape ("what the author wrote outranks it"), and merging would be the lenient
+ * consumer fallback AGENTS.md #0.1 forbids. One consequence is gantt-specific
+ * and worth stating, because the map case cannot produce it: the spec's
+ * `GanttConfigSchema` REQUIRES `startDateField` / `endDateField` / `titleField`
+ * (`ObjectMapConfigSchema` requires nothing), so an INCOMPLETE block now
+ * outranks a complete flat spelling and yields an incomplete config. Both
+ * diagnostics fire on that node — `Invalid gantt configuration` from the
+ * `safeParse` below, and the shadow warning naming the flat keys that lost.
  */
 function getGanttConfig(schema: ObjectGanttSchema): GanttConfigEx | null {
-  let config: GanttConfigEx | null = null;
+  // 1. The `gantt` block (the ObjectGridSchema-style shape) — the authoring
+  // face, and the winner whenever it is present.
+  if (schema.gantt) {
+    const config = schema.gantt as GanttConfigEx;
+    const result = GanttConfigSchema.safeParse(config);
+    if (!result.success) {
+      console.warn(`[ObjectGantt] Invalid gantt configuration:`, result.error.format());
+    }
+    warnOnShadowedFlatGanttKeys(schema);
+    return config;
+  }
 
-  // 1. Check top-level properties (the flattened ObjectGanttSchema style)
+  // 2. The internal flat form — the ObjectView / ListView flatten product.
+  // Taken only when BOTH date fields are present, unchanged by the flip; a
+  // partial flat spelling still falls through to `null`. Deliberately NOT
+  // `safeParse`d, also unchanged: this branch never validated, and adding
+  // validation to it is a separate question from precedence.
   if (schema.startDateField && schema.endDateField) {
-      config = {
+      return {
           startDateField: schema.startDateField,
           endDateField: schema.endDateField,
           titleField: schema.titleField || 'name',
@@ -337,22 +482,8 @@ function getGanttConfig(schema: ObjectGanttSchema): GanttConfigEx | null {
           timeZone: schema.timeZone,
           dependencyTypes: schema.dependencyTypes,
       };
-      return config;
   }
 
-  // 2. Check schema.gantt (the block face, ObjectGridSchema style)
-  if (schema.gantt) {
-    config = schema.gantt as GanttConfigEx;
-  }
-
-  if (config) {
-    const result = GanttConfigSchema.safeParse(config);
-    if (!result.success) {
-      console.warn(`[ObjectGantt] Invalid gantt configuration:`, result.error.format());
-    }
-    return config;
-  }
-  
   return null;
 }
 
