@@ -1594,6 +1594,36 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // deprecated one as its alias (objectui#5102). Both land on `list-view`'s
   // own `filter` / `sort` keys below, so a canonical value arrives in the slot
   // that already matches its shape.
+  //
+  // objectui#6235: that last sentence used to be FALSE of the sort chain's
+  // final branch. `list-view`'s `sort` slot is declared `string | SortConfig[]`
+  // (the spec's own `ListViewSchema.sort`, imported by reference into
+  // `packages/types/src/zod/objectql.zod.ts`), and every branch above the last
+  // produces one of those two — but `table.defaultSort` is declared a SINGLE
+  // `{ field, order }` object, and it was forwarded BARE. There is no
+  // compile-time witness: `ObjectViewSchema.table` collapses to a bare index
+  // signature (objectui#5102) and this node is assembled on the host-
+  // composition surface (objectui#5097), whose `renderListView` slot types
+  // `schema` as `any`.
+  //
+  // Every reader of that slot then drops the sort SILENTLY — no crash, no
+  // error, just an unsorted list: `ListView.parseSortConfig` and
+  // `ObjectGrid.parseSchemaSort` both open `typeof sort === 'string' ? [sort]
+  // : Array.isArray(sort) ? sort : []`, so a bare object yields `[]`, and the
+  // shared sink `convertSortToQueryParams` returns `undefined` for it. Both
+  // in-tree hosts feed this slot straight into `ListView`
+  // (`app-shell/src/views/ObjectView.tsx` `fullSchema`, and
+  // `studio-design/StudioDesignSurface.tsx` `renderStudioGridList`).
+  //
+  // So the legacy member of the pair is lowered HERE, in the caller, verbatim
+  // as the non-grid fetch path above already does it and as `ObjectGrid`
+  // performs it for this exact pair. ⛔ The alternative — teaching the shared
+  // sink to accept a bare `{ field, order }` — is the widening the maintainer
+  // ruling of 2026-08-22 REJECTED on the merits (quoted with the non-grid
+  // fetch above): that slot legitimately also carries `$orderby`'s own
+  // `Record<field, direction>` map, in which `{ field: 'desc' }` is a legal
+  // ordering by a column literally named `field`, so the sink would have to
+  // GUESS. Precedence is untouched — only the last branch changes shape.
   const mergedFilters = currentNamedViewConfig?.filter
     || activeView?.filter
     || schema.table?.filter
@@ -1602,7 +1632,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const mergedSort = currentNamedViewConfig?.sort
     || activeView?.sort
     || schema.table?.sort
-    || schema.table?.defaultSort;
+    || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
   // --- Content renderer ---
   const renderContent = () => {
