@@ -240,15 +240,28 @@ test.describe('Console boot indicator', () => {
  * all (it uses its own `RootLandingRedirect` and `ProtectedRoute`), so no boot
  * of THIS bundle can reach them at any session state.
  *
- * Bringing the first four under this assertion needs a signed-in mock boot —
- * a session, the metadata bucket fetches and the org/app endpoints each gate
- * reads — which is a materially larger fixture than the four endpoints below
- * and is deliberately not attempted here. Until it exists, those sites are
- * pinned at the DOM level, one file per population, with an explicit control
- * arm that must read "covered" so an "empty" reading stays falsifiable:
+ * A signed-in mock boot for the first four WAS built and run, and the result is
+ * the reason no per-site case was added here: those scenarios stay GREEN against
+ * a bundle rebuilt from ablated source — with the fix removed — and they stay
+ * green under 20x CPU throttling too. They do not bind to the defect, so
+ * committing them would have added a gate that cannot fail.
+ *
+ * The diagnosis is not a missing browser. A browser is available and this file
+ * runs against the production bundle; the acceptance spec passes. What is
+ * missing is a reproducible WINDOW: the pre-React `#boot-splash` counts as
+ * covering, and on those mocked boots the redirect chain resolves before the
+ * indicator is torn down, so at the moment the gate decides there is no blank
+ * for a sampler to catch. Making a per-site e2e gate that CAN fail therefore
+ * needs the window reproduced with the indicator already gone — not more
+ * endpoints, and not a browser.
+ *
+ * Until such a gate exists, those sites are pinned at the DOM level, one file
+ * per population, with an explicit control arm that must read "covered" so an
+ * "empty" reading stays falsifiable:
  * `packages/app-shell/src/console/__tests__/bootRedirectCoverage.test.tsx` and
  * `…/AppContent.bootRedirectCoverage.test.tsx`. Those measure the deciding
- * COMMIT, not the milliseconds — the pixel ledger still needs a real browser.
+ * COMMIT rather than the milliseconds, and under the ablation above they turn
+ * red where the e2e scenarios did not.
  */
 interface CoverProbe {
   reactMountAt?: number;
