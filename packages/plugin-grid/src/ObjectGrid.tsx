@@ -22,7 +22,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ListColumn, ViewData, TableSortItem, DataTableSchema, ListViewExportFormat } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, ListColumn, TableColumn, ViewData, TableSortItem, DataTableSchema, ListViewExportFormat } from '@object-ui/types';
 import { isSystemManagedField, normalizeTableColumnType } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useSafeFieldLabel, usePredicateScope, useRelatedRecordActions } from '@object-ui/react';
@@ -480,6 +480,136 @@ function normalizeColumns(
   // String array format
   return columns as string[];
 }
+
+/**
+ * ⭐ WHAT THIS GRID'S COLUMN PRODUCER IS ALLOWED TO EMIT (objectui#6004).
+ *
+ * `generateColumns()` below builds the column array this component hands to
+ * `data-table`, whose slot is `DataTableSchema.columns: TableColumn[]`. It had
+ * no return annotation, so its four emit paths were inferred structurally and
+ * nothing ever compared them to the slot's declaration — and all four call
+ * sites re-widened to `any` on the way out, so even an annotation would have
+ * been discarded one hop later.
+ *
+ * ## ⭐ Why this is not just `: TableColumn[]`
+ *
+ * objectui#6373 measured, at the sibling producer in `plugin-dashboard`, that a
+ * bare `TableColumn` annotation raises no error on a `{ ...spread }` emit,
+ * because TypeScript's excess-property check is a FRESHNESS check on the
+ * properties an object literal WRITES OUT and spread properties are exempt.
+ *
+ * Measured again HERE before choosing this shape, because this seam is worse
+ * than that one and the difference matters:
+ *
+ *   1. `generateColumns = useCallback((): TableColumn[] => {`, everything else
+ *      unchanged  →  `tsc --noEmit` exit 0, ZERO diagnostics.
+ *   2. Same, PLUS an undeclared key `wrapControl: true` WRITTEN OUT in the path-A
+ *      column literal (not arriving through a spread)  →  exit 0, ZERO diagnostics.
+ *
+ * Run 2 is the one that fixes the mechanism. At objectui#6373's seam the object
+ * literal sits in `enrich()`'s return position, so freshness still caught keys
+ * written out longhand and only the spread escaped. Here every literal is the
+ * return value of a `.map()` callback, so it is inferred into the callback's
+ * return type FIRST and reaches the annotation as a non-fresh `X[]`. Freshness
+ * is gone entirely: written-out keys escape too. A bare annotation at this seam
+ * is not a weak instrument, it is an inert one — a green gate and no guard.
+ *
+ * The `?: never` members are what make the annotation able to fail. They are
+ * ADR-0049 retirement tombstones — this repo's convention for a key that is
+ * REFUSED rather than merely absent (`StaticTableColumn` in `@object-ui/types`)
+ * — and they bite by ASSIGNABILITY, which survives `.map()` because it never
+ * depended on freshness. Re-adding `...(col.summary && { summary: col.summary })`
+ * to a column literal is a compile error naming `summary`.
+ *
+ * ## The rule (objectui#6373's, applied to this producer's key set)
+ *
+ * A producer may write into a `TableColumn[]` slot only keys the CONSUMER of
+ * that slot reads, and the read set is MEASURED from the consumer's source,
+ * never assumed. A key the consumer reads and `TableColumn` declares is
+ * written; a key the consumer reads that `TableColumn` does not declare is HELD
+ * where a ruling already holds it; a key nothing reads is RETIRED — never
+ * declared, because declaring a key nothing reads is the same
+ * `declared != enforced` defect facing the other way. Before retiring, prove
+ * the value has a second road to its consumer.
+ *
+ * Consumers measured for THIS producer — two of them, because the array is read
+ * twice before it reaches the slot:
+ *
+ *   - `data-table.tsx`, comments stripped, every `col.<key>` read: `accessorKey`,
+ *     `width`, `align`, `header`, `className`, `cellClassName`, `sortable`,
+ *     `resizable`, `editable`, `type`, `cell`, `headerIcon`, `fitContent`, `name`.
+ *   - THIS FILE's own downstream passes, which read the array before handing it
+ *     on: `pinned` (the left/right reorder + the frozen-column verdict),
+ *     `accessorKey`, `header`, `width`, `type`, `fitContent`.
+ *
+ * Verdicts, each with the read-count behind it:
+ *
+ *   - `headerIcon` — HELD. Live: `data-table.tsx` renders it into the header
+ *     cell (2 reads). Whether `TableColumn` should DECLARE it is objectui#6424's
+ *     call, not this card's; declared here at the seam meanwhile, so the hold is
+ *     visible instead of anonymous.
+ *   - `pinned` — HELD. Live, and consumed BEFORE the slot: the reorder pass
+ *     below reads it (5 reads in this file) and re-expresses it as the sticky
+ *     `className` that `data-table` actually reads. `data-table` never reads
+ *     `pinned` itself, and does not need to.
+ *   - `wrap` — HELD, and deliberately NOT retired here. Nothing anywhere reads
+ *     it, so this card's rule would retire it — but objectui#5453 already owns
+ *     that key and is `pm:blocked` on objectui#5415, whose outcome decides
+ *     implement-vs-remove. Retiring it here would settle a blocked card from
+ *     the outside. It is declared, inert, and stays exactly as it was.
+ *   - `options` — RETIRED (see the enrichment pass below).
+ *   - `type` — not adjudicated here; objectui#5853 owns its VALUE set and its
+ *     fold still stands. It is the one member whose vocabulary differs between
+ *     the two types below.
+ *   - `name` — not emitted by this producer at all, so objectui#5120's alias
+ *     needs no hold here. Tombstoned only in the sense that nothing writes it.
+ *
+ * `essential` is absent from both types on purpose: objectui#6004's suggested
+ * key list named it, but it is READ off the authored column and turned into a
+ * `className` — it is never emitted, and it is not a `ListColumn` member either.
+ */
+
+/**
+ * The tombstoned keys — DERIVED from the authored input type, never hand-listed,
+ * so a future `ListColumn` member is refused by default and has to be
+ * adjudicated to escape.
+ *
+ * `ListColumn` is the right derivation source because it is where this
+ * producer's drift comes from: every key the emit could wrongly grow is a key
+ * the author wrote on the input and someone forwarded. `wrap` and `pinned` are
+ * the two that already escaped, both adjudicated HELD above.
+ */
+export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'wrap' | 'pinned'>;
+
+/** The undeclared-but-live keys this producer holds. See the docblock above. */
+export interface GridColumnHolds {
+  /** HELD, objectui#6424 — `data-table` renders it; `TableColumn` does not declare it. */
+  headerIcon?: React.ReactNode;
+  /** HELD — consumed by this file's own reorder pass before the array reaches the slot. */
+  pinned?: 'left' | 'right';
+  /** HELD, objectui#5453 (blocked on objectui#5415) — inert, and not this card's to retire. */
+  wrap?: boolean;
+}
+
+/**
+ * What `generateColumns()` returns: everything final EXCEPT `type`, which is
+ * still the producer's raw inference vocabulary (`@objectstack/spec`'s
+ * `FieldType`, 49 values) rather than the 7-literal union `TableColumn`
+ * declares. objectui#5853 folds it downstream, in a pass that is deliberately
+ * separate from the enrichment map — so the pre-fold shape needs a name, and
+ * this is it.
+ */
+export type GridColumnDraft =
+  Omit<TableColumn, 'type'>
+  & { type?: string }
+  & GridColumnHolds
+  & { [K in RetiredListColumnKey]?: never };
+
+/** Post-fold: what actually reaches `DataTableSchema.columns: TableColumn[]`. */
+export type GridColumn =
+  TableColumn
+  & GridColumnHolds
+  & { [K in RetiredListColumnKey]?: never };
 
 /** The row heights this grid styles — the five `RowHeight` values the spec admits. */
 type RowHeightMode = 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
@@ -1522,7 +1652,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     if (message) console.warn(message);
   }, [schema.columns, columnDiagnosticBlockType, schema.objectName, columnDiagnosticLabel]);
 
-  const generateColumns = useCallback(() => {
+  const generateColumns = useCallback((): GridColumnDraft[] => {
     // Map field type to column header icon (Airtable-style)
     const getTypeIcon = (fieldType: string | null): React.ReactNode => {
       if (!fieldType) return <Type className="h-3.5 w-3.5" />;
@@ -1674,9 +1804,16 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // Format hints (e.g. `text` + `format: 'phone'`) promote to the
             // richer renderer (PhoneCellRenderer) via resolveCellRendererType.
             const objectDefField = objectSchema?.fields?.[col.field];
-            const baseInferredType = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
+            // ⭐ ANNOTATED, and the annotation is load-bearing (objectui#6004).
+            // `objectSchema` is `useState<any>`, so `objectDefField?.type` is
+            // `any` — and an `any` SPREAD into an object literal collapses the
+            // WHOLE literal to `any`, which silently un-checks every other key
+            // in it. Measured: without this annotation the emit below infers
+            // `any[]`, and `GridColumnDraft` cannot bite on any member. Naming
+            // the producer vocabulary here stops `any` at this one boundary.
+            const baseInferredType: string | null = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
             const formatHint = (col as any).format ?? objectDefField?.format;
-            const inferredType = baseInferredType
+            const inferredType: string | null = baseInferredType
               ? resolveCellRendererType({ type: baseInferredType, format: formatHint })
               : null;
             const CellRenderer = inferredType ? getCellRenderer(inferredType) : null;
@@ -1843,7 +1980,11 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           const header = schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, rawHeader) : rawHeader;
 
           // Resolve type: objectDef type > heuristic inference (consistent with ListColumn path)
-          const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
+          // Annotated for the same reason as path A's `baseInferredType`
+          // above: `fieldDef` is `any`, and an `any` reaching the `...(resolvedType
+          // && { type: resolvedType })` spread below collapses the emit literal
+          // to `any` (objectui#6004).
+          const resolvedType: string | null = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
           const CellRenderer = resolvedType ? getCellRenderer(resolvedType) : null;
 
           // Build field metadata with objectDef enrichment
@@ -1924,7 +2065,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         const fieldsToShow = schemaFields || Object.keys(inlineData[0]);
         return fieldsToShow.map((fieldName) => {
           const fieldDef = objectSchema?.fields?.[fieldName];
-          const resolvedType = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
+          // Annotated for the same reason as paths A and B (objectui#6004).
+          const resolvedType: string | null = fieldDef?.type || inferColumnType({ field: fieldName }) || null;
           const CellRenderer = resolvedType ? getCellRenderer(resolvedType) : null;
           const header = fieldDef?.label || fieldName.charAt(0).toUpperCase() + fieldName.slice(1).replace(/_/g, ' ');
 
@@ -1969,7 +2111,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
     if (!objectSchema) return [];
 
-    const generatedColumns: any[] = [];
+    const generatedColumns: GridColumnDraft[] = [];
     // Default columns priority (when schema doesn't specify columns):
     //   1. The object's `highlightFields` semantic role (ADR-0085).
     //   2. Otherwise, all schema fields with system-managed fields pushed to the end.
@@ -2020,6 +2162,9 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       if (perms?.isLoaded && schema.objectName
         && !perms.checkField(schema.objectName, fieldName, 'read')) return;
 
+      // Annotated for the same reason as paths A-C (objectui#6004): `field` is
+      // `any`, so this value has to be named before it reaches a spread below.
+      const fieldType: string | undefined = field.type;
       const CellRenderer = getCellRenderer(field.type);
       const numericTypes = ['number', 'currency', 'percent'];
       const translatedField = field.options
@@ -2030,8 +2175,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         header: schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, field.label || fieldName) : field.label || fieldName,
         accessorKey: fieldName,
         // Forward the field type for the type-aware inline editor.
-        ...(field.type && { type: field.type }),
-        ...(numericTypes.includes(field.type) && { align: 'right' }),
+        ...(fieldType && { type: fieldType }),
+        ...(numericTypes.includes(field.type) && { align: 'right' as const }),
         cell: (value: any) => <CellRenderer value={value} field={fieldForCell} />,
         sortable: field.sortable !== false,
       });
@@ -2105,8 +2250,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       && exportConfig?.streaming !== false;
 
     if (serverEligible) {
-      const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
-      const fields = cols.map((c: any) => c.accessorKey).filter(Boolean);
+      const cols = generateColumns().filter((c) => c.accessorKey !== '_actions');
+      const fields = cols.map((c) => c.accessorKey).filter(Boolean);
 
       // Same lowered value the fetch above sends, which is what keeps the
       // downloaded file agreeing with the screen: both read `schemaFilter`
@@ -2173,9 +2318,9 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     };
 
     if (format === 'csv') {
-      const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
-      const fields = cols.map((c: any) => c.accessorKey);
-      const headers = cols.map((c: any) => c.header);
+      const cols = generateColumns().filter((c) => c.accessorKey !== '_actions');
+      const fields = cols.map((c) => c.accessorKey);
+      const headers = cols.map((c) => c.header);
       const rows: string[] = [];
       if (includeHeaders) {
         rows.push(headers.join(','));
@@ -2224,19 +2369,31 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     );
   }
 
-  const columns = generateColumns().map((col: any) => {
-    // Enrich each column with its field type + select options so the
-    // data-table's type-aware inline editor can pick the matching control
-    // (dropdown for select, checkbox for boolean) the form uses, instead of a
-    // plain text box. Additive: never overrides a type/options a path already set.
-    if (!col || col.accessorKey === '_actions') return col;
+  const columns: GridColumn[] = generateColumns().map((col): GridColumnDraft => {
+    // Enrich each column with its field type so the data-table's type-aware
+    // inline editor can pick the matching control (dropdown for select,
+    // checkbox for boolean) the form uses, instead of a plain text box.
+    // Additive: never overrides a type a path already set.
+    //
+    // ⭐ THE `options` KEY RETIRED HERE (objectui#6004). This pass also used to
+    // write `next.options = translateOptions(…)`, and nothing read it. Measured
+    // read sets, comments stripped: `data-table.tsx` reads no column-level
+    // `options` at all — its select/boolean editors are not hand-rolled there,
+    // they come from the host through `renderCellEditor`, and THIS component's
+    // `renderCellEditor` (below) rebuilds the field from
+    // `objectSchema.fields[ctx.column.accessorKey]` rather than from the column.
+    // So the write had no reader on either side of the seam.
+    //
+    // Retiring it is behaviour-preserving because the value still has its own
+    // road to every consumer that wants it — that check is part of the rule,
+    // not an aside: cell renderers read translated options off the `fieldMeta`
+    // built inside `generateColumns()`, and the inline editor reads them off
+    // the object schema. Neither ever consulted `col.options`.
+    if (col.accessorKey === '_actions') return col;
     const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
     if (!fieldDef) return col;
-    const next: any = { ...col };
+    const next: GridColumnDraft = { ...col };
     if (next.type == null && fieldDef.type) next.type = fieldDef.type;
-    if (next.options == null && fieldDef.options) {
-      next.options = translateOptions(schema.objectName, col.accessorKey, fieldDef.options);
-    }
     // Read-only / computed / binary fields are not value-editable in place —
     // mark the column so the data-table never opens an editor (otherwise it
     // falls back to a plain text box for e.g. a Formula or File cell). Only
@@ -2264,15 +2421,17 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     //
     // An out-of-union type drops the `type` KEY — never the column. See
     // `normalizeTableColumnType` for why absence beats folding onto `'text'`.
-    .map((col: any) => {
-      if (!col || col.type == null) return col;
-      const normalized = normalizeTableColumnType(col.type);
-      if (normalized === col.type) return col;
-      if (normalized === undefined) {
-        const { type: _undeclared, ...rest } = col;
-        return rest;
-      }
-      return { ...col, type: normalized };
+    //
+    // This pass is also where the draft becomes the real thing: `type` is the
+    // one member whose vocabulary differs between `GridColumnDraft` (producer
+    // spelling) and `GridColumn` (what the slot declares), so the fold and the
+    // type transition are the same step (objectui#6004).
+    .map((col): GridColumn => {
+      const { type: producerType, ...rest } = col;
+      if (producerType == null) return rest;
+      const normalized = normalizeTableColumnType(producerType);
+      if (normalized === undefined) return rest;
+      return { ...rest, type: normalized };
     });
 
   // Apply persisted column order and widths
@@ -3395,11 +3554,11 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Tailwind md: / the responsive page+grid layout), render stacked cards
   // instead of a side-scrolling wide table.
   if (useCardView && data.length > 0 && !isGrouped) {
-    const displayColumns = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
+    const displayColumns = generateColumns().filter((c) => c.accessorKey !== '_actions');
 
     // Build a lookup of column metadata for smart rendering
-    const colMap = new Map<string, any>();
-    displayColumns.forEach((col: any) => colMap.set(col.accessorKey, col));
+    const colMap = new Map<string, GridColumnDraft>();
+    displayColumns.forEach((col) => colMap.set(col.accessorKey, col));
 
     // Identify special columns by inferred type for visual hierarchy
     const titleCol = displayColumns[0]; // First column is always the title
