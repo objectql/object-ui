@@ -1,8 +1,5 @@
 {
-  "type": "button",
-  "label": "Show Sonner Toast",
-  "onClick": {
-    "action": "sonner",
-    "message": "Event has been created"
-  }
+  "type": "sonner",
+  "message": "Event has been created",
+  "buttonLabel": "Show Sonner Toast"
 }

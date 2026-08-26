@@ -314,3 +314,72 @@ describe('objectui#6443 — the rate limit, measured in both directions', () => 
     expect(reports(warn)).toHaveLength(1);
   });
 });
+
+/* -------------------------------------------------------------------------- *
+ * objectui#6487 — the advice paragraph is this tier's, not the node tier's.
+ *
+ * The card #6443 made visible: once this site started printing, it printed the
+ * NODE gate's closing paragraph, telling a nav author to check `record` and
+ * `page.<var>`. The bag `ExpressionProvider` builds is
+ * `{ current_user, user, ctx: { user }, os: { user }, app, data, features }` —
+ * it contains neither.
+ *
+ * These cells are the END-TO-END half of the pin: the unit matrix in
+ * `@object-ui/react` proves the two paragraphs differ, and these prove the
+ * paragraph a REAL faulting nav predicate reaches the console with is this
+ * tier's. A fault is asserted to have reached the reporter in the same run, so
+ * neither can pass on a site that stopped reporting.
+ * -------------------------------------------------------------------------- */
+
+describe('objectui#6487 — the line carries the APP-SHELL tier`s roots', () => {
+  it('a faulting nav predicate is NOT told to check `record` or `page.<var>`', () => {
+    const warn = spyWarn();
+    const evaluator = makeEvaluator();
+    const fault = 'nosuchroot6487shell.x > 1';
+
+    expect(evaluateVisibility(fault, evaluator)).toBe(true); // fail-open, unchanged
+    const lines = reports(warn);
+    expect(lines).toHaveLength(1); // the fault reached the reporter in THIS run
+    expect(lines[0]).not.toContain('Page-component predicates bind');
+    expect(lines[0]).toContain('Neither `record` nor `page.<var>` exists at this tier.');
+  });
+
+  it('it names the roots this provider really binds — including `features`', () => {
+    // `features` is the deployment-flag root this provider's own docblock
+    // documents for exactly this kind of predicate, and it was unnamed.
+    // Asserted against the bag `makeEvaluator` builds, which is a copy of the
+    // provider's: every root named below is a key of it.
+    const warn = spyWarn();
+    const evaluator = makeEvaluator();
+
+    evaluateVisibility('nosuchroot6487shellroots.x > 1', evaluator);
+    const [line] = reports(warn);
+    expect(line).toBeDefined();
+    for (const root of ['`current_user`', '`user`', '`ctx.user`', '`os.user`', '`app`', '`features`']) {
+      expect(line).toContain(root);
+    }
+  });
+
+  it('CONTROL: the first paragraph is UNCHANGED — it is true on this fail-open surface too', () => {
+    // Green both ways, deliberately. Only the LAST paragraph is per-tier; the
+    // "gate did NOT bite" sentence is true on every surface wired to this
+    // reporter, and objectui#6445 owns the separate question of its polarity on
+    // the `disabled` gate. A fix that re-tiered the whole message would take
+    // this cell red and would be out of this card's scope.
+    const warn = spyWarn();
+    evaluateVisibility('nosuchroot6487shellctl.x > 1', makeEvaluator());
+    const [line] = reports(warn);
+    expect(line).toContain('gate did NOT bite');
+  });
+
+  it('the surface label, gate key, source and reason all survive the tier split', () => {
+    const warn = spyWarn();
+    const fault = 'nosuchroot6487shellshape.x > 1';
+    evaluateVisibility(fault, makeEvaluator());
+    const [line] = reports(warn);
+    expect(line).toContain(SURFACE);
+    expect(line).toContain('visible:');
+    expect(line).toContain(fault);
+    expect(line).toContain('Reason:');
+  });
+});

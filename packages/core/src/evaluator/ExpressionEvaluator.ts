@@ -86,17 +86,73 @@ export interface EvaluationOptions {
 }
 
 /**
+ * The two built-in fault sites of {@link ExpressionEvaluator.evaluate}, tagged
+ * so they cannot silence each other through the dedupe below. They describe
+ * different faults — one PART of a multi-part template failed to evaluate,
+ * versus the WHOLE expression did — and each owns its message text.
+ */
+type EvaluationFaultSite = 'template-part' | 'whole-expression';
+
+/**
+ * Authored sources already reported by {@link reportEvaluationFault}, keyed on
+ * `[site, source]`.
+ *
+ * ## Why a rate limit at all (objectui#6444)
+ *
+ * `evaluate` is the hottest of the three predicate paths in this area:
+ * `SchemaRenderer` calls it for every `properties.*` value, every `props.*`
+ * value and `content`, for every node, on every render — and both sites below
+ * used to log on EVERY evaluation. Measured on the built evaluator at
+ * `830ed5803`: three identical faulting `evaluateCondition` calls produced
+ * **3** console lines where the `{ dialect: 'cel' }` envelope produced **1**,
+ * and one broken `${…}` prop rendered across a 200-row list produced **200**
+ * lines — then 200 more on the next render.
+ *
+ * This is the one-per-source ceiling both sibling reporters already carry, not
+ * a third mechanism: `warnPredicateFailure` in `./fieldRules.js` (keyed on
+ * dialect + source) and `visibilityDiagnostic.ts` in `@object-ui/react` (keyed
+ * on type + key + source).
+ *
+ * ## Why the key is the source TEXT, and never the scope
+ *
+ * Both siblings key on the AUTHORING identity of the predicate, and neither
+ * keys on the data it was evaluated against: "a broken predicate is
+ * re-evaluated on every render/keystroke, and the point is one loud line, not
+ * a scrolling wall". Here that precedent is also the defect itself — the
+ * 200-row flood is ONE authored source evaluated against 200 DIFFERENT scopes,
+ * so a scope-sensitive key reproduces all 200 lines and fixes nothing.
+ *
+ * The key is JSON-encoded, never joined with a control character — that is
+ * what made a sibling of this file binary to grep (objectstack#5450).
+ *
+ * Unbounded, exactly like both siblings: entries are distinct AUTHORED
+ * expressions, a count an app's metadata bounds; a row count does not.
+ */
+const warnedEvaluationFaults = new Set<string>();
+
+/**
  * One fault, one report: hand the reason to the caller's {@link
  * EvaluationOptions.onFault} when it supplied one, otherwise fall back to this
- * class's historical `console.warn`.
+ * class's historical `console.warn` — now at most once per authored source.
  *
  * Kept as a module-local function rather than repeating the ternary at each
  * catch, so the "supplying `onFault` suppresses the built-in line" rule is
- * stated once and cannot drift between the three sites that implement it.
+ * stated once and cannot drift between the three sites that implement it. The
+ * two message texts moved in here for the same reason: the dedupe key and the
+ * line a reader sees are now built from the same `source`, so the stated
+ * ceiling cannot drift from what the console actually prints.
+ *
+ * The rate limit governs the built-in line ONLY. `onFault` still fires on
+ * every fault, matching the passback contract `./fieldRules.js` already
+ * documents for the canonical engine — "independent of … the one-time-warning
+ * dedupe: it fires on every fault, so a caller doing its own warn-once
+ * bookkeeping keeps control of it". A caller that reports per node must not
+ * have its faults swallowed by this module's bookkeeping.
  */
 function reportEvaluationFault(
   onFault: ((reason: string) => void) | undefined,
-  builtinMessage: string,
+  site: EvaluationFaultSite,
+  source: string,
   error: unknown,
 ): void {
   const reason = error instanceof Error ? error.message : String(error);
@@ -104,7 +160,15 @@ function reportEvaluationFault(
     onFault(reason);
     return;
   }
-  console.warn(builtinMessage, error);
+  const key = JSON.stringify([site, source]);
+  if (warnedEvaluationFaults.has(key)) return;
+  warnedEvaluationFaults.add(key);
+  console.warn(
+    site === 'template-part'
+      ? `Expression evaluation failed for: ${source}`
+      : `Failed to evaluate expression: ${source}`,
+    error,
+  );
 }
 
 /**
@@ -181,7 +245,7 @@ export class ExpressionEvaluator {
           if (throwOnError) {
             throw error;
           }
-          reportEvaluationFault(onFault, `Expression evaluation failed for: ${expr}`, error);
+          reportEvaluationFault(onFault, 'template-part', expr, error);
           return match; // Return original if evaluation fails
         }
       });
@@ -189,7 +253,7 @@ export class ExpressionEvaluator {
       if (throwOnError) {
         throw error;
       }
-      reportEvaluationFault(onFault, `Failed to evaluate expression: ${expression}`, error);
+      reportEvaluationFault(onFault, 'whole-expression', expression, error);
       return defaultValue ?? expression;
     }
   }

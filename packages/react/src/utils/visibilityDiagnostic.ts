@@ -63,8 +63,92 @@ function predicateSourceText(raw: unknown): string {
 }
 
 /**
+ * Which SCOPE the faulting predicate was evaluated against (objectui#6487).
+ *
+ * ## Why the reporter needs to be told, rather than deducing it
+ *
+ * The closing paragraph of the message names the ROOTS an author can bind. That
+ * is the half of the report an author acts on: a fault is usually a mistyped or
+ * unbound root, and "which roots exist here" is the answer. It is therefore the
+ * one part of the copy that is NOT true on every surface — the callers below
+ * build genuinely different bags — and it was printed unconditionally in the
+ * node tier's spelling, so an app-shell author was sent to check `record` and
+ * `page.<var>`, which nothing at that tier binds.
+ *
+ * The alternative fix — generalising the copy to "whatever this surface binds"
+ * plus a docs link — was refused deliberately: the concrete root names are the
+ * whole value of the paragraph, and advice that names no roots is correct
+ * everywhere and useful nowhere.
+ *
+ * Deducing the tier from the `type` slot was refused too. `type` carries the
+ * SCHEMA NODE TYPE at the node tier and a surface label at the other two
+ * (`page:tabs`, `app-shell:visible`), and `page:tabs` is a real registry key —
+ * so a `page:tabs` NODE faulting its own `visibleWhen` inside `SchemaRenderer`
+ * is indistinguishable, by `type` alone, from one of its ITEM predicates. An
+ * explicit argument cannot collide that way.
+ *
+ * ## The tiers, each derived from the code that builds the bag
+ *
+ * `'page-component'` — the node gate. `SchemaRenderer.tsx` builds
+ * `new ExpressionEvaluator({ ...predicateScope, current_user, [record], data,
+ * page })`, so the roots the SPEC declares for the tier (`ui/page.zod.ts`:
+ * *"Binds `record`, `current_user`, `page.<var>`"*) are the roots it binds.
+ * `page:tabs` ITEM predicates (`containers.tsx`) are this tier as well: they
+ * build the same three roots (plus the row spread flat, and `data` aliased to
+ * the row rather than to the adapter — both undeclared breadth that the spec
+ * does not promise and this paragraph therefore does not advertise).
+ *
+ * `'app-shell'` — the chrome gate. `ExpressionProvider.tsx` builds
+ * `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`.
+ * There is no `record` and no `page` in it at all, which is the defect this
+ * type exists to fix. The four identity spellings are the ADR-0068 aliases and
+ * all four resolve; `features` is the deployment-flag root that provider's own
+ * docblock documents for exactly this kind of predicate.
+ *
+ * `data` is bound at the app-shell tier but is deliberately NOT advertised
+ * there: every mount of `ExpressionProvider` in this repo passes `data={{}}`
+ * or omits it, so naming it would point an author at a root that answers
+ * nothing.
+ */
+export type PredicateScopeTier = 'page-component' | 'app-shell';
+
+/**
+ * The closing paragraph, per tier. The ONLY part of the message that varies —
+ * everything above it (the node, the key, the source, the engine's reason, and
+ * the "gate did NOT bite" sentence) is true on every surface wired to this
+ * reporter, including the fail-open app-shell gate.
+ *
+ * Both entries end on the same sentence on purpose: whichever tier an author is
+ * on, the two things to check are the roots and the CEL syntax.
+ *
+ * Indexed WITHOUT a `??` fallback to the node tier, deliberately (AGENTS.md
+ * #0.1). A tier this table does not answer is a type violation, and quietly
+ * substituting the node tier's paragraph for it would reproduce, one caller
+ * further along, the exact defect this card fixes: confident advice about a
+ * scope the predicate was never evaluated against. The default lives on the
+ * PARAMETER, where it is a stated compatibility choice, not in the lookup.
+ */
+const SCOPE_TIER_ADVICE: Record<PredicateScopeTier, string> = {
+  'page-component':
+    'Page-component predicates bind `record` (the row on a record page),\n' +
+    '`current_user`, and page state as `page.<var>`. Check those roots and the\n' +
+    'CEL syntax.',
+  'app-shell':
+    'App-shell predicates bind `current_user` - also spelled `user`, `ctx.user`\n' +
+    'and `os.user` - plus `app` and `features` (the deployment flags).\n' +
+    'Neither `record` nor `page.<var>` exists at this tier.\n' +
+    'Check those roots and the CEL syntax.',
+};
+
+/**
  * Build the message. Separate from the emit so a test can assert the words,
  * not merely that something was logged.
+ *
+ * `tier` defaults to `'page-component'` so the historical five-argument call
+ * keeps printing the exact bytes it printed before (objectui#6487) — the
+ * default is a compatibility shim for callers outside this repo, not something
+ * this repo leans on: all three in-repo call sites pass their tier explicitly,
+ * which is what makes each one a stated decision rather than an inherited one.
  */
 export function formatUnresolvableVisibilityMessage(
   type: unknown,
@@ -72,6 +156,7 @@ export function formatUnresolvableVisibilityMessage(
   key: string,
   raw: unknown,
   reason: string,
+  tier: PredicateScopeTier = 'page-component',
 ): string {
   const node = typeof type === 'string' && type ? '"' + type + '"' : '(untyped node)';
   const where = typeof id === 'string' && id ? ' (id: "' + id + '")' : '';
@@ -82,9 +167,7 @@ export function formatUnresolvableVisibilityMessage(
     'The node was treated as its safe default, which on this surface means the\n' +
     'gate did NOT bite - a predicate that cannot be evaluated reads on screen\n' +
     'exactly like one that said yes.\n' +
-    'Page-component predicates bind `record` (the row on a record page),\n' +
-    '`current_user`, and page state as `page.<var>`. Check those roots and the\n' +
-    'CEL syntax.'
+    SCOPE_TIER_ADVICE[tier]
   );
 }
 
@@ -122,6 +205,15 @@ const _warnedVisibilityPredicates = new Set<string>();
  * evaluation). `String(err)` already covered that shape, so both callers reach
  * the same `Reason:` text and the same dedupe entry — which is what makes "dev
  * and production print the identical line" true rather than approximately true.
+ *
+ * ## `tier` is NOT in the dedupe key, and that is not an oversight
+ *
+ * The key stays `(type, key, predicate source)` — the rate limit objectui#6038
+ * pinned in both directions. Adding `tier` could only ever LOOSEN it, and it
+ * would take a `type` shared across two tiers to loosen anything: the app-shell
+ * site's `type` is the constant `'app-shell:visible'`, which no node tier can
+ * produce, and the two `'page-component'` callers are the same tier by
+ * definition. So the tier is free of the key by measurement, not by assumption.
  */
 export function reportUnresolvableVisibilityPredicate(
   type: unknown,
@@ -129,12 +221,13 @@ export function reportUnresolvableVisibilityPredicate(
   key: string,
   raw: unknown,
   err: unknown,
+  tier: PredicateScopeTier = 'page-component',
 ): void {
   const reason = err instanceof Error ? err.message : String(err);
   const dedupeKey = JSON.stringify([type, key, predicateSourceText(raw)]);
   if (_warnedVisibilityPredicates.has(dedupeKey)) return;
   _warnedVisibilityPredicates.add(dedupeKey);
-  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason));
+  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason, tier));
 }
 
 /**

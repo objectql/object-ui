@@ -1658,9 +1658,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/promise-based-toast': {
     id: 'components-feedback-sonner/promise-based-toast',
     meta: {
-      title: "Promise Based Toast",
-      description: "",
+      title: "Custom Trigger Button",
+      description: "A success toast whose trigger button is styled through buttonVariant.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "button"],
     },
     schema: components_feedback_sonner_promise_based_toast,
   },
@@ -1676,9 +1677,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/toast-with-action': {
     id: 'components-feedback-sonner/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Message With Description",
+      description: "A sonner toast carrying both a message and a secondary description line.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "description"],
     },
     schema: components_feedback_sonner_toast_with_action,
   },
@@ -1766,9 +1768,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/destructive': {
     id: 'components-feedback-toast/destructive',
     meta: {
-      title: "Destructive",
-      description: "",
+      title: "Error Variant",
+      description: "The 'error' toast variant. 'destructive' is a button variant, not a toast variant.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "error"],
     },
     schema: components_feedback_toast_destructive,
   },
@@ -1793,18 +1796,20 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/toast-with-action': {
     id: 'components-feedback-toast/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Info Variant",
+      description: "The 'info' toast variant, used here for an update notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "info"],
     },
     schema: components_feedback_toast_toast_with_action,
   },
   'components-feedback-toast/toast-with-undo': {
     id: 'components-feedback-toast/toast-with-undo',
     meta: {
-      title: "Toast With Undo",
-      description: "",
+      title: "Warning Variant",
+      description: "The 'warning' toast variant, used here for a deletion notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "warning"],
     },
     schema: components_feedback_toast_toast_with_undo,
   },
