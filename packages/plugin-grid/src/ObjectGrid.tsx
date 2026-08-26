@@ -1922,7 +1922,18 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             }
 
             // Wrap with prefix compound cell renderer (Airtable-style: [Badge] Text in same cell)
-            const prefixConfig = (col as any).prefix;
+            // `prefix` needs NO cast: `ListColumn` DECLARES it (objectui#6458).
+            // The cast was pure noise, and it cost twice — it made a declared,
+            // schema-admitted key look exactly like the four genuinely undeclared
+            // reads around it, and it threw away `ColumnPrefix`'s own typing, so
+            // `prefixConfig.field` was `any` at every use below.
+            //
+            // The four undeclared reads in this branch — `format`, `options`,
+            // `appearance`, `essential` — are deliberately NOT touched here. Each
+            // needs a declare-on-spec vs stop-reading verdict (objectui#6458
+            // escalates them), the declare leg is `@objectstack/spec` surface, and
+            // AGENTS.md #0.1 forbids answering either one renderer-side.
+            const prefixConfig = col.prefix;
             if (prefixConfig?.field) {
               const baseCellRenderer = cellRenderer;
               const PrefixRenderer = prefixConfig.type === 'badge' ? getCellRenderer('select') : null;
