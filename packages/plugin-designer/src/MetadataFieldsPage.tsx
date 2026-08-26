@@ -212,6 +212,99 @@ function fromDesignerField(
   };
 }
 
+/**
+ * Key the designer's field list by field NAME — the shape `ObjectSchema.fields`
+ * requires — and refuse the three lists that shape cannot carry
+ * (objectui#6489).
+ *
+ * Ported from the sibling object writer, app-shell's
+ * `MetadataService.toFieldsMap` (objectui#6240), deliberately down to the
+ * refusal wording: the two writers are the objectui#5761 parity family, and a
+ * difference between them is a defect waiting to be found twice.
+ *
+ * ## Why `Object.fromEntries` and not assignment into a literal
+ *
+ * `map['__proto__'] = def` does not create a key — it invokes the prototype
+ * setter — and `__proto__` is a SPEC-LEGAL field name (`ObjectSchema.fields`'
+ * key schema is `/^[a-z_][a-z0-9_]*$/`, which it matches). Built by assignment,
+ * such a field disappeared from the serialised PUT body while the spec stood
+ * ready to accept it. Measured on `@objectstack/spec` 17.2.0:
+ *
+ *   ObjectSchema.safeParse({ …, fields: { ['__proto__']: { type: 'text', label: 'P' } } })
+ *     => success = true
+ *
+ * `Object.fromEntries` defines an own property instead. This is what makes the
+ * construction load-bearing rather than stylistic.
+ *
+ * ## Why a missing name THROWS instead of writing `{ undefined: … }`
+ *
+ * `DesignerFieldDefinition.name` is declared required, but this page is handed
+ * whatever the in-memory designer model holds. A nameless field keys as the
+ * literal string `"undefined"` — and the spec does NOT catch that either:
+ *
+ *   ObjectSchema.safeParse({ …, fields: { undefined: { type: 'text', label: 'N' } } })
+ *     => success = true
+ *
+ * So it parses, it is STORED, and no reader anywhere looks for it: a silently
+ * corrupt document in place of a loud refusal.
+ *
+ * ## Why a duplicate name throws too
+ *
+ * That one is the conversion's OWN hazard rather than an inherited one: the
+ * designer's list can carry two fields called `amount` and a map cannot, so the
+ * later entry silently swallowed the earlier. Refusing is the only reading that
+ * does not lose a field the author declared.
+ *
+ * The caller runs this inside its save `try`, so a refusal lands in the page's
+ * existing error surface. That is the one deliberate difference from the
+ * sibling writer, and it is forced by the caller's shape: `onFieldsChange` is
+ * fire-and-forget (`void handleFieldsChange(next)`), so throwing to it would
+ * produce an unhandled rejection and show the author nothing — the same silent
+ * failure this function exists to end. The property both writers do share is
+ * the one that matters: it raises BEFORE the request, so a refused list issues
+ * no PUT at all.
+ */
+function toFieldsMap(
+  next: DesignerFieldDefinition[],
+  prevFields: Record<string, ServerFieldSchema>,
+): Record<string, ServerFieldSchema> {
+  const entries: Array<[string, ServerFieldSchema]> = [];
+  const seen = new Set<string>();
+
+  next.forEach((designed, index) => {
+    const name = designed?.name;
+    if (typeof name !== 'string' || name.trim() === '') {
+      throw new Error(
+        `[MetadataFieldsPage] cannot build the object's \`fields\` map: the field at index ${index} has no `
+          + '`name`. `ObjectSchema.fields` is keyed by field name, so a nameless field would be written under '
+          + 'the literal key "undefined" — which the spec ACCEPTS, leaving a corrupt document stored with '
+          + 'nothing to report it. Give the field a name.',
+      );
+    }
+    if (seen.has(name)) {
+      throw new Error(
+        `[MetadataFieldsPage] cannot build the object's \`fields\` map: duplicate field name \`${name}\` at `
+          + `index ${index}. A name-keyed map cannot carry two fields under one name, so the later one would `
+          + 'silently replace the earlier. Rename or remove one of them.',
+      );
+    }
+    seen.add(name);
+    // The carried-over previous definition is read as an OWN property for the
+    // same reason the map is BUILT as own properties: `prevFields[name]` answers
+    // out of `Object.prototype` for the two spec-legal names that live there
+    // (`__proto__`, `constructor`). Measured, that read is harmless today —
+    // `carryOver` spreads whatever it gets, and both prototype values spread to
+    // `{}`, so the emitted field is identical either way — but the harmlessness
+    // is `carryOver`'s to lose, and this function should not depend on it.
+    const prev = Object.prototype.hasOwnProperty.call(prevFields, name)
+      ? prevFields[name]
+      : undefined;
+    entries.push([name, fromDesignerField(designed, prev)]);
+  });
+
+  return Object.fromEntries(entries);
+}
+
 export interface MetadataFieldsPageProps {
   /** Object name to edit fields for (e.g. `account`, `sys_permission_set`). */
   objectName: string;
@@ -288,15 +381,15 @@ export function MetadataFieldsPage({
     // Rebuild the fields map preserving prior unknown keys per field, and
     // dropping anything the designer removed.
     const prevFields = state.raw.fields ?? {};
-    const nextFields: Record<string, ServerFieldSchema> = {};
-    for (const f of next) {
-      nextFields[f.name] = fromDesignerField(f, prevFields[f.name]);
-    }
-    const mergedObject: ServerObjectSchema = {
-      ...state.raw,
-      fields: nextFields,
-    };
     try {
+      // Inside the `try` on purpose: `toFieldsMap` REFUSES a field list a
+      // name-keyed map cannot carry (objectui#6489), and this is the page's one
+      // error surface. It raises before `client.save`, so a refused list issues
+      // no request — see the note on `toFieldsMap`.
+      const mergedObject: ServerObjectSchema = {
+        ...state.raw,
+        fields: toFieldsMap(next, prevFields),
+      };
       await client.save('object', objectName, mergedObject);
       await reload();
     } catch (err) {
