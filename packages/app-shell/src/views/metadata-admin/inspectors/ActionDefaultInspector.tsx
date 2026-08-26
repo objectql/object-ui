@@ -112,7 +112,15 @@ const BODY_LANG_OPTS = [
  * the way `long_text` reached `ActionPreview` while the local `type?: string`
  * was still in force (objectui#6329).
  */
-const PARAM_TYPE_OPTS = [
+/*
+ * Exported for objectui#6538's pin, which compares what this dropdown OFFERS
+ * against what `ActionPreview` draws — and reads the eight from here by
+ * reference rather than restating them, so a ninth entry has to fail that pin.
+ * A hand-kept copy of the vocabulary could not. The cost is this panel's fast
+ * refresh, which the directive below accepts by name.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- see above
+export const PARAM_TYPE_OPTS = [
   { value: 'text', label: 'Text' },
   { value: 'textarea', label: 'Long text' },
   { value: 'number', label: 'Number' },
@@ -298,6 +306,94 @@ function FieldPicker({ label, objectName, value, onCommit, disabled }: {
     return <InspectorTextField label={label} value={value ?? ''} onCommit={onCommit} disabled={disabled} mono />;
   }
   return <InspectorSelectField label={label} value={value || undefined} options={[{ value: '', label: '—' }, ...options]} onCommit={onCommit} disabled={disabled} />;
+}
+
+/** One entry of `ActionParam.options`, read off the published type. */
+type ActionParamOption = NonNullable<ActionParam['options']>[number];
+
+/**
+ * Options editor for a `select` param — the choices the dialog will offer.
+ *
+ * ## Why this exists (objectui#6538)
+ *
+ * `PARAM_TYPE_OPTS` offers `Select`, and `ActionPreview` draws the picker the
+ * dialog will render — but until this card the per-param editor had controls
+ * for `field`, `name`, `label`, `type`, `placeholder`, `required` and
+ * `defaultFromRow`, and none for `options`. The panel that offered the type
+ * could not produce the data the type needs.
+ *
+ * Triage allowed either a real control or a visible POINTER to wherever options
+ * are authored. The pointer lost on measurement: `params` is listed in
+ * {@link CURATED_FIELDS}, so the collapsed "More fields" `SchemaForm` hides the
+ * whole array too. The only surface that could author `options` was the raw
+ * JSON source tab — i.e. the pointer would have had to say "leave the
+ * designer", which is the designer conceding it cannot author its own offered
+ * type. So: a control.
+ *
+ * ## Scoped to `select`, deliberately
+ *
+ * `select` is the only spelling among the eight whose runtime widget reads
+ * `options` (`SelectField`). A `text` param carrying `options` is not an
+ * author's mistake to be enabled here — `TextField` ignores them, which is
+ * exactly what the preview now shows.
+ *
+ * Localised labels: an option label committed here is written as a plain
+ * string, flattening an authored `{ en, fr-FR }` map — the same trade the
+ * param's own "Label" control above has always made. Locale maps stay
+ * authorable through the JSON source tab.
+ */
+function ParamOptionsEditor({ options, onCommit, disabled }: {
+  options: ActionParamOption[] | undefined;
+  onCommit: (next: ActionParamOption[]) => void;
+  disabled?: boolean;
+}) {
+  const opts = Array.isArray(options) ? options : [];
+  return (
+    <div role="group" aria-label="Options" className="space-y-1.5 rounded-md border border-dashed border-border p-2">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Options</div>
+      {opts.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground/80">
+          No choices yet — a Select with no options opens an empty picker in the dialog.
+        </p>
+      ) : (
+        opts.map((o, j) => (
+          <div key={j} className="flex items-start gap-1">
+            <div className="grid flex-1 grid-cols-2 gap-2">
+              <InspectorTextField
+                label="Label"
+                value={localize(o.label)}
+                onCommit={(v) => onCommit(spliceArray(opts, j, { ...o, label: v }))}
+                disabled={disabled}
+              />
+              <InspectorTextField
+                label="Value"
+                value={o.value ?? ''}
+                onCommit={(v) => onCommit(spliceArray(opts, j, { ...o, value: v }))}
+                disabled={disabled}
+                mono
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="mt-[22px] h-6 w-6"
+              disabled={disabled}
+              aria-label={`Remove option ${j + 1}`}
+              onClick={() => onCommit(spliceArray(opts, j, null))}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))
+      )}
+      {!disabled && (
+        <Button type="button" variant="outline" size="sm" onClick={() => onCommit(appendArray(opts, { label: '', value: '' }))}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Add option
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /*
@@ -495,6 +591,16 @@ export function ActionDefaultInspector({
               <InspectorTextField label="Label" value={localize(p.label)} onCommit={(v) => patchParam(i, { label: v })} disabled={readOnly} />
               {!p.field && (
                 <InspectorSelectField label="Type" value={p.type || undefined} options={PARAM_TYPE_OPTS} onCommit={(v) => patchParam(i, { type: asParamFieldType(v) })} disabled={readOnly} />
+              )}
+              {/* `select` is the one offered spelling whose runtime widget reads
+                  `options` — see ParamOptionsEditor for why this is a control
+                  and not a pointer (objectui#6538). */}
+              {!p.field && p.type === 'select' && (
+                <ParamOptionsEditor
+                  options={p.options}
+                  onCommit={(next) => patchParam(i, { options: next.length > 0 ? next : undefined })}
+                  disabled={readOnly}
+                />
               )}
               <InspectorTextField label="Placeholder" value={p.placeholder ?? ''} onCommit={(v) => patchParam(i, { placeholder: v })} disabled={readOnly} />
               <div className="flex flex-wrap gap-x-4 gap-y-1">

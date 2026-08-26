@@ -36,12 +36,14 @@ import {
   MoreHorizontal,
   Pencil,
   RefreshCw,
+  Search,
   Sparkles,
   Square,
   Workflow,
   icons as lucideIcons,
 } from 'lucide-react';
 import type { ActionParam } from '@object-ui/types';
+import { paramDegradesWithoutTarget, resolveParamWidgetType } from '../../../utils/paramToField.js';
 import type { MetadataPreviewProps } from '../preview-registry.js';
 import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
@@ -368,50 +370,172 @@ function DialogMock({ title, params, variant }: { title: string; params: ActionP
   );
 }
 
+/**
+ * Stand-in target for a FIELD-BACKED picker. Not a real object name — only a
+ * non-empty value, so `paramDegradesWithoutTarget` answers "a target exists".
+ * The real one arrives from the bound field at runtime
+ * (`resolveActionParams`: `referenceTo: param.reference ?? field.reference_to`).
+ */
+const INHERITED_TARGET = '(inherited from the bound field)';
+
+/**
+ * The widget key `ActionParamDialog` will render this param through, and
+ * whether that widget DEGRADED to a text box for want of a target.
+ *
+ * Asked of the adapter that PERFORMS the mapping (`paramToField`'s
+ * `resolveParamWidgetType` / `paramDegradesWithoutTarget`), never restated
+ * here. The preview's declared job is to show what will render, so "what will
+ * render" has to be one question with one answer — the same discipline
+ * objectui#5654 imposed on the dialog's own hint logic.
+ *
+ * Before objectui#6538 this function did not exist: `renderFieldMock` switched
+ * on the RAW authored spelling over a private table of five, while
+ * `PARAM_TYPE_OPTS` offered eight. Three of the eight previewed as something
+ * the runtime does not draw — `datetime` and `lookup` as plain text boxes, and
+ * a `select` whose options were not authored yet as a text box too — and a
+ * `text` param that happened to carry `options` previewed as a select the
+ * runtime never renders (it resolves `text`, and `TextField` reads no options).
+ *
+ * Two crossings this function owns, and nothing else:
+ *
+ *  1. **`reference` → `referenceTo`.** `reference` is the AUTHORING spelling
+ *     (`ActionParamSchema`); `referenceTo` is the RESOLVED one the predicate
+ *     reads. `resolveActionParams()` performs exactly that copy before the
+ *     dialog sees a param, and this preview reads the UNRESOLVED draft, so the
+ *     rename happens here. The membership tables stay where they are.
+ *  2. **A field-backed param is never previewed as degraded.** Its target is
+ *     inherited from the bound field at runtime; the designer has not resolved
+ *     that field here, so claiming the degradation would be the same lie
+ *     pointing the other way.
+ *
+ * `widget: undefined` means the draft declares no `type` at all — a field-backed
+ * param whose type the runtime inherits from object metadata this preview does
+ * not load. Genuinely unresolvable here, which is why the caller may fall back
+ * to the only other evidence it has; see there.
+ */
+function runtimeWidgetFor(p: ActionParam): { widget: string | undefined; degraded: boolean } {
+  if (!p.type) return { widget: undefined, degraded: false };
+  const referenceTo = p.reference ?? (p.field ? INHERITED_TARGET : undefined);
+  const degraded = paramDegradesWithoutTarget({ name: p.name ?? '', label: '', type: p.type, referenceTo });
+  return { widget: degraded ? 'text' : resolveParamWidgetType(p.type), degraded };
+}
+
 function renderFieldMock(p: ActionParam): React.ReactElement {
   const cls = 'w-full text-xs px-2 py-1 border rounded bg-background pointer-events-none';
   const placeholder = p.placeholder || (p.defaultFromRow ? '(from selected row)' : '');
   const def = p.defaultValue;
-  if (Array.isArray(p.options) && p.options.length > 0) {
-    return (
-      <select className={cls} disabled value="">
-        <option value="">{placeholder || '— select —'}</option>
-        {p.options.map((o, i) => (
-          <option key={i} value={o.value}>
-            {localize(o.label)}
-          </option>
-        ))}
-      </select>
-    );
-  }
-  if (p.type === 'boolean') {
-    return (
-      <label className="inline-flex items-center gap-1.5 text-xs">
-        <input type="checkbox" disabled className="pointer-events-none" /> Toggle
-      </label>
-    );
-  }
-  // No `long_text` / `integer` branches (objectui#6329). Both are spellings
-  // from OTHER vocabularies — `long_text` from the console's form-builder
-  // dialect (`apps/console/src/components/FormPage.tsx`), `integer` from JSON
-  // Schema (`ToolPreview.tsx`, `json-schema-to-fields.ts`) — and neither is in
-  // `ResolvableParamFieldType`, which is the spec's 49-member `FieldType` plus
-  // objectui's three declared param aliases. `ActionParamSchema` is `.strict()`
-  // with a `FieldType` enum on `type`, so a param spelled either way is a parse
-  // rejection on the server and can never reach this preview. The local
-  // `type?: string` was the only thing that made the comparisons compile.
-  if (p.type === 'textarea' || p.type === 'html') {
-    return <textarea className={`${cls} min-h-[48px]`} placeholder={placeholder} value={def != null ? String(def) : ''} readOnly />;
-  }
-  return (
-    <input
-      type={p.type === 'number' ? 'number' : p.type === 'date' ? 'date' : 'text'}
-      className={cls}
-      placeholder={placeholder}
-      value={def != null ? String(def) : ''}
-      readOnly
-    />
+  const value = def != null ? String(def) : '';
+  const options = Array.isArray(p.options) ? p.options : [];
+  const label = localize(p.label) || p.name || p.field || 'value';
+  const { widget, degraded } = runtimeWidgetFor(p);
+
+  const inputMock = (type: string) => (
+    <input type={type} className={cls} placeholder={placeholder} value={value} readOnly />
   );
+  const selectMock = (
+    <select className={cls} disabled value="">
+      <option value="">{placeholder || `Select ${label}`}</option>
+      {options.map((o, i) => (
+        <option key={i} value={o.value}>
+          {localize(o.label)}
+        </option>
+      ))}
+    </select>
+  );
+  const note = (text: React.ReactNode) => <div className="text-[10px] text-amber-700">{text}</div>;
+
+  // No declared `type`: a field-backed param inherits its type from the object
+  // field, and this preview resolves no object metadata. Authored `options` are
+  // then the only evidence of what the dialog will draw, so they still decide —
+  // the one place in this function where they may. Everywhere below, the
+  // resolved WIDGET decides and options are read only where the widget reads
+  // them, because that is what the runtime does.
+  if (widget === undefined) return options.length > 0 ? selectMock : inputMock('text');
+
+  // A targetless picker collapses to a record-id text box in the dialog, with
+  // its own placeholder and help text (#3405). The box alone would be honest
+  // about the control and silent about the reason, which is the state that
+  // help text was added for.
+  if (degraded) {
+    return (
+      <div className="space-y-0.5">
+        <input type="text" className={cls} placeholder={placeholder || `Record id for ${label}`} value={value} readOnly />
+        {note(
+          <>
+            No <code className="font-mono">reference</code> object is configured, so the record picker is
+            unavailable and the dialog asks for a record id.
+          </>,
+        )}
+      </div>
+    );
+  }
+
+  switch (widget) {
+    case 'boolean':
+      return (
+        <label className="inline-flex items-center gap-1.5 text-xs">
+          <input type="checkbox" disabled className="pointer-events-none" /> Toggle
+        </label>
+      );
+    // `html` is NOT one of the eight spellings `PARAM_TYPE_OPTS` offers, and
+    // objectui#6538 scoped this preview's population to exactly those eight. It
+    // rides along with `textarea` because that is what this function already
+    // drew for it; dropping it while narrowing to the population would be a
+    // regression wearing a narrowing's clothes.
+    //
+    // No `long_text` / `integer` branches (objectui#6329). Both are spellings
+    // from OTHER vocabularies — `long_text` from the console's form-builder
+    // dialect (`apps/console/src/components/FormPage.tsx`), `integer` from JSON
+    // Schema (`ToolPreview.tsx`, `json-schema-to-fields.ts`) — and neither is in
+    // `ResolvableParamFieldType`. `ActionParamSchema` is `.strict()` with a
+    // `FieldType` enum on `type`, so a param spelled either way is a parse
+    // rejection on the server and can never reach this preview.
+    case 'textarea':
+    case 'html':
+      return <textarea className={`${cls} min-h-[48px]`} placeholder={placeholder} value={value} readOnly />;
+    case 'select':
+      // `SelectField` renders a picker either way — an EMPTY one when no
+      // choices are authored. Drawing a text box there was the preview
+      // disagreeing with the dialog about the control; drawing a silent empty
+      // picker would disagree with it about whether anything is missing.
+      return options.length > 0 ? (
+        selectMock
+      ) : (
+        <div className="space-y-0.5">
+          {selectMock}
+          {note('No choices authored yet — the dialog opens an empty picker.')}
+        </div>
+      );
+    case 'number':
+      return inputMock('number');
+    case 'date':
+      return inputMock('date');
+    case 'datetime':
+      return inputMock('datetime-local');
+    case 'lookup':
+      // `LookupField` is a combobox that opens a record picker — mocked with
+      // the same disabled-combobox shape the designer's other pickers use, so
+      // an author can tell a record picker from a text box at a glance.
+      return (
+        <button
+          type="button"
+          disabled
+          role="combobox"
+          aria-expanded={false}
+          aria-haspopup="dialog"
+          className={`${cls} flex items-center gap-1.5 text-left text-muted-foreground`}
+        >
+          <Search className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{placeholder || `Search ${p.reference ?? 'records'}…`}</span>
+        </button>
+      );
+    default:
+      // Every remaining widget key is outside the eight this designer offers: a
+      // param can only carry one by hand-editing the JSON source, and the text
+      // box is what this preview has always drawn for them. Extending the mock
+      // vocabulary past `PARAM_TYPE_OPTS` is deliberately not this card.
+      return inputMock('text');
+  }
 }
 
 function ResultDialogMock({ dialog }: { dialog: ResultDialog }) {
