@@ -77,6 +77,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ButtonSchema,
   CommandItemSchema,
+  MenuItemSchema,
   RadioGroupSchema,
   ToastSchema,
   ToasterSchema,
@@ -370,5 +371,202 @@ describe('catalog corpus: no toaster node carries a key ToasterSchema does not d
         .map((key) => `${where}.${key}`),
     );
     expect(undeclared).toEqual([]);
+  });
+});
+
+
+/**
+ * objectui#6249 — the live menubar demo, one component over from #6494 and
+ * under the same charter ("docs teach what runs").
+ *
+ * `content/docs/components/overlay/menubar.mdx` renders
+ * `components-overlay-menubar/application-menubar` through `SchemaExample`, and
+ * that fixture authored two spellings the shipped `MenuItem` does not have:
+ *
+ *   1. **A wrong-typed declared key.** `shortcut` was an ARRAY on ten items.
+ *      `MenuItem.shortcut` is `string` (`overlay.ts`, mirrored as
+ *      `z.string().optional()`). Unlike #6157's `CommandItem.shortcut`, the key
+ *      here is REAL — only the value type diverged.
+ *   2. **An undeclared key standing in for a declared one.** Two entries were
+ *      `{ "type": "separator" }`, while `MenuItem` declares `separator?:
+ *      boolean` and `renderers/overlay/menubar.tsx:33` branches on
+ *      `item.separator`. The truthiness test failed, so both entries fell
+ *      through to the `MenubarItem` branch and drew an EMPTY MENU ROW where the
+ *      divider belongs. That half was live on the published page.
+ *
+ * The `shortcut` keys are removed rather than restrung as `"Ctrl+T"`: the
+ * menubar renderer reads `separator`, `children`, `disabled` and `label` and
+ * never `shortcut`, so any spelling of it is an affordance this page cannot
+ * draw. (Triage ruled this; ⛔ widening `MenuItem.shortcut` to `string |
+ * string[]` and teaching the renderer to draw it was ruled OUT as a capability
+ * expansion, and is not what this block pins.)
+ *
+ * ## Why this sweep is scoped to `menubar` nodes and not to the menu family
+ *
+ * It would be one line to sweep every `MenuItem`-shaped container. That would
+ * be WRONG here. `dropdown-menu.tsx:46` and `context-menu.tsx:44` branch on
+ * `item.type === 'separator'` — the undeclared spelling — and both render
+ * `item.shortcut`, so their fixtures' `{ "type": "separator" }` entries draw
+ * real dividers today. The three renderers run two different dialects against
+ * one declared interface; that split is filed as objectui#6523 and is NOT this
+ * card's to rule. A family-wide sweep would either fail on fixtures this PR is fenced
+ * out of, or force the renderer change triage forbade.
+ *
+ * ## Why `.success` is not the probe, in BOTH directions
+ *
+ * `MenuItemSchema` is a bare `z.object` inside a `z.lazy`, so it strips an
+ * undeclared key and reports success — the class-2 blindness this file already
+ * records for `CommandItem`. And the declared separator spelling does not parse
+ * green either, because `MenuItem.label` is REQUIRED and a divider has no
+ * label. Both counter-probes below pin those facts, so this block cannot be
+ * "simplified" into a parse that would measure nothing.
+ */
+describe('catalog corpus: every menubar item uses the declared MenuItem spellings (objectui#6249)', () => {
+  type Located = { where: string; item: Json };
+
+  /**
+   * Read the declared key set BEHAVIOURALLY rather than off `.shape`.
+   * `MenuItemSchema` sits behind a `z.lazy`, whose inner object zod 4 does not
+   * expose under any stable public name — and an introspection helper that
+   * silently resolved to the wrong node would report a confident, wrong
+   * vocabulary. Feeding the schema every candidate key and reading back what
+   * SURVIVES uses the strip behaviour itself as the instrument, so this control
+   * measures the shipped schema instead of the shape of zod's internals.
+   */
+  function declaredKeysOf(schema: { parse: (v: unknown) => unknown }, probe: Json): string[] {
+    return Object.keys(schema.parse(probe) as Json).sort();
+  }
+
+  /** Depth-first over an items array, descending through submenu `children`. */
+  function collectItems(items: unknown, where: string, acc: Located[]): void {
+    if (!Array.isArray(items)) return;
+    items.forEach((raw, i) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+      const item = raw as Json;
+      acc.push({ where: `${where}[${i}]`, item });
+      collectItems(item.children, `${where}[${i}].children`, acc);
+    });
+  }
+
+  /** Every item of every `menubar` node in the corpus, at any nesting depth. */
+  function collectMenubarItems(node: unknown, where: string, acc: Located[] = []): Located[] {
+    if (Array.isArray(node)) {
+      node.forEach((n, i) => collectMenubarItems(n, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    const record = node as Json;
+    if (record.type === 'menubar' && Array.isArray(record.menus)) {
+      (record.menus as Json[]).forEach((menu, m) => {
+        collectItems((menu as Json)?.items, `${where}.menus[${m}].items`, acc);
+      });
+    }
+    for (const [key, value] of Object.entries(record)) {
+      collectMenubarItems(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const declaredKeys = declaredKeysOf(MenuItemSchema, {
+    label: 'probe',
+    icon: 'file',
+    disabled: false,
+    shortcut: 'Ctrl+T',
+    separator: true,
+    type: 'separator',
+    value: 'probe',
+  });
+  const items = allExamples().flatMap((e) => collectMenubarItems(e.schema, e.id));
+
+  it('`separator` and `shortcut` survive the schema and `type` does not — the control', () => {
+    expect(declaredKeys).toContain('separator');
+    expect(declaredKeys).toContain('shortcut');
+    expect(declaredKeys).not.toContain('type');
+  });
+
+  it('the sweep reaches the published demo and every one of its items — non-vacuity', () => {
+    expect(items.map((i) => i.where)).toEqual(
+      expect.arrayContaining([
+        'components-overlay-menubar/application-menubar.menus[0].items[2]',
+        'components-overlay-menubar/application-menubar.menus[1].items[2]',
+      ]),
+    );
+    expect(items).toHaveLength(13);
+    expect(allExamples().length).toBeGreaterThan(400);
+  });
+
+  it('the walker descends into submenu `children` — synthetic positive control', () => {
+    // No menubar fixture in the corpus authors a submenu today, so the corpus
+    // cannot exercise the descent. objectui#6494 was undercounted TWICE by
+    // censuses whose descent was never proven, so it is pinned here instead of
+    // assumed.
+    const synthetic = {
+      type: 'menubar',
+      menus: [
+        {
+          label: 'File',
+          items: [{ label: 'Recent', children: [{ label: 'a.txt', shortcut: ['Ctrl', '1'] }] }],
+        },
+      ],
+    };
+    const found = collectMenubarItems(synthetic, 'synthetic');
+    expect(found.map((f) => f.where)).toEqual([
+      'synthetic.menus[0].items[0]',
+      'synthetic.menus[0].items[0].children[0]',
+    ]);
+    expect(found.filter((f) => Array.isArray(f.item.shortcut))).toHaveLength(1);
+  });
+
+  it('no menubar item carries an array-valued `shortcut`', () => {
+    const arrayValued = items
+      .filter(({ item }) => Array.isArray(item.shortcut))
+      .map(({ where }) => `${where}.shortcut`);
+    expect(arrayValued).toEqual([]);
+  });
+
+  it('no menubar item spells a divider as the undeclared `type: "separator"`', () => {
+    const undeclaredSpelling = items
+      .filter(({ item }) => item.type === 'separator')
+      .map(({ where }) => where);
+    expect(undeclaredSpelling).toEqual([]);
+  });
+
+  it('every divider uses the declared boolean spelling the renderer branches on', () => {
+    const dividers = items.filter(({ item }) => 'separator' in item);
+    expect(dividers.map((d) => d.where)).toEqual([
+      'components-overlay-menubar/application-menubar.menus[0].items[2]',
+      'components-overlay-menubar/application-menubar.menus[1].items[2]',
+    ]);
+    for (const { where, item } of dividers) {
+      expect(item.separator, where).toBe(true);
+    }
+  });
+
+  it('counter-probe: the pre-#6249 array `shortcut` is REFUSED, so the sweep above bites', () => {
+    const authored = { label: 'New Tab', shortcut: ['Ctrl', 'T'] };
+    const result = MenuItemSchema.safeParse(authored);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(['shortcut']);
+    // ...and the corrected item, with the key gone, parses green.
+    expect(MenuItemSchema.safeParse({ label: 'New Tab' }).success).toBe(true);
+  });
+
+  it('counter-probe: no parse can see the separator defect, in either direction', () => {
+    // The undeclared spelling is SILENTLY STRIPPED by the bare `z.object`, so a
+    // labelled item carrying it parses green and round-trips lossily — a
+    // `.success` probe is blind to exactly the defect this block exists to catch.
+    const undeclared = MenuItemSchema.safeParse({ label: 'x', type: 'separator' });
+    expect(undeclared.success).toBe(true);
+    expect(undeclared.data).toEqual({ label: 'x' });
+
+    // And the DECLARED spelling this PR writes does not parse green either:
+    // `MenuItem.label` is required and a divider has no label — the menubar
+    // renderer's own `defaultProps` write `{ separator: true }` with no label
+    // (`menubar.tsx:69`), so the shipped default does not satisfy the shipped
+    // type. That contract gap is objectui#6523; it is why the assertions above
+    // are structural rather than a `MenubarSchema.safeParse`.
+    const declared = MenuItemSchema.safeParse({ separator: true });
+    expect(declared.success).toBe(false);
+    expect(declared.error?.issues[0]?.path).toEqual(['label']);
   });
 });
