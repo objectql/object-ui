@@ -92,7 +92,7 @@ The declared configuration input. Every key is optional:
 | `latitudeField` | Record field holding the latitude. Needs `longitudeField` alongside it; both values must be numbers. |
 | `longitudeField` | Record field holding the longitude. |
 | `locationField` | Single field holding both coordinates — see the formats below. Used when the lat/lng pair yields nothing. |
-| `titleField` | Field shown as the marker title. Omitted, markers are titled `Marker`. |
+| `titleField` | Field shown as the marker title. Omitted, the title is resolved by the object's own record-title precedence (`@object-ui/core`'s `getRecordDisplayName`, ADR-0079): the declared `nameField`, its deprecated `displayNameField` alias, the legacy `titleFormat` template, a type-aware pick from the object's fields, then name-ish keys read straight off the record — the rung that answers when no object definition reached the view, as `staticData` and an inline `data` array never fetch one. `Record #<id>` is the floor; `Marker` is reached only by a record carrying no id at all. |
 | `descriptionField` | Field shown under the title in the marker popup. |
 | `zoom` | Zoom level. Declaring it opts this view out of the auto-fit (see below). |
 | `center` | `[latitude, longitude]` — a two-number **tuple**, latitude first. Declaring it opts this view out of the auto-fit. |
