@@ -582,7 +582,7 @@ function normalizeColumns(
 export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'wrap' | 'pinned'>;
 
 /** The undeclared-but-live keys this producer holds. See the docblock above. */
-export interface GridColumnHolds {
+export interface ObjectGridColumnHolds {
   /** HELD, objectui#6424 — `data-table` renders it; `TableColumn` does not declare it. */
   headerIcon?: React.ReactNode;
   /** HELD — consumed by this file's own reorder pass before the array reaches the slot. */
@@ -599,16 +599,16 @@ export interface GridColumnHolds {
  * separate from the enrichment map — so the pre-fold shape needs a name, and
  * this is it.
  */
-export type GridColumnDraft =
+export type ObjectGridColumnDraft =
   Omit<TableColumn, 'type'>
   & { type?: string }
-  & GridColumnHolds
+  & ObjectGridColumnHolds
   & { [K in RetiredListColumnKey]?: never };
 
 /** Post-fold: what actually reaches `DataTableSchema.columns: TableColumn[]`. */
-export type GridColumn =
+export type ObjectGridColumn =
   TableColumn
-  & GridColumnHolds
+  & ObjectGridColumnHolds
   & { [K in RetiredListColumnKey]?: never };
 
 /** The row heights this grid styles — the five `RowHeight` values the spec admits. */
@@ -1652,7 +1652,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     if (message) console.warn(message);
   }, [schema.columns, columnDiagnosticBlockType, schema.objectName, columnDiagnosticLabel]);
 
-  const generateColumns = useCallback((): GridColumnDraft[] => {
+  const generateColumns = useCallback((): ObjectGridColumnDraft[] => {
     // Map field type to column header icon (Airtable-style)
     const getTypeIcon = (fieldType: string | null): React.ReactNode => {
       if (!fieldType) return <Type className="h-3.5 w-3.5" />;
@@ -1809,7 +1809,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // `any` — and an `any` SPREAD into an object literal collapses the
             // WHOLE literal to `any`, which silently un-checks every other key
             // in it. Measured: without this annotation the emit below infers
-            // `any[]`, and `GridColumnDraft` cannot bite on any member. Naming
+            // `any[]`, and `ObjectGridColumnDraft` cannot bite on any member. Naming
             // the producer vocabulary here stops `any` at this one boundary.
             const baseInferredType: string | null = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
             const formatHint = (col as any).format ?? objectDefField?.format;
@@ -2111,7 +2111,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
     if (!objectSchema) return [];
 
-    const generatedColumns: GridColumnDraft[] = [];
+    const generatedColumns: ObjectGridColumnDraft[] = [];
     // Default columns priority (when schema doesn't specify columns):
     //   1. The object's `highlightFields` semantic role (ADR-0085).
     //   2. Otherwise, all schema fields with system-managed fields pushed to the end.
@@ -2369,7 +2369,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     );
   }
 
-  const columns: GridColumn[] = generateColumns().map((col): GridColumnDraft => {
+  const columns: ObjectGridColumn[] = generateColumns().map((col): ObjectGridColumnDraft => {
     // Enrich each column with its field type so the data-table's type-aware
     // inline editor can pick the matching control (dropdown for select,
     // checkbox for boolean) the form uses, instead of a plain text box.
@@ -2389,10 +2389,25 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // not an aside: cell renderers read translated options off the `fieldMeta`
     // built inside `generateColumns()`, and the inline editor reads them off
     // the object schema. Neither ever consulted `col.options`.
-    if (col.accessorKey === '_actions') return col;
+    // ⛔ THE `!col` GUARD IS KEPT ON PURPOSE — do not delete it as dead code.
+    //
+    // `ObjectGridColumnDraft` forbids null, so by the types this branch is
+    // unreachable, and that is exactly the reasoning that would remove it. The
+    // reason it stays is that this producer's type guarantee has been untrue in
+    // practice, repeatedly: objectui#6004 measured FIVE separate `any` leaks
+    // that defeated this boundary, one of them (`const generatedColumns:
+    // any[]`) INSIDE `generateColumns()` itself, where it left a whole emit
+    // path unchecked even after the return was annotated. Each was invisible
+    // until someone measured it.
+    //
+    // So this is defence in depth BEHIND the typing, not a substitute for it —
+    // the tombstones and the removed casts are the primary guard. Deleting this
+    // line converts a tolerated null into a throw, which is how the protection
+    // would be lost a second time for a perfectly good reason.
+    if (!col || col.accessorKey === '_actions') return col;
     const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
     if (!fieldDef) return col;
-    const next: GridColumnDraft = { ...col };
+    const next: ObjectGridColumnDraft = { ...col };
     if (next.type == null && fieldDef.type) next.type = fieldDef.type;
     // Read-only / computed / binary fields are not value-editable in place —
     // mark the column so the data-table never opens an editor (otherwise it
@@ -2423,10 +2438,15 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // `normalizeTableColumnType` for why absence beats folding onto `'text'`.
     //
     // This pass is also where the draft becomes the real thing: `type` is the
-    // one member whose vocabulary differs between `GridColumnDraft` (producer
-    // spelling) and `GridColumn` (what the slot declares), so the fold and the
+    // one member whose vocabulary differs between `ObjectGridColumnDraft` (producer
+    // spelling) and `ObjectGridColumn` (what the slot declares), so the fold and the
     // type transition are the same step (objectui#6004).
-    .map((col): GridColumn => {
+    .map((col): ObjectGridColumn => {
+      // ⛔ Kept on purpose, same reason as the `!col` guard in the enrichment
+      // map above (objectui#6004) — unreachable by type, retained because this
+      // producer's types have not held in practice. Destructuring a null below
+      // would throw where the pre-#6004 code passed it through.
+      if (!col) return col;
       const { type: producerType, ...rest } = col;
       if (producerType == null) return rest;
       const normalized = normalizeTableColumnType(producerType);
@@ -3557,7 +3577,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     const displayColumns = generateColumns().filter((c) => c.accessorKey !== '_actions');
 
     // Build a lookup of column metadata for smart rendering
-    const colMap = new Map<string, GridColumnDraft>();
+    const colMap = new Map<string, ObjectGridColumnDraft>();
     displayColumns.forEach((col) => colMap.set(col.accessorKey, col));
 
     // Identify special columns by inferred type for visual hierarchy

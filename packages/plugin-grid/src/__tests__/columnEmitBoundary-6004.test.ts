@@ -26,7 +26,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { ListColumn, TableColumn } from '@object-ui/types';
-import type { GridColumn, GridColumnDraft } from '../ObjectGrid';
+import type { ObjectGridColumn, ObjectGridColumnDraft } from '../ObjectGrid';
 
 /** True only for `any`. `any` is the one type both branches of a conditional accept. */
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -103,7 +103,7 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
       ...(c.summary && { summary: c.summary }),
     }));
     // @ts-expect-error objectui#6004 — `summary` is tombstoned on the emit.
-    const refused: GridColumnDraft[] = emitted;
+    const refused: ObjectGridColumnDraft[] = emitted;
     expect(refused).toHaveLength(1);
   });
 
@@ -114,7 +114,7 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
   it('the emit type refuses a tombstoned key written out', () => {
     const emitted = { header: 'Name', accessorKey: 'name', label: 'Name' };
     // @ts-expect-error objectui#6004 — `label` is tombstoned on the emit.
-    const refused: GridColumnDraft = emitted;
+    const refused: ObjectGridColumnDraft = emitted;
     expect(refused.accessorKey).toBe('name');
   });
 
@@ -127,14 +127,14 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    * emit, and a key both declare is untouched.
    */
   it('every undeclared ListColumn key is tombstoned, and declared ones are not', () => {
-    type _FieldTombstoned = Expect<GridColumnDraft['field'] extends undefined ? true : false>;
-    type _LinkTombstoned = Expect<GridColumnDraft['link'] extends undefined ? true : false>;
-    type _ActionTombstoned = Expect<GridColumnDraft['action'] extends undefined ? true : false>;
-    type _PrefixTombstoned = Expect<GridColumnDraft['prefix'] extends undefined ? true : false>;
-    type _HiddenTombstoned = Expect<GridColumnDraft['hidden'] extends undefined ? true : false>;
+    type _FieldTombstoned = Expect<ObjectGridColumnDraft['field'] extends undefined ? true : false>;
+    type _LinkTombstoned = Expect<ObjectGridColumnDraft['link'] extends undefined ? true : false>;
+    type _ActionTombstoned = Expect<ObjectGridColumnDraft['action'] extends undefined ? true : false>;
+    type _PrefixTombstoned = Expect<ObjectGridColumnDraft['prefix'] extends undefined ? true : false>;
+    type _HiddenTombstoned = Expect<ObjectGridColumnDraft['hidden'] extends undefined ? true : false>;
     // Shared with `TableColumn`, so NOT tombstoned — the Exclude has to keep them alive.
-    type _SortableLives = Expect<boolean extends GridColumnDraft['sortable'] ? true : false>;
-    type _WidthLives = Expect<GridColumnDraft['width'] extends undefined ? false : true>;
+    type _SortableLives = Expect<boolean extends ObjectGridColumnDraft['sortable'] ? true : false>;
+    type _WidthLives = Expect<ObjectGridColumnDraft['width'] extends undefined ? false : true>;
     expect(true).toBe(true);
   });
 
@@ -146,7 +146,7 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    */
   it('accepts the three held keys — headerIcon, pinned, wrap', () => {
     const held = { header: 'H', accessorKey: 'a', headerIcon: null, pinned: 'left' as const, wrap: true };
-    const accepted: GridColumnDraft = held;
+    const accepted: ObjectGridColumnDraft = held;
     expect(accepted.pinned).toBe('left');
   });
 
@@ -165,22 +165,22 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    */
   it('the emit type refuses the retired `options` key', () => {
     // @ts-expect-error objectui#6004 — `options` retired from this producer's emit.
-    const refused: GridColumnDraft = { header: 'S', accessorKey: 'stage', options: [] };
+    const refused: ObjectGridColumnDraft = { header: 'S', accessorKey: 'stage', options: [] };
     expect(refused.accessorKey).toBe('stage');
   });
 
   /**
    * The pre-fold / post-fold split (objectui#5853's fold is what separates
-   * them). `GridColumnDraft.type` is the producer's raw inference vocabulary;
-   * `GridColumn.type` is the narrow union `TableColumn` declares. If someone
+   * them). `ObjectGridColumnDraft.type` is the producer's raw inference vocabulary;
+   * `ObjectGridColumn.type` is the narrow union `TableColumn` declares. If someone
    * collapses the two types into one, one of these goes red.
    */
   it('the draft carries the producer vocabulary and the folded column carries the declared union', () => {
-    const draft: GridColumnDraft = { header: 'A', accessorKey: 'a', type: 'lookup' };
+    const draft: ObjectGridColumnDraft = { header: 'A', accessorKey: 'a', type: 'lookup' };
     expect(draft.type).toBe('lookup');
 
     // @ts-expect-error objectui#5853 — `lookup` is not a declared `TableColumn.type`.
-    const folded: GridColumn = { header: 'A', accessorKey: 'a', type: 'lookup' };
+    const folded: ObjectGridColumn = { header: 'A', accessorKey: 'a', type: 'lookup' };
     expect(folded.accessorKey).toBe('a');
   });
 });
