@@ -211,6 +211,8 @@ export const NOT_A_GATE = Object.freeze({
     'live-e2e.yml is declared INFORMATIONAL and NON-REQUIRED in its own header and runs `continue-on-error: true`; ci-cd-pipeline.md says in as many words not to add it to required checks.',
   label:
     'labeler.yml applies labels. It is a mutation, not a verdict — nothing about the change is judged by it.',
+  'Changeset Overwrite Report':
+    "changeset-guard.yml's second job is REPORT-ONLY by measurement (objectui#6336): it names any `.changeset/*.md` the change modified or deleted without having added it, and exits 0 whatever it finds — all 19 such modifications in this repository's history were legitimate, so blocking would have failed every one of those pull requests. It goes red only when it cannot compute its diff, which is a fact about the checkout rather than a verdict on the change. Its pull_request trigger is also path-filtered to `.changeset/**` and the two gate scripts, so a Dependabot bump never produces this check at all.",
   'Live half-state sweep':
     'half-state-patrol.yml is REPORT-ONLY by ruling (objectui#5791): a completed sweep exits 0 whether it found 0 half-states or 40, and the job gates no branch and blocks no queue. It goes red only when the sweep could not RUN — the patrol reporting its own death, which is a fact about the patrol, not a verdict on the pull request. Its pull_request trigger is also path-filtered to the sweeper and the workflow, so a Dependabot bump never produces this check at all.',
 });

@@ -25,7 +25,7 @@ one has its own section below.
 |---|---|---|---|
 | `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but the two coverage-lane jobs (`test-coverage` and `coverage-report`, push only) runs on PRs and on queue builds |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
-| `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` or the gate itself | **Yes** |
+| `changeset-guard.yml` | Changeset Bump Policy, Changeset Overwrite Report | PR / push touching `.changeset/**` or either gate itself | **Yes** — the bump policy job only; the overwrite job is report-only |
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
@@ -153,8 +153,8 @@ Two things follow for anyone editing this directory:
   shapes is just as unrequirable without appearing here.
   - **Changeset Bump Policy** (`changeset-guard.yml`) — an **inverse** path filter: its
     `pull_request` trigger declares
-    `paths: ['.changeset/**', '.github/workflows/changeset-guard.yml', 'scripts/check-changeset-no-major.mjs']`,
-    so on a PR that touches none of those three the context is never created at all.
+    `paths: ['.changeset/**', '.github/workflows/changeset-guard.yml', 'scripts/check-changeset-no-major.mjs', 'scripts/check-changeset-overwrite.mjs']`,
+    so on a PR that touches none of those four neither of its contexts is created at all.
   - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
     trigger, with the same consequence for every PR that matches none of its paths.
   - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
@@ -1348,11 +1348,17 @@ changeset started nothing at all. Since [#3523](https://github.com/objectstack-a
 job in them short-circuits, because `.changeset/**` is still on the in-job ignore list. The check
 that has to read the changeset therefore still lives here.
 
-The same `paths:` list also carries the gate's own YAML and
-`scripts/check-changeset-no-major.mjs` ([#6321](https://github.com/objectstack-ai/objectui/issues/6321))
+The same `paths:` list also carries the gate's own YAML and both scripts it runs,
+`scripts/check-changeset-no-major.mjs` and `scripts/check-changeset-overwrite.mjs`
+([#6321](https://github.com/objectstack-ai/objectui/issues/6321))
 — self-coverage, not the inverse trigger above: without it, a PR that edits the gate is not the PR
 that runs it, and the first real execution lands on someone else's unrelated `.changeset/**` PR.
-Deliberately not listed: `scripts/invoked-as.mjs` (a dependency the gate script imports, but a
+Deliberately not listed: `scripts/check-changeset-presence.mjs` (the overwrite gate imports its
+base-ref resolver, `git diff` wrapper and frontmatter reader rather than growing a third copy —
+the second copy, in `check-i18n-en-drift.mjs`, inherited a real defect from that resolver's first
+draft and had to be fixed to match under
+[#3766](https://github.com/objectstack-ai/objectui/issues/3766); the root vitest suite exercises it
+on any PR touching `scripts/**`), `scripts/invoked-as.mjs` (a dependency the gate scripts import, but a
 widely shared one — 40+ importers under `scripts/` — that `published-dist-gate.yml`,
 `spec-range-floors.yml` and `node-esm-load-gate.yml` also import without listing; only
 `half-state-patrol.yml` lists it, as a documented one-off) and the script's own
@@ -1369,6 +1375,39 @@ breaking changes of our own as `minor` and describe the break in the changeset b
 The one release that legitimately bumps the major is the one following `@objectstack` across
 its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
 the rule survives this workflow being skipped.
+
+#### Second job: Changeset Overwrite Report
+
+Runs `scripts/check-changeset-overwrite.mjs`, which asks a different question of the same files:
+did this change **modify or delete a `.changeset/*.md` that already existed at its merge base** —
+a changeset it did not add? It is a separate job because it reads a diff and so needs
+`fetch-depth: 0`, which the bump-policy job does not want.
+
+[#6336](https://github.com/objectstack-ai/objectui/issues/6336) is why it exists. A dev run wrote
+its changeset to a hand-picked `changesets`-style name that already existed on `main`, and the
+heredoc overwrote an unrelated `@object-ui/plugin-charts: minor`. It was caught before any commit,
+but the property that makes it worth a gate is that **the cost lands on a third party and is
+invisible at the time it happens**: the agent that picks the colliding name loses nothing, and
+whichever earlier PR's release declaration vanishes only discovers it when a package silently
+fails to bump. Both signals that should catch it fail — `git status` shows `` M`` rather than
+`??`, which reads as your own new file landing, and a deleted release declaration is not something
+any later gate flags. With 424 accumulated changesets against an `adjective-animal-verb` name
+space, the collision probability is not theoretical.
+
+**It is report-only, and that is measured rather than cautious.** Across all 5281 first-parent
+commits on `main`, 12 commits modified a pre-existing changeset (19 files) and **all 19 were
+legitimate** — bump levels corrected when the pending release line changed, a "eleven" corrected
+to "ten", a typo'd package name fixed, authors amending their own not-yet-released changeset. A
+blocking gate would have failed every one of those PRs. Deletions are dominated by the release
+itself (82 of 88 delete changesets alongside a package `CHANGELOG.md`, which is `changeset
+version` emptying the queue); the job recognizes that shape and says so instead of reporting it.
+`OS_CHANGESET_OVERWRITE_ENFORCE=1` flips the job to blocking for whoever revisits this with a new
+measurement.
+
+⭐ **The convention that makes the hazard impossible**: name a changeset after the issue it
+settles — `.changeset/<issue>-<slug>.md`. The `adjective-animal-verb` names are safe when
+`pnpm changeset` allocates them, because it allocates against the files already present; picking
+one by hand is what removes that guarantee.
 
 > **A changeset IS now required, by `changeset-presence.yml` — but there is still no
 > `skip-changeset` mechanism.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
