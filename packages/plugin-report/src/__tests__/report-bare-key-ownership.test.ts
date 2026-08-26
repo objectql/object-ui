@@ -89,12 +89,23 @@ function namespacedKeysFor(short: string): string[] {
 /**
  * The registration this package actually declared — component plus meta, read
  * back from the registry rather than restated here.
+ *
+ * The lookup deliberately does NOT pass `NS`: it finds the namespaced key by
+ * short name and reports whatever namespace was declared. Asking for
+ * `getConfig(short, NS)` instead would presuppose the answer, and the replay's
+ * per-step namespace check below could then never fail — it would be reading a
+ * value it had already selected for.
  */
 function declaredRegistration(short: string): { component: unknown; meta: ComponentMeta } {
-  const config = ComponentRegistry.getConfig(short, NS);
-  expect(config, `nothing is registered as "${NS}:${short}"`).toBeDefined();
+  const keys = namespacedKeysFor(short);
+  expect(
+    keys,
+    `"${short}" must have exactly one namespaced spelling for the replay to mean anything`,
+  ).toHaveLength(1);
   // `type` is the FULL type (`ns:name`); `register` re-derives it from the bare
   // name + namespace, so replaying it would double the prefix.
+  const config = ComponentRegistry.getConfig(keys[0]);
+  expect(config, `nothing is registered as "${keys[0]}"`).toBeDefined();
   const { type: _fullType, component, ...meta } = config!;
   return { component, meta: meta as ComponentMeta };
 }
