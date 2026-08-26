@@ -42,7 +42,8 @@ export interface ObjectMetadataPayload {
   // key either. What populated it was the ARRAY INDEX the converter happened to
   // be at (`sortOrder: index`), i.e. the order the list was already in — a
   // display concern of the manager, not object metadata. (Distinct from the
-  // field-level `sortOrder`, objectui#6045, which is still declared below.)
+  // field-level `sortOrder`, which objectui#6045 has since removed for its own
+  // reasons — `FieldSchema` refuses that spelling too, at the other level.)
   enabled?: boolean;
   fields?: FieldMetadataPayload[];
   // No `relationships` (objectui#6223): the spec models relationships on the
@@ -92,7 +93,16 @@ export interface FieldMetadataPayload {
   // immediate 422 into a formula that parses and then silently evaluates to
   // null. Expressions are authored in metadata-admin's `ObjectFieldInspector`,
   // which lints them against the real `@objectstack/formula` engine.
-  sortOrder?: number;
+  // No `sortOrder` (objectui#6045): `FieldSchema` refuses it BY NAME and the
+  // spec has no field-level ordering key at all. The near-spelling `sortable`
+  // is NOT it — that is a boolean ("whether field is sortable in list views"),
+  // a different concept, so this is objectui#4687's shape (a declaration with
+  // zero readers and zero writers) and not objectui#6041's rename. The spec
+  // models field order by DECLARATION ORDER in the object's `fields` record;
+  // a designer that wants explicit ordering reorders that record rather than
+  // carrying an index. (Distinct from the object-level `sortOrder` retired by
+  // objectui#6223, and from the saved-view `sortOrder` in `ObjectView.tsx`,
+  // which is per-view display order and untouched by this card.)
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +130,14 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
   };
 }
 
-/** Convert a `DesignerFieldDefinition` (UI) to the API payload shape. */
+/**
+ * Convert a `DesignerFieldDefinition` (UI) to the API payload shape.
+ *
+ * It no longer copies `sortOrder` (objectui#6045). `FieldSchema` refuses that
+ * key by name and nothing on the tree ever populated it, so the write was
+ * latent — `JSON.stringify` drops the `undefined` — but one reorder feature
+ * away from a hard 422 that blocks every later save of the object.
+ */
 function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
   return {
     name: field.name,
@@ -138,7 +155,6 @@ function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
     externalId: field.externalId,
     trackHistory: field.trackHistory,
     reference: field.referenceTo,
-    sortOrder: field.sortOrder,
   };
 }
 

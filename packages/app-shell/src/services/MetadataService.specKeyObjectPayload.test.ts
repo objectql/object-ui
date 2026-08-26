@@ -177,16 +177,26 @@ describe('objectui#6223 · `sortOrder` — list order, not object metadata', () 
     expect(unrecognizedKeys(ObjectSchema.safeParse(await putFor()))).not.toContain('sortOrder');
   });
 
-  it('leaves the FIELD-level `sortOrder` alone — that key is objectui#6045 and is not this card', async () => {
-    // The two keys share a spelling and nothing else. Reverting the object-level
-    // resolution must not read as progress on the field-level one, and this
-    // assertion is what keeps the two cards independently measurable.
-    const { adapter, puts } = makeCapturingAdapter();
-    await new MetadataService(adapter).saveFields('account', [
-      { id: 'name', name: 'name', label: 'Name', type: 'text', sortOrder: 7 },
-    ]);
-    const fields = puts[puts.length - 1].fields as Record<string, unknown>[];
-    expect(fields[0].sortOrder).toBe(7);
+  it('is measured on the OBJECT document only — the field-level key is objectui#6045', async () => {
+    // The two keys share a spelling and nothing else, and this case is what
+    // keeps the two cards independently measurable.
+    //
+    // It used to assert the OPPOSITE — that `saveFields` still put a
+    // field-level `sortOrder` on the wire — because when objectui#6223 landed,
+    // objectui#6045 was still open and the object-level fix had to be provable
+    // WITHOUT quietly resolving the field-level one. objectui#6045 has since
+    // removed that key from `FieldMetadataPayload`, from `toFieldPayload` and
+    // from `DesignerFieldDefinition`, so the old assertion is a fixture that
+    // pinned exactly the branch that card deleted: it is replaced rather than
+    // respelled. What survives is the claim it was really making — the object
+    // half is judged on the object document, and a field's absence of the key
+    // is not evidence about it either way.
+    const put = await putFor();
+    expect('sortOrder' in put).toBe(false);
+    // The object-level resolution is still visible on the UI model it kept:
+    // reverting objectui#6045 cannot make this case green or red.
+    expect(MANAGED.sortOrder).toBe(3);
+    // Field-level coverage lives in `MetadataService.retiredFieldSortOrder.test.ts`.
   });
 });
 

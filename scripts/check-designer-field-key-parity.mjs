@@ -260,17 +260,22 @@ export const KNOWN_UNPARSEABLE_KEYS = {
   // placeholder — bare field refs that evaluate to null under the `record`
   // scope — under a valid key name. The control was removed instead; the field
   // TYPE `formula` is unaffected and remains a valid spec `FieldType`.
-  sortOrder: {
-    card: "objectui#6045",
-    // Scoped to the FIELD oracle deliberately. `sortOrder` is refused at BOTH
-    // levels and the two are different cards with different resolutions
-    // (objectui#6223 removed the object-level one). An unscoped entry would let
-    // this card's entry absorb an object-level reappearance in silence, which
-    // is the ledger becoming the hiding place the header says it must not be.
-    oracle: "FieldSchema",
-    spec: null, // the spec has `sortable` (a boolean), and no field-level ordering key
-    note: "Latent: declared and written by `toFieldPayload`, but nothing populates it, so JSON drops the undefined. One reorder feature away from live.",
-  },
+  // objectui#6045 `sortOrder` (FIELD level) was resolved and its entry removed.
+  // The resolution was objectui#4687's — delete the declaration — because the
+  // key had zero readers and zero writers: `toFieldPayload` copied it, nothing
+  // ever populated it, and `JSON.stringify` dropped the `undefined`. The `spec`
+  // column recorded no equivalent and there was none to take: `sortable` is a
+  // boolean ("whether field is sortable in list views"), and the spec models
+  // field order by DECLARATION ORDER in the object's `fields` record rather
+  // than by an index on the field. It was dropped from the wire shape
+  // (`FieldMetadataPayload`), from its writer, and from the UI model
+  // (`DesignerFieldDefinition`) in one go.
+  //
+  // The FIELD entry going away does not touch the OBJECT level: that spelling
+  // is still refused by `ObjectSchema` and still declared on `ObjectDefinition`
+  // (objectui#6223 kept it there as the Object Manager's display order), where
+  // the gate reports it as `uiOnly`. That is why this entry was oracle-scoped:
+  // removing it must not, and does not, quiet the other level.
   enabled: {
     card: "objectui#6238",
     oracle: "ObjectSchema",
