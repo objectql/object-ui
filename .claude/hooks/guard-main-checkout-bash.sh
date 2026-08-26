@@ -541,7 +541,7 @@ only, so the identical edit expressed as a shell command used to slip through in
 its HEAD switched and its tree reset under you, clobbering uncommitted work. A feature
 branch on the shared checkout is NOT enough; you need a dedicated worktree:
 
-  git worktree add ../${name}-<task> -b <branch> main
+  git fetch origin main && git worktree add ../${name}-<task> -b <branch> origin/main
   cd ../${name}-<task> && pnpm install    # then re-run the command there
 
 Always fine, no flag needed:

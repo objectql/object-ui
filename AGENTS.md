@@ -231,7 +231,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 本仓库有**多个 agent 并行**修改 —— 分支会被切换、共享文件会在你工作时被改动(正常现象,不是 bug):
 
 - **只改你任务需要的文件**;别去"修"无关的 diff、回退或别人的在途编辑,也别管整棵工作树。
-- **必须一个任务一个 git worktree**(`git worktree add ../objectui-<task> -b <branch> main`,新树里跑 `pnpm install`)做物理隔离 —— 这是强制而非「首选」。共享的 `main` checkout **不是**可用退路:HEAD 会被别的 agent 切换、你刚写的文件会在操作中途被 reset 掉。一个 **PreToolUse 钩子**(`.claude/hooks/guard-main-checkout.sh`)**强制**此规则:除非被编辑文件位于专属 **worktree** 否则拦截 `Edit`/`Write`/`NotebookEdit`——在共享 checkout 上开 feature 分支**也不行**(仍会被切走),且按**被编辑文件所属的仓库**判断(sibling 仓 `framework`/`cloud` 一并守住)(确属非任务的临时改动用 `OS_ALLOW_MAIN_EDITS=1` 放行)。即便在自己的 worktree 里,下面这些防御性条款仍然适用。
+- **必须一个任务一个 git worktree**(`git fetch origin main && git worktree add ../objectui-<task> -b <branch> origin/main`,新树里跑 `pnpm install`)做物理隔离 —— 这是强制而非「首选」。共享的 `main` checkout **不是**可用退路:HEAD 会被别的 agent 切换、你刚写的文件会在操作中途被 reset 掉。一个 **PreToolUse 钩子**(`.claude/hooks/guard-main-checkout.sh`)**强制**此规则:除非被编辑文件位于专属 **worktree** 否则拦截 `Edit`/`Write`/`NotebookEdit`——在共享 checkout 上开 feature 分支**也不行**(仍会被切走),且按**被编辑文件所属的仓库**判断(sibling 仓 `framework`/`cloud` 一并守住)(确属非任务的临时改动用 `OS_ALLOW_MAIN_EDITS=1` 放行)。即便在自己的 worktree 里,下面这些防御性条款仍然适用。
 - **绝不 `git stash` —— stash 栈不在上一条的 worktree 隔离范围内。** `git stash` 把栈存在**共享 `.git` 目录**里的 `refs/stash`,**每个 worktree 共用同一个 LIFO 栈**:上一条的物理隔离**不覆盖它**。两个 agent 各自在自己的 worktree 里 stash,push/pop 的是同一个栈 —— 你的 `pop` 取回的是对方刚压进去的改动,你自己的改动留在栈上等着被对方取走;而 `pop` **报成功**,唯一的症状是别人的文件出现在你的 `git status` 里,随后一次 `git add -A` 就把对方的在途工作合进了你的 PR。不是假想:objectui#3430 两个并行 agent 在反向验证中间踩实,双方在途改动都丢了(只能作为 unreachable commit 捞回)。替代做法只有下面这些 —— 都不碰共享状态,都在你自己的 worktree 内,且**首选先 commit 再还原**(上面反向验证那条已把它定为标准写法):
 
   ```bash
