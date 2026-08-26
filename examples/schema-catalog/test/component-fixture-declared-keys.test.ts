@@ -79,6 +79,7 @@ import {
   CommandItemSchema,
   RadioGroupSchema,
   ToastSchema,
+  ToasterSchema,
 } from '@object-ui/types/zod';
 import { allExamples, getExample } from '../src/index.js';
 
@@ -270,5 +271,104 @@ describe('catalog corpus: no fixture hangs an action object off a handler key (o
       .filter((h) => h.value !== null && typeof h.value === 'object')
       .map((h) => `${h.where} = ${JSON.stringify(h.value)}`);
     expect(objectValued).toEqual([]);
+  });
+});
+
+
+/**
+ * objectui#6494 — the same charter as #6250 ("docs teach only what runs"), one
+ * component over and one shape across.
+ *
+ * `provider` was authored by four toaster fixtures and taught by five sites on
+ * `components/feedback/toaster.mdx`, and `ToasterSchema` declares no such key.
+ * The renderer (`renderers/feedback/toaster.tsx`) reads exactly `position` and
+ * `limit` and mounts sonner unconditionally, so the page's "ObjectUI supports
+ * two toast providers" claim was false on the tree that shipped it: the two
+ * provider demos rendered byte-identically.
+ *
+ * ## Why this sweep is over toaster NODES and not over the two demo files
+ *
+ * The card was filed naming two fixtures. A premise re-verification on merged
+ * `main` corrected it to three — by SWAPPING one nested hit for another rather
+ * than adding it. The tree actually carried FOUR, because BOTH nested nodes had
+ * the key: `custom-position-limit.children[0]` and
+ * `with-toast-trigger.children[1]`. Two successive demo-shaped censuses each
+ * saw one of the two and reported a complete face.
+ *
+ * That is the lesson the block above already wrote down — a sweep written for
+ * one shape is blind to another in the same file — and the hit it missed sat in
+ * the very file that block pins as its own positive control. So this block is
+ * structural and depth-first over the corpus: every node whose `type` is
+ * `toaster`, wherever it sits, must carry only keys the shipped `ToasterSchema`
+ * declares. A per-file or root-only assertion would re-inherit the exact
+ * blindness that produced the undercount twice.
+ *
+ * ## Why `.success` is not the probe here, and neither is round-trip equality
+ *
+ * This is the file's class 3 (declared-elsewhere, refused by neither), and it is
+ * strictly worse than the radio-group case. `BaseSchema` is `.passthrough()`, so
+ * zod does not merely ACCEPT `provider` — it PRESERVES it. Measured on the built
+ * dist: `ToasterSchema.safeParse({ type: 'toaster', provider: 'sonner' })`
+ * returns success with `provider` still on `.data`. So the class-2 probe —
+ * round-trip equality, which is what catches the stripped `shortcut` key above —
+ * is blind here too. Only a structural key-subset assertion bites, and the
+ * counter-probe below pins both blindnesses so this block cannot be "simplified"
+ * into a parse.
+ */
+describe('catalog corpus: no toaster node carries a key ToasterSchema does not declare (objectui#6494)', () => {
+  type ToasterNode = { where: string; node: Json };
+
+  function collectToasters(node: unknown, where: string, acc: ToasterNode[] = []): ToasterNode[] {
+    if (Array.isArray(node)) {
+      node.forEach((n, i) => collectToasters(n, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    const record = node as Json;
+    if (record.type === 'toaster') acc.push({ where, node: record });
+    for (const [key, value] of Object.entries(record)) {
+      collectToasters(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const declaredKeys = Object.keys(
+    (ToasterSchema as unknown as { shape: Record<string, unknown> }).shape,
+  );
+  const toasters = allExamples().flatMap((e) => collectToasters(e.schema, e.id));
+
+  it('`position` and `limit` are declared and `provider` is not — the control for this block', () => {
+    expect(declaredKeys).toContain('position');
+    expect(declaredKeys).toContain('limit');
+    expect(declaredKeys).not.toContain('provider');
+  });
+
+  it('counter-probe: passthrough ACCEPTS and PRESERVES `provider`, so no parse can be the probe', () => {
+    const authored = { type: 'toaster', provider: 'sonner' };
+    const result = ToasterSchema.safeParse(authored);
+    expect(result.success).toBe(true);
+    // ...and unlike the stripped `shortcut` key above, round-trip equality holds.
+    expect(result.data).toEqual(authored);
+  });
+
+  it('the walker reaches NESTED toaster nodes — positive control', () => {
+    // Both of these sit inside `children`, and both carried `provider` before
+    // this card. A census that only read root-level nodes would report a clean
+    // sweep of the two named demos and miss exactly these two.
+    expect(toasters.map((t) => t.where)).toEqual(
+      expect.arrayContaining([
+        'components-feedback-toaster/custom-position-limit.children[0]',
+        'components-feedback-toaster/with-toast-trigger.children[1]',
+      ]),
+    );
+  });
+
+  it('every toaster node in the corpus carries only declared keys', () => {
+    const undeclared = toasters.flatMap(({ where, node }) =>
+      Object.keys(node)
+        .filter((key) => !declaredKeys.includes(key))
+        .map((key) => `${where}.${key}`),
+    );
+    expect(undeclared).toEqual([]);
   });
 });

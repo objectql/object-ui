@@ -163,9 +163,7 @@ import components_feedback_toast_success_toast from './schemas/components-feedba
 import components_feedback_toast_toast_with_action from './schemas/components-feedback-toast/toast-with-action.json' with { type: 'json' };
 import components_feedback_toast_toast_with_undo from './schemas/components-feedback-toast/toast-with-undo.json' with { type: 'json' };
 import components_feedback_toaster_custom_position_limit from './schemas/components-feedback-toaster/custom-position-limit.json' with { type: 'json' };
-import components_feedback_toaster_default_provider from './schemas/components-feedback-toaster/default-provider.json' with { type: 'json' };
 import components_feedback_toaster_default_toaster from './schemas/components-feedback-toaster/default-toaster.json' with { type: 'json' };
-import components_feedback_toaster_sonner_provider from './schemas/components-feedback-toaster/sonner-provider.json' with { type: 'json' };
 import components_feedback_toaster_with_toast_trigger from './schemas/components-feedback-toaster/with-toast-trigger.json' with { type: 'json' };
 import components_form_button_button_sizes from './schemas/components-form-button/button-sizes.json' with { type: 'json' };
 import components_form_button_button_with_icon from './schemas/components-form-button/button-with-icon.json' with { type: 'json' };
@@ -1822,15 +1820,6 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_feedback_toaster_custom_position_limit,
   },
-  'components-feedback-toaster/default-provider': {
-    id: 'components-feedback-toaster/default-provider',
-    meta: {
-      title: "Default Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_default_provider,
-  },
   'components-feedback-toaster/default-toaster': {
     id: 'components-feedback-toaster/default-toaster',
     meta: {
@@ -1839,15 +1828,6 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-feedback-toaster',
     },
     schema: components_feedback_toaster_default_toaster,
-  },
-  'components-feedback-toaster/sonner-provider': {
-    id: 'components-feedback-toaster/sonner-provider',
-    meta: {
-      title: "Sonner Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_sonner_provider,
   },
   'components-feedback-toaster/with-toast-trigger': {
     id: 'components-feedback-toaster/with-toast-trigger',
