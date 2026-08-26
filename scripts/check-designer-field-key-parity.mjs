@@ -276,15 +276,30 @@ export const KNOWN_UNPARSEABLE_KEYS = {
   // (objectui#6223 kept it there as the Object Manager's display order), where
   // the gate reports it as `uiOnly`. That is why this entry was oracle-scoped:
   // removing it must not, and does not, quiet the other level.
-  enabled: {
-    card: "objectui#6238",
-    oracle: "ObjectSchema",
-    // `ObjectSchema` DOES have `enable` — but it is `ObjectCapabilities`, a
-    // system-features module object, not a boolean on/off flag. Recorded here
-    // so the next reader does not mistake the near-spelling for a rename.
-    spec: null,
-    note: "Object-level, surfaced by the ObjectSchema oracle added in objectui#6223. `ObjectMetadataPayload` declares it and `deleteObject` / `deleteMetadataItem` write `{ enabled: false, _deleted: true }` directly, so the SOFT-DELETE path — not `toObjectPayload` — is what puts it on the wire. Not a rename: the spec's `enable` is a capabilities object, so what a soft delete should write is its own question.",
-  },
+  // objectui#6238 `enabled` (OBJECT level) was resolved and its entry removed.
+  // The resolution was objectui#4687's for the declaration and a mechanism
+  // change for the writers, and it needed both because the two halves failed
+  // differently: `ObjectMetadataPayload` declared the key and `toObjectPayload`
+  // never populated it (latent), while `deleteObject` / `deleteMetadataItem`
+  // put it on the wire inside a hand-written tombstone `{ name, enabled: false,
+  // _deleted: true }` that no declared shape described — coverage note 1, the
+  // hole this gate states rather than hides.
+  //
+  // The `spec` column recorded no equivalent and there was none to take. The
+  // near-spelling `enable` is `ObjectCapabilities`, a system-features module
+  // object, so `enabled: false` -> `enable: false` fails on the VALUE where it
+  // passes on the name; and the 42-key accept set has no on/off flag at all.
+  // Measured before the fix: 25 of the 26 registered overlay schemas refuse
+  // `enabled`/`_deleted` by name, and where a type's schema is tolerant
+  // (`view`) or unregistered the framework stores the body verbatim while
+  // nothing on the platform reads `_deleted` — a 422 on one side, a silent
+  // no-op on the other, and no soft-delete convention to converge onto. Both
+  // writers now call `client.meta.deleteItem`, i.e. the same
+  // `DELETE /meta/:type/:name` `MetadataClient.reset` issues.
+  //
+  // Nothing about this entry's removal touches the FIELD oracle, and the
+  // spelling is unrelated to `ObjectDefinition.isSystem` / the UI-only keys the
+  // gate still reports below.
 };
 
 /** The oracle names a shape may name, in the order they are reported. */

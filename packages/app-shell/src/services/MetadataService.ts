@@ -44,7 +44,14 @@ export interface ObjectMetadataPayload {
   // display concern of the manager, not object metadata. (Distinct from the
   // field-level `sortOrder`, which objectui#6045 has since removed for its own
   // reasons — `FieldSchema` refuses that spelling too, at the other level.)
-  enabled?: boolean;
+  // No `enabled` (objectui#6238): `ObjectSchema` refuses it BY NAME and the
+  // spec has no object-level on/off flag at all. The near-spelling `enable` is
+  // NOT it — that is `ObjectCapabilities`, a system-features module object, so
+  // `enabled: false` -> `enable: false` fails on the VALUE where it passes on
+  // the name. This declaration was objectui#4687's shape (never populated by
+  // `toObjectPayload`); the key reached the wire only through the tombstone
+  // bodies the two delete methods wrote by hand, and those now go through the
+  // metadata API's own delete door instead — see `deleteMetadataItem`.
   fields?: FieldMetadataPayload[];
   // No `relationships` (objectui#6223): the spec models relationships on the
   // FIELD — `reference` / `master_detail` plus object-level `indexes` — and
@@ -214,15 +221,38 @@ export class MetadataService {
   }
 
   /**
-   * Soft-delete a metadata item by persisting it with `enabled: false` and
-   * `_deleted: true`. Works for any metadata category.
+   * Delete a metadata item through the metadata API's own delete door
+   * (`DELETE /api/v1/meta/:type/:name`). Works for any metadata category.
    *
-   * **Not wired to the view seam, and the reason is structural** (objectui#4373):
-   * both view cache keys are OBJECT-scoped, this signature has no object
-   * parameter, and the tombstone body it writes (`{ name, enabled, _deleted }`)
-   * carries no object binding either — so unlike {@link saveMetadataItem} there
-   * is nothing here to derive one from. Splitting `name` on `.` would be a
-   * second, silently-wrong identity rule (a source-declared view's name is not
+   * **It used to PUT a hand-written tombstone** — `{ name, enabled: false,
+   * _deleted: true }` — and objectui#6238 measured what the server does with
+   * that body. Neither key is a metadata convention:
+   *
+   *   - `enabled` and `_deleted` are refused BY NAME by 25 of the 26 overlay
+   *     schemas the framework validates a PUT against (`getMetadataTypeSchema`,
+   *     the registry `saveMetaItem`'s `resolveOverlaySchema` reads), `object`
+   *     among them: `422 INVALID_METADATA`, `unrecognized_keys`.
+   *   - Where the type's schema is tolerant (`view`) or unregistered
+   *     (`analytics_cube`, `connector`, `sharing_rule`, `webhook`) the body is
+   *     STORED VERBATIM — the framework persists the request item, never
+   *     `parsed.data` — and `_deleted` has no reader anywhere in the platform.
+   *     So on exactly the categories that did not 422, the "soft delete" was a
+   *     silent no-op that left the item live carrying two junk keys.
+   *
+   * There was no third outcome: nothing strips the keys, and no spec surface
+   * expresses "this item exists but is off" (`ObjectSchema`'s 42-key accept set
+   * has no such flag), so there is no correct spelling this could be renamed
+   * to. The delete door is `DELETE /:type/:name` — generic over `:type` on the
+   * same route family and capability gate as the PUT — which is the same
+   * request `MetadataClient.reset` issues for `MetadataObjectsPage`'s object
+   * deletes and `ResourceEditPage`'s generic ones. One operation, one mechanism.
+   *
+   * **Still not wired to the view seam, and the reason is unchanged and
+   * structural** (objectui#4373): both view cache keys are OBJECT-scoped and
+   * this signature has no object parameter. The old tombstone body carried no
+   * object binding to derive one from; a DELETE has no body at all, so it
+   * carries even less. Splitting `name` on `.` would be a second,
+   * silently-wrong identity rule (a source-declared view's name is not
    * qualified), and inventing an object argument for a method with no callers
    * is a surface we would be guessing at. If a `'view'` caller ever appears,
    * the fix is to give it the object it already knows and call
@@ -230,7 +260,7 @@ export class MetadataService {
    */
   async deleteMetadataItem(category: string, name: string): Promise<void> {
     const client = this.adapter.getClient();
-    await client.meta.saveItem(category, name, { name, enabled: false, _deleted: true });
+    await client.meta.deleteItem(category, name);
     this.adapter.invalidateCache(`${category}:${name}`);
   }
 
@@ -250,16 +280,30 @@ export class MetadataService {
   }
 
   /**
-   * Delete an object definition from the backend.
+   * Delete an object definition from the backend
+   * (`DELETE /api/v1/meta/object/:name`).
    *
-   * NOTE: The ObjectStack metadata API currently exposes `saveItem` but no
-   * dedicated `deleteItem`.  We persist the object with `enabled: false` so
-   * the intent is recorded and the object is hidden from active use.
-   * A full hard-delete can be added once the backend supports it.
+   * The note this replaces said the metadata API "currently exposes `saveItem`
+   * but no dedicated `deleteItem`", and that a tombstone PUT recorded the
+   * intent until a real delete existed. Both halves were stale by the time
+   * objectui#6238 measured them: `@objectstack/client` 17.2.0 declares
+   * `meta.deleteItem(type, name)` on the very client this service already
+   * holds, and it issues the SAME `DELETE /api/v1/meta/:type/:name` that
+   * `MetadataClient.reset` does — the mechanism `MetadataObjectsPage` has been
+   * using for designer object deletes all along. Nothing was recording an
+   * intent in the meantime: `ObjectSchema` refuses `enabled` and `_deleted` by
+   * name, so this call returned `422 INVALID_METADATA` every time it ran.
+   *
+   * `reset` semantics are the overlay's, and that is the governed answer rather
+   * than a shortfall: it removes the customization row, which IS deletion for
+   * an object the designer authored, and restores the artifact for one a
+   * package declares — an object you are not allowed to delete. Which of the
+   * two an item is, is what the API's own `deletable` / `resettable` verdicts
+   * report (`MetadataClient`), not something a client-side flag should decide.
    */
   async deleteObject(objectName: string): Promise<void> {
     const client = this.adapter.getClient();
-    await client.meta.saveItem('object', objectName, { name: objectName, enabled: false, _deleted: true });
+    await client.meta.deleteItem('object', objectName);
     this.adapter.invalidateCache(`object:${objectName}`);
   }
 
