@@ -141,19 +141,24 @@ const visibilityReports = (warn: WarnSpy): string[] =>
 const allWarnings = (warn: WarnSpy): string[] => warn.mock.calls.map((c) => String(c[0]));
 
 /**
- * The ONE pre-existing line a development build prints beside these
- * diagnostics, and it is not ours.
+ * The line a development build could print beside these diagnostics without it
+ * being ours — `SchemaRenderer` runs `validateSchemaOnce` in dev only.
  *
- * `SchemaRenderer` runs `validateSchemaOnce` in dev only, and core's
- * `BASE_SCHEMA_RULES` declares `disabled` "must be a boolean" — so every
- * EXPRESSION-valued `disabled`, the authoring form this whole card is about,
- * is also reported as an invalid schema. That is a false positive predating
- * this card and filed separately (objectui#6505); it is named here rather than
- * absorbed into a loose assertion, because "the total was 2" would go equally
- * green on a build that printed our line twice.
+ * HISTORY, because the numbers below moved with it (objectui#6505): when this
+ * file was written, core's `BASE_SCHEMA_RULES` declared `disabled` "must be a
+ * boolean", so every EXPRESSION-valued `disabled` — the authoring form this
+ * whole card is about — was ALSO reported as an invalid schema. That false
+ * positive is gone: the rule now accepts a declared predicate, and the dev
+ * build prints nothing here. Production was never affected — that validator is
+ * a no-op there — which is why the production cases below always pinned the
+ * RAW total.
  *
- * Production is unaffected — that validator is a no-op there — which is why
- * the production cases below can still pin the RAW total.
+ * The by-name subtraction stays, and is not now-redundant belt-and-braces: it
+ * is what makes every `nonValidatorWarnings` assertion in this file invariant
+ * under whatever core's validator decides to say. That property is why this
+ * file survived objectui#6505 with ONE number changed instead of a re-audit —
+ * "the total was 2" would have gone equally green on a build that printed our
+ * line twice, and would have said nothing about which line was which.
  */
 const DEV_SCHEMA_VALIDATOR_NOISE = '[ObjectUI] Invalid schema detected:';
 /** Everything printed that is NOT the known dev-only validator line. */
@@ -364,12 +369,18 @@ describe('#6445 group 1 — a faulting `disabled` gate is loud, and still disabl
       expect(disabledProp()).toBe('true');
       expect(reports(warn)).toHaveLength(1);
       expect(reports(warn)[0]).toContain(FAULT_BARE_DEV);
-      // ONE fault, ONE line of ours. The dev build also prints core's
-      // `disabled must be a boolean` validator line for this very node
-      // (objectui#6505) — subtracted by NAME rather than by count, so a second
-      // copy of OUR line could never hide inside the allowance.
+      // ONE fault, ONE line of ours — subtracted by NAME rather than by count,
+      // so a second copy of OUR line could never hide inside the allowance.
       expect(nonValidatorWarnings(warn)).toHaveLength(1);
-      expect(allWarnings(warn)).toHaveLength(2);
+      // The RAW total was 2 when this cell was written: ours, plus core's
+      // `disabled must be a boolean` line for this very node. That second line
+      // was a FALSE POSITIVE — an expression-valued `disabled` is the authoring
+      // form the protocol declares — and objectui#6505 removed it, so the dev
+      // build now prints exactly one line here. The count is lowered to the
+      // measured reality and NOT loosened: this still pins that nothing else
+      // reaches the console, which is the whole reason the raw total is worth
+      // asserting beside the by-name one above.
+      expect(allWarnings(warn)).toHaveLength(1);
     });
   });
 });
