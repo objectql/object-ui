@@ -188,17 +188,34 @@ const SCOPE_TIER_ADVICE: Record<PredicateScopeTier, string> = {
  * other gate. That is the exact defect class this card and objectui#6487 both
  * exist to remove, so it is not worth re-introducing to save an argument.
  *
- * ## What this type does NOT fix, stated so it is not mistaken for done
+ * `'concealment'` - `hidden` / `hiddenOn` (objectui#6503). These are visibility
+ * legs, but the only two whose verdict `SchemaRenderer` does NOT negate, so the
+ * SAME `true` that SHOWS a node on the four negated legs REMOVES it here. They
+ * resolved to `'visibility'` until objectui#6503 and were therefore handed the
+ * one sentence that is false about them: the gate did not merely bite, it bit
+ * hardest of the three, and the node is not on screen to be inspected at all.
+ * This is the third member objectui#6445's docblock predicted, in the shape it
+ * predicted - a table entry and a routing decision, no signature change.
  *
- * The `hidden` / `hiddenOn` legs are `'visibility'` here, and their `true` is
- * NOT negated - a fault there makes the node VANISH, so "the gate did NOT bite"
- * is wrong for them as well. That is PRE-EXISTING shipped copy on a surface
- * objectui#6487 has just landed on, outside this card's face and filed
- * separately (objectui#6503). The shape of its fix is a THIRD entry in the table
- * below - visibility prefix, vanishing consequence - passed by those two call
- * sites; not a signature change, and deliberately not smuggled in here.
+ * ## Why a third MEMBER, and not `'visibility'` plus a `negated` flag
+ *
+ * What varies is the consequence sentence, and it varies per GATE - not along
+ * an independent axis a caller could set to contradict the gate it passed
+ * alongside. Three flat members cannot be spelled inconsistently; a
+ * `(kind, negated)` pair can, and `('enablement', negated: true)` would name a
+ * combination no renderer in this repo produces. The table stays the one place
+ * that decides what a fail-soft default DID.
+ *
+ * ## What widening this union costs, stated because it is a published surface
+ *
+ * `PredicateGateKind` is re-exported from `packages/react/src/index.ts` - the
+ * package entry, and the chain stops there (no sibling package re-exports it,
+ * and no file outside `packages/react` names it). A consumer switching
+ * EXHAUSTIVELY over the union, or holding a `Record<PredicateGateKind, ...>`,
+ * gains a third case to answer. That is a type-level change only: no runtime
+ * signature moved, and every value that was accepted before still is.
  */
-export type PredicateGateKind = 'visibility' | 'enablement';
+export type PredicateGateKind = 'visibility' | 'enablement' | 'concealment';
 
 /**
  * The two parts of the message that vary with the gate: the opening line (what
@@ -220,6 +237,23 @@ const GATE_KIND_COPY: Record<PredicateGateKind, { prefix: string; consequence: s
       'The node was treated as its safe default, which on this surface means the\n' +
       'gate did NOT bite - a predicate that cannot be evaluated reads on screen\n' +
       'exactly like one that said yes.\n',
+  },
+  // The two NON-negated visibility legs (objectui#6503). SAME opening line as
+  // `visibility` above, deliberately: these ARE visibility predicates, the six
+  // legs of that chain keep the bytes objectui#6487 pinned, and an app - or a
+  // test - filtering the console by `UNRESOLVABLE_VISIBILITY_PREFIX` has to go
+  // on catching them. objectui#6038's pin that the `hidden` leg reports AT ALL
+  // reads through exactly that filter, and it must stay green: this card moves
+  // the sentence that was false for these legs, and nothing else.
+  concealment: {
+    prefix: UNRESOLVABLE_VISIBILITY_PREFIX,
+    consequence:
+      'The node was treated as its safe default, which on THIS leg is the one\n' +
+      'that BITES: `hidden` / `hiddenOn` are NOT negated, so that default\n' +
+      'REMOVED the node - it is not on the page at all, and an absent node is\n' +
+      'indistinguishable from metadata that meant to hide it. Nothing is broken\n' +
+      'in the renderer: the block is missing because the predicate above could\n' +
+      'not be evaluated.\n',
   },
   enablement: {
     prefix: UNRESOLVABLE_ENABLEMENT_PREFIX,

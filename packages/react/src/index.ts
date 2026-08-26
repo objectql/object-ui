@@ -48,6 +48,15 @@ export type { PredicateScopeTier } from './utils/visibilityDiagnostic.js';
 // decides whether the message says the safe default bit or did not. Exported as
 // a type for the same reason as the tier above: the reporter is public, so a
 // caller has to be able to spell its arguments.
+//
+// ⚠️ THREE members since objectui#6503, not two. `'concealment'` was added for
+// the `hidden` / `hiddenOn` legs, whose verdict `SchemaRenderer` does NOT
+// negate — the same fail-soft `true` that shows a node on the four negated legs
+// REMOVES it there, so "the gate did NOT bite" was the one sentence that could
+// not be true for them. Widening a union re-exported from this entry is a
+// type-level change for any consumer that switches EXHAUSTIVELY over it or
+// keys a `Record` by it; no runtime signature moved, and every value that was
+// accepted before still is.
 export type { PredicateGateKind } from './utils/visibilityDiagnostic.js';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed

@@ -34,6 +34,7 @@ import {
   reportUnresolvableVisibilityPredicate,
   reportAdapterOnlyDataPredicate,
 } from './utils/visibilityDiagnostic.js';
+import type { PredicateGateKind } from './utils/visibilityDiagnostic.js';
 
 /**
  * Dev-mode schema validation.
@@ -233,6 +234,54 @@ const VISIBILITY_SHOW_KEYS = ['visibleWhen', 'visible', 'visibleOn', 'visibility
 const VISIBILITY_HIDE_KEYS = ['hidden', 'hiddenOn'] as const;
 
 /**
+ * The six legs, as ONE closed type — so a seventh cannot be added to the chain
+ * without also being classified below.
+ */
+type VisibilityChainKey =
+  | (typeof VISIBILITY_SHOW_KEYS)[number]
+  | (typeof VISIBILITY_HIDE_KEYS)[number];
+
+/**
+ * Which CONSEQUENCE the diagnostic should print for a faulting predicate on
+ * this leg (objectui#6503).
+ *
+ * ## The defect this closes
+ *
+ * `evaluateCondition` answers an unevaluable predicate with `true` on every
+ * path. On the four SHOW legs the chain negates that answer, so the node is
+ * SHOWN and the reporter's "the gate did NOT bite" is true. On the two HIDE
+ * legs the chain returns it UN-negated (see `shouldHide` below), so the same
+ * `true` sets `_hidden` and this component returns `null`: the gate bit, and
+ * bit harder than on either sibling gate — the node is not on screen at all.
+ * Both were routed to `'visibility'`, so an author whose block VANISHED read a
+ * line telling them the gate did not bite and went looking for a rendering bug
+ * that does not exist. The polarity was documented in
+ * `visibilityDiagnostic.ts` and printed anyway; this is the routing that makes
+ * the documented split the one that is actually applied.
+ *
+ * ## Why derived from the two constants, when the reporter refuses to deduce
+ *
+ * `PredicateGateKind`'s docblock refuses to deduce the gate from `key` INSIDE
+ * the reporter, and that refusal stands: the reporter is exported and called
+ * from other packages, where an unheard-of spelling would silently inherit
+ * some other gate's sentence. Here the caller IS the chain. The two arrays
+ * above are the same declaration `shouldHide` and {@link winningVisibilityKey}
+ * consult, and {@link VisibilityChainKey} closes the parameter over them, so
+ * this is not a second table that can drift from the first — it is the same
+ * one, read for a second question. It also removes the failure mode that
+ * produced this card: a leg added to the chain and left with a consequence
+ * sentence written about a different polarity is now a TYPE error here, not a
+ * line of false console copy.
+ *
+ * The `disabled` / `disabledOn` gate is deliberately not reachable from this
+ * function: those legs are not in the visibility chain and route through
+ * `evaluateEnablementPredicate`, which states `'enablement'` at its own call
+ * site.
+ */
+const visibilityGateKind = (key: VisibilityChainKey): PredicateGateKind =>
+  (VISIBILITY_HIDE_KEYS as readonly string[]).includes(key) ? 'concealment' : 'visibility';
+
+/**
  * Which ONE visibility key actually decides a node's fate, mirroring both the
  * `properties` hoist's precedence (same-named key: `properties.<key>`
  * overwrites a node-level `<key>`) and `shouldHide`'s early-return chain
@@ -278,7 +327,7 @@ const VISIBILITY_HIDE_KEYS = ['hidden', 'hiddenOn'] as const;
  * Read-only: decides nothing about visibility itself, only which key a
  * DIAGNOSTIC should look at.
  */
-function winningVisibilityKey(node: Record<string, unknown>): string | undefined {
+function winningVisibilityKey(node: Record<string, unknown>): VisibilityChainKey | undefined {
   const propertiesBag = node.properties;
   const hasPropertiesBag =
     propertiesBag != null && typeof propertiesBag === 'object' && !Array.isArray(propertiesBag);
@@ -647,7 +696,14 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * function changed; `shouldHide` below still calls it exactly as before,
      * on the POST-evaluation, POST-hoist schema, for the real verdict.
      */
-    const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
+    const evaluateVisibilityPredicate = (
+      raw: VisibilityPredicate,
+      key: VisibilityChainKey,
+    ): boolean => {
+      // WHICH consequence this leg's fail-soft default earns (objectui#6503).
+      // Computed once, used by both branches, so the production and the
+      // development report cannot disagree about what the default DID.
+      const gate = visibilityGateKind(key);
       // PRODUCTION STILL MAKES THE SINGLE CALL — it just no longer makes it
       // in silence (objectui#6038, maintainer ruling 2026-08-25, option B).
       //
@@ -683,6 +739,7 @@ export const SchemaRenderer: ForwardRefExoticComponent<
               raw,
               reason,
               'page-component',
+              gate,
             ),
         });
       }
@@ -705,6 +762,7 @@ export const SchemaRenderer: ForwardRefExoticComponent<
           raw,
           err,
           'page-component',
+          gate,
         );
         // The historical fail-soft answer, unchanged — and identical to what
         // the production branch above returns for the same input, which is what
