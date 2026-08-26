@@ -16,7 +16,7 @@
  * It resolved as `any` through `BaseSchema`'s index signature, while three
  * separate documents taught it as an authorable key of every node — this
  * repo's own `AGENTS.md` §4 ("Every node in the UI tree follows this shape
- * (`@object-ui/types`)", `bind?: string`), the PUBLISHED agent-facing
+ * (`@object-ui/types`)", declaring `bind` as an optional string), the PUBLISHED agent-facing
  * `skills/objectui/rules/protocol.md` ("Every UI component node MUST follow
  * this shape"), and `content/docs/fields/grid.mdx`.
  *
@@ -160,7 +160,7 @@ describe('BaseSchema (TS) — compile-time pin on `bind`', () => {
  * The card's own warning is that guessing the home "would produce the second
  * declaration this class keeps generating" — and two had already appeared
  * before anyone declared the key centrally. This scan is the guard against the
- * third: a schema-side `bind?:` member anywhere outside its home reads as a
+ * third: a schema-side optional `bind` member anywhere outside its home reads as a
  * local re-declaration, which is how the two disagreeing spellings (`string`
  * vs `unknown`) came to exist in the first place.
  */
@@ -202,11 +202,18 @@ describe('`bind` is declared in exactly one place (objectui#6357)', () => {
     const { execFileSync } = await import('node:child_process');
     // `git grep` over TRACKED files only, so an untracked scratch file or a
     // stray build artefact cannot fail this. `-n` for a readable failure.
-    let out = '';
+    // ASSEMBLED, never written as one literal. `git grep` searches TRACKED
+    // files, so the moment this file is committed a literal pattern would match
+    // THIS file and the scan would report itself. Allow-listing itself would
+    // have been the wrong repair — it puts a permanent hole in the scan at the
+    // one path most likely to grow a copy of the pattern.
+    const PATTERN = 'bind' + '?:';
+
+    let out: string;
     try {
       out = execFileSync(
         'git',
-        ['grep', '-n', '-F', '--', 'bind?:', 'packages'],
+        ['grep', '-n', '-F', '--', PATTERN, 'packages'],
         { cwd: REPO_ROOT, encoding: 'utf8' },
       );
     } catch (err: any) {
@@ -228,7 +235,7 @@ describe('`bind` is declared in exactly one place (objectui#6357)', () => {
     const strays = [...new Set(hits)].filter((f) => f !== HOME && !ALLOWED.has(f));
     expect(
       strays,
-      'a second `bind?:` declaration appeared — declare it once on `BaseSchema`, '
+      `a second \`${PATTERN}\` declaration appeared — declare it once on \`BaseSchema\`, `
         + 'or add the file to ALLOWED above with its reason',
     ).toEqual([]);
   });
