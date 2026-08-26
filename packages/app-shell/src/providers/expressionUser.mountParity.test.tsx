@@ -58,9 +58,11 @@
  *     `toContain` — the fault fails OPEN, so the field is PRESENT;
  *   - the same for the signed-IN `ctx.user.id` case, and for the signed-out
  *     `isPlatformAdmin` case;
- *   - `RECORDS: a ctx.user.id gate STILL fails open for a signed-out visitor`
- *     stays GREEN both ways — it measures the normaliser's own anonymous
- *     branch, which this card does not touch;
+ *   - `hides a ctx.user.id-gated field from a signed-out visitor` stays GREEN
+ *     both ways — it measures the normaliser's own anonymous branch, which
+ *     THIS card does not touch. (It was named `RECORDS: a ctx.user.id gate
+ *     STILL fails open for a signed-out visitor` and asserted the opposite
+ *     until objectui#6534 fixed that branch; see the case body.)
  *   - `grants ... to a platform admin` stays GREEN — fail-open and a correct
  *     `true` are indistinguishable at the call site, which is the whole reason
  *     the excluded-user cases carry the pin.
@@ -259,29 +261,41 @@ describe('objectui#6515 — the record form page publishes the normaliser’s `c
     expect(lastFields()).not.toContain('plan_canonical');
   });
 
-  it('RECORDS: a `ctx.user.id` gate STILL fails open for a signed-out visitor', async () => {
-    // Measurement, not endorsement — and NOT something this card changes.
+  it('hides a `ctx.user.id`-gated field from a signed-out visitor', async () => {
+    // objectui#6534 — this case is the inverted successor of objectui#6515's
+    // `RECORDS: a ctx.user.id gate STILL fails open for a signed-out visitor`.
     //
-    // `buildExpressionUser(null)` returns `{ name, email, role,
-    // isPlatformAdmin, positions }`. There is no `id` key on that branch, so
-    // `ctx.user.id == '…'` faults for a signed-out visitor and fails OPEN, at
-    // EVERY mount site — `AppContent` and `InternalFormRoute` included, both of
-    // which have always called the normaliser. That asymmetry is in the
-    // normaliser's own anonymous branch, not in this page, and closing it means
-    // changing the shape `AppContent.expressionUserShape.test.ts` pins, which
-    // is a decision of its own (`id: null`? `id: undefined`? — objectui#5424
-    // rejected present-and-undefined as the shape that teaches the wrong
-    // thing). Filed separately rather than widened into this PR.
+    // That case recorded the defect as a passing fact: `'id' in
+    // buildExpressionUser(null)` was `false` and the excluded field was
+    // `toContain`-present. Both assertions are flipped below, and the flip is
+    // this card's reverse verification — the pin was GREEN on `origin/main`
+    // (measured: 13/13 passing) and went RED the instant `id: null` landed,
+    // which is what proves the normaliser's anonymous branch is the thing that
+    // moved.
     //
-    // Pinned so the follow-up has a red test to turn green, and so this stays
-    // a measured fact rather than an assumption. The signed-IN case above is
-    // the one this card fixes: there `id` is present and the gate bites.
+    // ⚠️ The SECOND assertion is the load-bearing one and it is not
+    // interchangeable with the first. `'id' in …` only proves the key exists;
+    // it says nothing about whether CEL can compare against `null` rather than
+    // faulting on it a second way. Only the rendered field list proves the gate
+    // actually BITES — that `ctx.user.id == 'u_admin'` resolves to a clean
+    // FALSE for an anonymous visitor and the field is filtered out. If `null`
+    // merely relocated the fault, the first assertion would still pass and this
+    // one would still find the field present.
+    //
+    // Fenced boundary (objectui#6443 / #6487 / #6445): fail-open on a predicate
+    // that DOES fault is deliberate and is untouched. This asserts that this
+    // predicate no longer faults, not that a faulting one now fails closed.
     authState.user = null;
     renderPage();
     await waitFor(() => expect(formSchemas.length).toBeGreaterThan(0));
 
-    expect('id' in buildExpressionUser(null)).toBe(false);
-    expect(lastFields()).toContain('self_note');
+    expect('id' in buildExpressionUser(null)).toBe(true);
+    expect(buildExpressionUser(null).id).toBeNull();
+    // Ungated fields are untouched — this narrowed exactly one gate, and the
+    // filter still lets everything else by. Without this line a change that
+    // dropped ALL fields would pass the assertion below.
+    expect(lastFields()).toContain('name');
+    expect(lastFields()).not.toContain('self_note');
   });
 
   it('grants the `isPlatformAdmin` gate to a platform admin', async () => {

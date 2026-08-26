@@ -51,6 +51,25 @@
  * two branches agree on one shape. Both branches carry `isPlatformAdmin` and
  * `positions` for the same reason: a predicate naming either must evaluate to
  * FALSE, not fault.
+ *
+ * `id` is on BOTH branches for that same reason, and it is the last place the
+ * two disagreed (objectui#6534). It used to be signed-in-only, so
+ * `'id' in buildExpressionUser(null)` was `false` and a gate naming
+ * `ctx.user.id` / `current_user.id` / `os.user.id` faulted for every signed-out
+ * visitor — measured at a real mount site in
+ * `expressionUser.mountParity.test.tsx`, where the excluded field was PRESENT
+ * in the schema handed to `ObjectForm`. Anonymous now answers `null`, which is
+ * a VALUE a CEL author can compare against, so the predicate resolves FALSE
+ * instead of faulting.
+ *
+ * ## What this module does NOT decide
+ *
+ * Fail-open on a predicate that DOES fault stays deliberate policy
+ * (objectui#6443 / #6487 / #6445): an unevaluable `visible` still renders, and
+ * that verdict is `evaluateVisibility`'s to make, not this normaliser's. Every
+ * shape rule above works the same way — it removes REASONS to fault, so fewer
+ * predicates ever reach that policy. None of them touches what the policy does
+ * once one has.
  */
 export function buildExpressionUser(user: unknown): Record<string, unknown> {
   const u = user as
@@ -58,7 +77,23 @@ export function buildExpressionUser(user: unknown): Record<string, unknown> {
     | null
     | undefined;
   if (!u) {
-    return { name: 'Anonymous', email: '', role: 'guest', isPlatformAdmin: false, positions: [] };
+    return {
+      // `null`, not absent — objectui#6534. An ABSENT key is not `false`: it
+      // makes `ctx.user.id == '…'` FAULT, and a faulting visibility predicate
+      // fails OPEN (`evaluateVisibility`), so an id-gated field rendered for
+      // exactly the signed-out visitor it was written to exclude, silently, at
+      // EVERY mount site. `null` ANSWERS: the comparison is a clean FALSE and
+      // the gate bites. Not `undefined` — objectui#5424 measured on this same
+      // object that a present-and-always-`undefined` key "is the shape that
+      // teaches the wrong thing", which is why `roles` is absent rather than
+      // forwarded as `undefined`.
+      id: null,
+      name: 'Anonymous',
+      email: '',
+      role: 'guest',
+      isPlatformAdmin: false,
+      positions: [],
+    };
   }
   return {
     id: u.id,
