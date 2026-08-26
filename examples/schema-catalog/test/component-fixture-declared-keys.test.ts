@@ -43,15 +43,26 @@
  *      `direction`. The probe must be structural — asserting `.success` here
  *      would assert nothing at all.
  *
- * ## The one key on these fixtures that is CORRECT and must stay
+ * ## SUPERSEDED by objectui#6250 — where the toast fixtures went
  *
- * Both toast fixtures ALSO carry a **top-level** `"variant": "destructive"`.
- * That one is a genuine `ButtonSchema` member (`form.d.ts:30`,
- * `zod/form.zod.js:153`) — the demo's button really is destructive-styled. Only
- * the occurrence nested inside the `onClick` toast payload was invented. A
- * blanket find-and-replace over `destructive` in these two files breaks two
- * working buttons; the first `describe` block below exists to make that
- * mistake turn this file red.
+ * The two toast fixtures used to be `{ "type": "button", …, "onClick": { action:
+ * 'toast', … } }`, and the block that used to head this file asserted that the
+ * **top-level** `"variant": "destructive"` — a genuine `ButtonSchema` member —
+ * survived any correction to the nested payload.
+ *
+ * #6250 removed the envelope that fact was about. `ButtonSchema.onClick` is
+ * `z.function()`, so all fourteen `components-feedback-toast/*` and
+ * `components-feedback-sonner/*` fixtures were a RED `safeParse` on the
+ * ENVELOPE, and nothing anywhere read a handler key as an action object — the
+ * demos are now the registered `type: 'toast'` / `type: 'sonner'` nodes their
+ * own renderers execute. There is no button schema left to carry a button
+ * variant, so that block is REPLACED rather than reworded: what #6157 actually
+ * established — that the toast variant VALUE is a declared `ToastSchema`
+ * member, with `destructive` refused — is carried forward below against the
+ * top-level `variant` those nodes now declare, counter-probe and all.
+ *
+ * `toast-demo-dispatch-6250.test.tsx` carries the other half: that clicking
+ * each corrected demo raises a real toast, which no parse can see.
  *
  * ## What this file deliberately does not assert
  *
@@ -69,7 +80,7 @@ import {
   RadioGroupSchema,
   ToastSchema,
 } from '@object-ui/types/zod';
-import { getExample } from '../src/index.js';
+import { allExamples, getExample } from '../src/index.js';
 
 type Json = Record<string, unknown>;
 
@@ -96,45 +107,53 @@ const TOAST_FIXTURES = [
   'components-feedback-toast/error-toast',
 ] as const;
 
-describe('toast fixtures: the top-level button variant is CORRECT and stays (objectui#6157 rider)', () => {
-  const buttonVariants = enumOptionsOf(ButtonSchema.shape.variant);
-
-  it('ButtonSchema really does declare `destructive` — the control for this whole block', () => {
-    expect(buttonVariants).toContain('destructive');
+describe('toast fixtures: the registered spelling, not an action object off `onClick` (objectui#6250)', () => {
+  it.each(TOAST_FIXTURES)('%s is a `toast` node that parses green under ToastSchema', (id) => {
+    const fixture = schemaOf(id);
+    expect(fixture.type).toBe('toast');
+    expect(fixture).not.toHaveProperty('onClick');
+    const result = ToastSchema.safeParse(fixture);
+    expect(result.error?.issues ?? []).toEqual([]);
+    expect(result.success).toBe(true);
   });
 
-  it.each(TOAST_FIXTURES)('%s keeps a top-level destructive button', (id) => {
-    const fixture = schemaOf(id);
-    expect(fixture.type).toBe('button');
-    expect(fixture.variant).toBe('destructive');
-    expect(buttonVariants).toContain(fixture.variant as string);
+  it('counter-probe: the retired envelope is still RED under ButtonSchema, so the block above bites', () => {
+    const retired = {
+      type: 'button',
+      label: 'Destructive Toast',
+      variant: 'destructive',
+      onClick: {
+        action: 'toast',
+        variant: 'error',
+        title: 'Error',
+        description: 'Something went wrong.',
+      },
+    };
+    const result = ButtonSchema.safeParse(retired);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(['onClick']);
+    expect(result.error?.issues[0]?.message).toContain('expected function, received object');
   });
 });
 
-describe('toast fixtures: the nested onClick payload uses a declared toast variant', () => {
-  /**
-   * The payload is `{ action: 'toast', ... }` hung off `onClick`. The shipped
-   * surface declares `ButtonSchema.onClick` as a FUNCTION, so this action-object
-   * idiom has no declared type of its own — `ToastSchema` is the nearest
-   * governing declaration, and it is unambiguous here: the payload's other keys
-   * (`title`, `description`, `duration`) are exactly ToastSchema's.
-   */
-  const asToast = (fixture: Json): Json => {
-    const { action, ...rest } = fixture.onClick as Json;
-    expect(action).toBe('toast');
-    return { type: 'toast', ...rest };
-  };
+describe('toast fixtures: the variant value is a declared member (objectui#6157, carried forward)', () => {
+  const toastVariants = enumOptionsOf(ToastSchema.shape.variant);
 
-  it.each(TOAST_FIXTURES)('%s payload parses green under ToastSchema', (id) => {
-    const result = ToastSchema.safeParse(asToast(schemaOf(id)));
-    expect(result.error?.issues ?? []).toEqual([]);
-    expect(result.success).toBe(true);
+  it('ToastSchema declares `error` and refuses `destructive` — the control for this block', () => {
+    expect(toastVariants).toContain('error');
+    expect(toastVariants).not.toContain('destructive');
+  });
+
+  it.each(TOAST_FIXTURES)('%s declares a variant ToastSchema knows', (id) => {
+    const fixture = schemaOf(id);
+    expect(fixture.variant).toBe('error');
+    expect(toastVariants).toContain(fixture.variant as string);
   });
 
   it.each(TOAST_FIXTURES)(
     '%s counter-probe: the pre-#6157 value is still refused, so the assertion above bites',
     (id) => {
-      const payload = { ...asToast(schemaOf(id)), variant: 'destructive' };
+      const payload = { ...schemaOf(id), variant: 'destructive' };
       const result = ToastSchema.safeParse(payload);
       expect(result.success).toBe(false);
       expect(result.error?.issues[0]?.path).toEqual(['variant']);
@@ -197,5 +216,59 @@ describe('radio-group fixtures: the layout key is the declared one', () => {
     expect(fixture.orientation).toBe(value);
     expect(enumOptionsOf(RadioGroupSchema.shape.orientation)).toContain(value);
     expect(RadioGroupSchema.safeParse(fixture).success).toBe(true);
+  });
+});
+
+/**
+ * objectui#6250, generalized past the two pages that reported it.
+ *
+ * The card's shape is "an action object hung off a handler key", and a grep for
+ * one literal (`"action": "toast"`) under-counts it by construction — the sonner
+ * half spells the same shape `{ action: 'sonner', … }`, and one fixture spells
+ * it `{ action: { label, onClick } }`. So the sweep is over the SHAPE: every key
+ * that reads as a handler slot, at every depth, in every entry.
+ *
+ * What it deliberately does NOT cover: a handler key holding a STRING. That is
+ * the handler-EXPRESSION dialect — whether an expression is a supported handler
+ * form is objectui#6182's open decision, not this card's — and the corpus still
+ * has exactly one, which is what the positive control below pins. A sweep that
+ * banned handler keys outright would be answering #6182 by accident.
+ */
+describe('catalog corpus: no fixture hangs an action object off a handler key (objectui#6250)', () => {
+  type Handler = { where: string; value: unknown };
+
+  const isHandlerKey = (key: string) => /^on[A-Z]/.test(key) || key === 'events';
+
+  function collect(node: unknown, where: string, acc: Handler[] = []): Handler[] {
+    if (Array.isArray(node)) {
+      node.forEach((n, i) => collect(n, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (isHandlerKey(key)) acc.push({ where: `${where}.${key}`, value });
+      collect(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const entries = allExamples();
+  const handlers = entries.flatMap((e) => collect(e.schema, e.id));
+
+  it('the walker descends into nested children — positive control', () => {
+    // A zero result from a walker that never descends is an untested tool, not
+    // a measurement. This hit is two levels down, inside `children`, and it is
+    // the handler-EXPRESSION case #6182 owns.
+    expect(handlers.map((h) => h.where)).toContain(
+      'components-feedback-toaster/with-toast-trigger.children[0].onClick',
+    );
+    expect(entries.length).toBeGreaterThan(400);
+  });
+
+  it('every handler value in the corpus is a string expression, never an action object', () => {
+    const objectValued = handlers
+      .filter((h) => h.value !== null && typeof h.value === 'object')
+      .map((h) => `${h.where} = ${JSON.stringify(h.value)}`);
+    expect(objectValued).toEqual([]);
   });
 });

@@ -36,6 +36,51 @@
       "verification"
     ]
   },
+  "components-feedback-sonner/promise-based-toast": {
+    "title": "Custom Trigger Button",
+    "description": "A success toast whose trigger button is styled through buttonVariant.",
+    "tags": [
+      "toast",
+      "sonner",
+      "button"
+    ]
+  },
+  "components-feedback-sonner/toast-with-action": {
+    "title": "Message With Description",
+    "description": "A sonner toast carrying both a message and a secondary description line.",
+    "tags": [
+      "toast",
+      "sonner",
+      "description"
+    ]
+  },
+  "components-feedback-toast/destructive": {
+    "title": "Error Variant",
+    "description": "The 'error' toast variant. 'destructive' is a button variant, not a toast variant.",
+    "tags": [
+      "toast",
+      "variant",
+      "error"
+    ]
+  },
+  "components-feedback-toast/toast-with-action": {
+    "title": "Info Variant",
+    "description": "The 'info' toast variant, used here for an update notice.",
+    "tags": [
+      "toast",
+      "variant",
+      "info"
+    ]
+  },
+  "components-feedback-toast/toast-with-undo": {
+    "title": "Warning Variant",
+    "description": "The 'warning' toast variant, used here for a deletion notice.",
+    "tags": [
+      "toast",
+      "variant",
+      "warning"
+    ]
+  },
   "components-form-form/basic-form": {
     "title": "Basic Form",
     "description": "A hand-built `form` node from `@object-ui/components`: name, email, country and newsletter fields declared inline, with no object behind them. For a form generated from an object's own metadata, see the `plugin-form` examples.",

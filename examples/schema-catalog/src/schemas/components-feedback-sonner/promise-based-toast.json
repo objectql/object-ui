@@ -1,11 +1,7 @@
 {
-  "type": "button",
-  "label": "Save Changes",
-  "onClick": {
-    "action": "sonner",
-    "type": "promise",
-    "loading": "Saving changes...",
-    "success": "Changes saved!",
-    "error": "Failed to save changes"
-  }
+  "type": "sonner",
+  "variant": "success",
+  "message": "Changes saved!",
+  "buttonLabel": "Save Changes",
+  "buttonVariant": "outline"
 }

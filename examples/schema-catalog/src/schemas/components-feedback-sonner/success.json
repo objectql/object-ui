@@ -1,9 +1,6 @@
 {
-  "type": "button",
-  "label": "Success",
-  "onClick": {
-    "action": "sonner",
-    "type": "success",
-    "message": "Operation completed successfully"
-  }
+  "type": "sonner",
+  "variant": "success",
+  "message": "Operation completed successfully",
+  "buttonLabel": "Success"
 }

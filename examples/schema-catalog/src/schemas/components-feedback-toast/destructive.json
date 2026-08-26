@@ -1,11 +1,6 @@
 {
-  "type": "button",
-  "label": "Destructive Toast",
-  "variant": "destructive",
-  "onClick": {
-    "action": "toast",
-    "variant": "error",
-    "title": "Error",
-    "description": "Something went wrong."
-  }
+  "type": "toast",
+  "variant": "error",
+  "title": "Error",
+  "description": "Something went wrong."
 }
