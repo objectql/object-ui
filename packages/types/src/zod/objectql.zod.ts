@@ -595,6 +595,59 @@ export const ObjectTreeSchema = BaseSchema.extend({
 });
 
 /**
+ * objectui's own `GanttConfig` extensions — everything `../objectql.ts` declares
+ * on {@link GanttConfig} beyond the spec's `GanttConfigSchema` (objectui#6051
+ * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
+ * `timeSegments` was already there).
+ *
+ * Held as ONE field map and spread into BOTH faces below — the flattened
+ * top-level spelling and the nested `gantt` block — so the two cannot drift on
+ * this side either, the same way the TS side derives both from `GanttConfig`.
+ *
+ * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
+ * `^export const` out of this directory and would require a registered TS
+ * counterpart for it. It has none of its own — it is a fragment of `GanttConfig`,
+ * and `GanttConfig` is checked through the two faces that carry it.
+ */
+const GanttConfigExtensionFields = {
+  borderColorField: z.string().optional().describe('Record field carrying a per-task alert stroke colour'),
+  lockField: z.string().optional().describe('Record field marking a row view-only (truthy → locked)'),
+  objectField: z.string().optional().describe("Record field carrying the row's own object API name"),
+  summaryExtent: z.enum(['children', 'self']).optional().describe("How a summary bar's span is computed"),
+  defaultCollapsedDepth: z.number().optional().describe('Auto-collapse tree nodes at/below this 0-indexed depth'),
+  dependencyTypes: z.boolean().optional().describe('Whether the store persists dependency link TYPES (fs/ss/ff/sf)'),
+  timeZone: z.string().optional().describe("Business time zone (IANA name) the chart's calendar renders in"),
+  exportFileName: z.string().optional().describe('Base name for exported PNG/PDF files'),
+  interactions: z
+    .object({
+      move: z.boolean().optional().describe('Bar / subtree dragging'),
+      resize: z.boolean().optional().describe('Edge resize grips'),
+      progress: z.boolean().optional().describe('The progress drag handle'),
+      link: z.boolean().optional().describe('Dependency UI: drag-to-link dots and the create/delete menu'),
+    })
+    .optional()
+    .describe('Per-interaction switches, each defaulting to true'),
+  timeSegments: z
+    .object({
+      dayStart: z.string().optional().describe("Clock time the shift-day begins, 'HH:mm'"),
+      bands: z
+        .array(
+          z.object({
+            key: z.string().optional().describe('Stable band id'),
+            label: z.string().describe('Display label'),
+            start: z.string().describe("Band start, 'HH:mm'"),
+            end: z.string().describe("Band end, 'HH:mm'"),
+            color: z.string().optional().describe('Accent colour for the column tint'),
+          })
+        )
+        .describe('Ordered bands covering the 24h shift-day'),
+      showMidnight: z.boolean().optional().describe('Draw the dashed calendar-midnight cue'),
+    })
+    .optional()
+    .describe('Shift segmentation for the day-mode timeline'),
+};
+
+/**
  * ObjectGantt Schema
  */
 export const ObjectGanttSchema = BaseSchema.extend({
@@ -642,6 +695,43 @@ export const ObjectGanttSchema = BaseSchema.extend({
   showBaselines: z.boolean().optional().describe('Render planned-vs-actual baseline bars — defaults ON, only an explicit false disables'),
   readOnly: z.boolean().optional().describe('Disable every write path and lock the record drawer'),
   mobileReadOnly: z.boolean().optional().describe('Auto read-only on narrow viewports — defaults ON, only an explicit false disables'),
+  // objectui#6051 — the FLATTENED `GanttConfig` face. `getGanttConfig` builds its
+  // config from these top-level keys and returns early whenever `startDateField`
+  // and `endDateField` are both present; nothing declared them, on either side,
+  // because `BaseSchema`'s index signature admits them untyped. Mirrored at the
+  // SAME requiredness as `../objectql.ts` (all optional) so the zod-mirror-parity
+  // ratchet stays at zero drift for this pair.
+  //
+  // The spec-modelled members are taken from `SpecGanttConfigSchema.shape` by
+  // reference, exactly as `viewMode` above is, so the vocabulary cannot fork.
+  colorField: SpecGanttConfigSchema.shape.colorField,
+  dependenciesField: SpecGanttConfigSchema.shape.dependenciesField,
+  parentField: SpecGanttConfigSchema.shape.parentField,
+  typeField: SpecGanttConfigSchema.shape.typeField,
+  tooltipFields: SpecGanttConfigSchema.shape.tooltipFields,
+  baselineStartField: SpecGanttConfigSchema.shape.baselineStartField,
+  baselineEndField: SpecGanttConfigSchema.shape.baselineEndField,
+  groupByField: SpecGanttConfigSchema.shape.groupByField,
+  resourceView: SpecGanttConfigSchema.shape.resourceView,
+  assigneeField: SpecGanttConfigSchema.shape.assigneeField,
+  effortField: SpecGanttConfigSchema.shape.effortField,
+  capacity: SpecGanttConfigSchema.shape.capacity,
+  quickFilters: SpecGanttConfigSchema.shape.quickFilters,
+  autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
+  // …and objectui's own ten, from the one field map above.
+  ...GanttConfigExtensionFields,
+  // The BLOCK face — the same vocabulary nested under one key, which is what
+  // `getGanttConfig`'s second branch reads. Built from the SAME field map, so the
+  // block and the flat spelling above are one schema expressed twice.
+  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields)
+    .optional()
+    .describe('Gantt configuration (the block face; the flattened top-level spelling wins when both are present)'),
+  // The query/data keys the fetch path reads. They were declared on
+  // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
+  // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config'),
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
+  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
 });
 
 /**

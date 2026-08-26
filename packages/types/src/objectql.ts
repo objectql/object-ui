@@ -204,6 +204,105 @@ export type GanttConfig = SpecGanttConfig & {
      */
     showMidnight?: boolean;
   };
+  // ── objectui's own extensions, lifted out of `plugin-gantt` (objectui#6051) ──
+  //
+  // The nine members below were declared ONLY in `plugin-gantt`'s package-private
+  // `GanttConfigEx` intersection — the type `getGanttConfig` casts the `gantt`
+  // block to. `ObjectGantt` honours every one of them on BOTH authoring faces
+  // (the `gantt: { … }` block AND the flattened top-level spelling declared on
+  // `ObjectGanttSchema`), and a type that lives inside the plugin can be
+  // referenced by neither declaration — so the vocabulary is lifted here rather
+  // than restated, and the two faces derive from ONE source that cannot fork.
+  //
+  // Like `timeSegments` above, each is legal metadata rather than a second
+  // dialect: `GanttConfigSchema` is `$loose` upstream, so a key the spec does not
+  // model passes its parse instead of being rejected.
+  /**
+   * Record field marking a node as view-only (truthy → locked). A locked
+   * row's bar can't be dragged/resized, its progress can't be dragged, no
+   * dependency can be drawn from it, and its inline-edit / context-menu
+   * edit+delete are hidden — but clicking it (open drawer / jump) still works.
+   * Independent of the global `readOnly`; use to freeze individual levels (e.g.
+   * work orders) while siblings stay editable. Maps to `GanttTask.locked`.
+   */
+  lockField?: string;
+  /**
+   * Record field carrying the row's OBJECT API NAME. Mixed-object
+   * trees (an `api` provider composing parent-object rows with child-object rows)
+   * need the detail drawer and its full-page link to follow each row's REAL
+   * object — otherwise a child row's `→` link builds a URL under the view's bound
+   * object and 404s. Empty/missing value → falls back to the bound object.
+   */
+  objectField?: string;
+  /**
+   * How a summary bar's span is computed. `'children'` (default)
+   * rolls the bar up from its children — min start / max end / duration-weighted
+   * progress — and IGNORES the record's own dates. `'self'` renders the bar from
+   * the record's OWN start/end/progress, falling back to rollup
+   * only for records without dates (e.g. pure grouping levels). Use `'self'`
+   * when the parent's schedule is authoritative — e.g. a shift plan whose
+   * work-order children are locked history: under rollup, dragging the plan
+   * persists its own dates but the bar snaps back to the children's extent on
+   * refetch.
+   */
+  summaryExtent?: 'children' | 'self';
+  /**
+   * Auto-collapse tree nodes at/below this 0-indexed depth on first render.
+   * Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
+   * with children starts folded; the user can still expand them. Example: a
+   * project→product→production-plan→work-order tree uses
+   * `defaultCollapsedDepth: 2` so every production plan (and its work orders)
+   * starts collapsed. Forwarded to `GanttView`.
+   */
+  defaultCollapsedDepth?: number;
+  /**
+   * Record field carrying a per-task alert stroke color: any CSS color or
+   * semantic palette name (red/orange/…). When present the bar keeps its fill
+   * but gets an outline + halo in that color — e.g. red for overdue, orange for
+   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
+   * Maps to `GanttTask.borderColor`.
+   */
+  borderColorField?: string;
+  /**
+   * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
+   * Default true. Set false when dependencies are bare predecessor ids
+   * (predecessor ids only) — the link menu hides the type switcher (a switch would be
+   * silently reverted on refetch) and drag-created links are always FS.
+   * Forwarded to `GanttView`.
+   */
+  dependencyTypes?: boolean;
+  /**
+   * Business time zone, IANA name like 'Asia/Shanghai'. Renders the
+   * chart's calendar — shift bands, day columns, snapping, today line, date
+   * labels — in this zone's wall time for every viewer, instead of the
+   * browser's zone (which misplaces shift bands for viewers elsewhere). Persisted
+   * data stays real instants. Forwarded to `GanttView`.
+   */
+  timeZone?: string;
+  /**
+   * Base name for exported PNG/PDF files, e.g. the view's display
+   * label — the host's view schema often reaches this component stripped of
+   * `label`, so views declare it here. Falls back to the object schema label,
+   * then the object API name. A timestamp suffix is always appended.
+   */
+  exportFileName?: string;
+  /**
+   * Per-interaction switches: `move` / `resize` / `progress` / `link`,
+   * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
+   * moves but pin durations (`{ resize: false }`) or keep the dependency UI
+   * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
+   * already allow. Forwarded to `GanttView`.
+   */
+  interactions?: {
+    /** Bar / subtree dragging (move along the timeline). */
+    move?: boolean;
+    /** Edge resize grips (change duration). */
+    resize?: boolean;
+    /** The progress drag handle. */
+    progress?: boolean;
+    /** Dependency UI: drag-to-link dots AND the create/delete menu entries. */
+    link?: boolean;
+  };
 };
 
 /**
@@ -2292,6 +2391,114 @@ export interface ObjectGanttSchema extends BaseSchema {
    * with) {@link readOnly}. Read at `ObjectGantt.tsx`.
    */
   mobileReadOnly?: boolean;
+
+  // ── The flattened `GanttConfig` face (objectui#6051) ────────────────────────
+  //
+  // `getGanttConfig` (`plugin-gantt/src/ObjectGantt.tsx`) has two branches. When
+  // `startDateField` AND `endDateField` are present at the TOP LEVEL it builds the
+  // config from top-level keys and RETURNS EARLY; otherwise it reads the `gantt`
+  // block declared below. The keys of the first branch were declared by neither
+  // this interface nor `ObjectGridSchema`: they were reachable only through
+  // `BaseSchema`'s `[key: string]: any`, so `schema.colorField` type-checked as
+  // `any` with no cast anywhere to grep for. That is why the census behind this
+  // card is an AST enumeration and not a compile-and-observe — an index signature
+  // swallows exactly the evidence a type annotation would have produced.
+  //
+  // Every member below is DERIVED from {@link GanttConfig}, the same type the
+  // `gantt` block carries, so the flat spelling cannot drift from the block
+  // spelling. All are optional, matching the renderer: the flat branch reads each
+  // key bare and forwards `undefined` unchanged.
+  //
+  // ⚠️ WHICH face wins is unchanged here and is not this card's question: the flat
+  // branch is checked first and returns early, so a node carrying both spellings
+  // renders the flat one. (`plugin-map` had the opposite precedence ruled on in
+  // objectui#5018; no equivalent ruling exists for gantt.)
+
+  /** Record field carrying the bar fill colour. See {@link GanttConfig}. */
+  colorField?: GanttConfig['colorField'];
+  /** Per-task alert stroke colour field. See {@link GanttConfig.borderColorField}. */
+  borderColorField?: GanttConfig['borderColorField'];
+  /**
+   * Record field holding this task's predecessors. The CANONICAL spelling — the
+   * flat branch reads `dependenciesField || dependencyField`, so the singular
+   * {@link ObjectGanttSchema.dependencyField} above stays accepted as the legacy
+   * alias and this one wins.
+   */
+  dependenciesField?: GanttConfig['dependenciesField'];
+  /** Single-parent pointer field building the task tree. See {@link GanttConfig}. */
+  parentField?: GanttConfig['parentField'];
+  /** Record field mapping onto a node kind (task/summary/milestone/group). */
+  typeField?: GanttConfig['typeField'];
+  /** Record field marking a row view-only. See {@link GanttConfig.lockField}. */
+  lockField?: GanttConfig['lockField'];
+  /** Record field carrying the row's own object API name (mixed-object trees). */
+  objectField?: GanttConfig['objectField'];
+  /** How a summary bar's span is computed. See {@link GanttConfig.summaryExtent}. */
+  summaryExtent?: GanttConfig['summaryExtent'];
+  /** Auto-collapse depth on first render. See {@link GanttConfig.defaultCollapsedDepth}. */
+  defaultCollapsedDepth?: GanttConfig['defaultCollapsedDepth'];
+  /** Extra record fields listed in the bar tooltip. See {@link GanttConfig}. */
+  tooltipFields?: GanttConfig['tooltipFields'];
+  /** Baseline (planned) start field → planned-vs-actual reference bars. */
+  baselineStartField?: GanttConfig['baselineStartField'];
+  /** Baseline (planned) end field → planned-vs-actual reference bars. */
+  baselineEndField?: GanttConfig['baselineEndField'];
+  /** Dynamic group-by field, replacing the parent hierarchy. */
+  groupByField?: GanttConfig['groupByField'];
+  /** Render the per-resource load histogram instead of the timeline grid. */
+  resourceView?: GanttConfig['resourceView'];
+  /** Record field the resource view buckets by. Required for {@link resourceView}. */
+  assigneeField?: GanttConfig['assigneeField'];
+  /** Record field carrying each task's load units (default 1). */
+  effortField?: GanttConfig['effortField'];
+  /** Per-resource capacity ceiling (default 1); loads above it flag overload. */
+  capacity?: GanttConfig['capacity'];
+  /** Quick-filter dropdowns rendered above the chart. See {@link GanttConfig}. */
+  quickFilters?: GanttConfig['quickFilters'];
+  /** Recompute the timeline range when filtering (default true). */
+  autoZoomToFilter?: GanttConfig['autoZoomToFilter'];
+  /** Shift segmentation for the day-mode timeline. See {@link GanttConfig.timeSegments}. */
+  timeSegments?: GanttConfig['timeSegments'];
+  /** Per-interaction switches. See {@link GanttConfig.interactions}. */
+  interactions?: GanttConfig['interactions'];
+  /** Base name for exported PNG/PDF files. See {@link GanttConfig.exportFileName}. */
+  exportFileName?: GanttConfig['exportFileName'];
+  /** Business time zone (IANA name) the calendar renders in. */
+  timeZone?: GanttConfig['timeZone'];
+  /** Whether the store persists dependency link TYPES (fs/ss/ff/sf). */
+  dependencyTypes?: GanttConfig['dependencyTypes'];
+
+  /**
+   * The BLOCK face — the same `GanttConfig` vocabulary nested under one key
+   * (`ObjectGridSchema` style, and what the spec's `ListView.gantt` carries).
+   *
+   * Read at `ObjectGantt.tsx` (`getGanttConfig`, branch 2) and honoured in full;
+   * it was undeclared here for the same reason the flat keys were. Declaring it
+   * as {@link GanttConfig} is what makes the two faces provably one vocabulary.
+   *
+   * ⚠️ `GanttConfig` derives from the spec's `GanttConfigSchema`, which REQUIRES
+   * `startDateField`, `endDateField` and `titleField` — so those three are
+   * required INSIDE this block while their flattened twins above stay optional.
+   * That asymmetry is the spec's, and it is already enforced at runtime: the
+   * block branch feeds the block to `GanttConfigSchema.safeParse` and warns when
+   * it fails, while the flat branch returns before reaching that check.
+   */
+  gantt?: GanttConfig;
+
+  // ── The query/data keys the fetch path reads (objectui#6051) ────────────────
+  //
+  // These are NOT gantt config: they are the read the component issues. They were
+  // declared on `ObjectGridSchema`, which is what `ObjectGanttProps.schema` used
+  // to be typed as — objectui#5903 retyped that prop to this interface, which is
+  // correct and is why they now have to be declared HERE. `plugin-gantt`'s
+  // registry mapping (`OBJECT_GANTT_DATA_SOURCE` in `index.tsx`) names `filter`
+  // and `sort` as the two keys the element data-source binding maps onto.
+  /** Inline records, wrapped into a `{ provider: 'value' }` config by `getDataConfig`. */
+  staticData?: any[];
+  /** Query filter (JSON Rules format), forwarded verbatim as `$filter`. */
+  filter?: any[];
+  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. */
+  sort?: string | SortConfig[];
 }
 
 /**

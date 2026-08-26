@@ -24,7 +24,7 @@
 
 import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import type { ObjectGanttSchema, ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
+import type { ObjectGanttSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 // Aliased on import, following PR #4169's convention: this repo has its OWN
 // `resolveI18nLabel` over a DIFFERENT vocabulary (the KEYED `{ key, defaultValue }`
@@ -89,8 +89,19 @@ export interface QuickFilterDef {
 }
 
 /**
- * Hierarchy/type fields are ObjectUI extensions on top of the spec's
- * GanttConfig (not yet in @objectstack/spec GanttConfigSchema).
+ * The gantt config as THIS renderer consumes it: `GanttConfig` from
+ * `@object-ui/types` — the spec's `GanttConfigSchema` plus objectui's own
+ * extensions — with `quickFilters` and `timeSegments` narrowed to the plugin's
+ * runtime types, and the spec-declared members re-documented with the behaviour
+ * this renderer gives them.
+ *
+ * ⚠️ Nothing here may declare a key `GanttConfig` does not (objectui#6051). Nine
+ * members that lived ONLY here — `lockField`, `objectField`, `summaryExtent`,
+ * `defaultCollapsedDepth`, `borderColorField`, `dependencyTypes`, `timeZone`,
+ * `exportFileName`, `interactions` — were lifted into `@object-ui/types`, because
+ * a type private to this package can be referenced by neither authoring face.
+ * Each key is now declared once and both faces derive from it: the `gantt` block
+ * and the flattened top-level spelling on `ObjectGanttSchema`.
  */
 type GanttConfigEx = GanttConfig & {
   parentField?: string;
@@ -101,55 +112,9 @@ type GanttConfigEx = GanttConfig & {
    * style levels that only group, never schedule.
    */
   typeField?: string;
-  /**
-   * Record field marking a node as view-only (truthy → locked). A locked
-   * row's bar can't be dragged/resized, its progress can't be dragged, no
-   * dependency can be drawn from it, and its inline-edit / context-menu
-   * edit+delete are hidden — but clicking it (open drawer / jump) still works.
-   * Independent of the global `readOnly`; use to freeze individual levels (e.g.
-   * work orders) while siblings stay editable. Maps to {@link GanttTask.locked}.
-   */
-  lockField?: string;
-  /**
-   * Record field carrying the row's OBJECT API NAME. Mixed-object
-   * trees (an `api` provider composing parent-object rows with child-object rows)
-   * need the detail drawer and its full-page link to follow each row's REAL
-   * object — otherwise a child row's `→` link builds a URL under the view's bound
-   * object and 404s. Empty/missing value → falls back to the bound object.
-   */
-  objectField?: string;
-  /**
-   * How a summary bar's span is computed. `'children'` (default)
-   * rolls the bar up from its children — min start / max end / duration-weighted
-   * progress — and IGNORES the record's own dates. `'self'` renders the bar from
-   * the record's OWN start/end/progress, falling back to rollup
-   * only for records without dates (e.g. pure grouping levels). Use `'self'`
-   * when the parent's schedule is authoritative — e.g. a shift plan whose
-   * work-order children are locked history: under rollup, dragging the plan
-   * persists its own dates but the bar snaps back to the children's extent on
-   * refetch.
-   */
-  summaryExtent?: 'children' | 'self';
-  /**
-   * Auto-collapse tree nodes at/below this 0-indexed depth on first render.
-   * Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
-   * with children starts folded; the user can still expand them. Example: a
-   * project→product→production-plan→work-order tree uses
-   * `defaultCollapsedDepth: 2` so every production plan (and its work orders)
-   * starts collapsed. Forwarded to {@link GanttView}.
-   */
-  defaultCollapsedDepth?: number;
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
-  /**
-   * Record field carrying a per-task alert stroke color: any CSS color or
-   * semantic palette name (red/orange/…). When present the bar keeps its fill
-   * but gets an outline + halo in that color — e.g. red for overdue, orange for
-   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
-   * Maps to {@link GanttTask.borderColor}.
-   */
-  borderColorField?: string;
   /**
    * Dynamic Group by. When set, leaf tasks are bucketed by this
    * field and rendered under one synthesized summary row per distinct value
@@ -182,37 +147,6 @@ type GanttConfigEx = GanttConfig & {
    * (unfiltered) task set while filtering only hides bars.
    */
   autoZoomToFilter?: boolean;
-  /**
-   * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
-   * Default true. Set false when dependencies are bare predecessor ids
-   * (predecessor ids only) — the link menu hides the type switcher (a switch would be
-   * silently reverted on refetch) and drag-created links are always FS.
-   * Forwarded to {@link GanttView}.
-   */
-  dependencyTypes?: boolean;
-  /**
-   * Business time zone, IANA name like 'Asia/Shanghai'. Renders the
-   * chart's calendar — shift bands, day columns, snapping, today line, date
-   * labels — in this zone's wall time for every viewer, instead of the
-   * browser's zone (which misplaces shift bands for viewers elsewhere). Persisted
-   * data stays real instants. Forwarded to {@link GanttView}.
-   */
-  timeZone?: string;
-  /**
-   * Base name for exported PNG/PDF files, e.g. the view's display
-   * label — the host's view schema often reaches this component stripped of
-   * `label`, so views declare it here. Falls back to the object schema label,
-   * then the object API name. A timestamp suffix is always appended.
-   */
-  exportFileName?: string;
-  /**
-   * Per-interaction switches: `move` / `resize` / `progress` / `link`,
-   * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
-   * moves but pin durations (`{ resize: false }`) or keep the dependency UI
-   * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
-   * already allow. Forwarded to {@link GanttView}.
-   */
-  interactions?: GanttInteractions;
   /**
    * Shift segmentation. When set, the day-mode timeline splits each shift-day
    * (starting at `dayStart`) into the configured bands (day | night | …):
@@ -289,10 +223,12 @@ export interface ObjectGanttProps {
    * that hid even that. Removing the casts without moving the type would have
    * changed nothing — the reads would still land on the index signature.
    *
-   * The grid-style `{ gantt: { … } }` block keeps working exactly as before:
-   * `getGanttConfig` reads it through the same index signature, and the
-   * registered renderer (`index.tsx`) passes `schema: any`, so no runtime shape
-   * is turned away.
+   * The grid-style `{ gantt: { … } }` block keeps working exactly as before, and
+   * since objectui#6051 it is DECLARED rather than read through that index
+   * signature: `gantt`, the 24 flattened `GanttConfig` keys `getGanttConfig`'s
+   * first branch reads, and the `staticData`/`filter`/`sort` the fetch path reads
+   * all sit on `ObjectGanttSchema` now. The registered renderer (`index.tsx`)
+   * still passes `schema: any`, so no runtime shape is turned away.
    */
   schema: ObjectGanttSchema;
   dataSource?: DataSource;
@@ -363,10 +299,10 @@ function extractServerMessage(err: unknown): string | null {
 /**
  * Helper to get gantt configuration from schema
  */
-function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
+function getGanttConfig(schema: ObjectGanttSchema): GanttConfigEx | null {
   let config: GanttConfigEx | null = null;
 
-  // 1. Check top-level properties (ObjectGanttSchema style)
+  // 1. Check top-level properties (the flattened ObjectGanttSchema style)
   if (schema.startDateField && schema.endDateField) {
       config = {
           startDateField: schema.startDateField,
@@ -402,7 +338,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
       return config;
   }
 
-  // 2. Check schema.gantt (ObjectGridSchema style)
+  // 2. Check schema.gantt (the block face, ObjectGridSchema style)
   if (schema.gantt) {
     config = schema.gantt as GanttConfigEx;
   }
