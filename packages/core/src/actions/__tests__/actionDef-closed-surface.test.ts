@@ -121,7 +121,7 @@ const _navigationAlias: ActionDef = {
 const _navNewTabString: ActionDef = { type: 'navigation', to: '/x', newTab: 'new-tab' };
 
 describe('ActionDef is a closed surface (objectstack#4075 step 3)', () => {
-  it('states its contract as types, compiled by tsconfig.typetests.json', () => {
+  it('states its contract as types, compiled by tsconfig.test.json', () => {
     // The assertions above are the test. This body exists so the file is a
     // legitimate vitest suite as well as a tsc input, and so a reader running
     // the suite sees the pin acknowledged rather than an empty file.
