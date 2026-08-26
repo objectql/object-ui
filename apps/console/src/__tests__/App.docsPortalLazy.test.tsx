@@ -88,6 +88,10 @@ vi.mock('@object-ui/app-shell', () => ({
   ConsoleShell: passthrough,
   ConsoleToaster: () => null,
   LoadingScreen: stub('loading-screen'),
+  // objectui#6378 — App.tsx's catch-all route element. Stubbed like every
+  // other chrome symbol here; that it renders the splash while redirecting
+  // is pinned by `packages/app-shell/src/chrome/RedirectWithSplash.test.tsx`.
+  RedirectWithSplash: stub('redirect-with-splash'),
   RequireAiSurface: passthrough,
   SystemRedirect: () => null,
   DefaultHomeLayout: passthrough,

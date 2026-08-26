@@ -2394,10 +2394,11 @@ export interface ObjectGanttSchema extends BaseSchema {
 
   // ── The flattened `GanttConfig` face (objectui#6051) ────────────────────────
   //
-  // `getGanttConfig` (`plugin-gantt/src/ObjectGantt.tsx`) has two branches. When
-  // `startDateField` AND `endDateField` are present at the TOP LEVEL it builds the
-  // config from top-level keys and RETURNS EARLY; otherwise it reads the `gantt`
-  // block declared below. The keys of the first branch were declared by neither
+  // `getGanttConfig` (`plugin-gantt/src/ObjectGantt.tsx`) has two branches. The
+  // `gantt` block wins whenever it is present (objectui#6469); this flat face is
+  // read only when there is no block, and then only when `startDateField` AND
+  // `endDateField` are both present at the TOP LEVEL. The keys of the flat branch
+  // were declared by neither
   // this interface nor `ObjectGridSchema`: they were reachable only through
   // `BaseSchema`'s `[key: string]: any`, so `schema.colorField` type-checked as
   // `any` with no cast anywhere to grep for. That is why the census behind this
@@ -2409,10 +2410,12 @@ export interface ObjectGanttSchema extends BaseSchema {
   // spelling. All are optional, matching the renderer: the flat branch reads each
   // key bare and forwards `undefined` unchanged.
   //
-  // ⚠️ WHICH face wins is unchanged here and is not this card's question: the flat
-  // branch is checked first and returns early, so a node carrying both spellings
-  // renders the flat one. (`plugin-map` had the opposite precedence ruled on in
-  // objectui#5018; no equivalent ruling exists for gantt.)
+  // ⚠️ WHICH face wins was NOT decided by objectui#6051, which declared these keys.
+  // It was settled afterwards by objectui#6469, inheriting the maintainer ruling on
+  // objectui#5018 (2026-08-17) that `plugin-map` shipped in PR #5156: the BLOCK
+  // wins, taken whole, and the shadowed flat keys are named in a dev-mode warning
+  // instead of being dropped silently. So a node carrying both spellings renders
+  // the `gantt` block's values — the reverse of the pre-#6469 order.
 
   /** Record field carrying the bar fill colour. See {@link GanttConfig}. */
   colorField?: GanttConfig['colorField'];

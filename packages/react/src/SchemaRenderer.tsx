@@ -715,6 +715,67 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       }
     };
 
+    /**
+     * Evaluate ONE enablement predicate (`disabled` / `disabledOn`), and make an
+     * unresolvable one LOUD (objectui#6445).
+     *
+     * ## Why this pair needed its own card at all
+     *
+     * Six legs of the visibility chain above route through
+     * {@link evaluateVisibilityPredicate} and report. These two called
+     * `evaluateCondition` BARE, so a faulting `disabled` predicate had never
+     * been reported in any build, in any dialect that does not report on its
+     * own — the only uninstrumented predicate pair left in this file.
+     *
+     * And it is the pair where the fail-soft default BITES. `evaluateCondition`
+     * answers an unevaluable predicate with `true`; on the negated visibility
+     * legs that means SHOWN, here it means GREYED OUT. The asymmetry this file
+     * already records for objectui#3862/#3955 cuts the other way for the
+     * console: "a greyed-out control is still on screen", so the user has a
+     * symptom and the author has nothing to grep for. That is why the reporter
+     * is handed a different consequence paragraph (`'enablement'`) rather than
+     * the visibility copy, which states the opposite of what this gate did.
+     *
+     * ## The verdict is byte-for-byte what it was
+     *
+     * `evaluateCondition(raw)` with an `onFault` callback returns exactly what
+     * `evaluateCondition(raw)` returned: `onFault` is invoked for its side
+     * effect and its return value is ignored (objectui#6038's seam). Fail-soft
+     * is PRESERVED deliberately — flipping it is a shipped-behaviour change on
+     * a live surface and is not this card's to make.
+     *
+     * ## One engine call, both builds — no `__DEV__` split here
+     *
+     * The visibility helper keeps a `__DEV__` branch because its dev leg needs
+     * a CLEANLY-evaluated verdict to run objectui#5687's adapter-only reporter
+     * on. This gate reports faults only, so `onFault` alone covers both builds:
+     * one engine call, one code path, and dev and production print the same
+     * line by construction rather than by keeping two branches in step.
+     *
+     * objectui#5687's `reportAdapterOnlyDataPredicate` is deliberately NOT
+     * called here. Its ruling (2026-08-22, option A) is scoped to the
+     * visibility gate and its message text is written about one — "a constant
+     * `false` hides the node on every row" is not what a constant does to a
+     * `disabled` gate. Wiring it would need its own copy decision and its own
+     * ruling; filed rather than smuggled in (objectui#6504).
+     */
+    const evaluateEnablementPredicate = (raw: VisibilityPredicate, key: string): boolean =>
+      evaluator.evaluateCondition(raw, {
+        onFault: (reason) =>
+          reportUnresolvableVisibilityPredicate(
+            newSchema.type,
+            newSchema.id,
+            key,
+            raw,
+            reason,
+            // Stated, not defaulted, for both arguments (objectui#6487,
+            // objectui#6445): this is the node tier, whose roots the spec
+            // declares, and the gate whose safe default disables the control.
+            'page-component',
+            'enablement',
+          ),
+      });
+
     // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
     // which `props` (evaluated below) is the legacy alias.
     //
@@ -954,12 +1015,20 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // value, exactly as before — only the gate in front of it narrowed. An
     // undeclared `disabled` now falls through to `disabledOn` instead of
     // short-circuiting on an empty predicate.
+    //
+    // Both legs route through `evaluateEnablementPredicate` (objectui#6445), so
+    // a predicate that cannot be evaluated is reported instead of silently
+    // greying the control out. The verdicts below are unchanged: that helper
+    // returns `evaluateCondition`'s own answer, and an UNDECLARED gate never
+    // reaches it at all — `hasDeclaredPredicate` still decides that, one line
+    // earlier, which is what keeps the objectui#3862 empty-shape rows silent
+    // as well as enabled.
     const isDisabled = (() => {
       if (hasDeclaredPredicate(newSchema.disabled)) {
-        return evaluator.evaluateCondition(newSchema.disabled);
+        return evaluateEnablementPredicate(newSchema.disabled, 'disabled');
       }
       if (hasDeclaredPredicate(newSchema.disabledOn)) {
-        return evaluator.evaluateCondition(newSchema.disabledOn);
+        return evaluateEnablementPredicate(newSchema.disabledOn, 'disabledOn');
       }
       return false;
     })();

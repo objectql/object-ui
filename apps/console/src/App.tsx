@@ -38,6 +38,7 @@ import {
   DefaultAiChatPage,
   getProductName,
   getFaviconUrl,
+  RedirectWithSplash,
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
@@ -366,7 +367,17 @@ export function App() {
                 <RootLandingRedirect />
               </ProtectedRoute>
             } />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378).
+              * This is a BOOT redirect: a URL the router does not know is
+              * commonly the very first thing a session renders (a stale deep
+              * link, or a console served under a mount path with no
+              * `<base href>` for `resolveBasename` to read), so it fires with
+              * the splash freshly torn down and nothing else on screen.
+              * Measured on that entry: 35-95 ms of empty `#root`. The nested
+              * `index` redirect above is deliberately NOT changed — it fires
+              * under an already-painted organization layout, where covering the
+              * screen with a splash would be the regression. */}
+            <Route path="*" element={<RedirectWithSplash to="/" replace />} />
           </Routes>
         </ConsoleShell>
       </BrowserRouter>

@@ -194,3 +194,156 @@ test.describe('Console boot indicator', () => {
     await expect(page.locator(SPLASH)).toHaveCount(0);
   });
 });
+
+/**
+ * objectui#6378 — the window AFTER `LoadingScreen` has painted.
+ *
+ * A different window from the one above, and independent of it: #2628 covers
+ * the gap BEFORE React commits (the bundle download), and this one is a
+ * fully-white frame that appears after the splash has already painted, on
+ * roughly one boot in three.
+ *
+ * ⚠️ WHAT THIS CAN AND CANNOT SEE — the same caveat as the tests above, applied
+ * to a defect that is intermittent by nature. Playwright has no frame buffer, so
+ * this asserts nothing about pixels; the pixel ledger (CDP
+ * `Page.startScreencast` at everyNthFrame:1, every frame classified white/not)
+ * is recorded in the pull request, as it is for #2628.
+ *
+ * What IS observable here, and is the whole mechanism: whether the DOM ever
+ * holds nothing for the viewport to show. The flash is intermittent only
+ * because it depends on the compositor happening to swap a frame inside the
+ * window — the WINDOW ITSELF was present on every measured boot. So the DOM
+ * reading is the deterministic half of an intermittent defect, which makes it
+ * the right thing to gate on: it goes red on the broken build every time,
+ * where a pixel assertion would go red about one run in three.
+ *
+ * The window is produced by the console's boot redirects. Every readiness gate
+ * renders the splash while it WAITS and a bare `<Navigate>` the moment it
+ * DECIDES; `<Navigate>` renders null and react-router runs the navigation as a
+ * transition, so the destination tree renders while the commit that dropped the
+ * splash is already on screen. Measured on the production bundle: 41–147 ms of
+ * empty `#root`.
+ */
+interface CoverProbe {
+  reactMountAt?: number;
+  /** Samples taken at every mutation and every animation frame after mount. */
+  uncovered: Array<{ t: number; centre: string | null; path: string }>;
+  covered: number;
+  lastSampleAt?: number;
+}
+
+declare global {
+  interface Window {
+    __coverProbe?: CoverProbe;
+  }
+}
+
+test.describe('Console boot continuity', () => {
+  test('never hands the viewport to an empty document between splash and destination', async ({
+    page,
+  }) => {
+    // Boot endpoints mocked so the boot RESOLVES rather than sitting on the
+    // splash forever — an unresolved boot never reaches the handoff this test
+    // is about, and would pass it vacuously. Signed-out is the shortest
+    // complete boot: `/console/` is not a route the router knows (the built
+    // document carries no `<base href>`, so the basename is `/`), so it takes
+    // the catch-all redirect, then the auth gate's redirect to `/login` —
+    // two of the three redirects this fix covers, in one boot.
+    await page.route('**/api/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const json = (body: unknown) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body),
+      });
+      if (path.endsWith('/api/v1/runtime/config')) {
+        return json({ success: true, data: { productName: 'ObjectOS', logoUrl: '', faviconUrl: '' } });
+      }
+      if (path.includes('/api/v1/i18n/locales')) return json({ success: true, data: [{ code: 'en', name: 'English' }] });
+      if (path.includes('/api/v1/i18n/translations')) return json({ success: true, data: {} });
+      if (path.includes('/api/v1/auth/get-session')) return json(null);
+      if (path.includes('/api/v1/discovery')) {
+        return json({ name: 'ObjectStack', mode: 'production', services: { auth: { status: 'ok', handlerReady: true } } });
+      }
+      return json({ success: true, data: null });
+    });
+
+    await page.addInitScript(() => {
+      const probe: CoverProbe = { uncovered: [], covered: 0 };
+      window.__coverProbe = probe;
+
+      // "Covered" = a hit test at the viewport centre lands on something the
+      // app is responsible for. The pre-React indicator is a SIBLING of
+      // `#root`, not a child, so it is named explicitly: during the handoff
+      // both are legitimately on screen and either one alone is enough.
+      const sample = (t: number) => {
+        const el = document.elementFromPoint(
+          Math.floor(window.innerWidth / 2),
+          Math.floor(window.innerHeight / 2),
+        );
+        const ok = !!el && !!(el.closest('#root') || el.closest('#boot-splash'));
+        probe.lastSampleAt = t;
+        if (ok) probe.covered++;
+        else {
+          probe.uncovered.push({
+            t,
+            centre: el ? el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') : null,
+            path: location.pathname,
+          });
+        }
+      };
+
+      const observer = new MutationObserver(() => {
+        const root = document.getElementById('root');
+        if (probe.reactMountAt === undefined && root && root.firstChild) {
+          probe.reactMountAt = performance.now();
+        }
+        // Only from React's first commit: before it, coverage is #2628's
+        // subject and is asserted by the tests above.
+        if (probe.reactMountAt !== undefined) sample(performance.now());
+      });
+      // `document`, NOT `document.documentElement` — an init script runs at
+      // document-start, where there is no `<html>` element yet and the
+      // observe() call throws (measured, in the test above).
+      observer.observe(document, { childList: true, subtree: true });
+
+      // A mutation log alone cannot see a window that outlives the commit that
+      // opened it, which is exactly this defect's shape: one commit empties the
+      // tree and the next one fills it, tens of frames later. The frame loop is
+      // what samples the time in between.
+      const tick = () => {
+        if (probe.reactMountAt !== undefined) sample(performance.now());
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.goto(`${CONSOLE_BASE}/`);
+    await waitForReactMount(page);
+
+    // GHOST-ASSERTION GUARD. "Nothing uncovered" is also true of a page that
+    // never booted, never redirected, or was observed too late — so the boot is
+    // required to have COMPLETED, on its own evidence, before the invariant
+    // below is allowed to mean anything.
+    await expect(page.locator('#login-email')).toBeVisible({ timeout: 30_000 });
+    // ...and let the last frames of the handoff be sampled.
+    await page.waitForTimeout(500);
+
+    const probe = await page.evaluate(() => window.__coverProbe);
+    expect(probe?.reactMountAt, "React's first commit was not observed").toBeDefined();
+    expect(probe?.covered ?? 0, 'the coverage probe never sampled a covered frame').toBeGreaterThan(5);
+
+    const uncovered = probe?.uncovered ?? [];
+    const window0 = uncovered[0];
+    const spanMs = uncovered.length
+      ? Math.round(uncovered[uncovered.length - 1].t - uncovered[0].t)
+      : 0;
+    expect(
+      uncovered.length,
+      `the viewport was empty for ${uncovered.length} sample(s) spanning ~${spanMs}ms after React's ` +
+        `first commit — first at t=${Math.round(window0?.t ?? 0)}ms on ${window0?.path} with the ` +
+        `centre hit test landing on <${window0?.centre}>. A boot redirect that renders null hands the ` +
+        `screen back to the bare page background; that is the white flash of objectui#6378.`,
+    ).toBe(0);
+  });
+});

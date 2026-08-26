@@ -7,9 +7,10 @@
  */
 
 /**
- * Diagnostic: a visibility predicate could not be evaluated (objectui#5454,
+ * Diagnostic: a node-gate predicate could not be evaluated (objectui#5454,
  * leg 3 of the 2026-08-21 ruling; production coverage added by objectui#6038,
- * maintainer ruling 2026-08-25 option B).
+ * maintainer ruling 2026-08-25 option B; the `disabled` / `disabledOn` gate
+ * added by objectui#6445).
  *
  * ## The defect this names
  *
@@ -32,9 +33,11 @@
  * It changes NO verdict. `evaluateCondition` already returned `true` for every
  * unevaluable predicate on every one of its paths, and the caller reproduces
  * exactly that from its catch — including on the two NON-negated legs
- * (`hidden` / `hiddenOn`), where the same `true` means HIDE. Flipping fail-soft
- * to fail-closed is a shipped-behaviour change tracked separately upstream
- * (objectstack#5149, appeal 1, undecided); this is the diagnostic half only.
+ * (`hidden` / `hiddenOn`), where the same `true` means HIDE — and, since
+ * objectui#6445, on the `disabled` / `disabledOn` gate, where it means GREYED
+ * OUT. Flipping fail-soft to fail-closed is a shipped-behaviour change tracked
+ * separately upstream (objectstack#5149, appeal 1, undecided); this module is
+ * the diagnostic half only, on every gate wired to it.
  *
  * ## Why a separate module
  *
@@ -52,6 +55,21 @@
  */
 export const UNRESOLVABLE_VISIBILITY_PREFIX =
   '[ObjectUI] A visibility predicate could not be evaluated';
+
+/**
+ * The same opening line for the ENABLEMENT gate (`disabled` / `disabledOn`,
+ * objectui#6445). A sibling constant rather than a widened one: the six
+ * visibility legs keep the bytes they ship today (objectui#6487 pinned them),
+ * and calling a `disabled` predicate a "visibility predicate" would send an
+ * author to the wrong gate on the first line - the one line a console filter
+ * and a `grep` both read.
+ *
+ * Same posture as its sibling in every other respect: same reporter, same
+ * severity, same dedupe `Set`, same key shape, same test-only reset. Only the
+ * words that would be FALSE on this gate differ.
+ */
+export const UNRESOLVABLE_ENABLEMENT_PREFIX =
+  '[ObjectUI] An enablement predicate could not be evaluated';
 
 /** The raw predicate as an author would recognise it, envelope or not. */
 function predicateSourceText(raw: unknown): string {
@@ -141,14 +159,89 @@ const SCOPE_TIER_ADVICE: Record<PredicateScopeTier, string> = {
 };
 
 /**
+ * WHICH GATE the faulting predicate was authored on (objectui#6445).
+ *
+ * ## Why the reporter has to be told, when it already prints the key
+ *
+ * `evaluateCondition` answers an unevaluable predicate with `true` on every one
+ * of its paths, and every caller reproduces that answer. What that `true` DOES
+ * to the node is not a property of the predicate - it is a property of the gate
+ * it was authored on, and the consequence paragraph has to say which:
+ *
+ * `'visibility'` - the visibility chain. Its `true` means SHOWN on the four
+ * negated legs, so the safe default does NOT bite: a predicate that could not be
+ * evaluated reads on screen exactly like one that said yes, which is why the
+ * console line is the only signal an author gets.
+ *
+ * `'enablement'` - `disabled` / `disabledOn`. The SAME `true` GREYS THE CONTROL
+ * OUT, so here the safe default is the one that BITES. The author is looking at
+ * a control they can see and cannot use; telling them the gate did not bite
+ * would be the opposite of what is on their screen, and would send them looking
+ * for a rendering bug rather than at their own predicate.
+ *
+ * ## Why a parameter, and not deduced from `key`
+ *
+ * Same reason {@link PredicateScopeTier} is a parameter (read its docblock): the
+ * caller knows, and a deduction is a table that goes quietly wrong the moment a
+ * spelling arrives that it has not heard of - a new alias, or a caller outside
+ * this repo - which would inherit a consequence sentence written about some
+ * other gate. That is the exact defect class this card and objectui#6487 both
+ * exist to remove, so it is not worth re-introducing to save an argument.
+ *
+ * ## What this type does NOT fix, stated so it is not mistaken for done
+ *
+ * The `hidden` / `hiddenOn` legs are `'visibility'` here, and their `true` is
+ * NOT negated - a fault there makes the node VANISH, so "the gate did NOT bite"
+ * is wrong for them as well. That is PRE-EXISTING shipped copy on a surface
+ * objectui#6487 has just landed on, outside this card's face and filed
+ * separately (objectui#6503). The shape of its fix is a THIRD entry in the table
+ * below - visibility prefix, vanishing consequence - passed by those two call
+ * sites; not a signature change, and deliberately not smuggled in here.
+ */
+export type PredicateGateKind = 'visibility' | 'enablement';
+
+/**
+ * The two parts of the message that vary with the gate: the opening line (what
+ * KIND of predicate failed) and the consequence paragraph (what the fail-soft
+ * default DID to the node). Everything between them - the node, the key, the
+ * source, the engine's reason - and the scope advice after them are true on
+ * every gate.
+ *
+ * Indexed WITHOUT a `??` fallback, for the same reason {@link SCOPE_TIER_ADVICE}
+ * is: quietly substituting one gate's consequence for another's IS the defect
+ * being fixed here, and doing it at the lookup would only move it one caller
+ * further along. The default lives on the PARAMETER, where it is a stated
+ * compatibility choice.
+ */
+const GATE_KIND_COPY: Record<PredicateGateKind, { prefix: string; consequence: string }> = {
+  visibility: {
+    prefix: UNRESOLVABLE_VISIBILITY_PREFIX,
+    consequence:
+      'The node was treated as its safe default, which on this surface means the\n' +
+      'gate did NOT bite - a predicate that cannot be evaluated reads on screen\n' +
+      'exactly like one that said yes.\n',
+  },
+  enablement: {
+    prefix: UNRESOLVABLE_ENABLEMENT_PREFIX,
+    consequence:
+      'The node was treated as its safe default, which on THIS gate is the one\n' +
+      'that BITES: the node renders DISABLED - on screen, greyed out, refusing\n' +
+      'input - and that is indistinguishable from a gate the author meant to\n' +
+      'close. No pixel says a predicate failed, so this line is the only thing\n' +
+      'that will ever name the one that did it.\n',
+  },
+};
+
+/**
  * Build the message. Separate from the emit so a test can assert the words,
  * not merely that something was logged.
  *
- * `tier` defaults to `'page-component'` so the historical five-argument call
- * keeps printing the exact bytes it printed before (objectui#6487) — the
- * default is a compatibility shim for callers outside this repo, not something
- * this repo leans on: all three in-repo call sites pass their tier explicitly,
- * which is what makes each one a stated decision rather than an inherited one.
+ * `tier` defaults to `'page-component'` and `gate` to `'visibility'` so the
+ * historical five-argument call keeps printing the exact bytes it printed
+ * before (objectui#6487, objectui#6445) — the defaults are a compatibility
+ * shim for callers outside this repo, not something this repo leans on: every
+ * in-repo call site passes both explicitly, which is what makes each one a
+ * stated decision rather than an inherited one.
  */
 export function formatUnresolvableVisibilityMessage(
   type: unknown,
@@ -157,16 +250,16 @@ export function formatUnresolvableVisibilityMessage(
   raw: unknown,
   reason: string,
   tier: PredicateScopeTier = 'page-component',
+  gate: PredicateGateKind = 'visibility',
 ): string {
   const node = typeof type === 'string' && type ? '"' + type + '"' : '(untyped node)';
   const where = typeof id === 'string' && id ? ' (id: "' + id + '")' : '';
+  const copy = GATE_KIND_COPY[gate];
   return (
-    UNRESOLVABLE_VISIBILITY_PREFIX + ' - node ' + node + where + '\n' +
+    copy.prefix + ' - node ' + node + where + '\n' +
     '  ' + key + ': ' + JSON.stringify(predicateSourceText(raw)) + '\n' +
     '  Reason: ' + reason + '\n' +
-    'The node was treated as its safe default, which on this surface means the\n' +
-    'gate did NOT bite - a predicate that cannot be evaluated reads on screen\n' +
-    'exactly like one that said yes.\n' +
+    copy.consequence +
     SCOPE_TIER_ADVICE[tier]
   );
 }
@@ -189,9 +282,19 @@ export function formatUnresolvableVisibilityMessage(
 const _warnedVisibilityPredicates = new Set<string>();
 
 /**
- * Reports a visibility predicate that could not be evaluated — in DEVELOPMENT
+ * Reports a NODE-GATE predicate that could not be evaluated — in DEVELOPMENT
  * AND IN PRODUCTION since objectui#6038 (maintainer ruling 2026-08-25, option
  * B: "the silence is no longer an accepted property").
+ *
+ * The visibility chain was the first gate wired to it and is still the default
+ * {@link PredicateGateKind}; `disabled` / `disabledOn` joined it in
+ * objectui#6445, which is why the name is now narrower than the function. It is
+ * kept anyway: this symbol is exported from the package entry and called from
+ * `@object-ui/app-shell` and `@object-ui/components`, so renaming it would be a
+ * cross-package edit that changes no behaviour, on a card scoped to one file's
+ * wiring. What has to stay true is the posture the name once described — ONE
+ * reporter, ONE dedupe `Set`, ONE severity, ONE reset — and a second reporter
+ * for the second gate is exactly what that rules out.
  *
  * `console.warn`, not `error`: the verdict is unchanged and the page still
  * renders, so this is a diagnostic about a predicate — not the refusal
@@ -214,6 +317,17 @@ const _warnedVisibilityPredicates = new Set<string>();
  * site's `type` is the constant `'app-shell:visible'`, which no node tier can
  * produce, and the two `'page-component'` callers are the same tier by
  * definition. So the tier is free of the key by measurement, not by assumption.
+ *
+ * ## Neither is `gate`, and for a stronger reason (objectui#6445)
+ *
+ * `gate` is a FUNCTION of `key`, which is already in the dedupe key: the
+ * enablement gate is exactly `disabled` / `disabledOn` and the visibility gate
+ * is exactly the six legs of the visibility chain, two disjoint sets. So adding
+ * it could not separate two entries that `key` does not already separate, and
+ * the cross-gate direction is pinned rather than argued: the SAME predicate
+ * source authored on `disabled` and on `visibleWhen` produces TWO lines, not
+ * one - the new reporting site cannot be swallowed by a visibility entry, and
+ * cannot swallow one.
  */
 export function reportUnresolvableVisibilityPredicate(
   type: unknown,
@@ -222,12 +336,13 @@ export function reportUnresolvableVisibilityPredicate(
   raw: unknown,
   err: unknown,
   tier: PredicateScopeTier = 'page-component',
+  gate: PredicateGateKind = 'visibility',
 ): void {
   const reason = err instanceof Error ? err.message : String(err);
   const dedupeKey = JSON.stringify([type, key, predicateSourceText(raw)]);
   if (_warnedVisibilityPredicates.has(dedupeKey)) return;
   _warnedVisibilityPredicates.add(dedupeKey);
-  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason, tier));
+  console.warn(formatUnresolvableVisibilityMessage(type, id, key, raw, reason, tier, gate));
 }
 
 /**

@@ -129,6 +129,8 @@ export {
   ConsoleToaster,
   presentNotificationToast,
   RouteFader,
+  RedirectWithSplash,
+  type RedirectWithSplashProps,
   toastWithUndo,
   type ToastWithUndoOptions,
   ErrorBoundary,

@@ -4,6 +4,7 @@ export { OnboardingWalkthrough } from './OnboardingWalkthrough.js';
 export { ConditionalAuthWrapper } from './ConditionalAuthWrapper.js';
 export { ConsoleToaster } from './ConsoleToaster.js';
 export { RouteFader } from './RouteFader.js';
+export { RedirectWithSplash, type RedirectWithSplashProps } from './RedirectWithSplash.js';
 export { ErrorBoundary } from './ErrorBoundary.js';
 export { LoadingScreen } from './LoadingScreen.js';
 export { ThemeProvider, useTheme } from './ThemeProvider.js';

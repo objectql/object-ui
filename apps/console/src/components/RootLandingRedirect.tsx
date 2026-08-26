@@ -34,10 +34,10 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
 import {
   useMetadata,
   LoadingFallback,
+  RedirectWithSplash,
   SETUP_APP_PACKAGE_ID,
   SETUP_APP_NAME,
 } from '@object-ui/app-shell';
@@ -177,5 +177,10 @@ export function RootLandingRedirect() {
   }, [unresolved, refresh]);
 
   if (loading || unresolved) return <LoadingFallback />;
-  return <Navigate to={resolveLandingPath(apps as LandingApp[] | undefined)} replace />;
+  // `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378). This is the
+  // widest measured instance of the boot blank: the line above holds the splash
+  // while the app list loads, and handing off to a null-rendering redirect left
+  // `#root` empty for 147 ms while `/home` rendered at transition priority. The
+  // splash is unchanged across the handoff, so the boot reads as one screen.
+  return <RedirectWithSplash to={resolveLandingPath(apps as LandingApp[] | undefined)} replace />;
 }

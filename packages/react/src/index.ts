@@ -31,6 +31,12 @@ export {
   reportUnresolvableVisibilityPredicate,
   formatUnresolvableVisibilityMessage,
   UNRESOLVABLE_VISIBILITY_PREFIX,
+  // The ENABLEMENT gate's opening line (objectui#6445). Exported beside its
+  // sibling for the reason that one is: an app filtering these out of its
+  // console transport filters by the constant, and a second line it cannot
+  // name is a second thing to hard-code. Not a second reporter — the emit,
+  // the dedupe `Set` and the reset above are still the only ones.
+  UNRESOLVABLE_ENABLEMENT_PREFIX,
   __resetVisibilityPredicateWarnings,
 } from './utils/visibilityDiagnostic.js';
 // The per-surface scope hint those two take (objectui#6487). Exported because
@@ -38,6 +44,11 @@ export {
 // and a caller that cannot spell the argument would be back on the node tier's
 // advice by default, which is the defect that card fixed.
 export type { PredicateScopeTier } from './utils/visibilityDiagnostic.js';
+// Which gate the predicate was authored on (objectui#6445) — the argument that
+// decides whether the message says the safe default bit or did not. Exported as
+// a type for the same reason as the tier above: the reporter is public, so a
+// caller has to be able to spell its arguments.
+export type { PredicateGateKind } from './utils/visibilityDiagnostic.js';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).

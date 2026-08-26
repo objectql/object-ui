@@ -16,6 +16,7 @@
  * @module services/MetadataService
  */
 
+import { stripReadDecorations } from '@objectstack/spec/kernel';
 import { viewItemObjectName, type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
 
@@ -447,6 +448,18 @@ export class MetadataService {
    *     complete field set, so "no fields" is a thing it can mean; there, a
    *     missing argument means the caller did not say.
    *
+   * …and a third, pinned in `MetadataService.readDecorationStrip.test.ts`:
+   *
+   *   - **The framework's own read decorations do NOT go back out**
+   *     (objectui#6480). The same spread that preserves unknown server keys
+   *     also carries `_diagnostics` and `_draft` — keys the framework ADDS to a
+   *     served document and `ObjectSchema` refuses by name — so the body is
+   *     passed through the spec's `stripReadDecorations` before it is sent.
+   *     Note the direction this cuts: the preservation property above is about
+   *     keys the AUTHOR owns, and this one is about keys the FRAMEWORK owns.
+   *     Only the second kind may be dropped, and only because the read path
+   *     regenerates them.
+   *
    * ⚠ Per-FIELD unknown keys are still not carried over — the entries are built
    * fresh from the designer model, so a key the server sent inside one field
    * (an `expression`, a `precision`) is dropped. That is unchanged by this
@@ -466,11 +479,33 @@ export class MetadataService {
       // Object may not exist yet on the backend; proceed with fields-only save
     }
 
-    const updatedObject = {
+    // `...existingObject` is a verbatim spread of whatever the server sent, so
+    // simply not writing `_diagnostics` / `_draft` is not enough: a served
+    // document that carries either one spreads it straight back out, and
+    // `ObjectSchema` refuses both BY NAME. Strip them on the way out — the
+    // objectui#4644 strip-on-load shape applied on the write side where the
+    // spread is, exactly as `MetadataObjectsPage.handleObjectsChange` does for
+    // `group` (objectui#6223).
+    //
+    // The list is the SPEC'S (`METADATA_READ_DECORATIONS`), reached through its
+    // own exported helper rather than copied here, because a local copy goes
+    // stale the next time the framework adds a decoration — and a decoration
+    // this writer does not know to remove is precisely the defect.
+    //
+    // Not a lenient "drop whatever the schema refuses" pass (AGENTS.md #0.1):
+    // it removes exactly the two keys the framework ADDS AT READ TIME and never
+    // stores, so a genuinely unrecognized key still fails loudly. Nothing is
+    // lost by dropping them even though a PUT is an upsert — `_diagnostics` is
+    // the read-path validation verdict, recomputed on every read, and `_draft`
+    // reflects the row's `state` column and the `mode` parameter, never the
+    // body. The ADR-0010 protection envelope (`_lock`, `_provenance`, …) IS
+    // write-path state the server merges back, and the spec deliberately keeps
+    // it out of the decoration list, so this strip does not touch it.
+    const updatedObject = stripReadDecorations({
       ...existingObject,
       name: objectName,
       fields: toFieldsMap(fields.map(toFieldPayload)),
-    };
+    }) as Record<string, unknown>;
 
     await client.meta.saveItem('object', objectName, updatedObject);
     this.adapter.invalidateCache(`object:${objectName}`);
