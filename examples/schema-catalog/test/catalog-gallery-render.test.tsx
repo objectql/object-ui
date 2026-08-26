@@ -1402,3 +1402,165 @@ describe('objectui#6317 — a `select` field declares the options its rows use',
     ).toEqual(mirrorFields);
   });
 });
+
+/**
+ * objectui#6537 — the two `plugin-form` entries stop steering around the
+ * fixture's `select` fields.
+ *
+ * ## What the entries were working around
+ *
+ * Both `plugin-form` entries authored a field list that omitted `role` and
+ * `status` — the only two `select` fields the `users` fixture declares:
+ * `object-form-record` listed `["name","email","department"]` and
+ * `object-form-tabbed-sections` sectioned over `[name,email]` /
+ * `[department,created_at]`. That was never an authoring choice. Until
+ * objectui#6317 this mirror declared both fields with NO `options`, and
+ * `ObjectForm` copies a field's options through verbatim (`formField.options =
+ * field.options || []`), so a form over either one painted the "No options
+ * available" empty state — on a docs page whose whole purpose is to show the
+ * component working. The five `plugin-grid` / `plugin-view` entries over the
+ * same object never steered around them, because `ObjectGrid` SYNTHESISES
+ * options for an option-less select from the loaded rows. That asymmetry is
+ * what #6317 measured, and it is why only the FORM entries carried a
+ * workaround.
+ *
+ * #6317 declared the options in the host fixture's `users` schema and in this
+ * mirror, so the constraint is gone and both entries carry the full field
+ * surface again.
+ *
+ * Measured through this file's own render path, before and after this card:
+ *
+ *   object-form-record
+ *     before "NameEmailDepartmentCancelSave changes"
+ *     after  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *             InvitedSuspendedCancelSave changes"
+ *   object-form-tabbed-sections
+ *     before "IdentityOrganisationNameEmailDepartmentCreatedCancelSave changes"
+ *     after  "IdentityOrganisationAccessNameEmailDepartmentCreatedRoleAdmin
+ *             AdminMemberViewerStatusActiveActiveInvitedSuspendedCancelSave
+ *             changes"
+ *
+ * ("Admin" twice: the closed trigger shows the selected option's label, and
+ * the option list carries it again.) The record's own values join the form's
+ * controls with them — `["Alice Johnson","alice@example.com","Engineering"]`
+ * becomes `["Alice Johnson","alice@example.com","admin","Engineering",
+ * "active"]` — so the two fields stop being dropped on the way in.
+ *
+ * That the text MOVES is the point, and it is the half #6317 could not show:
+ * the seven `users`-bound tiles were byte-identical across that card because
+ * the grid synthesises what the declaration was missing. The form path has no
+ * such fallback, so here the declaration is visible.
+ *
+ * The tabbed entry is measurable from its `identity` default tab because
+ * `TabbedForm` keeps EVERY panel mounted inside one `<form>` (objectui#2959,
+ * so a tab the user leaves keeps its values and one submit spans them all) —
+ * the `Access` tab's controls are in the DOM without activating it.
+ *
+ * ## Why this is a pin and not just an edit
+ *
+ * The workaround is invisible in the entries themselves — a shorter `fields`
+ * list reads as a deliberately trimmed demo, and every case in this file was
+ * green the whole time it was there. Nothing would notice it coming back. So
+ * the rule is stated positively and DERIVED from the fixture: every
+ * `plugin-form` entry authors every `select` field the fixture declares, and
+ * each of those fields puts its declared option labels on screen. A field that
+ * becomes a `select`, or an option that is added, joins this pin with no edit
+ * here; an entry that drops one turns it red.
+ *
+ * The render half is what makes it a measurement rather than a restatement of
+ * the JSON: an authored field that renders the empty state satisfies the
+ * authoring half and fails here.
+ */
+
+/** The empty state a `select` with no options paints (`packages/fields/src/widgets/useFieldTranslation.ts`, `packages/components/src/renderers/form/form.tsx`). Copied as a literal for the same reason the three diagnostics at the top of this file are: it is user-visible contract for this pin. */
+const OPTIONS_EMPTY = 'No options available';
+
+/**
+ * Field NAMES an entry authors, at any depth: the string members of any
+ * `fields` array. Walked rather than read off a known path, because the two
+ * entries put them in different places — one at the root, one inside
+ * `sections[].fields` — and a path-specific reader would report the tabbed
+ * entry as authoring none, which is the vacuous green this pin has to avoid.
+ */
+function authoredFieldNames(node: unknown, acc: string[] = []): string[] {
+  if (Array.isArray(node)) {
+    for (const n of node) authoredFieldNames(n, acc);
+    return acc;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'fields' && Array.isArray(v)) {
+        for (const f of v) if (typeof f === 'string') acc.push(f);
+      }
+      authoredFieldNames(v, acc);
+    }
+  }
+  return acc;
+}
+
+describe('objectui#6537 — the `plugin-form` entries author the fixture\'s `select` fields', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+  const formEntries = entries.filter((e) => e.meta.category === 'plugin-form');
+  const cases = formEntries.map((e) => [e.id, e.schema] as const);
+
+  it('is not vacuous: there are form entries, they restrict their fields, and the fixture has selects', () => {
+    expect(formEntries.map((e) => e.id)).not.toEqual([]);
+    expect(selectFields).not.toEqual([]);
+    // An entry that authors NO field list takes the whole object surface and
+    // would satisfy the authoring case below for free.
+    expect(
+      formEntries.filter((e) => authoredFieldNames(e.schema).length === 0).map((e) => e.id),
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s authors every select field the fixture declares', (_id, schema) => {
+    const authored = authoredFieldNames(schema);
+    expect(
+      selectFields.filter((name) => !authored.includes(name)),
+      'this entry steers around a `select` field of the object it binds to. That was a ' +
+        'workaround for an option-less fixture field (objectui#6317) and the fixture now ' +
+        'declares the options — a form demo that avoids the only pickers in its object ' +
+        'demonstrates less than the component does.',
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s puts every declared option label on screen', async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(
+        r.text.includes(OPTIONS_EMPTY),
+        `the tile paints "${OPTIONS_EMPTY}" — a select reached the form with no options`,
+      ).toBe(false);
+      const missing = selectFields.flatMap((name) =>
+        (mirrorFields[name].options ?? [])
+          .map((option) => option.label)
+          .filter((label) => !r.text.includes(label)),
+      );
+      expect(
+        missing,
+        'these option labels the fixture declares are not on the tile, so the picker the ' +
+          'docs page exists to show is not being shown',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
+  });
+
+  it.each(cases)("%s carries the record's own select values in its controls", async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(r.controlValues.length).toBeGreaterThan(0);
+      const record = USERS_ROWS[0] as Record<string, unknown>;
+      expect(
+        selectFields.filter((name) => !r.controlValues.includes(String(record[name]))),
+        "the record's own values for these select fields never reached a form control, so " +
+          'the field is on screen but the record is being dropped on the way in',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
+  });
+});
