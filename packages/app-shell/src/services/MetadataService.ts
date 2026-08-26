@@ -246,15 +246,129 @@ function toFieldsMap(fields: FieldMetadataPayload[]): Record<string, FieldMetada
 }
 
 /**
- * Convert a `DesignerFieldDefinition` (UI) to the API payload shape.
+ * Field keys a designer once WROTE that `FieldSchema` refuses BY NAME, dropped
+ * out of {@link carryOver} (objectui#6488).
+ *
+ * Measured against the installed `@objectstack/spec` 17.2.0, each one on an
+ * otherwise-green field:
+ *
+ *   indexed      => unrecognized_keys — "never a FieldSchema key" (objectui#4644)
+ *   referenceTo  => unrecognized_keys — "Did you mean `referenceTo` -> `reference`?" (objectui#6041)
+ *   formula      => unrecognized_keys — "Did you mean `formula` -> `expression`?" (objectui#6043)
+ *   isSystem     => unrecognized_keys — "Did you mean `isSystem` -> `system`?" (objectui#6044)
+ *   sortOrder    => unrecognized_keys (objectui#6045)
+ *
+ * Every one of them is a key SOME designer build emitted before its card
+ * retired it, so a document stored back then can still carry it inside a field.
+ * Carrying it out again would be a hard `422 INVALID_METADATA` that blocks
+ * EVERY later save of that object — and with the controls gone, an author has
+ * no way to clear it from the UI. Stripping is what makes an edit-and-save
+ * round-trip of such an object come out parseable; nothing that the server
+ * would store is lost, because these are exactly the values it refuses.
+ *
+ * The list is keyed to those tombstones and is NOT a blanket unknown-key purge:
+ * every other key the server sent still rides through, which is the whole point
+ * of the carry-over. Deliberately not derived from `FieldSchema`'s accept set
+ * either — measured on 17.2.0, a plugin-registered key (`x_plugin_thing`) is
+ * `unrecognized_keys` to the INSTALLED spec while the SERVER that sent it
+ * accepts it, so filtering by the client's schema would drop precisely the keys
+ * this card exists to preserve.
+ *
+ * ⚠ This is the repo's THIRD copy of a retired-field-key list, each scoped to
+ * one writer's own history (`plugin-designer`'s `MetadataFieldsPage` carries
+ * four, `app-shell`'s `previews/object-fields-io` carries `['indexed']`).
+ * Unifying them spans `MetadataFieldsPage.tsx`, which objectui#6489 owns on
+ * this same seam, so it is filed rather than folded in here.
+ */
+const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'formula', 'isSystem', 'sortOrder'] as const;
+
+/**
+ * The previous SERVER entry for one field, minus {@link RETIRED_FIELD_KEYS} —
+ * the keys {@link toFieldPayload} spreads so a save cannot drop what the
+ * designer does not model (objectui#6488).
+ *
+ * Same shape, same name and the same reason as `MetadataFieldsPage`'s
+ * `carryOver`, which has solved this one writer over all along.
+ */
+function carryOver(prev?: Record<string, unknown>): Record<string, unknown> {
+  if (!prev) return {};
+  const present = RETIRED_FIELD_KEYS.filter((k) => k in prev);
+  if (present.length === 0) return { ...prev };
+  const next = { ...prev };
+  for (const k of present) delete next[k];
+  return next;
+}
+
+/**
+ * The `fields` map of the fetched document, as a lookup for {@link carryOver}.
+ *
+ * Anything that is not a record is read as "no previous entries" rather than
+ * coerced. An ARRAY in particular cannot be a stored document's shape —
+ * `ObjectSchema` answers `fields: []` with `invalid_type` (objectui#6240), so a
+ * served array means something other than metadata came back, and guessing at
+ * its entries would be inventing a previous state to carry over.
+ */
+function previousFieldsOf(existingObject: Record<string, unknown>): Record<string, unknown> {
+  const raw = existingObject.fields;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return raw as Record<string, unknown>;
+}
+
+/**
+ * The previous entry for `name`, or `undefined` when there is none to carry.
+ *
+ * `hasOwnProperty` rather than a plain lookup, for the reason {@link toFieldsMap}
+ * documents at the other end of the same map: `__proto__` is a SPEC-LEGAL field
+ * name, and `previous['__proto__']` reads `Object.prototype` — an inherited
+ * object that is not a previous field entry at all.
+ */
+function previousFieldEntry(previous: Record<string, unknown>, name: string): Record<string, unknown> | undefined {
+  if (!Object.prototype.hasOwnProperty.call(previous, name)) return undefined;
+  const entry = previous[name];
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return undefined;
+  return entry as Record<string, unknown>;
+}
+
+/**
+ * Convert a `DesignerFieldDefinition` (UI) to the API payload shape, carrying
+ * over the previous SERVER entry's unmodelled keys (objectui#6488).
+ *
+ * ## Why the carry-over
+ *
+ * This shape models what the FIELD DESIGNER can author, which is a subset of
+ * what `FieldSchema` accepts. Measured on the installed `@objectstack/spec`
+ * 17.2.0, `expression` (a formula authored in metadata-admin), `precision`,
+ * `scale`, `system` and `sortable` all parse green on a field — and none of
+ * them is a key this converter names. Rebuilding the entry from the designer
+ * model alone therefore DROPPED every one of them on every field save, and a
+ * PUT is an upsert, so the drop lands in storage.
+ *
+ * That loss is not new but was unreachable: while `fields` went out as an array
+ * the whole body was refused `422` before persistence (objectui#6240), so
+ * nothing this dropped ever reached storage. From that fix onward it does.
+ *
+ * ## Why the modelled keys are still written UNCONDITIONALLY
+ *
+ * The mirror hazard, and the one thing that would make this fix worse than the
+ * bug: carry-over must not resurrect a value the author deliberately CLEARED.
+ * Every key below is named on every call, so a cleared property arrives as an
+ * explicit `undefined` that OVERRIDES the carried value and is then dropped by
+ * `JSON.stringify` — absent from the body, which on an upsert is the deletion.
+ * A conditional spread (`...(field.x ? { x: field.x } : {})`) would leave the
+ * server's old value standing and fail the author's deletion silently. Pinned
+ * both ways in `MetadataService.fieldKeyCarryOver.test.ts`.
  *
  * It no longer copies `sortOrder` (objectui#6045). `FieldSchema` refuses that
  * key by name and nothing on the tree ever populated it, so the write was
  * latent — `JSON.stringify` drops the `undefined` — but one reorder feature
  * away from a hard 422 that blocks every later save of the object.
  */
-function toFieldPayload(field: DesignerFieldDefinition): FieldMetadataPayload {
+function toFieldPayload(
+  field: DesignerFieldDefinition,
+  prev?: Record<string, unknown>,
+): FieldMetadataPayload & Record<string, unknown> {
   return {
+    ...carryOver(prev),
     name: field.name,
     label: field.label,
     type: field.type,
@@ -460,12 +574,16 @@ export class MetadataService {
    *     Only the second kind may be dropped, and only because the read path
    *     regenerates them.
    *
-   * ⚠ Per-FIELD unknown keys are still not carried over — the entries are built
-   * fresh from the designer model, so a key the server sent inside one field
-   * (an `expression`, a `precision`) is dropped. That is unchanged by this
-   * card and its sibling writer already solves it (`MetadataFieldsPage`'s
-   * `carryOver`), but it becomes REACHABLE here for the first time now that the
-   * body is no longer refused. Filed separately rather than folded in.
+   * …and a fourth, pinned in `MetadataService.fieldKeyCarryOver.test.ts`:
+   *
+   *   - **Per-FIELD server keys are carried over** (objectui#6488). The spread
+   *     above is object-level and does nothing for keys INSIDE a field, so
+   *     entries rebuilt from the designer model dropped every key the server
+   *     sent that this converter does not name — `expression`, `precision`,
+   *     `scale`, `system`, `sortable`, anything a plugin registered. The
+   *     previous entries ride in on the very document this method already
+   *     fetched, so `toFieldPayload` merges onto them; see there for the mirror
+   *     property that keeps a CLEARED designer property cleared.
    */
   async saveFields(objectName: string, fields: DesignerFieldDefinition[]): Promise<void> {
     const client = this.adapter.getClient();
@@ -478,6 +596,15 @@ export class MetadataService {
     } catch {
       // Object may not exist yet on the backend; proceed with fields-only save
     }
+
+    // The per-FIELD half of the same preservation property (objectui#6488).
+    // `...existingObject` below carries unknown keys of the DOCUMENT; it does
+    // nothing for keys INSIDE a field, and those entries are rebuilt from the
+    // designer model. The previous entries are already in hand — this is the
+    // document the object-level spread just fetched — so the carry-over costs
+    // no extra request, which is also why it belongs at this drop site rather
+    // than anywhere upstream.
+    const previousFields = previousFieldsOf(existingObject);
 
     // `...existingObject` is a verbatim spread of whatever the server sent, so
     // simply not writing `_diagnostics` / `_draft` is not enough: a served
@@ -504,7 +631,7 @@ export class MetadataService {
     const updatedObject = stripReadDecorations({
       ...existingObject,
       name: objectName,
-      fields: toFieldsMap(fields.map(toFieldPayload)),
+      fields: toFieldsMap(fields.map((field) => toFieldPayload(field, previousFieldEntry(previousFields, field.name)))),
     }) as Record<string, unknown>;
 
     await client.meta.saveItem('object', objectName, updatedObject);
