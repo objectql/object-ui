@@ -65,15 +65,28 @@
  * being truthy. Those differ for exactly the calendars least able to report it:
  * an adapter exposing no `getObjectSchema`, and a read that throws. Under a
  * truthy-value gate both wait forever and the calendar renders its spinner with
- * no error and no request. Stated honestly: those two tests CANNOT discriminate
- * against `origin/main`, which has no gate at all and therefore queries in both
- * cases anyway. They are green before and after. They earn their place by going
- * red the moment anyone "simplifies" the gate to `if (!objectSchema) return;`.
+ * no error and no request.
  *
- * The inline-data test is the same kind of pin for the other direction: the
- * gate is scoped to the `object` provider because a `value` provider issues no
- * metadata read, so a whole-effect gate would hold its query open on a
- * resolution nothing was going to produce.
+ * ## Which pins discriminate, measured against the base commit
+ *
+ * Reverse-verified by restoring this component to the commit this branch left:
+ * SIX of the nine go red (the four above, plus the REJECTS pin and the object
+ * switch), THREE stay green in both directions. Stated so nobody mistakes a
+ * standing green for coverage:
+ *
+ *   - "no `getObjectSchema`" is green before and after — `origin/main` has no
+ *     gate at all, so it queries here anyway. It guards a FUTURE wrong shape:
+ *     it is the test that goes red the moment anyone "simplifies" the gate to
+ *     `if (!objectSchema) return;`.
+ *   - the REJECTS pin looks like the same class but is NOT: its ordering
+ *     assertion is discriminating, and against the base it reads
+ *     `['find', 'schema:issued']` — the query went out before the schema was
+ *     even requested. It is a truthy-gate pin AND a red one.
+ *   - the inline-`value` and hosted-parent tests are green in both directions
+ *     by construction: they are the controls proving this change did not turn
+ *     either composition into a fetching one, and that the gate — scoped to the
+ *     `object` provider because a `value` provider issues no metadata read —
+ *     does not hold a query open on a resolution nothing was going to produce.
  *
  * ## ⚠️ Ghost-assertion guard
  *
@@ -302,7 +315,10 @@ describe('ObjectCalendar gates its standalone query on the object schema (object
   });
 
   it('still queries — and paints — when the schema read REJECTS', async () => {
-    // Same class of pin, same honest caveat as the test above.
+    // Same class of pin as the test above, but — measured — NOT the same
+    // caveat: the ordering assertion at the end discriminates. Against the base
+    // commit `adapter.order` reads `['find', 'schema:issued']`, i.e. the query
+    // went out before the schema was even requested.
     const adapter = makeAdapter(async () => {
       await new Promise((r) => setTimeout(r, 10));
       throw new Error('metadata endpoint down');
