@@ -127,11 +127,12 @@ describe('InterfaceListPage forwards the view-level `map` block (objectui#5042)'
     const { map, optionsMap } = await renderWith({});
 
     expect(map).toBeNull();
-    // …and the ADR-0047 auto-derivation still fires. `titleField` joined the
-    // product in objectui#5909: this fixture object's display field is `title`,
-    // NOT `name`, so without it `ObjectMap` would title every marker off the
-    // literal `'name'` key and render `undefined`.
-    expect(optionsMap).toEqual({ locationField: 'location', titleField: 'title' });
+    // …and the ADR-0047 auto-derivation still fires — with `locationField`, the
+    // map's own required binding, and nothing else. The derived `titleField`
+    // that objectui#5909 added to this product was removed in objectui#6343:
+    // it reached `getRecordDisplayName` as `options.titleField`, i.e. step 0,
+    // where a name this page guessed outranked the object's own declaration.
+    expect(optionsMap).toEqual({ locationField: 'location' });
   });
 
   it('keeps the auto-derived binding ALONGSIDE a partial authored block', async () => {
@@ -139,10 +140,15 @@ describe('InterfaceListPage forwards the view-level `map` block (objectui#5042)'
     // author declared only a marker-title field, and the coordinate binding
     // still has to come from the derivation. `ListView` merges the two per
     // key; a `??` here would have discarded one of them.
+    //
+    // Sharper since objectui#6343 removed the derived title: the two sides no
+    // longer overlap at all. The AUTHOR owns `titleField` — declared, and
+    // honoured at the resolver's step 0 — and the derivation owns
+    // `locationField`. Each key has exactly one source.
     const { map, optionsMap } = await renderWith({ map: { titleField: 'title' } });
 
     expect(map).toEqual({ titleField: 'title' });
-    expect(optionsMap).toEqual({ locationField: 'location', titleField: 'title' });
+    expect(optionsMap).toEqual({ locationField: 'location' });
   });
 
   it('CONTROL: the legacy `options.map` bag is still forwarded on its own path', async () => {
@@ -156,109 +162,105 @@ describe('InterfaceListPage forwards the view-level `map` block (objectui#5042)'
 });
 
 /**
- * objectui#5909 — the derived marker-title binding.
+ * objectui#6343 — the derived marker-title binding is GONE, and the object's
+ * own declaration keeps its authority.
  *
- * ## What the siblings actually do (measured, because the card asserted it)
+ * ## Why the binding was removed rather than re-narrated
  *
- * The card's argument is that this deriver is the odd one out among "every
- * sibling deriver". Measured on this file, it is not: NO deriver binds a title.
- * Each binds its viz's own required field and stops —
- * `defaultKanbanFromObject → { groupByField }`,
- * `defaultCalendarFromObject → { startDateField }`,
- * `defaultGalleryFromObject → { coverField }`,
- * `defaultGanttFromObject → { startDateField, endDateField, progressField? }` —
- * and `defaultMapFromObject` bound `{ locationField }`, its own required field.
+ * It was added (objectui#5909) to route around a forge that no longer exists:
+ * `getMapConfig` used to fill an absent `titleField` with the literal `'name'`
+ * and the marker title was a plain `record[titleField]` read, so an object
+ * whose display field was not `name` titled every popup `undefined`.
+ * objectui#5953 deleted that forge — `ObjectMap` now resolves marker titles
+ * through `@object-ui/core#getRecordDisplayName`, exactly like `ObjectKanban`,
+ * `ObjectCalendar` and `ObjectGantt` do, and exactly like no sibling deriver
+ * binds a title.
  *
- * The real asymmetry is one layer down, at the renderers. `ObjectKanban`,
- * `ObjectCalendar` and `ObjectGantt` resolve their item title through
- * `@object-ui/core#getRecordDisplayName` (ADR-0079), so they need nothing
- * derived. `ObjectMap` alone does not: `getMapConfig` fills an absent
- * `titleField` with the literal `'name'` and the marker title is a plain
- * `record[titleField]` read — `undefined` for every record of an object whose
- * display field is not `name`.
+ * What was left behind was not a redundancy but an INVERSION. The binding
+ * arrives at the resolver as `options.titleField`, which is precedence **step
+ * 0** — ahead of `objectDef.titleField`, ahead of the declared `nameField`
+ * pointer, and ahead of the legacy `titleFormat` template at step 3. Measured
+ * against the resolver's ladder, a field name this page picked can only ever
+ * change the answer by OUT-RANKING something the object itself declared; in
+ * every other case it reproduces, at step 0, the string the resolver already
+ * computes at step 1/2/4. That is the whole of its effect, which is why it
+ * goes rather than gets described.
  *
- * So these arms pin the binding against the SAME ADR-0079 field ranking the
- * sibling renderers use, rather than against a rule invented here.
+ * These arms pin both halves: the product no longer carries a title binding
+ * (shape), and the declared side therefore decides at the read site
+ * (semantics). The arms that used to pin the derivation are retired with it.
  */
-describe('defaultMapFromObject derives the marker title (objectui#5909)', () => {
+describe('defaultMapFromObject binds no marker title (objectui#6343)', () => {
   const loc = { type: 'location' };
 
-  // THE DISCRIMINATING ARM. An object whose display field is `title`, not
-  // `name` — the exact case the card reports. Before the fix the product was
-  // `{ locationField: 'location' }` and `getMapConfig` fell through to `'name'`.
-  it('binds the display field when it is NOT `name`', () => {
-    expect(defaultMapFromObject({ fields: { title: { type: 'text' }, location: loc } })).toEqual({
-      locationField: 'location',
-      titleField: 'title',
-    });
-  });
-
-  // The declared pointer outranks the field scan. This arm is what makes the
-  // `nameField` step load-bearing rather than decorative: `deriveTitleField`
-  // alone ranks `title` above `headline` here, so an implementation that called
-  // only the scan would answer `title` and fail.
-  it('prefers the object’s declared `nameField` over the field scan', () => {
-    expect(
-      defaultMapFromObject({
-        nameField: 'headline',
-        fields: { headline: { type: 'text' }, title: { type: 'text' }, location: loc },
-      }),
-    ).toEqual({ locationField: 'location', titleField: 'headline' });
-  });
-
-  it('accepts the deprecated `displayNameField` / `NAME_FIELD_KEY` aliases', () => {
-    const fields = { headline: { type: 'text' }, title: { type: 'text' }, location: loc };
-    expect(defaultMapFromObject({ displayNameField: 'headline', fields })?.titleField).toBe('headline');
-    expect(defaultMapFromObject({ NAME_FIELD_KEY: 'headline', fields })?.titleField).toBe('headline');
-  });
-
-  it('picks up the `*_name` affix convention', () => {
-    expect(defaultMapFromObject({ fields: { site_name: { type: 'text' }, location: loc } })).toEqual({
-      locationField: 'location',
-      titleField: 'site_name',
-    });
-  });
-
-  // CONTROL — an object whose display field IS `name` keeps the binding it
-  // effectively had. This arm alone would pass on the defect, which is why it
-  // is not the only one.
-  it('CONTROL: still binds `name` when that IS the display field', () => {
-    expect(defaultMapFromObject({ fields: { name: { type: 'text' }, location: loc } })).toEqual({
-      locationField: 'location',
-      titleField: 'name',
-    });
-  });
-
-  // Omitted, not fabricated: every field here is title-INELIGIBLE (geo, date),
-  // so nothing resolves and the key stays absent rather than being invented.
-  it('omits `titleField` entirely when no field is title-eligible', () => {
-    const derived = defaultMapFromObject({
-      fields: { location: { type: 'geolocation' }, due: { type: 'date' } },
-    });
+  // THE DISCRIMINATING ARM — the exact fixture objectui#5909 introduced the
+  // binding for. An object whose display field is `title`, not `name`: the
+  // deriver used to answer `{ locationField, titleField: 'title' }`.
+  it('binds only `locationField` when a display field IS derivable', () => {
+    const derived = defaultMapFromObject({ fields: { title: { type: 'text' }, location: loc } });
     expect(derived).toEqual({ locationField: 'location' });
     expect(derived && 'titleField' in derived).toBe(false);
   });
 
-  it('CONTROL: no location field still derives nothing at all', () => {
-    expect(defaultMapFromObject({ fields: { title: { type: 'text' } } })).toBeUndefined();
+  // A DECLARED pointer is not a licence to bind either — the resolver reads
+  // `nameField` itself, at step 1, from the same object definition.
+  it('binds nothing from a declared `nameField` / `displayNameField` either', () => {
+    const fields = { headline: { type: 'text' }, title: { type: 'text' }, location: loc };
+    expect(defaultMapFromObject({ nameField: 'headline', fields })).toEqual({
+      locationField: 'location',
+    });
+    expect(defaultMapFromObject({ displayNameField: 'headline', fields })).toEqual({
+      locationField: 'location',
+    });
   });
 
-  // ANTI-DRIFT. The binding is a field NAME; `getRecordDisplayName` is the
-  // canonical per-record resolver every sibling renderer calls. Reading the
-  // record at the derived field must land on the same string the canonical
-  // resolver returns, or a map and a kanban over one object would disagree
-  // about what a record is called. Scoped to the steps a static binding can
-  // carry — the declared pointer and the type-aware field scan; `titleFormat`
-  // (a render-only template) and the record-key probe are out of reach by
-  // construction and are not asserted here.
-  it.each([
-    ['display field is `title`', { fields: { title: { type: 'text' }, location: loc } }, { title: 'Fix the roof', location: 'x' }],
-    ['declared nameField', { nameField: 'headline', fields: { headline: { type: 'text' }, title: { type: 'text' }, location: loc } }, { headline: 'Roof', title: 'Ignored', location: 'x' }],
-    ['affix convention', { fields: { site_name: { type: 'text' }, location: loc } }, { site_name: 'Depot 4', location: 'x' }],
-    ['display field is `name`', { fields: { name: { type: 'text' }, location: loc } }, { name: 'HQ', location: 'x' }],
-  ])('agrees with getRecordDisplayName — %s', (_label, objectDef, record) => {
-    const titleField = defaultMapFromObject(objectDef)?.titleField;
-    expect(titleField).toBeTruthy();
-    expect((record as any)[titleField as string]).toBe(getRecordDisplayName(objectDef, record));
+  // THE AUTHORITY ARM — semantics, not shape, and the reason this is a
+  // behaviour change rather than a comment repair. `titleFormat` is a DECLARED
+  // (deprecated, still live) object key that the resolver honours at step 3.
+  // A derived binding at step 0 outranked it; with no binding, the object's
+  // own declaration decides.
+  it('leaves a declared `titleFormat` its authority at the read site', () => {
+    const objectDef = {
+      titleFormat: '{code} · {city}',
+      fields: {
+        code: { type: 'text' },
+        city: { type: 'text' },
+        title: { type: 'text' },
+        location: loc,
+      },
+    };
+    const record = { code: 'D4', city: 'Leeds', title: 'Raw title', location: 'x' };
+    const product = defaultMapFromObject(objectDef);
+
+    expect(product).toEqual({ locationField: 'location' });
+
+    // `ObjectMap`'s read site, verbatim: the product's `titleField` (now
+    // absent) is passed as `options.titleField`.
+    expect(
+      getRecordDisplayName(objectDef, record, { titleField: (product as any)?.titleField }),
+    ).toBe('D4 · Leeds');
+
+    // …and this is what the derived binding used to force instead: the field
+    // `deriveTitleField` ranks first, evaluated at step 0, silently beating the
+    // template the object declared. Pinned so the inversion cannot come back
+    // unnoticed.
+    expect(getRecordDisplayName(objectDef, record, { titleField: 'title' })).toBe('Raw title');
+  });
+
+  // POSITIVE CONTROL — removal loses no titles. With nothing declared, the
+  // resolver's own step 4 is the same scan the binding used to hoist to step 0,
+  // so the marker still reads the affix-convention display field.
+  it('CONTROL: the resolver alone still answers what the binding used to force', () => {
+    const objectDef = { fields: { site_name: { type: 'text' }, location: loc } };
+    const record = { site_name: 'Depot 4', location: 'x' };
+
+    expect(defaultMapFromObject(objectDef)).toEqual({ locationField: 'location' });
+    expect(getRecordDisplayName(objectDef, record)).toBe('Depot 4');
+  });
+
+  // CONTROL — the deriver's own required field is untouched by this change:
+  // no location field still derives nothing at all.
+  it('CONTROL: no location field still derives nothing at all', () => {
+    expect(defaultMapFromObject({ fields: { title: { type: 'text' } } })).toBeUndefined();
   });
 });

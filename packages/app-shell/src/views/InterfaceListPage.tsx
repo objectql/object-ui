@@ -23,7 +23,6 @@ import { Empty, EmptyTitle, EmptyDescription, NavigationOverlay } from '@object-
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
-import { deriveTitleField } from '@object-ui/core';
 import type { ListViewSchema } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
@@ -183,76 +182,55 @@ export function defaultGanttFromObject(objectDef: any): { startDateField: string
 }
 
 /**
- * The object's DISPLAY FIELD as a field *name*, for use as a static binding.
- *
- * This is the field-name half of ADR-0079's `getRecordDisplayName` precedence,
- * which every sibling view renderer resolves per record. Steps kept, in order:
- *
- *   1+2. `objectDef.nameField` — the canonical record-title pointer — then its
- *        deprecated `displayNameField` / `NAME_FIELD_KEY` aliases.
- *   4.   `deriveTitleField(objectDef)` — the shared type-aware scan of
- *        `objectDef.fields` (name-ish exact → name-ish affix → declaration
- *        order), imported rather than reimplemented so this binding and the
- *        renderers can never rank fields differently.
- *
- * Steps deliberately NOT taken: step 0 (`objectDef.titleField`) is the caller's
- * own explicit choice, which on this path is what we are computing; step 3
- * (`titleFormat`) is a render-only template, not a field name, so no static
- * binding can carry it; and steps 4b/5 read a RECORD, which a binding derived
- * from the object alone has none of.
- *
- * `deriveTitleField`'s own eligibility filter is used as-is — deliberately NOT
- * additionally filtered through this file's `hidden`/system-managed screen. The
- * point of this binding is to name the field the ADR-0079 renderers would name
- * for the same object; screening it differently here would reintroduce exactly
- * the per-view dialect ADR-0079 removed.
- */
-function displayFieldOfObject(objectDef: any): string | undefined {
-  const declared =
-    objectDef?.nameField ?? objectDef?.displayNameField ?? objectDef?.NAME_FIELD_KEY;
-  if (typeof declared === 'string' && declared) return declared;
-  return deriveTitleField(objectDef);
-}
-
-/**
  * Map needs a location/geo field (or address). Auto-derive from a location-typed
  * field, else a field whose name looks geographic.
  *
- * ## Why this one also binds a marker title (objectui#5909)
+ * Like every sibling deriver above, this binds its viz's own REQUIRED field and
+ * nothing else — `kanban → groupByField`, `calendar → startDateField`,
+ * `gallery → coverField`, `gantt → start/end`, `map → locationField`. A marker
+ * TITLE is not this seam's to bind.
  *
- * The sibling derivers each bind their viz's own REQUIRED field and no title —
- * `kanban → groupByField`, `calendar → startDateField`, `gallery → coverField`,
- * `gantt → start/end` — and by that measure this deriver was never the odd one
- * out: it binds `locationField`, its own required field. The asymmetry is one
- * layer down, at the RENDERERS: `ObjectKanban`, `ObjectCalendar` and
- * `ObjectGantt` all resolve their item title through
- * `@object-ui/core#getRecordDisplayName` (ADR-0079), so they need no derived
- * title binding. `ObjectMap` does not — its `getMapConfig` fills an absent
- * `titleField` with the LITERAL `'name'`, and the marker title is then a plain
- * `record[titleField]` read. So for any object whose display field is not
- * literally `name`, every marker popup titles itself `undefined`.
+ * ## Why the derived title binding was removed (objectui#6343)
  *
- * Deriving the title binding here is the fix available at this seam: the key is
- * on `FLAT_MAP_CONFIG_KEYS`, so it survives `ListView`'s whitelisted flatten and
- * reaches `getMapConfig` ahead of that `'name'` literal. It is NOT the general
- * fix — an `ObjectMap` that resolved titles through `getRecordDisplayName` like
- * its siblings would not need a derived binding at all, and would also cover the
- * paths this seam never sees (a hand-declared block that omits `titleField`, and
- * every non-interface-page map). Filed separately.
+ * It existed (objectui#5909) to route around a forge in `ObjectMap` that no
+ * longer exists: `getMapConfig` used to fill an absent `titleField` with the
+ * literal `'name'`, and the marker title was then a plain `record[titleField]`
+ * read — so an object whose display field was not literally `name` titled every
+ * marker popup `undefined`. objectui#5953 deleted that forge. `ObjectMap` now
+ * resolves marker titles through `@object-ui/core#getRecordDisplayName`, the
+ * same ADR-0079 resolver `ObjectKanban`, `ObjectCalendar` and `ObjectGantt`
+ * already used, which is exactly why none of them needs a derived binding
+ * either.
  *
- * `titleField` is omitted, not defaulted, when nothing resolves: an absent key
- * lets whatever `ObjectMap` does today stand, whereas a fabricated one would be
- * indistinguishable from a declared choice at the read site.
+ * What the binding left behind once the forge was gone was not redundancy but
+ * an INVERSION. It reaches the resolver as `options.titleField`, which is
+ * precedence **step 0** — ahead of `objectDef.titleField`, ahead of the
+ * declared `nameField` pointer (step 1/2), and ahead of the legacy
+ * `titleFormat` template (step 3). Measured against that ladder, a field name
+ * derived HERE can only ever change the answer by out-ranking something the
+ * object itself declared; in every other case it reproduces, at step 0, the
+ * string the resolver already computes further down. So the binding's entire
+ * live effect was to let a per-view guess outrank declared metadata — the
+ * governed-authority default says the declared side wins, and it now does.
+ *
+ * The async window `ObjectMap` has before its `getObjectSchema` fetch lands is
+ * NOT an argument for keeping a static binding here: `ObjectKanban` fetches its
+ * object definition exactly the same way and carries no derived title. Closing
+ * that window is a renderer-side change (hand the definition down from
+ * `ListView`, which already holds it), and it would cover the paths this seam
+ * never sees — a hand-declared `map` block that omits `titleField`, and every
+ * non-interface-page map.
+ *
+ * An author's own `map.titleField` is unaffected: it is declared, it travels as
+ * the view-level `map` block that `ListView` merges per key over this bag, and
+ * `getRecordDisplayName` honours it at step 0 by design.
  */
-export function defaultMapFromObject(
-  objectDef: any,
-): { locationField: string; titleField?: string } | undefined {
+export function defaultMapFromObject(objectDef: any): { locationField: string } | undefined {
   const field =
     firstFieldMatching(objectDef, (_n, f) => LOCATION_TYPES.has(f.type)) ??
     firstFieldMatching(objectDef, (n) => /location|address|geo|coords?|place|venue/i.test(n));
   if (!field) return undefined;
-  const titleField = displayFieldOfObject(objectDef);
-  return { locationField: field, ...(titleField ? { titleField } : {}) };
+  return { locationField: field };
 }
 
 export function InterfaceListPage({ page, className, onConfigChange, reserveEditAffordance }: InterfaceListPageProps) {
