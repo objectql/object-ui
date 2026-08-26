@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -2422,7 +2422,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // sort on a field this picker then refused to list — the declared sort
   // worked on load, while its rows rendered blank and the user could neither
   // reproduce nor modify it. The whitelist is a FILTER contract; sortability
-  // is a property of the field's type, which is what the two rules below read.
+  // is a separate question, answered by the two rules below.
   //
 
   // This view's sort becomes a server `$orderby` on the FLAT field name, and a
@@ -2435,33 +2435,46 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // below points at the supported alternative (a stored field that
   // denormalizes the name onto this object, written when the source changes).
   //
-  // Second rule — `UNMATERIALIZED_FIELD_TYPES` (`@object-ui/core`, bound to the
-  // spec's own storage fact): a `formula` field has no materialised column, so
-  // the server answers a sort naming one with a 400. It matters here precisely
-  // BECAUSE the base set widened: a formula field used to reach this picker only
-  // if someone had whitelisted it, and now every formula field on the object
-  // would be offered. Withheld silently — the relational hint below stays
-  // strictly about relations, which is what its sentence describes.
+  // Second rule — THE PLATFORM SAYS which field names it will order by
+  // (objectstack#10235 ruling A, consumed here via #5729's landed spelling in
+  // `@object-ui/core`). `isPlatformSortableField` is the contract: an entry
+  // must EXIST in the served projection and say `sortable: true`. Absence is a
+  // refusal — an unknown name, a dotted path, an unprovisioned audit column —
+  // never a default of `true`. Withheld silently, so the relational hint below
+  // stays strictly about relations, which is what its sentence describes.
   //
-  // The set used to be a private copy in this file, on the reasoning that it was
-  // one sortability rule for one picker. objectui#3950 made it three more
-  // consumers (this grid's own column headers, and both of RelatedList's sort
-  // entry points), so it moved to core where the relational family already
-  // lives — one judgement, not four copies drifting apart.
+  // This picker used to re-derive that verdict from the field's TYPE, reading
+  // `UNMATERIALIZED_FIELD_TYPES` (#3950 consolidated the local copy into core).
+  // The two agree about `formula` — the platform computes its own projection
+  // from the same `@objectstack/spec` storage fact — which is exactly why the
+  // drift went unnoticed: they part company on everything the projection
+  // encodes as ABSENCE, and on any verdict the runtime doors add later, where
+  // a type read answers `sortable` and the platform answers `400 INVALID_SORT`.
+  // One judgement, served; not a fourth copy of it drifting apart.
+  //
+  // NO SIGNAL SERVED (`undefined`) is a different question from "nothing is
+  // sortable": a deployment older than objectstack#10235, an inline/mock data
+  // source, or `objectDef` not yet loaded. That branch keeps the type read as a
+  // compatibility floor — behaviour identical to before this card — and is
+  // meant to be deleted when the supported floor passes that release.
   //
   // Exception (both rules): a field the CURRENT sort already uses stays listed
   // — relational ones flagged as ordering by ID — so opening this popover on a
   // view that was authored (or saved before this change) with such a sort
   // neither renders a blank row nor silently drops that sort on the next edit.
-  // For a formula field that exception is the only way to REMOVE the offending
-  // row, since the sort it names is one the server refuses outright.
+  // For a platform-refused field that exception is the only way to REMOVE the
+  // offending row, since the sort it names is one the server refuses outright.
   const { sortFields, sortHasRelationalField } = React.useMemo(() => {
+    const platformSortability = readObjectSortability(objectDef);
     const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
     let excluded = false;
     const fields: Array<{ value: string; label: string }> = [];
     for (const field of candidateFields) {
       const relational = EXPANDABLE_FIELD_TYPES.has(field.type);
-      if (!relational && !UNMATERIALIZED_FIELD_TYPES.has(field.type)) {
+      const platformSortable = platformSortability
+        ? isPlatformSortableField(platformSortability, field.value)
+        : !UNMATERIALIZED_FIELD_TYPES.has(field.type);
+      if (!relational && platformSortable) {
         fields.push({ value: field.value, label: field.label });
         continue;
       }
@@ -2475,7 +2488,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       if (relational) excluded = true;
     }
     return { sortFields: fields, sortHasRelationalField: excluded };
-  }, [candidateFields, currentSort, t]);
+  }, [candidateFields, currentSort, t, objectDef]);
 
   /**
    * A column-header sort from the child grid (#3106).

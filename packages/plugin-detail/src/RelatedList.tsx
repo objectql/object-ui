@@ -48,8 +48,10 @@ import {
   getRecordDisplayName,
   getSortValue,
   isExpandableFieldType,
+  isPlatformSortableField,
   isUnmaterializedFieldType,
   mergeFilterNodes,
+  readObjectSortability,
   toFilterNode,
   userActionPredicates,
   type FilterNode,
@@ -1118,6 +1120,61 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [columns, objectSchema, objectName, api, resolveFieldLabel, referenceField, relatedData, maxColumns, lookupLabels, perms]);
 
   /**
+   * [#6108] The SERVED per-column sortability projection for this object —
+   * objectstack#10235's ruling A, consumed rather than re-derived, through
+   * #5729's landed spelling in `@object-ui/core`.
+   *
+   * `undefined` means the metadata response carried no `sortability` key at
+   * all: a backend older than the upstream change, an inline/mock data source,
+   * or the schema fetch not yet landed. That is NOT "nothing is sortable" —
+   * see the branch in `withheldFromServerSort` below.
+   */
+  const platformSortability = readObjectSortability(objectSchema);
+
+  /**
+   * [#6108] Does a server `$orderby` on this flat field name have to be
+   * withheld? THE one predicate behind both of this list's sort entry points —
+   * the embedded table's column headers and the `data-list` sort-button row.
+   * They never shared a derivation before, which is how the same refused sort
+   * stayed reachable through whichever control the other one did not cover.
+   *
+   * TWO reasons, kept separate on purpose — the same split the grid header
+   * makes (`ObjectGrid.withSortability`, #5729):
+   *
+   *  - RELATIONAL, and deliberately NOT delegated to the platform signal. The
+   *    projection answers `sortable: true` for a `lookup`: the platform's
+   *    question is whether it can order by the STORED foreign key, which it
+   *    can. Ours is whether that order means anything next to a column of
+   *    related-record names, and it does not (objectstack#4256 settled that no
+   *    relation join is coming). Two different questions; folding this one into
+   *    the signal would hand every relational column its sort back.
+   *  - PLATFORM. `isPlatformSortableField` is the contract: an entry must EXIST
+   *    in the served projection and say `sortable: true`. Absence is a refusal
+   *    — an unknown name, a dotted path (a caller may hand `columns` either),
+   *    an unprovisioned audit column — never a default of `true`.
+   *
+   * Both entry points used to read `isUnmaterializedFieldType` off the field's
+   * TYPE instead. That agrees with the projection about `formula` — the
+   * platform computes its own from the same `@objectstack/spec` storage fact —
+   * which is exactly why the drift went unnoticed. It parts company on
+   * everything the projection encodes as ABSENCE, and on any verdict the
+   * runtime doors add later; and it cannot follow the platform when it moves.
+   *
+   * NO SIGNAL SERVED keeps the type read as a compatibility floor: behaviour
+   * identical to before this card, unreachable the moment a backend serves the
+   * signal, and meant to be deleted when the supported floor passes that
+   * release.
+   */
+  const withheldFromServerSort = React.useCallback(
+    (field: string | undefined, fieldDef: unknown) => {
+      if (isExpandableFieldType(fieldDef)) return true;
+      if (platformSortability) return !isPlatformSortableField(platformSortability, field);
+      return isUnmaterializedFieldType(fieldDef);
+    },
+    [platformSortability],
+  );
+
+  /**
    * The same columns, with the sort affordance withheld from the ones a server
    * `$orderby` cannot honestly order by.
    *
@@ -1127,9 +1184,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
    *  - a relational column stores a foreign-key id, so "sort by Owner" would
    *    order the collection by `rec_7f3…` while the cells show names
    *    (objectstack#4256 settled that no relation join is coming);
-   *  - a `formula` column has no materialised column to order by at all —
-   *    silently unordered rows under a `200` before objectstack#6994, a
-   *    `400 INVALID_SORT` after it.
+   *  - a column the PLATFORM will not order by — a `formula` with no
+   *    materialised column behind it (silently unordered rows under a `200`
+   *    before objectstack#6994, a `400 INVALID_SORT` after it), and every
+   *    other name the served projection refuses. `withheldFromServerSort`
+   *    above is the whole judgement; this memo only applies it.
    *
    * This is the rule the sort-button row already applied; the headers inherit it
    * rather than re-opening the same door.
@@ -1143,11 +1202,9 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return effectiveColumns.map((col: any) => {
       const field = col.accessorKey || columnIdentity(col);
       const fieldDef = field ? (objectSchema?.fields as any)?.[field] : undefined;
-      return isExpandableFieldType(fieldDef) || isUnmaterializedFieldType(fieldDef)
-        ? { ...col, sortable: false }
-        : col;
+      return withheldFromServerSort(field, fieldDef) ? { ...col, sortable: false } : col;
     });
-  }, [effectiveColumns, windowed, objectSchema]);
+  }, [effectiveColumns, windowed, objectSchema, withheldFromServerSort]);
 
   // A `grid`/`table` list renders a real table, whose column headers carry the
   // sort. `list` renders `data-list`, which has none — so it keeps the button
@@ -1380,15 +1437,16 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               // A windowed sort goes out as a server `$orderby` on the flat
               // field name, so a relational column would order the collection by
               // its stored foreign-key id while the cells show related-record
-              // names — sorting looks broken (objectui#3096) — and a `formula`
-              // column has no materialised column to order by at all, which the
-              // platform now refuses outright (objectstack#6994, objectui#3950).
+              // names — sorting looks broken (objectui#3096) — and a name the
+              // PLATFORM refuses to order by has nothing behind it at all
+              // (objectstack#6994, objectui#3950, and #6108 for reading that
+              // verdict off the served projection instead of the field's type).
               // No button rather than a button that sorts by something invisible
               // or that cannot be answered. The client-mode branch keeps its
               // button: there the sort key is the value the cell shows (see
               // `sortedData`).
               const fieldDef = (objectSchema?.fields as any)?.[field];
-              if (windowed && (isExpandableFieldType(fieldDef) || isUnmaterializedFieldType(fieldDef))) {
+              if (windowed && withheldFromServerSort(field, fieldDef)) {
                 return null;
               }
               const label = col.header || col.label || field;
