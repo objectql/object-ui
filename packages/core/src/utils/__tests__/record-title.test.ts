@@ -140,11 +140,20 @@ describe('getRecordDisplayName — precedence', () => {
     expect(getRecordDisplayName({}, { _id: 'abc' })).toBe('Record #abc');
   });
 
-  // Regression: a lightweight object (search candidate) that declares only
-  // `titleField`/`label` and carries no `fields` map must still resolve a
-  // standard `name`/`first_name` record value, NOT fall to `Record #<id>`.
-  it("honors objectDef.titleField when set (object-level title hint)", () => {
-    const obj = { name: 'account', label: 'Account', titleField: 'name' };
+  // Regression: a lightweight object (search candidate) that carries no
+  // `fields` map must still resolve a standard `name`/`full_name` record
+  // value, NOT fall to `Record #<id>`.
+  //
+  // objectui#6531 — this pin used to be spelled
+  // `{ name: 'account', label: 'Account', titleField: 'name' }` under the name
+  // "honors objectDef.titleField when set". It never measured that: `name` is
+  // also a {@link NAME_ISH_RECORD_KEYS} entry, so step 4b answered it
+  // identically with the step-0 `objectDef.titleField` read deleted. A pin that
+  // passes for a reason unrelated to its own name is how an undeclared key
+  // survives a rewrite, so the key is gone from the fixture and the real
+  // negative pin lives in the "undeclared object-level titleField" block below.
+  it('resolves a lightweight object with no `fields` map via the record name keys', () => {
+    const obj = { name: 'account', label: 'Account' };
     expect(getRecordDisplayName(obj, { id: 'a1', name: 'Acme Corp' })).toBe('Acme Corp');
   });
 
@@ -198,6 +207,82 @@ describe('getRecordDisplayName — ADR-0079 Phase 2 (nameField canonical)', () =
     };
     const rec = { id: '1', first: 'Ada', last: 'Lovelace' };
     expect(getRecordDisplayName(obj, rec)).toBe('Ada · Lovelace');
+  });
+});
+
+describe('getRecordDisplayName — the undeclared object-level `titleField` (objectui#6531)', () => {
+  // Producer census (objectui#6531): NOTHING puts `titleField` on an
+  // object-shaped payload. `@objectstack/spec`'s object schema is a
+  // `strictObject`, so the key is not merely undeclared — `ObjectSchema`
+  // REJECTS it with `unrecognized_keys`, the same code a nonsense key gets,
+  // while `nameField` / `displayNameField` / `titleFormat` parse. Reading it
+  // here was therefore a consumer-side alias for a key no producer can ship
+  // (AGENTS.md Commandment #0.1), ranked ABOVE the canonical `nameField` that
+  // ADR-0079 Phase 2 made the record-title pointer.
+  //
+  // Undeclared at the object level ≠ undeclared everywhere: `titleField` is a
+  // real, spec-declared VIEW key (`ui/CalendarConfig`, `ui/GalleryConfig`,
+  // `ui/GanttConfig`, `ui/ListMapConfig`, `ui/ObjectKanbanProps`,
+  // `ui/TimelineConfig`), and views hand it in as `options.titleField`. That
+  // leg of step 0 is untouched — the second pin below is what keeps the
+  // removal from over-reaching.
+
+  it('does NOT consult `objectDef.titleField` — the declared `nameField` is the top of the ladder', () => {
+    const obj = {
+      name: 'account',
+      nameField: 'name',
+      // Undeclared, and rejected by `ObjectSchema.safeParse`. Before #6531 this
+      // was read at step 0 and beat `nameField` outright.
+      titleField: 'legacy_title',
+      fields: { name: { type: 'text' }, legacy_title: { type: 'text' } },
+    };
+    const rec = { id: 'a1', name: 'Canonical Name', legacy_title: 'Undeclared Alias' };
+    expect(getRecordDisplayName(obj, rec)).toBe('Canonical Name');
+  });
+
+  it('does NOT consult `objectDef.titleField` even when it is the ONLY pointer the object carries', () => {
+    // No `nameField`, no `displayNameField`, no `titleFormat`, and the record's
+    // own keys are all non-name-ish — so the undeclared key is the only thing
+    // that could produce a title. It must not: the resolver floors instead,
+    // which is the honest answer for metadata the contract would have rejected.
+    const obj = { name: 'account', titleField: 'legacy_title' };
+    const rec = { id: 'a1', legacy_title: 'Undeclared Alias', amount: 100 };
+    expect(getRecordDisplayName(obj, rec)).toBe('Record #a1');
+  });
+
+  it('CONTROL: the DECLARED view-level `options.titleField` still wins at step 0', () => {
+    // The half of step 0 that survives. A view's own `titleField` outranks the
+    // object's canonical `nameField` by design — that is the author's
+    // per-view choice, and it is a declared key on every view config.
+    const obj = {
+      name: 'account',
+      nameField: 'name',
+      fields: { name: { type: 'text' }, headline: { type: 'text' } },
+    };
+    const rec = { id: 'a1', name: 'Canonical Name', headline: 'From The View' };
+    expect(getRecordDisplayName(obj, rec, { titleField: 'headline' })).toBe('From The View');
+  });
+
+  it('CONTROL: an object carrying the undeclared key still resolves through every declared rung', () => {
+    // Removing the read must not disturb the rest of the ladder for an object
+    // that happens to carry the stray key.
+    const withAlias = {
+      titleField: 'legacy_title',
+      displayNameField: 'code',
+      fields: { code: { type: 'text' }, legacy_title: { type: 'text' } },
+    };
+    expect(
+      getRecordDisplayName(withAlias, { id: '1', code: 'ACC-1', legacy_title: 'Undeclared Alias' }),
+    ).toBe('ACC-1');
+
+    const withFormat = {
+      titleField: 'legacy_title',
+      titleFormat: '{code}',
+      fields: { code: { type: 'text' }, legacy_title: { type: 'text' } },
+    };
+    expect(
+      getRecordDisplayName(withFormat, { id: '1', code: 'ACC-1', legacy_title: 'Undeclared Alias' }),
+    ).toBe('ACC-1');
   });
 });
 
