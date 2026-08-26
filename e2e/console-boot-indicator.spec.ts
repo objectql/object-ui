@@ -223,6 +223,32 @@ test.describe('Console boot indicator', () => {
  * transition, so the destination tree renders while the commit that dropped the
  * splash is already on screen. Measured on the production bundle: 41–147 ms of
  * empty `#root`.
+ *
+ * ## What this boot reaches, and what it does not (objectui#6507)
+ *
+ * The mocked boot below is SIGNED OUT, which is what makes it short enough to
+ * be deterministic: `/console/` takes the catch-all redirect, then the auth
+ * gate's redirect to `/login`. Those are two of the three sites #6506 fixed.
+ *
+ * #6507 converted seven further gates, and every one of them decides only AFTER
+ * a session exists — `RequireOrganization` (no active org), `RequireAiSurface`
+ * (a runtime serving no agent), `SetupRedirect` (the `/setup` deep link) and
+ * `AppContent`'s no-accessible-app bounce all sit behind `ProtectedRoute`, so a
+ * signed-out boot bounces to `/login` before reaching any of them. Two more —
+ * `RootRedirect` and `AuthenticatedRoute` — are published by
+ * `@object-ui/app-shell` for consumers and are not mounted by `apps/console` at
+ * all (it uses its own `RootLandingRedirect` and `ProtectedRoute`), so no boot
+ * of THIS bundle can reach them at any session state.
+ *
+ * Bringing the first four under this assertion needs a signed-in mock boot —
+ * a session, the metadata bucket fetches and the org/app endpoints each gate
+ * reads — which is a materially larger fixture than the four endpoints below
+ * and is deliberately not attempted here. Until it exists, those sites are
+ * pinned at the DOM level, one file per population, with an explicit control
+ * arm that must read "covered" so an "empty" reading stays falsifiable:
+ * `packages/app-shell/src/console/__tests__/bootRedirectCoverage.test.tsx` and
+ * `…/AppContent.bootRedirectCoverage.test.tsx`. Those measure the deciding
+ * COMMIT, not the milliseconds — the pixel ledger still needs a real browser.
  */
 interface CoverProbe {
   reactMountAt?: number;
