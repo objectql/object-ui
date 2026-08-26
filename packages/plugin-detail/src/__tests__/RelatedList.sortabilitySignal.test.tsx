@@ -205,6 +205,41 @@ describe('RelatedList surface 1 — the embedded table headers (#6108)', () => {
     expect(columnSortable('total')).toBe(false);
   });
 
+  it('withholds a name the projection has no entry for — absence is a refusal, not a default', async () => {
+    renderWindowed('table');
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+
+    // An unprovisioned audit column: on the object, outside the projection.
+    expect(columnSortable('audited_at')).toBe(false);
+  });
+
+  it('withholds a dotted path — a caller can declare one, and no field def resolves for it', async () => {
+    renderWindowed('table');
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+
+    // `isUnmaterializedFieldType(undefined)` is `false`, so the deleted type
+    // read offered this column its header click. The projection has no entry.
+    expect(columnSortable('account.name')).toBe(false);
+  });
+
+  it('withholds a refusal that carries no `virtual-type` reason', async () => {
+    renderWindowed('table');
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+
+    expect(columnSortable('remote_status')).toBe(false);
+  });
+
+  it('follows the platform when it moves: a formula it DOES order by keeps its header', async () => {
+    renderWindowed('table');
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+
+    // The direction no type read can follow.
+    expect(columnSortable('rolled_total')).toBe(true);
+    // …while the formula the platform still refuses stays withheld — so this
+    // is the served verdict being read, not "formulas are back".
+    expect(columnSortable('total')).toBe(false);
+  });
+
   it('keeps the relational carve-out separate from the signal', async () => {
     renderWindowed('table');
     await waitFor(() => expect(columnSortable('name')).toBe(true));
@@ -271,6 +306,36 @@ describe('RelatedList surface 2 — the `data-list` sort-button row (#6108)', ()
     // Agreement control and the relational carve-out.
     expect(labels).not.toContain('Total');
     expect(labels).not.toContain('Owner');
+  });
+
+  it('drops the button for an absent name, a dotted path, and a reasonless refusal', async () => {
+    renderWindowed('list');
+    await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+
+    const labels = sortButtonLabels();
+    // Positive control in the same render — the row exists and is populated.
+    expect(labels).toContain('Name');
+    expect(labels).not.toContain('Audited At');
+    expect(labels).not.toContain('Account Name');
+    expect(labels).not.toContain('Remote Status');
+  });
+
+  it('follows the platform when it moves: a formula it DOES order by keeps its button', async () => {
+    renderWindowed('list');
+    await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+
+    const labels = sortButtonLabels();
+    expect(labels).toContain('Rolled Total');
+    expect(labels).not.toContain('Total');
+  });
+
+  it('keeps the relational carve-out separate from the signal', async () => {
+    renderWindowed('list');
+    await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+
+    // The projection answers `sortable: true` for `owner`; this row withholds
+    // for its own reason.
+    expect(sortButtonLabels()).not.toContain('Owner');
   });
 
   it('falls back to the type read when the deployment served no projection', async () => {
