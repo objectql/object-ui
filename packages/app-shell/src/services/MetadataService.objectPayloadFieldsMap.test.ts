@@ -152,7 +152,17 @@ describe('the instrument', () => {
   it('keys the record with a snake_case rule — `__proto__` is a LEGAL field name', () => {
     // Which is why `toFieldsMap` builds through `Object.fromEntries`: plain
     // assignment would invoke the prototype setter and drop the field silently.
-    expect(ObjectSchema.safeParse({ name: 'account', label: 'Account', fields: { __proto__: { type: 'text', label: 'P' } } }).success).toBe(true);
+    //
+    // The fixture below spells the key `['__proto__']` DELIBERATELY, and the
+    // two controls are why (objectui#6524). Per Annex B.3.1 a PLAIN
+    // `{ __proto__: v }` inside an object literal SETS THE PROTOTYPE and adds
+    // no own key, so the plainly-spelled fixture this test used to carry handed
+    // `fields: {}` to the schema: green, and green forever, even if the spec
+    // began refusing the name. Only the computed form reaches the key rule this
+    // test claims to pin.
+    expect(Object.keys({ __proto__: { type: 'text', label: 'P' } })).toEqual([]);
+    expect(Object.keys({ ['__proto__']: { type: 'text', label: 'P' } })).toEqual(['__proto__']);
+    expect(ObjectSchema.safeParse({ name: 'account', label: 'Account', fields: { ['__proto__']: { type: 'text', label: 'P' } } }).success).toBe(true);
     expect(issuesOf(ObjectSchema.safeParse({ name: 'account', label: 'Account', fields: { firstName: { type: 'text', label: 'F' } } }))).toEqual([
       'invalid_key @ fields.firstName',
     ]);
@@ -359,6 +369,9 @@ describe('objectui#6240 · a field with no name FAILS LOUDLY, and nothing is sen
       { name: 'amount', type: 'number', label: 'Amount' },
     ]);
     expect(Object.keys(fieldsOf(puts))).toEqual(['__proto__', 'amount']);
+    // Honest ONLY because `fieldsOf` reads `JSON.parse` of the captured bytes,
+    // where `__proto__` is an own property: a refactor that built this object
+    // from a literal instead would turn the read below into a prototype read.
     expect(fieldsOf(puts).__proto__).toMatchObject({ type: 'text', label: 'Proto' });
   });
 });
