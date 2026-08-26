@@ -1449,8 +1449,8 @@ const zh = {
       pages: '页面',
       // objectui#6166 — 报表 here is a maintainer RULING (2026-08-25), not a
       // majority count. 报表 (tabular/data report) and 报告 (written/narrative
-      // report) are NOT interchangeable, so this key holding 报告 against its
-      // twelve siblings was read as evidence of a majority and never, on its
+      // report) are NOT interchangeable, so this key holding 报告 against the
+      // rest of the pack was read as evidence of a majority and never, on its
       // own, as evidence of a mistake; the call was made on what renders. This
       // segment labels the `routeType === 'report'` LIST route (app-shell
       // AppHeader) — a structural sibling of dashboards/pages that drills into
