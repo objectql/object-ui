@@ -42,6 +42,7 @@ import {
   createExpressionEvaluator,
   evaluateVisibility,
 } from '../providers/ExpressionProvider.js';
+import { buildExpressionUser } from '../providers/expressionUser.js';
 import { SkeletonDetail } from '../skeletons/index.js';
 import { ManagedByBadge } from '../components/ManagedByBadge.js';
 import { useAuth } from '@object-ui/auth';
@@ -166,20 +167,24 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   // expression consumers). Memoised on the underlying user identity so a
   // re-render that doesn't change the user does not invalidate downstream
   // memoisations.
-  const expressionUser = useMemo(
-    () =>
-      user
-        ? {
-            name: user.name,
-            email: user.email,
-            role: user.role ?? 'user',
-            // Server-parity actor shape for per-option `visibleWhen` gating
-            // (ADR-0058): the rule-validator binds `current_user.positions`.
-            positions: (user as any).positions ?? [],
-          }
-        : { name: 'Anonymous', email: '', role: 'guest', positions: [] },
-    [user],
-  );
+  //
+  // objectui#6515 — THE normaliser, not a second derivation of it. This was
+  // hand-rolled as `{ name, email, role, positions }`, which dropped `id` and
+  // `isPlatformAdmin` from every predicate evaluated on this page. Those two
+  // are named by real gates (`ctx.user.isPlatformAdmin == true` on
+  // `sys_environment`'s "Change Plan (admin)"; `record.id == ctx.user.id`
+  // throughout `sys_user`), and an ABSENT key is not `false` — it makes the
+  // predicate FAULT, and `evaluateVisibility` fails OPEN on a fault, so an
+  // admin-only field or action rendered for everyone with nothing on screen to
+  // say so. The signed-out branch diverged too: it carried no `isPlatformAdmin`
+  // at all, while `buildExpressionUser(null)` carries `false`.
+  //
+  // It is imported from `providers/`, NOT from `console/AppContent.js` where it
+  // used to live: this view is `lazy()`-loaded BY `AppContent`, so that import
+  // would be a static edge from the split chunk back into the module it was
+  // split out of — what `check-eager-closure-budget` weighs. The leaf module
+  // beside the provider is what makes the shared normaliser reachable here.
+  const expressionUser = useMemo(() => buildExpressionUser(user), [user]);
 
   // Evaluator for the field-visibility expressions below, over the SAME bag
   // the `ExpressionProvider` at the bottom of this file publishes to the form's

@@ -20,8 +20,15 @@ export { ExpressionProvider, useExpressionContext, evaluateVisibility } from './
  * `'x' in current_user.positions` an unbound-key fault, which fails OPEN, so a
  * second mount site re-deriving this by hand would reintroduce exactly the
  * asymmetry #6010's parity pin exists to refuse.
+ *
+ * objectui#6515 — that is exactly what `RecordFormPage` did, because the
+ * normaliser used to live in `console/AppContent.js` and the view is
+ * `lazy()`-loaded BY that module. The specifier below moved to the leaf module
+ * beside the provider it feeds; the NAME published from this entry did not.
+ * `console/AppContent.js` re-exports it too, for importers already reaching it
+ * there.
  */
-export { buildExpressionUser } from './console/AppContent.js';
+export { buildExpressionUser } from './providers/expressionUser.js';
 
 // Hooks
 export { useObjectActions } from './hooks/useObjectActions.js';
