@@ -192,6 +192,27 @@ The verdict is unchanged in every case: this is a diagnostic about a
 predicate, not a change to what the gate decides. A node gate that fails open
 renders exactly as it always did; the difference is that it now says so.
 
+The **app shell's own `visible` gate** joins the same reporter and the same
+rate limit: a `visible` predicate on a navigation item, on an area's
+navigation, or on an object field rendered by the record form page. This one
+was silent in **both** builds before — including the bare-string dialect,
+which printed nothing at all — so a menu entry whose role gate had stopped
+working rendered for everyone, silently, with nothing to grep for. It now
+reports under the surface label `app-shell:visible`:
+
+```text
+[ObjectUI] A visibility predicate could not be evaluated - node "app-shell:visible"
+  visible: "'org_admin' in current_user.postions"
+  Reason: ...
+```
+
+The dedupe key is the predicate **source**, not the menu entry — one broken
+role gate copy-pasted across eight entries is one authoring mistake and prints
+one line, while a second, differently-broken predicate still gets its own.
+Fail-open is unchanged here too: the item still renders for everyone,
+including the role the predicate was written to exclude. That is what the line
+exists to tell you.
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every
