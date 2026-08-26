@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -2464,8 +2464,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // neither renders a blank row nor silently drops that sort on the next edit.
   // For a platform-refused field that exception is the only way to REMOVE the
   // offending row, since the sort it names is one the server refuses outright.
+  //
+  // ONE read of the served projection, for BOTH legs below — the list this
+  // picker renders, and the sort it emits for a host to persist. Read twice,
+  // the two copies could answer differently about the same field on the same
+  // render, which is the drift `isPlatformSortableField` was consolidated to
+  // end. `undefined` stays "no signal served", never "nothing is sortable".
+  const platformSortability = React.useMemo(
+    () => readObjectSortability(objectDef),
+    [objectDef],
+  );
+
   const { sortFields, sortHasRelationalField } = React.useMemo(() => {
-    const platformSortability = readObjectSortability(objectDef);
     const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
     let excluded = false;
     const fields: Array<{ value: string; label: string }> = [];
@@ -2488,7 +2498,44 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       if (relational) excluded = true;
     }
     return { sortFields: fields, sortHasRelationalField: excluded };
-  }, [candidateFields, currentSort, t, objectDef]);
+  }, [candidateFields, currentSort, t, platformSortability]);
+
+  /**
+   * [#6455] THE persist boundary: what this picker LISTS is not what it
+   * PERSISTS.
+   *
+   * The exception just above deliberately keeps a platform-refused field
+   * listed while the CURRENT sort names it — it is the only way a user can
+   * REMOVE a sort the server refuses outright. But the picker used to render
+   * and emit from the SAME array, so any OTHER edit in the popover — adding a
+   * second key, flipping a direction — re-emitted the refused entry, and the
+   * host's `onSortChange` turned it into `persistViewPatch({ sort })`: a
+   * personalization PUT storing a column the platform answers
+   * `400 INVALID_SORT` for, written by a user who never touched that row.
+   *
+   * So the two legs part company HERE, at the one boundary every emit crosses,
+   * exactly as #5729 parted them at the grid seam (`ObjectGrid`'s
+   * `manualSort` / `manualOnSortChange` pair). The refused entry stays in
+   * `currentSort` — listed, removable, and still the order this list asks the
+   * server for — while no write ever carries it. Removing it persists the
+   * removal; a sort with nothing refused in it is emitted unchanged.
+   *
+   * Every `onSortChange` in this component goes through here rather than each
+   * call site filtering for itself: a builder edit, a header click and a
+   * "reset to default" are three doors onto ONE stored `sort`, and a filter
+   * spelled three times is a filter one new door can be added without.
+   *
+   * Only under a served projection: with no signal there is no verdict to
+   * filter by, and the pre-objectstack#10235 behaviour stands unchanged.
+   */
+  const emitSortChange = React.useCallback((next: SortItem[]) => {
+    if (!onSortChange) return;
+    onSortChange(
+      platformSortability
+        ? filterPlatformSortableSort(next, platformSortability)
+        : next,
+    );
+  }, [onSortChange, platformSortability]);
 
   /**
    * A column-header sort from the child grid (#3106).
@@ -2513,8 +2560,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }));
     setCurrentSort(items);
     setServerPage(1);
-    onSortChange?.(items);
-  }, [onSortChange]);
+    emitSortChange(items);
+  }, [emitSortChange]);
 
   /**
    * "Reset to the view's default sort" (objectui#4243) — the way back the
@@ -2535,9 +2582,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const restored = parseSortConfig(schema.sort);
     setCurrentSort(restored);
     setServerPage(1);
-    onSortChange?.(restored);
+    emitSortChange(restored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schemaSortKey, onSortChange]);
+  }, [schemaSortKey, emitSortChange]);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -3033,8 +3080,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   fields={sortFields}
                   value={currentSort}
                   onChange={(newSort) => {
+                    // `setCurrentSort` takes the array WHOLE (the in-use
+                    // exception depends on it); `emitSortChange` is what the
+                    // host persists. See the boundary's docblock above.
                     setCurrentSort(newSort);
-                    if (onSortChange) onSortChange(newSort);
+                    emitSortChange(newSort);
                   }}
                 />
                 {sortHasRelationalField && (
