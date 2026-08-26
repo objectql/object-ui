@@ -65,7 +65,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 const { passthrough } = vi.hoisted(() => ({
@@ -92,6 +92,20 @@ vi.mock('@object-ui/app-shell', () => ({
   ConnectedShell: passthrough,
   RequireOrganization: passthrough,
   LoadingFallback: () => <div data-testid="loading-fallback" />,
+  // objectui#6378 — what `LoginRedirect` and `RootLandingRedirect` now
+  // render instead of a bare `<Navigate>`. Stubbed to the SAME navigation
+  // plus its own marker, so every location assertion below keeps measuring
+  // exactly what it measured before and `loading-fallback` keeps meaning
+  // "a gate is waiting". That the real component also paints the splash is
+  // pinned where the real component lives —
+  // `packages/app-shell/src/chrome/RedirectWithSplash.test.tsx` — and
+  // end-to-end by `e2e/console-boot-indicator.spec.ts`.
+  RedirectWithSplash: ({ to, replace }: { to: string; replace?: boolean }) => (
+    <>
+      <div data-testid="redirect-splash" />
+      <Navigate to={to} replace={replace} />
+    </>
+  ),
   SETUP_APP_PACKAGE_ID: 'com.objectstack.setup',
   SETUP_APP_NAME: 'setup',
   useMetadata: () => ({
