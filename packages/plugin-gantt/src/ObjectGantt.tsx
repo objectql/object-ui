@@ -110,18 +110,42 @@ type GanttConfigEx = GanttConfig & GanttConfigRestated;
  * measured against the shipped `GanttConfig` on `main` (objectui#6471; the card
  * counted eleven before objectui#6051/#6472 landed part of the lift).
  *
- * Ten are RESTATEMENTS: `GanttConfig` already declares them (nine of the ten
- * arrive from the spec's `GanttConfigSchema`, which declares 19 keys), and the
- * type written here is mutually assignable with the twin. They are kept, not
- * deleted, for ONE reason — their JSDoc is the only prose in this repo describing
- * what this renderer DOES with each key. The spec emits no per-member docs
- * (`z.input<typeof GanttConfigSchema>` carries none), so deleting the members
- * deletes the documentation, and JSDoc cannot be attached to a member a type
- * merely inherits.
+ * All twelve RESTATE a key `GanttConfig` already declares — eleven arrive from
+ * the spec's `GanttConfigSchema` (19 keys), `timeSegments` is objectui's own —
+ * and every one is mutually assignable with its twin. That includes
+ * `quickFilters` and `timeSegments`, which objectui#6471 called load-bearing
+ * NARROWINGS: measured on `main` they narrow nothing. What those two still do is
+ * NAME this plugin's runtime types (`QuickFilterDef[]` /
+ * {@link ShiftSegmentsConfig}), so a spec bump that moves either side surfaces as
+ * a decision. `ObjectGantt.configPin.test.ts` holds that measurement — read it
+ * there rather than re-deriving it here.
  *
- * Two are NARROWINGS and load-bearing: `quickFilters` and `timeSegments` pin the
- * plugin's own runtime types (`QuickFilterDef[]` / {@link ShiftSegmentsConfig}),
- * which is precision the intersection would otherwise lose.
+ * ## Why a member is kept rather than deleted — TWO reasons, either sufficient
+ *
+ * 1. PROSE, where there is any. The spec emits no per-member docs
+ *    (`z.input<typeof GanttConfigSchema>` carries none) and JSDoc cannot be
+ *    attached to a member a type merely inherits, so for most members the
+ *    docblock below is the fullest description of what this renderer DOES with
+ *    the key. It does NOT reach every member: four are bare here —
+ *    `parentField`, `baselineEndField`, `assigneeField`, `effortField` — the last
+ *    three covered by a neighbour's docblock, `parentField` by nothing. Nor is
+ *    this prose unique any more: since objectui#6472 the flattened face
+ *    (`ObjectGanttSchema` in `@object-ui/types`) documents all twelve, and
+ *    objectui#6561 expanded `parentField`'s entry there.
+ *
+ * 2. PIN OPERAND — this reason reaches EVERY member, and for `parentField` it is
+ *    the only one. The pin below is derived over `keyof GanttConfigRestated`: a
+ *    member that exists is compared against its twin, and a member that is
+ *    deleted simply stops being compared.
+ *
+ * ⛔ So the test for whether a member may be deleted is NOT "does it carry its
+ * own JSDoc". Applied to `parentField` that test answers "deletable", and it is
+ * wrong. Deleting `parentField` is not silent — it fails three assertions in
+ * `ObjectGantt.configPin.test.ts`: the `RESTATED` census, the non-vacuity control
+ * that names it, and the fixture. But all three fail INSIDE the pin, which is the
+ * file a reader edits to turn a red build green; follow those errors and the tree
+ * goes green with one member fewer under the pin. Delete a member here only when
+ * its twin on `GanttConfig` goes with it.
  *
  * ⚠️ NAMED rather than inlined into the intersection above, and that is the
  * whole mechanism: inside `GanttConfigEx` there is nothing left to compare,
@@ -129,7 +153,7 @@ type GanttConfigEx = GanttConfig & GanttConfigRestated;
  * therefore assignable to `GanttConfig[K]` by construction — an assertion written
  * against `GanttConfigEx` passes no matter how far the two declarations drift.
  * Naming the local half is what gives `ObjectGantt.configPin.test.ts` two
- * independent operands, so a spec bump that re-types one of the ten breaks the
+ * independent operands, so a spec bump that re-types one of the twelve breaks the
  * build at the pin instead of silently intersecting the old type back in.
  */
 export type GanttConfigRestated = {
