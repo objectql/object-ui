@@ -241,12 +241,19 @@ describe('getRecordDisplayName — the undeclared object-level `titleField` (obj
   });
 
   it('does NOT consult `objectDef.titleField` even when it is the ONLY pointer the object carries', () => {
-    // No `nameField`, no `displayNameField`, no `titleFormat`, and the record's
-    // own keys are all non-name-ish — so the undeclared key is the only thing
-    // that could produce a title. It must not: the resolver floors instead,
-    // which is the honest answer for metadata the contract would have rejected.
-    const obj = { name: 'account', titleField: 'legacy_title' };
-    const rec = { id: 'a1', legacy_title: 'Undeclared Alias', amount: 100 };
+    // No `nameField`, no `displayNameField`, no `titleFormat`, no `fields` map,
+    // and `headline` is name-ish by NEITHER step-4b rung — not a
+    // {@link NAME_ISH_RECORD_KEYS} entry, and no `*_name` / `*_title` / `name_*`
+    // affix. So the undeclared key is the only thing left that could produce a
+    // title. It must not: the resolver floors instead, which is the honest
+    // answer for metadata the contract would have rejected outright.
+    //
+    // The field name matters and is load-bearing. This pin first used
+    // `legacy_title`, which step 4b(ii)'s `*_title` affix rule answers on its
+    // own — so it read as a failure of the removal when it was measuring the
+    // fixture instead.
+    const obj = { name: 'account', titleField: 'headline' };
+    const rec = { id: 'a1', headline: 'Undeclared Alias', amount: 100 };
     expect(getRecordDisplayName(obj, rec)).toBe('Record #a1');
   });
 
