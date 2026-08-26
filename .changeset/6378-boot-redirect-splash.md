@@ -29,9 +29,19 @@ and the catch-all route. The nested organization `index` redirect deliberately d
 it fires under an already-painted layout, where covering the screen would be the
 regression.
 
-Rate over the campaign that accepts this, same instrument on both sides, arms interleaved
-in one process so machine load lands on both equally: the empty-viewport window is
-present on 100% of pre-fix boots and 0% after, and the white frame itself goes from a
-substantial minority of pre-fix boots to none. `e2e/console-boot-indicator.spec.ts` gains
-the deterministic half as a gate — after React's first commit the viewport centre must
-never stop being covered — and it is red on the pre-fix build on every run.
+Acceptance campaign — same instrument on both sides, the two arms INTERLEAVED inside one
+process and one browser so drift in this shared container's load lands on both equally.
+102 paired boots per arm across five cells (signed-out `/`, signed-in `/`, an unmatched
+entry, and the card's two throttled network profiles). The empty-viewport window: 102/102
+pre-fix, 0/102 post-fix. The white frame itself, pooled over the three cells where the
+pre-fix build actually flashed: 67/87 (77%) pre-fix, 0/87 post-fix — 95% upper bound on
+the residual rate 3.4%, against a card-reported defect rate of ~1/3. The two throttled
+cells are reported but NOT pooled: the pre-fix build flashed 0 times there, so before and
+after agree and those cells prove nothing about the pixels (they still separate 15/15 vs
+0/15 on the DOM window).
+
+`e2e/console-boot-indicator.spec.ts` gains the deterministic half as a gate — after
+React's first commit the viewport centre must never stop being covered. That reading is
+what makes an intermittent defect gateable: the flash needs a frame to be swapped inside
+the window, but the window itself was present on every measured boot. Verified red-first,
+6/6 red on the pre-fix bundle and 6/6 green on this one.
