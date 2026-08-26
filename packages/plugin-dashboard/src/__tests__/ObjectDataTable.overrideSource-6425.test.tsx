@@ -262,4 +262,20 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
     const written: AuthoredColumnOverrides = { accessorKey: 'amount', scale: 2 };
     expect(written.accessorKey).toBe('amount');
   });
+
+  it('refuses a READ of an unadjudicated key — the mechanism `enrich` runs on', () => {
+    // ⭐ The two pins above act on ASSIGNMENT INTO the keyhole. This one acts on
+    // the read OUT of it, which is what `enrich` actually does: it never
+    // assigns a banded source, it reads `authored.currency` and friends. The
+    // keyhole carries no index signature, so a key nobody adjudicated is
+    // TS2339 AT THE READ — where the pre-fix code answered `any` twice over,
+    // through `(col as any)` and through `NormalizedColumn`'s `[key: string]:
+    // any`. This is the enforcement a future maintainer meets first.
+    const authored = {} as AuthoredColumnOverrides;
+    // The positive control, same query shape: an adjudicated key reads clean.
+    expect(authored.currency).toBeUndefined();
+    // @ts-expect-error objectui#6425 — unadjudicated key; the read itself is refused.
+    const unadjudicated = authored.scale;
+    expect(unadjudicated).toBeUndefined();
+  });
 });
