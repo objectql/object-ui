@@ -35,7 +35,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React, { useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '../SchemaRenderer';
@@ -92,22 +92,30 @@ const BASE_ONLY = {
   responsiveStyles: { base: { padding: '8px' } },
 };
 
-let bumpParent: () => void = () => {
-  throw new Error('harness not mounted');
-};
-
-/** A real parent re-render: parent state changes, every child re-renders,
- *  and every `schema` prop below keeps its identity. */
+/**
+ * A real parent re-render: parent state changes, every child re-renders, and
+ * every `schema` prop below keeps its identity.
+ *
+ * The re-render is driven by a real click rather than by a module-level `let`
+ * the component reassigns during render. That reassignment is itself a render
+ * side effect (`react-hooks/globals`) — in a file that measures render counts,
+ * it would be the measuring instrument breaking the rule under test.
+ */
 const Harness: React.FC = () => {
   const [, setTick] = useState(0);
-  bumpParent = () => setTick((n) => n + 1);
   return (
     <>
+      <button data-testid="bump-parent" onClick={() => setTick((n) => n + 1)} />
       <SchemaRenderer schema={PLAIN} />
       <SchemaRenderer schema={SCOPED} />
       <SchemaRenderer schema={BASE_ONLY} />
     </>
   );
+};
+
+/** One parent re-render. */
+const bumpParent = (): void => {
+  fireEvent.click(screen.getByTestId('bump-parent'));
 };
 
 describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
@@ -154,7 +162,7 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
   describe('identity is stable across a parent re-render', () => {
     it('plain node (control)', () => {
       render(<Harness />);
-      act(() => bumpParent());
+      bumpParent();
 
       expect(renderCount('plain')).toBeGreaterThanOrEqual(2);
       expect(distinctIdentities('plain')).toBe(1);
@@ -162,7 +170,7 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
 
     it('node with a `base`-only responsiveStyles shape (control)', () => {
       render(<Harness />);
-      act(() => bumpParent());
+      bumpParent();
 
       expect(renderCount('baseonly')).toBeGreaterThanOrEqual(2);
       expect(distinctIdentities('baseonly')).toBe(1);
@@ -170,7 +178,7 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
 
     it('node with a sized responsiveStyles breakpoint (the fix case)', () => {
       render(<Harness />);
-      act(() => bumpParent());
+      bumpParent();
 
       expect(renderCount('scoped')).toBeGreaterThanOrEqual(2);
       expect(distinctIdentities('scoped')).toBe(1);
@@ -178,9 +186,9 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
 
     it('holds across several parent re-renders, not just one', () => {
       render(<Harness />);
-      act(() => bumpParent());
-      act(() => bumpParent());
-      act(() => bumpParent());
+      bumpParent();
+      bumpParent();
+      bumpParent();
 
       expect(renderCount('scoped')).toBeGreaterThanOrEqual(4);
       expect(distinctIdentities('scoped')).toBe(1);
@@ -189,7 +197,7 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
 
     it('the scope class survives memoisation — a stable identity is still the RIGHT object', () => {
       render(<Harness />);
-      act(() => bumpParent());
+      bumpParent();
 
       const last = capturesFor('scoped')[renderCount('scoped') - 1];
       expect(last.schema.className).toContain('os-s-scoped');
@@ -198,6 +206,60 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
       // `responsiveStyles` reaches the renderer on the schema object (it is
       // stripped from the DOM props, not from the schema).
       expect(last.schema.responsiveStyles).toEqual({ large: { padding: '8px' } });
+    });
+  });
+
+  describe("the instability is bounded — a consumer's own setState does not re-key it", () => {
+    /**
+     * Pins the reason this finding is a redundant-recompute cost and NOT a
+     * refetch loop. A consuming renderer (`ObjectMap`) keys a fetch effect on
+     * a `[schema]`-derived memo and that effect calls `setData`. If the
+     * renderer's OWN state update re-ran `SchemaRenderer`, a fresh schema
+     * identity would re-key the effect, refetch, and set state again —
+     * unbounded.
+     *
+     * It does not: React re-renders only the subtree below the component that
+     * set state, so `SchemaRenderer` stays put and the consumer keeps the very
+     * object React last handed it. This test fixes that as a property of the
+     * renderer rather than a fact people re-derive from React semantics — it
+     * is GREEN on both sides of the fix by design (the fix changes parent-render
+     * behaviour, not this), and turns red only if something upstream starts
+     * re-rendering `SchemaRenderer` in response to a consumer's state.
+     */
+    it('a consumer re-rendering itself keeps the exact schema object it was handed', () => {
+      const selfUpdates: any[] = [];
+
+      const SelfUpdatingProbe: React.FC<any> = (props) => {
+        const [, setOwn] = useState(0);
+        selfUpdates.push(props.schema);
+        return <button data-testid="bump-self" onClick={() => setOwn((n) => n + 1)} />;
+      };
+
+      ComponentRegistry.register('self-updating-probe', SelfUpdatingProbe);
+      try {
+        render(
+          <SchemaRenderer
+            schema={{
+              type: 'self-updating-probe',
+              id: 'selfscoped',
+              responsiveStyles: { large: { padding: '8px' } },
+            }}
+          />
+        );
+
+        const handedOnce = selfUpdates.length;
+        fireEvent.click(screen.getByTestId('bump-self'));
+        fireEvent.click(screen.getByTestId('bump-self'));
+
+        // Positive control: the consumer really did re-render on its own state.
+        expect(selfUpdates.length).toBeGreaterThan(handedOnce);
+        // …and every one of those renders saw the SAME schema object.
+        expect(new Set(selfUpdates).size).toBe(1);
+        // The branch is genuinely taken here too — otherwise this pins nothing.
+        expect(selfUpdates[0].className).toContain('os-s-selfscoped');
+      } finally {
+        ComponentRegistry.unregister?.('self-updating-probe');
+      }
     });
   });
 
@@ -282,13 +344,11 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
         responsiveStyles: { large: { padding: '8px' } },
       };
 
-      let setTick: (v: any) => void = () => {
-        throw new Error('writer not mounted');
-      };
       const TickWriter: React.FC = () => {
         const { setVariable } = usePageVariables();
-        setTick = (v) => setVariable('tick', v);
-        return null;
+        return (
+          <button data-testid="set-tick" onClick={() => setVariable('tick', 'second')} />
+        );
       };
 
       render(
@@ -302,7 +362,7 @@ describe('SchemaRenderer scoped-style schema identity (objectui#6270)', () => {
 
       expect(capturesFor('reactive')[0].schema.content).toBe('first');
 
-      act(() => setTick('second'));
+      fireEvent.click(screen.getByTestId('set-tick'));
 
       const first = capturesFor('reactive')[0];
       const last = capturesFor('reactive')[renderCount('reactive') - 1];
