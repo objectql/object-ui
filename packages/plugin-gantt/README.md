@@ -265,8 +265,9 @@ spec's `GanttConfigSchema.viewMode`) and is honoured by **both** renderer
 branches — the timeline and the resource-workload grid. It reaches the renderer
 through `getGanttConfig`, so it only takes effect alongside a taken gantt
 config: as a top-level key it needs `startDateField` + `endDateField` beside it
-and no `gantt` block on the node, or it can sit inside the `gantt` block. Omitting it is meaningful — a persisted
-layout then seeds the granularity before the renderer's `'day'` fallback.
+and no `gantt` block on the node, or it can sit inside the `gantt` block.
+Omitting it is meaningful — a persisted layout then seeds the granularity before
+the renderer's `'day'` fallback.
 
 #### Keys this page used to teach that the renderer never reads
 
