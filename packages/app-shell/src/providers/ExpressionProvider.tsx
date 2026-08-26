@@ -201,6 +201,12 @@ export function evaluateVisibility(
       'visible',
       expression,
       reason,
+      // objectui#6487. Until this argument existed the line closed with the
+      // NODE tier's advice, telling an author whose nav predicate faulted to
+      // check `record` and `page.<var>` — two roots the bag built in
+      // `ExpressionProvider` above does not contain at all — while the identity
+      // aliases, `app` and `features` that it DOES contain went unnamed.
+      'app-shell',
     );
 
   try {

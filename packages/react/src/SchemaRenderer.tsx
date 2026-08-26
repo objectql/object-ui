@@ -672,7 +672,18 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       if (!__DEV__) {
         return evaluator.evaluateCondition(raw, {
           onFault: (reason) =>
-            reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, reason),
+            // `'page-component'` stated rather than defaulted (objectui#6487):
+            // this is the tier whose roots the spec declares for a node gate,
+            // and saying so here is what keeps the advice paragraph a decision
+            // this call site owns.
+            reportUnresolvableVisibilityPredicate(
+              newSchema.type,
+              newSchema.id,
+              key,
+              raw,
+              reason,
+              'page-component',
+            ),
         });
       }
       try {
@@ -687,7 +698,14 @@ export const SchemaRenderer: ForwardRefExoticComponent<
         reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource);
         return verdict;
       } catch (err) {
-        reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
+        reportUnresolvableVisibilityPredicate(
+          newSchema.type,
+          newSchema.id,
+          key,
+          raw,
+          err,
+          'page-component',
+        );
         // The historical fail-soft answer, unchanged — and identical to what
         // the production branch above returns for the same input, which is what
         // keeps the two branches one behaviour rather than two. See the

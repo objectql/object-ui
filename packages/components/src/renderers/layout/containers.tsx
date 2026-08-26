@@ -470,7 +470,20 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // predicate is one line no matter which surface evaluates it.
     return evaluator.evaluateCondition(it.visibleWhen, {
       onFault: (reason) =>
-        reportUnresolvableVisibilityPredicate('page:tabs', schema?.id, 'visibleWhen', it.visibleWhen, reason),
+        // `'page-component'`, not a tier of its own (objectui#6487): the bag
+        // built above binds `record`, `current_user` and `page.<var>` — the
+        // three roots the node tier's advice paragraph names — so an author who
+        // faults here needs exactly that paragraph. The extra breadth this site
+        // adds (the row spread flat, `data` aliased to the row) is undeclared on
+        // both surfaces, so it is not advertised on either.
+        reportUnresolvableVisibilityPredicate(
+          'page:tabs',
+          schema?.id,
+          'visibleWhen',
+          it.visibleWhen,
+          reason,
+          'page-component',
+        ),
     });
   };
   const visibleFlags = rawItems.map(isItemVisible);

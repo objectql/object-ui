@@ -33,6 +33,11 @@ export {
   UNRESOLVABLE_VISIBILITY_PREFIX,
   __resetVisibilityPredicateWarnings,
 } from './utils/visibilityDiagnostic.js';
+// The per-surface scope hint those two take (objectui#6487). Exported because
+// `@object-ui/app-shell` — a caller in another package — has to name its tier,
+// and a caller that cannot spell the argument would be back on the node tier's
+// advice by default, which is the defect that card fixed.
+export type { PredicateScopeTier } from './utils/visibilityDiagnostic.js';
 
 // Write-error surfacing utilities (shared by drag-write plugins so a failed
 // PATCH — e.g. an RLS 403 — is never silently swallowed).

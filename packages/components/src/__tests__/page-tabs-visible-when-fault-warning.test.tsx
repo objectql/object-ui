@@ -194,3 +194,45 @@ describe('objectui#6038 — a faulting `page:tabs` item predicate is reported', 
     expect(reports(warn)).toHaveLength(1);
   });
 });
+
+/* -------------------------------------------------------------------------- *
+ * objectui#6487 — this surface stays on the PAGE-COMPONENT tier's advice.
+ *
+ * `page:tabs` items are the third caller of the shared reporter, and the card
+ * that re-tiered its closing paragraph had to decide where they sit. Measured
+ * on `isItemVisible` (`renderers/layout/containers.tsx`): the bag it builds
+ * binds `record`, `current_user` and `page.<var>` — the three roots the node
+ * tier's paragraph names — so this surface keeps that paragraph and must not
+ * drift onto the app-shell one when the reporter learned to tell them apart.
+ *
+ * This is the cell where the two tiers DISAGREE, run at a real call site: it is
+ * red both if this site started printing the app-shell copy and if the fix had
+ * been bought by deleting the root names from both.
+ * -------------------------------------------------------------------------- */
+
+describe('objectui#6487 — the `page:tabs` item gate keeps the node tier`s roots', () => {
+  it('names `record` / `current_user` / `page.<var>`, and not the app-shell roots', () => {
+    const warn = spyWarn();
+    const fault = 'nosuchroot6487tabs.x > 1';
+    const { getByText } = render(
+      <SchemaRenderer
+        schema={tabsSchema([
+          { label: 'Details', value: 'details', children: [] },
+          { label: 'Contracts', value: 'contracts', visibleWhen: fault, children: [] },
+        ])}
+      />,
+    );
+    expect(getByText('Contracts')).toBeTruthy(); // fail-open, unchanged
+
+    const lines = reports(warn);
+    expect(lines).toHaveLength(1); // the fault reached the reporter in THIS run
+    expect(lines[0]).toContain('Page-component predicates bind');
+    expect(lines[0]).toContain('`record`');
+    expect(lines[0]).toContain('`page.<var>`');
+    // The disagreeing half: `features` and the ADR-0068 alias spellings belong
+    // to the app-shell bag, which this site does not build.
+    expect(lines[0]).not.toContain('`features`');
+    expect(lines[0]).not.toContain('`ctx.user`');
+    expect(lines[0]).not.toContain('Neither `record` nor');
+  });
+});
