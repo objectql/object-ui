@@ -48,13 +48,20 @@
  * 0 — the type half of this "tripwire" was, literally, commentary. Which is the
  * same landmine this file's own header cites objectui#3009 for.
  *
- * They are now compiled by `packages/app-shell/tsconfig.typetests.json`, chained
- * from this package's `type-check` script, i.e. run by the CI `Type Check` job.
- * That project lists its files EXPLICITLY (app-shell's wider test tree still has
- * a pre-existing error backlog, tracked as TEST_DEBT), so **a new
- * type-assertion test file is unchecked until it is added to that include
- * list** — and `scripts/check-type-check-coverage.mjs` fails if the chaining is
- * ever dropped, so the gate cannot go quiet again the way it did here.
+ * They are now compiled by `packages/app-shell/tsconfig.test.json`, chained from
+ * this package's `type-check` script (`tsc --noEmit && tsc -p tsconfig.test.json`),
+ * i.e. run by the CI `Type Check` job. That project takes the whole test tree by
+ * GLOB — `src/**\/*.test.ts` and `src/**\/*.test.tsx` — so **a new type-assertion
+ * test file under `src/` is checked from the moment it is written**, with nothing
+ * to register anywhere.
+ *
+ * That last sentence used to say the opposite, and the opposite used to be true:
+ * a narrow `tsconfig.typetests.json` named its files one at a time while the rest
+ * of this tree sat in TEST_DEBT, and a file was decoration until someone added it
+ * to that list. The package graduated in objectui#4040 and the narrow project was
+ * retired with it (objectui#4291 retired the last of them repo-wide; the debt
+ * table is now empty). `scripts/check-type-check-coverage.mjs` fails if the
+ * chaining is ever dropped, so the gate cannot go quiet again the way it did here.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -294,7 +301,7 @@ describe('re-exported values are the spec binding itself', () => {
 
 /**
  * Compile-time assertions. A violation is a `tsc` error, not a runtime failure —
- * so it surfaces only under `tsconfig.typetests.json` (see the file header), not
+ * so it surfaces only under `tsconfig.test.json` (see the file header), not
  * under vitest.
  */
 type Assert<T extends true> = T;

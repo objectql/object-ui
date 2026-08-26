@@ -13,11 +13,16 @@
  * DESCRIBE a spec-rejected condition cannot send the next reader down that road
  * either — which is only true for as long as somebody checks, hence this file.
  *
- * The assertions below are the file's entire point, so it is listed in
- * `packages/app-shell/tsconfig.typetests.json`. Without that listing they would
- * be commentary: the package's build tsconfig excludes `**\/*.test.ts`, and
- * vitest erases types before running (objectui#3181 — the same trap
- * `src/__tests__/spec-symbol-parity.test.ts` documents in its header). The
+ * The assertions below are the file's entire point, and what makes them a check
+ * rather than commentary is `packages/app-shell/tsconfig.test.json`: it compiles
+ * every `src/**\/*.test.ts` in the package, this file included, and is chained
+ * off the package's `type-check` script. Without some such project they WOULD be
+ * commentary — the package's build tsconfig excludes `**\/*.test.ts`, and vitest
+ * erases types before running (objectui#3181 — the same trap
+ * `src/__tests__/spec-symbol-parity.test.ts` documents in its header). Coverage
+ * is by glob, so this file earns it by living under `src/`, not by appearing on
+ * a list; the narrow `tsconfig.typetests.json` that used to name it was retired
+ * when the package graduated (objectui#4040). The
  * runtime case at the bottom is real too: it walks an envelope through
  * `conditionText`, the reader every consumer of this type goes through.
  */
