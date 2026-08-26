@@ -74,6 +74,20 @@ export const ToastSchema = BaseSchema.extend({
   ]).optional().describe('Toast position'),
   action: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Action button'),
   onDismiss: z.function().optional().describe('Dismiss handler'),
+  // The trigger button the `toast` renderer draws in place. `buttonVariant`
+  // is an ENUM and not `z.string()`: the renderer hands the value straight to
+  // `<Button variant={…}>`, whose vocabulary is the six keys of
+  // `buttonVariants`. `cva` contributes no variant class for an unrecognised
+  // key, so a non-empty string outside the six renders an unstyled button —
+  // and `''` is silently resolved to `default` by cva's falsy fallback
+  // (objectui#6496). ⚠️ `SonnerSchema` below spells the same key
+  // `z.string()` while its TS face declares the six-member union — that
+  // disagreement is filed as objectui#6541, NOT resolved here.
+  buttonLabel: z.string().optional().describe('Trigger button label'),
+  buttonVariant: z
+    .enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'])
+    .optional()
+    .describe('Trigger button variant'),
 });
 
 /**
