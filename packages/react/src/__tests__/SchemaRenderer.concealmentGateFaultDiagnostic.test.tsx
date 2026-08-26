@@ -59,13 +59,33 @@
  * deliberately. Every case here pins the VERDICT beside the line, so a run made
  * green by flipping the gate fails this file.
  *
- * ## Reverse verification (direction predicted BEFORE running)
+ * ## Reverse verification, and where the prediction was WRONG
  *
- * Restoring `visibilityDiagnostic.ts` and `SchemaRenderer.tsx` to the pinned
- * base commit turns groups 1, 3 and 5 RED — each on the CONTENT assertion, not
- * on a count — and leaves groups 0, 2, 4 and 6 GREEN. That asymmetry is the
- * card restated: two legs' copy moves, four legs' copy and every verdict in the
- * file do not. Recorded in the PR body with the measured output.
+ * Predicted before running: restoring `visibilityDiagnostic.ts` and
+ * `SchemaRenderer.tsx` to the pinned base commit (`d7acad69d`, hash-verified
+ * on disk, never `origin/main` — a shared pointer another agent's fetch moves)
+ * turns groups 1, 3 and 5 RED and leaves 0, 2, 4 and 6 GREEN.
+ *
+ * MEASURED: 7 failed / 10 passed. Six of the seven are where predicted. The
+ * seventh is group 4's dedupe case, which the prediction had in the GREEN set
+ * and which fails on its closing `CONCEALMENT_CONSEQUENCE` assertion — the
+ * deliberate refusal to let a rate-limit case pin only a COUNT. The prediction
+ * was written per group; that one case spans two. The record is corrected here
+ * rather than restated, because a false claim about which cases guard what is
+ * the same class of defect this file exists to fix.
+ *
+ * Every RED is on a CONTENT assertion; not one is on a count or an emission.
+ * The base tree printed, for a node that had VANISHED:
+ *
+ *     [ObjectUI] A visibility predicate could not be evaluated - node "…"
+ *       hidden: "nosuchroot6503.locked == true"
+ *       Reason: … nosuchroot6503 is not defined
+ *     The node was treated as its safe default, which on this surface means the
+ *     gate did NOT bite - …
+ *
+ * Group 2 is GREEN in BOTH states, and that is what a control for "unchanged"
+ * must be: it asserts the four negated legs' bytes, which neither the base tree
+ * nor the fixed one moves. It fails only against a fix that touched them.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
