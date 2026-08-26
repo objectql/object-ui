@@ -120,6 +120,20 @@ const BaseSchemaCore = z.object({
   data: z.any().optional().describe('Custom data payload'),
 
   /**
+   * Data-scope path, resolved by `useDataScope()`.
+   *
+   * Mirrors `BaseSchema.bind: string` (`../base.ts`, objectui#6357). The pair
+   * `base.zod.ts#BaseSchema` carries no `KnownDrift` / `UnmirroredDeclared`
+   * entry, so this member is not optional housekeeping: a key declared on the
+   * TS side and missing here reddens `zod-mirror-parity.test.ts` by name.
+   *
+   * `z.string()` and not `z.any()` because that is what the resolver accepts —
+   * `useDataScope` is `(path?: string)` and resolves via `path.split('.')`, so
+   * a non-string value threw at render time and this rejects it at parse time.
+   */
+  bind: z.string().optional().describe('Data-scope binding path (resolved by useDataScope)'),
+
+  /**
    * Child components or content
    */
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components'),

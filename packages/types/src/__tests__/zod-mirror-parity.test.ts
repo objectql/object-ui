@@ -192,7 +192,7 @@ export type NarrowerThanDeclared< M, D > = {
  * index signatures SEPARATELY, so remapping the index-signature keys to `never`
  * leaves the literal members — INCLUDING the ones inherited from `BaseSchema`.
  * Same probe against this alias resolves the 36 literal names of
- * `ObjectGanttSchema` and the 20 of `BaseSchema`.
+ * `ObjectGanttSchema` and the 21 of `BaseSchema` (20 until objectui#6357 added `bind`).
  *
  * ⚠️ This lifts the ceiling on what the GUARD can READ, not on what a mirror can
  * REJECT. #5155's ceiling stands: `BaseSchema` is `.passthrough()`, so declaring a

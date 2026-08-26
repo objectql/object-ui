@@ -42,7 +42,10 @@ export interface ObjectPivotTableProps {
   schema: PivotTableSchema & {
     objectName?: string;
     dataProvider?: { provider: string; object?: string };
-    bind?: string;
+    // The data-scope binding key is NOT re-declared here. It used to be, as a
+    // local member grown because no schema shape declared it — the
+    // second-declaration class objectui#6357 measured. `PivotTableSchema
+    // extends BaseSchema`, which now declares it once, same spelling.
     filter?: any;
   };
   dataSource?: any;
