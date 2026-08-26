@@ -304,6 +304,13 @@ const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
  * mirror reproduces is the host's SURFACE and its rows; the query semantics
  * ($search / $orderby / windowing) are the host's, and the parity case pins the
  * method names rather than re-deriving them here.
+ *
+ * objectui#6317 widened that guard where it had to be widened. Pinning method
+ * NAMES left the field declarations unwatched, and they drifted: the host
+ * declared `options` on `role` / `status` in `4b0b12630` and this schema did
+ * not follow for 330 commits, with every case in this file green throughout.
+ * The `USERS_SCHEMA` below is now compared to the host's WHOLE, options
+ * included — see the #6317 cases at the end of this file.
  */
 const USERS_ROWS = [
   { id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', department: 'Engineering', status: 'active', created_at: '2024-01-14' },
@@ -319,9 +326,25 @@ const USERS_SCHEMA = {
   fields: {
     name: { label: 'Name', type: 'text' },
     email: { label: 'Email', type: 'email' },
-    role: { label: 'Role', type: 'select' },
+    role: {
+      label: 'Role',
+      type: 'select',
+      options: [
+        { label: 'Admin', value: 'admin' },
+        { label: 'Member', value: 'member' },
+        { label: 'Viewer', value: 'viewer' },
+      ],
+    },
     department: { label: 'Department', type: 'text' },
-    status: { label: 'Status', type: 'select' },
+    status: {
+      label: 'Status',
+      type: 'select',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Invited', value: 'invited' },
+        { label: 'Suspended', value: 'suspended' },
+      ],
+    },
     created_at: { label: 'Created', type: 'date' },
   },
 };
@@ -1231,4 +1254,151 @@ describe('objectui#5113 — the docs-site hosts supply the same fixture', () => 
       expect(read(host)).toContain('dataSource: galleryDataSource');
     },
   );
+});
+
+/**
+ * objectui#6317 — every `select` field in the fixture declares the options its
+ * own rows use, and this mirror declares exactly what the host declares.
+ *
+ * ## The defect
+ *
+ * `ObjectForm` copies a field's options through verbatim — `formField.options =
+ * field.options || []` (`packages/plugin-form/src/ObjectForm.tsx`) — so a
+ * `select` field with no `options` renders the "No options available" empty
+ * state. Measured through this file's own render path, an `object-form` over
+ * `users` with no `fields` restriction:
+ *
+ *   before: "NameEmailRoleNo options availableDepartmentStatusNo options
+ *            availableCancelUpdate"
+ *   after:  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *            InvitedSuspendedCancelUpdate"
+ *
+ * and the record's own `role` / `status` join the form's control values
+ * (`["Alice Johnson","alice@example.com","Engineering"]` → `["Alice Johnson",
+ * "alice@example.com","admin","Engineering","active"]`), so the two fields stop
+ * being dropped on the way in.
+ *
+ * ## Why the grid and view tiles do NOT move with it
+ *
+ * Worth recording, because the expectation going in was that they would.
+ * `ObjectGrid` SYNTHESISES options for an option-less select from the distinct
+ * values in the loaded rows (`packages/plugin-grid/src/ObjectGrid.tsx` —
+ * `fieldMeta.options = uniqueValues.map(v => ({ value: v, label:
+ * humanizeLabel(String(v)) }))`), so `admin` already printed as "Admin".
+ * Measured: the tile text of all seven `users`-bound entries is byte-identical
+ * before and after this declaration. The grid has a fallback for the missing
+ * declaration; the FORM path has none. That asymmetry is the whole card.
+ *
+ * ## Two directions, because a one-sided pin cannot see this drift
+ *
+ * The host declared these options in `4b0b12630` and this mirror did not
+ * follow for 330 commits — with every case in this file green throughout. The
+ * `select`-coverage case below catches a fixture that declares neither; the
+ * parity case catches the two files declaring different things.
+ */
+
+interface UsersFieldDecl {
+  label?: string;
+  type?: string;
+  options?: Array<{ label: string; value: string }>;
+}
+
+/** Distinct values the mirror's rows carry for one field — walked, not grepped. */
+function distinctRowValues(field: string): Set<string> {
+  const seen = new Set<string>();
+  for (const row of USERS_ROWS) {
+    const value = (row as Record<string, unknown>)[field];
+    if (value !== undefined && value !== null) seen.add(String(value));
+  }
+  return seen;
+}
+
+/**
+ * The host's `USERS_SCHEMA`, read off its source. `apps/**` is outside every
+ * root Vitest project, which is the same constraint that makes this file a
+ * mirror in the first place. Brace-matched rather than pattern-matched and then
+ * JSON-ified, so an extraction that stops working fails LOUDLY here rather than
+ * quietly comparing less than it claims to.
+ */
+function readHostUsersFields(source: string): Record<string, UsersFieldDecl> {
+  const start = source.indexOf('const USERS_SCHEMA = {');
+  expect(start, 'the host fixture no longer declares `const USERS_SCHEMA = {`').toBeGreaterThan(-1);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  expect(end, 'the host `USERS_SCHEMA` literal has unbalanced braces').toBeGreaterThan(-1);
+  const json = source
+    .slice(open, end + 1)
+    .replace(/'/g, '"')
+    .replace(/([{,[]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":')
+    .replace(/,(\s*[}\]])/g, '$1');
+  let parsed: { fields?: Record<string, UsersFieldDecl> };
+  try {
+    parsed = JSON.parse(json) as { fields?: Record<string, UsersFieldDecl> };
+  } catch (error) {
+    throw new Error(
+      'the host `USERS_SCHEMA` is no longer a plain single-quoted literal, so this ' +
+        'parity case can no longer read it — a comment inside the literal, or an ' +
+        'apostrophe inside a string, would each do it. Fix the reader, not the pin.',
+      { cause: error },
+    );
+  }
+  expect(parsed.fields, 'the host `USERS_SCHEMA` declares no `fields`').toBeTruthy();
+  return parsed.fields as Record<string, UsersFieldDecl>;
+}
+
+describe('objectui#6317 — a `select` field declares the options its rows use', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+
+  it('the fixture declares select fields at all — otherwise the cases below are vacuous', () => {
+    expect(selectFields).not.toEqual([]);
+  });
+
+  it.each(selectFields)('`%s` declares options, and they cover its rows exactly', (name) => {
+    const declared = mirrorFields[name].options;
+    expect(
+      declared,
+      `\`${name}\` is declared \`type: 'select'\` with no \`options\`. ObjectForm copies ` +
+        'a field\'s options through verbatim, so a form bound to it renders the "No ' +
+        'options available" empty state — on a docs page whose whole purpose is to ' +
+        'show the component working.',
+    ).toBeTruthy();
+    const optionValues = new Set((declared ?? []).map((option) => String(option.value)));
+    const rowValues = distinctRowValues(name);
+    expect(
+      [...rowValues].filter((value) => !optionValues.has(value)),
+      `rows carry these \`${name}\` values that no option declares — they would render as a blank cell`,
+    ).toEqual([]);
+    expect(
+      [...optionValues].filter((value) => !rowValues.has(value)),
+      `these \`${name}\` options match no row, so nothing in the gallery demonstrates them`,
+    ).toEqual([]);
+  });
+
+  it('the host fixture declares the SAME field surface, options included', () => {
+    const hostSource = fs.readFileSync(
+      path.join(process.cwd(), 'apps/site/app/components/galleryDataSource.ts'),
+      'utf8',
+    );
+    expect(
+      readHostUsersFields(hostSource),
+      'the host fixture and this mirror declare different `users` field surfaces. They ' +
+        'are ONE fixture in two files and have to move together: the host gained its ' +
+        '`role` / `status` options in 4b0b12630 and this mirror did not follow for 330 ' +
+        'commits, with every case in this file green the whole time.',
+    ).toEqual(mirrorFields);
+  });
 });
