@@ -1,6 +1,7 @@
 ---
 '@object-ui/types': minor
 '@object-ui/components': minor
+'@object-ui/plugin-form': minor
 ---
 
 The section grouping contract (objectui#6236, maintainer ruling 2026-08-27): a
@@ -30,8 +31,16 @@ Ruled semantics, now pinned in `section-grouping-6236.test.tsx`:
 Both halves ride the mechanism the field-level predicate already uses (return `null`;
 react-hook-form keeps the value and skips the unmounted control), so field-level and
 section-level visibility cannot drift apart. The zod mirror (`FormFieldSchema`) declares
-the key with the same scope note. Scope note: the plugin-form `section-divider` synthesis
-sites do not yet stamp the claim onto the dividers they emit — an authored section
-predicate on those chains still gates only the heading until that wiring lands (the
-remaining half of objectui#6236). The tabbed arm's predicate slot (objectui#6237) is
+the key with the same scope note.
+
+`@object-ui/plugin-form` wires the producer half: all six `section-divider` synthesis
+sites (ObjectForm's stacked simple path, ModalForm's sectioned and derived-fieldGroup
+paths, DrawerForm's sectioned and derived-fieldGroup paths, SplitForm's panes) now stamp
+the membership claim onto the divider they emit, from the RESOLVED member list — so an
+authored `FormSection.visibleWhen` finally hides the whole section on the object-view
+chain, matching the console renderer. The #6111 honest pin (`measured scope`) flipped
+accordingly: it now pins heading-and-fields hiding together, and every per-layout DENIED
+row asserts the claimed member as well as the heading. The derived-fieldGroup sites carry
+the claim for uniformity but stay fail-open — the spec `fieldGroups` vocabulary has no
+section-predicate slot to author. The tabbed arm's predicate slot (objectui#6237) is
 designed to reuse this same grouping contract.

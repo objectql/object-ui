@@ -586,6 +586,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       schema.sections.forEach((section, index) => {
         const sectionKey = section.name || String(index);
         const isCollapsed = collapsedSections[sectionKey] ?? (section.collapsed ?? false);
+        // Resolved before the divider push so the membership claim below can
+        // name exactly the fields this group contributes (#6236).
+        const sectionFields = buildSectionFields(section);
 
         allFields.push({
           name: `__section_${sectionKey}`,
@@ -594,6 +597,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           // ADR-0089 section predicate (#6111) — the renderer evaluates it on
           // this pseudo-field with the host predicate scope bound (#6010).
           visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): resolved member names, so the
+          // predicate gates the whole group.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,
@@ -603,7 +609,6 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           className: (section as any).className,
         } as any);
 
-        const sectionFields = buildSectionFields(section);
         if (isCollapsed) {
           allFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
         } else {
@@ -652,6 +657,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
             type: 'section-divider',
             // ADR-0089 section predicate (#6111).
             visibleWhen: (section as any).visibleWhen,
+            // The membership claim (#6236): resolved member names, so the
+            // predicate gates the whole group.
+            fields: body.map(f => f.name),
             colSpan: 4,
             collapsible: section.collapsible,
             collapsed: isCollapsed,

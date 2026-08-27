@@ -716,6 +716,10 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             // ADR-0089 section predicate (#6111) — the renderer evaluates it on
             // this pseudo-field with the host predicate scope bound (#6010).
             visibleWhen: g.visibleWhen,
+            // The membership claim (#6236): resolved member names, so the
+            // predicate gates the whole group (same spelling as the
+            // `fieldTabs` claim above).
+            fields: g.fields.map((f) => f.name),
             colSpan: 4,
             className: g.className,
           } as any);
@@ -748,6 +752,9 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             type: 'section-divider',
             // ADR-0089 section predicate (#6111).
             visibleWhen: (section as any).visibleWhen,
+            // The membership claim (#6236): resolved (post-FLS) member names,
+            // so the predicate gates the whole group.
+            fields: body.map((f) => f.name),
           } as any);
         }
         allFields.push(...(columns > 1 ? applyAutoColSpan(body, columns) : body));

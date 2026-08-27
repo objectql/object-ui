@@ -1224,6 +1224,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           // bound (#6010), so copying it here is what makes the authored
           // section predicate reach an evaluator at all.
           visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): the RESOLVED member names — the same
+          // strings the renderer's flat list carries — so the section
+          // predicate gates the whole group, not just this heading. Resolved
+          // rather than authored on purpose: the authored `section.fields`
+          // entries can be spec field-defs, and a perms-filtered field is not
+          // in the form at all.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,

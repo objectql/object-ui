@@ -386,6 +386,9 @@ export const SplitForm: React.FC<SplitFormProps> = ({
           // ADR-0089 section predicate (#6111) — the renderer evaluates it on
           // this pseudo-field with the host predicate scope bound (#6010).
           visibleWhen: section.visibleWhen,
+          // The membership claim (#6236): resolved member names, so the
+          // predicate gates the whole group.
+          fields: body.map(f => f.name),
           colSpan: 4,
           className: section.className,
         } as any);

@@ -70,16 +70,26 @@
  * everywhere, which is precisely why the ALLOWED rows could never have caught
  * this.
  *
- * ## Scope, measured — what this does NOT claim
+ * ## Scope — the whole group, since objectui#6236
  *
- * The renderer treats `section-divider` as a presentational ROW and holds no
- * association between it and the fields that follow it, so a false predicate
- * removes the HEADING and leaves the section's fields rendering. The console
- * renderer (`apps/console/src/components/FormPage.tsx:1819`) drops the whole
- * `<section>`, fields included. That divergence is real and is filed
- * separately — it needs a renderer-side grouping contract, not another line in
- * a layout. The `stillRendersItsFields` case below pins the CURRENT behaviour
- * honestly rather than letting the file imply a guarantee it does not deliver.
+ * objectui#6236 (maintainer ruling 2026-08-27) closed the divergence this
+ * header used to record: the renderer now holds a real divider-to-field
+ * association — the divider's membership claim (`FormField.fields`, stamped by
+ * every synthesis site above from the RESOLVED member list) — and a false
+ * section predicate hides the heading AND the claimed fields, matching the
+ * console renderer. So every DENIED row below asserts both halves: the heading
+ * (the #6111 deliverable) and the gated member field (the #6236 wiring). The
+ * hidden members skip client-side validation and their values still submit;
+ * those semantics are pinned at the renderer in
+ * `packages/components/src/renderers/form/__tests__/section-grouping-6236.test.tsx`
+ * — this file pins that each LAYOUT's synthesis site actually stamps the claim
+ * (an unstamped site reverts to heading-only, invisible to every other suite).
+ *
+ * Two derived-fieldGroup synthesis sites (ModalForm / DrawerForm
+ * `derivedSections`) also stamp the claim for uniformity, but the spec
+ * `fieldGroups` vocabulary has no section-predicate slot, so no authoring path
+ * can turn their gate on today and no DENIED row can discriminate them; they
+ * stay fail-open until that vocabulary grows a predicate.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -193,6 +203,12 @@ const renderModalFormDirect = async (scope: Record<string, unknown>) => {
 const gatedHeading = () => screen.queryByText('Compensation');
 
 /**
+ * The gated section's claimed MEMBER field (#6236) — `null` when the layout's
+ * synthesis site stamped the membership claim and the gate took the group.
+ */
+const gatedField = () => screen.queryByLabelText(/salary/i);
+
+/**
  * Every layout, by name, with the mount that reaches its own synthesis site.
  * Named individually because a fix applied to five of six sites still passes a
  * suite that exercises five.
@@ -221,14 +237,19 @@ const LAYOUTS: { label: string; mount: (scope: Record<string, unknown>) => Promi
 ];
 
 describe('#6111 — an authored section `visibleWhen` reaches an evaluator in every layout', () => {
-  describe('DENIED — the predicate resolves FALSE, so the section heading is HIDDEN', () => {
-    // ⚠️ THE deliverable. Green here is the only observation that separates
-    // "the predicate arrived and was evaluated" from "it never arrived" —
-    // every other row in this file is green on unfixed code.
+  describe('DENIED — the predicate resolves FALSE, so the whole section is HIDDEN', () => {
+    // ⚠️ THE deliverable, in two halves. The heading half (#6111) separates
+    // "the predicate arrived and was evaluated" from "it never arrived"; the
+    // member half (#6236) separates "this layout's synthesis site stamped the
+    // membership claim" from "the divider arrived claim-less and the gate
+    // stayed heading-only" — an unstamped site fails ONLY here, in the SHOWN
+    // direction, because a claim-less divider is valid compat behaviour
+    // everywhere else.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         await layout.mount(DENIED);
         expect(gatedHeading()).toBeNull();
+        expect(gatedField()).toBeNull();
       });
     }
   });
@@ -236,10 +257,13 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
   describe('ALLOWED — the SAME predicate text, a user it admits ⇒ still SHOWN', () => {
     // The control. Without it, "hidden" is satisfied by a layout that dropped
     // the heading for an unrelated reason — a worse defect, invisible above.
+    // The member assertion keeps the same honesty for the group half: a gate
+    // that hides claimed fields unconditionally would pass every DENIED row.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         await layout.mount(ALLOWED);
         expect(gatedHeading()).not.toBeNull();
+        expect(gatedField()).not.toBeNull();
       });
     }
   });
@@ -274,26 +298,27 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
         );
         await waitFor(() => expect(screen.getByText('Always')).toBeTruthy());
         expect(gatedHeading()).not.toBeNull();
+        expect(gatedField()).not.toBeNull();
       });
     }
   });
 
-  it('measured scope: a hidden section still renders its FIELDS (objectui#6111 follow-up)', async () => {
-    // NOT an endorsement — an honest pin of what this chain does and does not
-    // deliver. The renderer-side grouping contract EXISTS since objectui#6236
-    // (maintainer ruling 2026-08-27): a `section-divider` that claims its
-    // members (`FormField.fields: string[]`) gates the whole group — heading
-    // and fields together, hidden members skip client-side validation, values
-    // still submit (pinned in `packages/components/.../section-grouping-6236.
-    // test.tsx`). What is still missing is THIS CHAIN's half: the layouts'
-    // divider synthesis sites (`ObjectForm.tsx` and siblings) copy
-    // `visibleWhen` onto the pseudo-field but do not yet stamp the membership
-    // claim, so an authored section predicate still hides only the heading
-    // here — the fields stay, exactly as below. The console renderer drops
-    // the whole `<section>`. This assertion turning red is the SIGNAL that
-    // the synthesis wiring (the remaining half of objectui#6236) landed.
+  it('measured scope: a hidden section hides its FIELDS too (objectui#6236 wiring landed)', async () => {
+    // FLIPPED — deliberately, and exactly once. From #6111 until the #6236
+    // wiring landed, this case pinned the honest limitation: the divider was a
+    // presentational row, so a false section predicate removed the heading and
+    // LEFT THE FIELDS RENDERING (`expect(getByLabelText(/salary/i)).toBeTruthy()`
+    // stood here). #6111 wrote it so that its red flip would be the SIGNAL the
+    // grouping contract landed rather than a broken test — and that is what
+    // happened: the synthesis sites now stamp the membership claim
+    // (`fields: [...names]`) onto the divider, the renderer gates the whole
+    // group, and this case now pins the NEW contract on the same chain, the
+    // same mount, the same predicate: heading gone AND claimed field gone,
+    // matching the console renderer at last. Values still submit and hidden
+    // members skip client-side validation — pinned at the renderer in
+    // section-grouping-6236.test.tsx.
     await renderObjectForm(DENIED, { formType: 'simple' });
     expect(gatedHeading()).toBeNull();
-    expect(screen.getByLabelText(/salary/i)).toBeTruthy();
+    expect(gatedField()).toBeNull();
   });
 });
