@@ -120,6 +120,13 @@ export const TableColumnSchema = z.object({
   resizable: z.boolean().optional().describe('Whether column is resizable'),
   editable: z.boolean().optional().describe('Whether column is editable (for inline editing)'),
   cell: z.function().optional().describe('Custom cell renderer'),
+  // A rendered React node — a runtime slot like `cell` above, so the mirror's
+  // one job is to PASS IT THROUGH: a non-strict z.object() silently STRIPS an
+  // undeclared key, and a stripped `headerIcon` was exactly the second de-facto
+  // contract objectui#6424 closed (the renderer honoured what the published
+  // declaration refused). Declared on the interface, mirrored here, and paired
+  // in `__tests__/zod-mirror-parity.test.ts`.
+  headerIcon: z.any().optional().describe('Icon node rendered into the header cell, before the header text'),
 });
 
 /**
@@ -150,6 +157,7 @@ export const StaticTableColumnSchema = z.object({
   resizable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
 });
 
 /**

@@ -46,6 +46,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import { TableColumnSchema } from '@object-ui/types/zod';
 import '../data-table';
 
 const ROWS = [
@@ -150,5 +151,46 @@ describe('data-table columns — the auto-width pass reads the same header key',
     expect(ths).toHaveLength(2);
     expect(ths[0].style.width).toBe('80px');
     expect(parseInt(ths[1].style.width, 10)).toBeGreaterThan(80);
+  });
+});
+
+describe('data-table columns — `headerIcon` is DECLARED and renders (#6424)', () => {
+  // Maintainer ruling 2026-08-27 (Option C, per-key): `headerIcon` moves from
+  // undeclared-but-honoured to declared on `TableColumn` + its zod mirror. The
+  // two pins below are the two halves the card measured as broken: the render
+  // read (always live) and the parse road (which used to STRIP the key).
+
+  it('renders the headerIcon node inside the header cell, before the header text', () => {
+    renderTable([
+      {
+        header: 'Stage',
+        accessorKey: 'stage',
+        headerIcon: <svg data-testid="stage-header-icon" />,
+      },
+    ]);
+    const icon = screen.getByTestId('stage-header-icon');
+    expect(icon).toBeInTheDocument();
+    const th = icon.closest('th');
+    expect(th).not.toBeNull();
+    expect(th!.textContent).toContain('Stage');
+  });
+
+  it('SURVIVES the zod mirror parse — no longer silently stripped', () => {
+    // Acceptance alone cannot pin this: a non-strict z.object() ACCEPTS an
+    // undeclared key and silently STRIPS it (the pre-#6424 behaviour — parse
+    // succeeded green while the icon vanished). The pin is the key surviving
+    // into the parsed OUTPUT, same discipline as `editable: false` in
+    // `static-table-narrow-surface.test.ts`.
+    const node = React.createElement('svg');
+    const result = TableColumnSchema.safeParse({
+      header: 'Stage',
+      accessorKey: 'stage',
+      headerIcon: node,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect('headerIcon' in result.data).toBe(true);
+      expect(result.data.headerIcon).toBe(node);
+    }
   });
 });

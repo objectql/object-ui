@@ -352,6 +352,18 @@ export interface TableColumn {
    * Custom cell renderer function
    */
   cell?: (value: any, row: any) => any;
+  /**
+   * Icon node rendered into the header cell, before the header text (e.g. the
+   * column-type icons `ObjectGrid` writes under `showColumnTypeIcons`). A
+   * rendered React node — a runtime slot like {@link TableColumn.cell}, not
+   * serializable metadata.
+   *
+   * Declared by objectui#6424 (maintainer ruling 2026-08-27): `data-table`
+   * rendered this key while the declaration refused it, so a typed author got
+   * a compile error — and a silent strip from the zod mirror — for a key the
+   * renderer honours. Declared = enforced, from the consumer side.
+   */
+  headerIcon?: React.ReactNode;
 }
 
 /**
@@ -454,6 +466,14 @@ export interface StaticTableColumn {
    * @deprecated Not part of the static `table` renderer's contract.
    */
   cell?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6424, under #5474's lockstep
+   * rule: every rich key needs a deliberate static-side decision). Declared on
+   * the rich {@link TableColumn} only — the static renderer never read it.
+   * Header icons are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  headerIcon?: never;
 }
 
 /**

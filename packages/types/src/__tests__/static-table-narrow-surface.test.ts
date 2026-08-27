@@ -62,9 +62,10 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 // Side 3, type level: the narrow shape declares exactly the rich shape's key
-// set — five live, nine tombstoned, none invented, none forgotten. If a key
+// set — five live, ten tombstoned, none invented, none forgotten. If a key
 // is ever added to `TableColumn` without a deliberate decision on the static
-// side (live or tombstone), this line goes red.
+// side (live or tombstone), this line goes red. (`headerIcon` is the first key
+// to arrive through that gate: added rich by objectui#6424, tombstoned here.)
 type _SameKeySet = Expect<Equal<keyof StaticTableColumn, keyof TableColumn>>;
 
 /* ── fixtures ────────────────────────────────────────────────────────────── */
@@ -77,8 +78,10 @@ const LIVE_COLUMN = {
   width: 120,
 };
 
-/** The nine column keys the split retires from the static surface, with the
- *  value an author would plausibly write for each. */
+/** The ten keys the narrow surface refuses, with the value an author would
+ *  plausibly write for each: nine the #5474 split retired, plus `headerIcon`,
+ *  which joined the RICH shape later (objectui#6424) and is tombstoned here
+ *  under the lockstep rule — the static renderer never read it. */
 const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   minWidth: 80,
   align: 'right',
@@ -89,6 +92,7 @@ const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   resizable: true,
   editable: false,
   cell: () => 'x',
+  headerIcon: 'lucide:hash',
 };
 
 /** Every key the rich `TableColumn` interface declares. `satisfies` keeps the
@@ -110,6 +114,7 @@ const RICH_COLUMN_KEYS = [
   'resizable',
   'editable',
   'cell',
+  'headerIcon',
 ] as const satisfies readonly (keyof TableColumn)[];
 type _RichKeyListExhaustive = Expect<Equal<(typeof RICH_COLUMN_KEYS)[number], keyof TableColumn>>;
 
@@ -241,7 +246,7 @@ describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, object
 /* ── 3. the two shapes stay in lockstep ──────────────────────────────────── */
 
 describe('the split itself — narrow = rich key set, live = the measured read set', () => {
-  it('narrow zod declares exactly the interface key set: 5 live + 9 tombstones', () => {
+  it('narrow zod declares exactly the interface key set: 5 live + 10 tombstones', () => {
     expect(liveKeys(StaticTableColumnSchema).sort()).toEqual(
       ['accessorKey', 'cellClassName', 'className', 'header', 'width'].sort(),
     );
