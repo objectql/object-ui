@@ -866,7 +866,7 @@ const de = {
     relatedRecords: "{{count}} Datensätze",
     relatedRecordOne: "{{count}} Datensatz",
     noRelatedRecords: "Keine verknüpften Datensätze gefunden",
-    loading: "Laden…",
+    loading: "Wird geladen…",
     copyToClipboard: "In Zwischenablage kopieren",
     copied: "Kopiert!",
     deleteConfirmation: "Sind Sie sicher, dass Sie diesen Datensatz löschen möchten?",
@@ -2490,7 +2490,7 @@ const de = {
     columnsLabel: "Spalte",
     allLabel: "(Alle)",
     emptyLabel: "(Leer)",
-    loading: "Laden…",
+    loading: "Wird geladen…",
     failedToLoad: "Matrix konnte nicht geladen werden: {{message}}",
     needsAcross: "Matrixbericht erfordert mindestens ein `groupingsAcross`-Feld.",
     aggregate: {
@@ -3020,7 +3020,7 @@ const de = {
   },
   approvalsInbox: {
     loadMore: 'Mehr laden',
-    loadingMore: 'Lädt…',
+    loadingMore: 'Wird geladen…',
     loadedOf: '{{loaded}} von {{total}} geladen',
     actEscalate: 'SLA eskaliert',
     systemSlaActor: 'System (SLA)',

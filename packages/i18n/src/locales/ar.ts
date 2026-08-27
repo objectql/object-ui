@@ -85,7 +85,7 @@ const ar = {
   common: {
     addToFavorites: "إضافة إلى المفضلة",
     removeFromFavorites: "إزالة من المفضلة",
-    loading: "جاري التحميل…",
+    loading: "جارٍ التحميل…",
     save: "حفظ",
     discard: "تجاهل",
     cancel: "إلغاء",
@@ -872,7 +872,7 @@ const ar = {
     relatedRecords: "{{count}} سجلات",
     relatedRecordOne: "{{count}} سجل",
     noRelatedRecords: "لا توجد سجلات ذات صلة",
-    loading: "جاري التحميل…",
+    loading: "جارٍ التحميل…",
     copyToClipboard: "نسخ إلى الحافظة",
     copied: "تم النسخ!",
     deleteConfirmation: "هل أنت متأكد أنك تريد حذف هذا السجل؟",
