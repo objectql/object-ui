@@ -7,7 +7,7 @@
  * Set / Profile metadata item:
  *
  *   • Top section — object-level CRUD + VAMA (View All / Modify All)
- *     + lifecycle (Transfer / Restore / Purge).
+ *     + lifecycle (Transfer).
  *   • Lower section — field-level R/W for the fields of any object
  *     selected from the table above.
  *
@@ -177,8 +177,11 @@ function getObjectActions(
     { key: 'allowEdit', short: 'U', tip: translate('perm.action.edit', locale) },
     { key: 'allowDelete', short: 'D', tip: translate('perm.action.delete', locale) },
     { key: 'allowTransfer', short: 'Tr', tip: translate('perm.action.transfer', locale) },
-    { key: 'allowRestore', short: 'Re', tip: translate('perm.action.restore', locale) },
-    { key: 'allowPurge', short: 'Pu', tip: translate('perm.action.purge', locale) },
+    // No `Re` (allowRestore) / `Pu` (allowPurge) columns: both keys are retired
+    // (objectui#6595 — see the tombstone on `ObjectPerm` in `permission-slice`
+    // for the full account and the M2 return path on objectstack#1883). They
+    // gated ObjectQL operations that have never existed, so every tick was a
+    // grant no runtime read. `allowTransfer` is enforced upstream and stays.
     { key: 'viewAllRecords', short: 'VA', tip: translate('perm.action.viewAll', locale) },
     { key: 'modifyAllRecords', short: 'MA', tip: translate('perm.action.modifyAll', locale) },
   ];
@@ -1013,7 +1016,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
         {/* Column legend — the matrix header cells already carry a native
             `title` tooltip per column, but a hover-only affordance on
-            unfamiliar two-letter abbreviations (Tr/Re/Pu/VA/MA) is easy to
+            unfamiliar two-letter abbreviations (Tr/VA/MA) is easy to
             miss. Spell them out once, up front. */}
         <div className="px-6 py-2 border-b flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {OBJECT_ACTIONS.map((a) => (
@@ -1154,9 +1157,11 @@ function PermissionTable({
   onOpenOwd,
 }: PermissionTableProps) {
   return (
-    // objectui#2600 B3 — the fixed columns (object + 9 CRUD + bulk) need ~960px;
+    // objectui#2600 B3 — the fixed columns (object + 7 CRUD + bulk) need ~960px;
     // a min-width makes the enclosing overflow-auto container scroll instead of
     // squishing the CRUD grid and clipping the Bulk column off the right edge.
+    // The min-width is deliberately unchanged by the two columns objectui#6595
+    // retired: it is a floor, so the grid simply has more room to breathe.
     <table className="w-full min-w-[960px] text-sm">
       <thead className="sticky top-0 bg-background border-b z-10">
         <tr>
