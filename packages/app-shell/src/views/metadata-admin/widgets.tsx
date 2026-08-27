@@ -47,7 +47,9 @@ import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadataLocale, t, tFormat } from './i18n.js';
-import type { FormFieldSpec } from './form-spec.js';
+import type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
+import { usePredicateScope } from '@object-ui/react';
+import { buildPredicateCtx, visibleOptions, type PredicateCtx } from './predicate.js';
 import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold.js';
 import { ColorVariantPicker } from './color-variant-field.js';
 import { ConditionBuilder } from './inspectors/ConditionBuilder.js';
@@ -1122,18 +1124,32 @@ function humanizeOption(v: string): string {
  * free-text tag input the generic array renderer fell back to — the author
  * picks from the real allowed values instead of typing (and mistyping) them.
  */
-function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, ariaLabelledBy }: WidgetProps) {
+function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, formData, ariaLabelledBy }: WidgetProps) {
+  const hostScope = usePredicateScope();
   // Prefer explicit form options; else the JSON Schema enum on the items.
-  const options: Array<{ label: string; value: string }> = React.useMemo(() => {
-    if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
-      return fieldSpec!.options!.map((o) => ({ label: o.label, value: o.value }));
-    }
-    const enumVals: unknown =
-      schema?.items?.enum ?? schema?.enum ?? [];
-    return (Array.isArray(enumVals) ? enumVals : [])
-      .filter((v): v is string => typeof v === 'string')
-      .map((v) => ({ label: humanizeOption(v), value: v }));
-  }, [fieldSpec, schema]);
+  //
+  // ⚠️ RAW — every per-option `visibleWhen` is carried through untouched
+  // (objectui#6247). This list answers the two questions that must NOT depend
+  // on a predicate: whether this widget renders at all (the degradation branch
+  // below) and what ORDER a selection is stored in (`toggle`). Only
+  // `renderedOptions` is filtered.
+  const options: Array<{ label: string; value: string; visibleWhen?: VisibilityPredicate }> =
+    React.useMemo(() => {
+      if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+        return fieldSpec!.options!.map((o) => ({ label: o.label, value: o.value, visibleWhen: o.visibleWhen }));
+      }
+      const enumVals: unknown =
+        schema?.items?.enum ?? schema?.enum ?? [];
+      return (Array.isArray(enumVals) ? enumVals : [])
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => ({ label: humanizeOption(v), value: v }));
+    }, [fieldSpec, schema]);
+
+  // The CONTENT half: what the author is offered right now.
+  const renderedOptions = React.useMemo(
+    () => visibleOptions(options, buildPredicateCtx(formData, hostScope)),
+    [options, formData, hostScope],
+  );
 
   const selected = React.useMemo(
     () => (Array.isArray(value) ? (value as unknown[]).filter((v): v is string => typeof v === 'string') : []),
@@ -1147,10 +1163,21 @@ function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, ariaL
     const set = new Set(selected);
     if (set.has(opt)) set.delete(opt);
     else set.add(opt);
+    // ⚠️ RAW list, not the rendered one (objectui#6247, Fork C → C1: no
+    // pruning). Ordering against the filtered list would DROP any already-
+    // selected value whose option is currently hidden — pruning authored
+    // metadata through the back door, on the next unrelated click, with no
+    // author action that says "remove this". A hidden-but-selected value
+    // survives; it is simply not offered again.
     const next = options.map((o) => o.value).filter((v) => set.has(v));
     onChange(next.length ? next : undefined);
   }
 
+  // ⚠️ RAW length (objectui#6247, Fork B → B1). Testing the FILTERED length
+  // here would make "withdraw every option" degrade to the free-text tag
+  // editor — the opposite of the narrowing the author wrote, and a change of
+  // naming channel that objectui#4871 removed from this file. A field whose
+  // options are all withdrawn stays this widget and renders an empty group.
   if (options.length === 0) {
     // No known option set — degrade to the comma-tag editor so the field
     // is still editable rather than rendering an empty box.
@@ -1170,7 +1197,7 @@ function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, ariaL
 
   return (
     <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={ariaLabelledBy}>
-      {options.map((o) => {
+      {renderedOptions.map((o) => {
         const on = selected.includes(o.value);
         return (
           <button
@@ -2206,7 +2233,40 @@ export function resolveColorWidgetKey(
   schema: Record<string, unknown> | undefined,
   fieldSpec: WidgetProps['fieldSpec'],
 ): 'color-picker' | 'color-input' {
+  // ⚠️ Reads {@link colorPaletteOptions}, the RAW palette, and it must keep
+  // doing so (objectui#6247, Fork B → B1). This function decides which of the
+  // two colour REGISTRATIONS the host mounts, and objectui#4871 point 4 put
+  // that decision in the host, from the schema, BEFORE the label is written.
+  // Filtering here would make the labelling channel itself predicate-dependent:
+  // withdrawing the last swatch would silently re-register the field as
+  // `color-input` and move its accessible name onto a different element.
   return colorPaletteOptions(schema, fieldSpec).length > 0 ? 'color-picker' : 'color-input';
+}
+
+/**
+ * The palette a colour field OFFERS right now — {@link colorPaletteOptions}
+ * with each option's `visibleWhen` applied (objectui#6247).
+ *
+ * The CONTENT half of the B1 split: the source list is still chosen on the RAW
+ * `fieldSpec.options` (identically to {@link colorPaletteOptions}, so producer
+ * and consumer cannot disagree about which list is in play, and a fully
+ * withdrawn palette can never fall through to the schema `enum` and resurrect
+ * the very swatches the predicate withdrew), and only its ELEMENTS are
+ * filtered. An emptied palette renders an empty `radiogroup` — still
+ * `color-picker`, per {@link resolveColorWidgetKey}.
+ *
+ * The `enum` arm is returned unfiltered because a JSON-Schema enum member has
+ * no per-option predicate to read; there is nothing there to withhold.
+ */
+export function visibleColorPaletteOptions(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+  ctx: PredicateCtx,
+): Array<{ value: string; label?: string }> {
+  if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+    return visibleOptions(fieldSpec!.options!, ctx).map((o) => ({ value: o.value, label: o.label }));
+  }
+  return colorPaletteOptions(schema, fieldSpec);
 }
 
 /**
@@ -2215,7 +2275,8 @@ export function resolveColorWidgetKey(
  * publishes an id and this surface answers it by IDREF (objectui#4010 named the
  * group; objectui#4871 is what finally removed the host's dangling `for`).
  */
-function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, ariaLabelledBy }: WidgetProps) {
+function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, formData, ariaLabelledBy }: WidgetProps) {
+  const hostScope = usePredicateScope();
   // Exactly one naming channel, chosen by which one the caller can supply
   // (`ColorVariantPickerNaming` makes that a type-level XOR, objectui#4010):
   // `SchemaForm` publishes a label id and takes the IDREF arm; a caller that
@@ -2234,7 +2295,7 @@ function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, 
       value={value == null ? undefined : String(value)}
       onChange={(v) => onChange(v)}
       disabled={readOnly}
-      options={colorPaletteOptions(schema, fieldSpec)}
+      options={visibleColorPaletteOptions(schema, fieldSpec, buildPredicateCtx(formData, hostScope))}
     />
   );
 }
