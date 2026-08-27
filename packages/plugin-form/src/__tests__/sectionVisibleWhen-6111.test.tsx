@@ -90,6 +90,20 @@
  * `fieldGroups` vocabulary has no section-predicate slot, so no authoring path
  * can turn their gate on today and no DENIED row can discriminate them; they
  * stay fail-open until that vocabulary grows a predicate.
+ *
+ * ## The tabbed modal arm — the seventh synthesis site (objectui#6237)
+ *
+ * `ModalForm` with `contentLayout: 'tabbed'` synthesises NO divider at all —
+ * sections become `fieldTabs` entries — so its stamp is the tab's own
+ * predicate slot (`FormFieldTab.visibleWhen`, same ruling as #6236) and its
+ * DENIED row asserts the tab TRIGGER text and the member field are both gone.
+ * The hidden-tab semantics (values still submit, client validation skipped,
+ * re-selection, no mid-interaction collapse) are pinned at the renderer in
+ * `packages/components/src/renderers/form/__tests__/fieldtab-visiblewhen-6237.test.tsx`;
+ * the rows here pin only that THIS synthesis site copies the predicate onto
+ * the tab. `TabbedForm` / `WizardForm` still declare no section predicate at
+ * all (their section configs carry no `visibleWhen` key), so there is nothing
+ * to copy and no row to write — those arms are separate cards.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -152,15 +166,16 @@ afterEach(() => {
  * proves the form rendered AT ALL — so a missing `Compensation` heading is a
  * verdict and not an inability. `Compensation` carries the gate.
  */
-const sections = () => [
+const sections = (gate: unknown = GATE) => [
   { name: 'always', label: 'Always', fields: ['subject'] },
-  { name: 'pay', label: 'Compensation', visibleWhen: GATE, fields: ['salary'] },
+  { name: 'pay', label: 'Compensation', visibleWhen: gate, fields: ['salary'] },
 ];
 
 /** Mount through `ObjectForm` — the entry `RecordFormPage` itself uses. */
 const renderObjectForm = async (
   scope: Record<string, unknown>,
   extra: Record<string, unknown>,
+  gate?: unknown,
 ) => {
   render(
     <PredicateScopeProvider scope={scope as any}>
@@ -169,7 +184,7 @@ const renderObjectForm = async (
           type: 'object-form',
           objectName: 'crm_case',
           mode: 'create',
-          sections: sections(),
+          sections: sections(gate),
           ...extra,
         } as any}
         dataSource={dataSource}
@@ -181,7 +196,11 @@ const renderObjectForm = async (
 };
 
 /** Mount `ModalForm` directly — the shape `resolveFormViewLayout` produces. */
-const renderModalFormDirect = async (scope: Record<string, unknown>) => {
+const renderModalFormDirect = async (
+  scope: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+  gate?: unknown,
+) => {
   render(
     <PredicateScopeProvider scope={scope as any}>
       <ModalForm
@@ -190,7 +209,8 @@ const renderModalFormDirect = async (scope: Record<string, unknown>) => {
           objectName: 'crm_case',
           mode: 'create',
           open: true,
-          sections: sections(),
+          sections: sections(gate),
+          ...extra,
         } as any}
         dataSource={dataSource}
       />
@@ -213,26 +233,47 @@ const gatedField = () => screen.queryByLabelText(/salary/i);
  * Named individually because a fix applied to five of six sites still passes a
  * suite that exercises five.
  */
-const LAYOUTS: { label: string; mount: (scope: Record<string, unknown>) => Promise<void> }[] = [
+const LAYOUTS: {
+  label: string;
+  mount: (scope: Record<string, unknown>, gate?: unknown) => Promise<void>;
+}[] = [
   {
     label: 'ObjectForm — stacked `simple` sections (ObjectForm.tsx section-divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'simple' }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'simple' }, gate),
   },
   {
     label: 'ModalForm — via ObjectForm delegation (key-by-key remap + ModalForm groups map)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'modal', open: true }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'modal', open: true }, gate),
   },
   {
     label: 'ModalForm — mounted directly (the resolveFormViewLayout shape)',
-    mount: (scope) => renderModalFormDirect(scope),
+    mount: (scope, gate) => renderModalFormDirect(scope, {}, gate),
+  },
+  {
+    // The tabbed arm (#6237): sections render as TAB PANELS, so there is no
+    // divider to stamp — the synthesis site copies the predicate onto the
+    // tab itself (`FormFieldTab.visibleWhen`) and the renderer hides trigger,
+    // panel and members together. In the DENIED row `gatedHeading()` is the
+    // tab TRIGGER text rather than a divider heading — same locator, same
+    // authored key, seventh synthesis site.
+    label: "ModalForm — contentLayout 'tabbed', mounted directly (fieldTabs synthesis, #6237)",
+    mount: (scope, gate) => renderModalFormDirect(scope, { contentLayout: 'tabbed' }, gate),
+  },
+  {
+    // Same arm via ObjectForm delegation: `contentLayout` rides the spread and
+    // the key-by-key section remap must have copied `visibleWhen` for the tab
+    // to receive it — both hops, like the stacked modal row above.
+    label: "ModalForm — contentLayout 'tabbed', via ObjectForm delegation (#6237)",
+    mount: (scope, gate) =>
+      renderObjectForm(scope, { formType: 'modal', open: true, contentLayout: 'tabbed' }, gate),
   },
   {
     label: 'DrawerForm — via ObjectForm delegation (key-by-key remap + explicit-sections divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'drawer', open: true }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'drawer', open: true }, gate),
   },
   {
     label: 'SplitForm — via ObjectForm delegation (key-by-key remap + paneFields divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'split' }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'split' }, gate),
   },
 ];
 
@@ -274,29 +315,17 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
     // purpose: the only difference from the DENIED block is the ROOT the
     // predicate names, so a fail-CLOSED regression cannot hide behind the
     // membership test.
+    //
+    // Mounted through `layout.mount` like the two blocks above (#6237's edit):
+    // the loop used to render the SAME simple form under every row's label, so
+    // five FAULTED rows named layouts they never mounted — fail-open was only
+    // ever measured on the stacked path.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const unbound = cel("'sales_manager' in no_such_root.positions");
-        render(
-          <PredicateScopeProvider scope={DENIED as any}>
-            <ObjectForm
-              schema={{
-                type: 'object-form',
-                objectName: 'crm_case',
-                mode: 'create',
-                formType: 'simple',
-                sections: [
-                  { name: 'always', label: 'Always', fields: ['subject'] },
-                  { name: 'pay', label: 'Compensation', visibleWhen: unbound, fields: ['salary'] },
-                ],
-              } as any}
-              dataSource={dataSource}
-            />
-          </PredicateScopeProvider>,
-        );
-        await waitFor(() => expect(screen.getByText('Always')).toBeTruthy());
+        await layout.mount(DENIED, unbound);
         expect(gatedHeading()).not.toBeNull();
         expect(gatedField()).not.toBeNull();
       });

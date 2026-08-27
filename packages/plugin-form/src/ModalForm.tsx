@@ -695,6 +695,11 @@ export const ModalForm: React.FC<ModalFormProps> = ({
                 description: g.description,
                 fields: g.fields.map((f) => f.name),
                 containerClass: g.gridClassName,
+                // The tab's predicate slot (#6237) — the same authored
+                // `FormSection.visibleWhen` the stacked arm copies onto its
+                // divider; the renderer evaluates it and hides trigger, panel
+                // and fields together under the ruled hidden-group semantics.
+                visibleWhen: g.visibleWhen,
               })),
             }}
           />

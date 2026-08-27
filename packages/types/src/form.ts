@@ -847,6 +847,30 @@ export interface FormFieldTab {
    * `FormSchema.fieldContainerClass`, scoped to this tab).
    */
   containerClass?: string;
+  /**
+   * The tab's predicate slot (objectui#6237) — the tabbed arm of the grouping
+   * contract objectui#6236 landed for `section-divider` rows, so a section
+   * rendered as a tab can carry the same authored `FormSection.visibleWhen` a
+   * stacked section can. Evaluated by the form renderer on the canonical
+   * engine with the live record and the host predicate scope bound (#6010),
+   * exactly like a field's own `visibleWhen`; a broken predicate fails OPEN
+   * (the tab stays visible).
+   *
+   * When it resolves FALSE the renderer draws neither the tab's trigger nor
+   * its panel. Ruled semantics (maintainer, 2026-08-27 — the same ruling for
+   * tabs as for sections): visibility decides what is DRAWN and nothing else —
+   * a hidden tab's values still submit — and a hidden tab's fields SKIP
+   * client-side validation, so a user is never blocked by an error pointing at
+   * a control they cannot see; the server-side contract remains the loud floor
+   * for genuinely-required data. Both semantics ride the unmount mechanism a
+   * field's own false predicate already uses.
+   *
+   * The layout decision stays structural: whether the tabbed arm engages at
+   * all is judged on the DECLARED tabs, so a predicate hiding all but one tab
+   * filters what is drawn without collapsing the strip mid-interaction. A tab
+   * without this key keeps the pre-#6237 contract (always drawn).
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**
