@@ -73,6 +73,7 @@ import {
   detectDraftResult,
   detectProposedPlan,
   detectBuilderHandoff,
+  detectRecordHandoff,
   detectProposedChanges,
   detectReplayOutcome,
   detectBuiltAppPackage,
@@ -193,6 +194,7 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         // live floating-chat mapper (extractToolInvocations) already lifts all
         // four; this is its hydration counterpart.
         const builderHandoff = detectBuilderHandoff(result);
+        const recordHandoff = detectRecordHandoff(result);
         const proposedChanges = detectProposedChanges(result);
         // objectui#5695 — a confirm-replay result becomes a terminal state on
         // the original 确认修改 card; it must never rehydrate as an ordinary
@@ -207,6 +209,7 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
           ...(draftReview && !replayOutcome ? { draftReview } : {}),
           ...(proposedPlan ? { proposedPlan } : {}),
           ...(builderHandoff ? { builderHandoff } : {}),
+          ...(recordHandoff ? { recordHandoff } : {}),
           ...(proposedChanges ? { proposedChanges } : {}),
           ...(replayOutcome ? { replayOutcome } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
@@ -1479,6 +1482,33 @@ export function ChatPane({
     [navigate, editPackageId, conversationId],
   );
 
+  // cloud#1658 — land the user on the record an `open_record` hand-off names.
+  // The payload has objectName + recordId but the canonical record route needs
+  // the APP segment (`/apps/:app/:object/record/:id`), so resolve the object's
+  // owning package on click — one same-origin metadata read — instead of
+  // burdening the agent with an id it may not know. `setup` is the fallback
+  // shell for an object no package claims.
+  const openRecord = useCallback(
+    async (handoff: { objectName: string; recordId: string }) => {
+      let app = 'setup';
+      try {
+        const r = await fetch(`/api/v1/meta/object/${encodeURIComponent(handoff.objectName)}`, {
+          credentials: 'include',
+        });
+        if (r.ok) {
+          const j = (await r.json()) as { item?: { _packageId?: unknown } };
+          if (typeof j?.item?._packageId === 'string' && j.item._packageId) app = j.item._packageId;
+        }
+      } catch {
+        /* resolution is best-effort; the fallback below still lands on the record */
+      }
+      navigate(
+        `/apps/${encodeURIComponent(app)}/${encodeURIComponent(handoff.objectName)}/record/${encodeURIComponent(handoff.recordId)}`,
+      );
+    },
+    [navigate],
+  );
+
   // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
   // When a build session drafts an `app`, open the split-view canvas: the
   // drafted app rendered as-if-published (`?preview=draft`) beside the chat.
@@ -2181,6 +2211,7 @@ export function ChatPane({
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
         onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
         onOpenBuilder={openBuilder}
+        onOpenRecord={openRecord}
         surface="plain"
         maxHeight="100%"
         headerSlot={headerSlot}
