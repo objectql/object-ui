@@ -64,6 +64,39 @@ export interface InlineEditSaveBarProps {
   className?: string;
 }
 
+/**
+ * The shape `isConcurrentUpdateError` narrows to, DERIVED from the predicate
+ * rather than restated here (objectui#6477).
+ *
+ * `buildConflict` below is that predicate's ONLY in-repo consumer, and it used
+ * to take `err: any` — which discarded the narrowing one line after the call
+ * site drew it, so the predicate's return type reached no typed consumer at
+ * all. objectui#6421 / PR #6474 had just made that return type honest
+ * (`code?: 'CONCURRENT_UPDATE'`, optional because the `name` limb carries no
+ * `code`); this alias is what makes something listen.
+ *
+ * Derived, not copied, on purpose: a restated literal shape is a second
+ * declaration that drifts silently, and the two disagreeing is exactly the
+ * failure this card was opened to rule out. Written this way the compiler
+ * re-checks every read in `buildConflict` against whatever the predicate
+ * currently promises, so a future narrowing that stops covering
+ * `currentRecord` / `currentVersion` is a red build here rather than a fresh
+ * `any`.
+ */
+type NarrowedBy<F> = F extends (arg: unknown) => arg is infer N ? N : never;
+type ConcurrentUpdateErrorShape = NarrowedBy<typeof isConcurrentUpdateError>;
+
+/**
+ * Signature of the module-local `buildConflict` callback. Exported as a TYPE
+ * only, for its pin test to reach — the callback itself stays inside the
+ * component. Deliberately NOT re-exported from `src/index.tsx`, which lists
+ * every published name explicitly, so the package surface is unchanged.
+ */
+export type BuildConflict = (
+  draft: Record<string, any>,
+  err: ConcurrentUpdateErrorShape,
+) => ConcurrentUpdateConflict;
+
 /** Strip noisy backend prefixes so the inline error reads cleanly. */
 function cleanError(err: any): string {
   const raw = err?.message || err?.error || String(err ?? 'Save failed');
@@ -121,10 +154,13 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
    * single-field draft shows the classic per-field before/after; a multi-field
    * draft shows a record-level summary (the dialog JSON-stringifies objects).
    */
-  const buildConflict = React.useCallback(
-    (draft: Record<string, any>, err: any): ConcurrentUpdateConflict => {
+  const buildConflict = React.useCallback<BuildConflict>(
+    (draft, err) => {
       const keys = Object.keys(draft);
-      const current = (err?.currentRecord ?? null) as Record<string, unknown> | null;
+      // No `as` cast here: the narrowed type already declares `currentRecord`
+      // as `Record<string, unknown> | null`, which is exactly what the conflict
+      // payload takes. That cast was the only type this value ever got.
+      const current = err?.currentRecord ?? null;
       if (keys.length === 1) {
         const f = keys[0];
         return {
