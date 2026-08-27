@@ -39,16 +39,18 @@
  * none of them. The DENIED rows are the deliverable; ALLOWED and FAULTED are
  * the controls that keep "hidden" meaning "evaluated and false".
  *
- * ## Reverse verification (direction predicted BEFORE running)
+ * ## Reverse verification (run 2026-08-27, direction predicted BEFORE running)
  *
- * Neutralise the verdict collection in `hiddenFieldTabKeys` (form.tsx) and:
- * the DENIED rows go red in the SHOWN direction (trigger, panel and members
- * come back), the validation rows go red in the BLOCKED direction (the hidden
- * required field refuses the submit again), and the re-selection rows go red
- * with the gated tab still active. The values-still-submit row stays GREEN —
- * value retention comes from react-hook-form keeping unmounted values, which
- * the revert does not touch — so it is a semantics pin, not a differentiator,
- * and the same holds for every ALLOWED/FAULTED control.
+ * Neutralising the verdict collection in `hiddenFieldTabKeys` (form.tsx) went
+ * 8 red / 4 green, exactly the predicted rows: the DENIED rows red in the
+ * SHOWN direction (trigger, panel and members come back), the validation rows
+ * red in the BLOCKED direction (the hidden required field refuses the submit
+ * again), the re-selection / collapse / all-hidden rows red with the gated tab
+ * still drawn — and the values-still-submit row red through its drawn
+ * precondition (`member(/salary/i)` is null only while the gate works; the
+ * submitted VALUE itself comes from react-hook-form keeping unmounted values,
+ * which the revert does not touch). Every ALLOWED/FAULTED/compat control
+ * stayed green, which is what lets the DENIED rows mean "evaluated and false".
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
