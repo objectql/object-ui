@@ -279,12 +279,19 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
   });
 
   it('measured scope: a hidden section still renders its FIELDS (objectui#6111 follow-up)', async () => {
-    // NOT an endorsement — an honest pin of what this change does and does not
-    // deliver. `section-divider` is a presentational ROW; the renderer holds no
-    // association between it and the fields after it, so the heading goes and
-    // the fields stay. The console renderer drops the whole `<section>`.
-    // Reconciling the two needs a renderer-side grouping contract and is filed
-    // separately; this assertion turning red is the SIGNAL that it landed.
+    // NOT an endorsement — an honest pin of what this chain does and does not
+    // deliver. The renderer-side grouping contract EXISTS since objectui#6236
+    // (maintainer ruling 2026-08-27): a `section-divider` that claims its
+    // members (`FormField.fields: string[]`) gates the whole group — heading
+    // and fields together, hidden members skip client-side validation, values
+    // still submit (pinned in `packages/components/.../section-grouping-6236.
+    // test.tsx`). What is still missing is THIS CHAIN's half: the layouts'
+    // divider synthesis sites (`ObjectForm.tsx` and siblings) copy
+    // `visibleWhen` onto the pseudo-field but do not yet stamp the membership
+    // claim, so an authored section predicate still hides only the heading
+    // here — the fields stay, exactly as below. The console renderer drops
+    // the whole `<section>`. This assertion turning red is the SIGNAL that
+    // the synthesis wiring (the remaining half of objectui#6236) landed.
     await renderObjectForm(DENIED, { formType: 'simple' });
     expect(gatedHeading()).toBeNull();
     expect(screen.getByLabelText(/salary/i)).toBeTruthy();
