@@ -88,3 +88,80 @@ describe('resolveSurfaceAgent — the ADR-0063 table', () => {
     expect(SURFACE_DEFAULT).toEqual({ 'studio-build': 'build', default: 'ask' });
   });
 });
+
+// ─── cloud#1674 maker convergence ────────────────────────────────────────────
+import { makerConvergedOnBuild, makerVisibleAgents } from '../surfaceAgent';
+
+describe('maker convergence (cloud#1674) — one composer for authoring principals', () => {
+  const CUSTOM = [agent('build'), agent('ask'), agent('weather_bot')];
+
+  it('a maker on a default surface upgrades ask → build', () => {
+    expect(
+      resolveSurfaceAgent('default', { agents: BOTH, canAuthorMetadata: true }),
+    ).toBe('build');
+  });
+
+  it('the upgrade is alias-aware (legacy catalog)', () => {
+    expect(
+      resolveSurfaceAgent('default', { agents: LEGACY, canAuthorMetadata: true }),
+    ).toBe('metadata_assistant');
+  });
+
+  it('a maker overrides an explicit app ask pin — the pin is for the app\'s business users', () => {
+    expect(
+      resolveSurfaceAgent('default', {
+        agents: BOTH,
+        appDefaultAgent: 'ask',
+        canAuthorMetadata: true,
+      }),
+    ).toBe('build');
+  });
+
+  it('a NON-authoring principal keeps ask everywhere (business posture untouched)', () => {
+    expect(resolveSurfaceAgent('default', { agents: BOTH })).toBe('ask');
+    expect(
+      resolveSurfaceAgent('default', { agents: BOTH, canAuthorMetadata: false }),
+    ).toBe('ask');
+  });
+
+  it('no build in the catalog → nothing to converge on (ask stays)', () => {
+    expect(
+      resolveSurfaceAgent('default', { agents: ASK_ONLY, canAuthorMetadata: true }),
+    ).toBe('ask');
+    expect(makerConvergedOnBuild(ASK_ONLY, true)).toBe(false);
+  });
+
+  it('AI Studio off → the downgrade beats the upgrade (no build to reach)', () => {
+    expect(
+      resolveSurfaceAgent('default', {
+        agents: BOTH,
+        canAuthorMetadata: true,
+        aiStudioEnabled: false,
+      }),
+    ).toBe('ask');
+    expect(makerConvergedOnBuild(BOTH, true, false)).toBe(false);
+  });
+
+  describe('makerVisibleAgents — the launcher list', () => {
+    it('drops the built-in ask for a converged maker; custom agents stay', () => {
+      expect(makerVisibleAgents(CUSTOM, true).map((a) => a.name)).toEqual([
+        'build',
+        'weather_bot',
+      ]);
+    });
+
+    it('drops the LEGACY ask alias too', () => {
+      expect(makerVisibleAgents(LEGACY, true).map((a) => a.name)).toEqual([
+        'metadata_assistant',
+      ]);
+    });
+
+    it('non-authoring principals see the catalog as-is', () => {
+      expect(makerVisibleAgents(CUSTOM, false)).toEqual(CUSTOM);
+    });
+
+    it('without a served build agent the list is untouched (nothing subsumes ask)', () => {
+      expect(makerVisibleAgents(ASK_ONLY, true)).toEqual(ASK_ONLY);
+    });
+  });
+});
