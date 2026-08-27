@@ -753,7 +753,9 @@ export default defineConfig({
             // react-markdown / remark / micromark family — heavy markdown
             // pipeline pulled in only by markdown/chatbot plugins.
             { name: 'vendor-markdown', test: /[\\/]node_modules[\\/](react-markdown|remark-|rehype-|micromark|mdast-|hast-|unified|unist-|vfile|bail|trough|character-entities|decode-named-character-reference|devlop|estree-|comma-separated-tokens|space-separated-tokens|property-information|html-url-attributes|zwitch)/, priority: 85 },
-            // Sentry — only loaded when VITE_SENTRY_DSN is configured at runtime
+            // Sentry — only fetched when the RUNTIME serves a DSN on
+            // /api/v1/runtime/config (objectstack#12681); a deployment that
+            // configured none never requests this chunk at all.
             { name: 'vendor-sentry', test: /[\\/]node_modules[\\/]@sentry[\\/]/, priority: 85 },
           ],
         },

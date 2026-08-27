@@ -146,7 +146,8 @@ export {
   useTheme,
 } from './chrome/index.js';
 
-// Observability — Sentry integration, opt-in via VITE_SENTRY_DSN
+// Observability — Sentry integration, configured by the runtime on
+// `/api/v1/runtime/config` (objectstack#12681). No build-time DSN.
 export { initSentry, captureError, setSentryUser, getSentry } from './observability/index.js';
 
 // Runtime configuration pushed by the server at boot. Consumers fetch
@@ -165,13 +166,22 @@ export {
   getPwaDescription,
   getPwaThemeColor,
   isRuntimeConfigInitialised,
-  // The fail-closed reading of the runtime's client-telemetry permission.
+  // The fail-closed reading of the runtime's client error-reporting sink.
   // Exported so no consumer has to write its own `?.` chain against the
-  // payload — one `!== false` dialect is all it takes to re-open objectui#5522.
-  isClientErrorReportingAllowed,
+  // payload — one loose truthiness dialect is all it takes to re-open
+  // objectui#5522. (Replaces `isClientErrorReportingAllowed`, removed with the
+  // permission boolean it read — objectstack#12681.)
+  getClientErrorReporting,
   resetRuntimeConfigForTesting,
 } from './runtime-config.js';
-export type { AppShellRuntimeConfig, RuntimeFeatures, RuntimeBranding, RuntimeTelemetry, PlatformStage } from './runtime-config.js';
+export type {
+  AppShellRuntimeConfig,
+  RuntimeFeatures,
+  RuntimeBranding,
+  RuntimeTelemetry,
+  RuntimeClientErrorReporting,
+  PlatformStage,
+} from './runtime-config.js';
 
 // Standard inner-SPA views
 export {
