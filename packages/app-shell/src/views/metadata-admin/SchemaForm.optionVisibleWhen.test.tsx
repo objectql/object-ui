@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { SchemaForm } from './SchemaForm';
+import type { FormFieldSpec, FormViewSpec } from './form-spec';
 import { WIDGETS, resolveColorWidgetKey } from './widgets';
 import { ExpressionProvider } from '../../providers/ExpressionProvider';
 import { buildPredicateCtx, IDENTITY_ROOTS, resetPredicateWarnings } from './predicate';
@@ -51,9 +52,17 @@ const selectSchema = {
   },
 };
 
-/** A form spec whose `plan` options carry per-option predicates. */
-const planForm = (options: Array<Record<string, unknown>>) => ({
-  type: 'default' as const,
+/**
+ * A form spec whose `plan` options carry per-option predicates.
+ *
+ * Typed as the real {@link FormViewSpec}, not a loose literal: this fixture is
+ * the only place in the suite that exercises the widened
+ * `FormFieldSpec.options`, so letting it be `Record<string, unknown>[]` would
+ * have made the suite pass while proving nothing about the AUTHORING type the
+ * card widened. `tsconfig.test.json` compiles this file, so the annotation is
+ * itself a check.
+ */
+const planForm = (options: NonNullable<FormFieldSpec['options']>): FormViewSpec => ({
   sections: [
     {
       label: 'Billing',
