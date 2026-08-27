@@ -30,3 +30,8 @@ The card's second key, `fitContent`, is deliberately NOT declared and NOT retire
 the ruled measurement found real authors (`ObjectGrid`'s row-actions column authors
 `fitContent: true` on `main`), so per the ruling that arm goes back to the decision box
 with the reading rather than into this PR.
+
+Scope of the enforcement claim, measured: the declaration, the parse road, and the
+renderer's behaviour now agree; the renderer's internal column reads remain any-mediated
+(the `col: any` normalization in `data-table.tsx`) — a standing instrument gap, not
+closed here.

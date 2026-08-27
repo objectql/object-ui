@@ -361,7 +361,10 @@ export interface TableColumn {
    * Declared by objectui#6424 (maintainer ruling 2026-08-27): `data-table`
    * rendered this key while the declaration refused it, so a typed author got
    * a compile error — and a silent strip from the zod mirror — for a key the
-   * renderer honours. Declared = enforced, from the consumer side.
+   * renderer honours. The declaration, the parse road, and the renderer's
+   * behaviour now agree; the renderer's internal column reads remain
+   * any-mediated (the `col: any` normalization in `data-table.tsx`) — a
+   * standing instrument gap, not closed here.
    */
   headerIcon?: React.ReactNode;
 }
