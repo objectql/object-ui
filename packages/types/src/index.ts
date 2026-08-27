@@ -685,6 +685,21 @@ export {
   DESIGNER_FIELD_TYPES,
 } from './designer.js';
 
+// Retired-field-key tombstone registry — the single source for the designer
+// seam's per-site strip lists (objectui#6527).
+export type {
+  RetiredFieldKeySite,
+  RetiredFieldKeyTombstone,
+  RetiredFieldKey,
+  RetiredFieldKeysAt,
+} from './retired-field-keys.js';
+
+export {
+  RETIRED_FIELD_KEY_SITES,
+  RETIRED_FIELD_KEY_TOMBSTONES,
+  retiredFieldKeysFor,
+} from './retired-field-keys.js';
+
 // ============================================================================
 // API and Events - API Integration and Event Handling
 // ============================================================================

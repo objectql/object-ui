@@ -17,6 +17,8 @@
  * {@link RETIRED_FIELD_KEYS} — see the note on that constant.
  */
 
+import { retiredFieldKeysFor } from '@object-ui/types';
+
 import type { FieldTypeId } from './field-types.js';
 
 export type Shape = 'array' | 'record';
@@ -24,98 +26,60 @@ export type Shape = 'array' | 'record';
 /**
  * Field keys the ObjectStack spec REJECTS by name, stripped on read.
  *
- * Measured against the installed `@objectstack/spec` 17.2.0, each one on an
- * otherwise-green field (`{ type: 'text', label: 'L' }`), and through the whole
- * object document `PUT /api/v1/meta/object/:name` validates:
+ * Derived from the tombstone registry (`RETIRED_FIELD_KEY_TOMBSTONES` in
+ * `@object-ui/types`, objectui#6527) — this door is the registry's
+ * `metadataAdminFieldsReadDoor` site. The registry names each retired key, the
+ * card that retired it, and which sites strip it; the per-key evidence lives
+ * there. What stays HERE is this door's own contract:
  *
- *   indexed      => unrecognized_keys  "never a FieldSchema key; a field-level
- *                   index flag built no index (#2377). Declare the index in the
- *                   object's `indexes[]`."                       (objectui#4644)
- *   referenceTo  => unrecognized_keys  "Did you mean `referenceTo` ->
- *                   `reference`?"                                (objectui#6041)
- *   isSystem     => unrecognized_keys  "Did you mean `isSystem` -> `system`?"
- *                                                                (objectui#6044)
+ * Every key this door strips is one a SHIPPED build wrote (verified per key,
+ * objectui#6519), so a stored draft can still carry it inside a field —
+ * `ObjectSchema.safeParse` reports it at `["fields", <name>]`, the hard 422
+ * (`INVALID_METADATA`) that blocks EVERY subsequent save of the object, with
+ * the writing controls retired and no UI path left to clear the key. Stripping
+ * on load — not a data migration — is what makes an edit-and-save round-trip
+ * of such a draft come out parseable. `readFields` is the single read door for
+ * `draft.fields` across the whole object designer (inspector, form designer,
+ * design surface, settings / validations / API panels), and `writeFields`
+ * writes each def back verbatim, so one strip here covers every writer.
+ * Nothing is lost on the way out: where the spec has a spelling for the
+ * concept it is a SEPARATE key (`reference`, `system`) that is NOT stripped
+ * and rides through untouched, which is what lets the designer read it back.
  *
- * `ObjectSchema.safeParse` reports them at `["fields", <name>]`, which is the
- * hard 422 (`INVALID_METADATA`) that blocks EVERY subsequent save of the object
- * until the author finds and clears the key — and the controls that wrote them
- * are retired, so there is no UI path left to clear it.
+ * ── The two registry keys this door deliberately does NOT strip ──
  *
- * Every key here is one a SHIPPED build wrote, so a stored object can still
- * carry it inside a field. That premise was verified per key rather than
- * assumed (objectui#6519):
- *
- *   - `indexed` — the field inspector's `Indexed` checkbox wrote it until
- *     objectui#4644, measured blocking saves on console 17.0.0 GA.
- *   - `referenceTo` — emitted by BOTH designer writers until objectui#6041:
- *     `MetadataService.toFieldPayload` (`referenceTo: field.referenceTo`) and
- *     `MetadataFieldsPage.fromDesignerField` (`referenceTo: designed.referenceTo`).
- *   - `isSystem` — declared on `MetadataFieldsPage`'s `ServerFieldSchema` and
- *     read back (`isSystem: raw.isSystem`) until objectui#6044, i.e. served
- *     field entries were expected to carry it; it left again through a verbatim
- *     carry-over spread rather than any named emit site.
- *
- * Neither key loses anything on the way out: where the spec has a spelling for
- * the concept it is a SEPARATE key that is NOT stripped — `reference` and
- * `system` are real `FieldSchema` keys and ride through untouched, which is
- * what lets the designer read them back.
- *
- * ── Two keys the spec also refuses and this door deliberately does NOT strip ──
- * Read both before adding a fourth entry; each was measured, and they fail the
- * strip for DIFFERENT reasons.
- *
- * `formula` (objectui#6043) — the premise holds and the strip still does not.
- * The Field Designer's textarea wrote it, so stored objects carry it; but
- * `ObjectFieldInspector` is this platform's sanctioned migration surface for
- * exactly that key. The legacy value seeds its CEL editor
- * (`readPredicate(def.expression ?? def.formula)`) and the first edit commits
+ * `formula` — RULED, objectui#6526 option B (2026-08-27): this door reads
+ * drafts a live editor also MIGRATES, which neither write-side carry-over
+ * does. `ObjectFieldInspector` seeds its linting CEL editor from
+ * `readPredicate(def.expression ?? def.formula)` and the first edit commits
  * the spec key and clears the alias (`patchDef({ expression: …, formula:
- * undefined })`). Stripping here empties that editor: measured on
- * objectui#6519, adding `formula` to this list turns
- * `ObjectFieldInspector.test.tsx`'s pin *commits edits to `expression` and
- * migrates the legacy `formula` key* RED (`Tests 1 failed | 42 passed`) with the
- * editor rendering `""` instead of the authored source — after which the next
- * save drops the text for good. objectui#6043 refused the blind rename in
- * `plugin-designer` PRECISELY because this linting editor exists to migrate the
- * value properly; a strip here would discard what that ruling preserved. So a
- * `formula` draft stays blocked at the server until the author edits the
- * formula, which is a worse-than-nothing trade only a maintainer should make —
- * it is raised on objectui#6519, not taken here.
+ * undefined })`) — the migration objectui#6043 preserved when it refused the
+ * blind rename. Stripping here empties that editor and the authored source is
+ * gone on the next save (measured on objectui#6519: with `formula` in this
+ * list, the inspector's pin *commits edits to `expression` and migrates the
+ * legacy `formula` key* goes RED with the editor rendering `""`). A `formula`
+ * draft instead stays blocked at the server until the author makes that one
+ * migrating edit, and the client-side 422 diagnostic names the field and
+ * points at the Formula (CEL) editor (PR #6624).
  *
- * `sortOrder` (objectui#6045) — the premise itself fails. `FieldSchema` refuses
- * it by name too, and `MetadataService`'s `carryOver` does list it, but no
- * writer on this tree ever populated a FIELD-level `sortOrder`: it was declared
- * on the UI model and on the wire shape and left undefined, so `toFieldPayload`
- * emitted `sortOrder: undefined` and `JSON.stringify` dropped it. objectui#6045
- * removed it as objectui#4687's shape (a declaration with zero readers and zero
- * writers), not objectui#6041's rename. No shipped build stored one, so no
- * draft this door reads can carry one, and stripping it would be dead code that
- * reads like a measurement. (The object-level `sortOrder` on `ObjectDefinition`
- * and the saved-view `sortOrder` in `ObjectView` are different concepts living
- * outside `fields` entirely, so neither passes through this door.) Evidence of a
- * stored field-level `sortOrder` would change this — add it then, not defensively.
- *
- * Stripping on load — not a data migration — is what makes an edit-and-save
- * round-trip of such a draft come out parseable. `readFields` is the single
- * read door for `draft.fields` across the whole object designer (inspector,
- * form designer, design surface, settings / validations / API panels), and
- * `writeFields` writes each def back verbatim, so one strip here covers every
- * writer.
+ * `sortOrder` — the premise fails: no writer on this tree ever populated a
+ * field-level one (objectui#6045 — objectui#4687's zero-readers/zero-writers
+ * shape, not a rename), so no draft this door reads can carry it, and a strip
+ * would be dead code that reads like a measurement. This door's contract is
+ * "add it on evidence, not defensively"; `MetadataService`'s carry-over keeps
+ * it as that site's one recorded-DEFENSIVE entry instead. (The object-level
+ * `sortOrder` on `ObjectDefinition` and the saved-view `sortOrder` in
+ * `ObjectView` are different concepts living outside `fields` entirely, so
+ * neither passes through this door.)
  *
  * Same shape as `PermissionAdvancedFacets`' `RETIRED_RLS_KEYS`
  * (objectstack#7130). Keyed to the tombstones, never a blanket unknown-key
  * purge: every other key the designer does not render still survives.
- *
- * ⚠ This is one of THREE retired-key lists on this seam, each scoped to its own
- * writer's history (`MetadataFieldsPage`'s `carryOver` carries four,
- * `MetadataService`'s carries five). They are NOT nested, and the two paragraphs
- * above are why: this door reads drafts a live editor also migrates, which the
- * two write-side lists do not. Unifying them spans
- * `plugin-designer/src/MetadataFieldsPage.tsx`, which objectui#6489 owns in
- * flight, so objectui#6519 scoped itself to this file and left unification to a
- * follow-up rather than collide on that file.
+ * `object-fields-io.retiredKeys.test.ts` pins the derived list and both
+ * absences from this door's side; the registry's own test pins the same facts
+ * at the source.
  */
-export const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem'] as const;
+export const RETIRED_FIELD_KEYS = retiredFieldKeysFor('metadataAdminFieldsReadDoor');
 
 /** Drop {@link RETIRED_FIELD_KEYS} from one field definition. */
 function stripRetiredFieldKeys(def: Record<string, unknown>): Record<string, unknown> {

@@ -18,6 +18,7 @@
 
 import { stripReadDecorations } from '@objectstack/spec/kernel';
 import { viewItemObjectName, type ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { retiredFieldKeysFor } from '@object-ui/types';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
 
 // ---------------------------------------------------------------------------
@@ -249,38 +250,35 @@ function toFieldsMap(fields: FieldMetadataPayload[]): Record<string, FieldMetada
  * Field keys a designer once WROTE that `FieldSchema` refuses BY NAME, dropped
  * out of {@link carryOver} (objectui#6488).
  *
- * Measured against the installed `@objectstack/spec` 17.2.0, each one on an
- * otherwise-green field:
+ * Derived from the tombstone registry (`RETIRED_FIELD_KEY_TOMBSTONES` in
+ * `@object-ui/types`, objectui#6527) — this carry-over is the registry's
+ * `metadataServiceCarryOver` site. The registry names each retired key, the
+ * card that retired it, and which sites strip it; the per-key evidence lives
+ * there. This site's list is the widest of the three because it is the one
+ * with a recorded DEFENSIVE entry: no shipped writer ever populated a
+ * field-level `sortOrder` (objectui#6045 — "the key never reached the wire"),
+ * and it rides here as insurance against a document some OTHER client stored
+ * while an older server accepted the key — see its tombstone for the recorded
+ * verdict. Every other entry is a key a shipped build emitted before its card
+ * retired it, so a document stored back then can still carry it inside a
+ * field.
  *
- *   indexed      => unrecognized_keys — "never a FieldSchema key" (objectui#4644)
- *   referenceTo  => unrecognized_keys — "Did you mean `referenceTo` -> `reference`?" (objectui#6041)
- *   formula      => unrecognized_keys — "Did you mean `formula` -> `expression`?" (objectui#6043)
- *   isSystem     => unrecognized_keys — "Did you mean `isSystem` -> `system`?" (objectui#6044)
- *   sortOrder    => unrecognized_keys (objectui#6045)
+ * Carrying such a key out again would be a hard `422 INVALID_METADATA` that
+ * blocks EVERY later save of that object — and with the controls gone, an
+ * author has no way to clear it from the UI. Stripping is what makes an
+ * edit-and-save round-trip of such an object come out parseable; nothing that
+ * the server would store is lost, because these are exactly the values it
+ * refuses.
  *
- * Every one of them is a key SOME designer build emitted before its card
- * retired it, so a document stored back then can still carry it inside a field.
- * Carrying it out again would be a hard `422 INVALID_METADATA` that blocks
- * EVERY later save of that object — and with the controls gone, an author has
- * no way to clear it from the UI. Stripping is what makes an edit-and-save
- * round-trip of such an object come out parseable; nothing that the server
- * would store is lost, because these are exactly the values it refuses.
- *
- * The list is keyed to those tombstones and is NOT a blanket unknown-key purge:
- * every other key the server sent still rides through, which is the whole point
- * of the carry-over. Deliberately not derived from `FieldSchema`'s accept set
- * either — measured on 17.2.0, a plugin-registered key (`x_plugin_thing`) is
- * `unrecognized_keys` to the INSTALLED spec while the SERVER that sent it
- * accepts it, so filtering by the client's schema would drop precisely the keys
- * this card exists to preserve.
- *
- * ⚠ This is the repo's THIRD copy of a retired-field-key list, each scoped to
- * one writer's own history (`plugin-designer`'s `MetadataFieldsPage` carries
- * four, `app-shell`'s `previews/object-fields-io` carries `['indexed']`).
- * Unifying them spans `MetadataFieldsPage.tsx`, which objectui#6489 owns on
- * this same seam, so it is filed rather than folded in here.
+ * The strip is keyed to those tombstones and is NOT a blanket unknown-key
+ * purge: every other key the server sent still rides through, which is the
+ * whole point of the carry-over. Deliberately not derived from `FieldSchema`'s
+ * accept set either — measured on 17.2.0, a plugin-registered key
+ * (`x_plugin_thing`) is `unrecognized_keys` to the INSTALLED spec while the
+ * SERVER that sent it accepts it, so filtering by the client's schema would
+ * drop precisely the keys this card exists to preserve.
  */
-const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'formula', 'isSystem', 'sortOrder'] as const;
+const RETIRED_FIELD_KEYS = retiredFieldKeysFor('metadataServiceCarryOver');
 
 /**
  * The previous SERVER entry for one field, minus {@link RETIRED_FIELD_KEYS} —

@@ -31,7 +31,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { DESIGNER_FIELD_TYPES } from '@object-ui/types';
+import { DESIGNER_FIELD_TYPES, retiredFieldKeysFor } from '@object-ui/types';
 import type { DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
 import { MetadataClient, type MetadataClientConfig } from '@object-ui/data-objectstack';
 import { FieldDesigner } from './FieldDesigner';
@@ -125,62 +125,46 @@ function toDesignerField(name: string, raw: ServerFieldSchema): DesignerFieldDef
 }
 
 /**
- * Field keys the ObjectStack spec REJECTS by name (objectui#4644).
+ * Field keys the ObjectStack spec REJECTS by name, dropped out of
+ * {@link carryOver}.
  *
- * `indexed` was never a `FieldSchema` key — the field-level flag built no
- * index (objectstack#2377 removed it) and, since objectstack#4001 closed the
- * silent-drop shape, `FieldSchema.safeParse` refuses it outright. Object-level
- * `indexes[]` is the real surface.
+ * Derived from the tombstone registry (`RETIRED_FIELD_KEY_TOMBSTONES` in
+ * `@object-ui/types`, objectui#6527) — this carry-over is the registry's
+ * `metadataFieldsPageCarryOver` site. The registry names each retired key, the
+ * card that retired it, and which sites strip it; the per-key evidence lives
+ * there. What stays HERE is what is specific to THIS writer's history:
  *
- * The Advanced section of {@link FieldDesigner} used to offer it, so objects
- * saved from this page can still carry the key — and `fromDesignerField`
- * spreads `prev` verbatim to preserve unknown keys, which would carry it back
- * out to `PUT /api/v1/meta/object/:name` as a hard 422 (`INVALID_METADATA`)
- * that blocks every later save. Stripping it out of the carried-over keys is
- * what makes an edit-and-save round-trip of such an object come out
- * parseable; it is keyed to the tombstone, so every other unknown key the
- * designer does not render still survives.
+ * Each key is one this page's own era wrote (`indexed` via the Advanced
+ * section of {@link FieldDesigner}, objectui#4644; `referenceTo` via
+ * `fromDesignerField`'s old emit line, objectui#6041; `isSystem` as a declared
+ * `ServerFieldSchema` member served back to us, objectui#6044; `formula` via
+ * the retired formula textarea, objectui#6043), and `fromDesignerField`
+ * spreads `prev` verbatim to preserve unknown keys — so a stored object from
+ * that era would carry the key straight back out to
+ * `PUT /api/v1/meta/object/:name` as a hard 422 (`INVALID_METADATA`) that
+ * blocks every later save, with no control left on screen to clear it.
+ * Stripping the carried-over keys is what makes an edit-and-save round-trip of
+ * such an object come out parseable; it is keyed to the tombstones, so every
+ * other unknown key the designer does not render still survives.
+ *
+ * Two of the four cost nothing: `fromDesignerField` re-emits the lookup target
+ * under the spec spelling `reference` on the very next line, and the system
+ * flag is read back from the spec spelling `system` (never re-emitted — the
+ * strip IS the whole write half of objectui#6044). `formula` is the one entry
+ * whose strip DROPS a value, and that is objectui#6043's deliberate trade: the
+ * server refuses to store it, a blind rename to `expression` would launder
+ * non-CEL text into a formula that parses green and evaluates to null, and
+ * with the textarea gone stripping is the only way out of the 422. The
+ * migration surface for the VALUE is metadata-admin's `ObjectFieldInspector`
+ * (ruled again on objectui#6526, option B), which is why the READ door's list
+ * does not include `formula` while this write door's does. `expression` itself
+ * is a real `FieldSchema` key and rides through `carryOver` untouched.
+ *
+ * `sortOrder` is absent here on the same unmeasured premise it always had: no
+ * shipped writer on this tree ever populated a field-level one (objectui#6045)
+ * — see its tombstone for the one site that keeps a recorded-defensive strip.
  */
-/*
- * objectui#6041 adds `referenceTo`. Renaming the emit site alone does not
- * unblock an object a previous designer build already saved: that stored
- * payload still carries `referenceTo`, `carryOver` spreads `prev` verbatim,
- * and the key would round-trip straight back out to the same 422. Stripping it
- * on the way out is what makes an edit-and-save of an ALREADY-BLOCKED object
- * come out parseable. The target itself is not lost — `fromDesignerField`
- * re-emits it under the spec spelling `reference` on the very next line.
- *
- * objectui#6044 adds `isSystem` for the same reason and with one difference
- * worth stating: `fromDesignerField` never NAMES it, so the only way out is the
- * verbatim `carryOver` spread — which makes this line, not any emit site, the
- * whole write half of that card. The spec spelling `system` is not stripped: it
- * is a real `FieldSchema` key, so a server-injected flag rides through
- * untouched, which is exactly what lets `toDesignerField` read it back.
- *
- * objectui#6043 adds `formula`, and it is the one entry here that is NOT half
- * of a rename — the difference matters, because it is the only reason this
- * strip loses anything:
- *
- *   - For `referenceTo` and `isSystem`, `fromDesignerField` re-emits the value
- *     under the spec spelling on a later line, so stripping costs nothing.
- *   - For `formula` there is no re-emit, because the card REFUSED the rename.
- *     `FieldSchema` does not parse CEL at the key level (17.2.0 accepts
- *     `expression: '!!!not cel at all!!!'`), so migrating a stored `formula`
- *     into `expression` would launder a non-CEL string — typically the
- *     `price * quantity` the retired control's own placeholder taught — into a
- *     valid key name, where it parses green and then evaluates to null at
- *     runtime. That is the silent failure the card exists to avoid, so the key
- *     is dropped rather than renamed.
- *
- * Dropping it is what makes an already-blocked object saveable again, and there
- * is no gentler option: with the control gone, an author has no other way to
- * clear the key, so leaving it would keep the object 422-blocked forever. The
- * value being dropped is one the server already refuses to store, so nothing
- * that ever persisted is lost. `expression` is NOT stripped — it is a real
- * `FieldSchema` key, so a formula authored in metadata-admin rides through
- * `carryOver` untouched.
- */
-const RETIRED_FIELD_KEYS = ['indexed', 'referenceTo', 'isSystem', 'formula'] as const;
+const RETIRED_FIELD_KEYS = retiredFieldKeysFor('metadataFieldsPageCarryOver');
 
 /** Carry over `prev`'s unknown keys, minus {@link RETIRED_FIELD_KEYS}. */
 function carryOver(prev?: ServerFieldSchema): ServerFieldSchema {

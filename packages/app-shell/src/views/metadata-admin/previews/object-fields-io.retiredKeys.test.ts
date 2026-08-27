@@ -53,7 +53,9 @@ const SAMPLE: Record<(typeof RETIRED_FIELD_KEYS)[number], unknown> = {
 
 describe('object-fields-io · retired FieldSchema keys (objectui#4644, objectui#6519)', () => {
   it('names exactly the three keys this door strips', () => {
-    // The list is the tombstone, and its two ABSENCES are deliberate:
+    // The list is derived from the tombstone registry (objectui#6527:
+    // `RETIRED_FIELD_KEY_TOMBSTONES` in `@object-ui/types`, site
+    // `metadataAdminFieldsReadDoor`), and its two ABSENCES are deliberate:
     //   `formula`   — premise holds, strip refused: ObjectFieldInspector
     //                 migrates the legacy key through its linting CEL editor,
     //                 and stripping empties that editor (measured: the pin
@@ -61,8 +63,10 @@ describe('object-fields-io · retired FieldSchema keys (objectui#4644, objectui#
     //   `sortOrder` — premise fails: no writer on this tree ever populated a
     //                 field-level one, so no draft can carry it and a strip
     //                 would be dead code that reads like a measurement.
-    // Both have a case of their own below. See the tombstone before adding a
-    // fourth entry.
+    // Both have a case of their own below, and both are also pinned at the
+    // registry itself (`retired-field-key-tombstones.test.ts` — `formula`'s
+    // absence is the objectui#6526 option B ruling made mechanical). See the
+    // registry before adding a fourth entry.
     expect([...RETIRED_FIELD_KEYS]).toEqual(['indexed', 'referenceTo', 'isSystem']);
   });
 
@@ -137,8 +141,9 @@ describe('object-fields-io · retired FieldSchema keys (objectui#4644, objectui#
     // preserved when it refused to rename the key blindly. Stripping at this
     // door empties that editor and the authored source is gone on the next
     // save — measured: with `formula` in the list, that pin renders `""` and
-    // fails. Until a maintainer rules that the text may be dropped
-    // (objectui#6519), it rides through.
+    // fails. RULED, objectui#6526 option B (2026-08-27): the migration path
+    // stands and the key is NOT stripped here; the 422 diagnostic points the
+    // author at the formula editor instead (PR #6624).
     const out = roundTrip({
       total: { type: 'formula', formula: 'price * quantity' },
     }) as Record<string, Record<string, unknown>>;
