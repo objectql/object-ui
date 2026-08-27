@@ -638,14 +638,39 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
   function bulkSetObject(objectName: string, action: 'all' | 'none' | 'crud' | 'read') {
     setDraft((prev) => {
-      const next: ObjectPerm =
-        action === 'none'
-          ? {}
-          : action === 'all'
-          ? Object.fromEntries(OBJECT_ACTIONS.map((a) => [a.key, true])) as ObjectPerm
+      // `none` REPLACES the row with `{}` — deliberately, unlike the three
+      // granting arms below (#6605). The defect those arms had was a GRANT
+      // that silently dropped a narrowing: "All" deleting a `readScope: 'own'`
+      // widens effective read access with no diff and no error. `none` grants
+      // nothing, so nothing survives for a scope to narrow; merging here would
+      // instead leave `allowExport: true` (and the scopes) alive after a click
+      // on the button labelled "None" — a permissive outcome that does not
+      // exist today. What an admin's "None" means is a behaviour decision, not
+      // a mechanical merge; pinned by
+      // `PermissionMatrixEditor.bulkMergeKeys.test.tsx`.
+      if (action === 'none') {
+        return { ...prev, objects: { ...prev.objects, [objectName]: {} } };
+      }
+      // The granting arms MERGE (#6605): start from the current row, reset the
+      // keys this matrix authors (`OBJECT_ACTIONS`), then set the granted
+      // ones. Keys the matrix does not model — `allowExport`, `readScope`,
+      // `writeScope`, anything an older or newer editor wrote — ride through
+      // exactly as they do on the per-checkbox path (`updateObjectPerm`'s
+      // spread). Replacing the row wholesale is what silently deleted them,
+      // and both save doors persist the row as-is: the environment door writes
+      // the whole record, and at package scope `mergePermissionSlice` takes
+      // in-scope rows entirely from `edited` (ADR-0086 P0), so `base` cannot
+      // restore what a bulk click dropped.
+      const cur = prev.objects[objectName] ?? {};
+      const next: ObjectPerm = { ...cur };
+      for (const a of OBJECT_ACTIONS) delete next[a.key];
+      const grants: Array<keyof ObjectPerm> =
+        action === 'all'
+          ? OBJECT_ACTIONS.map((a) => a.key)
           : action === 'crud'
-          ? { allowCreate: true, allowRead: true, allowEdit: true, allowDelete: true }
-          : { allowRead: true };
+          ? ['allowCreate', 'allowRead', 'allowEdit', 'allowDelete']
+          : ['allowRead'];
+      for (const key of grants) next[key] = true;
       return {
         ...prev,
         objects: { ...prev.objects, [objectName]: next },
