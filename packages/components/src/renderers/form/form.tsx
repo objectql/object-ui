@@ -1238,6 +1238,99 @@ ComponentRegistry.register('form',
       return locked;
     }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
 
+    // ── The section grouping contract (objectui#6236, maintainer ruling
+    // 2026-08-27) ─────────────────────────────────────────────────────────────
+    // A `section-divider` that CLAIMS its member fields (`fields: string[]` —
+    // the membership shape `FormFieldTab.fields` / `FormFieldPane.fields`
+    // already model) gates its WHOLE group: when the divider's own visibility
+    // verdict is FALSE, `renderFormField` draws neither the heading (the
+    // divider's own rule check does that half, pinned by
+    // predicate-scope-parity-6010) nor any claimed field (this set does the
+    // other half). Hiding a member this way is the SAME mechanism as the
+    // field's own false predicate — return `null`, so the Controller unmounts,
+    // react-hook-form skips the unmounted field at submit-time validation and
+    // keeps its value (`shouldUnregister` stays default-false). That is
+    // exactly the ruled semantics, inherited from the field-level precedent
+    // (#5594 / #2212) rather than re-implemented: visibility decides what is
+    // DRAWN and nothing else — a hidden section's values still submit — and a
+    // hidden section's fields skip client-side validation, so a user is never
+    // blocked by an error pointing at a control they cannot see (#6110's
+    // defect shape). The server-side contract stays the floor for
+    // genuinely-required data.
+    //
+    // The divider's verdict here replicates the FOUR gates `renderFormField`
+    // applies to the divider row itself — static `hidden`, the legacy
+    // `condition`, `visibleWhen` (via `resolveFieldRuleState`) and `visibleOn`
+    // — with the SAME record assembly (`ruleRecord` / `previousRecord` /
+    // `predicateScope`), the same fail-open fallbacks and the same locator
+    // strings, so heading and group cannot reach different verdicts
+    // (`warnPredicateFailure` dedupes by predicate source, so re-evaluating a
+    // predicate the render path also evaluates cannot double-warn — the
+    // `readonlyFieldNames` memo above already leans on that).
+    //
+    // A divider WITHOUT a claim keeps the pre-#6236 contract (a presentational
+    // row whose predicate gates only the heading); unknown claimed names are
+    // ignored (FormFieldTab parity); a field claimed by several dividers hides
+    // when ANY hidden claimer names it.
+    const hiddenSectionFieldNames = React.useMemo(() => {
+      const hiddenNames = new Set<string>();
+      for (const f of fields as FormFieldConfig[]) {
+        const divider = f as FormFieldConfig & { fields?: unknown };
+        if (divider?.type !== 'section-divider') continue;
+        const claimed = divider.fields;
+        if (!Array.isArray(claimed) || claimed.length === 0) continue;
+        const name = divider.name;
+        let dividerHidden = !!divider.hidden;
+        if (!dividerHidden) {
+          const legacyConditionCel = legacyConditionToCel(divider.condition);
+          if (
+            legacyConditionCel &&
+            !evalFieldPredicate(legacyConditionCel, ruleRecord, true, undefined, undefined, {
+              context: `condition of field '${name}'`,
+            })
+          ) {
+            dividerHidden = true;
+          }
+        }
+        if (!dividerHidden) {
+          const st = resolveFieldRuleState(
+            {
+              visibleWhen: (divider as any).visibleWhen,
+              readonlyWhen: (divider as any).readonlyWhen,
+              requiredWhen: (divider as any).requiredWhen,
+            },
+            ruleRecord,
+            {
+              required: !!divider.required,
+              readonly: (divider as any).readonly === true,
+              serverOwnedValue: isServerOwnedValue(divider, isCreateForm),
+            },
+            previousRecord,
+            predicateScope,
+            `field '${name}'`,
+          );
+          if (!st.visible) dividerHidden = true;
+        }
+        if (!dividerHidden && (divider as any).visibleOn != null) {
+          const viewVisible = evalFieldPredicate(
+            (divider as any).visibleOn,
+            ruleRecord,
+            true,
+            previousRecord,
+            predicateScope,
+            { context: `visibleOn of field '${name}'` },
+          );
+          if (!viewVisible) dividerHidden = true;
+        }
+        if (dividerHidden) {
+          for (const claimedName of claimed) {
+            if (typeof claimedName === 'string') hiddenNames.add(claimedName);
+          }
+        }
+      }
+      return hiddenNames;
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
+
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
     // left from a prior submit attempt. react-hook-form keeps an error until the
@@ -1274,16 +1367,29 @@ ComponentRegistry.register('form',
           });
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
+        // A field hidden by its SECTION's predicate (#6236) clears the same
+        // way a field hidden by its own rule does — same rendering verdict,
+        // same stale-error hygiene.
         const errType = (errs[name] as { type?: string } | undefined)?.type;
-        if (!st.visible || !viewVisible || (!st.required && errType === 'required')) form.clearErrors(name);
+        if (
+          !st.visible ||
+          !viewVisible ||
+          hiddenSectionFieldNames.has(name) ||
+          (!st.required && errType === 'required')
+        ) {
+          form.clearErrors(name);
+        }
       }
       // `predicateScope` joins `ruleRecord` here for the same reason it is passed
       // above (#6010): a scope change — the host swapping organisations, so
       // `current_user.positions` changes — can flip a `visibleWhen` to FALSE just
       // as a keystroke can, and a stale required-error on the field it just hid
       // must clear on that transition too.
+      // `hiddenSectionFieldNames` joins them (#6236): a section verdict flip is
+      // a visibility transition for every claimed field, and the memo can move
+      // on a `fields` identity change the two record inputs would miss.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ruleRecord, predicateScope]);
+    }, [ruleRecord, predicateScope, hiddenSectionFieldNames]);
 
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
@@ -1936,6 +2042,13 @@ ComponentRegistry.register('form',
 
       // Skip hidden fields
       if (hidden) return null;
+
+      // A field claimed by a HIDDEN section is not drawn (#6236) — the same
+      // `return null` a field's own false predicate takes, so the ruled
+      // semantics ride the existing mechanism: the value stays in the form
+      // state and still submits, and react-hook-form skips the unmounted
+      // control at submit-time validation. See `hiddenSectionFieldNames`.
+      if (hiddenSectionFieldNames.has(name)) return null;
 
       // Legacy `condition: { field, equals/notEquals/in }` — translated
       // to CEL and evaluated on the canonical engine over the seeded

@@ -1060,6 +1060,32 @@ export interface FormField {
    * @objectstack/spec FormField.span. Prefer this over `colSpan`.
    */
   span?: 'auto' | 'full';
+  /**
+   * Section grouping claim (objectui#6236) — `type: 'section-divider'` rows
+   * only. Names of the fields (as declared in `FormSchema.fields`) that belong
+   * to the section this divider heads: the same membership-claim shape
+   * {@link FormFieldTab.fields} and {@link FormFieldPane.fields} already model,
+   * so tabs, panes and sections share ONE grouping contract (the tabbed arm's
+   * predicate slot is objectui#6237).
+   *
+   * A divider that carries this claim gates its WHOLE group: when the
+   * divider's own visibility verdict (`visibleWhen` / `visibleOn` / legacy
+   * `condition`) resolves FALSE, the renderer draws neither the heading nor
+   * the claimed fields. Ruled semantics (maintainer, 2026-08-27, following the
+   * console precedent of 2026-08-22 after #5594): visibility decides what is
+   * DRAWN and nothing else — a hidden section's values still submit — and a
+   * hidden section's fields SKIP client-side validation, so a user is never
+   * blocked by an error pointing at a control they cannot see (the
+   * objectui#6110 defect shape); the server-side contract remains the loud
+   * floor for genuinely-required data.
+   *
+   * Unknown names are ignored (FormFieldTab parity). A field should be claimed
+   * by at most one divider; when several claim it, any hidden claimer hides
+   * it. A divider WITHOUT this claim keeps the pre-#6236 contract — a
+   * presentational row whose predicate gates only the heading. On a
+   * non-divider row the key has no meaning and is ignored by the renderer.
+   */
+  fields?: string[];
 }
 
 /**

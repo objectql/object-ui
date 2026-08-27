@@ -1069,12 +1069,17 @@ export interface ObjectFormSection {
    * `visibleWhen` surface uses, so one authored predicate text means one thing
    * everywhere (#6010). A broken predicate fails OPEN (the header renders).
    *
-   * ⚠️ Scope, measured: this gates the section's `section-divider` HEADER row.
-   * The renderer treats that row as presentational and holds no association
-   * between it and the fields that follow, so a false predicate removes the
-   * heading and leaves its fields rendering (objectui#6111). The console
-   * renderer drops the whole `<section>`; reconciling the two is filed
-   * separately.
+   * ⚠️ Scope: the renderer-side grouping contract exists since objectui#6236
+   * (maintainer ruling 2026-08-27) — a `section-divider` row that carries the
+   * membership claim (`FormField.fields`, the FormFieldTab shape) gates its
+   * WHOLE group: heading and claimed fields hide together, the hidden fields
+   * skip client-side validation, and their values still submit (the console
+   * precedent, 2026-08-22 after #5594). Measured limit: the plugin-form
+   * layouts' `section-divider` synthesis sites copy `visibleWhen` onto the
+   * divider (objectui#6111) but do not yet stamp this claim, so an authored
+   * section predicate still gates only the HEADING on those chains until that
+   * wiring lands (the remaining half of objectui#6236). The console renderer
+   * (`apps/console/src/components/FormPage.tsx`) drops the whole `<section>`.
    */
   visibleWhen?: string | { dialect?: string; source: string };
 

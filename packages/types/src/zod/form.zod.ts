@@ -593,6 +593,8 @@ export const FormFieldSchema = z.object({
     .describe('Field-level required rule (CEL)'),
   colSpan: z.number().optional().describe('Column span in grid layout (legacy — prefer span)'),
   span: z.enum(['auto', 'full']).optional().describe('Relative field width'),
+  fields: z.array(z.string()).optional()
+    .describe('Section grouping claim (objectui#6236) — section-divider rows only: names of the fields the section claims (the FormFieldTab.fields membership shape); the divider predicate then gates the whole group'),
 }).superRefine((field, ctx) => {
   // objectui#5449 — the namespace rule `@object-ui/core` has enforced since
   // objectui#5375, stated here so `objectui validate` (which reaches this

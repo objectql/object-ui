@@ -52,6 +52,8 @@ const DECLARED_KEYS = [
   'requiredWhen',
   'colSpan',
   'span',
+  // objectui#6236 — the section grouping claim (section-divider rows only).
+  'fields',
 ];
 
 describe('FormFieldSchema covers the FormField contract', () => {
