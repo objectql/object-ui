@@ -157,15 +157,28 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    * it means the emit type must now REFUSE it — otherwise "retired" is just a
    * deleted line that the next edit can put back for free.
    *
-   * `options` is not a `ListColumn` key, so it is not covered by the derived
-   * tombstone above; it is refused because it is not a member of any of the
-   * emit type's parts. Freshness is deliberately left in play here — that is
-   * genuinely the only reason a non-member is refused, so this directive still
-   * has exactly one cause.
+   * ⚠️ THE MECHANISM MOVED, and the history is the warning. As first written,
+   * this refusal rested on NON-MEMBERSHIP: `options` is not a `ListColumn`
+   * key (so the derived tombstone could never cover it), and it belonged to
+   * no part of the emit type, so excess-property freshness was "genuinely the
+   * only reason a non-member is refused". objectui#6425's maintainer ruling
+   * (2026-08-27) declared `options` on `TableColumn`, the key became a member
+   * here, and that enforcement ended SILENTLY — this directive turned
+   * TS2578-unused, which is luck, not design: a pin enforced by a key's
+   * non-membership stops enforcing the moment the key becomes a member.
+   * The refusal below is now caused by `ObjectGridRetiredOptionsTombstone`
+   * (`ObjectGrid.tsx`), an explicit `?: never` that bites by ASSIGNABILITY —
+   * one cause again, just a different one. #6004's verdict is unchanged.
    */
   it('the emit type refuses the retired `options` key', () => {
-    // @ts-expect-error objectui#6004 — `options` retired from this producer's emit.
-    const refused: ObjectGridColumnDraft = { header: 'S', accessorKey: 'stage', options: [] };
+    // Routed through a non-fresh value like the other tombstone pins, so the
+    // tombstone is the single cause — freshness cannot refuse a non-fresh
+    // source, and before the tombstone existed this exact assignment was the
+    // silent hole (a fresh literal still failed; the spread road was open).
+    const emitted: { header: string; accessorKey: string; options?: unknown[] } =
+      { header: 'S', accessorKey: 'stage', options: [] };
+    // @ts-expect-error objectui#6004/#6425 — `options` retired from this producer's emit, refused by the explicit tombstone.
+    const refused: ObjectGridColumnDraft = emitted;
     expect(refused.accessorKey).toBe('stage');
   });
 

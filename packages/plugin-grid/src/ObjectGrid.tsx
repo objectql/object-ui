@@ -599,16 +599,46 @@ export interface ObjectGridColumnHolds {
  * separate from the enrichment map — so the pre-fold shape needs a name, and
  * this is it.
  */
+/**
+ * ⭐ `options` — RETIRED at this emit (objectui#6004), and this explicit
+ * tombstone is now the ONLY enforcement of that verdict. ⛔ Do not "tidy" it
+ * away as redundant.
+ *
+ * Until objectui#6425 the key needed no tombstone: it was a member of NO part
+ * of the emit types below, so TypeScript's excess-property check refused a
+ * fresh literal writing it — refusal by non-membership. #6425's maintainer
+ * ruling (2026-08-27) then declared `options` on `TableColumn` itself (the
+ * `object-data-table` cell pipeline reads it off the AUTHORED column), which
+ * made the key a member here through `Omit<TableColumn, …>` / `TableColumn`
+ * and silently ended that enforcement. Nothing went red at the moment of
+ * loss — the emit-boundary suite's directive merely turned TS2578-unused,
+ * which is luck, not design. The general rule, recorded so the next seam can
+ * check itself: **a pin enforced by a key's non-membership silently stops
+ * enforcing the moment the key becomes a member.**
+ *
+ * objectui#6004's verdict itself is unchanged — nothing on either side of
+ * THIS seam reads a column-level `options` (`data-table.tsx` has no such
+ * read; `renderCellEditor` rebuilds the field from the object schema) — only
+ * the refusal's mechanism moves, from freshness to assignability. It is
+ * intersected into BOTH the pre-fold draft and the post-fold column, because
+ * the retirement belongs to the seam, not to one of its two types; the key
+ * cannot land in the DERIVED band (`RetiredListColumnKey`) because `options`
+ * is not a `ListColumn` member, which is why this one is hand-written.
+ */
+type ObjectGridRetiredOptionsTombstone = { options?: never };
+
 export type ObjectGridColumnDraft =
   Omit<TableColumn, 'type'>
   & { type?: string }
   & ObjectGridColumnHolds
+  & ObjectGridRetiredOptionsTombstone
   & { [K in RetiredListColumnKey]?: never };
 
 /** Post-fold: what actually reaches `DataTableSchema.columns: TableColumn[]`. */
 export type ObjectGridColumn =
   TableColumn
   & ObjectGridColumnHolds
+  & ObjectGridRetiredOptionsTombstone
   & { [K in RetiredListColumnKey]?: never };
 
 /** The row heights this grid styles — the five `RowHeight` values the spec admits. */
