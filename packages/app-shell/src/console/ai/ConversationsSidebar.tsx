@@ -157,12 +157,18 @@ export function ConversationsSidebar({
   // Friendly route segment for New/delete navigation (stays on this surface).
   const agentRoute = activeAgent ? agentRouteName(activeAgent) : undefined;
   // Names equivalent to the active agent, for scoping the list (alias-aware).
-  // With `includeAskConversations` (cloud#1674) the built-in ask group joins
-  // the scope, so a converged maker keeps seeing their ask history.
+  // With `includeAskConversations` (cloud#1674) BOTH built-in groups join the
+  // scope — the converged maker sees ONE merged history whether the open
+  // thread is a build one or a legacy ask one (merging only ask would make the
+  // build history vanish the moment an ask thread is opened; measured on the
+  // first in-browser pass).
   const agentGroup = useMemo(() => {
     if (!activeAgent) return undefined;
     const names = new Set(agentAliasGroup(activeAgent));
-    if (includeAskConversations) for (const n of agentAliasGroup('ask')) names.add(n);
+    if (includeAskConversations) {
+      for (const n of agentAliasGroup('ask')) names.add(n);
+      for (const n of agentAliasGroup('build')) names.add(n);
+    }
     return names;
   }, [activeAgent, includeAskConversations]);
 
