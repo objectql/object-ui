@@ -2468,12 +2468,32 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Apply persisted column order and widths
   let persistedColumns = [...columns];
   
-  // Apply saved widths
+  // Apply saved widths.
+  //
+  // ⭐ THE KEY IS `width` (objectui#6457). This stamp used to write `size`,
+  // and `size` is a key nothing downstream consumes: `TableColumn`
+  // (`@object-ui/types` `data-display.ts`) declares `width`, and `data-table`
+  // resolves a column's width at all four of its sites as
+  // `columnWidths[accessorKey] || col.width || autoSizedWidths[accessorKey]`
+  // — zero column-level `size` reads. So a user's resize was written to
+  // localStorage, read back into `columnState.widths`, stamped onto the column
+  // here, and then dropped at the last hop; the width was never restored on the
+  // ungrouped path.
+  //
+  // The grouped path is the control that identified `width` as the right fix
+  // rather than teaching `data-table` a second key: `groupedColumnWidths` below
+  // reads the SAME `columnState.widths` and stamps `width`, and it works.
+  //
+  // ⛔ Do not re-widen this callback to `(col: any)`. That cast is what let
+  // the wrong key through a boundary which has DECLARED the right one since
+  // objectui#6004 — `ObjectGridColumn` is `TableColumn & …`, so with the
+  // callback typed, a stray `size` here is a compile error instead of a silent,
+  // user-visible drop. Typed, this defect class cannot come back by hand.
   if (columnState.widths) {
-    persistedColumns = persistedColumns.map((col: any) => {
+    persistedColumns = persistedColumns.map((col): ObjectGridColumn => {
       const savedWidth = columnState.widths?.[col.accessorKey];
       if (savedWidth) {
-        return { ...col, size: savedWidth };
+        return { ...col, width: savedWidth };
       }
       return col;
     });
