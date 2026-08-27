@@ -127,6 +127,26 @@ export const TableColumnSchema = z.object({
   // declaration refused). Declared on the interface, mirrored here, and paired
   // in `__tests__/zod-mirror-parity.test.ts`.
   headerIcon: z.any().optional().describe('Icon node rendered into the header cell, before the header text'),
+  // The three field-meta override keys objectui#6425 declared (maintainer
+  // ruling 2026-08-27, per-key): honoured by `object-data-table`'s cell
+  // pipeline — documented behaviour for `format` / `options`, long-shipped
+  // for `currency` — and previously silently STRIPPED by this non-strict
+  // mirror, the same second de-facto contract #6424 closed for `headerIcon`.
+  // The pin is output SURVIVAL, not parse acceptance
+  // (static-table-narrow-surface.test.ts): acceptance was green before the
+  // declaration and cannot distinguish the fix from the defect.
+  format: z.string().optional().describe('Field-meta override: display format pattern (e.g. "$0,0", "0%", "YYYY-MM-DD")'),
+  options: z
+    .array(
+      z.object({
+        value: z.any().describe('Stored value the cell value is matched against'),
+        label: z.string().describe('Label rendered for the matched value'),
+        color: z.string().optional().describe('Badge/dot color for the matched value'),
+      }),
+    )
+    .optional()
+    .describe('Field-meta override: option list for select-flavoured columns'),
+  currency: z.string().optional().describe('Field-meta override: ISO 4217 currency code for currency-formatted cells'),
 });
 
 /**
@@ -158,6 +178,9 @@ export const StaticTableColumnSchema = z.object({
   editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  format: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  options: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  currency: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
 });
 
 /**

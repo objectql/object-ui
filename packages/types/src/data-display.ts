@@ -367,6 +367,47 @@ export interface TableColumn {
    * standing instrument gap, not closed here.
    */
   headerIcon?: React.ReactNode;
+  /**
+   * Field-meta override: display format pattern for the cell value (e.g.
+   * `"$0,0"`, `"0%"`, `"YYYY-MM-DD"`), honoured by `object-data-table`'s cell
+   * pipeline — `renderFieldValue`'s currency / percent / date branches — and
+   * by the numeric right-alignment inference. Documented as an author
+   * override by `@object-ui/plugin-dashboard`'s README and exercised by its
+   * cells suite. The plain `data-table` renderer does not read it; its
+   * type-driven rendering is {@link TableColumn.type} / `cell`.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key): the
+   * widget honoured this key while the declaration refused it, so a typed
+   * author got a compile error — and a silent strip from the zod mirror —
+   * for documented, tested behaviour. Declaring is truth-maintenance.
+   */
+  format?: string;
+  /**
+   * Field-meta override: option list for select-flavoured columns — `value`
+   * matched against the cell value, `label` rendered, `color` driving the
+   * badge/dot appearance. Honoured by `object-data-table`'s cell pipeline
+   * (`SelectCellRenderer`, after the per-option translation pass) ahead of
+   * the object schema's own options; documented as an author override by
+   * `@object-ui/plugin-dashboard`'s README. The plain `data-table` renderer
+   * does not read it.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key), same
+   * stroke as {@link TableColumn.format}.
+   */
+  options?: Array<{ value: any; label: string; color?: string }>;
+  /**
+   * Field-meta override: ISO 4217 currency code (e.g. `"EUR"`) for
+   * currency-formatted cells, honoured by `object-data-table`'s cell
+   * pipeline (`renderFieldValue` and `CurrencyCellRenderer`) ahead of both
+   * the symbol inferred from {@link TableColumn.format} and the tenant
+   * default currency (ADR-0053). The plain `data-table` renderer does not
+   * read it.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key): kept
+   * in production but never promised before — declaring makes the existing
+   * behaviour honest.
+   */
+  currency?: string;
 }
 
 /**
@@ -477,6 +518,31 @@ export interface StaticTableColumn {
    * @deprecated Not part of the static `table` renderer's contract.
    */
   headerIcon?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule: every rich key needs a deliberate static-side decision). Declared
+   * on the rich {@link TableColumn} only — the static renderer reads no
+   * field-meta overrides (its measured read set is the five live keys above).
+   * Formatted cells are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  format?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule). Declared on the rich {@link TableColumn} only — the static
+   * renderer reads no field-meta overrides. Select badges are `data-table`'s
+   * capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  options?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule). Declared on the rich {@link TableColumn} only — the static
+   * renderer reads no field-meta overrides. Currency cells are
+   * `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  currency?: never;
 }
 
 /**

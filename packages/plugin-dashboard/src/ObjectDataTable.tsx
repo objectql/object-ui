@@ -100,7 +100,18 @@ interface NormalizedColumn {
  * `accessorKey`, `width`, `align`, `header`, `className`, `cellClassName`,
  * `sortable`, `resizable`, `editable`, `type`, `cell`, `headerIcon`,
  * `fitContent`, and `name`. Not one of `label`, `options`, `referenceTo`,
- * `format`, `currency`, `decimals` appears — so all six retire here.
+ * `format`, `currency`, `decimals` appears — so all six retired from the
+ * emit, and this producer still SOURCES none of them from `fieldMeta`.
+ *
+ * ⚠️ Three of the six — `format`, `options`, `currency` — have since been
+ * DECLARED on `TableColumn` itself (objectui#6425, maintainer ruling
+ * 2026-08-27), so they are no longer tombstoned on this emit type: the band
+ * below derives them away the moment the declaration landed. That is not a
+ * softening of the emit rule but its other branch — an AUTHORED value now
+ * passes through `{ ...col }` as declared metadata (the cell pipeline reads
+ * it back off the authored column), while writing one out of `fieldMeta`
+ * remains retired, pinned by the runtime census in
+ * `ObjectDataTable.emitBoundary-6373.test.tsx`.
  *
  * Retiring them is behaviour-preserving because none of them was the live path
  * for its own value: everything they carried is read off `fieldMeta` by the
@@ -135,25 +146,34 @@ export type EnrichedColumn =
  * {@link EnrichedColumn} above fences on the WRITE side. objectui#6373 fenced
  * what `enrich` emits; nothing yet fenced what it consumes.
  *
- * `enrich` hands `buildFieldMeta` six values taken off the authored column.
+ * `enrich` handed `buildFieldMeta` six values taken off the authored column.
  * Five of them — `format`, `options`, `referenceTo`, `currency`, `decimals` —
- * are declared by neither `TableColumn` (`@object-ui/types`) nor its
+ * were declared by neither `TableColumn` (`@object-ui/types`) nor its
  * `TableColumnSchema` zod mirror. Three were reached through `(col as any)`;
  * the other two through {@link NormalizedColumn}'s `[key: string]: any`, which
  * answers `any` just as loudly without the tell. So the widget honoured an
  * authoring vocabulary the published types refuse, and no artefact in the repo
  * said which keys those were or why.
  *
- * ## ⛔ This declares nothing and retires nothing
+ * ## The per-key ruling landed (objectui#6425, maintainer 2026-08-27)
  *
- * Declaring these five on `TableColumn` widens a PUBLISHED type — the runtime
- * accepted set would not move, but the promise would, and a declared key
- * cannot be withdrawn later without a breaking change. Retiring any of them
- * removes a published capability that ships and is tested today. Both are
- * maintainer decisions; objectui#6425 stays open for one. What this type does
- * instead is make the tolerance VISIBLE and OWNED — every honoured key written
- * down with a verdict and an owning card, every other candidate refused by
- * default rather than admitted by silence. Same shape objectui#6461 landed for
+ * This type used to hold all five keys with ⛔ "declares nothing and retires
+ * nothing" — both branches were maintainer decisions. The ruling has since
+ * disposed of them per key, and this keyhole now CARRIES that disposition:
+ *
+ *  - `format`, `options` — DECLARED on `TableColumn` + its zod mirror
+ *    (documented AND kept; declaring is truth-maintenance). Read below at
+ *    their published types via `Pick<TableColumn, …>`.
+ *  - `currency` — DECLARED (kept in production, never promised before;
+ *    declaring makes the existing behaviour honest). Same `Pick`.
+ *  - `decimals` — RETIRED, immediately (neither promised nor kept: zero
+ *    readers measured, and the authored read below is gone). The derived
+ *    band now refuses it like any other unadjudicated `FieldMeta` member.
+ *  - `referenceTo` — ⛔ NOT declared as spelled; still HELD, owned by
+ *    objectui#6597 (the enforce-or-remove channel: fix the spelling chain so
+ *    the promise becomes real, or withdraw the README line).
+ *
+ * The shape itself is unchanged from what objectui#6461 landed for
  * `plugin-grid` (`ObjectGridColumnHolds` / `RetiredListColumnKey`); the
  * identifiers differ because this producer's seam is a READ, not an emit.
  *
@@ -206,60 +226,36 @@ export type EnrichedColumn =
  */
 
 /**
- * The undeclared-but-live override keys this producer holds. Each carries the
- * verdict measured on this tree and the card that owns it; all five are
- * objectui#6425's, and none is settled by this file.
+ * The undeclared-but-live override keys this producer still holds. One is
+ * left: objectui#6425's ruling (maintainer, 2026-08-27) declared `format` /
+ * `options` / `currency` on `TableColumn` itself (they are read via
+ * `Pick<TableColumn, …>` below, no hold needed) and retired `decimals`
+ * outright (the derived band refuses it now).
  */
 export interface ObjectDataTableColumnHolds {
   /**
-   * HELD, objectui#6425 — the strongest authoring story of the five. The
-   * package README documents it (`"Author overrides always win"`, three
-   * `format` columns in its `object-data-table` example) and
-   * `ObjectDataTable.cells.test.tsx` renders `$150,000` / `60%` from it.
-   * Read by `renderFieldValue`'s currency / percent / date branches, by
-   * `isNumericFieldMeta` (which decides `align`), and by
-   * `resolveCellRendererType`.
-   */
-  format?: string;
-  /**
-   * HELD, objectui#6425 — named as an author override by the package README.
-   * Read by `SelectCellRenderer` (`field.options`) after `buildFieldMeta`'s
-   * per-option translation pass.
-   */
-  options?: FieldMeta['options'];
-  /**
-   * HELD, objectui#6425 — named as an author override by the package README,
-   * but MEASURED with no reader on this path: `LookupCellRenderer` resolves
-   * its target from `reference_to` / `reference`, and `computeLookupExpand`
-   * builds `$expand` from the OBJECT SCHEMA's field types, never from this
-   * key. Held rather than retired because retiring a published-documented key
-   * is objectui#6425's ruling to make, not this file's.
+   * HELD — owned by objectui#6597, where objectui#6425's ruling routed it
+   * (⛔ NOT declared as spelled). Named as an author override by the package
+   * README but MEASURED with no reader on this path: `LookupCellRenderer`
+   * resolves its target from `reference_to` / `reference`, and
+   * `computeLookupExpand` builds `$expand` from the OBJECT SCHEMA's field
+   * types, never from this key. A promised-but-not-kept key: #6597 either
+   * fixes the spelling chain so the promise becomes real, or withdraws the
+   * README line — until it rules, the read stays held here, neither declared
+   * nor retired.
    */
   referenceTo?: unknown;
-  /**
-   * HELD, objectui#6425 — live but undocumented: no README line and no test
-   * authored it at column level before this card. Read by `renderFieldValue`
-   * (`fieldMeta.currency`, the `$`-format branch) and by `resolveFieldCurrency`
-   * inside `CurrencyCellRenderer`, both ahead of the tenant default (ADR-0053).
-   */
-  currency?: string;
-  /**
-   * HELD, objectui#6425 — MEASURED with no reader anywhere: zero `.decimals`
-   * reads across `@object-ui/fields`, `@object-ui/i18n` and
-   * `@object-ui/components`. `NumberCellRenderer` reads `scale`,
-   * `PercentCellRenderer` reads `precision`, and `renderFieldValue`'s percent
-   * branch parses its digit count out of the format string. Held, not retired,
-   * for the same reason as `referenceTo`.
-   */
-  decimals?: number;
 }
 
 /**
  * The candidate keys this seam refuses — DERIVED from the override vocabulary,
  * never hand-listed, so a future `FieldMeta` member has to be adjudicated onto
- * {@link ObjectDataTableColumnHolds} to escape. `type` is excluded because
- * `TableColumn` declares it (objectui#5853 owns its VALUE set, folded below by
- * `normalizeTableColumnType`).
+ * {@link ObjectDataTableColumnHolds} to escape. Keys `TableColumn` declares
+ * leave the pool by declaration: `type` (objectui#5853 owns its VALUE set,
+ * folded below by `normalizeTableColumnType`) and, since objectui#6425's
+ * ruling, `format` / `options` / `currency`. `decimals` is the member the
+ * same ruling RETIRED — it lands here, refused at the read site, which is
+ * exactly the "held-band verdict flips to RETIRED" the ruling asked for.
  */
 export type UnheldFieldMetaOverrideKey =
   Exclude<keyof FieldMeta, keyof TableColumn | keyof ObjectDataTableColumnHolds>;
@@ -270,6 +266,10 @@ export type AuthoredColumnOverrides =
   /** DECLARED by `TableColumn`; widened to `string` because the authored value
    *  is folded onto the published union downstream, not at the read. */
   & { type?: string }
+  /** DECLARED by `TableColumn` + its zod mirror (objectui#6425, maintainer
+   *  ruling 2026-08-27) — the three adjudicated override keys are read at
+   *  their published types, straight off the declaration. */
+  & Pick<TableColumn, 'format' | 'options' | 'currency'>
   & ObjectDataTableColumnHolds
   & { [K in UnheldFieldMetaOverrideKey]?: never };
 
@@ -673,10 +673,16 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       const authored: AuthoredColumnOverrides = col;
 
       // Build the shared FieldMeta (translated select options, resolved
-      // referenceTo / currency / decimals). Column-level props override the
+      // referenceTo / currency). Column-level props override the
       // schema-derived values. Lookup fields just pass `referenceTo` through —
       // the server expands them via `$expand` so the cell value is `{ id, name }`,
       // which the lookup/user cell renderers handle natively.
+      //
+      // `decimals` is NOT read here any more — RETIRED by objectui#6425's
+      // ruling (maintainer, 2026-08-27): zero readers were measured for it
+      // (`NumberCellRenderer` reads `scale`, `PercentCellRenderer` reads
+      // `precision`), so the authored key never reached anything, and the
+      // schema-derived value `buildFieldMeta` still resolves is untouched.
       const fieldMeta = buildFieldMeta({
         accessorKey: col.accessorKey,
         label: col.header,
@@ -689,7 +695,6 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
           options: authored.options,
           referenceTo: authored.referenceTo,
           currency: authored.currency,
-          decimals: authored.decimals,
         },
       });
 

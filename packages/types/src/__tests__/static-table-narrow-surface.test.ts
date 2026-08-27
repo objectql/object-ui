@@ -62,10 +62,11 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 // Side 3, type level: the narrow shape declares exactly the rich shape's key
-// set — five live, ten tombstoned, none invented, none forgotten. If a key
+// set — five live, thirteen tombstoned, none invented, none forgotten. If a key
 // is ever added to `TableColumn` without a deliberate decision on the static
-// side (live or tombstone), this line goes red. (`headerIcon` is the first key
-// to arrive through that gate: added rich by objectui#6424, tombstoned here.)
+// side (live or tombstone), this line goes red. (`headerIcon` was the first
+// key to arrive through that gate — added rich by objectui#6424, tombstoned
+// here — and #6425's three declared field-meta overrides followed it.)
 type _SameKeySet = Expect<Equal<keyof StaticTableColumn, keyof TableColumn>>;
 
 /* ── fixtures ────────────────────────────────────────────────────────────── */
@@ -78,10 +79,12 @@ const LIVE_COLUMN = {
   width: 120,
 };
 
-/** The ten keys the narrow surface refuses, with the value an author would
- *  plausibly write for each: nine the #5474 split retired, plus `headerIcon`,
- *  which joined the RICH shape later (objectui#6424) and is tombstoned here
- *  under the lockstep rule — the static renderer never read it. */
+/** The thirteen keys the narrow surface refuses, with the value an author
+ *  would plausibly write for each: nine the #5474 split retired, plus the four
+ *  that joined the RICH shape later and are tombstoned here under the lockstep
+ *  rule — `headerIcon` (objectui#6424) and the three field-meta overrides
+ *  objectui#6425 declared (`format` / `options` / `currency`). The static
+ *  renderer reads none of them. */
 const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   minWidth: 80,
   align: 'right',
@@ -93,6 +96,9 @@ const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   editable: false,
   cell: () => 'x',
   headerIcon: 'lucide:hash',
+  format: '$0,0',
+  options: [{ value: 'tech', label: 'Technology' }],
+  currency: 'EUR',
 };
 
 /** Every key the rich `TableColumn` interface declares. `satisfies` keeps the
@@ -115,6 +121,9 @@ const RICH_COLUMN_KEYS = [
   'editable',
   'cell',
   'headerIcon',
+  'format',
+  'options',
+  'currency',
 ] as const satisfies readonly (keyof TableColumn)[];
 type _RichKeyListExhaustive = Expect<Equal<(typeof RICH_COLUMN_KEYS)[number], keyof TableColumn>>;
 
@@ -229,6 +238,33 @@ describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, object
     }
   });
 
+  it('the #6425 trio SURVIVES the rich parse — declared, not silently stripped', () => {
+    // Same discipline as `editable: false` above and `headerIcon` in
+    // `data-table-declared-column-keys.test.tsx` (objectui#6424): a non-strict
+    // z.object() ACCEPTS an undeclared key and silently STRIPS it, so this
+    // exact parse was green BEFORE objectui#6425 declared the keys — while the
+    // authored override vanished from the output. Acceptance cannot
+    // distinguish the fix from the defect; survival into the parsed OUTPUT
+    // can. `value` is an object sentinel: it rides `z.any()`, so it must
+    // survive BY IDENTITY, which also pins that the mirror is not coercing.
+    const valueSentinel = { code: 'tech' };
+    const authored = {
+      header: 'Amount',
+      accessorKey: 'amount',
+      format: '$0,0',
+      options: [{ value: valueSentinel, label: 'Technology', color: 'blue' }],
+      currency: 'EUR',
+    };
+    const result = TableColumnSchema.safeParse(authored);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.format).toBe('$0,0');
+      expect(result.data.currency).toBe('EUR');
+      expect(result.data.options).toEqual(authored.options);
+      expect(result.data.options?.[0]?.value).toBe(valueSentinel);
+    }
+  });
+
   it('`data-table` columns still parse with the rich keys authored', () => {
     const result = DataTableZod.safeParse({
       type: 'data-table',
@@ -246,7 +282,7 @@ describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, object
 /* ── 3. the two shapes stay in lockstep ──────────────────────────────────── */
 
 describe('the split itself — narrow = rich key set, live = the measured read set', () => {
-  it('narrow zod declares exactly the interface key set: 5 live + 10 tombstones', () => {
+  it('narrow zod declares exactly the interface key set: 5 live + 13 tombstones', () => {
     expect(liveKeys(StaticTableColumnSchema).sort()).toEqual(
       ['accessorKey', 'cellClassName', 'className', 'header', 'width'].sort(),
     );

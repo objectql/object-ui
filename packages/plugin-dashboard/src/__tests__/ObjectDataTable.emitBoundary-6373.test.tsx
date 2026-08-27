@@ -102,11 +102,21 @@ const DECLARED = new Set(Object.keys(shapeOf(TableColumnSchema)));
 const HELD_ALIAS = 'name';
 
 /**
- * Retired from the emit by objectui#6373. Listed here as the card's VERDICTS,
- * not as the census's input: the census above is derived, and these names are
- * what the verdict table in the PR body has to stay true to.
+ * Retired from the emit by objectui#6373 — this producer SOURCES none of them
+ * from `fieldMeta`. Listed here as the card's VERDICTS, not as the census's
+ * input: the census above is derived, and these names are what the verdict
+ * table in the PR body has to stay true to.
+ *
+ * objectui#6425's ruling (maintainer, 2026-08-27) later split the six by
+ * DECLARATION status without changing the emit: three are now declared on
+ * `TableColumn` itself (an authored value passes through `{ ...col }` as
+ * declared metadata; the producer still never writes them out of
+ * `fieldMeta`), three remain undeclared (`decimals` retired outright,
+ * `referenceTo` held for objectui#6597, `label` objectui#5351's).
  */
-const RETIRED = ['label', 'options', 'referenceTo', 'format', 'currency', 'decimals'] as const;
+const RETIRED_FROM_EMIT_UNDECLARED = ['label', 'referenceTo', 'decimals'] as const;
+const RETIRED_FROM_EMIT_DECLARED = ['options', 'format', 'currency'] as const;
+const RETIRED = [...RETIRED_FROM_EMIT_UNDECLARED, ...RETIRED_FROM_EMIT_DECLARED];
 
 /* ── fixtures ────────────────────────────────────────────────────────────── */
 
@@ -167,11 +177,15 @@ describe('the census reads a real declaration (#6373)', () => {
     expect(DECLARED.has('type')).toBe(true);
   });
 
-  it('is measuring keys the slot genuinely does not declare', () => {
-    // The verdicts below are "retire" BECAUSE the slot declares none of them.
-    // If one ever becomes declared, that is the rule's other branch and this
-    // seam has to be revisited rather than left silently inconsistent.
-    for (const key of RETIRED) expect(DECLARED.has(key)).toBe(false);
+  it('is measuring the slot as it stands after the #6425 ruling', () => {
+    // This premise used to assert the slot declares NONE of the six — the
+    // emit verdicts were "retire" because nothing declared them. The ruling
+    // took the rule's other branch for three (declared on `TableColumn`), so
+    // the premise now pins the SPLIT: the emit census below is unchanged
+    // either way, because this producer writes none of the six from
+    // `fieldMeta` — declared or not.
+    for (const key of RETIRED_FROM_EMIT_UNDECLARED) expect(DECLARED.has(key)).toBe(false);
+    for (const key of RETIRED_FROM_EMIT_DECLARED) expect(DECLARED.has(key)).toBe(true);
     expect(DECLARED.has(HELD_ALIAS)).toBe(false);
   });
 });
@@ -254,6 +268,12 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
       type: 'currency',
       align: 'right',
       cell: (value: any) => value,
+      // Authored passthrough of the #6425-DECLARED trio: `{ ...col }` may
+      // legitimately carry these now — they are `TableColumn` members, no
+      // longer tombstones on this emit type.
+      format: '$0,0',
+      currency: 'EUR',
+      options: [{ value: 'tech', label: 'Technology' }],
     };
     expect(accepted.accessorKey).toBe('amount');
   });
@@ -276,22 +296,26 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     // — so on its own it pins "the spread is refused" without pinning WHY, and
     // would have gone on passing after the enforcement was removed.
     //
-    // `Omit<FieldMeta, 'name' | 'type'>` is exactly the retired six: `name` is
-    // the held alias, `type` carries #5853's own refusal. Nothing but the
-    // tombstones refuses this one — verified by removing them and watching this
-    // directive, and only this one, turn TS2578.
-    // @ts-expect-error objectui#6373 — the six retired members are refused by the tombstones alone.
+    // `Omit<FieldMeta, 'name' | 'type'>` spans the retired six: `name` is
+    // the held alias, `type` carries #5853's own refusal. Since the #6425
+    // ruling declared `format` / `options` / `currency` on `TableColumn`,
+    // the members still refused by tombstones are `label`, `referenceTo` and
+    // `decimals` — enough to keep this spread an error, and nothing but the
+    // tombstones refuses it.
+    // @ts-expect-error objectui#6373 — the still-tombstoned members are refused by the tombstones alone.
     const retiredRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', ...({} as Omit<FieldMeta, 'name' | 'type'>) };
     expect(retiredRefused.accessorKey).toBe('a');
   });
 
   it('refuses a retired key written out by hand', () => {
-    // This one needs no tombstone: a hand-written property is subject to the
-    // excess-property check, which `TableColumn` alone already fails. Kept
-    // because it is the OTHER way a key gets added back, and separated from the
-    // spread pins because the two are enforced by different machinery.
-    // @ts-expect-error objectui#6373 — `format` retired from this emit seam.
-    const writtenRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', format: '$0,0' };
+    // Kept because a hand-written property is the OTHER way a key gets added
+    // back, and separated from the spread pins because the two are enforced
+    // by different machinery. This pin carried `format` until the #6425
+    // ruling declared it (writing it by hand is now legal, see the accepted
+    // fixture above); `decimals` — the key the same ruling RETIRED — takes
+    // its place, refused by the derived tombstone.
+    // @ts-expect-error objectui#6373/#6425 — `decimals` retired from this emit seam.
+    const writtenRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', decimals: 2 };
     expect(writtenRefused.accessorKey).toBe('a');
   });
 });

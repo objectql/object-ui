@@ -20,13 +20,17 @@
  * loudly without the tell. `AuthoredColumnOverrides` replaces both with a
  * written hold per key plus a derived refusal band.
  *
- * ## ⛔ Nothing here declares or retires anything published
+ * ## The ruling landed — this file now pins the ruled state
  *
- * The declare-or-retire ruling for the five is objectui#6425's own subject and
- * belongs to a maintainer. This file is the PREREQUISITE for it: the runtime
- * half below measures, per key, whether an authored override reaches anything
- * at all, so the ruling is made on evidence rather than on the plausibility of
- * a key's name.
+ * This suite began as the PREREQUISITE for the declare-or-retire ruling: the
+ * runtime half measures, per key, whether an authored override reaches
+ * anything at all, so the ruling could be made on evidence. The maintainer
+ * ruled per key on 2026-08-27 (objectui#6425): `format` / `options` /
+ * `currency` DECLARED on `TableColumn` + its zod mirror; `decimals` RETIRED
+ * immediately (the authored read is gone; the derived band refuses the key);
+ * `referenceTo` ⛔ NOT declared as spelled — still HELD, owned by
+ * objectui#6597. The measurements below are unchanged because the ruling did
+ * not change behaviour; what changed is which artefact answers for each key.
  *
  * ## Every zero here is paired with a positive control
  *
@@ -124,13 +128,15 @@ describe('per-key liveness of the five undeclared overrides (#6425)', () => {
     expect(b).toContain('€');
   });
 
-  it('decimals reaches NOTHING — no reader exists for it', async () => {
+  it('decimals reaches NOTHING — the RETIRED key changes no render (ruling, 2026-08-27)', async () => {
     // Measured statically too: zero `.decimals` reads across `@object-ui/fields`,
     // `@object-ui/i18n` and `@object-ui/components`. `NumberCellRenderer` reads
     // `scale`; `PercentCellRenderer` reads `precision`; `renderFieldValue`'s
-    // percent branch counts digits in the FORMAT STRING. This pins that as
-    // behaviour, so making the key live later has to be a deliberate change
-    // that turns this red — and retiring it stays free.
+    // percent branch counts digits in the FORMAT STRING. That measurement is
+    // what justified the ruling's RETIRE verdict — no user could reach the
+    // key — and this same pin now proves the retire itself changed nothing:
+    // an authored `decimals` renders byte-identical to its absence, before
+    // the read was removed and after.
     const { a, b } = await renderPair(
       { a: { type: 'number' }, b: { type: 'number' } },
       { a: 3.14159, b: 3.14159 },
@@ -208,7 +214,9 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
 
   it('accepts exactly the adjudicated set', () => {
     // The positive control. Without it the refusals below could be satisfied by
-    // a type that refuses everything, which would pin nothing.
+    // a type that refuses everything, which would pin nothing. `decimals` is
+    // deliberately NOT here any more: the ruling retired it, and its refusal
+    // is pinned with the band below.
     const accepted: AuthoredColumnOverrides = {
       accessorKey: 'amount',
       type: 'currency',
@@ -216,7 +224,6 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
       options: [{ value: 'tech', label: 'Technology' }],
       referenceTo: 'account',
       currency: 'EUR',
-      decimals: 2,
     };
     expect(accepted.currency).toBe('EUR');
   });
@@ -242,6 +249,14 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
     // @ts-expect-error objectui#6425 — `name` is in the derived refusal band.
     const nameRefused: AuthoredColumnOverrides = carriesName;
     expect(nameRefused.accessorKey).toBe('amount');
+
+    // `decimals` used to be HELD here; the ruling (2026-08-27) RETIRED it, so
+    // it fell into the derived band with no hand-edit to the band itself —
+    // removing the hold member IS the flip. This directive is the pin.
+    const carriesDecimals: { accessorKey: string; decimals?: number } = { accessorKey: 'amount' };
+    // @ts-expect-error objectui#6425 — `decimals` RETIRED into the derived refusal band.
+    const decimalsRefused: AuthoredColumnOverrides = carriesDecimals;
+    expect(decimalsRefused.accessorKey).toBe('amount');
   });
 
   it('the same source is ACCEPTED by the holds without the band', () => {
