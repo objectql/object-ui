@@ -123,4 +123,28 @@ describe('timeScale is RETIRED — the TS half of the tombstone (objectui#6355)'
 
     expect([retired, canonical]).toHaveLength(2);
   });
+
+  it('refuses the retired spelling in the form authors actually write', () => {
+    // The assertion above reads the MEMBER's type. This one writes a DOCUMENT,
+    // which is the shape an author (or an AI generating metadata) produces, and
+    // it is the leg that proves the tombstone survives `BaseSchema`'s
+    // `[key: string]: any`: if the index signature won, `timeScale` would widen
+    // back to `any` here and the directive would go unused (TS2578).
+
+    // @ts-expect-error — `timeScale` is RETIRED (objectui#6355); the document must name `scale`.
+    const retiredDocument: TimelineSchemaTS = {
+      type: 'timeline',
+      variant: 'gantt',
+      timeScale: 'month',
+    };
+
+    // The migrated document — same node, canonical key — still type-checks.
+    const migratedDocument: TimelineSchemaTS = {
+      type: 'timeline',
+      variant: 'gantt',
+      scale: 'month',
+    };
+
+    expect([retiredDocument, migratedDocument]).toHaveLength(2);
+  });
 });
