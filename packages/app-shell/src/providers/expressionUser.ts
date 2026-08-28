@@ -90,12 +90,34 @@
  * ("the shape that teaches the wrong thing") and the one objectui#6534 refused
  * for the anonymous branch, one key over.
  *
- * The narrowing is DECLARATIVE, and deliberately only that. Nothing reachable
- * today hands this function a session without `id` — the better-auth principal
- * above always carries one — so no runtime behaviour moves here and none was
- * made to move: the defect was that the declaration LIED about the contract,
- * not that a user could reach it. What refuses the widening from coming back is
- * the compiler, via `expressionUser.sessionContract.types.test.ts`.
+ * Nothing reachable today hands this function a session without `id` — the
+ * better-auth principal above always carries one — so no runtime behaviour
+ * moves here and none was made to move: the defect was that the declaration
+ * LIED about the contract, not that a user could reach it. What refuses the
+ * widening from coming back is the compiler, via
+ * `expressionUser.sessionContract.types.test.ts`.
+ *
+ * ## This type is the PARAMETER, not a cast (objectui#6559)
+ *
+ * objectui#6551 wrote the shape above but left the parameter `unknown`, with
+ * the narrowing applied INSIDE as `user as ExpressionUserSession | …`. A cast
+ * binds nothing: every call site satisfied the declaration vacuously, and
+ * `buildExpressionUser({ name: 'B', email: 'b@c.d' })` still compiled. A
+ * declaration nothing checks is indistinguishable from no declaration at all
+ * (AGENTS.md #0.1), which is why the shape above and the signature below are
+ * now the SAME statement rather than two that merely agree.
+ *
+ * Maintainer ruling 2026-08-27 (option A): the parameter narrows to
+ * `ExpressionUserSession | null | undefined`. It is a tightening of a
+ * package-entry export, so an external caller passing an unchecked value gets a
+ * compile error on upgrade — accepted, because such a call was never
+ * contract-conformant. All four in-repo production call sites pass
+ * `useAuth().user` (`AuthUser | null`) and type cleanly, measured: two in
+ * `console/AppContent.tsx`, one in `views/RecordFormPage.tsx`, one in
+ * `apps/console`'s `InternalFormRoute.tsx`. Runtime output is unchanged for
+ * every input any producer can supply. ⛔ B (keep `unknown`) and ⛔ C (a second,
+ * wider entry point) were declined. The pin is
+ * `expressionUser.parameterContract.types.test.ts`.
  *
  * ⛔ Not a fallback. `id: u.id ?? null` was the rejected shape (triage ruling,
  * 2026-08-26): it puts a lenient default in the CONSUMER, which AGENTS.md #0.1
@@ -119,9 +141,10 @@ export type ExpressionUserSession = {
   [key: string]: unknown;
 };
 
-export function buildExpressionUser(user: unknown): Record<string, unknown> {
-  const u = user as ExpressionUserSession | null | undefined;
-  if (!u) {
+export function buildExpressionUser(
+  user: ExpressionUserSession | null | undefined,
+): Record<string, unknown> {
+  if (!user) {
     return {
       // `null`, not absent — objectui#6534. An ABSENT key is not `false`: it
       // makes `ctx.user.id == '…'` FAULT, and a faulting visibility predicate
@@ -141,21 +164,21 @@ export function buildExpressionUser(user: unknown): Record<string, unknown> {
     };
   }
   return {
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role ?? 'user',
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role ?? 'user',
     // Surface the platform-admin flag so action `visible` CEL predicates
     // gated on `ctx.user.isPlatformAdmin == true` (e.g. sys_environment
     // "Change Plan (admin)") evaluate correctly. Previously only
     // name/email/role were forwarded → isPlatformAdmin-gated actions were
     // hidden even for platform admins.
-    isPlatformAdmin: u.isPlatformAdmin ?? false,
+    isPlatformAdmin: user.isPlatformAdmin ?? false,
     // Positions are what the SERVER binds as `current_user` for per-option
     // `visibleWhen` authorization gating (ADR-0058; framework EvalUser —
     // objectui#2284). Forwarding them lets a position-gated option
     // (`'admin' in current_user.positions`) hide client-side too, instead
     // of failing open as visible and only being rejected on submit.
-    positions: u.positions ?? [],
+    positions: user.positions ?? [],
   };
 }
