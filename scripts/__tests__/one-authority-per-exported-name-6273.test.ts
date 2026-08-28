@@ -371,9 +371,12 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['FilterBuilderCondition', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
   ['FilterBuilderOperator', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
   ['FilterGroup', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
-  ['FormFieldSpec', ['packages/app-shell/src/views/metadata-admin/form-spec.ts', 'packages/react/src/spec-bridge/bridges/form-view.ts']],
-  ['FormSectionSpec', ['packages/app-shell/src/views/metadata-admin/form-spec.ts', 'packages/react/src/spec-bridge/bridges/form-view.ts']],
-  ['FormViewSpec', ['packages/app-shell/src/views/metadata-admin/form-spec.ts', 'packages/react/src/spec-bridge/bridges/form-view.ts']],
+  // `FormFieldSpec` / `FormSectionSpec` / `FormViewSpec` sat here, colliding
+  // between `packages/app-shell/src/views/metadata-admin/form-spec.ts` and
+  // `packages/react/src/spec-bridge/bridges/form-view.ts` — the second
+  // authority left the tree with the spec-bridge retirement (objectui#6366,
+  // 2026-08-27 maintainer ruling), so app-shell's `form-spec.ts` is now the
+  // one authority and the entries would fail the stale-baseline direction.
   ['KanbanCard', ['packages/plugin-kanban/src/KanbanEnhanced.tsx', 'packages/plugin-kanban/src/KanbanImpl.tsx', 'packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6155 — the ×4 that card measured
   ['KanbanColumn', ['packages/plugin-kanban/src/KanbanEnhanced.tsx', 'packages/plugin-kanban/src/KanbanImpl.tsx', 'packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // the same four files; no family card named it
   ['KanbanSchema', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6172

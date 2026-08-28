@@ -91,9 +91,11 @@
  *     `UserActionsConfigSchema` (`sort`, `search`, `filter`, `refresh`,
  *     `rowHeight`, `addRecordForm`, `editInline`, `buttons`), which REJECTS
  *     `edit` BY NAME. `ListViewSchema` accepts it, so it is spec-legal, and it
- *     is really written: `SpecBridge.transformListView` copies it onto the
- *     `object-grid` node `ObjectGrid` renders, and `app-shell`'s `ObjectView`
- *     builds one unconditionally. "Nobody authors it" was false.
+ *     is really written: `app-shell`'s `ObjectView` builds one unconditionally.
+ *     "Nobody authors it" was false. (A second producer,
+ *     `SpecBridge.transformListView`, copied it onto the `object-grid` node
+ *     until the whole spec-bridge was retired — objectui#6366, 2026-08-27
+ *     maintainer ruling: zero measured consumers on every reachable endpoint.)
  *   - OBJECT-level `userActions` is the CRUD-PREDICATE block (`edit` /
  *     `delete` / `create` carrying `visibleWhen` / `disabledWhen`,
  *     objectui#2614) — the only shape `listViewPredicates` can read, since its
@@ -127,7 +129,7 @@ import { ComponentRegistry, collectPredicateFieldRefs, listViewPredicates } from
 import { ComponentPropsMap, ListViewSchema, UserActionsConfigSchema } from '@objectstack/spec/ui';
 import { manifestFromConfigs, validateTree } from '@object-ui/sdui-parser';
 import { registerAllFields } from '@object-ui/fields';
-import { ActionProvider, SpecBridge } from '@object-ui/react';
+import { ActionProvider } from '@object-ui/react';
 
 import { ObjectGrid } from '../ObjectGrid';
 // Module scope, not a hook: this import IS the registration (AGENTS.md's
@@ -511,27 +513,18 @@ describe('the view-level key is AUTHORED, not an unwritten surface (objectui#524
     expect(unrecognizedKeys(result)).toContain('edit');
   });
 
-  it('the PRODUCER writes it onto the very `object-grid` node ObjectGrid renders', () => {
-    // The producer IS the evidence, same as the `NON_AUTHOR_KEYS` table above —
-    // except here it proves the opposite: the key is written, so "nobody
-    // authors it" was never available as a reason.
-    const node = new SpecBridge().transformListView({
-      name: 'accounts',
-      columns: [{ field: 'name', label: 'Name' }],
-      userActions: VIEW_TOOLBAR_BLOCK,
-    } as never) as unknown as Record<string, unknown>;
-    expect(
-      node.type,
-      'the list bridge no longer emits `object-grid` — the collision comments name this producer.',
-    ).toBe('object-grid');
-    expect(
-      node.userActions,
-      'the list bridge stopped copying `userActions` onto the grid node. If that is the'
-        + ' producer-side fix (the spec-coordination card the 2026-08-20 ruling routed through'
-        + ' triage), the collision comments in `ObjectGrid.tsx` are due a re-read — do not just'
-        + ' delete this assertion.',
-    ).toEqual(VIEW_TOOLBAR_BLOCK);
-  });
+  // A third `it` stood here: "the PRODUCER writes it onto the very
+  // `object-grid` node ObjectGrid renders", witnessed with
+  // `new SpecBridge().transformListView(...)`. Its own failure message said
+  // "do not just delete this assertion" — that instruction covered the
+  // producer-side fix routed through triage by the 2026-08-20 ruling, not what
+  // actually happened: the WHOLE spec-bridge (`SpecBridge`, `bridgeListView`,
+  // `bridgeFormView`) was retired by the 2026-08-27 maintainer ruling on
+  // objectui#6366 (zero measured consumers at every reachable endpoint), so
+  // the witness it rendered no longer exists. The key is still AUTHORED — the
+  // surviving producer is `app-shell/src/views/ObjectView.tsx`, which builds a
+  // view-level toolbar block unconditionally — and the two pins above still
+  // hold the "spec-legal on a view" half of the claim.
 });
 
 describe('only the OBJECT block is interpretable by the predicate harvest (objectui#5240)', () => {
