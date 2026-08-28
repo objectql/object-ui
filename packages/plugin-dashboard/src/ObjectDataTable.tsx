@@ -355,9 +355,19 @@ export interface ObjectDataTableColumnHolds {}
  * tombstone and the band together are the same verdict, unchanged since each
  * key's ruling.
  *
- * The pool is what shrank, so what THIS band still refuses is `name` and
+ * The pool shrank, then grew again. What THIS band refuses is `name` and
  * `label` — both of them `FieldMeta` members with answers this seam already
- * has (see the docblock above).
+ * has (see the docblock above) — plus, since objectui#6694, the three
+ * relational members that card added: `reference_to`, `reference` and
+ * `display_field`.
+ *
+ * ⭐ Those three are the derivation working as designed, and their verdict is
+ * the one objectui#6597 already reached for `referenceTo`: an AUTHORED column
+ * may not source a lookup's reference target. They are refused HERE while
+ * `buildFieldMeta` writes them freely, because that write's source is the
+ * OBJECT SCHEMA field def and never the column — the same distinction
+ * objectui#6597 measured, and the reason adding them needed no new hold. They
+ * reached this band without anyone extending a list.
  */
 export type UnheldFieldMetaOverrideKey =
   Exclude<keyof FieldMeta, keyof TableColumn | keyof ObjectDataTableColumnHolds>;

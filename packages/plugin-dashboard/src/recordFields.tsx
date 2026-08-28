@@ -66,6 +66,88 @@ export const NUMERIC_FIELD_TYPES = new Set([
 ]);
 
 /**
+ * Relational keys copied from the OBJECT SCHEMA field def onto the built
+ * {@link FieldMeta}, so a lookup / master_detail / tree cell can resolve the
+ * record it references (objectui#6694).
+ *
+ * ## What was broken
+ *
+ * `LookupCellRenderer` (`@object-ui/fields`) resolves its target from
+ * `field.reference_to || field.reference` and its display field from
+ * `field.display_field`. `FieldMeta` carried NONE of those spellings, so for
+ * every lookup cell in `ObjectDataTable` and `RecordDetailDrawer` the renderer
+ * resolved `undefined` and two things failed silently: `useRefObjectSchema`
+ * never loaded the referenced object's schema (so the ADR-0079 / issue #2357
+ * resolution never ran and the cell fell back to `pickRecordDisplayName`'s
+ * generic `.name`/`.title` heuristic), and `ReferencedRecordLink`'s `objectName`
+ * was always `undefined` (so `navigable` was always `false` and the cell never
+ * rendered a real anchor — no drill-through, no middle-click, no copy-link).
+ *
+ * ## This is ADOPTED, not invented
+ *
+ * `plugin-grid`'s `ObjectGrid` already makes this exact copy —
+ * `applyRelationalMeta`, off its `RELATIONAL_META_KEYS`, at all three of its
+ * column-building call sites — which is why its lookup cells have always had
+ * both behaviours. This is that same move, made once in the seam BOTH dashboard
+ * widgets funnel through, which is what this module exists for (see the file
+ * header: the two surfaces must never drift).
+ *
+ * ## ⚠️ The copy set is DELIBERATELY 3 of the grid's 9 — measured, per key
+ *
+ * `RELATIONAL_META_KEYS` is `reference_to`, `reference`, `reference_to_field`,
+ * `display_field`, `id_field`, `description_field`, `lookup_filters`,
+ * `lookupFilters`, `titleFormat`. The grid needs all nine because its cells are
+ * EDITABLE — its own docblock says the extra keys "drive the inline picker's
+ * query (LookupField reads reference_to/reference, display_field, id_field,
+ * description_field, lookup_filters)", and the defect that earned them was an
+ * inline-edited lookup showing a raw id.
+ *
+ * These two widgets are READ-ONLY. Their only render path is
+ * {@link renderFieldValue} → `getCellRenderer` → a CELL renderer; no field
+ * EDITOR is reachable from it. Measured on `packages/fields/src/index.tsx` —
+ * the module `getCellRenderer` dispatches into — the complete set of relational
+ * keys read off a cell's `field` prop is:
+ *
+ *  - `reference_to`, `reference`, `display_field` — read by
+ *    `LookupCellRenderer` itself. ✅ COPIED.
+ *  - `id_field`, `description_field`, `lookup_filters`, `lookupFilters` — ZERO
+ *    mentions in that module; read only by `fields/src/widgets/LookupField.tsx`
+ *    and `UserField.tsx`, both EDITORS. ⛔ NOT copied.
+ *  - `reference_to_field` — ZERO member reads anywhere in the repo. ⛔ NOT
+ *    copied.
+ *  - `titleFormat` — never read off a FIELD meta at all; every reader takes it
+ *    off the OBJECT schema (`getRecordDisplayName` in `@object-ui/core`,
+ *    `containers.tsx`). On this path that object schema arrives through
+ *    `useRefObjectSchema(reference_to)` — so copying `reference_to` is what
+ *    makes `titleFormat` work, and copying `titleFormat` here would reach
+ *    nothing. ⛔ NOT copied.
+ *
+ * ⛔ Do not "restore parity" by widening this to the grid's nine. A member
+ * written from the schema def on every call and read by nothing is exactly what
+ * objectui#6625 (`decimals`) and objectui#6597 (`referenceTo`) retired from this
+ * very file. Add a key when a reader on THIS path is measured, not before; if
+ * these widgets ever gain inline editing, that is the event that earns the
+ * picker keys. The boundary is pinned in
+ * `__tests__/lookupRelationalMeta-6694.test.tsx`.
+ */
+const CELL_RELATIONAL_META_KEYS = ['reference_to', 'reference', 'display_field'] as const;
+
+/**
+ * Copy {@link CELL_RELATIONAL_META_KEYS} off a schema field def, with
+ * `applyRelationalMeta`'s own semantics: a key is written only when the def
+ * actually carries it, so a non-relational field's meta gains no keys at all and
+ * an absent key never lands as an explicit `undefined`.
+ */
+function pickCellRelationalMeta(def: any): Partial<FieldMeta> {
+  const out: Partial<FieldMeta> = {};
+  if (!def) return out;
+  for (const key of CELL_RELATIONAL_META_KEYS) {
+    if (def[key] !== undefined) out[key] = def[key];
+  }
+  return out;
+}
+
+/**
  * The override vocabulary this package's two field surfaces share.
  *
  * ⚠️ This type is a DERIVATION SOURCE, not only a shape: `ObjectDataTable`'s
@@ -109,6 +191,23 @@ export const NUMERIC_FIELD_TYPES = new Set([
  * ever wanted here, it reads `reference_to` / `reference` off the schema field
  * def directly — the spelling `LookupCellRenderer` and `computeLookupExpand`
  * actually use. ⛔ Do not resurrect `referenceTo`.
+ *
+ * ⭐ That reader ARRIVED (objectui#6694): `reference_to` / `reference` /
+ * `display_field` below, copied from the SCHEMA field def by
+ * {@link buildFieldMeta} and justified per key on `CELL_RELATIONAL_META_KEYS`.
+ * They are the "future reader" both retirement notes predicted, in the spelling
+ * they named, and they change neither verdict — the source is the schema field
+ * def, never an authored column override, which is the exact distinction
+ * objectui#6597 measured and withdrew on.
+ *
+ * ⚠️ Being `FieldMeta` members they GROW both derived bands in
+ * `ObjectDataTable.tsx` — `EnrichedColumn`'s emit tombstones and
+ * `UnheldFieldMetaOverrideKey`'s read-side refusal. That is the intended
+ * verdict rather than a side effect: an AUTHORED column may not source a
+ * lookup's reference target (objectui#6597 measured no authoring story for
+ * one), while the schema-derived write is reached by neither band. They landed
+ * in both without anyone editing a list — the property this derivation exists
+ * for.
  */
 export interface FieldMeta {
   name: string;
@@ -117,6 +216,12 @@ export interface FieldMeta {
   options?: Array<{ value: any; label: string; color?: string }>;
   format?: string;
   currency?: string;
+  /** Lookup target object, snake_case — the spelling `LookupCellRenderer` reads first. */
+  reference_to?: string;
+  /** Lookup target object, ObjectStack object-metadata spelling; the renderer's `||` fallback. */
+  reference?: string;
+  /** Author-declared display field on the lookup — beats every resolver in the cell. */
+  display_field?: string;
 }
 
 /**
@@ -205,8 +310,12 @@ export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
     // withdraw). It resolved `overrides.referenceTo ?? meta?.referenceTo ??
     // meta?.reference(.to) ?? meta?.target` on every call and reached no
     // reader: `LookupCellRenderer` resolves its target from
-    // `reference_to` / `reference`, never this spelling. A future reader
-    // reads `reference_to` / `reference` off the schema field def.
+    // `reference_to` / `reference`, never this spelling. ⭐ That future reader
+    // ARRIVED in objectui#6694 — the spread below, in the schema field def's own
+    // spelling, which is the one that retirement note pointed at. The
+    // retirement stands: this is a SCHEMA-derived write with no `overrides.`
+    // leg, so it makes no authored key live.
+    ...pickCellRelationalMeta(meta),
   };
 }
 
