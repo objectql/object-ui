@@ -171,6 +171,13 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
     // right outcome for a caller that under-specified an upsert, and the same
     // outcome as before this change. `saveFields` is the opposite case and
     // treats its argument as authoritative; see there.
+    //
+    // This parameter stays OPTIONAL after objectui#6490 made `saveObject`'s
+    // public one required, and the optionality is the point rather than a
+    // leftover: the type now says no in-repo caller can reach this branch, and
+    // the branch is what a caller who ignores the types still lands in. It is
+    // the last line of defence against the wipe, so it may not be deleted as
+    // newly-unreachable code.
     fields: fields ? toFieldsMap(fields) : undefined,
   };
 }
@@ -493,8 +500,47 @@ export class MetadataService {
   /**
    * Persist an object definition to the backend.
    * Works for both create and update (the API is an upsert).
+   *
+   * ## Why `existingFields` is REQUIRED (objectui#6490)
+   *
+   * `ObjectSchema.fields` is not merely typed, it is REQUIRED. Measured against
+   * the installed `@objectstack/spec` 17.2.0:
+   *
+   *   ObjectSchema.safeParse({ name: 'account', label: 'Account' })
+   *     => success = false   invalid_type @ fields
+   *
+   * and `metadata-protocol`'s `saveMetaItem` parses the whole item against that
+   * same schema and throws BEFORE it persists. So a call that omitted the field
+   * list built a body the server was guaranteed to refuse with
+   * `422 INVALID_METADATA` — this method cannot write a valid document without
+   * it. Requiring the argument moves that guaranteed RUNTIME failure to compile
+   * time; runtime accept/reject is unchanged, because the only calls it breaks
+   * are calls that already failed, every time they ran.
+   *
+   * An EMPTY list is a different statement from a missing one, and it is
+   * accepted: `[]` says "this object has no fields", writes `{}`, and under the
+   * upsert that is a field wipe the caller asked for — the same authoritative
+   * reading `saveFields` gives its own empty list. Pinned alongside the
+   * anti-wipe control in `MetadataService.objectPayloadFieldsMap.test.ts`, so
+   * the two readings of "no fields" stay distinguishable.
+   *
+   * Two readings were declined by the maintainer ruling (2026-08-27), recorded
+   * here so neither returns as a shortcut:
+   *
+   *   - ⛔ **Not a `{}` default.** `{}` parses GREEN, so defaulting would delete
+   *     every field of the object on a save that only meant to rename it —
+   *     trading a loud, harmless 422 for silent data loss. `toObjectPayload`
+   *     still omits the key for an input that supplies nothing, and that branch
+   *     is still reachable: this class is public API through
+   *     `useMetadataService`, so a JavaScript consumer, or one that casts past
+   *     the types, can arrive there. What it must get is the 422, not the wipe.
+   *   - ⛔ **Not fetch-and-merge.** `saveFields` GETs the current document and
+   *     spreads it, and an object save could preserve the stored `fields` the
+   *     same way — but that builds capability for a path with zero measured
+   *     pull and makes this parameter redundant, which then wants retiring on
+   *     its own terms (ADR-0049 shape).
    */
-  async saveObject(obj: ObjectDefinition, existingFields?: FieldMetadataPayload[]): Promise<void> {
+  async saveObject(obj: ObjectDefinition, existingFields: FieldMetadataPayload[]): Promise<void> {
     const client = this.adapter.getClient();
     const payload = toObjectPayload(obj, existingFields);
     await client.meta.saveItem('object', obj.name, payload);
