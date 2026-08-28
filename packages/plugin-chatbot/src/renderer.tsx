@@ -59,19 +59,18 @@ import { toRuntimeMessages } from './chatMessageAdapter';
  * element, which the sweep gate measured as clean.
  */
 ComponentRegistry.register('chatbot',
-  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema & {
-    showTimestamp?: boolean;
-    disabled?: boolean;
-    userAvatarUrl?: string;
-    userAvatarFallback?: string;
-    assistantAvatarUrl?: string;
-    assistantAvatarFallback?: string;
-    maxHeight?: string;
-    autoResponse?: boolean;
-    autoResponseText?: string;
-    autoResponseDelay?: number;
-    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
-  }; className?: string; disabled?: boolean; [key: string]: any }) => {
+  // The eleven keys this destructure's parameter type used to carry as an
+  // anonymous inline intersection now live on `ChatbotSchema` itself
+  // (objectui#6169, the #6172 family ruling: every component node has
+  // exactly one named, importable authoring-face type) — each was
+  // read-site-censused first; none were dead, so none took the ADR-0049
+  // route. `schema` is that one type, referenceable and documentable from
+  // outside this file for the first time. `disabled` here is the sibling,
+  // host-EVALUATED prop (`SchemaRenderer`'s verdict on `schema.disabled` /
+  // `schema.disabledOn`, forwarded as `hostDisabled`) — a different carrier
+  // from the authored `schema.disabled` it is derived from; see the comment
+  // on `disabled={hostDisabled || isLoading}` below.
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema; className?: string; disabled?: boolean; [key: string]: any }) => {
     const {
       messages,
       isLoading,
