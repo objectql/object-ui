@@ -269,10 +269,20 @@ describe('objectui#6610 — the ar pack spells the منقوص participle جار�
     // an empty-offenders assertion while checking nothing.
     expect(AR.length, 'ar pack looks empty — the scan would be vacuous').toBeGreaterThan(2000);
     // And the scan must be finding this participle at all: 100 standalone `جارٍ`
-    // on the commit that converged the last 8 (92 before). A floor rather than an
-    // equality, because a new in-flight string legitimately adds to it — the
-    // offender list below is the rule, this is only its proof of life.
-    expect(correctCount(AR), `no ${JAARIN} found at all — the scan would be vacuous`).toBeGreaterThanOrEqual(100);
+    // on the commit that converged the last 8 (92 before).
+    //
+    // The floor is deliberately SLACK rather than set at today's count. It is
+    // proof of life, not a ratchet, and an exact-today floor actively harms the
+    // rule: the first ablation of this file reverted one value and tripped
+    // `>= 100` at 99, so the failure a reader saw was "no جارٍ found at all"
+    // instead of the offender list — which is the assertion that names the key
+    // and says what to write instead. A slack floor still catches the shapes
+    // that make the scan vacuous (a collapsed pack, a broken import, a matcher
+    // that stops matching: all take this to 0 or near it) while leaving a
+    // single-value regression to be reported by the assertion built to report it.
+    expect(correctCount(AR), `almost no ${JAARIN} found — the scan is not seeing this pack`).toBeGreaterThanOrEqual(
+      80,
+    );
 
     const offenders = offendersIn(AR);
     // Named, not counted: a regression has to say which value regrew and what
