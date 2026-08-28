@@ -324,6 +324,14 @@ export type EnrichedColumn =
  * role it played for `format` / `options` / `currency` before objectui#6425
  * declared them and for `referenceTo` before objectui#6597 retired it.
  */
+// Deliberately empty: this is a documented EXTENSION POINT, not a stray
+// placeholder. It is declared `interface` rather than `type = object` so a
+// future per-key ruling can add a member the same way `format` / `options` /
+// `currency` (before objectui#6425) and `referenceTo` (before objectui#6597)
+// once did, without having to first convert it back from a type alias.
+// `object` would accept the same intersections but reads as "no future member
+// is expected here", which is the opposite of this type's role.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- see above
 export interface ObjectDataTableColumnHolds {}
 
 /**
