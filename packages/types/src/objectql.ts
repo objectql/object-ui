@@ -2507,27 +2507,29 @@ export interface ObjectGanttSchema extends BaseSchema {
   /** Whether the store persists dependency link TYPES (fs/ss/ff/sf). */
   dependencyTypes?: GanttConfig['dependencyTypes'];
 
-  // ⛔ `gantt` — the BLOCK face — is DELIBERATELY still undeclared here
-  // (objectui#6475). It is the 28th key of this card's residue and the only one
-  // objectui#6051 did not declare; the omission is a scoping decision, not an
-  // oversight, and reading it as "nothing reads `gantt`" would be wrong —
-  // `getGanttConfig`'s second branch reads it and honours it in full.
+  // ── The BLOCK face (the `ObjectGridSchema`-style shape, objectui#6475) ──────
   //
-  // Declaring it is not additive the way the 27 above are. It has no mirror entry
-  // at all today, so a block rides through `.passthrough()` UNVALIDATED; declaring
-  // it as {@link GanttConfig} means it gets parsed, and `GanttConfig` derives from
-  // the spec's `GanttConfigSchema`, which REQUIRES `startDateField`,
-  // `endDateField` and `titleField`. Because `ObjectGanttSchema` is a member of
-  // `AnyComponentSchema`, that reaches `safeValidateSchema` and therefore the
-  // CLI's `validate` / `check` commands: a block missing one of the three moves
-  // from "accepted, then warned about at runtime" to "refused at authoring time".
+  // `getGanttConfig`'s FIRST branch (`plugin-gantt/src/ObjectGantt.tsx`) reads
+  // this and wins whenever present (objectui#6469 ruled block-over-flat). It was
+  // the 28th and last undeclared key of the objectui#6051 census — the one key
+  // whose VALUES get stricter on declaration rather than merely gaining a name:
+  // it had no mirror entry at all, so a block rode through `.passthrough()`
+  // entirely unvalidated. Declaring it as {@link GanttConfig} means it is now
+  // PARSED, and `GanttConfig` derives from the spec's `GanttConfigSchema`, which
+  // REQUIRES `startDateField`, `endDateField` and `titleField`. Because
+  // `ObjectGanttSchema` is a member of `AnyComponentSchema`, that reaches
+  // `safeValidateSchema` and therefore the CLI's `validate` / `check` commands: a
+  // block missing one of the three moves from "accepted, then warned about at
+  // runtime" to "refused at authoring time".
   //
-  // That is very likely the RIGHT change — the renderer already feeds the block to
-  // `GanttConfigSchema.safeParse` and warns, so enforcing restores
-  // declared = enforced rather than inventing a contract — but it is a published
-  // CLI's refusal behaviour, and an in-repo census cannot see authored metadata
-  // living outside this tree. objectui#6475 carries the full measurement and the
-  // decision.
+  // This is a `declared = enforced` restoration, not new requiredness: the
+  // renderer already fed the block to `GanttConfigSchema.safeParse` and logged
+  // `[ObjectGantt] Invalid gantt configuration` on failure — the trio was already
+  // required for the block to actually work, just silently. Maintainer ruling,
+  // objectui#6475 (2026-08-27), Option A: declare as-is, spec requiredness
+  // enforces immediately, no warning window (excluded by the startup-stage
+  // no-gradualism rule, objectstack#12668 — no named external-user evidence).
+  gantt?: GanttConfig;
 
   // ── The query/data keys the fetch path reads (objectui#6051) ────────────────
   //

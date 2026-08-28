@@ -40,8 +40,9 @@
  *     `markers`, `criticalPath`, `showBaselines`, `readOnly`, `mobileReadOnly`)
  *     are disjoint from them.
  *
- * 27 of the 28 are declared here. The 28th, `gantt`, is severed to objectui#6475
- * — see the section below.
+ * 27 of the 28 are declared here. The 28th, `gantt`, was severed to objectui#6475
+ * and is now declared too — pinned separately below, since it is the one entry
+ * that narrows the accept set rather than merely adding a name.
  *
  * The residue is four LARGER than the card's list, and #5903 is why. The card
  * scored "declared by neither `ObjectGanttSchema` nor `ObjectGridSchema`" over
@@ -59,28 +60,30 @@
  * keeps that true as either side moves is the type-level pin at the bottom:
  * every key of `GanttConfig` is declared on the node's flat face.
  *
- * ## Why `gantt` is measured here but NOT declared here
+ * ## `gantt`, the 28th key, was severed — and is now declared (objectui#6475)
  *
  * The 27 declared below are new OPTIONAL members: additive on both sides, nothing
- * previously legal loses its slot. `gantt` is the one that would not have been.
- * It has no mirror entry at all, so a block rides through `.passthrough()`
- * unvalidated; declaring it as `GanttConfig` means it gets parsed, and
+ * previously legal loses its slot. `gantt` was the one that would not have been —
+ * it had no mirror entry at all, so a block rode through `.passthrough()`
+ * unvalidated. Declaring it as `GanttConfig` means it is now parsed, and
  * `GanttConfig` derives from the spec's `GanttConfigSchema`, which REQUIRES
  * `startDateField`, `endDateField` and `titleField`. `ObjectGanttSchema` is a
  * member of `AnyComponentSchema`, so that reaches `safeValidateSchema` and with
- * it the CLI's `validate` / `check` — a block missing one of the three would move
- * from "accepted, then warned about at runtime" to "refused at authoring time".
+ * it the CLI's `validate` / `check`: a block missing one of the three moves from
+ * "accepted, then warned about at runtime" to "refused at authoring time".
  *
  * PM ruling (2026-08-26): sever it, so a published CLI's refusal behaviour is
- * decided on its own card rather than inside a 27-key declaration PR.
- * objectui#6475 carries the full measurement, including the case FOR enforcing —
- * `getGanttConfig`'s block branch already feeds the block to
- * `GanttConfigSchema.safeParse` and logs `[ObjectGantt] Invalid gantt
+ * decided on its own card rather than inside a 27-key declaration PR. Maintainer
+ * ruling on that severed card, objectui#6475 (2026-08-27), Option A: declare it
+ * as-is, enforce the spec's requiredness immediately, no warning window (the
+ * startup-stage no-gradualism rule, objectstack#12668 — no named external-user
+ * evidence). `getGanttConfig`'s block branch already fed the block to
+ * `GanttConfigSchema.safeParse` and logged `[ObjectGantt] Invalid gantt
  * configuration`, so declaring it restores declared = enforced rather than
  * inventing a stricter contract.
  *
- * Today's behaviour is pinned below rather than left implicit, so the omission is
- * a measured state and not a silent gap.
+ * Today's behaviour — the trio enforced, everything else `GanttConfig` allows
+ * accepted — is pinned below rather than left implicit.
  *
  * ## What the pin has teeth against, and what it does not
  *
@@ -108,8 +111,9 @@ const MINIMAL = {
  * The 27 keys this card declared, each with a value its declared type refuses.
  *
  * 24 flattened `GanttConfig` members and the three query keys (`staticData` /
- * `filter` / `sort`). The 28th measured key, `gantt`, is severed to objectui#6475
- * and is pinned separately below as an UNDECLARED read.
+ * `filter` / `sort`). The 28th measured key, `gantt` (objectui#6475), is pinned
+ * separately below — it is declared too, but as a PARSED block rather than a
+ * bare optional scalar, so its refusal shape does not fit this table.
  */
 const DECLARED: ReadonlyArray<readonly [string, unknown]> = [
   // — the flattened GanttConfig face —
@@ -228,17 +232,38 @@ describe('ObjectGanttSchema — the flattened gantt config is declared (objectui
     expect(result.success ? null : result.error.issues).toBe(null);
   });
 
-  it('the `gantt` BLOCK face is still undeclared, and today rides through UNVALIDATED', () => {
-    // The 28th measured key, severed to objectui#6475. Pinned rather than left
-    // implicit so the omission is a measured state: a block missing the trio the
-    // spec's `GanttConfigSchema` REQUIRES parses green today, because the mirror
-    // has no `gantt` entry and `BaseSchema` is `.passthrough()`.
-    expect(Object.keys(ObjectGanttSchema.shape)).not.toContain('gantt');
-    const missingTrio = ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: { lockField: 'locked' } });
-    expect(missingTrio.success).toBe(true);
-    // Not even a wrong-TYPED block is refused — that is what "no entry" means, and
-    // it is exactly what objectui#6475 proposes to change.
-    expect(ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: 'flat' }).success).toBe(true);
+  it('the `gantt` BLOCK face is declared, and the spec trio now enforces at parse time (objectui#6475)', () => {
+    // The 28th measured key. objectui#6475, Option A: declared as `GanttConfig`,
+    // so a block is now PARSED against the spec's `GanttConfigSchema` — the
+    // published CLI's `validate`/`check` refusal this card exists to pin.
+    expect(Object.keys(ObjectGanttSchema.shape)).toContain('gantt');
+
+    // A block missing one of the required trio (startDateField / endDateField /
+    // titleField) is REFUSED — this is the accept-set narrowing itself, and it
+    // names the missing field rather than failing silently.
+    const missingTitleField = ObjectGanttSchema.safeParse({
+      ...MINIMAL,
+      gantt: { startDateField: 'start', endDateField: 'end', lockField: 'locked' },
+    });
+    expect(missingTitleField.success).toBe(false);
+    if (!missingTitleField.success) {
+      const issue = missingTitleField.error.issues.find((i) => i.path.join('.') === 'gantt.titleField');
+      expect(issue, 'refusal must name the missing titleField').toBeTruthy();
+    }
+
+    // A completely empty block is refused too — all three of the trio absent.
+    expect(ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: {} }).success).toBe(false);
+
+    // A wrong-TYPED block (not even an object) is refused.
+    expect(ObjectGanttSchema.safeParse({ ...MINIMAL, gantt: 'flat' }).success).toBe(false);
+
+    // A block carrying the complete trio IS accepted — the narrowing is exactly
+    // the trio, nothing more.
+    const complete = ObjectGanttSchema.safeParse({
+      ...MINIMAL,
+      gantt: { startDateField: 'start', endDateField: 'end', titleField: 'name', lockField: 'locked' },
+    });
+    expect(complete.success ? null : complete.error.issues).toBe(null);
   });
 
   it('does NOT reject an undeclared key — objectui#5155 ceiling, measured not assumed', () => {

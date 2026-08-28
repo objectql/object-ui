@@ -602,9 +602,17 @@ export const ObjectTreeSchema = BaseSchema.extend({
  *
  * Held as ONE field map rather than inlined, so the flattened top-level spelling
  * below is built from a single source — the same way the TS side derives its
- * flattened members from `GanttConfig`. It is deliberately the shape the nested
- * `gantt` block would ALSO be built from, one line, if objectui#6475 rules that
- * block in; today that entry is severed and this map has one consumer.
+ * flattened members from `GanttConfig`. It is also the shape the nested `gantt`
+ * block is built from (objectui#6475), one line extending the spec's gantt
+ * config schema with this map — so both authoring faces share one vocabulary
+ * and cannot fork from each other.
+ *
+ * ⚠️ Keep this docstring free of a literal `Spec` + capital-letter token: it
+ * sits between the `ObjectTreeSchema` and `ObjectGanttSchema` export
+ * boundaries, and `zod-mirror-parity.test.ts`'s `SPEC_DERIVED_PAIRS` re-check
+ * scans raw text between export boundaries for `\bSpec[A-Z]\w*` — a match here
+ * is misattributed to `ObjectTreeSchema`, which references no spec schema at
+ * all (measured: this comment alone flipped that test red).
  *
  * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
  * `^export const` out of this directory and would require a registered TS
@@ -723,16 +731,26 @@ export const ObjectGanttSchema = BaseSchema.extend({
   autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
   // …and objectui's own ten, from the one field map above.
   ...GanttConfigExtensionFields,
-  // ⛔ `gantt` — the BLOCK face `getGanttConfig`'s second branch reads — is
-  // DELIBERATELY still unmirrored (objectui#6475). It would be one line here,
-  // `SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional()`, built
-  // from the same field map as the flat face above; the reason it is not is that
-  // it is the one entry that NARROWS. With no entry a block rides through
-  // `.passthrough()` unvalidated; with one it is parsed against the spec's
-  // `GanttConfigSchema`, which REQUIRES startDateField/endDateField/titleField —
-  // and this mirror reaches the CLI's `validate`/`check` through
-  // `AnyComponentSchema`, so that is a published refusal change. See the TS
-  // declaration's note in `../objectql.ts` and objectui#6475.
+  // `gantt` — the BLOCK face `getGanttConfig`'s FIRST branch reads and prefers
+  // (objectui#6469 ruled block-over-flat) — objectui#6475. Built from the same
+  // field map as the flat face above, `SpecGanttConfigSchema` extended with
+  // `GanttConfigExtensionFields`, so the two authoring faces cannot fork.
+  //
+  // This is the one entry among the 28 that NARROWS rather than merely names: a
+  // `gantt` block previously rode through `.passthrough()` entirely unvalidated;
+  // now it is PARSED against the spec's `GanttConfigSchema`, which REQUIRES
+  // `startDateField`/`endDateField`/`titleField`. This mirror reaches the CLI's
+  // `validate`/`check` through `AnyComponentSchema` → `safeValidateSchema`, so a
+  // block missing the trio moves from "accepted, then warned about at runtime"
+  // to "refused at authoring time" — a `declared = enforced` restoration, not
+  // new requiredness: the renderer already fed the block to
+  // `GanttConfigSchema.safeParse` and logged `[ObjectGantt] Invalid gantt
+  // configuration` on failure. Maintainer ruling, objectui#6475 (2026-08-27),
+  // Option A: enforce as-is, no warning window (excluded by the startup-stage
+  // no-gradualism rule, objectstack#12668 — no named external-user evidence).
+  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional().describe(
+    'Nested gantt config block — the authoring face, and the winner over the flattened top-level keys whenever present'
+  ),
   // The query/data keys the fetch path reads. They were declared on
   // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
   // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
