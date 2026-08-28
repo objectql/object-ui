@@ -398,6 +398,30 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     dataSource,
   );
 
+  /**
+   * The record-fetch effect below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic guarantee:
+   * React is permitted to discard its cache and recompute, and
+   * `getDataConfig(schema)` builds a fresh `{ provider, object }` /
+   * `{ provider, items }` wrapper object on every call even when `schema`
+   * hasn't changed. So a discard (not just a `schema` change) was enough to
+   * re-run the effect and refetch, with nothing about the bound object
+   * actually different. These are every primitive field the effect actually
+   * reads off `dataConfig`; keying on them instead of the container object
+   * makes a cache discard a no-op for it, and returns the `useMemo` above to
+   * being a pure optimisation rather than a correctness dependency —
+   * mirroring `ObjectMap`/`ObjectCalendar`/`ObjectGantt` (objectui#6592).
+   *
+   * This is the record effect #6592's branch left untouched (objectui#6700):
+   * the OTHER dataConfig-identity dependence in this component — the schema
+   * resolution effect — was already retired by #6696 in favor of
+   * `useSettledSchema`'s own primitive `schemaKey` above, so this closes out
+   * the component rather than one effect of two.
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
+
   // Fetch records.
   useEffect(() => {
     let cancelled = false;
@@ -412,7 +436,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         // columns — which usually omit the parent field and would flatten the
         // tree. Fetching our own records (no column projection) guarantees the
         // parent field is present so the hierarchy resolves.
-        if (dataConfig?.provider === 'object' && dataSource && typeof dataSource.find === 'function') {
+        if (dataProvider === 'object' && dataSource && typeof dataSource.find === 'function') {
           // Wait for the schema before querying. `$expand` is DERIVED from it,
           // so firing early guaranteed one query whose lookup columns came back
           // as bare ids — the user saw those raw ids painted, then replaced a
@@ -421,7 +445,10 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           // this effect re-runs the moment the latch flips.
           if (!schemaSettled) return;
           const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(dataConfig.object, {
+          // `dataObjectName` is required on the 'object' variant of the
+          // discriminated union — same narrowing the pre-refactor
+          // `dataConfig.object` read carried.
+          const result = await dataSource.find(dataObjectName as string, {
             $filter: schema.filter,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
@@ -442,9 +469,9 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           return;
         }
 
-        if (dataConfig?.provider === 'value') {
+        if (dataProvider === 'value') {
           if (!cancelled) {
-            setRecords((dataConfig.items as any[]) ?? []);
+            setRecords((dataItems as any[]) ?? []);
             setLoading(false);
           }
           return;
@@ -465,7 +492,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataConfig, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
+  }, [dataProvider, dataObjectName, dataItems, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
 
   const config = useMemo(() => getTreeConfig(schema), [schema]);
   const parentField = useMemo(
