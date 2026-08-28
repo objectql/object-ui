@@ -126,6 +126,12 @@ const heavyDomTests = [
   // side-effect registration, and taking a plugin-list -> plugin-grid
   // dependency to import it directly would be the heavier change.
   'packages/plugin-list/src/__tests__/ListView.crossPageSelectAll.test.tsx',
+  // objectui#6598 — the reported html-kind page, end to end over the REAL
+  // object-grid. The defect is ListView and ObjectGrid disagreeing about how
+  // "the author declared no columns" is spelled, so a stub grid (what the
+  // sibling handoff pin registers) is standing in for one side of the
+  // disagreement and cannot see it. Same reason, same route as the entry above.
+  'packages/plugin-list/src/__tests__/htmlTierListViewDefaultColumns-6598.test.tsx',
 ];
 
 export default defineConfig({

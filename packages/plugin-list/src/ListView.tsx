@@ -2058,6 +2058,41 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return fields;
   }, [schema.columns, schema.objectName, hiddenFields, schema.fieldOrder, perms]);
 
+  /**
+   * Did the AUTHOR declare a column projection at all? (objectui#6598)
+   *
+   * `effectiveFields` is `[]` in two situations the child grid cannot tell
+   * apart, and sending the same empty array for both is what produced this
+   * issue's headline symptom: `<list-view objectName="opportunity" />` on an
+   * html-kind page rendered the row count, the toolbar and the index column —
+   * and not one data column, with no diagnostic anywhere.
+   *
+   *   1. The author declared none (`columns` absent, or `[]`). `ObjectGrid`
+   *      derives defaults from the object schema for exactly this case
+   *      ("Default columns priority (when schema doesn't specify columns)"),
+   *      and `normalizeColumns` already reads an empty `columns` as unauthored
+   *      — the same rule `ElementDataSourceGate`'s precedence table states.
+   *      But that derivation is gated on `schema.fields` being ABSENT, and an
+   *      empty array is truthy, so the `fields: []` this component sent read as
+   *      "show exactly these zero columns" and the defaults never ran.
+   *      Single-variable measurement: a bare `<object-grid objectName="…" />`
+   *      on the same tier, same data source, renders four default columns; the
+   *      same object behind `<list-view>` renders none.
+   *   2. The author declared some and the gates above removed them all — FLS
+   *      denied every one, or every one is hidden. That case must KEEP sending
+   *      the empty projection. Falling through to the grid's defaults there
+   *      would show fields the author never asked for, and `ObjectGrid`
+   *      re-applies FLS only on the DERIVED path, not on the explicit-columns
+   *      one — so widening here would be a widening past the field gate.
+   *
+   * Hence the question is about the AUTHORED value and never about what
+   * survived filtering.
+   */
+  const hasAuthoredColumns = React.useMemo(
+    () => Array.isArray(schema.columns) && schema.columns.length > 0,
+    [schema.columns],
+  );
+
   // Generate the appropriate view component schema
   const viewComponentSchema = React.useMemo(() => {
     const densityRowHeight = density.mode === 'compact'
@@ -2101,7 +2136,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         return {
           type: 'object-grid',
           ...baseProps,
-          columns: effectiveFields,
+          // Unauthored ⇒ hand the grid NO projection, so its default-columns
+          // derivation runs (see `hasAuthoredColumns`). `fields` has to be
+          // cleared with it: it rides in on `baseProps`, and it is the key the
+          // derivation is gated on.
+          ...(hasAuthoredColumns
+            ? { columns: effectiveFields }
+            : { fields: undefined, columns: undefined }),
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           // [#4647] The MODE, not just its toggle. Gating only the toggle would
           // leave the issue's own consequence reachable by a different door: a
@@ -2329,7 +2370,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // asynchronously (`/me/permissions`) and `objectDef` loads into state, so a
   // grid schema built before either resolved must be rebuilt when they do —
   // otherwise `editable` keeps the pre-verdict answer for the session.
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
+  }, [currentView, schema, currentSort, effectiveFields, hasAuthoredColumns, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
