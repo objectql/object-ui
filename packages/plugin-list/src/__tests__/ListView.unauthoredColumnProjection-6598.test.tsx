@@ -98,6 +98,18 @@ afterAll(() => {
 beforeEach(() => { lastGridProps = null; });
 afterEach(() => { cleanup(); lastGridProps = null; });
 
+/**
+ * What the child block actually reads.
+ *
+ * `SchemaRenderer` hands a registered component its schema AND spreads the
+ * schema's keys as props, and `ObjectGrid` reads the `schema` one — so the
+ * assertions below read it too rather than the spread, which is the copy that
+ * would still agree if the two ever diverged. `expect(gridSchema()).toBeTruthy()`
+ * in every case is the accessor's own positive control: without it a renamed
+ * prop would make every `toBeUndefined()` below pass while measuring nothing.
+ */
+const gridSchema = () => lastGridProps?.schema;
+
 async function renderList(schema: ListViewSchema, wrap?: (el: React.ReactElement) => React.ReactElement) {
   const ds = makeDataSource();
   const inner = <ListView schema={schema} dataSource={ds} />;
@@ -115,8 +127,9 @@ describe('ListView → object-grid: the unauthored column projection (#6598)', (
     // Both keys, because the grid reads both and either one alone re-pins the
     // projection at zero: `columns` feeds `normalizeColumns`, `fields` gates the
     // default-columns derivation.
-    expect(lastGridProps.columns).toBeUndefined();
-    expect(lastGridProps.fields).toBeUndefined();
+    expect(gridSchema()).toBeTruthy();
+    expect(gridSchema().columns).toBeUndefined();
+    expect(gridSchema().fields).toBeUndefined();
   });
 
   it('treats an empty `columns` as unauthored too', async () => {
@@ -124,8 +137,9 @@ describe('ListView → object-grid: the unauthored column projection (#6598)', (
     // `columns` counts as unauthored") and `normalizeColumns` already applies.
     await renderList(listSchema({ columns: [] }));
 
-    expect(lastGridProps.columns).toBeUndefined();
-    expect(lastGridProps.fields).toBeUndefined();
+    expect(gridSchema()).toBeTruthy();
+    expect(gridSchema().columns).toBeUndefined();
+    expect(gridSchema().fields).toBeUndefined();
   });
 
   it('sends exactly the authored projection when the author declared one', async () => {
@@ -133,8 +147,9 @@ describe('ListView → object-grid: the unauthored column projection (#6598)', (
     // so their `undefined` is a decision and not a dead render path.
     await renderList(listSchema({ columns: ['name', 'amount'] }));
 
-    expect(lastGridProps.columns).toEqual(['name', 'amount']);
-    expect(lastGridProps.fields).toEqual(['name', 'amount']);
+    expect(gridSchema()).toBeTruthy();
+    expect(gridSchema().columns).toEqual(['name', 'amount']);
+    expect(gridSchema().fields).toEqual(['name', 'amount']);
   });
 
   it('still sends an EMPTY projection when the field gate removed every authored column', async () => {
@@ -164,7 +179,8 @@ describe('ListView → object-grid: the unauthored column projection (#6598)', (
     // denied. Handing the grid "unauthored" here would run its derivation and
     // put the object's other fields on screen — a widening past the field gate,
     // which the explicit-columns path in ObjectGrid does not re-check.
-    expect(lastGridProps.columns).toEqual([]);
-    expect(lastGridProps.fields).toEqual([]);
+    expect(gridSchema()).toBeTruthy();
+    expect(gridSchema().columns).toEqual([]);
+    expect(gridSchema().fields).toEqual([]);
   });
 });
