@@ -14,7 +14,10 @@
  * not keep authoring the spelling it just made unauthorable. Three writers
  * existed on `origin/main`:
  *
- *   1. the schema-catalog fixture `gantt-style-timeline.json`;
+ *   1. the schema-catalog fixture `gantt-style-timeline.json` — pinned in
+ *      `scripts/__tests__/timeline-catalog-scale-migrated-6355.test.ts`, which
+ *      is where the repo's file-reading tests live (this package's test
+ *      tsconfig carries no node types);
  *   2. the registration's own `examples.gantt` block (`../renderer`);
  *   3. `ObjectTimeline`, which COMPOSES a schema for `TimelineRenderer` and
  *      wrote the resolved axis under the alias. That one is invisible to a
@@ -32,56 +35,13 @@
  * validator that now REFUSES the old spelling.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import { TimelineSchema } from '@object-ui/types/zod';
 import { resolveTimelineScale } from '../renderer';
 // Importing the package entry performs the registration, exactly as a host does.
 import '../index';
 
-// Vitest's root is the repo root (`vitest.config.mts`), so the fixture is
-// addressed from there. `existsSync` is asserted before any test reads it: a
-// path that silently resolves to nothing would turn every assertion below into a
-// vacuous pass, which is the failure this file is meant to detect, not commit.
-const CATALOG_FIXTURE = resolve(
-  process.cwd(),
-  'examples/schema-catalog/src/schemas/plugin-timeline/gantt-style-timeline.json',
-);
-
 describe('in-repo gantt authors use the canonical `scale` (objectui#6355)', () => {
-  it('the schema-catalog fixture this pin reads is actually on disk', () => {
-    expect(existsSync(CATALOG_FIXTURE), `fixture not found at ${CATALOG_FIXTURE}`).toBe(true);
-  });
-
-  it('the schema-catalog fixture authors `scale`, and it is the value that resolves', () => {
-    const raw = readFileSync(CATALOG_FIXTURE, 'utf8');
-    const doc = JSON.parse(raw) as Record<string, unknown>;
-
-    expect(doc.variant, 'fixture is no longer the gantt one this pin was written for').toBe('gantt');
-    expect(doc.timeScale, 'the schema-catalog fixture still authors the RETIRED alias').toBeUndefined();
-    expect(doc.scale).toBe('month');
-
-    // The read path, not the string: this is what the renderer would bucket by.
-    expect(resolveTimelineScale(doc)).toBe('month');
-
-    // And the published validator accepts it — the same validator that now
-    // refuses the pre-migration spelling of this very document.
-    const parsed = TimelineSchema.safeParse(doc);
-    expect(parsed.success ? null : parsed.error.issues).toBe(null);
-  });
-
-  it('the pre-migration form of that same fixture is REFUSED', () => {
-    // Counter-probe, and the tightest statement of what the migration bought:
-    // this exact document, with only the key renamed back, does not parse.
-    const doc = JSON.parse(readFileSync(CATALOG_FIXTURE, 'utf8')) as Record<string, unknown>;
-    const { scale, ...rest } = doc;
-    const preMigration = { ...rest, timeScale: scale };
-
-    const parsed = TimelineSchema.safeParse(preMigration);
-    expect(parsed.success, 'the retired spelling of the shipped fixture still parses').toBe(false);
-  });
-
   it("the registration's own `examples.gantt` authors `scale`, and it resolves", () => {
     // Read back from the registry rather than restated here, so this cannot
     // drift from the declaration it is pinning.
