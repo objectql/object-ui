@@ -368,6 +368,23 @@ export interface TableColumn {
    */
   headerIcon?: React.ReactNode;
   /**
+   * Size this column to its own content instead of to a measured width: the
+   * auto-width pass skips it, and `data-table` renders it as a `width:1%` +
+   * `whitespace-nowrap` cell with no `overflow-hidden` clamp. Written by
+   * `ObjectGrid` on the injected row-actions `_actions` column, whose inline
+   * buttons carry no string data and were otherwise pinned to the 80px floor
+   * and clipped.
+   *
+   * Declared by objectui#6424 (maintainer ruling 2026-08-28, Option A) — the
+   * card's second key, in the same shape {@link TableColumn.headerIcon}
+   * landed in. Retiring the reads was excluded BY MEASUREMENT, not
+   * preference: shipped source authors `fitContent: true`, and
+   * `data-table-fit-content.test.tsx` pins the un-clipped result. Before
+   * this, a typed author got a compile error — and a silent strip from the
+   * zod mirror — for a key the renderer honours.
+   */
+  fitContent?: boolean;
+  /**
    * Field-meta override: display format pattern for the cell value (e.g.
    * `"$0,0"`, `"0%"`, `"YYYY-MM-DD"`), honoured by `object-data-table`'s cell
    * pipeline — `renderFieldValue`'s currency / percent / date branches — and
@@ -518,6 +535,16 @@ export interface StaticTableColumn {
    * @deprecated Not part of the static `table` renderer's contract.
    */
   headerIcon?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6424, under #5474's lockstep
+   * rule: every rich key needs a deliberate static-side decision). Declared
+   * on the rich {@link TableColumn} only — the static renderer has no
+   * auto-width pass to opt out of and no per-cell overflow clamp to lift
+   * (its measured read set is the five live keys above). Content-hugging
+   * columns are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  fitContent?: never;
   /**
    * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
    * rule: every rich key needs a deliberate static-side decision). Declared

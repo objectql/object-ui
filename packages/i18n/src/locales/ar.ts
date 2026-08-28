@@ -348,10 +348,10 @@ const ar = {
     delete: "حذف",
     export: "تصدير",
     exportAs: "تصدير كـ {{format}}",
-    loading: "جاري تحميل الشبكة…",
+    loading: "جارٍ تحميل الشبكة…",
     errorLoading: "خطأ في تحميل الشبكة",
     pullToRefresh: "اسحب للتحديث",
-    refreshing: "جاري التحديث…",
+    refreshing: "جارٍ التحديث…",
     openRecord: "فتح السجل",
     rowHeight: "ارتفاع الصف: {{mode}}",
     openMenu: "فتح القائمة",
@@ -1031,7 +1031,7 @@ const ar = {
     noValue: "لا قيمة",
   },
   chart: {
-    loading: "جاري تحميل الرسم البياني…",
+    loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
   },
   dashboard: {
@@ -1626,7 +1626,7 @@ const ar = {
       },
     },
     title: "وحدة تحكم ObjectStack",
-    initializing: "جاري تهيئة التطبيق…",
+    initializing: "جارٍ تهيئة التطبيق…",
     loadingHint: "قد يستغرق إعداد بيئة جديدة بعض الوقت.",
     breadcrumb: {
       dashboards: "لوحات المعلومات",
@@ -1660,9 +1660,9 @@ const ar = {
       cryptoRefusalToastNoSubject: "تعذّر تشفير الأسرار",
     },
     loadingSteps: {
-      connecting: "جاري الاتصال بمصدر البيانات",
-      loadingConfig: "جاري تحميل الإعدادات",
-      preparingWorkspace: "جاري تجهيز مساحة العمل",
+      connecting: "جارٍ الاتصال بمصدر البيانات",
+      loadingConfig: "جارٍ تحميل الإعدادات",
+      preparingWorkspace: "جارٍ تجهيز مساحة العمل",
     },
     error: {
       connectionFailed: "تعذّر الاتصال بالخادم",
@@ -1672,7 +1672,7 @@ const ar = {
     },
     actions: {
       retry: "إعادة المحاولة",
-      retrying: "جاري إعادة المحاولة…",
+      retrying: "جارٍ إعادة المحاولة…",
     },
     serverAction: {
       openingTitle: "جارٍ الفتح…",
