@@ -424,6 +424,100 @@ export const ADAPTER_ONLY_DATA_PREDICATE_PREFIX =
   '[ObjectUI] A visibility predicate resolved `data.*` against the data-source adapter';
 
 /**
+ * The `disabled` / `disabledOn` sibling of the prefix above (objectui#6504,
+ * maintainer ruling 2026-08-27 option A). Same reason
+ * {@link UNRESOLVABLE_ENABLEMENT_PREFIX} is a sibling of
+ * {@link UNRESOLVABLE_VISIBILITY_PREFIX} rather than a reuse: calling a
+ * `disabled` predicate "a visibility predicate" would send an author to the
+ * wrong gate on the first line — the one line a console filter and a `grep`
+ * both read.
+ */
+export const ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX =
+  '[ObjectUI] An enablement predicate resolved `data.*` against the data-source adapter';
+
+/**
+ * Which gates the objectui#5687 constant-predicate diagnostic is wired to
+ * (objectui#6504, maintainer ruling 2026-08-27 option A: extend to the
+ * enablement gate, dev-only; option C — always-on — was excluded, outside
+ * the #5687 precedent).
+ *
+ * A NARROWER union than {@link PredicateGateKind} deliberately, not an
+ * oversight: `'concealment'` (`hidden` / `hiddenOn`) is not one of them. Both
+ * of this diagnostic's call sites are unchanged by this card — the visibility
+ * one (`SchemaRenderer.tsx`'s `evaluateVisibilityPredicate`) still calls
+ * {@link reportAdapterOnlyDataPredicate} with no `gate` argument at all, for
+ * the six-leg chain exactly as objectui#5687 shipped it, so `'concealment'`
+ * was never a value this table had to answer for. Giving it an entry nobody
+ * can reach would be a decision this ruling did not make; widening this type
+ * later is a decision for whichever card makes that call, not a `??` for this
+ * table to paper over now.
+ */
+export type AdapterOnlyPredicateGateKind = Extract<PredicateGateKind, 'visibility' | 'enablement'>;
+
+/**
+ * The two parts of the message that vary with the gate, mirroring
+ * {@link GATE_KIND_COPY}'s machinery (#6445) for this SIBLING diagnostic —
+ * same discipline (indexed without a `??` fallback; the default lives on the
+ * parameter), a separate table because the message TEMPLATE differs (this one
+ * carries an "Undefined on the adapter:" line and no {@link SCOPE_TIER_ADVICE}
+ * tail; see {@link formatAdapterOnlyDataMessage}).
+ *
+ * ⛔⛔ BINDING INHERITANCE CLAUSE (2026-08-27 ruling, objectui#6504, verbatim
+ * from the card thread): "the extension inherits #5687's dissolution note
+ * verbatim — when #5330's deprecation window closes, both legs dissolve
+ * together; the new copy entry must carry the same pointer so the teardown
+ * finds it." The pointer, carried from this module's own docblock (see
+ * {@link unresolvedDataPaths}'s "why this discriminator" section): objectui#5687
+ * is "a diagnostic on a card that dissolves when objectui#5330's deprecation
+ * window closes." BOTH entries below dissolve on that same clock, together —
+ * this is not an independently-scheduled diagnostic. When that window closes,
+ * delete this table, {@link ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX},
+ * {@link ADAPTER_ONLY_DATA_PREDICATE_PREFIX}, {@link unresolvedDataPaths},
+ * {@link formatAdapterOnlyDataMessage} and {@link reportAdapterOnlyDataPredicate}
+ * in this file, and BOTH call sites in `SchemaRenderer.tsx`
+ * (`evaluateVisibilityPredicate` and `evaluateEnablementPredicate`), in the
+ * same stroke.
+ */
+const ADAPTER_ONLY_GATE_COPY: Record<AdapterOnlyPredicateGateKind, { prefix: string; consequence: string }> = {
+  visibility: {
+    prefix: ADAPTER_ONLY_DATA_PREDICATE_PREFIX,
+    consequence:
+      'At the node tier `data` is the DATA-SOURCE ADAPTER - the object\n' +
+      '`${data.total}` in a props bag reads - and it is NOT the row. The reads\n' +
+      'above are undefined on it, so this predicate is a CONSTANT: it does not\n' +
+      'depend on the row at all, and on this surface a constant `false` hides the\n' +
+      'node on every row while looking exactly like a gate that said no.\n' +
+      'Write the row as `record.*` (e.g. `record.status`), which page-component\n' +
+      'predicates bind alongside `current_user` and page state as `page.<var>`.\n' +
+      '`data.*` as a spelling for the row is deprecated (objectui#5330) and was\n' +
+      'never bound to the row on this tier.',
+  },
+  // The constant-`true` direction, not a reuse of the sentence above: on THIS
+  // gate the fail-soft default that BITES is `true` (a control that greys
+  // out), the mirror image of the negated visibility legs where it is
+  // `false` (a node that hides). Written to describe that direction, since it
+  // is the one that leaves nothing on screen for an author to notice —
+  // "greyed out" looks exactly like a gate that closed on purpose, the same
+  // way "not on screen" looks exactly like a gate that hid on purpose.
+  enablement: {
+    prefix: ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX,
+    consequence:
+      'At the node tier `data` is the DATA-SOURCE ADAPTER - the object\n' +
+      '`${data.total}` in a props bag reads - and it is NOT the row. The reads\n' +
+      'above are undefined on it, so this predicate is a CONSTANT: it does not\n' +
+      'depend on the row at all, and on THIS gate the dangerous polarity is a\n' +
+      'constant `true`: the node renders DISABLED - on screen, greyed out,\n' +
+      'refusing input - on every row, in every build, while looking exactly\n' +
+      'like a gate that said no. No pixel says the predicate is a constant, so\n' +
+      'this line is the only thing that will ever name it.\n' +
+      'Write the row as `record.*` (e.g. `record.status`), which page-component\n' +
+      'predicates bind alongside `current_user` and page state as `page.<var>`.\n' +
+      '`data.*` as a spelling for the row is deprecated (objectui#5330) and was\n' +
+      'never bound to the row on this tier.',
+  },
+};
+
+/**
  * Strip string literals before scanning for `data.*` reads.
  *
  * The scan below is LEXICAL, not a parse — it reads the predicate's source
@@ -473,7 +567,9 @@ const DATA_ROOT_PATH_RE =
  *   * "the comparison OPERAND is undefined" — the most precise reading, and it
  *     needs the expression engine to expose its operands. That is a change to
  *     `@object-ui/core`'s evaluator for a diagnostic on a card that dissolves
- *     when objectui#5330's deprecation window closes.
+ *     when objectui#5330's deprecation window closes — BOTH legs together,
+ *     the enablement one objectui#6504 added included; see
+ *     {@link ADAPTER_ONLY_GATE_COPY}'s binding inheritance clause.
  *   * "a `data.*` read the bound object does not answer" — this one. On the
  *     card's repro (`data.status` against the adapter) it fires; on
  *     `${data.total}` against `{ total: 99 }` it does not; and it is
@@ -517,29 +613,33 @@ function unresolvedDataPaths(source: string, boundData: unknown): string[] {
   return out;
 }
 
-/** Built separately from the emit, for the same reason as the message above. */
+/**
+ * Built separately from the emit, for the same reason as the message above.
+ *
+ * `gate` defaults to `'visibility'` so the historical four-argument call
+ * (objectui#5687) keeps printing the exact bytes it printed before —
+ * objectui#6504's own call site in `evaluateVisibilityPredicate`
+ * (`SchemaRenderer.tsx`) is one of those unchanged callers, passing no `gate`
+ * at all. `evaluateEnablementPredicate` is the one caller that states
+ * `'enablement'` explicitly, matching {@link formatUnresolvableVisibilityMessage}'s
+ * own compatibility-default pattern.
+ */
 export function formatAdapterOnlyDataMessage(
   type: unknown,
   id: unknown,
   key: string,
   raw: unknown,
   unresolved: string[],
+  gate: AdapterOnlyPredicateGateKind = 'visibility',
 ): string {
   const node = typeof type === 'string' && type ? '"' + type + '"' : '(untyped node)';
   const where = typeof id === 'string' && id ? ' (id: "' + id + '")' : '';
+  const copy = ADAPTER_ONLY_GATE_COPY[gate];
   return (
-    ADAPTER_ONLY_DATA_PREDICATE_PREFIX + ' - node ' + node + where + '\n' +
+    copy.prefix + ' - node ' + node + where + '\n' +
     '  ' + key + ': ' + JSON.stringify(predicateSourceText(raw)) + '\n' +
     '  Undefined on the adapter: ' + unresolved.join(', ') + '\n' +
-    'At the node tier `data` is the DATA-SOURCE ADAPTER - the object\n' +
-    '`${data.total}` in a props bag reads - and it is NOT the row. The reads\n' +
-    'above are undefined on it, so this predicate is a CONSTANT: it does not\n' +
-    'depend on the row at all, and on this surface a constant `false` hides the\n' +
-    'node on every row while looking exactly like a gate that said no.\n' +
-    'Write the row as `record.*` (e.g. `record.status`), which page-component\n' +
-    'predicates bind alongside `current_user` and page state as `page.<var>`.\n' +
-    '`data.*` as a spelling for the row is deprecated (objectui#5330) and was\n' +
-    'never bound to the row on this tier.'
+    copy.consequence
   );
 }
 
@@ -574,6 +674,22 @@ export function formatAdapterOnlyDataMessage(
  * key is tagged with this leg's name so the two diagnostics cannot silence each
  * other for the same (type, key, source) triple — they are different faults,
  * and a node that faults one way is not evidence about the other.
+ *
+ * ## `gate` (objectui#6504) — NOT in the dedupe key, for the reason
+ * {@link reportUnresolvableVisibilityPredicate}'s own docblock gives for the
+ * same omission
+ *
+ * `gate` is a FUNCTION of `key`: the enablement gate is exactly `disabled` /
+ * `disabledOn` and the visibility gate this leg is called for is the six-leg
+ * chain, two disjoint sets. Adding it to the dedupe key could not separate two
+ * entries `key` does not already separate — and the cross-gate direction is
+ * the one that would matter if it could: the SAME predicate source authored on
+ * `disabled` and on (say) `visibleWhen` must produce TWO lines, which it does
+ * today because `key` differs, with or without `gate` in the tuple.
+ *
+ * Defaults to `'visibility'` — the objectui#5687 call site
+ * (`evaluateVisibilityPredicate`) is unchanged by this card and still calls
+ * this function with five arguments.
  */
 export function reportAdapterOnlyDataPredicate(
   type: unknown,
@@ -581,6 +697,7 @@ export function reportAdapterOnlyDataPredicate(
   key: string,
   raw: unknown,
   boundData: unknown,
+  gate: AdapterOnlyPredicateGateKind = 'visibility',
 ): void {
   const source = predicateSourceText(raw);
   // Fast reject: the overwhelming majority of predicates never mention `data.`
@@ -594,5 +711,5 @@ export function reportAdapterOnlyDataPredicate(
   const dedupeKey = JSON.stringify(['adapter-only-data', type, key, source]);
   if (_warnedVisibilityPredicates.has(dedupeKey)) return;
   _warnedVisibilityPredicates.add(dedupeKey);
-  console.warn(formatAdapterOnlyDataMessage(type, id, key, raw, unresolved));
+  console.warn(formatAdapterOnlyDataMessage(type, id, key, raw, unresolved, gate));
 }
