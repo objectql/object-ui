@@ -13,14 +13,18 @@
  * that identity happens to survive). This file pins the same contract for
  * `ObjectCalendar`'s record-fetch effect.
  *
- * The discard proxy: two schema object literals with identical primitive
- * content but different references. `dataConfig`'s own `useMemo` here is
- * already keyed on primitives (`schema.data` / `schema.staticData` /
- * `schema.objectName` — objectui#6018's fix), so it does NOT recompute on
- * this reference change by itself; what is under test is the record-fetch
- * effect's OWN dependency array, which is why the assertion is on
- * `dataSource.find` / `getObjectSchema` call counts, not on `dataConfig`
- * identity directly.
+ * `ObjectCalendar`'s own `dataConfig` memo is ALREADY keyed on primitives
+ * (`schema.data` / `schema.staticData` / `schema.objectName` — objectui#6018),
+ * so the map/tree discard proxy ("a schema with a new reference but equal
+ * `objectName`") does not even recompute `dataConfig` here: those three deps
+ * would all compare equal and the memo would keep its old cached object. The
+ * discard proxy for THIS component instead varies `schema.data` itself — one
+ * of the memo's OWN deps — across two object literals that carry the SAME
+ * `provider`/`object` but a different reference, which forces the recompute
+ * (`(schema as any).data` is compared by Object.is, not by value) while
+ * leaving every primitive the fetch effect reads unchanged. That is the same
+ * "different identity, same content" shape a genuine memo-cache discard
+ * would produce.
  */
 
 import React from 'react';
@@ -45,12 +49,15 @@ function makeDataSource() {
 const CALENDAR = { startDateField: 'starts_at', titleField: 'name' };
 
 describe('ObjectCalendar — record-fetch effect survives a discarded `dataConfig` memo (objectui#6592)', () => {
-  it('does not re-fire the fetch when `schema` gets a new reference with the SAME primitive fields', async () => {
+  it('does not re-fire the fetch when `dataConfig` recomputes to a new identity with the SAME primitive fields', async () => {
     const dataSource = makeDataSource();
-    const schemaA: any = { type: 'object-calendar', objectName: 'visit', calendar: CALENDAR };
-    const schemaB: any = { type: 'object-calendar', objectName: 'visit', calendar: CALENDAR };
-    expect(schemaA).not.toBe(schemaB);
-    expect(schemaA).toEqual(schemaB);
+    // Two different `data` object references, byte-identical content — forces
+    // `dataConfig`'s own memo to recompute to a NEW object (its `data` dep is
+    // compared by reference) while `provider`/`object` stay unchanged.
+    const schemaA: any = { type: 'object-calendar', calendar: CALENDAR, data: { provider: 'object', object: 'visit' } };
+    const schemaB: any = { type: 'object-calendar', calendar: CALENDAR, data: { provider: 'object', object: 'visit' } };
+    expect(schemaA.data).not.toBe(schemaB.data);
+    expect(schemaA.data).toEqual(schemaB.data);
 
     const { rerender } = render(<ObjectCalendar schema={schemaA} dataSource={dataSource} />);
     await waitFor(() => expect(screen.getByText('Site visit')).toBeTruthy());
