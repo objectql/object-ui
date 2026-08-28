@@ -196,11 +196,18 @@ export function useExpressionContext(): ExpressionContextValue {
  *
  * It is deliberately NOT `nav:item`, even though this card is written about nav
  * and area items: `evaluateVisibility` is also the gate `RecordFormPage` runs
- * over an object's field `visible` predicates, and labelling those "nav" would
- * be false. The consequence is stated rather than hidden — a nav item and a
- * form field carrying the IDENTICAL broken predicate text share one dedupe
- * entry and produce one line. That is still one typo in one string; the line
- * names the string, which is what both sites are grepped by.
+ * over an object's field visibility predicates, and labelling those "nav" would
+ * be false.
+ *
+ * The stated consequence — a nav item and a form field carrying the IDENTICAL
+ * broken predicate text sharing one dedupe entry — no longer arises, and the
+ * reason is worth keeping rather than deleting. Since objectui#6514 the two
+ * sites report under DIFFERENT authored keys (`visible` for nav and area items,
+ * `visibleWhen` for an object field), and `key` is part of the dedupe tuple, so
+ * the same broken string now produces one line per surface. That is a strictly
+ * better outcome than the one accepted here, and it is a side effect of naming
+ * the key honestly, not a goal: the line still names the predicate SOURCE,
+ * which is what both sites are grepped by.
  */
 const APP_SHELL_VISIBLE_SURFACE = 'app-shell:visible';
 
