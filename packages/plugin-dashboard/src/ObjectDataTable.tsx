@@ -884,8 +884,18 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // Honor an author-supplied onRowClick; otherwise wire the drill-to-record
   // handler when drill-down is enabled. The base data-table guards against
   // firing on interactive cells (buttons / menus / dialogs).
+  //
+  // objectui#6575 — `bind` is CONSUMED here, not passed through: `boundData =
+  // useDataScope(schema.bind)` resolved it above and `finalData` below IS that
+  // result. Spreading it onward handed the key to `data-table`, which reads no
+  // `bind` at all, so a correctly bound (and published-guide-taught) widget
+  // tripped that card's ignored-`bind` diagnostic on every render — a warning
+  // over rows that were on screen BECAUSE the bind had been honoured. Stop the
+  // key where it was spent, the same shape `DashboardGridLayout` already uses
+  // for `data`. Pinned by `ObjectDataTable.bindNotForwarded-6575.test.tsx`.
+  const { bind: _consumedBind, ...schemaWithoutBind } = schema;
   const tableSchema = {
-    ...schema,
+    ...schemaWithoutBind,
     type: 'data-table',
     data: finalData,
     columns: derivedColumns,
