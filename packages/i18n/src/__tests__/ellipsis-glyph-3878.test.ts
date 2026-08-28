@@ -267,13 +267,25 @@ describe('objectui#3878 — the ten packs spell the ellipsis U+2026 and only U+2
  * first word, and the fix is a normalization rather than a choice of words.
  *
  * That matters because the split does NOT respect this group's boundary: pack
- * wide, the standalone participle is `جارٍ` ×90 against `جاري` ×10, and only 2 of
- * those 10 are in this group. Converging the 2 is what the ruling asks for and
- * is what this pin can hold; the other 8 (`grid.loading`, `grid.refreshing`,
- * `chart.loading`, `console.initializing`, `console.loadingSteps.*` ×3,
- * `console.actions.retrying`) are a wider normalization filed separately rather
- * than smuggled in here, the same way #3878 fenced off the per-package fallback
- * tables. Read this block's green as a statement about this group only.
+ * wide at the time of this pass, the standalone participle was `جارٍ` ×90 against
+ * `جاري` ×10, and only 2 of those 10 were in this group. Converging the 2 is
+ * what the ruling asks for and is what this pin can hold; the other 8
+ * (`grid.loading`, `grid.refreshing`, `chart.loading`, `console.initializing`,
+ * `console.loadingSteps.*` ×3, `console.actions.retrying`) were a wider
+ * normalization filed separately rather than smuggled in here, the same way
+ * #3878 fenced off the per-package fallback tables. Read this block's green as a
+ * statement about this group only.
+ *
+ * objectui#6610 has since taken those 8, and the reason it could not simply
+ * widen this pin is worth recording next to it: this block *derives* its
+ * population from `en` (`value === LOADING_GROUP_EN`) and asserts the derived
+ * set is exactly `LOADING_GROUP`. None of the 8 has `Loading…` as its `en`
+ * value, so adding them here would have broken the derivation check that is this
+ * block's own anti-vacuity guard. The orthography split is a property of one
+ * pack's spelling rather than of a group of shared `en` strings, so it became a
+ * pack-wide invariant of its own in
+ * `ar-participle-orthography-6610.test.ts` — which also pins the three `ar`
+ * values where the yāʾ is grammatically CORRECT and must not be swept.
  *
  * ## The `de` fork, and why it is exempted BY NAME
  *
