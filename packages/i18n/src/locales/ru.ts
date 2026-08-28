@@ -343,7 +343,6 @@ const ru = {
       undo: "Отменить",
       undoing: "Отмена…",
       done: "Готово",
-      selectPlaceholder: "Выберите…",
       loading: "Загрузка…",
     },
     actions: "Действия",
@@ -537,9 +536,7 @@ const ru = {
     month: "Месяц",
     week: "Неделя",
     day: "День",
-    agenda: "Расписание",
     allDay: "Весь день",
-    noEvents: "Нет событий",
     newEvent: "Новое событие",
     moreEvents: "+{{count}} ещё",
   },
@@ -1037,16 +1034,8 @@ const ru = {
     noValue: "Нет значения",
   },
   chart: {
-    noData: "Нет данных для графика",
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
-  },
-  map: {
-    searchLocations: "Поиск местоположений…",
-    locationDetails: "Детали местоположения",
-    markersCount: "{{count}} маркеров",
-    invalidCoordinates: "{{count}} запись с отсутствующими или недействительными координатами исключена из карты.",
-    invalidCoordinatesPlural: "{{count}} записей с отсутствующими или недействительными координатами исключены из карты.",
   },
   dashboard: {
     noRows: "Нет строк",
@@ -2288,8 +2277,6 @@ const ru = {
     browseMarketplace: "Обзор маркетплейса приложений",
     quickActions: {
       title: "Быстрые действия",
-      createApp: "Создать приложение",
-      createAppDesc: "Начните с нового приложения",
       manageObjects: "Управление объектами",
       manageObjectsDesc: "Настройте модели данных",
       systemSettings: "Системные настройки",
@@ -2305,11 +2292,6 @@ const ru = {
     greetingNight: "Ночная смена",
     heroTagline: "Продолжите с того места, где остановились, или откройте что-то новое.",
     open: "Открыть",
-    stats: {
-      apps: "Приложения",
-      starred: "Отмеченные",
-      recent: "Недавние",
-    },
     recentApps: {
       title: "Недавно открытые",
       itemType: {
@@ -2340,7 +2322,6 @@ const ru = {
       organizations: "Организации",
       roles: "Роли",
       configuration: "Конфигурация",
-      createApp: "Создать приложение",
       administration: "Администрирование",
       datasources: "Источники данных",
       documentation: "Документация",
@@ -2430,8 +2411,6 @@ const ru = {
     cancel: "Отмена",
     confirm: "Подтвердить",
     uploading: "Загрузка…",
-    defaultActionTitle: "Действие",
-    ok: "ОК",
     lookupPlaceholder: "ID записи для {{label}}",
     lookupHelpText: "Для этого параметра не настроен объект ссылки, поэтому выбор записи недоступен. Введите ID записи или попросите администратора исправить параметр действия.",
   },
@@ -2439,11 +2418,6 @@ const ru = {
     title: "Подтвердите действие",
     confirm: "Продолжить",
     cancel: "Отмена",
-  },
-  rowAction: {
-    openMenu: "Открыть меню",
-    edit: "Редактировать",
-    delete: "Удалить",
   },
   navigationSync: {
     addedPage: "Навигация обновлена: страница \"{{name}}\" добавлена",
@@ -2475,15 +2449,6 @@ const ru = {
     printDialogOpening: "Открывается диалог печати браузера (это не экспорт в PDF)",
     exportFailed: "Ошибка экспорта: {{message}}",
     forecastSoon: "Прогнозное представление скоро будет",
-  },
-  recordDetail: {
-    viewersTooltip: "Пользователи, просматривающие эту запись",
-  },
-  cellRender: {
-    empty: "Пусто",
-    yes: "Да",
-    no: "Нет",
-    systemFields: "Система",
   },
   user: {
     profile: "Профиль",

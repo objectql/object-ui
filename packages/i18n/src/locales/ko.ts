@@ -337,7 +337,6 @@ const ko = {
       undo: "되돌리기",
       undoing: "되돌리는 중…",
       done: "완료",
-      selectPlaceholder: "선택…",
       loading: "로딩 중…",
     },
     actions: "작업",
@@ -531,9 +530,7 @@ const ko = {
     month: "월",
     week: "주",
     day: "일",
-    agenda: "일정",
     allDay: "종일",
-    noEvents: "일정이 없습니다",
     newEvent: "새 일정",
     moreEvents: "+{{count}} 더보기",
   },
@@ -1027,16 +1024,8 @@ const ko = {
     noValue: "값 없음",
   },
   chart: {
-    noData: "차트 데이터가 없습니다",
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
-  },
-  map: {
-    searchLocations: "위치 검색…",
-    locationDetails: "위치 상세",
-    markersCount: "마커 {{count}}개",
-    invalidCoordinates: "좌표가 누락되었거나 유효하지 않아 {{count}}개 레코드가 지도에서 제외되었습니다.",
-    invalidCoordinatesPlural: "좌표가 누락되었거나 유효하지 않아 {{count}}개 레코드가 지도에서 제외되었습니다.",
   },
   dashboard: {
     noRows: "행 없음",
@@ -2274,8 +2263,6 @@ const ko = {
     browseMarketplace: "앱 마켓플레이스 탐색",
     quickActions: {
       title: "빠른 작업",
-      createApp: "앱 생성",
-      createAppDesc: "새 애플리케이션으로 시작",
       manageObjects: "객체 관리",
       manageObjectsDesc: "데이터 모델 구성",
       systemSettings: "시스템 설정",
@@ -2291,11 +2278,6 @@ const ko = {
     greetingNight: "야간 작업 중",
     heroTagline: "마지막으로 중단한 곳에서 이어서 하거나 새로운 것을 발견해 보세요.",
     open: "열기",
-    stats: {
-      apps: "앱",
-      starred: "즐겨찾기",
-      recent: "최근",
-    },
     recentApps: {
       title: "최근 열린 항목",
       itemType: {
@@ -2326,7 +2308,6 @@ const ko = {
       organizations: "조직",
       roles: "역할",
       configuration: "구성",
-      createApp: "앱 만들기",
       administration: "관리",
       datasources: "데이터 소스",
       documentation: "문서",
@@ -2416,8 +2397,6 @@ const ko = {
     cancel: "취소",
     confirm: "확인",
     uploading: "업로드 중…",
-    defaultActionTitle: "작업",
-    ok: "확인",
     lookupPlaceholder: "{{label}}의 레코드 ID",
     lookupHelpText: "이 매개변수에 참조 개체가 설정되어 있지 않아 레코드 선택기를 사용할 수 없습니다. 레코드 ID를 직접 입력하거나 관리자에게 작업 매개변수 수정을 요청하세요.",
   },
@@ -2425,11 +2404,6 @@ const ko = {
     title: "작업 확인",
     confirm: "계속",
     cancel: "취소",
-  },
-  rowAction: {
-    openMenu: "메뉴 열기",
-    edit: "편집",
-    delete: "삭제",
   },
   navigationSync: {
     addedPage: "탐색 업데이트: 페이지 \"{{name}}\" 추가됨",
@@ -2461,15 +2435,6 @@ const ko = {
     printDialogOpening: "브라우저의 인쇄 대화 상자를 여는 중입니다（PDF 내보내기가 아닙니다）",
     exportFailed: "내보내기 실패: {{message}}",
     forecastSoon: "예측 보기가 곧 출시됩니다",
-  },
-  recordDetail: {
-    viewersTooltip: "현재 이 레코드를 보고 있는 사용자",
-  },
-  cellRender: {
-    empty: "비어 있음",
-    yes: "예",
-    no: "아니요",
-    systemFields: "시스템",
   },
   user: {
     profile: "프로필",
