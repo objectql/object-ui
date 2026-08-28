@@ -541,7 +541,6 @@ const zh = {
       undo: '撤销',
       undoing: '撤销中…',
       done: '完成',
-      selectPlaceholder: '请选择…',
       loading: '加载中…',
     },
   },
@@ -550,9 +549,7 @@ const zh = {
     month: '月',
     week: '周',
     day: '日',
-    agenda: '日程',
     allDay: '全天',
-    noEvents: '暂无事件',
     newEvent: '新建事件',
     moreEvents: '+{{count}} 更多',
   },
@@ -1066,7 +1063,6 @@ const zh = {
     noValue: '无',
   },
   chart: {
-    noData: '暂无图表数据',
     loading: '图表加载中…',
     nullCategory: '(未指定)',
   },
@@ -1095,13 +1091,6 @@ const zh = {
     editor: {
       panelTitle: '编辑报表',
     },
-  },
-  map: {
-    searchLocations: '搜索位置…',
-    locationDetails: '位置详情',
-    markersCount: '{{count}} 个标记',
-    invalidCoordinates: '{{count}} 条记录因坐标缺失或无效已从地图中排除。',
-    invalidCoordinatesPlural: '{{count}} 条记录因坐标缺失或无效已从地图中排除。',
   },
   dashboard: {
     addWidget: '添加组件',
@@ -2334,11 +2323,6 @@ const zh = {
       marketplaceDisabled: '本运行时未配置应用市场，因此这里没有可安装的模板。',
     },
     open: '打开',
-    stats: {
-      apps: '应用',
-      starred: '收藏',
-      recent: '最近访问',
-    },
     loading: '正在加载工作区…',
     recent: '最近使用',
     starred: '收藏',
@@ -2375,8 +2359,6 @@ const zh = {
     browseMarketplace: '浏览应用市场',
     quickActions: {
       title: '快捷操作',
-      createApp: '创建应用',
-      createAppDesc: '从新应用开始',
       manageObjects: '管理对象',
       manageObjectsDesc: '配置数据模型',
       systemSettings: '系统设置',
@@ -2427,7 +2409,6 @@ const zh = {
       organizations: '组织',
       roles: '角色',
       configuration: '配置',
-      createApp: '创建应用',
       administration: '管理',
       datasources: '数据源',
       documentation: '文档',
@@ -2581,18 +2562,11 @@ const zh = {
     cancel: '取消',
     confirm: '确认',
     uploading: '上传中…',
-    defaultActionTitle: '操作',
-    ok: '确定',
   },
   actionConfirm: {
     title: '确认操作',
     confirm: '继续',
     cancel: '取消',
-  },
-  rowAction: {
-    openMenu: '更多操作',
-    edit: '编辑',
-    delete: '删除',
   },
   navigationSync: {
     addedPage: '导航已更新：已添加页面 “{{name}}”',
@@ -2625,15 +2599,6 @@ const zh = {
     printDialogOpening: '正在打开浏览器打印对话框（不是导出 PDF）',
     exportFailed: '导出失败：{{message}}',
     forecastSoon: '预测视图即将上线',
-  },
-  recordDetail: {
-    viewersTooltip: '正在查看此记录的用户',
-  },
-  cellRender: {
-    empty: '空',
-    yes: '是',
-    no: '否',
-    systemFields: '系统字段',
   },
   user: {
     profile: '个人资料',

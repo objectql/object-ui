@@ -194,3 +194,70 @@ describe('data-table columns — `headerIcon` is DECLARED and renders (#6424)', 
     }
   });
 });
+
+describe('data-table columns — `fitContent` is DECLARED and survives parse (#6424)', () => {
+  // The card's SECOND key, ruled 2026-08-28 (Option A) in the same shape
+  // `headerIcon` landed in above. Retire was excluded by measurement — shipped
+  // source authors `fitContent: true` on the injected row-actions column — so
+  // the key is declared on `TableColumn` + its zod mirror instead.
+  //
+  // The RENDER half is already pinned, and deliberately not duplicated here:
+  // `data-table-fit-content.test.tsx` holds the width:1% + nowrap + no-clip
+  // behaviour. What was broken and is fixed here is the AUTHORING surface, so
+  // that is what these pin.
+
+  it('SURVIVES the zod mirror parse — no longer silently stripped', () => {
+    // Acceptance cannot pin this: a non-strict z.object() ACCEPTS an
+    // undeclared key and silently STRIPS it, so this exact parse was green
+    // BEFORE the declaration — while the flag vanished and the row-actions
+    // column fell back to the estimated 80px floor that clipped its buttons.
+    // The pin is survival into the parsed OUTPUT, same discipline as
+    // `headerIcon` above and `editable: false` in
+    // `static-table-narrow-surface.test.ts`.
+    const result = TableColumnSchema.safeParse({
+      header: 'Actions',
+      accessorKey: '_actions',
+      fitContent: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect('fitContent' in result.data).toBe(true);
+      expect(result.data.fitContent).toBe(true);
+    }
+  });
+
+  it('is TYPED by the mirror, not waved through — a non-boolean is a loud refusal', () => {
+    // `fitContent` is serializable metadata, unlike the `z.any()` runtime
+    // slots (`cell`, `headerIcon`), so the mirror types it. Without this the
+    // declaration would buy acceptance without validation — the lenient face
+    // that lets AI-authored metadata errors through (the defect objectui#5853
+    // fixed for `type`).
+    const result = TableColumnSchema.safeParse({
+      header: 'Actions',
+      accessorKey: '_actions',
+      fitContent: 'yes',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.path.join('.'))).toContain('fitContent');
+    }
+  });
+
+  it('parses through the whole authored column — declared keys travel together', () => {
+    // Both of this card's keys on one column, the way ObjectGrid emits them.
+    const node = React.createElement('svg');
+    const result = TableColumnSchema.safeParse({
+      header: 'Actions',
+      accessorKey: '_actions',
+      headerIcon: node,
+      fitContent: true,
+      align: 'right',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fitContent).toBe(true);
+      expect(result.data.headerIcon).toBe(node);
+      expect(result.data.align).toBe('right');
+    }
+  });
+});

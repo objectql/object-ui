@@ -178,13 +178,22 @@ describe('InterfaceListPage forwards the view-level `map` block (objectui#5042)'
  *
  * What was left behind was not a redundancy but an INVERSION. The binding
  * arrives at the resolver as `options.titleField`, which is precedence **step
- * 0** — ahead of `objectDef.titleField`, ahead of the declared `nameField`
- * pointer, and ahead of the legacy `titleFormat` template at step 3. Measured
- * against the resolver's ladder, a field name this page picked can only ever
- * change the answer by OUT-RANKING something the object itself declared; in
- * every other case it reproduces, at step 0, the string the resolver already
- * computes at step 1/2/4. That is the whole of its effect, which is why it
- * goes rather than gets described.
+ * 0** — ahead of the declared `nameField` pointer and its `displayNameField`
+ * alias at step 1/2, ahead of the legacy `titleFormat` template at step 3, and
+ * ahead of the type-aware derivation from `objectDef.fields` at step 4.
+ * Measured against the resolver's ladder, a field name this page picked can
+ * only ever change the answer by OUT-RANKING something the object itself
+ * declared; in every other case it reproduces, at step 0, the string the
+ * resolver already computes at step 1/2/4. That is the whole of its effect,
+ * which is why it goes rather than gets described.
+ *
+ * The ladder carries NO object-level `titleField` rung — the middle term this
+ * passage used to name. It was never a step of its own: it was a second `??`
+ * leg inside step 0, deleted in objectui#6531 because `@objectstack/spec`'s
+ * object schema is a `strictObject` that REJECTS the key with
+ * `unrecognized_keys` — the same issue code a nonsense key gets — so no
+ * spec-compliant object could ever supply it. See the `getRecordDisplayName`
+ * docblock in `@object-ui/core`'s `record-title.ts` for the ladder in full.
  *
  * These arms pin both halves: the product no longer carries a title binding
  * (shape), and the declared side therefore decides at the read site

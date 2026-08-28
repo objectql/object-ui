@@ -337,7 +337,6 @@ const de = {
       undo: "Rückgängig",
       undoing: "Wird rückgängig gemacht…",
       done: "Fertig",
-      selectPlaceholder: "Auswählen…",
       loading: "Wird geladen…",
     },
     actions: "Aktionen",
@@ -531,9 +530,7 @@ const de = {
     month: "Monat",
     week: "Woche",
     day: "Tag",
-    agenda: "Agenda",
     allDay: "Ganztägig",
-    noEvents: "Keine Termine",
     newEvent: "Neuer Termin",
     moreEvents: "+{{count}} weitere",
   },
@@ -1027,16 +1024,8 @@ const de = {
     noValue: "Kein Wert",
   },
   chart: {
-    noData: "Keine Diagrammdaten verfügbar",
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
-  },
-  map: {
-    searchLocations: "Orte suchen…",
-    locationDetails: "Standortdetails",
-    markersCount: "{{count}} Markierungen",
-    invalidCoordinates: "{{count}} Datensatz mit fehlenden oder ungültigen Koordinaten von der Karte ausgeschlossen.",
-    invalidCoordinatesPlural: "{{count}} Datensätze mit fehlenden oder ungültigen Koordinaten von der Karte ausgeschlossen.",
   },
   dashboard: {
     noRows: "Keine Zeilen",
@@ -2275,8 +2264,6 @@ const de = {
     browseMarketplace: "App-Marktplatz durchsuchen",
     quickActions: {
       title: "Schnellaktionen",
-      createApp: "App erstellen",
-      createAppDesc: "Beginnen Sie mit einer neuen Anwendung",
       manageObjects: "Objekte verwalten",
       manageObjectsDesc: "Datenmodelle konfigurieren",
       systemSettings: "Systemeinstellungen",
@@ -2292,11 +2279,6 @@ const de = {
     greetingNight: "Nachtschicht",
     heroTagline: "Machen Sie dort weiter, wo Sie aufgehört haben, oder entdecken Sie etwas Neues.",
     open: "Öffnen",
-    stats: {
-      apps: "Anwendungen",
-      starred: "Markiert",
-      recent: "Zuletzt verwendet",
-    },
     recentApps: {
       title: "Zuletzt geöffnet",
       itemType: {
@@ -2327,7 +2309,6 @@ const de = {
       organizations: "Organisationen",
       roles: "Rollen",
       configuration: "Konfiguration",
-      createApp: "App erstellen",
       administration: "Verwaltung",
       datasources: "Datenquellen",
       documentation: "Dokumentation",
@@ -2417,8 +2398,6 @@ const de = {
     cancel: "Abbrechen",
     confirm: "Bestätigen",
     uploading: "Wird hochgeladen…",
-    defaultActionTitle: "Aktion",
-    ok: "OK",
     lookupPlaceholder: "Datensatz-ID für {{label}}",
     lookupHelpText: "Für diesen Parameter ist kein Referenzobjekt konfiguriert, daher ist die Datensatzauswahl nicht verfügbar. Geben Sie eine Datensatz-ID ein oder bitten Sie einen Administrator, den Aktionsparameter zu korrigieren.",
   },
@@ -2426,11 +2405,6 @@ const de = {
     title: "Aktion bestätigen",
     confirm: "Weiter",
     cancel: "Abbrechen",
-  },
-  rowAction: {
-    openMenu: "Menü öffnen",
-    edit: "Bearbeiten",
-    delete: "Löschen",
   },
   navigationSync: {
     addedPage: "Navigation aktualisiert: Seite „{{name}}“ hinzugefügt",
@@ -2462,15 +2436,6 @@ const de = {
     printDialogOpening: "Druckdialog Ihres Browsers wird geöffnet (kein PDF-Export)",
     exportFailed: "Export fehlgeschlagen: {{message}}",
     forecastSoon: "Prognoseansicht kommt bald",
-  },
-  recordDetail: {
-    viewersTooltip: "Benutzer, die diesen Datensatz gerade ansehen",
-  },
-  cellRender: {
-    empty: "Leer",
-    yes: "Ja",
-    no: "Nein",
-    systemFields: "System",
   },
   user: {
     profile: "Profil",

@@ -58,6 +58,7 @@
     "check:eager-closure": "node scripts/check-eager-closure-budget.mjs",
     "check:docs-route-closure": "node scripts/check-docs-route-eager-closure.mjs",
     "check:entry-guard": "node scripts/check-entry-guard.mjs",
+    "check:upstream-port-parity": "node scripts/check-upstream-port-parity.mjs",
     "check:pre-install-import-graph": "node scripts/check-pre-install-import-graph.mjs",
     "check:vi-mock-specifiers": "node scripts/check-vi-mock-specifiers.mjs",
     "check:shell-escape-residue": "node scripts/check-shell-escape-residue.mjs",

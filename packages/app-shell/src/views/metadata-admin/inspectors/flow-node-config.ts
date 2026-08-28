@@ -260,6 +260,25 @@ export interface FlowConfigField {
    *     legal template here, not a malformed condition).
    */
   refMode?: 'expression' | 'template';
+  /**
+   * Render this `expression` field with the row-based {@link ConditionBuilder}
+   * (raw CEL stays one click away as the escape hatch) — objectui#6226.
+   *
+   * OPT-IN PER DESCRIPTOR, never inferred from `kind`. `expression` is not a
+   * synonym for "record predicate": a loop's `collection` is an `interpolate()`
+   * template, a `recordId` is a scalar lookup, and a script body is code. Only a
+   * field that is genuinely a predicate over the TRIGGER RECORD's vocabulary
+   * flags itself here.
+   *
+   * Flagging is necessary but not sufficient. The builder's subjects are a
+   * DECLARED vocabulary, so {@link FlowNodeConfigField} mounts it only where the
+   * mount site also supplies one — the `TriggerScope` `flow-scope.ts` resolves
+   * (`fieldPrefix`, `includePrevious`, `objectName`). No declared vocabulary (a
+   * schedule / manual / webhook trigger binds no record) ⇒ the field keeps the
+   * raw expression input rather than the component guessing a scope from the
+   * value it was handed.
+   */
+  conditionBuilder?: boolean;
 }
 
 /** Convenience: a `['config', key]`-rooted field (the common case). */
@@ -321,6 +340,12 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-after-write', 'record-before-update', 'record-after-delete', 'schedule', 'webhook', 'event'] },
     }),
     cfg('condition', 'Entry condition', 'expression', {
+      // objectui#6226 — the one predicate every business admin meets. Row
+      // builder over the trigger record's own vocabulary (bare fields +
+      // `previous.*`, per flow-scope's TriggerScope), raw CEL as the escape
+      // hatch. Deliberately NOT set on `criteria` below: that legacy key is
+      // render-only-when-present, so nothing is ever authored into it.
+      conditionBuilder: true,
       placeholder: 'status == "qualifying" && previous.status != "qualifying"',
       help: 'CEL predicate — the flow runs only when this is true (for time-relative sweeps it gates each matched record). Leave empty to run on every event. On a "created or updated" trigger, `previous == null` selects the create path.',
       showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-after-write', 'record-before-update', 'record-after-delete', 'schedule', 'time_relative', 'webhook', 'event'] },

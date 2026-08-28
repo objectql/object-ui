@@ -401,8 +401,16 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       ...schema,
       items: effectiveItems || [],
       className: className || schema.className,
-      // Map spec 'scale' to renderer 'timeScale' (used by gantt variant)
-      ...(resolvedScale ? { timeScale: resolvedScale } : {}),
+      // Emit the resolved axis under the canonical `scale` (used by the gantt
+      // variant). This used to write the `timeScale` alias, which objectui#6355
+      // retired: leaving it would have made EVERY object-bound gantt fall
+      // through to the `month` default the moment `resolveTimelineScale` stopped
+      // reading the alias — silently, since this is a composed schema no author
+      // ever sees. Writing `scale` after the spread also restores the priority
+      // the line above intends: a `timelineConfig.scale` now actually beats a
+      // flat `schema.scale`, where under the alias the resolver's `scale ??
+      // timeScale` ordering let the flat key win.
+      ...(resolvedScale ? { scale: resolvedScale } : {}),
       onItemClick: (item: any) => {
         const record = item._data || item;
         navigation.handleClick(record);

@@ -11,8 +11,17 @@
  * roots this tier declares.
  *
  * This is the call site, not the seam: the page filters `objectDef.fields` by
- * `evaluateVisibility(f.visible, expressionEvaluator)` and hands the surviving
- * names to `ObjectForm` as `schema.fields`, which is what these tests read.
+ * their declared visibility keys and hands the surviving names to `ObjectForm`
+ * as `schema.fields`, which is what these tests read.
+ *
+ * ⚠️ FIXTURE SPELLING, objectui#6514. These gates were authored on `visible`
+ * when this file was written, because that was the key the page then read.
+ * `FieldSchema` refuses that spelling, and objectui#6514 moved the call site
+ * onto the declared `visibleWhen` (and the static `hidden`). The carrier key is
+ * all that changed here: every predicate text, every user fixture and every
+ * assertion below is objectui#6493's, unweakened. What this file measures is
+ * which ROOTS the evaluator binds — `current_user` / `ctx.user` / `os.user` /
+ * `features` — and that is independent of which key carries the predicate.
  *
  * The evaluator used to be a private `new ExpressionEvaluator({ user, app,
  * data })` built beside — not from — the `ExpressionProvider` this same page
@@ -80,10 +89,10 @@ const CONTACTS = {
   label: 'Contacts',
   fields: {
     name: { type: 'text' },
-    commission: { type: 'currency', visible: cel("'sales_manager' in current_user.positions") },
-    escalate_to: { type: 'text', visible: cel("'sales_manager' in ctx.user.positions") },
-    owner_note: { type: 'text', visible: cel("'sales_manager' in os.user.positions") },
-    org_switcher: { type: 'text', visible: cel('features.multiOrgEnabled == true') },
+    commission: { type: 'currency', visibleWhen: cel("'sales_manager' in current_user.positions") },
+    escalate_to: { type: 'text', visibleWhen: cel("'sales_manager' in ctx.user.positions") },
+    owner_note: { type: 'text', visibleWhen: cel("'sales_manager' in os.user.positions") },
+    org_switcher: { type: 'text', visibleWhen: cel('features.multiOrgEnabled == true') },
   },
 };
 

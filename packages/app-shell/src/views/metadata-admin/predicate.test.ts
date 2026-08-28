@@ -557,3 +557,309 @@ describe('a non-literal element inside `in [...]` is diagnosed, not resolved (ob
     }
   });
 });
+
+/* ── 9. `in` with a PATH on the right is diagnosed, not resolved (objectui#6617) ── */
+
+/**
+ * objectui#6617. The `in` branch matches `/^(.+?)\s+in\s+(\[.*\])$/` — the right
+ * side must be a BRACKETED literal set — so a membership test whose right side is
+ * a PATH never reaches it. It carries no `==`/`!=` either, so it falls to the
+ * bare-truthy tail and the WHOLE text is evaluated as one operand:
+ *
+ *   `'admin' in current_user.positions`  → quote-leading, so `parseLiteral`'s tail
+ *      hands it back verbatim as a non-empty string ⇒ TRUE for every user.
+ *   `data.roles in current_user.positions` → path-shaped, so `resolveValue` walks
+ *      off the draft at `roles in current_user` ⇒ FALSE for every row.
+ *
+ * Both were SILENT: objectstack#6936's warning hangs on `resolveValue`'s path
+ * branch, which quote-leading text never enters, and objectui#4049's
+ * `PATH_SHAPED_LITERAL` only matches text starting with an identifier character.
+ *
+ * Ruling on this card: **diagnose only, zero semantic change** — the same posture
+ * #4049 and #4266 took. Nothing new is resolved; the verdicts are pinned IDENTICAL
+ * before and after (§9.3), measured on `origin/main` @ 9101be57 before the change
+ * and asserted here after it.
+ *
+ * ⚠️ §9.2 is the load-bearing half. A naive `expr.includes(' in ')` would report a
+ * bare quoted literal containing the word (`'plug in adapter'` — correct code, a
+ * truthy string) as broken, which is a worse defect than the bug: a false
+ * statement about the author's code. Both directions are pinned.
+ */
+describe('`in` with a path on the right is diagnosed, not resolved (objectui#6617)', () => {
+  /** The scope this surface publishes once a host `ExpressionProvider` is present. */
+  const userScope = (data: Record<string, unknown>, current_user: Record<string, unknown>) => ({
+    data,
+    current_user,
+  });
+
+  /**
+   * WHICH diagnostic fired, identified by a phrase unique to each message.
+   *
+   * ⚠️ Deliberately not the bare card number: #6617's own text CITES
+   * objectui#4049 as the rule that paths resolve only on the left of an
+   * operator, so `toContain('objectui#4049')` is true of #6617's message too and
+   * a mutual-exclusivity assertion written that way passes for the wrong reason
+   * in one direction and fails spuriously in the other.
+   */
+  const SIG = {
+    unresolvedPath6936: "is not a name in this form's evaluation scope",
+    pathShapedLiteral4049: 'which looks like a path but is being used as the literal string',
+    unparseableInSet4266: 'the WHOLE set was treated as EMPTY',
+    inWithoutLiteralSet6617: 'spells a membership test',
+  } as const;
+
+  /* 9.1 — it fires, and it names both halves plus the supported subset */
+
+  it("ADR-0068's headline spelling warns, naming the membership text and the predicate", () => {
+    expect(
+      evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: ['admin'] })),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    // Both halves or the warning sends nobody anywhere — same bar as #6936/#4049.
+    expect(warnings()).toContain("'admin' in current_user.positions");
+    expect(warnings()).toContain('[metadata-admin] visibility predicate');
+  });
+
+  it('the message names the supported subset', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    expect(warnings()).toContain("`path in ['a','b']`");
+  });
+
+  it('the message says plainly that this form CANNOT be written here — it does not imply a fix', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    // The author's next question is "then how do I write it?"; the honest answer
+    // on this surface is "you cannot", and the message has to say so rather than
+    // leave them hunting for punctuation that would work.
+    expect(warnings()).toContain('CANNOT be written here today');
+    expect(warnings()).toContain('not with different punctuation, not with a different spelling, not at all');
+  });
+
+  it('the message names the fail-OPEN direction for the quote-leading shape', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    expect(warnings()).toContain('TRUE for EVERY user');
+    expect(warnings()).toContain('open to everyone');
+  });
+
+  it('the path-shaped left side (the FALSE-for-every-row shape) warns too', () => {
+    expect(
+      evaluatePredicate(
+        'data.roles in current_user.positions',
+        userScope({ roles: ['admin'] }, { positions: ['admin'] }),
+      ),
+    ).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain('data.roles in current_user.positions');
+  });
+
+  it('fires identically whether or not `current_user` is bound — the gap is grammatical', () => {
+    // The text begins with a quote, so `resolveValue`'s literal shortcut hands it
+    // to `parseLiteral` and the root is never resolved at all. Binding cannot
+    // change the verdict, and it does not change the diagnostic either.
+    expect(evaluatePredicate("'admin' in current_user.positions", scope({}))).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain("'admin' in current_user.positions");
+  });
+
+  it('`data.*` on the right is the same gap as `current_user.*`', () => {
+    expect(evaluatePredicate("'x' in data.tags", scope({ tags: ['zzz'] }))).toBe(true);
+    expect(warnings()).toContain("'x' in data.tags");
+  });
+
+  it('fires on a sub-expression inside `||`, naming the sub-expression and the whole predicate', () => {
+    expect(
+      evaluatePredicate(
+        "'admin' in current_user.positions || data.kind == 'x'",
+        userScope({ kind: 'z' }, { positions: [] }),
+      ),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain("'admin' in current_user.positions");
+    expect(warnings()).toContain("'admin' in current_user.positions || data.kind == 'x'");
+  });
+
+  it('an extra space around `in` is still detected (the walk matches the token, not the gap)', () => {
+    expect(evaluatePredicate("'admin'  in  current_user.positions", userScope({}, { positions: [] }))).toBe(
+      true,
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  /* 9.2 — THE TRAP, both directions: the quote-aware scan must not accuse
+     correct code. A naive `.includes(' in ')` fails every case below. */
+
+  it.each([
+    ['a bare single-quoted literal containing the word', "'plug in adapter'", {}],
+    ['the same, double-quoted', '"plug in adapter"', {}],
+    ['a literal whose text is only the word', "' in '", {}],
+    ['a quoted literal on the RIGHT of `==`', "data.label == 'plug in adapter'", { label: 'plug in adapter' }],
+    ['a quoted literal inside an `in` SET', "data.label in ['plug in adapter','x']", { label: 'x' }],
+    ['a quoted literal carrying an apostrophe-free inner quote', '"it in that"', {}],
+  ])('%s does NOT warn — correct code is never accused', (_label, expr, row) => {
+    evaluatePredicate(expr as string, scope(row as Record<string, unknown>));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('the negation of a quoted literal containing the word is silent too', () => {
+    expect(evaluatePredicate("!'plug in adapter'", scope({}))).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('a quoted literal containing the word stays TRUTHY — the verdict is untouched by the scan', () => {
+    expect(evaluatePredicate("'plug in adapter'", scope({}))).toBe(true);
+  });
+
+  it.each([
+    ["data.kind in ['a','b']", { kind: 'a' }, true],
+    ["data.kind in ['a','b']", { kind: 'z' }, false],
+    ["data.type in ['text','textarea']", { type: 'text' }, true],
+  ])('control: the supported literal-set form %s stays silent and discriminating', (expr, row, expected) => {
+    expect(evaluatePredicate(expr as string, scope(row as Record<string, unknown>))).toBe(expected);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  /* 9.3 — the zero-semantics proof: verdicts identical to pre-change.
+     Every row below was MEASURED on origin/main @ 9101be57 before the change and
+     produced exactly these verdicts; they are re-asserted here after it. */
+
+  it.each([
+    ["'admin' in current_user.positions", { data: {}, current_user: { positions: ['admin'] } }, true],
+    ["'admin' in current_user.positions", { data: {}, current_user: { positions: ['viewer'] } }, true],
+    ["'admin' in current_user.positions", { data: {}, current_user: { positions: [] } }, true],
+    ["'admin' in current_user.positions", { data: {} }, true],
+    ["'x' in data.tags", { data: { tags: ['x'] } }, true],
+    ["'x' in data.tags", { data: { tags: ['zzz'] } }, true],
+    ['data.roles in current_user.positions', { data: { roles: ['admin'] }, current_user: { positions: ['admin'] } }, false],
+    ['type in current_user.positions', { data: {}, current_user: { positions: ['admin'] } }, true],
+    ["'plug in adapter'", { data: {} }, true],
+    ['"plug in adapter"', { data: {} }, true],
+    ["data.label == 'plug in adapter'", { data: { label: 'plug in adapter' } }, true],
+    ["'admin' in current_user.positions || data.kind == 'x'", { data: { kind: 'z' }, current_user: { positions: [] } }, true],
+    ["data.flag && 'admin' in current_user.positions", { data: { flag: true }, current_user: { positions: [] } }, true],
+    ["data.flag && 'admin' in current_user.positions", { data: { flag: false }, current_user: { positions: [] } }, false],
+    ["'admin'  in  current_user.positions", { data: {}, current_user: { positions: [] } }, true],
+    ["('admin' in current_user.positions)", { data: {}, current_user: { positions: [] } }, true],
+    ["data.kind in ['a','b']", { data: { kind: 'a' } }, true],
+    ["data.kind in ['a','b']", { data: { kind: 'z' } }, false],
+    ["data.type in ['text', data.a]", { data: { type: 'text', a: 'text' } }, false],
+    ['data.a == data.b', { data: { a: 'x', b: 'x' } }, false],
+  ])('%s over %j is still %s — the diagnostic changes no verdict', (expr, ctx, expected) => {
+    expect(evaluatePredicate(expr as string, ctx as never)).toBe(expected);
+  });
+
+  /* 9.4 — warn-once discipline, keyed exactly like the three Sets above */
+
+  it('warns ONCE per (membership sub-expression, predicate) pair, not once per evaluation', () => {
+    for (let i = 0; i < 5; i++) {
+      evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('but a different predicate carrying the same membership text gets its own warning', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    evaluatePredicate(
+      "'admin' in current_user.positions || data.kind == 'x'",
+      userScope({ kind: 'z' }, { positions: [] }),
+    );
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('`resetPredicateWarnings` clears this memo along with the other three', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    expect(warn).toHaveBeenCalledTimes(1);
+    resetPredicateWarnings();
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  /* 9.5 — dev-mode only */
+
+  it('the diagnostic is dev-mode only', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(
+        evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] })),
+      ).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  /* 9.6 — no overlap with #4266, and neither can mask the other.
+     They are mutually exclusive BY CONSTRUCTION: #4266 fires from
+     `parseLiteral`'s array branch, reachable only for text that already matched
+     an operator branch (`in`'s right side, or `==`'s); this one fires at the
+     bare-truthy tail, reachable only when EVERY operator branch declined. */
+
+  it('a #4266 predicate fires #4266 only — no brackets means no overlap', () => {
+    expect(evaluatePredicate('data.type in [data.a]', scope({ type: 'text', a: 'text' }))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain(SIG.unparseableInSet4266);
+    expect(warnings()).not.toContain(SIG.inWithoutLiteralSet6617);
+  });
+
+  it('a #4049 predicate fires #4049 only', () => {
+    expect(evaluatePredicate('data.a == data.b', scope({ a: 'x', b: 'x' }))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain(SIG.pathShapedLiteral4049);
+    expect(warnings()).not.toContain(SIG.inWithoutLiteralSet6617);
+  });
+
+  it('a #6617 predicate fires #6617 only', () => {
+    evaluatePredicate("'admin' in current_user.positions", userScope({}, { positions: [] }));
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain(SIG.inWithoutLiteralSet6617);
+    expect(warnings()).not.toContain(SIG.unparseableInSet4266);
+    expect(warnings()).not.toContain(SIG.pathShapedLiteral4049);
+  });
+
+  it('one predicate carrying BOTH gaps reports BOTH — neither masks the other', () => {
+    expect(
+      evaluatePredicate(
+        "data.type in ['text', data.a] || 'admin' in current_user.positions",
+        userScope({ type: 'text', a: 'text' }, { positions: [] }),
+      ),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warnings()).toContain(SIG.unparseableInSet4266);
+    expect(warnings()).toContain(SIG.inWithoutLiteralSet6617);
+  });
+
+  it('an unbound root reports BOTH this gap and objectstack#6936 — both statements are true', () => {
+    // `type in current_user.positions` is path-shaped, so `resolveValue` throws
+    // on the unbound root `type in current_user`. The membership diagnostic is
+    // raised BEFORE that throw, so the author learns the shape is unsupported as
+    // well as that the name is unknown. Verdict unchanged: fail-open true.
+    expect(
+      evaluatePredicate('type in current_user.positions', userScope({}, { positions: ['admin'] })),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warnings()).toContain(SIG.inWithoutLiteralSet6617);
+    expect(warnings()).toContain(SIG.unresolvedPath6936);
+  });
+
+  /* 9.7 — the spellings the reused walk cannot see fail to SILENCE, which is the
+     pre-existing behaviour, never to a false claim about the author's code */
+
+  it('a parenthesised membership sits at depth > 0 and is not detected — silent, as before', () => {
+    // The evaluator does not support parentheses at all: the whole text is a
+    // path-shaped operand with an unbound root, so #6936 fires and the verdict
+    // is fail-open true. Widening the walk to reach it would mean teaching the
+    // detection about syntax the evaluator itself rejects.
+    expect(
+      evaluatePredicate("('admin' in current_user.positions)", userScope({}, { positions: [] })),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warnings()).toContain(SIG.unresolvedPath6936);
+    expect(warnings()).not.toContain(SIG.inWithoutLiteralSet6617);
+  });
+
+  it('a tab-separated `in` is not detected — a miss is silence, not a false claim', () => {
+    expect(evaluatePredicate("'admin'\tin\tcurrent_user.positions", userScope({}, { positions: [] }))).toBe(
+      true,
+    );
+    expect(warnings()).not.toContain(SIG.inWithoutLiteralSet6617);
+  });
+});

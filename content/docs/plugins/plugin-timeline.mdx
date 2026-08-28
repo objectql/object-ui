@@ -73,7 +73,6 @@ const schema = {
   dateFormat?: 'short' | 'long' | 'iso',
   // Gantt-specific
   scale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year',
-  timeScale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year',  // deprecated alias of `scale`
   rowLabel?: string,
   minDate?: string,
   maxDate?: string,
@@ -117,7 +116,6 @@ const schema = {
 | `items` | array | `[]` | Array of timeline items |
 | `dateFormat` | string | `'short'` | Date formatting: short, long, or iso |
 | `scale` | string | `'month'` | Gantt axis bucket: hour, day, week, month, quarter, or year |
-| `timeScale` | string | — | **Deprecated** — the pre-spec spelling of `scale`, still read as a fallback |
 | `rowLabel` | string | `'Items'` | Label for Gantt rows |
 | `minDate` | string | auto | Override min date for Gantt (YYYY-MM-DD) |
 | `maxDate` | string | auto | Override max date for Gantt (YYYY-MM-DD) |
@@ -125,8 +123,16 @@ const schema = {
 
 Every key above is declared on the exported `TimelineSchema`, so an editor
 completes them and a wrong value is a type error. `scale` is the canonical axis
-key — it is `@objectstack/spec`'s `ui/TimelineConfig.json` spelling and the one
-the renderer reads first (`scale ?? timeScale`).
+key and the only one — it is `@objectstack/spec`'s `ui/TimelineConfig.json`
+spelling and the one the renderer reads.
+
+<Callout type="warn">
+`timeScale`, the pre-spec spelling of `scale`, is **retired** (objectui#6355).
+It is no longer read, and it is no longer authorable: the key is tombstoned on
+`TimelineSchema`, so writing it is a type error and a validation failure rather
+than a chart that quietly falls back to the `month` default. Rename the key to
+`scale` — the accepted values are unchanged.
+</Callout>
 
 <Callout type="warn">
 `events`, `orientation` and `position` are also declared on `TimelineSchema`
@@ -195,7 +201,7 @@ const roadmap = {
 const schedule = {
   type: 'timeline',
   variant: 'gantt',
-  timeScale: 'week',
+  scale: 'week',
   rowLabel: 'Teams',
   items: [
     {
@@ -291,13 +297,13 @@ For Gantt-style timelines, choose the appropriate time scale:
 
 ```tsx
 // Day scale - for short projects
-{ timeScale: 'day' }
+{ scale: 'day' }
 
 // Week scale - for medium projects
-{ timeScale: 'week' }
+{ scale: 'week' }
 
 // Month scale - for long projects
-{ timeScale: 'month' }
+{ scale: 'month' }
 ```
 
 ## Customization

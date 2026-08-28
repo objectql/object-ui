@@ -603,7 +603,6 @@ const en = {
       undo: 'Undo',
       undoing: 'Undoing\u2026',
       done: 'Done',
-      selectPlaceholder: 'Select\u2026',
       loading: 'Loading\u2026',
     },
   },
@@ -612,9 +611,7 @@ const en = {
     month: 'Month',
     week: 'Week',
     day: 'Day',
-    agenda: 'Agenda',
     allDay: 'All Day',
-    noEvents: 'No events',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
   },
@@ -1152,7 +1149,6 @@ const en = {
     noValue: 'No value',
   },
   chart: {
-    noData: 'No chart data available',
     loading: 'Loading chart…',
     nullCategory: '(None)',
   },
@@ -1195,13 +1191,6 @@ const en = {
       // any retired key that returns.
       panelTitle: 'Edit report',
     },
-  },
-  map: {
-    searchLocations: 'Search locations…',
-    locationDetails: 'Location Details',
-    markersCount: '{{count}} markers',
-    invalidCoordinates: '{{count}} record with missing or invalid coordinates excluded from the map.',
-    invalidCoordinatesPlural: '{{count}} records with missing or invalid coordinates excluded from the map.',
   },
   designer: {
     undo: 'Undo',
@@ -2488,11 +2477,6 @@ const en = {
       marketplaceDisabled: 'This runtime has no app marketplace configured, so there are no templates to install here.',
     },
     open: 'Open',
-    stats: {
-      apps: 'Applications',
-      starred: 'Starred',
-      recent: 'Recent items',
-    },
     loading: 'Loading workspace…',
     recent: 'Recent',
     starred: 'Starred',
@@ -2531,8 +2515,6 @@ const en = {
     browseMarketplace: 'Browse App Marketplace',
     quickActions: {
       title: 'Quick Actions',
-      createApp: 'Create App',
-      createAppDesc: 'Start with a new application',
       manageObjects: 'Manage Objects',
       manageObjectsDesc: 'Configure data models',
       systemSettings: 'System Settings',
@@ -2584,7 +2566,6 @@ const en = {
       organizations: 'Organizations',
       roles: 'Roles',
       configuration: 'Configuration',
-      createApp: 'Create App',
       administration: 'Administration',
       datasources: 'Datasources',
       documentation: 'Documentation',
@@ -2745,18 +2726,11 @@ const en = {
     cancel: 'Cancel',
     confirm: 'Confirm',
     uploading: 'Uploading…',
-    defaultActionTitle: 'Action',
-    ok: 'OK',
   },
   actionConfirm: {
     title: 'Confirm Action',
     confirm: 'Continue',
     cancel: 'Cancel',
-  },
-  rowAction: {
-    openMenu: 'Open menu',
-    edit: 'Edit',
-    delete: 'Delete',
   },
   navigationSync: {
     addedPage: 'Navigation updated: added page "{{name}}"',
@@ -2790,15 +2764,6 @@ const en = {
     printDialogOpening: 'Opening your browser’s print dialog (not a PDF export)',
     exportFailed: 'Export failed: {{message}}',
     forecastSoon: 'Forecast view coming soon',
-  },
-  recordDetail: {
-    viewersTooltip: 'Users viewing this record',
-  },
-  cellRender: {
-    empty: 'Empty',
-    yes: 'Yes',
-    no: 'No',
-    systemFields: 'System',
   },
   user: {
     profile: 'Profile',

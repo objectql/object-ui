@@ -142,6 +142,83 @@
  * authored predicate that legitimately evaluates false — exactly backwards.
  *
  * This diagnostic retires with the file at ROADMAP M9, same as #4049's.
+ *
+ * ## `in` with a PATH on the right never reaches the `in` branch (objectui#6617)
+ *
+ * The `in` branch matches `/^(.+?)\s+in\s+(\[.*\])$/` — the right side must be a
+ * BRACKETED literal set. A membership test whose right side is a PATH therefore
+ * does not match that branch at all. It carries no `==`/`!=` either, so it falls
+ * all the way to the bare-truthy tail and the WHOLE text is handed to
+ * `resolveValue` as one operand:
+ *
+ *   - `'admin' in current_user.positions` — ADR-0068's own headline example, and
+ *     the spelling `SelectOptionSchema`'s docblock names as the canonical use of
+ *     the key — leads with a quote, so `resolveValue`'s literal shortcut hands it
+ *     to `parseLiteral`, whose quoted-string branch declines it (it starts with a
+ *     quote but does not END with one) and whose tail returns it VERBATIM. A
+ *     non-empty string is truthy ⇒ the predicate is TRUE for every user, whatever
+ *     `positions` holds. Fail-OPEN: an option, field or section gated to admins
+ *     renders for everyone.
+ *   - `data.roles in current_user.positions` — path-shaped, so `resolveValue`
+ *     splits it on dots into `data` / `roles in current_user` / `positions`, walks
+ *     off the draft at the second segment and returns `undefined` ⇒ FALSE for
+ *     every row instead.
+ *
+ * Either way the verdict has nothing to do with the membership that was written,
+ * and — this is the part this section closes — it was SILENT. objectstack#6936's
+ * warning cannot see the first shape (the root is never resolved at all: the text
+ * begins with a quote, so it never enters `resolveValue`'s path branch) and
+ * objectui#4049's `PATH_SHAPED_LITERAL` cannot either (it only matches text
+ * starting with an identifier character, and this text starts with a quote).
+ * Binding or not binding `current_user` cannot change any of it — the gap is a
+ * property of the operator's GRAMMAR, not of which names the scope declares, so
+ * it is not a regression from objectui#6247 and is measured identical before and
+ * after it.
+ *
+ * Ruling on objectui#6617: **diagnose only, zero semantic change** — the third
+ * time this file takes the posture #4049 and #4266 took, and for the third time
+ * the reason is the same: the verdict is not corrected here, only the silence is.
+ * The hook sits at the bare-truthy tail, AFTER the `in` branch has already
+ * declined the text, and asks one question — does this text nonetheless carry a
+ * top-level `in`? Nothing is resolved that was not resolved before, no operand
+ * handling is added, and no expression that evaluates today reaches a different
+ * answer (pinned in `predicate.test.ts` §9.3, the same shape as §7.3 and §8.3).
+ * Resolving the right side of `in` is the widening the header's standing
+ * constraint names — this file is an interim stand-in for `@objectstack/formula`
+ * and retires at ROADMAP M9; do not grow it into a second evaluator — so it is
+ * NOT done here, and the diagnostic says so plainly rather than implying that
+ * some other punctuation would work.
+ *
+ * ### Why the detection must be quote-aware, and why it reuses `splitTopLevel`
+ *
+ * ⚠️ A naive `expr.includes(' in ')` is WRONG. A predicate that is itself a bare
+ * quoted literal containing the word — `'plug in adapter'` — is CORRECT code
+ * (a non-empty string literal, truthy), and announcing it as a broken membership
+ * test would be a false statement about the author's code: the exact failure the
+ * `PATH_SHAPED_LITERAL` note refuses to commit. So the scan is `splitTopLevel`'s
+ * existing `inStr`/`depth` walk, REUSED rather than rewritten — the same walk the
+ * `&&`/`||` splitters and `findUnparseableSetElement` already trust — with `' in '`
+ * as the operator. Inside a quoted run it never even tests the operator, so a
+ * quoted literal cannot false-positive, and that reuse is also what keeps this a
+ * DETECTION rather than a second parser.
+ *
+ * The argument that there is no other false positive is short: an expression that
+ * reaches the bare-truthy tail and is CORRECT is either a path (no spaces are
+ * possible in one) or a literal — and the only literal that can contain `' in '`
+ * is a quoted string, which the `inStr` walk protects. So every remaining hit is
+ * either a membership test this evaluator cannot run, or text that is not a valid
+ * predicate at all.
+ *
+ * Two spellings are deliberately NOT detected, and both fail to SILENCE (the
+ * status quo) rather than to a false claim: a tab-separated `in`, and a
+ * parenthesised `('admin' in current_user.positions)` where the operator sits at
+ * `depth > 0`. Widening the walk to reach them would mean teaching it about
+ * whitespace classes and parentheses the evaluator itself does not support —
+ * growing the parser to improve a warning, which is the trade this file does not
+ * make.
+ *
+ * This diagnostic retires with the file at ROADMAP M9, same as #4049's and
+ * #4266's.
  */
 
 /**
@@ -307,11 +384,21 @@ const warnedPathShapedLiterals = new Set<string>();
  */
 const warnedUnparseableInSets = new Set<string>();
 
+/**
+ * The same warn-once discipline for the `in`-without-a-literal-set diagnostic
+ * (objectui#6617), keyed on (the sub-expression that carried the top-level `in`,
+ * predicate) for the same reason as the three Sets above: keying on the
+ * sub-expression alone would report the first predicate spelling it and stay
+ * silent about every sibling gate that spells the same membership test.
+ */
+const warnedInWithoutLiteralSet = new Set<string>();
+
 /** Reset the warn-once memos. Exported for tests. */
 export function resetPredicateWarnings(): void {
   warnedUnresolvedPaths.clear();
   warnedPathShapedLiterals.clear();
   warnedUnparseableInSets.clear();
+  warnedInWithoutLiteralSet.clear();
 }
 
 const isDev = (): boolean =>
@@ -426,6 +513,61 @@ function warnUnparseableInSet(raw: string, source: string): void {
   );
 }
 
+/**
+ * The operator spelling this detection looks for. Both boundaries are part of
+ * the token on purpose: `' in'` alone would also match the leading three
+ * characters of `' integer'`, and `'in '` the trailing three of `'begin '` —
+ * either would be the false claim about correct code this diagnostic exists to
+ * avoid.
+ */
+const IN_OPERATOR = ' in ';
+
+/**
+ * Does this text carry a top-level `in` that the `in` branch already declined?
+ *
+ * ⚠️ Quote-aware BY REUSE, never by a second scan: {@link splitTopLevel} is the
+ * same `inStr`/`depth` walk the `&&` / `||` splitters and
+ * {@link findUnparseableSetElement} already run, so a bare quoted literal that
+ * happens to contain the word (`'plug in adapter'` — correct code, a truthy
+ * string) is inside a quoted run when the operator would be tested and is never
+ * tested at all. A hand-rolled `expr.includes(' in ')` would report it as broken
+ * and send the author to un-write a spelling that is in fact fine; see the
+ * header section on why this stays a detection rather than becoming a parser.
+ *
+ * Returns false for the two spellings the reused walk cannot see — a
+ * tab-separated `in`, and one nested at `depth > 0` inside parentheses. Both are
+ * misses, i.e. silence, which is the pre-existing behaviour; neither is a false
+ * statement about the author's code.
+ */
+function carriesTopLevelIn(expr: string): boolean {
+  return splitTopLevel(expr, IN_OPERATOR).length > 1;
+}
+
+function warnInWithoutLiteralSet(expr: string, source: string): void {
+  if (!isDev()) return;
+  const memo = `${expr}::${source}`;
+  if (warnedInWithoutLiteralSet.has(memo)) return;
+  warnedInWithoutLiteralSet.add(memo);
+  console.warn(
+    `[metadata-admin] visibility predicate \`${source}\` spells a membership test \`${expr}\` whose ` +
+      'right-hand side is not a bracketed literal set. This evaluator matches `in` ONLY against a ' +
+      "bracketed set of literals (supported subset: `path in ['a','b']`), so this text was never " +
+      'treated as a membership test at all — it fell through every operator branch to a BARE TRUTHY ' +
+      'check of the whole string, and the verdict has nothing to do with the membership that was ' +
+      "written. With a quoted left side — ADR-0068's own headline example `'admin' in " +
+      'current_user.positions` — the whole text comes back verbatim as a non-empty string, so the ' +
+      'predicate reads TRUE for EVERY user and a gate meant for admins is open to everyone; with a ' +
+      'path-shaped left side it reads FALSE for every row instead. There is no working spelling of ' +
+      'this form on this surface: a path on the RIGHT of `in` CANNOT be written here today. Paths ' +
+      'resolve only on the LEFT of an operator (objectui#4049) and the right of `in` must be a ' +
+      'literal set spelled out in the predicate itself, so testing membership against a value the ' +
+      "draft or the signed-in user holds is outside this evaluator's subset and cannot be expressed " +
+      '— not with different punctuation, not with a different spelling, not at all. This evaluator ' +
+      'is an interim stand-in for `@objectstack/formula` until CEL lands (ROADMAP M9), and predicate ' +
+      'expressions are validated at publish time (objectstack#7010). objectui#6617.',
+  );
+}
+
 function evalExpr(
   expr: string,
   ctx: PredicateCtx,
@@ -464,7 +606,21 @@ function evalExpr(
     const equal = nullish(left) && nullish(right) ? true : left === right;
     return eqMatch[2] === '==' ? equal : !equal;
   }
-  // Bare truthy check
+  // Bare truthy check.
+  //
+  // objectui#6617: the `in` branch above has already DECLINED this text — its
+  // right side is not a bracketed literal set — and yet the text may still carry
+  // a top-level `in`, in which case what follows evaluates the whole membership
+  // spelling as one bare operand and the verdict is unrelated to it. Diagnose
+  // that here, where the decline is already a fact.
+  //
+  // Placed BEFORE `resolveValue` deliberately: the operand may be unresolvable
+  // (`type in current_user.positions`), and from inside the throw this line is
+  // never reached again. An unbound root therefore raises objectstack#6936's
+  // warning as well — both statements are true, and neither is the other's
+  // cause. The call cannot alter the verdict: it returns void, touches only its
+  // own memo Set, and `splitTopLevel` cannot throw on a string.
+  if (carriesTopLevelIn(expr)) warnInWithoutLiteralSet(expr, source);
   return Boolean(resolveValue(expr, ctx, source));
 }
 

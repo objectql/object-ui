@@ -336,7 +336,6 @@ const pt = {
       undo: "Desfazer",
       undoing: "Desfazendo…",
       done: "Concluído",
-      selectPlaceholder: "Selecionar…",
       loading: "Carregando…",
     },
     actions: "Ações",
@@ -530,9 +529,7 @@ const pt = {
     month: "Mês",
     week: "Semana",
     day: "Dia",
-    agenda: "Agenda",
     allDay: "Dia inteiro",
-    noEvents: "Sem eventos",
     newEvent: "Novo evento",
     moreEvents: "+{{count}} mais",
   },
@@ -1026,16 +1023,8 @@ const pt = {
     noValue: "Sem valor",
   },
   chart: {
-    noData: "Nenhum dado de gráfico disponível",
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
-  },
-  map: {
-    searchLocations: "Pesquisar locais…",
-    locationDetails: "Detalhes do local",
-    markersCount: "{{count}} marcadores",
-    invalidCoordinates: "{{count}} registro com coordenadas ausentes ou inválidas excluído do mapa.",
-    invalidCoordinatesPlural: "{{count}} registros com coordenadas ausentes ou inválidas excluídos do mapa.",
   },
   dashboard: {
     noRows: "Sem linhas",
@@ -2274,8 +2263,6 @@ const pt = {
     browseMarketplace: "Explorar marketplace de apps",
     quickActions: {
       title: "Ações rápidas",
-      createApp: "Criar app",
-      createAppDesc: "Comece com uma nova aplicação",
       manageObjects: "Gerenciar objetos",
       manageObjectsDesc: "Configure modelos de dados",
       systemSettings: "Configurações do sistema",
@@ -2291,11 +2278,6 @@ const pt = {
     greetingNight: "Turno da noite",
     heroTagline: "Continue de onde parou ou descubra algo novo.",
     open: "Abrir",
-    stats: {
-      apps: "Aplicativos",
-      starred: "Favoritos",
-      recent: "Recentes",
-    },
     recentApps: {
       title: "Abertos recentemente",
       itemType: {
@@ -2326,7 +2308,6 @@ const pt = {
       organizations: "Organizações",
       roles: "Perfis",
       configuration: "Configuração",
-      createApp: "Criar aplicativo",
       administration: "Administração",
       datasources: "Fontes de dados",
       documentation: "Documentação",
@@ -2416,8 +2397,6 @@ const pt = {
     cancel: "Cancelar",
     confirm: "Confirmar",
     uploading: "Enviando…",
-    defaultActionTitle: "Ação",
-    ok: "OK",
     lookupPlaceholder: "ID do registro para {{label}}",
     lookupHelpText: "Este parâmetro não tem um objeto de referência configurado, portanto o seletor de registros não está disponível. Insira um ID de registro ou peça a um administrador para corrigir o parâmetro da ação.",
   },
@@ -2425,11 +2404,6 @@ const pt = {
     title: "Confirmar ação",
     confirm: "Continuar",
     cancel: "Cancelar",
-  },
-  rowAction: {
-    openMenu: "Abrir menu",
-    edit: "Editar",
-    delete: "Excluir",
   },
   navigationSync: {
     addedPage: "Navegação atualizada: página \"{{name}}\" adicionada",
@@ -2461,15 +2435,6 @@ const pt = {
     printDialogOpening: "Abrindo a caixa de diálogo de impressão do navegador (não é uma exportação para PDF)",
     exportFailed: "Falha na exportação: {{message}}",
     forecastSoon: "A exibição de previsão está chegando em breve",
-  },
-  recordDetail: {
-    viewersTooltip: "Usuários visualizando este registro agora",
-  },
-  cellRender: {
-    empty: "Vazio",
-    yes: "Sim",
-    no: "Não",
-    systemFields: "Sistema",
   },
   user: {
     profile: "Perfil",

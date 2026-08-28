@@ -40,7 +40,7 @@ import { useAdapter } from '../providers/AdapterProvider.js';
 import {
   ExpressionProvider,
   createExpressionEvaluator,
-  evaluateVisibility,
+  isObjectFieldVisible,
 } from '../providers/ExpressionProvider.js';
 import { buildExpressionUser } from '../providers/expressionUser.js';
 import { SkeletonDetail } from '../skeletons/index.js';
@@ -215,19 +215,29 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
 
   // Resolve the field list using the same visibility-aware logic as the
   // ModalForm in AppContent so page-mode and modal-mode show the same
-  // fields for a given user.
+  // fields for a given user — one helper, called from both, so the two
+  // surfaces cannot drift on the polarity below.
+  //
+  // objectui#6514 — this gated on `f.visible`, a key `@objectstack/spec`'s
+  // `FieldSchema` REFUSES (it is prose in `FIELD_KEY_GUIDANCE`, deliberately
+  // not an alias). The gate was therefore unreachable through the authoring
+  // surface: metadata carrying a field-level `visible` never validates, and a
+  // census over the framework's 113 `*.object.*` files found zero of them.
+  // `isObjectFieldVisible` reads the DECLARED keys instead — the static `hidden`
+  // (INVERTED: `visible: false` is `hidden: true`) and the `visibleWhen`
+  // predicate — and the dead read is gone rather than kept alongside.
   const fields = useMemo(() => {
     if (!objectDef?.fields) return [];
     if (Array.isArray(objectDef.fields)) {
       return (objectDef.fields as any[])
         .filter((f: any) => {
           if (typeof f === 'string') return true;
-          return evaluateVisibility(f.visible, expressionEvaluator);
+          return isObjectFieldVisible(f, expressionEvaluator);
         })
         .map((f: any) => (typeof f === 'string' ? f : f.name));
     }
     return Object.entries(objectDef.fields as Record<string, any>)
-      .filter(([, f]) => evaluateVisibility(f.visible, expressionEvaluator))
+      .filter(([, f]) => isObjectFieldVisible(f, expressionEvaluator))
       .map(([key]) => key);
   }, [objectDef, expressionEvaluator]);
 

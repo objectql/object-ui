@@ -337,7 +337,6 @@ const ja = {
       undo: "取り消す",
       undoing: "取り消し中…",
       done: "完了",
-      selectPlaceholder: "選択…",
       loading: "読み込み中…",
     },
     actions: "アクション",
@@ -531,9 +530,7 @@ const ja = {
     month: "月",
     week: "週",
     day: "日",
-    agenda: "予定表",
     allDay: "終日",
-    noEvents: "予定はありません",
     newEvent: "新しい予定",
     moreEvents: "+{{count}} 件",
   },
@@ -1027,16 +1024,8 @@ const ja = {
     noValue: "値なし",
   },
   chart: {
-    noData: "チャートデータがありません",
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
-  },
-  map: {
-    searchLocations: "場所を検索…",
-    locationDetails: "場所の詳細",
-    markersCount: "{{count}} 個のマーカー",
-    invalidCoordinates: "座標が欠落または無効なため、{{count}} 件のレコードが地図から除外されました。",
-    invalidCoordinatesPlural: "座標が欠落または無効なため、{{count}} 件のレコードが地図から除外されました。",
   },
   dashboard: {
     noRows: "行がありません",
@@ -2277,8 +2266,6 @@ const ja = {
     browseMarketplace: "アプリマーケットプレイスを参照",
     quickActions: {
       title: "クイックアクション",
-      createApp: "アプリを作成",
-      createAppDesc: "新しいアプリケーションを開始",
       manageObjects: "オブジェクトを管理",
       manageObjectsDesc: "データモデルを設定",
       systemSettings: "システム設定",
@@ -2294,11 +2281,6 @@ const ja = {
     greetingNight: "夜遅くまで作業中",
     heroTagline: "前回の続きを始めるか、新しいものを探索してください。",
     open: "開く",
-    stats: {
-      apps: "アプリケーション",
-      starred: "スター付き",
-      recent: "最近のアイテム",
-    },
     recentApps: {
       title: "最近アクセスしたもの",
       itemType: {
@@ -2329,7 +2311,6 @@ const ja = {
       organizations: "組織",
       roles: "ロール",
       configuration: "構成",
-      createApp: "アプリを作成",
       administration: "管理",
       datasources: "データソース",
       documentation: "ドキュメント",
@@ -2419,8 +2400,6 @@ const ja = {
     cancel: "キャンセル",
     confirm: "確認",
     uploading: "アップロード中…",
-    defaultActionTitle: "アクション",
-    ok: "OK",
     lookupPlaceholder: "{{label}} のレコードID",
     lookupHelpText: "このパラメータには参照オブジェクトが設定されていないため、レコードピッカーを利用できません。レコードIDを直接入力するか、管理者にアクションパラメータの修正を依頼してください。",
   },
@@ -2428,11 +2407,6 @@ const ja = {
     title: "操作の確認",
     confirm: "続行",
     cancel: "キャンセル",
-  },
-  rowAction: {
-    openMenu: "メニューを開く",
-    edit: "編集",
-    delete: "削除",
   },
   navigationSync: {
     addedPage: "ナビゲーション更新：ページ「{{name}}」を追加しました",
@@ -2464,15 +2438,6 @@ const ja = {
     printDialogOpening: "ブラウザーの印刷ダイアログを開いています（PDF エクスポートではありません）",
     exportFailed: "エクスポートに失敗しました：{{message}}",
     forecastSoon: "予測ビューは近日公開予定",
-  },
-  recordDetail: {
-    viewersTooltip: "このレコードを閲覧中のユーザー",
-  },
-  cellRender: {
-    empty: "空",
-    yes: "はい",
-    no: "いいえ",
-    systemFields: "システム",
   },
   user: {
     profile: "プロフィール",

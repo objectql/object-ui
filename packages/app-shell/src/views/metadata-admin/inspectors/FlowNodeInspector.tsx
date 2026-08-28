@@ -178,7 +178,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     [loc],
   );
   // In-scope variable references for this node, for the data-picker (#1934).
-  const { groups: scopeGroups, approvalExpressionGroups } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
+  const { groups: scopeGroups, approvalExpressionGroups, trigger: triggerScope } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
   // #4305 — a COMMITTED connector action (connector + action both chosen) types
   // its Input section from that action's descriptor `inputSchema`. Read the
   // committed pair and the stored input map off the node's spec-structured
@@ -453,6 +453,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
             context={{ draft, node }}
             scopeGroups={scopeGroups}
             approvalScopeGroups={approvalExpressionGroups}
+            triggerScope={triggerScope}
           />
         );
       })}

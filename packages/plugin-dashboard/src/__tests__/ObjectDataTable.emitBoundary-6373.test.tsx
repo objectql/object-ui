@@ -210,10 +210,14 @@ describe('ObjectDataTable emits only what the columns slot declares (#6373)', ()
   it('names the six keys that retired, and keeps the one that is held', async () => {
     const cols = await emit({ type: 'object-data-table', objectName: 'account' });
     for (const col of cols) {
-      // `Object.keys`, not a value read: `buildFieldMeta` always returns all
-      // eight members, so before this card every one of these keys EXISTED on
-      // every emitted column — carrying `undefined` where the schema said
-      // nothing, which is its own small lie about the shape.
+      // `Object.keys`, not a value read: `buildFieldMeta` returns all of its
+      // members unconditionally, so before this card every one of these keys
+      // EXISTED on every emitted column — carrying `undefined` where the schema
+      // said nothing, which is its own small lie about the shape. (It returned
+      // eight then and returns seven now: objectui#6625 retired `decimals` from
+      // `FieldMeta` itself, so that key can no longer be written from here even
+      // by accident. The verdict below is unchanged — it was already retired
+      // from the EMIT by this card.)
       for (const key of RETIRED) {
         expect(Object.keys(col), `${col.accessorKey}.${key}`).not.toContain(key);
       }
@@ -296,12 +300,15 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     // — so on its own it pins "the spread is refused" without pinning WHY, and
     // would have gone on passing after the enforcement was removed.
     //
-    // `Omit<FieldMeta, 'name' | 'type'>` spans the retired six: `name` is
+    // `Omit<FieldMeta, 'name' | 'type'>` spans the retired members: `name` is
     // the held alias, `type` carries #5853's own refusal. Since the #6425
-    // ruling declared `format` / `options` / `currency` on `TableColumn`,
-    // the members still refused by tombstones are `label`, `referenceTo` and
-    // `decimals` — enough to keep this spread an error, and nothing but the
-    // tombstones refuses it.
+    // ruling declared `format` / `options` / `currency` on `TableColumn`, the
+    // members still refused by the DERIVED tombstones are `label` and
+    // `referenceTo` — enough to keep this spread an error, and nothing but the
+    // tombstones refuses it. (`decimals` used to be a third; objectui#6625
+    // retired the `FieldMeta` member, so it is no longer spanned by this
+    // `Omit` at all. Its own refusal is pinned separately below, because a
+    // hand-written tombstone is now what carries it.)
     // @ts-expect-error objectui#6373 — the still-tombstoned members are refused by the tombstones alone.
     const retiredRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', ...({} as Omit<FieldMeta, 'name' | 'type'>) };
     expect(retiredRefused.accessorKey).toBe('a');
@@ -313,9 +320,36 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     // by different machinery. This pin carried `format` until the #6425
     // ruling declared it (writing it by hand is now legal, see the accepted
     // fixture above); `decimals` — the key the same ruling RETIRED — takes
-    // its place, refused by the derived tombstone.
-    // @ts-expect-error objectui#6373/#6425 — `decimals` retired from this emit seam.
-    const writtenRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', decimals: 2 };
+    // its place.
+    //
+    // ⚠️ The source is a VARIABLE, not a fresh object literal, and that is
+    // objectui#6625's doing rather than style. A fresh literal is refused by
+    // the excess-property check whether or not any tombstone exists, so as a
+    // literal this pinned "something refused this" without pinning what — and
+    // it would have gone on passing after #6625 removed `decimals` from
+    // `FieldMeta` and thus from the DERIVED tombstone band, which is a pin
+    // passing because its subject stopped existing. A non-fresh source skips
+    // the freshness check and reaches
+    // `ObjectDataTableRetiredDecimalsTombstone` and nothing else. The control
+    // below proves that is what answers.
+    const carriesDecimals: { header: string; accessorKey: string; decimals?: number } =
+      { header: 'h', accessorKey: 'a', decimals: 2 };
+    // @ts-expect-error objectui#6373/#6425/#6625 — `decimals` refused by the explicit retired-key tombstone.
+    const writtenRefused: EnrichedColumn = carriesDecimals;
     expect(writtenRefused.accessorKey).toBe('a');
+  });
+
+  it('the TOMBSTONE is what refuses the retired `decimals` at this emit', () => {
+    // ⭐ objectui#6625's counter-control for the pin above: `EnrichedColumn`
+    // minus the retired-key tombstone and nothing else ACCEPTS the very source
+    // the directive refuses. So the refusal is the tombstone's — not the
+    // derived band's (which no longer reaches `decimals`, since the key left
+    // `keyof FieldMeta`), not the excess-property check's (the source is not
+    // fresh), and not weak-type detection's (`header` / `accessorKey` are in
+    // common, and both are required here).
+    const carriesDecimals: { header: string; accessorKey: string; decimals?: number } =
+      { header: 'h', accessorKey: 'a', decimals: 2 };
+    const untombstoned: Omit<EnrichedColumn, 'decimals'> = carriesDecimals;
+    expect(untombstoned.accessorKey).toBe('a');
   });
 });

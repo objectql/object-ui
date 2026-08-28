@@ -304,15 +304,24 @@ describe('the `ui:icon` node type', () => {
 describe('a name whose resolver this gate cannot identify is declined, not flagged', () => {
   it('leaves the same retired spelling alone on an untyped and a non-censused node', () => {
     // Both shapes are live in this repository: Tailwind tone maps keyed `icon`,
-    // and catalog child items under `button-group`/`breadcrumb`/`command`
-    // (three of which never read `icon`, and a fourth that renders it as text).
-    // A gate that flagged these would be suppressed on day one, and then it
-    // would catch nothing at all.
+    // and catalog child items under a container that reaches no resolver —
+    // `button-group`, whose renderer still never reads `button.icon` and whose
+    // item type declares no such key (objectui#5931 routed that one for a
+    // decision rather than censusing it). A gate that flagged these would be
+    // suppressed on day one, and then it would catch nothing at all.
+    //
+    // ⚠️ The container in the JSON fixture below is deliberately one this
+    // repository's census does NOT declare descent for. `breadcrumb` and
+    // `command` used to serve here and no longer can: objectui#5931 wired both
+    // renderers through `resolveIcon`, so their child icons are now JUDGED.
+    // `judge`'s default table strips `descendants`, so this row would still be
+    // green with either — which is exactly why the name is chosen for what it
+    // MEANS and not for what currently passes.
     const result = judge('declined', {
       files: {
         'packages/app/src/tones.ts': "export const tone = { icon: 'text-amber-500' };",
         'packages/app/src/other.ts': "export const node = { type: 'text', icon: 'filter' };",
-        'examples/catalog/items.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2),
+        'examples/catalog/items.json': JSON.stringify({ type: 'button-group', buttons: [{ icon: 'layout' }] }, null, 2),
       },
     });
 
@@ -421,10 +430,13 @@ describe('an icon on an UNTYPED child of a container that declares descent', () 
 
   it('does NOT leak descent into a container that never declared it', () => {
     // The reason `descendants` is opt-in per container rather than a blanket
-    // "nearest censused ancestor" rule: `breadcrumb`/`button-group`/`command`
-    // items were measured and none of their renderers reads `icon` at all.
+    // "nearest censused ancestor" rule: `button-group` items were measured and
+    // its renderer reads no `icon` at all, so a blanket rule would judge names
+    // that reach nothing. `breadcrumb`/`command` stood beside it here until
+    // objectui#5931 wired both through `resolveIcon` — a verdict is a fact
+    // about a renderer, and it expires when that renderer is repaired.
     const result = judge('descend-undeclared', {
-      files: { 'examples/catalog/crumbs.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2) },
+      files: { 'examples/catalog/buttons.json': JSON.stringify({ type: 'button-group', buttons: [{ icon: 'layout' }] }, null, 2) },
       recordReadingTypes: DESCENT_TYPES,
     });
 
