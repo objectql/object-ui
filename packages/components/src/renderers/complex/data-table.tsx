@@ -1881,7 +1881,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               {columns.map((col, index) => {
                 // `fitContent` columns hug their content (no fixed width /
                 // char-estimate) so inline row-action buttons never get clipped.
-                const isFit = (col as any).fitContent === true
+                const isFit = col.fitContent === true
                   && !columnWidths[col.accessorKey] && !col.width;
                 const columnWidth = isFit
                   ? '1%'
@@ -2150,7 +2150,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
-                        const isFit = (col as any).fitContent === true
+                        const isFit = col.fitContent === true
                           && !columnWidths[col.accessorKey] && !col.width;
                         const columnWidth = isFit
                           ? '1%'
