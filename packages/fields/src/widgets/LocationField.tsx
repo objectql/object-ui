@@ -41,8 +41,51 @@ export type { LocationValue } from '@objectstack/spec/data';
 function isLocationValue(value: unknown): value is LocationValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const { lat, lng } = value as Record<string, unknown>;
-  return typeof lat === 'number' && Number.isFinite(lat)
-    && typeof lng === 'number' && Number.isFinite(lng);
+  return isFiniteNumber(lat) && isFiniteNumber(lng);
+}
+
+/**
+ * A usable numeric component of a location: a real number, never `NaN` or an
+ * infinity. Named so the coordinates and the two optional keys below are held
+ * to the SAME test rather than to two copies of it that can drift apart.
+ */
+function isFiniteNumber(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n);
+}
+
+/**
+ * Build the value emitted for a freshly typed coordinate pair, carrying the
+ * spec's two OPTIONAL keys across the edit (objectui#6664).
+ *
+ * The box edits `lat`/`lng` only, but a stored location may also carry
+ * `altitude` and `accuracy` — both declared by `LocationValueSchema`, and both
+ * registered on the platform's authorable surface, so a customer may write
+ * them. Rebuilding the emission as a bare `{ lat, lng }` dropped them silently
+ * the moment anyone retyped the coordinates, with nothing to warn them.
+ *
+ * ⛔ The carry is a KEY-BY-KEY pick out of an already-valid `LocationValue`,
+ * and deliberately NOT a spread of `previous` (nor `Object.assign`): a stored
+ * record may still hold the retired `{ latitude, longitude }` spelling, and
+ * spreading it would carry that dialect straight back into the emitted object
+ * and undo objectui#6272's rename. The spec schema cannot be that guard —
+ * `LocationValueSchema` is a plain, NON-STRICT `z.object`, so it ACCEPTS a
+ * polluted object and merely strips the unknown keys from its own parsed
+ * OUTPUT, while the value handed to `onChange` keeps them. Both facts are
+ * pinned in `__tests__/LocationField.optionalKeys.test.tsx`.
+ *
+ * Each optional key is taken only when it is a usable number. Measured against
+ * the spec: `z.number()` rejects `NaN`, `Infinity` and a numeric string alike
+ * (`invalid_type` at `[altitude]`), so carrying one of those forward would make
+ * this widget emit a value the platform's own validator refuses. Leaving it
+ * behind is a NARROWING — this emits less than it was handed, never more — not
+ * a tolerant fallback of the kind AGENTS.md #0.1 bans.
+ */
+function carryOptionalKeys(lat: number, lng: number, previous: unknown): LocationValue {
+  const emitted: LocationValue = { lat, lng };
+  if (!isLocationValue(previous)) return emitted;
+  if (isFiniteNumber(previous.altitude)) emitted.altitude = previous.altitude;
+  if (isFiniteNumber(previous.accuracy)) emitted.accuracy = previous.accuracy;
+  return emitted;
 }
 
 /**
@@ -82,7 +125,9 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
       const lat = parseFloat(parts[0]);
       const lng = parseFloat(parts[1]);
       if (!isNaN(lat) && !isNaN(lng)) {
-        onChange({ lat, lng });
+        // The typed pair replaces `lat`/`lng`; `altitude`/`accuracy` survive
+        // the edit (objectui#6664). Key-by-key, never a spread — see above.
+        onChange(carryOptionalKeys(lat, lng, value));
       }
       // If invalid, don't update the value
     }
