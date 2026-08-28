@@ -1,5 +1,5 @@
 ---
-'@object-ui/react': major
+'@object-ui/react': minor
 ---
 
 refactor(spec-bridge): retire the spec-bridge — `SpecBridge`, `bridgeListView`, `bridgeFormView` (#6366)
