@@ -654,12 +654,29 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   const mapConfig = useMemo(() => getMapConfig(schema), [schema]);
   const hasInlineData = dataConfig?.provider === 'value';
 
+  /**
+   * The two fetch effects below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic
+   * guarantee: React is permitted to discard its cache and recompute, and
+   * `getDataConfig(schema)` builds a fresh `{ provider, object }` /
+   * `{ provider, items }` wrapper object on every call even when `schema`
+   * itself hasn't changed. So a discard (not just a `schema` change) was
+   * enough to re-run both effects and refetch. These three are every
+   * primitive field either effect actually reads off `dataConfig`; keying
+   * on them instead of the container object makes a cache discard a no-op
+   * for both effects, and returns `useMemo` here to being a pure
+   * optimisation rather than a correctness dependency (objectui#6592).
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
+
   // Fetch data based on provider
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Prioritize data passed via props (from ListView). `dataProp` is a
         // declared prop (not the `rest` spread), so it can sit in this
         // effect's dependency array below without turning into a
@@ -670,8 +687,8 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           return;
         }
 
-        if (hasInlineData && dataConfig?.provider === 'value') {
-          setData(dataConfig.items as any[]);
+        if (hasInlineData && dataProvider === 'value') {
+          setData(dataItems as any[]);
           setLoading(false);
           return;
         }
@@ -680,8 +697,12 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           throw new Error('DataSource required for object/api providers');
         }
 
-        if (dataConfig?.provider === 'object') {
-          const objectName = dataConfig.object;
+        if (dataProvider === 'object') {
+          // `dataObjectName` is only unset here if the schema is off-contract
+          // (an 'object' provider with no `object` name) — the discriminated
+          // union declares it required, same as the pre-refactor narrowing
+          // this replaces.
+          const objectName = dataObjectName as string;
           // Auto-inject $expand for lookup/master_detail fields
           const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
@@ -689,14 +710,14 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             $orderby: convertSortToQueryParams(schema.sort),
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
-          
+
           const items: any[] = extractRecords(result);
           setData(items);
-        } else if (dataConfig?.provider === 'api') {
+        } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectMap');
           setData([]);
         }
-        
+
         setLoading(false);
       } catch (err) {
         setError(err as Error);
@@ -705,20 +726,20 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     };
 
     fetchData();
-  }, [dataProp, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [dataProp, dataProvider, dataObjectName, dataItems, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
         if (!dataSource) return;
-        
-        const objectName = dataConfig?.provider === 'object' 
-          ? dataConfig.object 
+
+        const objectName = dataProvider === 'object'
+          ? dataObjectName
           : schema.objectName;
-          
+
         if (!objectName) return;
-        
+
         const schemaData = await dataSource.getObjectSchema(objectName);
         setObjectSchema(schemaData);
       } catch (err) {
@@ -729,7 +750,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     if (!hasInlineData && dataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource, hasInlineData, dataConfig]);
+  }, [schema.objectName, dataSource, hasInlineData, dataProvider, dataObjectName]);
 
   // Transform data to map markers
   const { markers, invalidCount } = useMemo(() => {

@@ -357,6 +357,21 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
 
   const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
 
+  /**
+   * The two fetch effects below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic
+   * guarantee (React may discard its cache and recompute), and
+   * `getDataConfig(schema)` builds a fresh wrapper object on every call
+   * even when `schema` hasn't changed, so a discard alone was enough to
+   * re-run both effects and refetch. These are every primitive field
+   * either effect actually reads off `dataConfig`; keying on them instead
+   * of the container object makes a cache discard a no-op for both
+   * (objectui#6592).
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
+
   // Fetch the object schema whenever the dataSource can serve one.
   //
   // It feeds FOUR things: parent-field auto-detection, column labels, the
@@ -380,7 +395,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
       try {
         if (!dataSource || typeof dataSource.getObjectSchema !== 'function') return;
         const objectName =
-          dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+          dataProvider === 'object' ? dataObjectName : schema.objectName;
         if (!objectName) return;
         const result = await dataSource.getObjectSchema(objectName);
         if (!cancelled) setObjectSchema(result);
@@ -396,7 +411,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [schema.objectName, dataSource, dataConfig]);
+  }, [schema.objectName, dataSource, dataProvider, dataObjectName]);
 
   // Fetch records.
   useEffect(() => {
@@ -412,7 +427,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         // columns — which usually omit the parent field and would flatten the
         // tree. Fetching our own records (no column projection) guarantees the
         // parent field is present so the hierarchy resolves.
-        if (dataConfig?.provider === 'object' && dataSource && typeof dataSource.find === 'function') {
+        if (dataProvider === 'object' && dataSource && typeof dataSource.find === 'function') {
           // Wait for the schema before querying. `$expand` is DERIVED from it,
           // so firing early guaranteed one query whose lookup columns came back
           // as bare ids — the user saw those raw ids painted, then replaced a
@@ -421,7 +436,10 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           // this effect re-runs the moment the latch flips.
           if (!schemaSettled) return;
           const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(dataConfig.object, {
+          // `dataObjectName` is required on the 'object' variant of the
+          // discriminated union — same as the pre-refactor narrowing this
+          // replaces.
+          const result = await dataSource.find(dataObjectName as string, {
             $filter: schema.filter,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
@@ -442,9 +460,9 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           return;
         }
 
-        if (dataConfig?.provider === 'value') {
+        if (dataProvider === 'value') {
           if (!cancelled) {
-            setRecords((dataConfig.items as any[]) ?? []);
+            setRecords((dataItems as any[]) ?? []);
             setLoading(false);
           }
           return;
@@ -465,7 +483,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataConfig, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
+  }, [dataProvider, dataObjectName, dataItems, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
 
   const config = useMemo(() => getTreeConfig(schema), [schema]);
   const parentField = useMemo(

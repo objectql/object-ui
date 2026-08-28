@@ -598,7 +598,22 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   }, [JSON.stringify(rawDataConfig)]);
 
   const ganttConfig = getGanttConfig(schema);
-  const hasInlineData = dataConfig?.provider === 'value';
+  const dataProvider = dataConfig?.provider;
+  const hasInlineData = dataProvider === 'value';
+  /**
+   * The one primitive field `reload` (below) reads off `dataConfig` beyond
+   * `dataProvider` — the inline-data payload for the `value` provider.
+   * `reload` used to key on `dataConfig` itself: `useMemo` carries no
+   * semantic guarantee (React may discard its cache and recompute), and a
+   * discard alone was enough to give `reload` a fresh identity and re-fire
+   * the mount effect below, refetching. `effectiveDataSource`'s own memo
+   * intentionally keeps `dataConfig` as a dependency (not just its
+   * `object`/`items` primitives): `resolveDataSource` reads a
+   * provider-shaped slice of it (the whole `read`/`write` request config
+   * on `api`), which cannot be flattened to a fixed primitive list the way
+   * the 'object'/'value' branches below can be (objectui#6592).
+   */
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
   // Resolve the ViewData config into a concrete DataSource adapter:
   //   provider: 'object' → the context DataSource passed via props (unchanged)
@@ -644,8 +659,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         return;
       }
 
-      if (hasInlineData && dataConfig?.provider === 'value') {
-        if (isCurrent()) setData(dataConfig.items as any[]);
+      if (hasInlineData && dataProvider === 'value') {
+        if (isCurrent()) setData(dataItems as any[]);
         return;
       }
 
@@ -675,7 +690,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       else setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
-  }, [effectiveDataSource, resource, hasInlineData, dataConfig, schema.filter, schema.sort, objectSchema]);
+  }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema]);
 
   useEffect(() => {
     reload();
@@ -698,7 +713,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     if (!hasInlineData && effectiveDataSource) {
       fetchObjectSchema();
     }
-  }, [resource, effectiveDataSource, hasInlineData, dataConfig]);
+    // `dataConfig` was listed here but never read in this effect (`resource`
+    // already carries the one field — `object` — this effect needs from
+    // it); dropped rather than re-keyed (objectui#6592).
+  }, [resource, effectiveDataSource, hasInlineData]);
 
   // Transform data to gantt tasks
   const tasks = useMemo(() => {
