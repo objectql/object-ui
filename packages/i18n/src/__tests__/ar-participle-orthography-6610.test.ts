@@ -210,6 +210,14 @@ function correctCount(pack: Array<[string, string]>): number {
  * The eight values this card converged, with what they say now. A census of
  * what actually moved, next to the rule — so the record is readable here and
  * not only in the PR that made it.
+ *
+ * ⚠️ `chart.loading` stands `[needs-review]` in `check:i18n-dead-keys` — its only
+ * textual references are this file and `ellipsis-glyph-3878.test.ts`. That
+ * report is not a gate and every hit wants a sampled human check before
+ * deletion (objectui#4658), so nothing is done about it here. If it is ever
+ * retired, this row and its `ellipsis-glyph-3878.test.ts` twin have to be
+ * deleted with it — a deliberate act, which is why the pin fails loudly rather
+ * than skipping an absent key.
  */
 const CONVERGED: Array<[string, string]> = [
   ['grid.loading', `${JAARIN} تحميل الشبكة…`],
