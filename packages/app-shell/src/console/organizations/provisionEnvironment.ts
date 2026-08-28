@@ -12,6 +12,10 @@
  * is resolved from `organizationId` (preferred) → the better-auth active org →
  * the actor's first membership.
  *
+ * The endpoint answers `201 { success, data: { environment, warnings,
+ * durationMs, hostnameAssignment? } }` — the created row is nested under
+ * `environment`, NOT flat on `data`.
+ *
  * Idempotent + best-effort by contract:
  *   - Some control planes auto-provision the production env on org create (the
  *     `auto-default-environment` plugin). This call then races that plugin and
@@ -81,12 +85,28 @@ export async function provisionProductionEnvironment(opts: {
   // successful provision carrying no env at all. Throwing routes it to the
   // caller's documented failure path: the onboarding gate provisions lazily on
   // first navigation.
-  const body = (await res.json().catch(() => null)) as { data?: ProvisionedEnvironment } | null;
+  const body = (await res.json().catch(() => null)) as {
+    data?: { environment?: { id?: string; hostname?: string } };
+  } | null;
   const data = body?.data;
   if (!data || typeof data !== 'object') {
     throw new Error(
       'Malformed control-plane response: expected a `{ success, data }` envelope from POST /cloud/environments',
     );
   }
-  return data;
+  // ...and inside that envelope the created row sits ONE LEVEL DOWN, under
+  // `environment` — the handler answers `{ environment, warnings, durationMs,
+  // hostnameAssignment? }`, so `data.id` / `data.hostname` never existed on the
+  // wire and reading `data` flat reported a successful provision whose `id` and
+  // `hostname` were always `undefined` (objectui#6629). Projected explicitly
+  // rather than returned whole, so the envelope's siblings can't ride along
+  // into a value typed `ProvisionedEnvironment`.
+  //
+  // Read ONE dialect (AGENTS.md #0.1): no `data.environment ?? data` alias — a
+  // flat payload is a producer contract violation, not a second spelling. It
+  // still RESOLVES rather than throws, because rejecting a wrong-shaped `data`
+  // would change behaviour on the best-effort path the caller relies on
+  // swallowing; that is a separate decision, not part of this fix.
+  const environment = data.environment;
+  return { id: environment?.id, hostname: environment?.hostname };
 }
