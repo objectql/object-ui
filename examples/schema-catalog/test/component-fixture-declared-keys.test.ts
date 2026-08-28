@@ -401,25 +401,66 @@ describe('catalog corpus: no toaster node carries a key ToasterSchema does not d
  * string[]` and teaching the renderer to draw it was ruled OUT as a capability
  * expansion, and is not what this block pins.)
  *
- * ## Why this sweep is scoped to `menubar` nodes and not to the menu family
+ * ## UPDATE (objectui#6523, maintainer ruling 2026-08-27) — the split this
+ * section used to describe is now fixed, and the counter-probe below changed
+ * shape as a direct result
  *
- * It would be one line to sweep every `MenuItem`-shaped container. That would
- * be WRONG here. `dropdown-menu.tsx:46` and `context-menu.tsx:44` branch on
- * `item.type === 'separator'` — the undeclared spelling — and both render
- * `item.shortcut`, so their fixtures' `{ "type": "separator" }` entries draw
- * real dividers today. The three renderers run two different dialects against
- * one declared interface; that split is filed as objectui#6523 and is NOT this
- * card's to rule. A family-wide sweep would either fail on fixtures this PR is fenced
- * out of, or force the renderer change triage forbade.
+ * Both paragraphs immediately below are historical: they describe the corpus
+ * as it stood before objectui#6523 landed. `dropdown-menu.tsx` and
+ * `context-menu.tsx` now branch on the DECLARED `item.separator`, exactly
+ * like `menubar.tsx` always did, and `MenuItem` is a discriminated union (a
+ * command item with a required `label`, or `{ separator: true }` with none) —
+ * see `../../packages/types/src/overlay.ts`. The retired `{ type: 'separator'
+ * }` dialect is now a TOMBSTONE (`type?: never` / `z.never().optional()`),
+ * refused at parse time rather than silently stripped, on all three
+ * containers at once (they share the one `MenuItem` type). The two catalog
+ * fixtures that used to author it —
+ * `components-overlay-dropdown-menu/basic-dropdown-menu.json` and
+ * `components-overlay-context-menu/basic-context-menu.json` — were migrated
+ * to `{ "separator": true }` in the same change.
  *
- * ## Why `.success` is not the probe, in BOTH directions
+ * ## Why this sweep is STILL scoped to `menubar` nodes, not widened to the family
  *
- * `MenuItemSchema` is a bare `z.object` inside a `z.lazy`, so it strips an
- * undeclared key and reports success — the class-2 blindness this file already
- * records for `CommandItem`. And the declared separator spelling does not parse
- * green either, because `MenuItem.label` is REQUIRED and a divider has no
- * label. Both counter-probes below pin those facts, so this block cannot be
- * "simplified" into a parse that would measure nothing.
+ * The renderer split that used to block a family-wide sweep is gone, but the
+ * sweep below stays `menubar`-only anyway: `collectMenubarItems` walks one
+ * node shape (`{ type: 'menubar', menus: [{ items }] }`), and widening it to
+ * also match `dropdown-menu`/`context-menu` nodes is a separate verification
+ * surface this fix does not need — the counter-probes further down already
+ * exercise the shared `MenuItemSchema` directly, which covers the retired
+ * dialect for all three containers without walking their corpora at all. The
+ * `dropdown-menu`/`context-menu` catalog fixtures ARE checked, just not by
+ * this walker: `context-menu-item-icon.test.tsx` renders
+ * `basic-context-menu.json`'s items directly, and the icon-resolution suites
+ * next to it exercise `basic-dropdown-menu.json`'s.
+ *
+ * (Historical, pre-#6523:) It would have been one line to sweep every
+ * `MenuItem`-shaped container. That would have been WRONG then:
+ * `dropdown-menu.tsx:46` and `context-menu.tsx:44` used to branch on
+ * `item.type === 'separator'` — the undeclared spelling — so their fixtures'
+ * `{ "type": "separator" }` entries drew real dividers on THOSE containers
+ * while failing the assertions below, which are `menubar`-shaped. A
+ * family-wide sweep would have either failed on fixtures outside that card's
+ * fence, or forced the renderer change objectui#6249's triage explicitly
+ * declined to make (that renderer change is what objectui#6523 later ruled).
+ *
+ * ## Why `.success` was not the probe before this fix, in BOTH directions —
+ * and is now the probe in both, because both directions changed
+ *
+ * (Historical, pre-#6523:) `MenuItemSchema` was a bare `z.object`, so it
+ * stripped an undeclared key and reported success — the class-2 blindness
+ * this file already records for `CommandItem`. And the declared separator
+ * spelling did not parse green either, because `MenuItem.label` was REQUIRED
+ * with no way to omit it for a divider.
+ *
+ * Both of those were the SAME defect (declared ≠ enforced) pointing opposite
+ * ways, and objectui#6523 corrected both ends at once: `MenuItem` became a
+ * union so the declared divider spelling parses green, and `type` became a
+ * declared `never` tombstone so the undeclared spelling is REFUSED rather
+ * than stripped. The counter-probe below now asserts `.success` in both
+ * directions on purpose — it is the fixed, not the "cannot be simplified",
+ * shape. What must not be re-simplified is the STRUCTURAL sweep above this
+ * block: it still walks the actual corpus, which a `.success` probe never
+ * substitutes for.
  */
 describe('catalog corpus: every menubar item uses the declared MenuItem spellings (objectui#6249)', () => {
   type Located = { where: string; item: Json };
@@ -467,21 +508,34 @@ describe('catalog corpus: every menubar item uses the declared MenuItem spelling
     return acc;
   }
 
-  const declaredKeys = declaredKeysOf(MenuItemSchema, {
+  // Two calibration probes, not one combined object (objectui#6523): `MenuItem`
+  // is now a union of a command arm and a divider arm that DISAGREE on
+  // `separator` (`false | undefined` vs `true`), so a single object carrying
+  // both a `label` AND `separator: true` matches neither arm cleanly and is
+  // not a meaningful "declared keys" instrument any more. `type` is no longer
+  // part of this probe at all — see the dedicated refusal pins below, which
+  // is where it moved (a hard refusal, not a strip, can't be read back by
+  // `declaredKeysOf`'s "call `.parse` and see what survives" method, since a
+  // refusal never returns a value to read keys off).
+  const declaredCommandKeys = declaredKeysOf(MenuItemSchema, {
     label: 'probe',
     icon: 'file',
     disabled: false,
     shortcut: 'Ctrl+T',
+    value: 'probe',
+  });
+  const declaredDividerKeys = declaredKeysOf(MenuItemSchema, {
     separator: true,
-    type: 'separator',
     value: 'probe',
   });
   const items = allExamples().flatMap((e) => collectMenubarItems(e.schema, e.id));
 
-  it('`separator` and `shortcut` survive the schema and `type` does not — the control', () => {
-    expect(declaredKeys).toContain('separator');
-    expect(declaredKeys).toContain('shortcut');
-    expect(declaredKeys).not.toContain('type');
+  it('label/icon/disabled/shortcut survive on the command arm; the unknown `value` key does not — the control', () => {
+    expect(declaredCommandKeys.sort()).toEqual(['disabled', 'icon', 'label', 'shortcut'].sort());
+  });
+
+  it('`separator` survives on the divider arm; the unknown `value` key does not — the control', () => {
+    expect(declaredDividerKeys).toEqual(['separator']);
   });
 
   it('the sweep reaches the published demo and every one of its items — non-vacuity', () => {
@@ -542,31 +596,66 @@ describe('catalog corpus: every menubar item uses the declared MenuItem spelling
     }
   });
 
+  /**
+   * `MenuItem` being a UNION (objectui#6523) means a failed `.safeParse`'s
+   * top issue is `{ code: 'invalid_union', path: [], errors: [...] }` — one
+   * error array PER union member, not a single flat `path` any more. This
+   * reads the field name(s) named across every member's errors, so a
+   * counter-probe can still assert "the failure is about key X" without
+   * hard-coding which union member zod tried first.
+   */
+  function unionFailurePathKeys(result: { success: boolean; error?: unknown }): string[] {
+    if (result.success) return [];
+    const issues = (result.error as { issues: Array<Record<string, unknown>> }).issues;
+    return issues.flatMap((issue) => {
+      const branches = issue.errors as Array<Array<{ path: unknown[] }>> | undefined;
+      if (!branches) return [String((issue.path as unknown[])[0])];
+      return branches.flatMap((branch) => branch.map((e) => String(e.path[0])));
+    });
+  }
+
   it('counter-probe: the pre-#6249 array `shortcut` is REFUSED, so the sweep above bites', () => {
     const authored = { label: 'New Tab', shortcut: ['Ctrl', 'T'] };
     const result = MenuItemSchema.safeParse(authored);
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.path).toEqual(['shortcut']);
+    expect(unionFailurePathKeys(result)).toContain('shortcut');
     // ...and the corrected item, with the key gone, parses green.
     expect(MenuItemSchema.safeParse({ label: 'New Tab' }).success).toBe(true);
   });
 
-  it('counter-probe: no parse can see the separator defect, in either direction', () => {
-    // The undeclared spelling is SILENTLY STRIPPED by the bare `z.object`, so a
-    // labelled item carrying it parses green and round-trips lossily — a
-    // `.success` probe is blind to exactly the defect this block exists to catch.
+  it('counter-probe: the separator defect is now visible to a plain `.safeParse` in BOTH directions (objectui#6523, fixed)', () => {
+    // Historical shape of this probe (pre-#6523): the undeclared `type`
+    // spelling was SILENTLY STRIPPED by the bare `z.object`, so a labelled
+    // item carrying it parsed green and round-tripped lossily — a `.success`
+    // probe was blind to exactly the defect this block exists to catch. That
+    // is why the STRUCTURAL sweep above this describe block exists at all:
+    // before this fix, no `.safeParse` call could have stood in for it.
+    //
+    // `type` is now a declared `z.never()` refusal, not an absence, so the
+    // same call fails outright instead of stripping and succeeding.
     const undeclared = MenuItemSchema.safeParse({ label: 'x', type: 'separator' });
-    expect(undeclared.success).toBe(true);
-    expect(undeclared.data).toEqual({ label: 'x' });
+    expect(undeclared.success).toBe(false);
+    expect(unionFailurePathKeys(undeclared)).toContain('type');
 
-    // And the DECLARED spelling this PR writes does not parse green either:
-    // `MenuItem.label` is required and a divider has no label — the menubar
-    // renderer's own `defaultProps` write `{ separator: true }` with no label
-    // (`menubar.tsx:69`), so the shipped default does not satisfy the shipped
-    // type. That contract gap is objectui#6523; it is why the assertions above
-    // are structural rather than a `MenubarSchema.safeParse`.
+    // And the DECLARED spelling now parses green FOR THE FIRST TIME:
+    // `MenuItem` became a discriminated union (objectui#6523) specifically so
+    // a label-less divider is representable — before this fix,
+    // `MenuItem.label` was required with no way to omit it, so this EXACT
+    // value — the menubar renderer's own `defaultProps` divider
+    // (`menubar.tsx`) — failed a strict parse against the shipped type. The
+    // shipped default not satisfying the shipped type was the contract gap;
+    // this is the fix.
     const declared = MenuItemSchema.safeParse({ separator: true });
-    expect(declared.success).toBe(false);
-    expect(declared.error?.issues[0]?.path).toEqual(['label']);
+    expect(declared.success).toBe(true);
+    expect(declared.success ? declared.data : undefined).toEqual({ separator: true });
+  });
+
+  it('counter-probe: `type` refuses BOTH its retired values, not just the one this file had a fixture for', () => {
+    // `type` has no partial refusal — a `z.never()` tombstone cannot admit
+    // one string and reject another. `dropdown-menu`/`context-menu` also used
+    // to branch on `item.type === 'label'` (a section-heading spelling no
+    // fixture in this corpus ever authored), and retiring the declared
+    // divider's impostor necessarily retired this one too.
+    expect(MenuItemSchema.safeParse({ label: 'Section', type: 'label' }).success).toBe(false);
   });
 });

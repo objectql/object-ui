@@ -253,6 +253,8 @@ export type {
   TooltipSchema,
   HoverCardSchema,
   MenuItem,
+  MenuCommandItem,
+  MenuDividerItem,
   MenubarSchema,
   DropdownMenuSchema,
   ContextMenuSchema,

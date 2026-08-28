@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { MenubarSchema } from '@object-ui/types';
-import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator, MenubarSub, MenubarSubTrigger, MenubarSubContent } from '../../ui/menubar';
+import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator, MenubarSub, MenubarSubTrigger, MenubarSubContent, MenubarShortcut } from '../../ui/menubar';
 
 ComponentRegistry.register('menubar', 
   ({ schema, ...props }: { schema: MenubarSchema; [key: string]: any }) => {
@@ -36,14 +36,42 @@ ComponentRegistry.register('menubar',
                   <MenubarSub key={itemIdx}>
                     <MenubarSubTrigger>{item.label}</MenubarSubTrigger>
                     <MenubarSubContent>
-                      {item.children.map((child, childIdx) => (
-                        <MenubarItem key={childIdx}>{child.label}</MenubarItem>
-                      ))}
+                      {item.children.map((child, childIdx) =>
+                        // A submenu child is itself a `MenuItem` — the same
+                        // union as the top-level item, so it can be a divider
+                        // too (objectui#6523); narrowing on `child.separator`
+                        // is what makes `child.label` below type-check.
+                        child.separator ? (
+                          <MenubarSeparator key={childIdx} />
+                        ) : (
+                          <MenubarItem
+                            key={childIdx}
+                            disabled={child.disabled}
+                            // Fires the DECLARED `onClick` (objectui#6346
+                            // rider — menubar previously wired no item
+                            // handler at all, neither spelling).
+                            onSelect={() => child.onClick?.()}
+                          >
+                            {child.label}
+                            {child.shortcut && <MenubarShortcut>{child.shortcut}</MenubarShortcut>}
+                          </MenubarItem>
+                        )
+                      )}
                     </MenubarSubContent>
                   </MenubarSub>
                 ) : (
-                  <MenubarItem key={itemIdx} disabled={item.disabled}>
+                  <MenubarItem
+                    key={itemIdx}
+                    disabled={item.disabled}
+                    // Fires the DECLARED `onClick` (objectui#6346 rider).
+                    onSelect={() => item.onClick?.()}
+                  >
                     {item.label}
+                    {/* Parity, not new capability (objectui#6523 rider): the
+                        declared `shortcut` string already has working
+                        runtime in dropdown-menu and context-menu; menubar
+                        read it nowhere. */}
+                    {item.shortcut && <MenubarShortcut>{item.shortcut}</MenubarShortcut>}
                   </MenubarItem>
                 )
               ))}
