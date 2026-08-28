@@ -8,7 +8,7 @@
 
 /**
  * objectui#6458 — what `ObjectGrid.generateColumns()` is allowed to READ off
- * the AUTHORED column.
+ * the AUTHORED column. The answer is now: **only what `ListColumn` declares.**
  *
  * ## The seam, and why it is NOT the one objectui#6004 fenced
  *
@@ -18,30 +18,41 @@
  * fence is on the emit, and `columnEmitBoundary-6004.test.ts` pins it.
  *
  * This file pins the OTHER half: the same function's READ of its authored
- * input. Nothing on that side is typed at all — `col` is a `ListColumn`, and
- * every read that `ListColumn` does not declare goes through `(col as any)`,
- * which admits any key whatsoever. `ListColumnSchema` is a `strictObject`, so
- * an author who writes one of those keys is REFUSED at publish with
- * `unrecognized_keys` while this renderer honours it — the `declared !=
- * enforced` split AGENTS.md #0.1 exists to stop.
+ * input. That side was untyped — `col` is a `ListColumn`, and every read
+ * `ListColumn` did not declare went through `(col as any)`, which admits any
+ * key whatsoever. `ListColumnSchema` is a `strictObject`, so an author who
+ * wrote one of those keys was REFUSED at publish with `unrecognized_keys`
+ * while this renderer honoured it — the `declared != enforced` split
+ * AGENTS.md #0.1 exists to stop.
  *
- * ## What is pinned here, and what is deliberately NOT
+ * ## The bound is now the EMPTY SET, and that is the load-bearing part
  *
- * PINNED — the closable half: a key `ListColumn` DECLARES must never be read
- * through a cast. `prefix` was (objectui#6458's own measurement), which is the
- * worst version of the defect: it made a schema-admitted key look exactly like
- * the four that are not, and it discarded `ColumnPrefix`'s typing at every use.
- * Casting a declared key buys nothing and hides the keys that matter, so it is
- * refused mechanically rather than by review.
+ * Both halves of the defect are closed, for two different reasons:
  *
- * NOT PINNED — the four genuinely undeclared reads (`format`, `options`,
- * `appearance`, `essential`). Each needs a per-key verdict — declare it on
- * `ListColumn` in `@objectstack/spec`, or stop reading it — and neither leg is
- * this repo's to decide unilaterally: the declare leg widens a published
- * contract, and AGENTS.md #0.1 forbids answering it renderer-side either way.
- * They are held to a SUBSET assertion instead, which is the part that can be
- * enforced without prejudging any of them: the four that exist may leave as
- * they are adjudicated, and a FIFTH may not arrive anonymously.
+ *   - A key `ListColumn` DECLARES, read through a cast (`prefix` was), buys
+ *     nothing and hides the undeclared ones among lookalikes. It also throws
+ *     away the declared type at every use. Fixed by objectui#6587.
+ *   - A key `ListColumn` does NOT declare, read at all (`format`, `options`,
+ *     `appearance`, `essential` were), is the declared != enforced split
+ *     itself. RETIRED by the maintainer's 2026-08-28 ruling — "B on all four"
+ *     — under the standing zero-authors rule: zero measured authors means
+ *     immediate retirement, no deprecation window. Re-measured on the ref that
+ *     carried the deletion: zero authored occurrences of any of the four on a
+ *     column, across `examples/` and `apps/`, with `field` as the positive
+ *     control in the same query shape.
+ *
+ * So `generateColumns()`'s `ListColumn` branch now contains NO cast read of
+ * any key, and this file pins exactly that. ⛔ The deletion alone would be
+ * undone by the next person who adds a cast; this bound is what makes the
+ * retirement stick.
+ *
+ * ⚠️ Retired for want of authors, NOT forbidden forever. If a real request for
+ * semantic mobile-column control arrives, the declare route reopens —
+ * objectstack#12715 is the precedent (removed while unenforced, re-introduced
+ * once demand and enforcement met). The right move then is to declare the key
+ * on `@objectstack/spec` and read it WITHOUT a cast, which this file allows by
+ * construction. What stays forbidden is the third road: a renderer-side
+ * tolerance for a key the schema refuses.
  *
  * ## Why a source scan rather than a rendering test
  *
@@ -49,9 +60,19 @@
  * renders correctly renders exactly as correctly with a cast added back. The
  * defect is that a read is unchecked, and nothing observable at runtime
  * distinguishes `(col as any).prefix` from `col.prefix`. What CAN be measured
- * is the source, so the source is what this reads — and every anchor it needs
- * is asserted present first, because a scanner that silently matches nothing
- * is a green test that measures nothing.
+ * is the source, so the source is what this reads.
+ *
+ * ## Anti-vacuity, which matters more here than it did before
+ *
+ * The guarded region's expected answer is now ZERO cast reads, so a scanner
+ * that silently matches nothing would be indistinguishable from success. Three
+ * separate controls stop that, and each must be able to fail on its own:
+ *   1. both region anchors asserted present, BY COUNT, before any slice;
+ *   2. the regex proved able to find cast reads on a synthetic input whose
+ *      answer is known;
+ *   3. the regex proved able to find a cast read in THIS REAL FILE, at real
+ *      scale — necessarily from OUTSIDE the guarded region, since inside it
+ *      the whole point is that there is nothing left to find.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -94,57 +115,65 @@ function castReadKeys(source: string): string[] {
   return [...source.matchAll(CAST_READ)].map((m) => m[1]);
 }
 
+function guardedRegion(): string {
+  return gridSource.slice(gridSource.indexOf(REGION_START), gridSource.indexOf(REGION_END));
+}
+
 /** The keys `ListColumnSchema` admits — read from the schema, never hand-listed. */
 const DECLARED_KEYS = Object.keys(
   (ListColumnSchema as unknown as { shape: Record<string, unknown> }).shape
 );
 
 /**
- * The undeclared reads objectui#6458 measured and escalated. A SUBSET bound,
- * not an equality: retiring one as its verdict lands must not turn this red,
- * but a fifth key arriving through a cast must.
+ * The four undeclared reads objectui#6458 escalated and the maintainer RETIRED
+ * on 2026-08-28. Listed here only so a re-added read can be named in the
+ * failure message; the bound itself is the empty set and does not depend on
+ * this list, so a FIFTH key arriving is refused just as loudly as one of these
+ * four returning.
  */
-const ESCALATED_UNDECLARED_READS = ['format', 'options', 'appearance', 'essential'];
+const RETIRED_UNDECLARED_READS = ['format', 'options', 'appearance', 'essential'];
 
 describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', () => {
   it('the scan region is anchored — both bounds present exactly once', () => {
-    // Anti-vacuity. Every "no such key" claim below is worthless if the region
-    // resolved to an empty string, so the anchors are asserted first and by
-    // count: a moved or duplicated anchor fails HERE, loudly, rather than
-    // turning the assertions that follow into green no-ops.
+    // Anti-vacuity control 1. Every "no such key" claim below is worthless if
+    // the region resolved to an empty string, so the anchors are asserted first
+    // and BY COUNT: a moved or duplicated anchor fails HERE, loudly, rather
+    // than turning the assertions that follow into green no-ops.
     expect(gridSource.split(REGION_START).length - 1).toBe(1);
     expect(gridSource.split(REGION_END).length - 1).toBe(1);
+    expect(guardedRegion().length).toBeGreaterThan(1000);
   });
 
   it('the scanner extracts a cast read (control on a synthetic input)', () => {
-    // The regex proved able to find what it is looking for, on an input whose
-    // answer is known — so a zero from the real source is a measurement and not
-    // a broken pattern.
+    // Anti-vacuity control 2. The regex proved able to find what it is looking
+    // for, on an input whose answer is known — so a zero from the real source
+    // is a measurement and not a broken pattern.
     expect(castReadKeys('const x = (col as any).someKey;')).toEqual(['someKey']);
     expect(castReadKeys('const y = (col as unknown as Foo).other;')).toEqual(['other']);
     expect(castReadKeys('const z = col.declaredKey;')).toEqual([]);
   });
 
-  it('the scanner finds cast reads in the real region (control on the real file)', () => {
-    const region = gridSource.slice(
-      gridSource.indexOf(REGION_START),
-      gridSource.indexOf(REGION_END)
-    );
-    expect(region.length).toBeGreaterThan(1000);
-    // Today this is the four escalated keys. If it ever reaches zero, every
-    // read in this branch is declared, objectui#6458 is closed, and this file
-    // goes with it — a red here is that news, not a regression.
-    expect(castReadKeys(region).length).toBeGreaterThan(0);
+  it('the scanner finds a cast read in the REAL file, outside the guarded region', () => {
+    // Anti-vacuity control 3, and the one that had to move. It used to draw its
+    // control from INSIDE the region — which worked only while the region still
+    // contained cast reads to find. Now that the region's correct answer is
+    // zero, a control drawn from inside it would be the very thing it is meant
+    // to rule out. So it is drawn from the grouped-width pass further down the
+    // file, where `(col as any).fitContent` iterates EMITTED columns rather
+    // than the authored input (objectui#6424's question, deliberately outside
+    // this guard). If that read is ever retired too, this control must be
+    // re-pointed at another real cast — never deleted, and never re-pointed
+    // back inside the region.
+    const outside = gridSource.slice(gridSource.indexOf(REGION_END));
+    expect(castReadKeys(outside)).toContain('fitContent');
   });
 
   it('⭐ no key `ListColumn` DECLARES is read through a cast', () => {
-    // The one closable half of objectui#6458. `prefix` failed this before the
-    // fix: declared by `ListColumnSchema`, read as `(col as any).prefix`.
-    const region = gridSource.slice(
-      gridSource.indexOf(REGION_START),
-      gridSource.indexOf(REGION_END)
-    );
-    const castDeclared = castReadKeys(region).filter((k) => DECLARED_KEYS.includes(k));
+    // Half one, closed by objectui#6587. `prefix` failed this before that fix:
+    // declared by `ListColumnSchema`, read as `(col as any).prefix`. Casting a
+    // declared key buys nothing, hides the undeclared ones among lookalikes,
+    // and discards the declared type at every use.
+    const castDeclared = castReadKeys(guardedRegion()).filter((k) => DECLARED_KEYS.includes(k));
     expect(
       castDeclared,
       'A declared ListColumn key read through a cast buys nothing and hides the ' +
@@ -152,30 +181,47 @@ describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', 
     ).toEqual([]);
   });
 
-  it('no FIFTH undeclared read may arrive anonymously', () => {
-    const region = gridSource.slice(
-      gridSource.indexOf(REGION_START),
-      gridSource.indexOf(REGION_END)
-    );
-    const undeclared = [...new Set(castReadKeys(region))].filter(
+  it('⭐ no UNDECLARED key is read at all — the bound is the EMPTY SET', () => {
+    // Half two, closed by the maintainer's 2026-08-28 ruling. This is the
+    // assertion the retirement rests on: the deletion alone is undone by the
+    // next person who adds a cast, and this is what makes it stick.
+    const undeclared = [...new Set(castReadKeys(guardedRegion()))].filter(
       (k) => !DECLARED_KEYS.includes(k)
     );
-    for (const key of undeclared) {
+    expect(
+      undeclared,
+      'This key is read off the authored column and `ListColumnSchema` REFUSES ' +
+        'it, so an author who writes it gets `unrecognized_keys` at publish while ' +
+        'this renderer honours it — the `declared != enforced` split AGENTS.md ' +
+        '#0.1 exists to stop. objectui#6458 retired all four that used to be ' +
+        'here (maintainer, 2026-08-28). ⛔ Do not widen this bound to make the ' +
+        'build green, and do not add a renderer-side tolerance. If the ' +
+        'capability is genuinely wanted, DECLARE the key on `@objectstack/spec` ' +
+        'and read it without a cast — that route is open and this guard allows it.'
+    ).toEqual([]);
+  });
+
+  it('each retired key is named individually, so a re-added read says which one', () => {
+    // The bound above is already the empty set, so this adds no strictness. It
+    // adds DIAGNOSIS: a uniform "expected [x] to equal []" tells you a read came
+    // back, and this tells you which verdict it re-opens.
+    const region = guardedRegion();
+    for (const key of RETIRED_UNDECLARED_READS) {
       expect(
-        ESCALATED_UNDECLARED_READS,
-        `\`${key}\` is read off the authored column and \`ListColumnSchema\` refuses ` +
-          'it, so an author who writes it gets `unrecognized_keys` at publish while ' +
-          'this renderer honours it. Adjudicate it on objectui#6458 (declare on ' +
-          '`@objectstack/spec`, or stop reading it) — do not add a renderer-side ' +
-          'tolerance, and do not widen this list to make the build green.'
-      ).toContain(key);
+        castReadKeys(region),
+        `\`${key}\` was RETIRED by objectui#6458's maintainer ruling (2026-08-28, ` +
+          '"B on all four") under the standing zero-authors rule. Re-adding the ' +
+          'read re-opens a verdict, which is a maintainer decision, not a ' +
+          'refactor. If a real author has appeared, that is news for the card — ' +
+          'the declare route reopens (objectstack#12715 precedent).'
+      ).not.toContain(key);
     }
   });
 
-  it('the split is real — the schema refuses `essential` while the renderer reads it', () => {
-    // The card's core measurement, executable. `essential` is the clearest of
-    // the four: it is not a `ListColumn` member, it has no second road (nothing
-    // else can mark a column mobile-essential), and the repo authors it nowhere.
+  it('the split is closed — the schema still refuses `essential`, and nothing reads it', () => {
+    // The card's core measurement, executable. `essential` was the clearest of
+    // the four: not a `ListColumn` member, no second road (its fallback is
+    // positional, `colIndex === 0`), and authored nowhere in the repo.
     const refused = ListColumnSchema.safeParse({ field: 'name', essential: true });
     expect(refused.success).toBe(false);
     if (!refused.success) {
@@ -184,17 +230,21 @@ describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', 
       expect((issue as unknown as { keys: string[] }).keys).toContain('essential');
     }
 
-    // DECLARED CONTROL, same query shape: the key this producer now reads
-    // WITHOUT a cast is genuinely admitted, so the refusal above is about
-    // `essential` and not about the fixture being malformed.
+    // DECLARED CONTROL, same query shape: a key this producer genuinely reads
+    // is admitted, so the refusal above is about `essential` and not about the
+    // fixture being malformed.
     const admitted = ListColumnSchema.safeParse({
       field: 'name',
       prefix: { field: 'stage', type: 'badge' },
     });
     expect(admitted.success).toBe(true);
+
+    // And the renderer side of the split is gone: mobile visibility is decided
+    // positionally now, with no key behind it.
+    expect(guardedRegion()).toContain('const isEssential = colIndex === 0;');
   });
 
-  it('dropping the cast restored the type — `ListColumn["prefix"]` is not `any`', () => {
+  it('the surviving reads are typed — `ListColumn["prefix"]` is not `any`', () => {
     /** True only for `any`: the one type both branches of a conditional accept. */
     type IsAny<T> = 0 extends 1 & T ? true : false;
     type Expect<T extends true> = T;

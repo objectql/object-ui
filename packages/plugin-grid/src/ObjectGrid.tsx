@@ -571,8 +571,11 @@ function normalizeColumns(
  *     needs no hold here. Tombstoned only in the sense that nothing writes it.
  *
  * `essential` is absent from both types on purpose: objectui#6004's suggested
- * key list named it, but it is READ off the authored column and turned into a
- * `className` — it is never emitted, and it is not a `ListColumn` member either.
+ * key list named it, but it was READ off the authored column and turned into a
+ * `className` — never emitted, and not a `ListColumn` member either. That read
+ * is now RETIRED too (objectui#6458), so mobile visibility is decided purely
+ * positionally (`colIndex === 0`) and nothing on either side of this producer
+ * carries the key.
  */
 
 /**
@@ -1951,7 +1954,10 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // `any[]`, and `ObjectGridColumnDraft` cannot bite on any member. Naming
             // the producer vocabulary here stops `any` at this one boundary.
             const baseInferredType: string | null = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
-            const formatHint = (col as any).format ?? objectDefField?.format;
+            // objectui#6458 — the column-level `format` read is RETIRED. The
+            // object-field fallback below is now the only road, which is what
+            // every measured author already used.
+            const formatHint = objectDefField?.format;
             const inferredType: string | null = baseInferredType
               ? resolveCellRendererType({ type: baseInferredType, format: formatHint })
               : null;
@@ -1976,13 +1982,11 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
               fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
             }
-            if ((col as any).options) {
-              fieldMeta.options = translateOptions(schema.objectName, col.field, (col as any).options);
-            }
-            // Honor metadata-defined appearance only (col.appearance or
-            // objectDef field.appearance). When unset, the cell renders
-            // its default badge style — same as detail / form views.
-            const explicitAppearance = (col as any).appearance ?? objectDefField?.appearance;
+            // Honor metadata-defined appearance only — the objectDef FIELD's
+            // `appearance`, which since objectui#6458 is the only road (the
+            // column-level read is retired). When unset, the cell renders its
+            // default badge style — same as detail / form views.
+            const explicitAppearance = objectDefField?.appearance;
             if (explicitAppearance != null) {
               fieldMeta.appearance = explicitAppearance;
             }
@@ -2067,11 +2071,26 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // reads around it, and it threw away `ColumnPrefix`'s own typing, so
             // `prefixConfig.field` was `any` at every use below.
             //
-            // The four undeclared reads in this branch — `format`, `options`,
-            // `appearance`, `essential` — are deliberately NOT touched here. Each
-            // needs a declare-on-spec vs stop-reading verdict (objectui#6458
-            // escalates them), the declare leg is `@objectstack/spec` surface, and
-            // AGENTS.md #0.1 forbids answering either one renderer-side.
+            // ⭐ The four undeclared reads that used to sit in this branch —
+            // `format`, `options`, `appearance`, `essential` — are RETIRED
+            // (objectui#6458, maintainer ruling 2026-08-28, "B on all four").
+            // `ListColumnSchema` is a strict object that refuses all four at
+            // publish, so honouring them here was the `declared != enforced`
+            // split AGENTS.md #0.1 exists to stop. The retirement route (rather
+            // than declaring them on `@objectstack/spec`) follows the standing
+            // zero-authors rule: a key with no measured authors is retired at
+            // once, with no deprecation window. Re-measured on this ref before
+            // the deletion — zero authored occurrences of any of the four on a
+            // column across `examples/` and `apps/`.
+            //
+            // ⚠️ Retired for want of authors, NOT forbidden forever. If a real
+            // request for semantic mobile-column control arrives, the declare
+            // route reopens — objectstack#12715 is the precedent (removed while
+            // unenforced, re-introduced once demand and enforcement met). What
+            // is forbidden is the third road: a renderer-side tolerance for a
+            // key the schema refuses. `columnReadBoundary-6458.test.ts` now
+            // bounds this branch's undeclared cast reads to the EMPTY SET, so a
+            // new one goes red on arrival instead of accreting quietly.
             const prefixConfig = col.prefix;
             if (prefixConfig?.field) {
               const baseCellRenderer = cellRenderer;
@@ -2098,7 +2117,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             const inferredAlign = col.align || (effectiveType && numericTypes.includes(effectiveType) ? 'right' as const : undefined);
 
             // Determine if column should be hidden on mobile
-            const isEssential = colIndex === 0 || (col as any).essential === true;
+            const isEssential = colIndex === 0;
 
             return {
               header,
