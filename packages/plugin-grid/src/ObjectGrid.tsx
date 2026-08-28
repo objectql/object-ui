@@ -552,11 +552,17 @@ function normalizeColumns(
  *     below reads it (5 reads in this file) and re-expresses it as the sticky
  *     `className` that `data-table` actually reads. `data-table` never reads
  *     `pinned` itself, and does not need to.
- *   - `wrap` — HELD, and deliberately NOT retired here. Nothing anywhere reads
- *     it, so this card's rule would retire it — but objectui#5453 already owns
- *     that key and is `pm:blocked` on objectui#5415, whose outcome decides
- *     implement-vs-remove. Retiring it here would settle a blocked card from
- *     the outside. It is declared, inert, and stays exactly as it was.
+ *   - `wrap` — RETIRED (objectui#5453, 2026-08-28). Held here only because that
+ *     card was `pm:blocked` at the time; triage unblocked it and it took the
+ *     measurement this hold was waiting for. `data-table.tsx` offers NO clamp /
+ *     expand / wrap affordance for long cell text: its cell wrapper is a
+ *     two-way switch, `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`,
+ *     with a `title` tooltip as the only concession to overflow, and it does
+ *     not read `density` or `rowHeight` at all. So there is nothing for a
+ *     per-column `wrap` to turn on, and the enforce-or-remove default applies:
+ *     the forward is deleted rather than declared-and-maintained. ⚠️ Unlike
+ *     `pinned`, `wrap` had NO second road to a consumer — that is the check
+ *     this card's rule demands before retiring, and it came back empty.
  *   - `options` — RETIRED (see the enrichment pass below).
  *   - `type` — not adjudicated here; objectui#5853 owns its VALUE set and its
  *     fold still stands. It is the one member whose vocabulary differs between
@@ -576,10 +582,14 @@ function normalizeColumns(
  *
  * `ListColumn` is the right derivation source because it is where this
  * producer's drift comes from: every key the emit could wrongly grow is a key
- * the author wrote on the input and someone forwarded. `wrap` and `pinned` are
- * the two that already escaped, both adjudicated HELD above.
+ * the author wrote on the input and someone forwarded. `pinned` is the one that
+ * escaped and stayed — adjudicated HELD above. `wrap` escaped too and has since
+ * been RETIRED (objectui#5453), so it is no longer carved out of the Exclude
+ * and the derived band now tombstones it: re-adding the forward is a compile
+ * error naming `wrap`, which is the whole point of retiring it here rather than
+ * just deleting a line the next edit could put back for free.
  */
-export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'wrap' | 'pinned'>;
+export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>;
 
 /** The undeclared-but-live keys this producer holds. See the docblock above. */
 export interface ObjectGridColumnHolds {
@@ -587,8 +597,6 @@ export interface ObjectGridColumnHolds {
   headerIcon?: React.ReactNode;
   /** HELD — consumed by this file's own reorder pass before the array reaches the slot. */
   pinned?: 'left' | 'right';
-  /** HELD, objectui#5453 (blocked on objectui#5415) — inert, and not this card's to retire. */
-  wrap?: boolean;
 }
 
 /**
@@ -2105,7 +2113,6 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               ...(inferredAlign && { align: inferredAlign }),
               sortable: col.sortable !== false,
               ...(col.resizable !== undefined && { resizable: col.resizable }),
-              ...(col.wrap !== undefined && { wrap: col.wrap }),
               ...(cellRenderer && { cell: cellRenderer }),
               ...(col.pinned && { pinned: col.pinned }),
             };
