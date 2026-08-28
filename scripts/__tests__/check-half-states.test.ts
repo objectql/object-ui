@@ -13,6 +13,7 @@ import {
   resolveClosedWindowPages,
   resolveClosureFloor,
   resolveSweepRepo,
+  seatLane,
   summaryLine,
 } from '../pm/check-half-states.mjs';
 
@@ -21,18 +22,35 @@ import {
  *
  * ## What this file is for, and what it deliberately is not
  *
- * The sweeper carries its own ~1,077-case `--self-test`, and that suite is the
- * authority on the twenty-odd predicates. Re-asserting predicates here would
- * fork the pin: two copies drifting apart, one of them not the one upstream
- * maintains. So the first test below simply RUNS that suite in CI — the point
- * being that a port whose self-test nobody executes is the #4690 shape again
- * (a check that reads as enforcement while nothing invokes it).
+ * The sweeper carries its own `--self-test`, and that suite is the authority on
+ * the twenty-odd predicates. Re-asserting predicates here would fork the pin:
+ * two copies drifting apart, one of them not the one upstream maintains. So the
+ * first test below simply RUNS that suite in CI — the point being that a port
+ * whose self-test nobody executes is the #4690 shape again (a check that reads
+ * as enforcement while nothing invokes it).
+ *
+ * ⚠️ REPLACED PIN (objectui#6642): that sentence used to say "~1,077-case", and
+ * the figure was 1,116 by then and is 1,574 after the re-sync. The count is
+ * deliberately gone rather than refreshed — a hand-copied enumeration drifts by
+ * construction and a stale one reads exactly as authoritative as a fresh one,
+ * which is the lesson `lint-workflow.test.ts` records at length for this repo.
+ * The assertion below never read the number and still does not.
  *
  * Everything after it pins the ADAPTATIONS instead — the handful of places this
  * install diverges from upstream. Those are exactly the lines a future verbatim
  * re-sync from objectstack would clobber silently, and each one is load-bearing:
  * dropping any of them does not break the patrol loudly, it makes the patrol
  * report something false quietly.
+ *
+ * ## What this file cannot see, and what now can (objectui#6642)
+ *
+ * By construction it looks only at THIS copy. It cannot tell whether upstream
+ * has moved, which is how the port drifted 4,637 lines behind while every test
+ * here stayed green. `scripts/check-upstream-port-parity.mjs` is the half that
+ * looks the other way: it pins the ported files against a named upstream commit
+ * modulo the same adaptations, byte-for-byte. The two are complements — that
+ * gate proves the copy still IS the copy; this file proves the adaptations
+ * survived being one.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -79,6 +97,50 @@ describe('check-half-states — sweeps THIS board (objectui#5791 adaptation)', (
   it('still lets an explicit target win, so the workflow wiring is unchanged', () => {
     expect(resolveSweepRepo({ GITHUB_REPOSITORY: 'objectstack-ai/cloud' }).repo).toBe('objectstack-ai/cloud');
     expect(workflow).toContain('PM_SWEEP_REPO: ${{ github.repository }}');
+  });
+});
+
+describe('check-half-states — H32 lane foreignness inverts here (objectui#6642)', () => {
+  /**
+   * A divergence the re-sync DISCOVERED rather than one it authored, and the
+   * only one that made a verbatim copy impossible outright: upstream's H32 rows
+   * do not merely read oddly here, they FAIL. Three of them, on the first run
+   * of upstream's suite against this install.
+   *
+   * `seatLane` decides whether a seat post's lane is readable from this sweep by
+   * comparing the title's `@ <repo>` suffix against the RESOLVED sweep repo —
+   * a live value, not a constant. Upstream's self-test rows hard-code
+   * `@ objectui` as the foreign specimen and `@ objectstack` as the own-board
+   * one, which is correct there and exactly backwards here.
+   *
+   * The property being asserted is identical in both installs; only the
+   * specimens swap. ⚠️ Which is why this block is the one adaptation that
+   * should NOT be defended: the day upstream derives its specimen from the
+   * resolved repo instead of writing the name, three pin entries disappear and
+   * these rows become redundant with upstream's own.
+   */
+  const seat = (title: string) => ({ title });
+
+  it('reads a SIBLING board\'s lane as foreign — and the sibling here is objectstack', () => {
+    expect(seatLane(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')).foreign).toBe(true);
+  });
+
+  it('…and this board\'s own lane as readable, keeping the bare label', () => {
+    const own = seatLane(seat('[PM seat] domain:devx @ objectui — 🟢 os-x'));
+    expect(own.foreign).toBe(false);
+    expect(own.lane).toBe('domain:devx');
+  });
+
+  it('the specimens follow the RESOLVED sweep repo, which is what makes this a divergence', () => {
+    // Pinning the coupling itself rather than a value: this line is the reason
+    // upstream's rows cannot be carried verbatim, and its removal upstream is
+    // the event that retires this whole block plus three pin entries.
+    const src = fs.readFileSync(sweeperPath, 'utf8');
+    expect(src).toContain("SWEEP_REPO.repo.split('/')[1]");
+    // Both places this install resolves that value agree, so the rows above
+    // hold on a runner (GITHUB_REPOSITORY) and in a bare terminal (the default).
+    expect(resolveSweepRepo({}).repo).toBe('objectstack-ai/objectui');
+    expect(resolveSweepRepo({ GITHUB_REPOSITORY: 'objectstack-ai/objectui' }).repo).toBe('objectstack-ai/objectui');
   });
 });
 

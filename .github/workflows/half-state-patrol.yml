@@ -8,8 +8,31 @@ name: Half-State Patrol
 # prose below is upstream's and its issue numbers (#9844, #4449, #9575, #4690,
 # #7412, #11217 …) are OBJECTSTACK numbers — do not read them as objectui cards.
 #
-# Every divergence from upstream is listed here, once, so a future re-sync knows
-# exactly what it must not clobber:
+# ## Where the divergence list lives (objectui#6642)
+#
+# ⚠️ It is no longer this comment. This header used to carry the whole list and
+# to end with "nothing else diverges; the predicates are untouched" — and that
+# sentence rotted, silently, for months. Measured 2026-08-28: the ported copy
+# stood at 9,340 lines against upstream's 12,948 (a 4,637-line `diff`), running
+# 1,116 self-test cases where upstream ran 1,574. The three deliberate
+# adaptations below were accurate the whole time; what the list could not say
+# was that ~3,600 lines of upstream fixes had never arrived, because a
+# hand-maintained enumeration can only describe what someone remembered to
+# write down.
+#
+# The enumeration is therefore MACHINE-CHECKED now, in
+# `scripts/upstream-port-pin.json`: every declared divergence as an exact text
+# pair, with the upstream commit and the SHA-256 of the blob it was taken from.
+# `scripts/check-upstream-port-parity.mjs` reverses those pairs out of the
+# ported files and requires the reconstruction to hash to the pinned digest, so
+# a drift beyond the declared set — here or upstream — is RED in `lint.yml`
+# rather than invisible. Bumping the pin (`--resync`) is the deliberate re-sync
+# act. ⛔ Do not maintain a second copy of the divergence list in this comment;
+# that is what just failed.
+#
+# What the pin CANNOT see, and what therefore still belongs here, is the wiring:
+# the pin judges file contents, and the two items below are decisions taken in
+# THIS file about how the sweeper is called.
 #
 #   1. `PM_SWEEP_CLOSED_FLOOR` on the sweep step — H22's closed-card reader is
 #      ON here, but judges only cards closed on/after the cutover date. It read
@@ -46,10 +69,25 @@ name: Half-State Patrol
 #      and it treats recent closed residue as a live duty.
 #   2. `scripts/invoked-as.mjs` is in the `paths:` filter below — the sweeper
 #      imports it, and it was ported alongside.
-#   3. `scripts/pm/check-half-states.mjs` carries `DEFAULT_SWEEP_REPO =
-#      'objectstack-ai/objectui'` so a bare terminal run here sweeps THIS board.
 #
-# Nothing else diverges; the predicates are untouched.
+# The IN-SCRIPT divergences are the pin's business, not this comment's, but the
+# classes are worth knowing before you open it — three of them, and the set is
+# meant to shrink:
+#
+#   a. `DEFAULT_SWEEP_REPO = 'objectstack-ai/objectui'`, so a bare terminal run
+#      here sweeps THIS board, plus the two self-test rows that pinned the
+#      constant against objectstack's literal.
+#   b. `PM_SWEEP_CLOSED_WINDOW_PAGES` / `resolveClosedWindowPages` — an
+#      objectui-only escape hatch that can switch H22's closed reader fully OFF,
+#      authored during the port and never upstreamed. UNSET here since
+#      2026-08-28 (the floor in (1) is what holds the historical residue out),
+#      so it is dormant, but it is live code and its "the surface is UNREAD, not
+#      clean" summary branch is the #4690 property the port turned on.
+#   c. Three H32 self-test rows. `seatLane` compares a seat title's `@ <repo>`
+#      suffix against the LIVE resolved sweep repo, so which name is FOREIGN is
+#      install-dependent and upstream's specimens invert here. ⚠️ This class is
+#      upstream's to remove: derive the specimen from the resolved repo there
+#      and all three entries disappear.
 #
 # ## Why a workflow, and not "a seat should run it"
 #
