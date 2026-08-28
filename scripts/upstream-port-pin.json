@@ -1,13 +1,13 @@
 {
   "upstream": {
     "repo": "objectstack-ai/objectstack",
-    "ref": "2b4178aa53ca62089f43e2cfae0b7838cf340dd1"
+    "ref": "bf10debd587f6ba891be9eadc2b76c91e15bd82b"
   },
   "files": [
     {
       "ported": "scripts/pm/check-half-states.mjs",
       "upstreamPath": "scripts/pm/check-half-states.mjs",
-      "upstreamSha256": "c06c84517630e180eb9e4bc1f0e13d069e5dfc71b6889baac0ebcd37256ea1bc",
+      "upstreamSha256": "449a0aec0cfa36738e0fc5651ec978faf846316522daeb9ca6efa1714daf6ac9",
       "divergences": [
         {
           "id": "default-sweep-repo",
@@ -56,24 +56,6 @@
           "why": "Self-test row: a 0-page window still reads UNREAD even with a floor set.",
           "upstream": "  t('summary: an unfloored pass adds no floor clause', summaryLine({ repo: 'r', issues: 1, unscoped: 1, prs: 0, merged: 0, closed: 200 }, 0).includes('are judged'), false);\n",
           "ported": "  t('summary: an unfloored pass adds no floor clause', summaryLine({ repo: 'r', issues: 1, unscoped: 1, prs: 0, merged: 0, closed: 200 }, 0).includes('are judged'), false);\n  // The DISABLED branch still wins over a floor: a 0-page window read nothing,\n  // so the line must keep saying UNREAD rather than describing a floored pass.\n  t('summary: a disabled reader with a floor set still reads UNREAD', summaryLine({ repo: 'r', issues: 1, unscoped: 1, prs: 0, merged: 0, closedWindowDisabled: true, closedFloor: '2026-08-28' }, 0).includes('UNREAD'), true);\n"
-        },
-        {
-          "id": "h32-lane-own-board",
-          "why": "`seatLane` reads the LIVE resolved sweep repo, so upstream's two rows invert in this install: here `@ objectui` is the own board and `@ objectstack` is the sibling. The property asserted is unchanged.",
-          "upstream": "  t('H32 lane: an `@ sibling` suffix is FOREIGN', seatLane(seat('[PM seat] domain:devx @ objectui — 🟢 os-x')).foreign, true);\n  t('H32 lane: an `@ own-repo` suffix is NOT foreign', seatLane(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')).foreign, false);\n  t('H32 lane: …and keeps the bare lane label', seatLane(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')).lane, 'domain:devx');\n",
-          "ported": "  // ADAPTED FOR THIS REPO. `seatLane` compares the `@ <repo>` suffix against\n  // the LIVE `SWEEP_REPO`, so which name is FOREIGN is install-dependent and\n  // upstream's two rows invert here. The property is identical — a sibling\n  // board's lane is unreadable from this sweep, this board's own lane is not.\n  t('H32 lane: an `@ sibling` suffix is FOREIGN', seatLane(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')).foreign, true);\n  t('H32 lane: an `@ own-repo` suffix is NOT foreign', seatLane(seat('[PM seat] domain:devx @ objectui — 🟢 os-x')).foreign, false);\n  t('H32 lane: …and keeps the bare lane label', seatLane(seat('[PM seat] domain:devx @ objectui — 🟢 os-x')).lane, 'domain:devx');\n"
-        },
-        {
-          "id": "h32-foreign-out-of-scope",
-          "why": "Same inversion, in the H32 predicate row: the FOREIGN specimen must name a board this sweep cannot read.",
-          "upstream": "  t('H32: a FOREIGN lane is out of scope (its inventory is unreadable here)', h32SeatIdleOverQueue(seat('[PM seat] domain:devx @ objectui — 🟢 os-x'), marker('Round-start marker', 600), idleLane, NOW32), null);\n",
-          "ported": "  t('H32: a FOREIGN lane is out of scope (its inventory is unreadable here)', h32SeatIdleOverQueue(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x'), marker('Round-start marker', 600), idleLane, NOW32), null);\n"
-        },
-        {
-          "id": "h32-foreign-no-fetch",
-          "why": "Same inversion, in the H32 comment-fetch gate row.",
-          "upstream": "  t('H32 gate: a foreign-lane seat buys no fetch', h32NeedsSeatComments(seat('[PM seat] domain:devx @ objectui — 🟢 os-x')), false);\n",
-          "ported": "  t('H32 gate: a foreign-lane seat buys no fetch', h32NeedsSeatComments(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')), false);\n"
         },
         {
           "id": "sweep-repo-self-test",
