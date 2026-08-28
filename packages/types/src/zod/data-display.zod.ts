@@ -362,6 +362,10 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
  * have zero read points, but removing them is a breaking narrowing routed
  * through ADR-0049 rather than done here. `events` follows the declaration from
  * required to OPTIONAL — strictly more input parses than before.
+ *
+ * `timeScale` is RETIRED (objectui#6355) and carries the `z.never()` tombstone
+ * below — still mirrored, deliberately, because the parity ratchet compares key
+ * SETS and because a tombstone must be present on both halves to be audible.
  */
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
@@ -369,7 +373,15 @@ export const TimelineSchema = BaseSchema.extend({
   items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
   dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
   scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
-  timeScale: TimelineScaleSchema.optional().describe('DEPRECATED pre-spec alias for scale; still read as a fallback'),
+  // RETIRED (objectui#6355, ruling 2026-08-27): the pre-spec alias for `scale`.
+  // The TS twin (`../data-display.ts`) types it `?: never`; here any authored
+  // value is a loud parse rejection (absent stays valid), mirroring how
+  // `@objectstack/spec` retires keys and how `crud.zod.ts` retires `confirm`.
+  // NOT deletable: `BaseSchema` is `.passthrough()`, so dropping the key would
+  // let the retired spelling parse green while the renderer no longer reads it
+  // — a silent revert to the `month` default, which is the whole failure this
+  // retirement exists to make audible. One axis spelling: `scale` above.
+  timeScale: z.never().optional().describe('RETIRED (objectui#6355) — author scale instead'),
   rowLabel: z.string().optional().describe('Header label above the gantt row-label gutter'),
   minDate: z.string().optional().describe('Override the auto-calculated gantt axis start (YYYY-MM-DD)'),
   maxDate: z.string().optional().describe('Override the auto-calculated gantt axis end (YYYY-MM-DD)'),

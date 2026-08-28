@@ -46,16 +46,30 @@ export const TIMELINE_SCALES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Resolve the axis scale for the gantt variant. The spec key is `scale`;
- * `timeScale` is this renderer's pre-spec dialect, kept for stored JSON —
- * before #2942 ONLY `timeScale` was read, so every spec-authored `scale`
- * (all six values) was silently ignored. An absent/unknown value keeps the
- * renderer's historical `month` default. The `vertical` / `horizontal`
- * variants are sequential event feeds with no time axis, so `scale` has
- * nothing to bucket there by construction.
+ * Resolve the axis scale for the gantt variant. `scale` is the ONLY axis key —
+ * it is `@objectstack/spec` `ui/TimelineConfig.json`'s spelling.
+ *
+ * The `timeScale` alias this used to fall back to (`scale ?? timeScale`) is
+ * RETIRED (objectui#6355, maintainer ruling 2026-08-27: immediate retirement,
+ * no phased window, while the project is at startup stage). It was this
+ * renderer's pre-spec dialect: before #2942 ONLY `timeScale` was read, so every
+ * spec-authored `scale` was silently ignored — this function was the fix, and
+ * dropping the alias half completes it.
+ *
+ * A document that still spells `timeScale` no longer reaches this function with
+ * an axis, and would fall to the `month` default below. That reversion is NOT
+ * left silent: `@object-ui/types` tombstones the key on both halves
+ * (`TimelineSchema.timeScale?: never` and the Zod twin's `z.never()`), so the
+ * retired spelling is refused at the authoring boundary rather than quietly
+ * re-bucketing the chart. The tombstone is why this deletion is safe; the two
+ * ship together.
+ *
+ * An absent/unknown value keeps the renderer's historical `month` default. The
+ * `vertical` / `horizontal` variants are sequential event feeds with no time
+ * axis, so `scale` has nothing to bucket there by construction.
  */
-export function resolveTimelineScale(schema: { scale?: unknown; timeScale?: unknown }): string {
-  const raw = schema.scale ?? schema.timeScale;
+export function resolveTimelineScale(schema: { scale?: unknown }): string {
+  const raw = schema.scale;
   return typeof raw === 'string' && TIMELINE_SCALES.has(raw) ? raw : 'month';
 }
 
@@ -411,11 +425,11 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       const minDate = schema.minDate || dateRange.minDate;
       const maxDate = schema.maxDate || dateRange.maxDate;
 
-      // Generate time scale headers — the spec `scale` key drives this
-      // (legacy `timeScale` kept for stored JSON); every spec scale produces
-      // a header row (#2942).
+      // Generate time scale headers — the spec `scale` key is the only axis
+      // spelling (the `timeScale` alias is retired, objectui#6355); every spec
+      // scale produces a header row (#2942).
       const timeHeaders = generateTimeScaleHeaders(
-        resolveTimelineScale(schema as { scale?: unknown; timeScale?: unknown }),
+        resolveTimelineScale(schema as { scale?: unknown }),
         minDate,
         maxDate,
         displayLocale,
@@ -544,7 +558,8 @@ ComponentRegistry.register(
         defaultValue: 'short',
       },
       // The designer's axis key is `scale` — the spec's spelling
-      // (`ui/TimelineConfig.json`) and the one `resolveTimelineScale` prefers.
+      // (`ui/TimelineConfig.json`) and, since objectui#6355 retired the
+      // `timeScale` alias, the only one `resolveTimelineScale` reads.
       // It offers all six buckets: `hour` / `quarter` / `year` have rendered
       // correctly since #2942 but were offered by neither the designer nor the
       // exported type, so they were authorable and undiscoverable (objectui#6170).
@@ -554,21 +569,6 @@ ComponentRegistry.register(
         enum: [...TIMELINE_SCALES],
         label: 'Time Scale (Gantt only)',
         defaultValue: 'month',
-      },
-      // Kept so a stored `timeScale` still round-trips through the designer.
-      // Deprecated in favour of `scale`; retiring the alias is routed separately
-      // (objectui#6170 maintainer ruling 2026-08-25). `ComponentInput` has no
-      // `deprecated` slot and no index signature, so the notice lives in
-      // `description` — this package's stated ceiling for anything the coarse
-      // `type` cannot express.
-      {
-        name: 'timeScale',
-        type: 'enum',
-        enum: [...TIMELINE_SCALES],
-        label: 'Time Scale (Gantt only)',
-        description:
-          'DEPRECATED — use `scale`, which @objectstack/spec owns and this renderer reads first. Kept so stored JSON keeps working.',
-        advanced: true,
       },
       {
         name: 'rowLabel',
@@ -676,7 +676,7 @@ ComponentRegistry.register(
       gantt: {
         variant: 'gantt',
         dateFormat: 'short',
-        timeScale: 'month',
+        scale: 'month',
         rowLabel: 'Projects',
         items: [
           {

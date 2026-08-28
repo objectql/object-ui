@@ -1395,7 +1395,10 @@ export type TimelineScale = 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'yea
  * purpose — it is a runtime slot `ObjectTimeline` installs when it composes
  * this schema, not authorable metadata, and this package's convention keeps
  * callback-shaped keys off the authored surface (see `RuntimeOnlyDeclared` in
- * `__tests__/zod-mirror-parity.test.ts`). The registration's own `inputs` metadata and
+ * `__tests__/zod-mirror-parity.test.ts`). That measurement is a dated record
+ * and is kept as one: `timeScale` has since been RETIRED (objectui#6355,
+ * ruling 2026-08-27), so the read set is EIGHT keys today and `scale` is the
+ * sole axis spelling. The registration's own `inputs` metadata and
  * `content/docs/plugins/plugin-timeline.mdx`'s property table agreed with the
  * renderer all along; only this type disagreed — including with the docs
  * page's own TypeScript example, which did not compile, because `events` was
@@ -1442,21 +1445,36 @@ export interface TimelineSchema extends BaseSchema {
   dateFormat?: 'short' | 'long' | 'iso';
   /**
    * Gantt axis bucket size. **Canonical spelling** — it is `@objectstack/spec`
-   * `ui/TimelineConfig.json`'s axis key AND the renderer's preferred read
-   * (`resolveTimelineScale` resolves `scale ?? timeScale`).
+   * `ui/TimelineConfig.json`'s axis key AND the renderer's only read
+   * (`resolveTimelineScale`). The `timeScale` alias it used to fall back to is
+   * RETIRED (objectui#6355) and tombstoned below.
    * @default 'month'
    */
   scale?: TimelineScale;
   /**
-   * Gantt axis bucket size — this renderer's pre-spec dialect, still read as a
-   * fallback so stored JSON keeps working.
+   * RETIRED (objectui#6355, maintainer ruling 2026-08-27) — this renderer's
+   * pre-spec dialect for the gantt axis bucket. Author {@link
+   * TimelineSchema.scale}, which `@objectstack/spec` owns and this renderer
+   * now reads exclusively.
    *
-   * @deprecated Use {@link TimelineSchema.scale}, which `@objectstack/spec`
-   * owns and this renderer prefers. Retiring the alias is routed separately
-   * (objectui#6170 maintainer ruling 2026-08-25: "`timeScale` goes the
-   * alias-retirement route, not a silent second spelling").
+   * `?: never` is this package's tombstone convention (see {@link
+   * StaticTableColumn} objectui#5474, `crud.ts` `confirm` objectui#4314), and
+   * it is load-bearing rather than decorative. {@link BaseSchema} carries
+   * `[key: string]: any`, so DELETING this member would let the retired
+   * spelling type-check green and do nothing — the renderer no longer reads it,
+   * and the axis would silently fall back to the `month` default with no
+   * diagnostic. That is the silent axis breakage objectui#2942 closed, running
+   * in the other direction. Keeping the key declared as `never` is what makes
+   * the retirement audible at the authoring boundary.
+   *
+   * Lockstep with the Zod twin (`zod/data-display.zod.ts`, `z.never()`): both
+   * halves or neither, since either half alone leaves the other surface
+   * silently accepting the retired spelling. Absent stays valid on both, so a
+   * document that never wrote the alias is untouched.
+   *
+   * @deprecated RETIRED (objectui#6355) — author `scale` instead.
    */
-  timeScale?: TimelineScale;
+  timeScale?: never;
   /**
    * Header label above the Gantt row-label gutter.
    * @default 'Items'
