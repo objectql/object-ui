@@ -63,7 +63,11 @@ const schema = {
 }
 ```
 
-### Properties
+### CodeEditorSchema
+
+Declared by `@object-ui/plugin-editor` (`packages/plugin-editor/src/types.ts`).
+It extends `BaseSchema`, so the shared component properties are available on a
+`code-editor` node as well as the ones below.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -137,7 +141,7 @@ This keeps your main application bundle small while providing full IDE-like edit
 
 ## TypeScript Support
 
-```plaintext
+```ts
 import type { CodeEditorSchema } from '@object-ui/plugin-editor'
 
 const editorSchema: CodeEditorSchema = {

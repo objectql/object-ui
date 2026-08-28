@@ -46,8 +46,8 @@
 # for anyone who means it. Widening it to string-match anywhere in the command would block
 # every `grep "git stash"` run against this very file.
 #
-# Self-test (32 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
-# 32 = 30 `expect ` lines + 2 inline specials (empty-tool_input fail-open, no-jq fallback).
+# Self-test (41 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
+# 41 = 39 `expect ` lines + 2 inline specials (empty-tool_input fail-open, no-jq fallback).
 # Re-derive when the matrix changes: `grep -c '^expect ' <selftest>` + 2, and the run's own
 # tail prints the total ("N passed, N failed") — keep this number equal to it.
 
@@ -75,6 +75,14 @@ fi
 # A separator inside '…' or "…" does NOT split, so writing *about* the ban is never caught
 # by the ban: `grep -n "cd x && git stash pop" AGENTS.md` stays one segment whose first
 # word is grep. (objectstack#4890's lesson — the PR writing a rule must not trip it.)
+#
+# OUTSIDE quotes a backslash escapes the NEXT character, so an escaped `\"` opens no quoted
+# region at all. Without a branch for it this pass read that `"` as OPENING a region that
+# never closed, went inert for every separator behind it, collapsed the whole command into
+# one segment whose head word was the harmless one, and waved a real `git stash` through as
+# a mere argument of `echo`. That is a fail-OPEN in the backstop for the one rule whose
+# breach silently corrupts ANOTHER agent's work (objectstack#11131, the same defect the
+# sibling hook guard-main-checkout-bash.sh carried; objectui#6042).
 segments=()
 split_segments() {
   local s="$1" seg="" q="" ch i n=${#1}
@@ -86,6 +94,15 @@ split_segments() {
       continue
     fi
     case "$ch" in
+      '\')
+        # An escaped character opens no quote and separates nothing: consume BOTH characters
+        # and keep scanning outside quotes, so the separator behind a `\"` still splits
+        # (objectstack#11131). Both are kept verbatim because this pass only SPLITS —
+        # check_segment() re-reads the segment with `read -r -a`, and `-r` leaves the
+        # backslash literal, exactly as a real shell argument would carry it.
+        seg+="$ch"
+        if [ $((i + 1)) -lt "$n" ]; then i=$((i + 1)) ; seg+="${s:i:1}" ; fi
+        ;;
       "'" | '"') q="$ch" ; seg+="$ch" ;;
       ';' | '|' | '&' | '(' | ')' | '{' | '}' | $'\n') segments+=("$seg") ; seg="" ;;
       *) seg+="$ch" ;;

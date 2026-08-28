@@ -20,8 +20,8 @@ import {
   discardRuntimeDraft,
   readRuntimeDraft,
   type RuntimeArtifactType,
-} from './runtime-metadata-persistence';
-import { useMetadataLocale, t, tFormat } from './metadata-admin/i18n';
+} from './runtime-metadata-persistence.js';
+import { useMetadataLocale, t, tFormat } from './metadata-admin/i18n.js';
 
 export interface RuntimeDraftBarProps {
   /** Artifact type — the `:type` in `/meta/:type/:name`. */

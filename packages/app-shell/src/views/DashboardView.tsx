@@ -13,7 +13,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 import { DrillNavigationProvider } from '@object-ui/react';
-import { useOpenRecordList } from './useOpenRecordList';
+import { useOpenRecordList } from './useOpenRecordList.js';
 import { toast } from 'sonner';
 import type { ActionDef, ActionContext, ActionResult } from '@object-ui/core';
 import {
@@ -22,13 +22,13 @@ import {
   EmptyDescription,
 } from '@object-ui/components';
 import { LayoutDashboard } from 'lucide-react';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { useActionModal } from '../hooks/useActionModal';
-import { SkeletonDashboard } from '../skeletons';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { resolveKeyedI18nLabel, preferLocal } from '../utils';
-import { useAdapter } from '../providers/AdapterProvider';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { useActionModal } from '../hooks/useActionModal.js';
+import { SkeletonDashboard } from '../skeletons/index.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { resolveKeyedI18nLabel, preferLocal } from '../utils/index.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 
 // ---------------------------------------------------------------------------

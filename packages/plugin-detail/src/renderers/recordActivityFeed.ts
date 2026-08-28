@@ -41,19 +41,86 @@ export const DEFAULT_ACTIVITY_LIMIT = 20;
 /**
  * `sys_activity.type` → `FeedItem.type`.
  *
- * Identical to the map `RecordDetailView` uses when it merges `sys_activity`
- * into the discussion feed, deliberately: one table, one reading. Two renderers
- * that disagree about what a `created` row IS would put the same record's
- * history under two different icons depending on which block an author reached
- * for, so the richer `record_create` / `record_delete` / `sharing` feed types
- * the spec offers are NOT used here — adopting them is a change to that shared
- * map, not to this block.
+ * Meant to be one reading with the map `RecordDetailView` uses when it merges
+ * `sys_activity` into the discussion feed. Two renderers that disagree about what a `created` row IS would put
+ * the same record's history under two different icons depending on which block
+ * an author reached for, so the richer `record_create` / `record_delete` /
+ * `sharing` feed types the spec offers are NOT used here — adopting them is a
+ * change to that shared map, not to this block.
+ *
+ * ⚠️ That copy is a hand-written literal in `app-shell`, not an import of this
+ * one, and nothing fails when the two disagree — so the `scheduled` entry below
+ * is currently present here and absent there. Tracked as objectui#5878; fixing
+ * it means the second copy reading this export, which is a different package's
+ * surface than this card's.
  *
  * `commented` / `mentioned` map to nothing because their content lives in
  * `sys_comment` (with reactions and threading attached) — a host that has both
  * merges the comment rows, and the block on its own has no comment write path
  * to pair them with. `login` / `logout` are account events, not record
  * activity.
+ *
+ * ## Two vocabularies, not one (objectui#5840)
+ *
+ * The keys were originally set-equal to plugin-audit's declared
+ * `sys_activity.type` select options, and the test pinned exactly that. They no
+ * longer are, because those options are **not** what the column stores:
+ *
+ *  - Every field on `sys_activity` is `readonly: true`, and objectql's
+ *    `validateRecord` skips readonly fields on both the insert and the update
+ *    branch. The eleven-value enum is therefore documentation, not a contract —
+ *    an undeclared value is written silently (measured upstream by
+ *    plugin-audit's own `sys-activity-type-vocabulary.test.ts`).
+ *  - The platform itself forwards author-declared values into the column:
+ *    ADR-0052 §5b.2 `activityMilestones[].type` is applied verbatim by
+ *    plugin-audit's `audit-writers.ts` (`if (milestone.type) activityType =
+ *    milestone.type`). That is how `completed` is produced, and it is a general
+ *    door, not a special case.
+ *
+ * So `scheduled` is a value that is written, stored and queryable while being
+ * undeclared upstream. Dropping it was not a decision this map made; it was the
+ * absence of one. Its producer is HotCRM's `schedule_meeting` action
+ * (`src/actions/global.actions.ts` — `type: EVENT_STATUS === 'held' ?
+ * 'completed' : 'scheduled'`), registered for `crm_lead`, `crm_contact`,
+ * `crm_account`, `crm_opportunity` and `crm_case`: the held branch reached the
+ * timeline, the scheduled branch never did.
+ *
+ * `scheduled` → `event` is the semantic pairing and it is what makes the
+ * declared `event` feed type reachable at all. Note the two branches of that
+ * one producer now land at different DEFAULT visibility, which is the intended
+ * reading: a held meeting is `completed` → `task`, hidden unless
+ * `showCompleted`; a not-yet-held meeting is `scheduled` → `event`, shown,
+ * because an upcoming meeting is the part of a timeline you still act on.
+ *
+ * ## The vocabulary is OPEN — ruled. Do NOT restore set-equality.
+ *
+ * Maintainer ruling of 2026-08-24 on objectstack#11507, **direction 4**:
+ * `sys_activity.type` is AUTHOR-EXTENSIBLE. The declared select options are the
+ * platform's BUILT-IN set, not the column's domain, and the two facts above are
+ * why — readonly fields are never validated on write, and ADR-0052 §5b.2
+ * forwards an author's `activityMilestones[].type` into the column verbatim.
+ *
+ * So the relation this table stands in is a SUPERSET, in one direction only:
+ *
+ *  - **map ⊇ built-ins** — every value the platform declares has an entry here,
+ *    either a feed type or a deliberate `undefined` exclusion. A new built-in
+ *    with no entry is a gap, and objectui#5969's pin turns red for it.
+ *  - **NOT built-ins ⊇ map**, and NOT set-equality in either spelling. An
+ *    author-extended value legitimately exists outside the declaration, so a
+ *    pin that required the two sets to match would be false by construction.
+ *
+ * ⛔ A reader who finds no equality check here is looking at a DECISION, not an
+ * omission: objectui#5840 removed the old set-equality pin on purpose, because
+ * pinning to the closed declaration meant dropping stored rows, and
+ * objectui#5969 replaced it with the two-directional pin under this ruling.
+ *
+ * (`scheduled` — the value #5840 was about — has since been declared upstream
+ * by objectstack#11522, superseding objectstack#11424. That is precisely the
+ * drift a hand-maintained equality pin cannot survive, and the reason the pin
+ * is a superset assertion plus a fallback rather than a census of two groups.)
+ *
+ * A value outside this table is NO LONGER DROPPED: it renders through
+ * {@link UNMAPPED_ACTIVITY_FEED_TYPE}. See {@link activityRowToFeedItem}.
  */
 export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | undefined>> = {
   created: 'field_change',
@@ -63,11 +130,36 @@ export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | 
   shared: 'field_change',
   system: 'system',
   completed: 'task',
+  scheduled: 'event',
   commented: undefined,
   mentioned: undefined,
   login: undefined,
   logout: undefined,
 };
+
+/**
+ * The presentation an `sys_activity.type` value outside
+ * {@link ACTIVITY_TYPE_TO_FEED_TYPE} renders through.
+ *
+ * The second half of the objectstack#11507 direction-4 ruling (2026-08-24): if
+ * the column is author-extensible, then a value this map has never heard of is
+ * REAL RECORD ACTIVITY that an author extended the platform with — not a
+ * mistake — and dropping it is the objectui#5840 failure mode reappearing for
+ * every author who ever writes one. Stored, queryable, invisible.
+ *
+ * `system` is the generic bucket rather than a new feed type because
+ * `FeedItemType` is a CLOSED spec enum owned by `@objectstack/spec` — minting a
+ * kind for "we don't know" is a platform change, not this block's.
+ *
+ * ⚠️ This is a FLOOR under the map, never a substitute for it. objectui#5840
+ * rejected a catch-all *offered as the fix* — an unmeasured type rendering as
+ * `system` is not the same data as a type someone read and mapped. What makes
+ * the catch-all safe here is that it does not stand alone: the superset pin
+ * above forces every built-in to keep its OWN presentation, so the fallback can
+ * only ever receive values nobody has ruled on yet, and the diagnostic below
+ * names each one so somebody can.
+ */
+export const UNMAPPED_ACTIVITY_FEED_TYPE: FeedItemType = 'system';
 
 /**
  * The feed types a COMPLETED activity produces.
@@ -99,26 +191,179 @@ export interface SysActivityRow {
 }
 
 /**
+ * Warn ONCE per distinct key on a channel, never again for a key already named.
+ *
+ * One plumbing for both diagnostics in this file rather than two conventions.
+ * A page re-runs its filter on every state change and re-maps its rows on every
+ * fetch, but an authoring mistake is ONE mistake however many times React runs
+ * the pipeline — so the dedupe key is the offending value, not the call.
+ *
+ * Each channel keeps its OWN bucket because the two vocabularies overlap:
+ * `crm_task` is a plausible unmapped `sys_activity.type` AND a plausible
+ * unrecognised `types` entry (it is an object name, and naming an object where
+ * a feed kind belongs is exactly how objectui#5841 was found). One channel
+ * having spoken must not silence the other.
+ *
+ * The message is built from the keys that were actually fresh, so a list whose
+ * second render adds one new typo names that typo rather than repeating a
+ * warning the author has already read.
+ */
+function warnOnce(
+  bucket: Set<string>,
+  keys: readonly string[],
+  build: (fresh: readonly string[]) => string,
+): void {
+  const fresh = keys.filter((k) => !bucket.has(k));
+  if (fresh.length === 0) return;
+  for (const k of fresh) bucket.add(k);
+  console.warn(build(fresh));
+}
+
+/** Authored `types` values already named as unrecognised. See {@link warnOnce}. */
+const warnedUnrecognisedFeedTypes = new Set<string>();
+
+/** Test seam: forget which `types` entries have already been named. */
+export function resetUnrecognisedFeedTypeWarnings(): void {
+  warnedUnrecognisedFeedTypes.clear();
+}
+
+/** Authored `filterMode` values already named as unrecognised. See {@link warnOnce}. */
+const warnedUnrecognisedFilterModes = new Set<string>();
+
+/** Test seam: forget which `filterMode` values have already been named. */
+export function resetUnrecognisedFilterModeWarnings(): void {
+  warnedUnrecognisedFilterModes.clear();
+}
+
+/**
  * Coerce an authored `filterMode` to a value the timeline understands.
  *
  * Unknown values fall back to `'all'` rather than being passed through: a
  * `<Select>` handed a value with no matching item renders blank and the
  * dropdown reads as broken. Same posture as objectui#3151 — an unrecognised
  * filter token is skipped, never turned into a filter that can't match.
+ *
+ * ## Why that fallback needs a diagnostic (objectui#5891)
+ *
+ * `'all'` is the WIDEST of the four declared modes — `filterItems` in
+ * `RecordActivityTimeline` narrows to ONE feed type for each of the other three
+ * and returns the feed untouched for `'all'` — so every unrecognised value
+ * lands on the one option that shows the author MORE than they asked for. A
+ * near-miss like `comments-only` or `commentsOnly` therefore opens the panel on
+ * the unfiltered stream, and the tell is a PLAUSIBLE result (a populated
+ * timeline) rather than an empty one that gets investigated. That is the same
+ * shape objectui#5841 removed from the sibling `types` sanitiser.
+ *
+ * The ruling on this card (triage, 2026-08-25) is that the defect is the
+ * INVISIBILITY, not the fallback: `filterMode` seeds a control the user can
+ * change, and there is no defensible narrower default to fall back to instead.
+ * So nothing that renders changes here — what changes is that the fold is now
+ * SAID OUT LOUD, once per distinct offending value (see {@link warnOnce}).
+ *
+ * Absent (`undefined` / `null`) is silent: no `filterMode` was authored, which
+ * is not a mistake, and a warning about a decision teaches authors to ignore
+ * the channel. Only a value the author actually wrote is reported.
+ *
+ * The declared modes named in the message are read from `@objectstack/spec`'s
+ * `FeedFilterMode` at runtime, never re-typed here — see the file header for
+ * what a hand copy of a spec enum cost.
  */
 export function normalizeFilterMode(value: unknown): FeedFilterMode {
-  return typeof value === 'string' && FILTER_MODE_VALUES.includes(value)
-    ? (value as FeedFilterMode)
-    : 'all';
+  if (typeof value === 'string' && FILTER_MODE_VALUES.includes(value)) {
+    return value as FeedFilterMode;
+  }
+
+  // Absent means no `filterMode` was authored — not a mistake, nothing to report.
+  // Anything else is a value the author wrote and this block cannot honour.
+  if (value !== undefined && value !== null) {
+    const shown = typeof value === 'string' ? `"${value}"` : typeof value;
+    const key = typeof value === 'string' ? value : `non-string ${shown}`;
+    warnOnce(warnedUnrecognisedFilterModes, [key], () =>
+      `[record:activity] ignoring an unrecognised \`filterMode\` (${shown}) and opening `
+        + 'on "all" instead — the WIDEST mode, which shows EVERY activity rather than the '
+        + 'slice that was asked for. No declared filter mode matches it. The fallback is '
+        + 'kept rather than passing the value through because a dropdown handed a value '
+        + 'with no matching item renders blank (objectui#3151), so this is a diagnostic, '
+        + 'not a refusal. Declared filter modes: '
+        + `${FILTER_MODE_VALUES.join(', ')}.`);
+  }
+
+  return 'all';
 }
 
-/** Keep only the `types` entries the spec actually defines. */
+/**
+ * Sanitise an authored `types` allow-list. Narrowing or refusal, never widening.
+ *
+ * Three distinct authored intents used to collapse into one rendering
+ * (objectui#5841). They are three again:
+ *
+ * | authored                      | returns     | rendered                       |
+ * | ----------------------------- | ----------- | ------------------------------ |
+ * | absent (`undefined`/`null`)   | `undefined` | every kind — no filter authored |
+ * | `[]`                          | `[]`        | nothing — the author said "no kinds" |
+ * | `['crm_task']` (none known)   | `[]`        | nothing, plus one diagnostic   |
+ * | `['task', 'crm_task']`        | `['task']`  | the recognised members, plus one diagnostic |
+ *
+ * `undefined` now means "no `types` key was authored" and ONLY that. It used to
+ * mean that OR "everything you authored was dropped", and {@link applyFeedConfig}
+ * reads it as "apply no filter" — so a single typo served the author every
+ * activity on the record with nothing said anywhere, and the tell was a
+ * PLAUSIBLE result (a populated timeline) rather than an empty one that gets
+ * investigated. That is the principle this function now holds: a sanitiser may
+ * narrow an author's request or refuse it, but it must never silently widen it,
+ * because widening turns a typo into "show the user everything" — the one
+ * outcome no author asked for.
+ *
+ * `[]` is honoured rather than reinterpreted, and silently: rendering every kind
+ * is the maximally wrong answer to "no kinds", and there is nothing to report
+ * about a request that was carried out exactly.
+ *
+ * Membership is read from `@objectstack/spec`'s `FeedItemType` at runtime, never
+ * re-typed here — see the file header for what a hand copy of a spec enum cost.
+ *
+ * NOT pure: an entry it cannot recognise logs once (see {@link warnOnce}). The
+ * failure being repaired is invisibility, so the diagnostic is the other half of
+ * the fix rather than a nicety.
+ */
 export function normalizeFeedTypes(value: unknown): FeedItemType[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const kept = value.filter(
-    (v): v is FeedItemType => typeof v === 'string' && FEED_ITEM_TYPE_VALUES.includes(v),
-  );
-  return kept.length > 0 ? kept : undefined;
+  // The only shape that means "no filter": the author never wrote the key.
+  if (value === undefined || value === null) return undefined;
+
+  // Authored, but not a list of kinds at all (`types: 'task'` — brackets
+  // dropped). Refused for the same reason an all-unrecognised list is: a filter
+  // that cannot be read is not a request to REMOVE the filter.
+  if (!Array.isArray(value)) {
+    const shown = typeof value === 'string' ? `"${value}"` : typeof value;
+    warnOnce(warnedUnrecognisedFeedTypes, [`non-array ${shown}`], () =>
+      `[record:activity] ignoring an authored \`types\` that is not an array (${shown}). `
+        + '`types` must be a LIST of feed item types. The timeline renders empty rather '
+        + 'than falling back to every kind, because a filter that cannot be read is not a '
+        + 'request to remove the filter. Declared feed item types: '
+        + `${FEED_ITEM_TYPE_VALUES.join(', ')}.`);
+    return [];
+  }
+
+  const kept: FeedItemType[] = [];
+  const unrecognised: string[] = [];
+  for (const entry of value) {
+    if (typeof entry === 'string' && FEED_ITEM_TYPE_VALUES.includes(entry)) {
+      kept.push(entry as FeedItemType);
+    } else {
+      unrecognised.push(typeof entry === 'string' ? entry : String(entry));
+    }
+  }
+
+  if (unrecognised.length > 0) {
+    warnOnce(warnedUnrecognisedFeedTypes, unrecognised, (fresh) =>
+      `[record:activity] ignoring ${fresh.length} unrecognised \`types\` `
+        + `entr${fresh.length === 1 ? 'y' : 'ies'}: ${fresh.map((t) => `"${t}"`).join(', ')}. `
+        + 'No declared feed item type matches, so they select nothing; only the recognised '
+        + 'entries narrow the timeline, and a list with NO recognised entry renders an '
+        + 'EMPTY timeline rather than every kind. Declared feed item types: '
+        + `${FEED_ITEM_TYPE_VALUES.join(', ')}.`);
+  }
+
+  return kept;
 }
 
 /** Coerce `limit` to a positive integer, falling back to the spec default. */
@@ -144,14 +389,72 @@ export function activityTimestamp(row: SysActivityRow): string {
 }
 
 /**
+ * `sys_activity.type` values this map has never heard of, already warned about.
+ *
+ * Module scope so one unknown type warns ONCE rather than once per row: a
+ * 200-row page of the same unknown type is one authoring mistake, not two
+ * hundred. Same shape as the evaluator's fail-open warning
+ * (`core/src/evaluator/fieldRules.ts`, objectstack#5149) — skipping something
+ * an author declared is loud, not silent.
+ */
+const warnedUnknownActivityTypes = new Set<string>();
+
+/**
+ * Say out loud that a row reached the timeline through the generic fallback.
+ *
+ * Deliberately NOT fired for a type this map knows and deliberately drops
+ * (`commented` / `mentioned` / `login` / `logout` → `undefined`): those are
+ * decisions, and a warning about a decision is noise that teaches authors to
+ * ignore the channel. It fires only for a value outside the table entirely.
+ *
+ * Since objectui#5969 that value is RENDERED rather than dropped
+ * ({@link UNMAPPED_ACTIVITY_FEED_TYPE}), so the diagnostic no longer reports
+ * lost data — it reports a MISSING DECISION, which is the thing that is still
+ * wrong. The row is visible; what it is missing is the specific icon and colour
+ * a mapped type gets. That is the channel by which an author-extended value
+ * becomes a mapping somebody made on purpose.
+ */
+function warnUnknownActivityType(type: string): void {
+  warnOnce(warnedUnknownActivityTypes, [type], () =>
+    `[record:activity] rendered a sys_activity row with type "${type}" through the `
+      + `generic "${UNMAPPED_ACTIVITY_FEED_TYPE}" presentation: no feed item type is `
+      + 'mapped for it. `sys_activity.type` is author-extensible (objectstack#11507, '
+      + 'ruled 2026-08-24) and is not validated on write, so a producer can store a '
+      + 'value the platform never declared — the row is shown rather than dropped. '
+      + 'Map it in ACTIVITY_TYPE_TO_FEED_TYPE (@object-ui/plugin-detail) to give it '
+      + 'its own presentation.');
+}
+
+/** Test seam: forget which unknown types have already been warned about. */
+export function resetUnknownActivityTypeWarnings(): void {
+  warnedUnknownActivityTypes.clear();
+}
+
+/**
  * One `sys_activity` row → one {@link FeedItem}, or `null` when the row is not
  * record activity (see {@link ACTIVITY_TYPE_TO_FEED_TYPE}).
+ *
+ * Three outcomes, and the difference between the last two is the whole of the
+ * objectstack#11507 direction-4 ruling (2026-08-24):
+ *
+ *  - a type mapped to a feed type renders with THAT presentation;
+ *  - a type the table maps to `undefined` is a DELIBERATE exclusion — `null`,
+ *    quietly, because a warning about a decision teaches authors to ignore the
+ *    channel;
+ *  - a type the table does not contain at all is an AUTHOR-EXTENDED value under
+ *    the ruled open vocabulary. It renders through
+ *    {@link UNMAPPED_ACTIVITY_FEED_TYPE} and says so once. It used to return
+ *    `null` here, which made every extended value invisible — the same outcome
+ *    objectui#5840 was filed for, reached by a different route.
  */
 export function activityRowToFeedItem(
   row: SysActivityRow,
   systemActorLabel: string,
 ): FeedItem | null {
-  const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[String(row?.type)];
+  const rawType = String(row?.type);
+  const known = Object.prototype.hasOwnProperty.call(ACTIVITY_TYPE_TO_FEED_TYPE, rawType);
+  if (!known) warnUnknownActivityType(rawType);
+  const feedType = known ? ACTIVITY_TYPE_TO_FEED_TYPE[rawType] : UNMAPPED_ACTIVITY_FEED_TYPE;
   if (!feedType) return null;
   return {
     id: row.id as string | number,
@@ -219,12 +522,17 @@ export function applyFeedConfig(
     kept = kept.filter((i) => !COMPLETED_FEED_TYPES.has(i.type));
   }
 
-  // `types` — an explicit allow-list of feed item types. Unknown entries are
-  // dropped by normalizeFeedTypes; an all-unknown list is treated as "not
-  // configured" rather than "show nothing", so a typo cannot empty the feed
-  // silently.
+  // `types` — an explicit allow-list of feed item types.
+  //
+  // The test is `!== undefined`, not truthiness, and the difference is the whole
+  // of objectui#5841: an EMPTY allow-list is a filter that keeps nothing, not an
+  // absent filter. `normalizeFeedTypes` returns `undefined` only when no `types`
+  // key was authored; `[]` means the author wrote one and nothing in it survived
+  // — `types: []`, or a list whose every member is unrecognised. Both filter to
+  // nothing, which is the NARROW answer. Reading either as "no filter" was the
+  // defect: it widened a typo into "show the user every activity on the record".
   const types = normalizeFeedTypes(config.types);
-  if (types) {
+  if (types !== undefined) {
     const allowed = new Set<string>(types);
     kept = kept.filter((i) => allowed.has(i.type));
   }

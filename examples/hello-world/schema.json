@@ -1,13 +1,13 @@
 {
-  "type": "Page",
+  "type": "page",
   "title": "Hello ObjectUI",
   "children": [
     {
-      "type": "Card",
+      "type": "card",
       "children": [
-        { "type": "Text", "content": "Welcome to ObjectUI!" },
-        { "type": "Text", "content": "This UI is rendered from a JSON schema." },
-        { "type": "Button", "content": "Get Started", "variant": "default" }
+        { "type": "text", "content": "Welcome to ObjectUI!" },
+        { "type": "text", "content": "This UI is rendered from a JSON schema." },
+        { "type": "button", "content": "Get Started", "variant": "default" }
       ]
     }
   ]

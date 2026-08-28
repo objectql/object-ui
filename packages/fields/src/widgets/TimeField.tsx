@@ -1,8 +1,8 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { openNativePicker } from './openNativePicker';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { openNativePicker } from './openNativePicker.js';
 
 /**
  * TimeField - Time picker input widget

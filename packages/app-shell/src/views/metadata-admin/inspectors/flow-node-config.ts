@@ -29,7 +29,7 @@
  * `configSchema` fields, since built-in nodes share the same field ids.
  */
 
-import { flowFieldZh, isZhLocale } from '../i18n';
+import { flowFieldZh, isZhLocale } from '../i18n.js';
 
 export type FlowConfigFieldKind =
   | 'text'
@@ -55,11 +55,14 @@ export type FlowConfigFieldKind =
  *                       {@link FlowReferenceSpec.objectSource}
  *   • `flow`          → a flow, by name (`client.list('flow')`)
  *   • `org-membership-level`
- *                     → a better-auth org-membership tier. A FIXED three-value
- *                       enum (owner/admin/member) rendered as a STRICT select
- *                       (framework #3508): there is no `role` metadata type to
- *                       list (ADR-0090 D3), and free text is how dirty values
- *                       like `sales_manager` got stored.
+ *                     → an org-membership tier. A CLOSED enum rendered as a
+ *                       STRICT select (framework #3508): there is no `role`
+ *                       metadata type to list (ADR-0090 D3), and free text is
+ *                       how dirty values like `sales_manager` got stored. The
+ *                       vocabulary is the spec's membership-role list, taken
+ *                       from the server-published `sources` entry when there
+ *                       is one — never spelled out here, which is how it went
+ *                       stale before (objectui#5309).
  *   • `user` / `team` / `department` / `position` → a DATA-record lookup on
  *                       the matching directory object (`sys_user` / `sys_team`
  *                       / `sys_business_unit` / `sys_position`) via the
@@ -631,7 +634,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
             // #3447: CEL over current.* / trigger.* / vars.*, resolved at node
             // entry — the value cell switches to the expression input.
             { value: 'expression', label: 'Expression (CEL)' },
-            { value: 'org_membership_level', label: 'Organization membership (owner/admin/member)' },
+            { value: 'org_membership_level', label: 'Organization membership tier' },
             { value: 'user', label: 'User' },
           ],
         },

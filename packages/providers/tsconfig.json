@@ -5,6 +5,25 @@
     "rootDir": "src",
     "jsx": "react-jsx",
     "lib": ["ES2020", "DOM"],
+
+    // Node's ESM resolver does NOT extension-search relative specifiers, so an
+    // extensionless `./Foo` in the emitted dist is unloadable under plain Node
+    // (`ERR_MODULE_NOT_FOUND`) — objectui#5214, same defect and same remedy as
+    // objectui#4538. `tsc` never rewrites specifiers, so what the source writes
+    // is what dist ships; the only way to KEEP the extensions is to have the
+    // compiler reject a missing one (TS2835, and TS2834 for a bare directory
+    // import) instead of leaving it to review.
+    //
+    // These override the ROOT tsconfig's `"module": "ESNext"` /
+    // `"moduleResolution": "bundler"` for THIS package only — the root is
+    // shared by 38 packages and flipping it there is a different, much larger
+    // change. Emit is unchanged: package.json is `"type": "module"`, so
+    // `nodenext` emits the same ESM `ESNext` did.
+    //
+    // Runtime loadability is pinned separately by `pnpm check:node-esm-load`,
+    // which actually imports the built entry under plain Node.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noEmit": false,
     "declaration": true,
     "composite": true

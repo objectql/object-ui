@@ -20,7 +20,7 @@ Create a multi-stage `Dockerfile` at the project root:
 ```dockerfile
 # Stage 1: Build
 FROM node:22-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
@@ -131,8 +131,8 @@ Create `netlify.toml` in the project root:
   publish = "apps/console/dist"
 
 [build.environment]
-  NODE_VERSION = "20"
-  PNPM_VERSION = "9"
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10"
 
 # SPA fallback — redirect all routes to index.html
 [[redirects]]
@@ -195,6 +195,8 @@ Add the `vite-plugin-compression` plugin for pre-compressed assets:
 pnpm add -D vite-plugin-compression
 ```
 
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's own project: `defineConfig`, `react()`, `tailwindcss()` and `vite-plugin-compression` are the reader's dependencies and imports, not this repository's, so they cannot resolve here -->
+
 ```ts
 // vite.config.ts
 import compression from 'vite-plugin-compression';
@@ -217,7 +219,8 @@ Vite splits chunks automatically. For ObjectUI plugins, use dynamic imports to k
 import { createLazyPlugin } from '@object-ui/react';
 
 const ObjectGrid = createLazyPlugin(
-  () => import('@object-ui/plugin-grid'),
+  // The plugin package has no default export — name the component you want.
+  async () => ({ default: (await import('@object-ui/plugin-grid')).ObjectGrid }),
   { fallback: <div>Loading grid...</div> }
 );
 ```
@@ -229,6 +232,8 @@ Visualize your bundle to find optimization opportunities:
 ```bash
 pnpm add -D rollup-plugin-visualizer
 ```
+
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's own project: `defineConfig`, `react()`, `tailwindcss()` and `rollup-plugin-visualizer` are the reader's dependencies and imports, not this repository's, so they cannot resolve here -->
 
 ```ts
 // vite.config.ts

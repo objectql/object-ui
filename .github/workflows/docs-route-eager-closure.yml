@@ -1,0 +1,88 @@
+name: Docs Route Eager Closure
+
+# The gate `check:eager-closure` is not (objectui#6316).
+#
+# `scripts/check-eager-closure-budget.mjs` reads
+# `apps/console/dist/eager-closure.json` and `performance-budget.yml` builds
+# `@object-ui/console`, so that budget governs the console bundle. The Next docs
+# site is weighed by nothing — and `apps/site/app/components/registerCatalogBlocks.ts`
+# adds side-effect imports to `/docs/[[...slug]]`, a route shared by every docs
+# page. The only measurement of it that has ever existed was reconstructed by
+# hand, once, from the prerendered route on disk.
+#
+# `scripts/check-docs-route-eager-closure.mjs` is the cheap instrument that
+# ruling chose over a second byte budget: it asserts structurally that every
+# package the registrar names is already reachable from that route's module
+# graph, so a genuinely NEW graph becomes something a human argues for in review
+# instead of something that lands unmeasured. No docs build, no ceiling, no
+# bytes.
+#
+# ## Why this is its own workflow, and why it is unfiltered
+#
+# The gate's inputs are the route's whole module graph — `apps/site/**`,
+# `content/docs/**` (the compiled MDX modules are most of that graph) and
+# `packages/**` (a refactor that drops `import { ObjectGrid }` from
+# `packages/plugin-view/src/ObjectView.tsx` is exactly the change that turns a
+# FREE declaration into a new graph) — plus the gate's own closure in
+# `scripts/`. A `paths:` filter listing all of that is indistinguishable from no
+# filter, and one that misses a directory cannot be exercised by the pull
+# request that changes it, which is the defect objectui#6321 records.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-docs-route-eager-closure.test.ts` fails if either is
+# added, and `scripts/dependabot-merge-gate.mjs` classifies `Docs Route Eager
+# Closure Check` as a required context — an unclassified blocking check is one a
+# Dependabot merge would be let past (objectui#6135).
+#
+# It needs no install and no build — a checkout plus one `node` call over the
+# source tree, ~1.3 s measured on `b116a0684` — so keep it that way if you add
+# checks to it. The moment it needs `pnpm install` it stops being affordable
+# unfiltered, and the argument above stops holding.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that can become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-route-eager-closure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docs-route-eager-closure:
+    name: Docs Route Eager Closure Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # Reads source only — no `node_modules`, no `dist`, no `.source`. The three
+      # halves (declarations, ledger, gauge) are all printed before any of them
+      # decides the exit code: exit 1 is a verdict about the registrar, exit 2
+      # says the gauge itself is not trustworthy and is never reported as the
+      # former.
+      - name: Weigh the docs route eager closure
+        run: pnpm check:docs-route-closure

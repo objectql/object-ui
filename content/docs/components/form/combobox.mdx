@@ -37,11 +37,9 @@ interface ComboboxSchema {
   
   // Text
   placeholder?: string;           // Button placeholder
-  searchPlaceholder?: string;     // Search input placeholder
-  emptyText?: string;             // Text when no results
   
   // Events
-  onValueChange?: string | ActionConfig;
+  onChange?: (value: string) => void;
   
   // States
   disabled?: boolean;

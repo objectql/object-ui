@@ -82,14 +82,81 @@
  * in neither `fixed` nor `ignore` — so the two gates compose into "every package
  * is classified, and every classified-as-released package's source is declared".
  *
- * Two deliberate boundaries, stated so they are not mistaken for oversights:
+ * ## Which files count as a package's source — the POPULATION (objectui#5733)
  *
- *   - **`src/**` only.** A dependency bump in a package's `package.json` can be
- *     just as user-visible, and this gate does not see it. Widening to whole
- *     package directories would demand a changeset for `README` edits and test
- *     fixtures outside `src`, which is friction with no release meaning.
+ * `<pkg>/src/` is where nearly all of a package's published source is. It is not
+ * all of it, and the difference was measured rather than argued. On `a1c41c516`,
+ * a change confined to `apps/console/index.html` — the console's HTML entry,
+ * which is compiled into the published `dist/` and carries two inline classic
+ * scripts that run in every user's browser during parse (the pre-boot
+ * branding/`runtime/config` script and the `crypto.randomUUID` shim for insecure
+ * origins, both graded by tests in `apps/console/src/__tests__/` precisely
+ * because they are shipped behaviour) — produced this verdict:
+ *
+ *     Compared the working tree with a1c41c516 (merge-base with origin/main):
+ *     1 file(s) changed, 0 of them under the src/ of a package the release
+ *     covers, 0 under a package changesets ignores, 0 changeset(s) added.
+ *     ✅  No source of a released package changed in this range, so no changeset
+ *     is owed.
+ *
+ * That verdict is quoted as it READ THEN. The summary line's wording moved with
+ * this fix — it now says `published source of a package the release covers` —
+ * so a grep for the old phrase finds this quotation and nothing else, which is
+ * the intended result rather than a leftover.
+ *
+ * ### The rule this file implements
+ *
+ * A changed file counts when it is that package's **published, executable**
+ * source. Concretely, it counts when ANY of these holds:
+ *
+ *   (a) it is under `<pkg>/src/`; or
+ *   (b) it is `<pkg>/index.html` — the bundler's HTML entry, whose content
+ *       (inline scripts included) is compiled into the published `dist/`; or
+ *   (c) the package's own `package.json` `files` list publishes it verbatim —
+ *       `apps/console`'s root `plugin.ts`, which is that package's `main`.
+ *
+ * …minus **documentation and licences** (`*.md`, `LICENSE*`), which do ship in
+ * the tarball but are not behaviour. `<pkg>/src/` is exempt from that
+ * subtraction: it keeps its existing all-of-it reading, unchanged, so nothing
+ * that was guarded before is guarded less now.
+ *
+ * `isPublishedSource` below is that rule as code, in the same clause order.
+ *
+ * On this tree the widening adds exactly three files — `apps/console/index.html`,
+ * `apps/console/plugin.ts`, `packages/runner/index.html` — and that number is the
+ * point rather than a footnote. The population has a wrong answer in each
+ * direction: too narrow and shipped executable code changes with nothing said, so
+ * consumers get a release that does not mention it; too wide and every incidental
+ * file in a package directory demands a declaration, the gate becomes noise, and
+ * people answer it with empty changesets they did not read — which is how a gate
+ * stops being read at all. "Published AND executable" is the line, and both words
+ * are load-bearing.
+ *
+ * Deliberate boundaries, stated so they are not mistaken for oversights:
+ *
+ *   - **`package.json` itself never counts.** Clause (c) reads that file; it does
+ *     not match it. A dependency bump can be just as user-visible, and this gate
+ *     still does not see it. That was the first draft's trade and it is kept.
+ *   - **`<pkg>/public/` does not count.** Vite copies it verbatim into the
+ *     published `dist/`, so it genuinely IS published — a favicon, a logo, a PWA
+ *     manifest. None of it is executable, and demanding a declaration for a logo
+ *     swap is exactly the friction that teaches authors to silence this gate.
+ *     Published-but-not-code sits with the READMEs.
+ *   - **`<pkg>/*-preview.html` and `<pkg>/demo/` do not count**, because they are
+ *     not build inputs. Vite's build entry is `index.html` alone unless
+ *     `rollupOptions.input` names more, and neither `apps/console`'s five preview
+ *     pages nor `plugin-grid`/`plugin-gantt`'s demo pages are named. They are
+ *     dev-server pages that reach no tarball.
+ *   - **Clause (b) tests the NAME, not the bundler config.** A package-root
+ *     `index.html` in this repository is always the build entry — `apps/console`
+ *     (`tsc && vite build && pnpm build:plugin`) and `packages/runner`
+ *     (`vite build`) are the only two, and both are. If one ever is not, the cost
+ *     is a single empty-frontmatter changeset. The other direction — deriving it
+ *     from a build script's spelling — fails SILENTLY the day the spelling
+ *     changes, and a silent narrowing of this population is the exact defect
+ *     objectui#5733 reported.
  *   - **No carve-out for test files under `src/`.** A change confined to
- *     `src/__tests__/**` is answered by the empty-frontmatter exemption, in one
+ *     `src/__tests__/` is answered by the empty-frontmatter exemption, in one
  *     line. The alternative — teaching the gate which files "don't count" — is
  *     where the holes live, and this gate asks for a sentence, not a release.
  *
@@ -123,12 +190,149 @@
  * contract, and the same one this gate exists to close one level up. Note the
  * direction: for a filter deciding whether to RUN work, "cannot tell" means run;
  * here the work IS the decision, so "cannot tell" means fail.
+ *
+ * ## A withdrawn sentence that survives in five released CHANGELOGs (objectui#5913)
+ *
+ * Recorded here once, because the five copies cannot be corrected in place and
+ * this header is where findings of this shape live. objectui#4580's changeset —
+ * the `SchemaNode` de-duplication — closed with:
+ *
+ *     Core's entry surface is unchanged: `dist/index.d.ts` is byte-identical
+ *     across the change.
+ *
+ * That sentence is a VACUOUS MEASUREMENT. objectui#5673 withdrew it from the
+ * source docstring it was also written into
+ * (`packages/core/src/types/index.ts`), which now carries the full account and
+ * the calibration recipe; this is the pointer for anyone who arrives from a
+ * CHANGELOG instead.
+ *
+ * It is vacuous because `core/dist/index.d.ts` is emitted from a barrel that
+ * only FORWARDS the symbol, and forwarding never restates a shape — not
+ * `export` of everything, and not the named `export type { SchemaNode, … } from
+ * './types/index.js'` line either. Only the module that DECLARES the symbol can
+ * move. So that file is byte-identical under ANY change to a re-exported
+ * declaration's shape, including one that breaks every consumer, and a gauge
+ * that cannot fail for the change class it is quoted against has discharged
+ * nothing. #5673's PR measured exactly that: a probe key added to the declaring
+ * module moved `@object-ui/types`' `dist/base.d.ts` and brought it back, while
+ * `core/dist/index.d.ts` and `core/dist/types/index.d.ts` held one hash across
+ * all three legs. The withdrawn sentence was watching the two files that cannot
+ * move.
+ *
+ * The five copies are NOT edited, and that is a ruling (maintainer, 2026-08-24),
+ * not an omission. The release tooling composes CHANGELOGs from `.changeset/*.md`
+ * at release time, so hand-editing the compiled artifact leaves the pipeline
+ * this gate exists to protect; and the same text is already published to npm on
+ * five packages, where a repo-side edit recalls nothing and only makes the
+ * repository disagree with what shipped. The withdrawal is therefore recorded
+ * once, here.
+ *
+ * Where the copies are, verified at `8d3a5294a`:
+ *
+ *     packages/components/CHANGELOG.md:1472
+ *     packages/core/CHANGELOG.md:1021
+ *     packages/plugin-dashboard/CHANGELOG.md:581
+ *     packages/react/CHANGELOG.md:450
+ *     packages/types/CHANGELOG.md:705
+ *
+ * CHANGELOGs are append-heavy and those line numbers move; the sentence does
+ * not. Re-derive them with
+ * `git grep -nI "is byte-identical across the change"`, which is a search and
+ * its own control at once: the phrase is known-present, and it returned these
+ * five plus one unrelated i18n test under `packages/fields`. Six files means the
+ * search worked; zero means it broke, not that the copies are gone.
+ *
+ * ## Comment text in `src` DOES reach a published `.d.ts` (objectui#5666)
+ *
+ * Recorded here because this gate's own limitation is what let it through, and
+ * because the FALSE version of the finding is already merged in a changeset
+ * where the next author will reasonably cite it.
+ *
+ * `.changeset/page-source-tailwind-framing-5461.md` (PR #5471, `a691c0bee`)
+ * justifies giving a comment-only edit to
+ * `packages/components/src/renderers/layout/react-page.tsx` no entry of its own:
+ *
+ *     Those are internal comments — they do not project into any `.d.ts` and
+ *     change no export — so they get no entry of their own; there is nothing an
+ *     `@object-ui/components` consumer could read in a CHANGELOG and act on.
+ *
+ * The first clause is false, and it is false for that exact file. Re-measured
+ * on `c9a725263` (the finding's own reading is from 2026-08-22 and was NOT
+ * quoted forward), building `@object-ui/components` — 17.6.0, `private` unset,
+ * `files` lists `dist`, so the emitted declarations are in the npm tarball:
+ *
+ *   - `src/renderers/layout/react-page.tsx`'s file header, including the whole
+ *     styling paragraph #5461 added, is present VERBATIM in
+ *     `dist/renderers/layout/react-page.d.ts` — `page-source-className-tailwind`
+ *     on line 37 of the emitted file. The text the changeset said no consumer
+ *     could read sits inside a file that is published verbatim.
+ *   - Of #5461's THREE edits to that file, two are in the header and reach the
+ *     emitted `.d.ts` (the injected-scope note losing `+ Tailwind`, and the new
+ *     styling paragraph); the third does not. That third one is the
+ *     `buildComponentScope` comment, which sits above a NON-EXPORTED function —
+ *     the identifier `buildComponentScope` does not occur in the `.d.ts` at all,
+ *     so neither does anything attached to it. One changeset, one file, both
+ *     answers.
+ *   - `src/renderers/basic/html-elements.tsx`'s file header likewise reaches
+ *     `dist/renderers/basic/html-elements.d.ts`, whose only other content is
+ *     `export {};` — there, the comment is very nearly the whole shipped file.
+ *   - A comment inside a FUNCTION BODY does not project, and that half is
+ *     load-bearing: without it this note would read as "comments project",
+ *     which is false in the other direction. Control: the `kind === 'html'`
+ *     dispatch arm inside `src/renderers/layout/page.tsx`'s `useMemo`. Three
+ *     distinct phrases from it each occur exactly once under `src` and zero
+ *     times anywhere under `dist`.
+ *
+ * ### Do NOT simplify this to "a file header projects"
+ *
+ * That is the shape the finding arrived in, and measuring the package instead
+ * of two files does not support it. Of the 202 files under
+ * `packages/components/src` that carry the licence file-header AND emit a
+ * `.d.ts`, 165 have that header in the emitted file — and 37 do not.
+ *
+ * `page.tsx` is one of the 37, which makes it a single file demonstrating both
+ * halves: its function-body comment is the negative control above, and its
+ * header (`The Page renderer interprets PageSchema into structured layouts.`)
+ * is likewise absent from all of `dist`, while its `PageRenderer` declaration
+ * is emitted normally. Position in the file is NECESSARY, not SUFFICIENT.
+ *
+ * The 37 split by what the declaration emitter did with the statement the
+ * header was attached to. 11 emit an empty `.d.ts` (barrels whose every line is
+ * a side-effect import), so there is no node left for the comment to hang on.
+ * In the other 26 the first statement the emitter produced is not the one the
+ * header was attached to: `import React, { useMemo } from 'react'` is re-emitted
+ * as `import { default as React } from 'react'`, `import type` becomes a value
+ * import, an all-values import is dropped and a later one becomes first. A
+ * rebuilt node carries no leading comment. That correlation holds across all 37
+ * — but it is a reading of emitter behaviour, not a contract TypeScript
+ * documents, and `vite-plugin-dts` post-processes on top of it.
+ *
+ * ### So do not reason about it — build and look
+ *
+ *     pnpm --filter '<pkg>^...' --filter <pkg> build
+ *     git diff --stat -- <pkg>/dist
+ *
+ * If emitted `.d.ts` text moved, the package ships changed bytes and owes a
+ * changeset that says so. THIS GATE CANNOT TELL YOU: it checks changeset
+ * PRESENCE, not per-package correctness, so #5461 declaring `@object-ui/types`
+ * satisfied it while `@object-ui/components`' emitted declarations changed with
+ * nothing describing them. Making it per-package is a much larger change and was
+ * deliberately not ruled here; the counter-statement is.
+ *
+ * One correction to the finding as filed, since it changes only the tense and
+ * not the conclusion: at the time of writing the text had NOT yet been released.
+ * `.changeset/page-source-tailwind-framing-5461.md` is still un-compiled in
+ * `.changeset/` (its opening sentence appears in no CHANGELOG), so the release
+ * that carries this declaration text is still ahead. The corrective entry
+ * therefore lands WITH that release rather than apologising for it afterwards —
+ * which is the outcome to aim for whenever this is caught in time.
  */
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -356,12 +560,33 @@ export function readReleaseConfig(root) {
 }
 
 /**
- * `directory -> { name, versioned }` for every workspace package.
+ * The package's own `files` list, normalised to repo-shaped relative paths.
+ *
+ * `['./plugin.ts', 'dist/']` and `['plugin.ts', 'dist']` describe the same
+ * tarball, and npm accepts both spellings; clause (c) of the population rule
+ * compares changed paths against these entries, so the two spellings must not
+ * produce two different guarded surfaces.
+ *
+ * A package with NO `files` field publishes its whole directory. That is not read
+ * as "everything counts": the one such package here (`packages/vscode-extension`)
+ * is `private: true` and reaches no registry, and taking the absent field as a
+ * blanket would guard every tsconfig and doc page in it. Absent means clause (c)
+ * matches nothing, and clauses (a) and (b) still apply.
+ */
+function publishedEntries(manifest) {
+  const files = Array.isArray(manifest.files) ? manifest.files : [];
+  return files
+    .map((entry) => (typeof entry === 'string' ? entry.replace(/^\.\//, '').replace(/\/+$/, '') : ''))
+    .filter((entry) => entry !== '');
+}
+
+/**
+ * `directory -> { name, versioned, ignored, files }` for every workspace package.
  *
  * Scans the same roots as `scripts/check-changeset-fixed.mjs` — one package per
  * immediate subdirectory — so the two gates agree about what a package is.
  *
- * @returns {Map<string, { name: string, versioned: boolean, ignored: boolean }>}
+ * @returns {Map<string, { name: string, versioned: boolean, ignored: boolean, files: string[] }>}
  */
 export function discoverPackages(root, { versioned, isIgnored }) {
   const packages = new Map();
@@ -379,16 +604,64 @@ export function discoverPackages(root, { versioned, isIgnored }) {
       } catch {
         continue;
       }
-      const name = JSON.parse(readFileSync(manifest, 'utf8')).name;
+      const parsed = JSON.parse(readFileSync(manifest, 'utf8'));
+      const name = parsed.name;
       if (!name) continue;
       packages.set(`${parent}/${entry}`, {
         name,
         versioned: versioned.has(name),
         ignored: isIgnored(name),
+        files: publishedEntries(parsed),
       });
     }
   }
   return packages;
+}
+
+/**
+ * The package-root HTML file a bundler compiles into the published `dist/`.
+ *
+ * Vite's build entry is this file and no other unless `rollupOptions.input` names
+ * more, and nothing in this repository does. Sibling HTML at a package root
+ * (`apps/console`'s `*-preview.html` pages) and HTML one level down
+ * (`packages/plugin-grid/demo/index.html`) are dev-server pages that reach no
+ * tarball, and neither is matched by an equality test on this exact name.
+ */
+export const HTML_ENTRY = 'index.html';
+
+/**
+ * Documentation and licences: published in the tarball, but not behaviour.
+ *
+ * Subtracted from clauses (b) and (c) of the population rule — never from (a).
+ * `<pkg>/src/` keeps its all-of-it reading, so this predicate cannot narrow what
+ * the gate guarded before objectui#5733.
+ */
+export function isDocumentation(relative) {
+  const name = relative.slice(relative.lastIndexOf('/') + 1);
+  return /^LICEN[SC]E/i.test(name) || /\.md$/i.test(name);
+}
+
+/**
+ * Does `relative` — a path INSIDE `directory`, with the package directory already
+ * stripped — count as that package's published, executable source?
+ *
+ * The three clauses are the ones the header states, in the same order:
+ *
+ *   (a) under `src/`;
+ *   (b) the bundler's HTML entry;
+ *   (c) published verbatim by the package's own `files` list.
+ *
+ * Clause (a) answers first and unconditionally, so the documentation subtraction
+ * that (b) and (c) are subject to can never remove a file `src/` already covered.
+ *
+ * @param {string} relative
+ * @param {{ files: string[] }} pkg
+ */
+export function isPublishedSource(relative, pkg) {
+  if (relative.startsWith('src/')) return true;
+  if (isDocumentation(relative)) return false;
+  if (relative === HTML_ENTRY) return true;
+  return (pkg.files ?? []).some((entry) => relative === entry || relative.startsWith(`${entry}/`));
 }
 
 /**
@@ -413,7 +686,7 @@ export function classifyChangedPaths(paths, packages) {
   for (const path of paths) {
     let owner = null;
     for (const [directory, pkg] of packages) {
-      if (path.startsWith(`${directory}/src/`)) {
+      if (path.startsWith(`${directory}/`) && isPublishedSource(path.slice(directory.length + 1), pkg)) {
         owner = { directory, pkg };
         break;
       }
@@ -535,7 +808,7 @@ export function verdict(analysis) {
 
 // -- CLI ----------------------------------------------------------------------
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const argOf = (name) => {
@@ -587,8 +860,8 @@ if (invokedDirectly) {
 
   console.log(
     `Compared ${head ?? 'the working tree'} with ${base.ref.slice(0, 9)} (${base.how}): ` +
-      `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them under the ` +
-      `src/ of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
+      `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them published ` +
+      `source of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
       `ignores, ${analysis.declarations.length} changeset(s) added.`,
   );
 

@@ -266,6 +266,22 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
 
   const maxRecords = def?.maxRecords ?? Infinity;
   const overLimit = rows.length > maxRecords;
+  /**
+   * [objectui#4420] Nothing survived the eligibility fold.
+   *
+   * The dialog still OPENS on an all-excluded selection — that is the ruled
+   * shape for the built-in Delete (maintainer, 2026-08-17): "a legible
+   * refusal, not a hidden button whose absence is unexplained". What it must
+   * not do is offer to run: `Affected records (0)` beside an enabled Run
+   * button reads as a live operation, and pressing it reports
+   * `Succeeded 0 / 0` — a success panel for a run that never had a subject.
+   * The skipped notice above already carries the WHY, so the refusal needs no
+   * new copy, only a control that declines.
+   *
+   * Deliberately `rows.length`, not "skipped > 0": a run over zero records is
+   * meaningless for every def, however the selection got here.
+   */
+  const noEligibleRows = rows.length === 0;
 
   const handleRun = useCallback(async () => {
     if (!def) return;
@@ -531,7 +547,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
               <Button
                 variant={def.variant === 'danger' ? 'destructive' : 'default'}
                 onClick={handleRun}
-                disabled={overLimit}
+                disabled={overLimit || noEligibleRows}
               >
                 {def.confirmLabel ?? t('grid.bulk.run', { defaultValue: 'Run' })}
               </Button>

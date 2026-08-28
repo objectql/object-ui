@@ -24,6 +24,19 @@ export * from './utils/filter-converter.js';
 export * from './utils/managedBy.js';
 export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
+// The RETIREMENT gate (objectui#4914, maintainer ruling B). Homed here rather
+// than in `@object-ui/fields` because `@object-ui/components` is one of its six
+// consumers and `fields` depends on `components` — see the module's docblock
+// for why a second copy was not an option. `@object-ui/fields` re-exports every
+// name, so its published surface is unchanged.
+export * from './utils/retired-field-types.js';
+export * from './utils/unmaterialized-fields.js';
+// [#5729] The consumer half of objectstack#10235's ruling: the SERVED
+// per-column sortability projection, and the one spelling of its contract
+// (`entry exists && sortable: true`). Homed beside the storage-fact set above
+// because a consumer that reaches for one must be able to see the other and
+// know which one the platform actually served.
+export * from './utils/column-sortability.js';
 export * from './utils/column-identity.js';
 export * from './utils/sort-values.js';
 export * from './utils/sort-query.js';
@@ -86,3 +99,9 @@ export * from './utils/predicate-record.js';
 // which the column-derived `$select` never asked the server for.
 export * from './utils/predicate-fields.js';
 export * from './utils/normalize-list-view.js';
+// The single home for the VALUE fallback prettifier (a stored value becomes a
+// display string when nothing resolves it). `@object-ui/fields` and
+// `@object-ui/plugin-charts` each carried a byte-identical private copy;
+// both now re-export this one (objectui#5444). Its docstring also records why
+// it stays distinct from `humanizeFieldKey`, the KEY fallback.
+export * from './utils/humanize-label.js';

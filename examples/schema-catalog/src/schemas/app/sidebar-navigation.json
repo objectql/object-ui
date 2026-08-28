@@ -4,15 +4,17 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 1,
+      "gap": 1,
       "children": [
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md bg-accent text-accent-foreground",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md bg-accent text-accent-foreground",
           "children": [
             {
               "type": "icon",
-              "name": "layout-dashboard",
+              "icon": "layout-dashboard",
               "className": "h-4 w-4"
             },
             {
@@ -24,11 +26,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
-              "name": "users",
+              "icon": "users",
               "className": "h-4 w-4 text-muted-foreground"
             },
             {
@@ -46,11 +50,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
-              "name": "target",
+              "icon": "target",
               "className": "h-4 w-4 text-muted-foreground"
             },
             {
@@ -71,11 +77,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
-              "name": "megaphone",
+              "icon": "megaphone",
               "className": "h-4 w-4 text-muted-foreground"
             },
             {
@@ -87,11 +95,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
-              "name": "mail",
+              "icon": "mail",
               "className": "h-4 w-4 text-muted-foreground"
             },
             {
@@ -107,11 +117,13 @@
         },
         {
           "type": "flex",
-          "className": "items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50",
+          "align": "center",
+          "gap": 2,
+          "className": "px-3 py-2 rounded-md hover:bg-accent/50",
           "children": [
             {
               "type": "icon",
-              "name": "settings",
+              "icon": "settings",
               "className": "h-4 w-4 text-muted-foreground"
             },
             {

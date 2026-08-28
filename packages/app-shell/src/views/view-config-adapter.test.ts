@@ -15,7 +15,7 @@ describe('view-config-adapter', () => {
         type: 'grid',
         columns: ['name', 'status'],
         filter: [{ field: 'owner', op: 'eq', value: 'me' }],
-        sort: [{ field: 'name', direction: 'asc' }],
+        sort: [{ field: 'name', order: 'asc' }],
         showSearch: true,
       };
       const draft = runtimeViewToInspectorDraft(view, 'crm_lead');
@@ -79,7 +79,7 @@ describe('view-config-adapter', () => {
         type: 'grid',
         columns: ['name', 'status', 'owner'],
         filter: [{ field: 'status', op: 'eq', value: 'open' }],
-        sort: [{ field: 'created_at', direction: 'desc' }],
+        sort: [{ field: 'created_at', order: 'desc' }],
         showSearch: true,
         showFilters: false,
         pageSize: 50,

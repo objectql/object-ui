@@ -1,5 +1,8 @@
 // Type-checks the `.ts` files under `e2e/` — the Playwright specs, their shared
-// helpers, and `e2e/live/global-setup.ts`, which runs before every live-suite run.
+// helpers, and `e2e/live/global-setup.ts`, which runs before every live-suite run
+// — plus, since objectui#4477, the four root `playwright*.config.ts` files that
+// decide which of those specs run, where they run, and what `webServer` command
+// builds the app under test.
 //
 // objectui#4471: nothing compiled them. `e2e/` is not a workspace package, so
 // `turbo run type-check` — which is driven by package.json `scripts` — cannot
@@ -20,7 +23,7 @@
 // true, for its whole life. Playwright would never have told anyone.
 //
 // This project is standalone and cheap: it imports no workspace package — every
-// e2e import is `@playwright/test`, `./helpers`, or a `node:` builtin — so unlike
+// import in it is `@playwright/test`, `./helpers`, or a `node:` builtin — so unlike
 // `tsconfig.vitest-setup.json` it needs no built declarations and can run before,
 // or independently of, any build. `scripts/__tests__/e2e-type-check.test.ts` pins
 // that premise, so if a spec ever imports `@object-ui/*` the wiring has to be
@@ -38,11 +41,17 @@
 // for `//#lint:root`, and it is why this file needs no ci.yml entry of its own
 // the way `type-check:scripts` and `type-check:vitest-setup` do.
 //
-// NOT covered here, deliberately: the four root `playwright*.config.ts` files,
-// which sit beside this file rather than under `e2e/` and are in no tsc program
-// either. They compile clean against this exact option set today (measured,
-// exit 0), so it is a dormant gap rather than a live defect — filed as
-// objectui#4477 instead of widened into objectui#4471's surface.
+// The four root `playwright*.config.ts` files were the deliberate remainder of
+// objectui#4471 — they sit beside this file rather than under `e2e/`, so the
+// `e2e/**` glob did not reach them and no other tsc program did either.
+// objectui#4477 closed that: the second `include` pattern below brings them in.
+// It cost zero errors, which was the point rather than a disappointment — they
+// compiled clean against this exact option set when #4477 was filed and again
+// when it landed (measured both times, `tsc -p tsconfig.e2e.json`, exit 0). What
+// was missing was never a fix, it was the gate: `webServer.command`, `testIgnore`
+// and `projects` are read by no compiler, so a `defineConfig` option that stops
+// existing — or is misspelled into `undefined` — surfaces only as a confusing
+// Playwright runtime failure in the `e2e` CI job.
 {
   "compilerOptions": {
     // Node 22 (`engines.node: ">=22"`) runs the Playwright worker that executes
@@ -116,7 +125,15 @@
   // The whole directory, by glob. Not a file list: a list is a thing to forget,
   // and the point of objectui#4471 is that a NEW spec under `e2e/` must not be
   // able to land outside every program again.
-  // `scripts/__tests__/e2e-type-check.test.ts` pins that this glob really does
-  // reach every `.ts` file on disk under `e2e/`.
-  "include": ["e2e/**/*.ts"]
+  //
+  // The second pattern is the same doctrine for the root configs (objectui#4477)
+  // rather than the four names that exist today, so a FIFTH root config cannot
+  // land outside every program either. It carries no `**`, so `*` stops at the
+  // path separator and it matches root-level files only — which is where all
+  // four live.
+  //
+  // `scripts/__tests__/e2e-type-check.test.ts` pins that both patterns really do
+  // reach every matching file on disk, and that the second one would pick up a
+  // root config that does not exist yet.
+  "include": ["e2e/**/*.ts", "playwright*.config.ts"]
 }

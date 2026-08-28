@@ -32,6 +32,7 @@ import type {
   NamedListView,
   NavigationConfig,
   ObjectGridSchema,
+  ObjectMapSchema,
   ObjectViewSchema,
   ViewNavigationConfig,
 } from '../index';
@@ -93,7 +94,9 @@ type _ModeMembershipIsTheSevenSpecModes = Expect<
 /* ── The three schema sites use the shared type ──────────────────────────── */
 
 /**
- * `objectql.ts` spells `navigation?: ViewNavigationConfig` in three interfaces.
+ * `objectql.ts` spells `navigation?: ViewNavigationConfig` in four interfaces
+ * (`ObjectMapSchema` joined them with objectui#5018, which declared the keys
+ * `ObjectMap` actually reads).
  * Each must be the spec type itself, so one authoring surface cannot outgrow
  * another — the same guard `objectql.exportOptions.test.ts` puts on
  * `exportOptions`.
@@ -106,6 +109,9 @@ type _ObjectViewUsesTheSharedType = Expect<
 >;
 type _NamedViewUsesTheSharedType = Expect<
   Equal< NonNullable< NamedListView['navigation'] >, ViewNavigationConfig >
+>;
+type _ObjectMapUsesTheSharedType = Expect<
+  Equal< NonNullable< ObjectMapSchema['navigation'] >, ViewNavigationConfig >
 >;
 
 /* ── Runtime half ────────────────────────────────────────────────────────── */

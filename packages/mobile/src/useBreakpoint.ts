@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import type { BreakpointName } from '@object-ui/types';
-import { BREAKPOINTS, BREAKPOINT_ORDER, getCurrentBreakpoint } from './breakpoints';
+import { BREAKPOINTS, BREAKPOINT_ORDER, getCurrentBreakpoint } from './breakpoints.js';
 
 export interface BreakpointState {
   /** Current breakpoint name */

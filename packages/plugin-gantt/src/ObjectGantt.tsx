@@ -24,8 +24,13 @@
 
 import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
+import type { ObjectGanttSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
+// Aliased on import, following PR #4169's convention: this repo has its OWN
+// `resolveI18nLabel` over a DIFFERENT vocabulary (the KEYED `{ key, defaultValue }`
+// ref, `resolveKeyedI18nLabel` in `@object-ui/react`), and neither accepts the
+// other's shape. This one resolves the spec's INLINE locale MAP.
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
@@ -57,7 +62,7 @@ import {
   formatPercent,
   formatCurrency,
 } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType } from './GanttView';
 import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
@@ -84,10 +89,74 @@ export interface QuickFilterDef {
 }
 
 /**
- * Hierarchy/type fields are ObjectUI extensions on top of the spec's
- * GanttConfig (not yet in @objectstack/spec GanttConfigSchema).
+ * The gantt config as THIS renderer consumes it: `GanttConfig` from
+ * `@object-ui/types` — the spec's `GanttConfigSchema` plus objectui's own
+ * extensions — with `quickFilters` and `timeSegments` narrowed to the plugin's
+ * runtime types, and the spec-declared members re-documented with the behaviour
+ * this renderer gives them.
+ *
+ * ⚠️ Nothing here may declare a key `GanttConfig` does not (objectui#6051). Nine
+ * members that lived ONLY here — `lockField`, `objectField`, `summaryExtent`,
+ * `defaultCollapsedDepth`, `borderColorField`, `dependencyTypes`, `timeZone`,
+ * `exportFileName`, `interactions` — were lifted into `@object-ui/types`, because
+ * a type private to this package can be referenced by neither authoring face.
+ * Each key is now declared once and both faces derive from it: the `gantt` block
+ * and the flattened top-level spelling on `ObjectGanttSchema`.
  */
-type GanttConfigEx = GanttConfig & {
+type GanttConfigEx = GanttConfig & GanttConfigRestated;
+
+/**
+ * The members this renderer states ON TOP of {@link GanttConfig} — twelve, as
+ * measured against the shipped `GanttConfig` on `main` (objectui#6471; the card
+ * counted eleven before objectui#6051/#6472 landed part of the lift).
+ *
+ * All twelve RESTATE a key `GanttConfig` already declares — eleven arrive from
+ * the spec's `GanttConfigSchema` (19 keys), `timeSegments` is objectui's own —
+ * and every one is mutually assignable with its twin. That includes
+ * `quickFilters` and `timeSegments`, which objectui#6471 called load-bearing
+ * NARROWINGS: measured on `main` they narrow nothing. What those two still do is
+ * NAME this plugin's runtime types (`QuickFilterDef[]` /
+ * {@link ShiftSegmentsConfig}), so a spec bump that moves either side surfaces as
+ * a decision. `ObjectGantt.configPin.test.ts` holds that measurement — read it
+ * there rather than re-deriving it here.
+ *
+ * ## Why a member is kept rather than deleted — TWO reasons, either sufficient
+ *
+ * 1. PROSE, where there is any. The spec emits no per-member docs
+ *    (`z.input<typeof GanttConfigSchema>` carries none) and JSDoc cannot be
+ *    attached to a member a type merely inherits, so for most members the
+ *    docblock below is the fullest description of what this renderer DOES with
+ *    the key. It does NOT reach every member: four are bare here —
+ *    `parentField`, `baselineEndField`, `assigneeField`, `effortField` — the last
+ *    three covered by a neighbour's docblock, `parentField` by nothing. Nor is
+ *    this prose unique any more: since objectui#6472 the flattened face
+ *    (`ObjectGanttSchema` in `@object-ui/types`) documents all twelve, and
+ *    objectui#6561 expanded `parentField`'s entry there.
+ *
+ * 2. PIN OPERAND — this reason reaches EVERY member, and for `parentField` it is
+ *    the only one. The pin below is derived over `keyof GanttConfigRestated`: a
+ *    member that exists is compared against its twin, and a member that is
+ *    deleted simply stops being compared.
+ *
+ * ⛔ So the test for whether a member may be deleted is NOT "does it carry its
+ * own JSDoc". Applied to `parentField` that test answers "deletable", and it is
+ * wrong. Deleting `parentField` is not silent — it fails three assertions in
+ * `ObjectGantt.configPin.test.ts`: the `RESTATED` census, the non-vacuity control
+ * that names it, and the fixture. But all three fail INSIDE the pin, which is the
+ * file a reader edits to turn a red build green; follow those errors and the tree
+ * goes green with one member fewer under the pin. Delete a member here only when
+ * its twin on `GanttConfig` goes with it.
+ *
+ * ⚠️ NAMED rather than inlined into the intersection above, and that is the
+ * whole mechanism: inside `GanttConfigEx` there is nothing left to compare,
+ * because `GanttConfigEx[K]` is ALREADY `GanttConfig[K] & <local>[K]` and is
+ * therefore assignable to `GanttConfig[K]` by construction — an assertion written
+ * against `GanttConfigEx` passes no matter how far the two declarations drift.
+ * Naming the local half is what gives `ObjectGantt.configPin.test.ts` two
+ * independent operands, so a spec bump that re-types one of the twelve breaks the
+ * build at the pin instead of silently intersecting the old type back in.
+ */
+export type GanttConfigRestated = {
   parentField?: string;
   /**
    * Record field whose value maps onto a node kind (see {@link normalizeTaskType}):
@@ -96,55 +165,9 @@ type GanttConfigEx = GanttConfig & {
    * style levels that only group, never schedule.
    */
   typeField?: string;
-  /**
-   * Record field marking a node as view-only (truthy → locked). A locked
-   * row's bar can't be dragged/resized, its progress can't be dragged, no
-   * dependency can be drawn from it, and its inline-edit / context-menu
-   * edit+delete are hidden — but clicking it (open drawer / jump) still works.
-   * Independent of the global `readOnly`; use to freeze individual levels (e.g.
-   * work orders) while siblings stay editable. Maps to {@link GanttTask.locked}.
-   */
-  lockField?: string;
-  /**
-   * Record field carrying the row's OBJECT API NAME. Mixed-object
-   * trees (an `api` provider composing parent-object rows with child-object rows)
-   * need the detail drawer and its full-page link to follow each row's REAL
-   * object — otherwise a child row's `→` link builds a URL under the view's bound
-   * object and 404s. Empty/missing value → falls back to the bound object.
-   */
-  objectField?: string;
-  /**
-   * How a summary bar's span is computed. `'children'` (default)
-   * rolls the bar up from its children — min start / max end / duration-weighted
-   * progress — and IGNORES the record's own dates. `'self'` renders the bar from
-   * the record's OWN start/end/progress, falling back to rollup
-   * only for records without dates (e.g. pure grouping levels). Use `'self'`
-   * when the parent's schedule is authoritative — e.g. a shift plan whose
-   * work-order children are locked history: under rollup, dragging the plan
-   * persists its own dates but the bar snaps back to the children's extent on
-   * refetch.
-   */
-  summaryExtent?: 'children' | 'self';
-  /**
-   * Auto-collapse tree nodes at/below this 0-indexed depth on first render.
-   * Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
-   * with children starts folded; the user can still expand them. Example: a
-   * project→product→production-plan→work-order tree uses
-   * `defaultCollapsedDepth: 2` so every production plan (and its work orders)
-   * starts collapsed. Forwarded to {@link GanttView}.
-   */
-  defaultCollapsedDepth?: number;
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
-  /**
-   * Record field carrying a per-task alert stroke color: any CSS color or
-   * semantic palette name (red/orange/…). When present the bar keeps its fill
-   * but gets an outline + halo in that color — e.g. red for overdue, orange for
-   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
-   * Maps to {@link GanttTask.borderColor}.
-   */
-  borderColorField?: string;
   /**
    * Dynamic Group by. When set, leaf tasks are bucketed by this
    * field and rendered under one synthesized summary row per distinct value
@@ -177,37 +200,6 @@ type GanttConfigEx = GanttConfig & {
    * (unfiltered) task set while filtering only hides bars.
    */
   autoZoomToFilter?: boolean;
-  /**
-   * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
-   * Default true. Set false when dependencies are bare predecessor ids
-   * (predecessor ids only) — the link menu hides the type switcher (a switch would be
-   * silently reverted on refetch) and drag-created links are always FS.
-   * Forwarded to {@link GanttView}.
-   */
-  dependencyTypes?: boolean;
-  /**
-   * Business time zone, IANA name like 'Asia/Shanghai'. Renders the
-   * chart's calendar — shift bands, day columns, snapping, today line, date
-   * labels — in this zone's wall time for every viewer, instead of the
-   * browser's zone (which misplaces shift bands for viewers elsewhere). Persisted
-   * data stays real instants. Forwarded to {@link GanttView}.
-   */
-  timeZone?: string;
-  /**
-   * Base name for exported PNG/PDF files, e.g. the view's display
-   * label — the host's view schema often reaches this component stripped of
-   * `label`, so views declare it here. Falls back to the object schema label,
-   * then the object API name. A timestamp suffix is always appended.
-   */
-  exportFileName?: string;
-  /**
-   * Per-interaction switches: `move` / `resize` / `progress` / `link`,
-   * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
-   * moves but pin durations (`{ resize: false }`) or keep the dependency UI
-   * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
-   * already allow. Forwarded to {@link GanttView}.
-   */
-  interactions?: GanttInteractions;
   /**
    * Shift segmentation. When set, the day-mode timeline splits each shift-day
    * (starting at `dayStart`) into the configured bands (day | night | …):
@@ -274,7 +266,26 @@ export function normalizeDependencies(raw: unknown): GanttDependency[] {
 }
 
 export interface ObjectGanttProps {
-  schema: ObjectGridSchema;
+  /**
+   * The gantt node. Typed as {@link ObjectGanttSchema} (objectui#5903) — the
+   * declaration this component's schema reads actually resolve against.
+   *
+   * It used to be `ObjectGridSchema`, and that is why ten genuine reads had to
+   * be spelled `(schema as any).K`: the keys are not grid keys, so the only
+   * thing that admitted them was `BaseSchema`'s index signature, under a cast
+   * that hid even that. Removing the casts without moving the type would have
+   * changed nothing — the reads would still land on the index signature.
+   *
+   * objectui#6051 declared what the FLAT branch reads: the 24 flattened
+   * `GanttConfig` keys `getGanttConfig`'s first branch consumes, plus the
+   * `staticData` / `filter` / `sort` the fetch path reads. The grid-style
+   * `{ gantt: { … } }` block keeps working exactly as before and is still read
+   * through the index signature — declaring it is the one change that would not
+   * have been additive, and it is severed to objectui#6475. The registered
+   * renderer (`index.tsx`) still passes `schema: any`, so no runtime shape is
+   * turned away either way.
+   */
+  schema: ObjectGanttSchema;
   dataSource?: DataSource;
   className?: string;
   onTaskClick?: (record: any) => void;
@@ -296,7 +307,7 @@ export interface ObjectGanttProps {
 /**
  * Helper to get data configuration from schema
  */
-function getDataConfig(schema: ObjectGridSchema): ViewData | null {
+function getDataConfig(schema: ObjectGanttSchema): ViewData | null {
   if (schema.data) {
     return schema.data;
   }
@@ -341,14 +352,179 @@ function extractServerMessage(err: unknown): string | null {
 }
 
 /**
- * Helper to get gantt configuration from schema
+ * Dev-only guard for the authoring diagnostics below. Mirrors `plugin-map`'s
+ * (`ObjectMap.tsx`): the warnings are feedback for whoever wrote the schema, and
+ * a production bundle should not pay for them.
  */
-function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
-  let config: GanttConfigEx | null = null;
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.NODE_ENV !== 'production';
 
-  // 1. Check top-level properties (ObjectGanttSchema style)
+/**
+ * `keyof T` with the string / number INDEX SIGNATURE stripped out.
+ *
+ * Load-bearing, not tidiness. `GanttConfig` derives from the spec's
+ * `GanttConfigSchema`, which carries an index signature, so a bare
+ * `keyof GanttConfig` widens to `string` — and every guard written against it
+ * (the `satisfies` below, the coverage pin in
+ * `ObjectGantt.blockPrecedence.test.tsx`) then constrains NOTHING while looking
+ * exactly like a guard that does. That is the same blind instrument
+ * objectui#6051's declaration pin records: an index signature absorbs precisely
+ * the evidence a type annotation would have produced. Measured here — the pin
+ * came back `string` before this alias existed.
+ */
+type KnownKeys<T> = keyof {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/** The DECLARED members of `GanttConfig` — its index signature removed. */
+export type KnownGanttConfigKey = KnownKeys<GanttConfig>;
+
+/**
+ * objectui's own `GanttConfig` members — the ten the spec's `GanttConfigSchema`
+ * does not model. They lived in this file's private `GanttConfigEx` until
+ * objectui#6472 lifted them into `@object-ui/types`, which is what makes
+ * `GanttConfig` the single declaration BOTH faces derive from.
+ *
+ * Listed here rather than derived because the runtime object that models them
+ * (`GanttConfigExtensionFields` in `@object-ui/types/zod`) is module-private
+ * there. `satisfies` keeps every entry a real `GanttConfig` key, and the
+ * coverage pin in `ObjectGantt.blockPrecedence.test.tsx` fails to compile if
+ * `GanttConfig` grows a key that neither source models.
+ */
+const GANTT_CONFIG_EXTENSION_KEYS = [
+  'borderColorField',
+  'lockField',
+  'objectField',
+  'summaryExtent',
+  'defaultCollapsedDepth',
+  'dependencyTypes',
+  'timeZone',
+  'exportFileName',
+  'interactions',
+  'timeSegments',
+] as const satisfies readonly KnownGanttConfigKey[];
+
+/**
+ * The FLAT spelling of `GanttConfig`'s keys — what `getGanttConfig`'s flat
+ * branch reads, and what `ObjectView` / `ListView` EMIT.
+ *
+ * Both flatteners build an `object-gantt` schema by spreading `options.gantt`'s
+ * CONTENTS at the top level (`plugin-view/src/ObjectView.tsx` `case 'gantt'`,
+ * `plugin-list/src/ListView.tsx` `case 'gantt'`); the product carries these keys
+ * and NO `gantt` key at all. That is an internal transport form, not a second
+ * authoring surface — and it is why the precedence flip below strands neither
+ * producer.
+ *
+ * The spec-modelled half is DERIVED from `GanttConfigSchema` — the same zod
+ * object the block branch validates against — so a key added to the spec reaches
+ * the shadow diagnostic without a second edit (the discipline
+ * `FLAT_MAP_CONFIG_KEYS` set in objectui#5177). `dependencyField` is the legacy
+ * singular alias the flat branch still reads beside `dependenciesField`; it is
+ * not a `GanttConfig` key, so it is named on its own.
+ */
+export const FLAT_GANTT_CONFIG_KEYS = [
+  ...(Object.keys(GanttConfigSchema.shape) as (keyof typeof GanttConfigSchema.shape)[]),
+  ...GANTT_CONFIG_EXTENSION_KEYS,
+  'dependencyField' as const,
+];
+
+/**
+ * Warn once per distinct shadowing, not once per evaluation: `getGanttConfig`
+ * runs on every render of the chart (hover, zoom, quick-filter changes all
+ * re-render it), and a warning that floods the console is a warning that gets
+ * muted. Same discipline as `plugin-map`'s `warnedShadowedFlatKeys`.
+ */
+const warnedShadowedFlatGanttKeys = new Set<string>();
+
+/**
+ * The `gantt` block won and the flat top-level keys alongside it were ignored —
+ * say which ones, in dev.
+ *
+ * Silence is what the precedence rule costs if it is not diagnosed: two
+ * spellings of ONE vocabulary (objectui#6051 proved they are one — both derive
+ * from `GanttConfig`) in a single schema, one of them inert. The ruling picks
+ * the author's block over the flatten product deliberately — maintainer on
+ * objectui#5018 (2026-08-17) for `plugin-map`, inherited here by objectui#6469 —
+ * so the diagnostic names what was dropped instead of leaving the author to
+ * infer it from a chart that renders the other spelling's values.
+ *
+ * It cannot fire on the ordinary ObjectView / ListView path, and that matters
+ * more here than it did for the map: the flat branch is the HOT path for gantt,
+ * because a hand-authored `gantt` block reaching this component through either
+ * view layer has already been flattened before `getGanttConfig` sees it. Both
+ * flatteners emit the flat keys and NO `gantt` key, so this function's block
+ * branch — the only caller of this warning — is not even reached for their
+ * output. Reaching it means one schema carries both spellings, which is exactly
+ * the case the flip changes.
+ */
+function warnOnShadowedFlatGanttKeys(schema: ObjectGanttSchema): void {
+  if (!isDev()) return;
+
+  const shadowed = FLAT_GANTT_CONFIG_KEYS.filter(
+    (key) => (schema as Record<string, unknown>)[key] !== undefined,
+  );
+  if (shadowed.length === 0) return;
+
+  const memo = `${schema.type ?? 'gantt'}::${schema.objectName ?? ''}::${shadowed.join(',')}`;
+  if (warnedShadowedFlatGanttKeys.has(memo)) return;
+  warnedShadowedFlatGanttKeys.add(memo);
+
+  console.warn(
+    '[ObjectGantt] The `gantt` block configures this chart, so these top-level keys are ' +
+      `IGNORED: ${shadowed.map((k) => `\`${k}\``).join(', ')}. The \`gantt\` block is the ` +
+      'authoring shape; the flat top-level spelling is the internal form ObjectView/ListView ' +
+      'produce when they flatten `options.gantt`, and what the author wrote outranks it. The ' +
+      'block is taken WHOLE — the flat keys are not merged into it — so move anything you ' +
+      'still need into `gantt`, or drop the `gantt` block. objectui#6469.',
+  );
+}
+
+/**
+ * Helper to get gantt configuration from schema
+ *
+ * PRECEDENCE (objectui#6469, inheriting the maintainer ruling on objectui#5018,
+ * 2026-08-17): the `gantt` block is checked FIRST and wins outright; the
+ * flattened top-level spelling is consulted only when no `gantt` block is
+ * present. This REVERSES the pre-#6469 order, under which the flat branch
+ * returned early and every key inside an authored `gantt` block was discarded
+ * with no diagnostic at all. `plugin-map` had the identical two-faces shape
+ * ruled the other way (PR #5156); gantt's answer had never been ruled — it was
+ * just what the early `return` happened to do.
+ *
+ * Safe for the producer path: neither flattener emits a `gantt` key, so their
+ * output still takes branch 2 exactly as before — see `FLAT_GANTT_CONFIG_KEYS`.
+ *
+ * The block is taken WHOLE, not merged over the flat keys. That is the ruling's
+ * shape ("what the author wrote outranks it"), and merging would be the lenient
+ * consumer fallback AGENTS.md #0.1 forbids. One consequence is gantt-specific
+ * and worth stating, because the map case cannot produce it: the spec's
+ * `GanttConfigSchema` REQUIRES `startDateField` / `endDateField` / `titleField`
+ * (`ObjectMapConfigSchema` requires nothing), so an INCOMPLETE block now
+ * outranks a complete flat spelling and yields an incomplete config. Both
+ * diagnostics fire on that node — `Invalid gantt configuration` from the
+ * `safeParse` below, and the shadow warning naming the flat keys that lost.
+ */
+function getGanttConfig(schema: ObjectGanttSchema): GanttConfigEx | null {
+  // 1. The `gantt` block (the ObjectGridSchema-style shape) — the authoring
+  // face, and the winner whenever it is present.
+  if (schema.gantt) {
+    const config = schema.gantt as GanttConfigEx;
+    const result = GanttConfigSchema.safeParse(config);
+    if (!result.success) {
+      console.warn(`[ObjectGantt] Invalid gantt configuration:`, result.error.format());
+    }
+    warnOnShadowedFlatGanttKeys(schema);
+    return config;
+  }
+
+  // 2. The internal flat form — the ObjectView / ListView flatten product.
+  // Taken only when BOTH date fields are present, unchanged by the flip; a
+  // partial flat spelling still falls through to `null`. Deliberately NOT
+  // `safeParse`d, also unchanged: this branch never validated, and adding
+  // validation to it is a separate question from precedence.
   if (schema.startDateField && schema.endDateField) {
-      config = {
+      return {
           startDateField: schema.startDateField,
           endDateField: schema.endDateField,
           titleField: schema.titleField || 'name',
@@ -372,28 +548,15 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           capacity: schema.capacity,
           quickFilters: schema.quickFilters,
           autoZoomToFilter: schema.autoZoomToFilter,
+          viewMode: schema.viewMode,
           timeSegments: schema.timeSegments,
           interactions: schema.interactions,
           exportFileName: schema.exportFileName,
           timeZone: schema.timeZone,
           dependencyTypes: schema.dependencyTypes,
       };
-      return config;
   }
 
-  // 2. Check schema.gantt (ObjectGridSchema style)
-  if (schema.gantt) {
-    config = schema.gantt as GanttConfigEx;
-  }
-
-  if (config) {
-    const result = GanttConfigSchema.safeParse(config);
-    if (!result.success) {
-      console.warn(`[ObjectGantt] Invalid gantt configuration:`, result.error.format());
-    }
-    return config;
-  }
-  
   return null;
 }
 
@@ -887,8 +1050,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // holiday list, duration/reschedule math is measured in working days. The
   // holidays array (ISO yyyy-mm-dd strings) becomes a Set for O(1) lookups.
   const workingCalendar = useMemo<WorkingCalendar | undefined>(() => {
-    const sw = (schema as any).skipWeekends;
-    const hol = (schema as any).holidays as string[] | undefined;
+    const sw = schema.skipWeekends;
+    const hol = schema.holidays;
     if (!sw && (!hol || hol.length === 0)) return undefined;
     return {
       skipWeekends: !!sw,
@@ -1019,9 +1182,9 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // snapshot under persistLayoutKey and fires onLayoutChange; the chips live up
   // here, so they get a sibling localStorage key and restore on mount.
   const persistLayoutKey =
-    (schema as any).persistLayout === false
+    schema.persistLayout === false
       ? undefined
-      : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`;
+      : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${schema.viewName || 'default'}`;
   const filtersStorageKey = persistLayoutKey ? `gantt-layout:${persistLayoutKey}:filters` : null;
   const [filterValues, setFilterValues] = useState<Record<string, string[]>>(() => {
     if (!filtersStorageKey || typeof window === 'undefined') return {};
@@ -1126,9 +1289,24 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Default to a right-side drawer so clicking a task opens an editable
   // detail panel inline (no full-page navigation). Schema can override by
   // providing its own `navigation` config (e.g., page mode).
-  // detail panel inline (no full-page navigation). Schema can override by
-  // providing its own `navigation` config (e.g., page mode).
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
+  //
+  // No width is spelled here on purpose. `width` is `@deprecated [#2578 ->
+  // size]` in the spec that owns this shape, and `resolveOverlayWidth` gives
+  // an explicit `width` priority OVER `size` — so spelling it kept the
+  // deprecated branch load-bearing on the path most gantts take (no declared
+  // `navigation`), and made the size buckets unreachable there. Omitting both
+  // leaves `resolveOverlayWidth` returning `undefined`, which is what
+  // RecordDetailDrawer's own `width` default is for; that default is the
+  // identical `min(960px, 60vw)`, so this is a zero-pixel change on every
+  // viewport. Pinned by ObjectGantt.navWidthDefault.test.tsx — both halves,
+  // because the equivalence now depends on the drawer's default too.
+  //
+  // Deliberately NOT converged on `size: 'lg'`: that bucket is
+  // `min(92vw, 960px)`, which agrees with the above only at viewport >=
+  // 1600px and is up to 53% wider below it. Whether the renderers should move
+  // to the bucket is open (#6259), and spans kanban/calendar/RecordDetailDrawer
+  // as one decision (#6303).
+  const navConfig = schema.navigation ?? { mode: 'drawer' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
@@ -1442,11 +1620,17 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             assignee={assigneeAccessor}
             effort={effortAccessor}
             capacity={ganttConfig?.capacity ?? 1}
-            viewMode={((schema as any).viewMode as GanttViewMode) || 'day'}
+            viewMode={ganttConfig?.viewMode || 'day'}
           />
         ) : (
         <GanttView
           tasks={displayTasks}
+          // Authored granularity (objectui#5074) — undefined when the author
+          // omitted it, so GanttView's own seeding order stays intact:
+          // explicit prop → persisted layout (persistLayoutKey) → 'day'.
+          // ⛔ Do not "simplify" this to `|| 'day'`: a default here would defeat
+          // the persisted-layout seeding for every schema that omits the key.
+          viewMode={ganttConfig?.viewMode}
           startDate={lockedRange?.start}
           endDate={lockedRange?.end}
           onTaskClick={(task) => {
@@ -1461,15 +1645,15 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
           onDependencyDelete={ganttConfig?.dependenciesField ? handleDependencyDelete : undefined}
-          markers={(schema as any).markers}
+          markers={schema.markers}
           autoSchedule={!!ganttConfig?.dependenciesField}
           rescheduleOnConflict={!!ganttConfig?.dependenciesField}
-          criticalPathDefault={!!(schema as any).criticalPath}
+          criticalPathDefault={!!schema.criticalPath}
           workingCalendar={workingCalendar}
           shiftSegments={shiftSegments}
-          showBaselines={(schema as any).showBaselines !== false}
-          readOnly={!!(schema as any).readOnly}
-          mobileReadOnly={(schema as any).mobileReadOnly !== false}
+          showBaselines={schema.showBaselines !== false}
+          readOnly={!!schema.readOnly}
+          mobileReadOnly={schema.mobileReadOnly !== false}
           persistLayoutKey={persistLayoutKey}
           onLayoutChange={filtersStorageKey ? persistFilters : undefined}
           groupBy={groupByAccessor}
@@ -1483,8 +1667,33 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             // Explicit view config first (e.g. "Shift Plan Gantt") — the host strips
             // `label` off the schema it hands us — then the bound object's
             // label, then its API name.
+            //
+            // `schema.label` is `BaseSchema['label']` = `string | I18nLabel` since
+            // #4580's revised Q1-A ruling — `I18nLabel` being the spec's INLINE
+            // locale MAP (`{ en: 'Shift Plan', 'zh-CN': '排班计划' }`). `String()`
+            // renders a map as `[object Object]`, so a gantt whose label was
+            // authored as a map exported `[object Object]-<ts>.png` (#6052).
+            // `resolveI18nLabel` from `@objectstack/spec/ui` is the producer's own
+            // resolver for that vocabulary; the locale is the same
+            // `useDisplayLocale()` the tooltip formatters already take. It answers
+            // `undefined` on an absent label or a total miss, which is why it sits
+            // INSIDE the `??` chain — a miss falls through to the next link exactly
+            // as a missing label always did.
+            //
+            // `objectSchema?.label`, the very next link, deliberately does NOT get
+            // the same treatment: that is the DATA object's label, declared
+            // `label: z.string().optional()` on the spec's `ObjectSchemaBase` —
+            // a `strictObject`, so a locale map there is REJECTED by the producer,
+            // not resolved by us. Resolving it here would be accepting a second
+            // vocabulary at the consumer, which AGENTS.md #0.1 rules out; if that
+            // object-metadata slot ever needs locale maps, it widens in the spec
+            // first and this link follows.
             String(
-              ganttConfig?.exportFileName ?? (schema as any).label ?? objectSchema?.label ?? schema.objectName ?? ''
+              ganttConfig?.exportFileName
+                ?? resolveInlineI18nLabel(schema.label, displayLocale)
+                ?? objectSchema?.label
+                ?? schema.objectName
+                ?? ''
             ) || undefined
           }
           inlineEdit
@@ -1513,7 +1722,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         // Row-level lock (lockField) and global readOnly must also lock the
         // drawer: omitting onFieldSave/onDelete renders it strictly read-only.
         const recLocked =
-          !!(schema as any).readOnly ||
+          !!schema.readOnly ||
           (ganttConfig?.lockField ? !!rec[ganttConfig.lockField] : false);
         // #2473: prefer the fetched business record + schema over the raw row
         // payload (see the drawerFetch effect above for why they can differ).

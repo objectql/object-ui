@@ -7,9 +7,9 @@
  */
 
 import type { BaseSchema } from '@object-ui/types';
-import type { BridgeContext, BridgeFn } from './types';
-import { bridgeListView } from './bridges/list-view';
-import { bridgeFormView } from './bridges/form-view';
+import type { BridgeContext, BridgeFn } from './types.js';
+import { bridgeListView } from './bridges/list-view.js';
+import { bridgeFormView } from './bridges/form-view.js';
 
 export class SpecBridge {
   private bridges = new Map<string, BridgeFn>();

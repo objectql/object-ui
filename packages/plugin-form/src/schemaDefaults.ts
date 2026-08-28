@@ -60,6 +60,13 @@
  * the engine resolves. `ObjectForm` had been seeding them verbatim — that is
  * fixed here along with the missing-seeding half.
  *
+ * ONE token is additionally RESOLVED (not seeded literally) when the caller
+ * threads a {@link SeedContext}: `current_user`, whose engine-side resolution
+ * is "the acting user's id" — a value this very session knows exactly. That is
+ * the "surface what the server WILL supply" follow-up the #4069 notes promised
+ * (#5683): the seeded id is the same one `applyFieldDefaults` would stamp, so
+ * submitting it explicitly and omitting it are equivalent by construction.
+ *
  * ## Create only
  *
  * An EDIT form shows a persisted row and must show it as the server holds it.
@@ -69,6 +76,7 @@
  */
 
 import { isMissingForRequired, isRuntimeDefault } from '@object-ui/core';
+import { isCurrentUserDefaultToken } from '@objectstack/spec/data';
 
 // Re-exported (not re-implemented) so this package's long-standing import site
 // keeps working while there is exactly ONE classifier in the workspace. It
@@ -79,7 +87,25 @@ export { isRuntimeDefault };
 
 /** An object schema as the data source serves it (`{ fields: { [name]: def } }`). */
 interface ObjectSchemaLike {
-  fields?: Record<string, { defaultValue?: unknown } | undefined>;
+  fields?: Record<
+    string,
+    { defaultValue?: unknown; type?: unknown; reference?: unknown; reference_to?: unknown } | undefined
+  >;
+}
+
+/**
+ * The session facts create-form seeding may draw on (#5683). Callers thread it
+ * from `usePermissions()`; every key is optional so existing call sites keep
+ * compiling and behaving unchanged until they opt in.
+ */
+export interface SeedContext {
+  /**
+   * The acting user's id (`usePermissions().userId`), or null/undefined when
+   * unknown — no provider, anonymous, or still loading. Unknown seeds nothing:
+   * the field stays empty and OMITTED from the payload, which is the case the
+   * engine's own `current_user` resolution handles at insert.
+   */
+  currentUserId?: string | null;
 }
 
 /**
@@ -170,15 +196,53 @@ export function isRequiredInForm(
  * Returns a fresh object (never shared), and `{}` for a missing/!object schema
  * so callers can spread it unconditionally.
  */
-export function schemaDefaultValues(objectSchema: ObjectSchemaLike | null | undefined): Record<string, unknown> {
+export function schemaDefaultValues(
+  objectSchema: ObjectSchemaLike | null | undefined,
+  ctx?: SeedContext,
+): Record<string, unknown> {
   const fields = objectSchema?.fields;
   if (!fields || typeof fields !== 'object') return {};
   const defaults: Record<string, unknown> = {};
   for (const name of Object.keys(fields)) {
-    const dv = fields[name]?.defaultValue;
-    if (isSeedableDefault(dv)) defaults[name] = dv;
+    const f = fields[name];
+    const dv = f?.defaultValue;
+    if (isSeedableDefault(dv)) {
+      defaults[name] = dv;
+    } else if (isCurrentUserSeedField(f) && ctx?.currentUserId) {
+      // #5683 — the ONE runtime token the client can resolve exactly. The
+      // engine's `current_user` resolution is "the acting user's id"
+      // (`ObjectQL.applyFieldDefaults` → `execCtx.userId`), and this session
+      // IS that actor, so seeding `usePermissions().userId` pre-fills the very
+      // value the server would have stamped — no second default contract, a
+      // preview of the same one. `NOW()` and CEL envelopes stay server-owned:
+      // form-open time is NOT insert time, and the client cannot evaluate CEL,
+      // so seeding either would submit a DIFFERENT value than the declaration
+      // resolves to. With no known user (`ctx` absent, provider-less, or
+      // anonymous) the field seeds nothing and the pre-#5683 contract holds:
+      // empty control, key omitted, server resolves.
+      defaults[name] = ctx.currentUserId;
+    }
   }
   return defaults;
+}
+
+/**
+ * Is this field one the `current_user` token may legally default — and does it
+ * declare that token?
+ *
+ * The type gate mirrors the spec's own authoring rule (`field.zod` #7127:
+ * `current_user` is legal "on `user` or `lookup` with `reference: 'sys_user'`
+ * only"), so a token that somehow reached an illegal field type is left alone
+ * here exactly as the engine's validator would refuse it. `reference` is the
+ * ObjectStack schema spelling and `reference_to` the objectui-types one; both
+ * are honoured, same as `LookupField`'s own reader.
+ */
+function isCurrentUserSeedField(
+  f: { defaultValue?: unknown; type?: unknown; reference?: unknown; reference_to?: unknown } | undefined,
+): boolean {
+  if (!f || !isCurrentUserDefaultToken(f.defaultValue)) return false;
+  if (f.type === 'user') return true;
+  return f.type === 'lookup' && (f.reference === 'sys_user' || f.reference_to === 'sys_user');
 }
 
 /**
@@ -193,8 +257,9 @@ export function schemaDefaultValues(objectSchema: ObjectSchemaLike | null | unde
 export function seedCreateValues(
   objectSchema: ObjectSchemaLike | null | undefined,
   initial?: Record<string, unknown> | null,
+  ctx?: SeedContext,
 ): Record<string, unknown> {
-  return { ...schemaDefaultValues(objectSchema), ...(initial ?? {}) };
+  return { ...schemaDefaultValues(objectSchema, ctx), ...(initial ?? {}) };
 }
 
 /**

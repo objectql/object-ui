@@ -11,4 +11,4 @@
  * @module
  */
 
-export { useRecentItems, type RecentItem } from '../context/RecentItemsProvider';
+export { useRecentItems, type RecentItem } from '../context/RecentItemsProvider.js';

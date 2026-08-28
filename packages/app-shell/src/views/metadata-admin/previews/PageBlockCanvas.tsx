@@ -25,19 +25,20 @@ import {
   PopoverTrigger,
 } from '@object-ui/components';
 import { GripVertical, Plus } from 'lucide-react';
-import type { MetadataSelection } from '../preview-registry';
+import type { MetadataSelection } from '../preview-registry.js';
 import {
   BLOCK_TYPE_META,
   TYPES_BY_CATEGORY,
   CATEGORY_LABEL_EN,
   UnknownBlockIcon,
+  resolveBlockDisplayMeta,
   resolveBlockTone,
   type BlockTypeId,
-} from './block-types';
-import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector';
+} from './block-types.js';
+import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector.js';
 import { SchemaRenderer, PreviewModeProvider } from '@object-ui/react';
-import { PreviewErrorBoundary } from './PreviewShell';
-import { isOverlayFormType } from './form-preview';
+import { PreviewErrorBoundary } from './PreviewShell.js';
+import { isOverlayFormType } from './form-preview.js';
 
 /** Build the schema handed to SchemaRenderer, neutralising overlay form types so
  *  a live form block never mounts a modal over the design canvas. SchemaRenderer
@@ -619,7 +620,12 @@ function BlockRow({
   onRenameLabel: (nextLabel: string) => void;
 }) {
   const typeStr = String(block.type ?? '');
-  const meta = BLOCK_TYPE_META[typeStr as BlockTypeId];
+  // DISPLAY meta, not the palette catalogue. `BLOCK_TYPE_META` answers "what may
+  // an author drag in"; a node already in the page may be a spelling the palette
+  // does not offer yet the app renders fine — the `record:discussion` /
+  // `record:chatter` alias pair. See BLOCK_RENDERER_ALIAS_GROUPS in
+  // block-types.ts; nothing here makes a type offerable.
+  const meta = resolveBlockDisplayMeta(typeStr);
   const Icon = meta?.Icon ?? UnknownBlockIcon;
   const tone = resolveBlockTone(typeStr);
   const label = blockLabel(block);

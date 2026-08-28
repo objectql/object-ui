@@ -62,6 +62,8 @@ GET /api/v1/meta/diagnostics?severity=error
 Response:
 
 ```ts
+import type { MetadataDiagnostics } from '@object-ui/data-objectstack';
+
 interface MetadataDiagnosticsSummary {
   entries: Array<{
     type: string;
@@ -166,6 +168,51 @@ fires while its field stays visible is the classic symptom — open the
 browser console and the broken predicate identifies itself (most often a
 bare field name where `record.<field>` was meant).
 
+The same is now true of a **component node's own gate** — `visibleWhen` on a
+page component (and its `visible` / `visibleOn` / `visibility` / `hidden` /
+`hiddenOn` siblings), plus a `page:tabs` item's `visibleWhen`. These used to
+report in a development build only, so a gate that stopped biting in
+production left nothing on the console at all. They now warn in **both**
+builds, with the node type, the node id, the gate key, the predicate source
+and the engine's reason:
+
+```text
+[ObjectUI] A visibility predicate could not be evaluated - node "record:alert" (id: "a1")
+  visibleWhen: "nosuchroot.status == 'draft'"
+  Reason: Failed to evaluate expression "nosuchroot.status == 'draft'": nosuchroot is not defined
+The node was treated as its safe default, which on this surface means the
+gate did NOT bite - a predicate that cannot be evaluated reads on screen
+exactly like one that said yes.
+```
+
+The line is **rate limited to one per distinct predicate source**, so a broken
+predicate rendered down two hundred rows of a list is one line, not two
+hundred — while a second, differently-broken predicate still gets its own.
+The verdict is unchanged in every case: this is a diagnostic about a
+predicate, not a change to what the gate decides. A node gate that fails open
+renders exactly as it always did; the difference is that it now says so.
+
+The **app shell's own `visible` gate** joins the same reporter and the same
+rate limit: a `visible` predicate on a navigation item, on an area's
+navigation, or on an object field rendered by the record form page. This one
+was silent in **both** builds before — including the bare-string dialect,
+which printed nothing at all — so a menu entry whose role gate had stopped
+working rendered for everyone, silently, with nothing to grep for. It now
+reports under the surface label `app-shell:visible`:
+
+```text
+[ObjectUI] A visibility predicate could not be evaluated - node "app-shell:visible"
+  visible: "'org_admin' in current_user.postions"
+  Reason: ...
+```
+
+The dedupe key is the predicate **source**, not the menu entry — one broken
+role gate copy-pasted across eight entries is one authoring mistake and prints
+one line, while a second, differently-broken predicate still gets its own.
+Fail-open is unchanged here too: the item still renders for everyone,
+including the role the predicate was written to exclude. That is what the line
+exists to tell you.
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every
@@ -196,7 +243,7 @@ A few high-leverage patterns:
 ```ts
 import { MetadataClient } from '@object-ui/data-objectstack';
 
-const client = new MetadataClient(/* config */);
+const client = new MetadataClient({ baseUrl: 'https://api.example.com' });
 const summary = await client.diagnostics({ severity: 'error' });
 console.log(summary.total, 'invalid item(s)');
 ```

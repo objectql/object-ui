@@ -170,6 +170,9 @@ interface CacheableChatToolInvocation {
    */
   draftReview?: CachedDraftReview;
   proposedPlan?: CachedProposedPlan;
+  /** objectui#5695 — the confirm-replay verdict, so the 确认修改 card's terminal
+   *  state (已生效 / 已暂存为草稿 / 未生效) survives a cache-fallback reload. */
+  replayOutcome?: { kind: 'published' | 'drafted' | 'failed'; outcome?: string; error?: string; packageId?: string; dispatchError?: boolean };
 }
 
 interface CacheableChatMessage {
@@ -225,6 +228,33 @@ function proposedPlanToCachedResult(pp: CachedProposedPlan): Record<string, unkn
       })),
       assumptions: pp.assumptions,
     },
+  };
+}
+
+/**
+ * Rebuild the MINIMAL replay envelope `mapMessages.detectReplayOutcome`
+ * re-parses (objectui#5695). The detector keys off the persisted `replay_*`
+ * toolCallId plus these fields; `detectDraftResult` stays quiet over the
+ * drafted shapes because they carry no `drafted` items — so a rolled-back
+ * publish can never rehydrate from cache as a live draft card.
+ */
+function replayOutcomeToCachedResult(
+  ro: NonNullable<CacheableChatToolInvocation['replayOutcome']>,
+): Record<string, unknown> {
+  if (ro.kind === 'published') return { status: 'published' };
+  // A dispatch error round-trips as the bare `{error}` shape it was detected
+  // from, so re-detection keeps its provisional (supersedable) semantics.
+  if (ro.kind === 'failed' && ro.dispatchError) return { error: ro.error ?? 'replay dispatch failed' };
+  return {
+    status: 'drafted',
+    ...(ro.packageId ? { packageId: ro.packageId } : {}),
+    ...(ro.kind === 'failed'
+      ? {
+          publishFailed: true,
+          ...(ro.outcome ? { publishOutcome: ro.outcome } : {}),
+          ...(ro.error ? { publishError: ro.error } : {}),
+        }
+      : {}),
   };
 }
 
@@ -337,11 +367,13 @@ export function sanitizeChatMessagesForCache(
           // earlier cache shape never kept. `output` (not a custom part field)
           // is used because the AI SDK preserves it through `useChat` init,
           // exactly as the server-backed tool-result merge relies on.
-          const cachedOutput = tool.draftReview
-            ? draftReviewToCachedResult(tool.draftReview)
-            : tool.proposedPlan
-              ? proposedPlanToCachedResult(tool.proposedPlan)
-              : undefined;
+          const cachedOutput = tool.replayOutcome
+            ? replayOutcomeToCachedResult(tool.replayOutcome)
+            : tool.draftReview
+              ? draftReviewToCachedResult(tool.draftReview)
+              : tool.proposedPlan
+                ? proposedPlanToCachedResult(tool.proposedPlan)
+                : undefined;
           parts.push({
             type: `tool-${tool.toolName}`,
             toolCallId: tool.toolCallId,

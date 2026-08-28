@@ -4,8 +4,8 @@
  * MetadataResourceEditPage — generic AutoForm-driven editor (Phase 3c).
  *
  * What it does:
- *   1. Fetches the layered view (`?layers=true`) so the user sees code
- *      vs overlay vs effective.
+ *   1. Fetches the layered view (`GET /meta/:type/:name/layers`) so the user
+ *      sees code vs overlay vs effective.
  *   2. Renders a SchemaForm against the JSONSchema in the type's
  *      `/meta/types` registry row.
  *   3. Save → PUT, with automatic destructive-change handling: a 409
@@ -28,7 +28,7 @@ import {
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
-} from './nav-selection';
+} from './nav-selection.js';
 import {
   Save,
   RotateCcw,
@@ -82,40 +82,107 @@ import {
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import type {
   MetadataLayered,
+  MetadataLockState,
   MetadataReference,
 } from '@object-ui/data-objectstack';
-import { PageShell } from './PageShell';
-import { MetadataTypeActions } from './MetadataTypeActions';
-import { LayeredDiff, countOverlaidFields } from './LayeredDiff';
-import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel';
-import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
-import { collectPageComponentIds } from './widgets';
+import { PageShell } from './PageShell.js';
+import { MetadataTypeActions } from './MetadataTypeActions.js';
+import { LayeredDiff, countOverlaidFields } from './LayeredDiff.js';
+import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel.js';
+import {
+  SchemaForm,
+  DRAWER_METADATA_ID_SCOPE,
+  type SchemaFormIssue,
+} from './SchemaForm.js';
+import {
+  collectPageComponentIds,
+  type ObjectActionOption,
+  type ObjectFieldOption,
+  type WidgetContext,
+} from './widgets.js';
+import { mapLoaded, usePickerLoad } from './loadState.js';
 import {
   useMetadataClient,
   useMetadataTypes,
   type RichMetadataTypeEntry,
-} from './useMetadata';
+} from './useMetadata.js';
 import {
   getMetadataResource,
   resolveResourceConfig,
   listAnchorsFor,
-} from './registry';
-import { useCreateDerive, deriveDefaultCreateFields } from './createDerive';
-import { RelatedPanel, type RelatedTarget } from './RelatedPanel';
-import { MetadataDetailDrawer } from './MetadataDetailDrawer';
-import { HistoryPanel } from './ResourceHistoryPage';
-import { AuditPanel } from './AuditPanel';
-import { getMetadataPreview, type MetadataSelection } from './preview-registry';
-import { readFields } from './previews/object-fields-io';
-import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus';
-import { getMetadataInspector } from './inspector-registry';
-import { getMetadataDefaultInspector } from './default-inspector-registry';
-import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
-import { JsonSourceEditor } from './JsonSourceEditor';
-import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation';
-import { describeIssuePath } from './issuePath';
-import { buildCreateModeBody } from './createBody';
+} from './registry.js';
+import { useCreateDerive, deriveDefaultCreateFields } from './createDerive.js';
+import { RelatedPanel, type RelatedTarget } from './RelatedPanel.js';
+import { MetadataDetailDrawer } from './MetadataDetailDrawer.js';
+import { HistoryPanel } from './ResourceHistoryPage.js';
+import { AuditPanel } from './AuditPanel.js';
+import { getMetadataPreview, type MetadataSelection } from './preview-registry.js';
+import { readFields } from './previews/object-fields-io.js';
+import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus.js';
+import { getMetadataInspector } from './inspector-registry.js';
+import { getMetadataDefaultInspector } from './default-inspector-registry.js';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n.js';
+import { JsonSourceEditor } from './JsonSourceEditor.js';
+import { validateMetadataDraft, hasClientValidator, type DraftMode } from './clientValidation.js';
+import { describeIssuePath } from './issuePath.js';
+import { buildCreateModeBody } from './createBody.js';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
+
+/**
+ * ADR-0010 §3.6 lock state -> the lock banner's headline sentence.
+ *
+ * Keyed on `MetadataLockState` — which derives from `packages/spec`'s own
+ * `z.enum` — so a fifth state added upstream fails `type-check` HERE, naming
+ * the label that is missing. That is the strictness the audit panel's
+ * `LOCK_STATE_ZH` has had since objectui#5004 and this banner did not: its
+ * title used to be three independent `&&` branches with no `else`.
+ *
+ * `Exclude<…, 'none'>` because `none` never banners — `isLocked` gates the
+ * whole box on `lock && lock !== 'none'`. Typing the record over exactly the
+ * states that CAN reach the screen keeps the two rules from drifting apart,
+ * and still fails on a state added to the union.
+ */
+const LOCK_BANNER_TITLE_KEY: Record<Exclude<MetadataLockState, 'none'>, string> = {
+  'no-overlay': 'engine.edit.lockNoOverlay',
+  'no-delete': 'engine.edit.lockNoDelete',
+  full: 'engine.edit.lockFull',
+};
+
+/**
+ * The banner's headline for whatever `lock` ACTUALLY arrived — including a
+ * value the lookup above has never heard of (objectui#5024).
+ *
+ * The compile-time half cannot be the whole fix. `MetadataLockState` types what
+ * this repo may WRITE; it constrains nothing about what a server may SEND,
+ * because `MetadataClient.layered()` casts the wire value in unchecked:
+ *
+ *   ...(body.lock !== undefined ? { lock: body.lock as MetadataLayered['lock'] } : {}),
+ *
+ * over a raw `res.json()` body — no parse, no allowlist, no default. So a
+ * back end that grows a fifth state reaches this banner with no code change
+ * here at all. Measured rather than assumed: feeding `no-publish` through this
+ * page opened the amber box, drew the padlock and the border, and left the
+ * title `<div>` empty. An exhaustive `satisfies` alone would have type-checked
+ * green over that exact render.
+ *
+ * Hence a sentence for the unrecognised value, carrying the raw token: the
+ * operator who meets this is the only person able to report which state their
+ * server actually sent, and a generic "this is locked" would take that away.
+ * `String(lock)` rather than a cast — the same unchecked path can hand us a
+ * number or an object, and this must not throw on the way to explaining itself.
+ */
+function lockBannerTitle(
+  lock: MetadataLayered['lock'],
+  locale: string | undefined,
+): string {
+  if (
+    typeof lock === 'string' &&
+    Object.prototype.hasOwnProperty.call(LOCK_BANNER_TITLE_KEY, lock)
+  ) {
+    return t(LOCK_BANNER_TITLE_KEY[lock as Exclude<MetadataLockState, 'none'>], locale);
+  }
+  return tFormat('engine.edit.lockUnknown', locale, { state: String(lock) });
+}
 
 /**
  * Metadata types whose canvas IS the primary create-time authoring
@@ -160,6 +227,49 @@ function extractDraftBody(
   return Object.keys(body as object).length > 0
     ? (body as Record<string, unknown>)
     : null;
+}
+
+/**
+ * The software-package binding this editor is authoring under, read from the
+ * ONE place the save->publish loop states it: `?package=` on the editor URL.
+ *
+ * ## Why this is a function and not two inline reads
+ *
+ * Both steps of the loop send this value — `doSave` binds the draft row to the
+ * package (`PUT ?package=`), and since objectstack#10354 `doPublish` states the
+ * same package on the promotion (`POST .../publish?package=`) so #9612's
+ * package-closure narrowing at the runtime publish gate is reachable from an
+ * HTTP-driven promotion at all. One value, one spelling, both steps — which
+ * means one derivation too. A second inline copy in the publish path would be
+ * free to drift from the save path (most easily on the `'all'` fold below),
+ * and the two calls would then disagree about which package the edit belongs
+ * to while both looking correct in isolation.
+ *
+ * ## The `'all'` fold
+ *
+ * `?package=all` is the metadata list's "show everything" scope, NOT a package
+ * literally named `all`; the framework's normaliser folds `all` and the empty
+ * value together to mean "env-local overlay, no package". Folded here to
+ * `undefined` so both callers OMIT the parameter rather than sending it empty.
+ * The two are the same to that normaliser today, so this is not a behaviour
+ * difference against the current server — omit-when-unbound is simply the
+ * shape this door already had, and the loop's two calls must not disagree.
+ *
+ * Read at call time rather than per render because the editor URL's package
+ * scope can move under the component (`setSearchParams`), and the value that
+ * must be stated is the one in force when the request is issued.
+ *
+ * Deliberately NOT `ownerPackageId` (the router-read `?package=` used to scope
+ * layered/draft READS): that one does not fold `'all'`, so reusing it here
+ * would send `package=all` as if it were a package id.
+ */
+function readActivePackageBinding(): string | undefined {
+  try {
+    const p = new URLSearchParams(window.location.search).get('package');
+    return p && p !== 'all' ? p : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -236,6 +346,46 @@ export function MetadataResourceEditPage({
   );
 }
 
+/**
+ * References panel data — one discriminated union, not a `refs` / `refsLoading`
+ * pair (objectui#5110).
+ *
+ * The pair could only spell two of the three facts this panel has to tell
+ * apart. `refs == null` was already overloaded as "still loading", so a failed
+ * `client.references()` call had nowhere to go: the catch wrote `setRefs([])`,
+ * which is byte-identical to a *successful* scan that found nothing — and the
+ * panel renders that state as "Nothing in the metadata graph points at this
+ * item. Safe to delete." A refused request, a dropped connection, an expired
+ * session and a `501 NOT_IMPLEMENTED` were therefore all shown to the operator
+ * as an affirmative, measured all-clear, with a `console.error` nobody reads as
+ * the only trace. The operator is on this panel precisely because they are
+ * about to delete something.
+ *
+ * `status` makes the third fact representable, and makes the wrong combination
+ * unrepresentable: no value of this type is both `error` and `loaded`, so no
+ * render path can read a failure as a measurement. The `error` arm carries the
+ * cause and asserts NOTHING about deletion safety — the honest answer when the
+ * question was never answered — and the panel offers a retry so the operator
+ * can ask it again.
+ *
+ * `idle` is deliberately distinct from `loading`: the sheet is lazy, and
+ * "never asked" is what re-enables a retry after a failure (see
+ * `loadReferences`'s re-entry guard).
+ *
+ * ADR-0110 D3 — a miss and a fault are different facts.
+ */
+type ReferencesState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'loaded'; items: MetadataReference[] }
+  | { status: 'error'; message: string };
+
+/** The two catalogs the single `client.get('object', …)` call yields. */
+type ObjectCatalog = {
+  fields: ObjectFieldOption[];
+  actions: ObjectActionOption[];
+};
+
 interface MetadataResourceEditPageImplProps {
   type: string;
   name: string;
@@ -284,7 +434,7 @@ function MetadataResourceEditPageImpl({
   const [draft, setDraft] = React.useState<Record<string, unknown>>(() =>
     createMode ? { ...(config.createDefaults ?? {}), [identityField]: '' } : {},
   );
-  const [refs, setRefs] = React.useState<MetadataReference[] | null>(null);
+  const [refsState, setRefsState] = React.useState<ReferencesState>({ status: 'idle' });
   const [loading, setLoading] = React.useState(!createMode);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -589,27 +739,19 @@ function MetadataResourceEditPageImpl({
 
   // Prefetch object name list once — fuels the `ref:object` widget.
   // We don't block render on it; the widget shows a "Loading…" state.
-  const [objectNames, setObjectNames] = React.useState<string[]>([]);
-  const [objectsLoading, setObjectsLoading] = React.useState(true);
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = (await client.list('object')) as Array<{ name?: string }>;
-        if (cancelled) return;
-        setObjectNames(
-          list.map((x) => x?.name).filter((n): n is string => !!n).sort(),
-        );
-      } catch {
-        if (!cancelled) setObjectNames([]);
-      } finally {
-        if (!cancelled) setObjectsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
+  //
+  // objectui#5170: this used to be `objectNames: string[]` + `objectsLoading:
+  // boolean`, and the catch wrote `setObjectNames([])` — the exact value a
+  // successful list of zero objects writes — then flipped loading to false, with
+  // no error state, no banner and not even a `console.error`. The picker
+  // rendered as a completed, empty list and told the operator "object_name (no
+  // objects detected)". See {@link usePickerLoad}.
+  const objectsState = usePickerLoad<string[]>(
+    React.useCallback(async () => {
+      const list = (await client.list('object')) as Array<{ name?: string }>;
+      return list.map((x) => x?.name).filter((n): n is string => !!n).sort();
+    }, [client]),
+  );
   // Field catalog of the draft's bound/source object — fuels field-picker
   // widgets (e.g. the interface-page filter-mode selector). For a page the
   // source is `interfaceConfig.source` (interface mode) or the bound
@@ -619,72 +761,56 @@ function MetadataResourceEditPageImpl({
     ((draft as any)?.data?.object as string | undefined) ||
     ((draft as any)?.object as string | undefined) ||
     ((draft as any)?.objectName as string | undefined);
-  const [objectFields, setObjectFields] = React.useState<Array<{ name: string; label?: string; type?: string }>>([]);
-  const [objectFieldsLoading, setObjectFieldsLoading] = React.useState(false);
-  // Action catalog of the source object — fuels the `action-multi` picker so
-  // interface-page `buttons` reference the object's real actions.
-  const [objectActions, setObjectActions] = React.useState<Array<{ name: string; label?: string; locations?: string[] }>>([]);
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!sourceObjectName) { setObjectFields([]); setObjectActions([]); return; }
-    setObjectFieldsLoading(true);
-    (async () => {
-      try {
-        const obj = (await client.get('object', sourceObjectName)) as { fields?: Record<string, any> | Array<any> } | null;
-        if (cancelled) return;
-        const raw = obj?.fields;
-        const list = Array.isArray(raw)
-          ? raw.map((f: any) => ({ name: f?.name, label: f?.label, type: f?.type }))
-          : raw && typeof raw === 'object'
-            ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
-            : [];
-        setObjectFields(list.filter((f) => !!f.name));
-        const rawActions = (obj as any)?.actions;
-        const acts = Array.isArray(rawActions)
-          ? rawActions.map((a: any) => ({ name: a?.name, label: a?.label, locations: a?.locations })).filter((a: any) => !!a.name)
-          : [];
-        if (!cancelled) setObjectActions(acts);
-      } catch {
-        if (!cancelled) { setObjectFields([]); setObjectActions([]); }
-      } finally {
-        if (!cancelled) setObjectFieldsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [client, sourceObjectName]);
+  // The field catalog and the action catalog come from ONE `client.get('object',
+  // …)` call, so they succeed together and fail together — one `LoadState` for
+  // the pair, not two that could disagree (objectui#5170).
+  const objectCatalogState = usePickerLoad<ObjectCatalog>(
+    React.useMemo(
+      () =>
+        sourceObjectName
+          ? async () => {
+              const obj = (await client.get('object', sourceObjectName)) as { fields?: Record<string, any> | Array<any> } | null;
+              const raw = obj?.fields;
+              const list = Array.isArray(raw)
+                ? raw.map((f: any) => ({ name: f?.name, label: f?.label, type: f?.type }))
+                : raw && typeof raw === 'object'
+                  ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
+                  : [];
+              const rawActions = (obj as any)?.actions;
+              const acts = Array.isArray(rawActions)
+                ? rawActions.map((a: any) => ({ name: a?.name, label: a?.label, locations: a?.locations })).filter((a: any) => !!a.name)
+                : [];
+              return { fields: list.filter((f) => !!f.name), actions: acts };
+            }
+          : null,
+      [client, sourceObjectName],
+    ),
+  );
 
   // View catalog of the source object — fuels the `view-ref` picker for
   // `interfaceConfig.sourceView` so the author chooses an existing view
   // instead of typing (and mistyping) a name. Views are standalone metadata
   // keyed to their object via `objectName`/`object`; the LIST endpoint returns
   // name + label, which is all the picker needs.
-  const [objectViews, setObjectViews] = React.useState<Array<{ name: string; label?: string }>>([]);
-  const [objectViewsLoading, setObjectViewsLoading] = React.useState(false);
-  React.useEffect(() => {
-    let cancelled = false;
-    if (!sourceObjectName) { setObjectViews([]); return; }
-    setObjectViewsLoading(true);
-    (async () => {
-      try {
-        const all = (await client.list('view')) as Array<Record<string, any>>;
-        if (cancelled) return;
-        const forObject = (all || []).filter((v) => {
-          const obj = v?.objectName ?? v?.object ?? v?.object_name;
-          return obj === sourceObjectName;
-        });
-        const seen = new Set<string>();
-        const list = forObject
-          .map((v) => ({ name: v?.name as string, label: (v?.label as string) || undefined }))
-          .filter((v) => !!v.name && !seen.has(v.name) && seen.add(v.name));
-        setObjectViews(list);
-      } catch {
-        if (!cancelled) setObjectViews([]);
-      } finally {
-        if (!cancelled) setObjectViewsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [client, sourceObjectName]);
+  const objectViewsState = usePickerLoad<Array<{ name: string; label?: string }>>(
+    React.useMemo(
+      () =>
+        sourceObjectName
+          ? async () => {
+              const all = (await client.list('view')) as Array<Record<string, any>>;
+              const forObject = (all || []).filter((v) => {
+                const obj = v?.objectName ?? v?.object ?? v?.object_name;
+                return obj === sourceObjectName;
+              });
+              const seen = new Set<string>();
+              return forObject
+                .map((v) => ({ name: v?.name as string, label: (v?.label as string) || undefined }))
+                .filter((v) => !!v.name && !seen.has(v.name) && seen.add(v.name));
+            }
+          : null,
+      [client, sourceObjectName],
+    ),
+  );
 
   // Component ids placed on the page being edited — fuels the `ref:component`
   // picker so a page variable's `source` (the component that writes it) is
@@ -696,9 +822,31 @@ function MetadataResourceEditPageImpl({
     [type, draft],
   );
 
-  const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds],
+  // Each loader's `LoadState` reaches the pickers WHOLE (objectui#5228).
+  //
+  // This used to project each one down into a pair — the catalog array plus a
+  // `*Loading` flag — with the failure arm sent alongside on a separate
+  // `catalogErrors` record. That projection is what let a failed load arrive as
+  // `[]`, byte-identical to a load that completed and found nothing, with the
+  // rule that a picker must consult the side channel first living in a doc
+  // comment. Handing the union over intact deletes both the projection and the
+  // rule: a consumer cannot reach the list without the compiler having seen it
+  // decide what a failure renders as.
+  //
+  // `objectFields` and `objectActions` are DERIVED FROM ONE STATE rather than
+  // loaded twice, because they come from one `client.get('object', …)` request:
+  // they succeed together and fail together, and `mapLoaded` is what makes that
+  // true by construction instead of by two independent states happening to
+  // agree.
+  const widgetContext = React.useMemo<WidgetContext>(
+    () => ({
+      objectNames: objectsState,
+      objectFields: mapLoaded(objectCatalogState, (catalog) => catalog.fields),
+      objectActions: mapLoaded(objectCatalogState, (catalog) => catalog.actions),
+      objectViews: objectViewsState,
+      componentIds,
+    }),
+    [objectsState, objectCatalogState, objectViewsState, componentIds],
   );
 
   // Load layered view + initial draft.
@@ -787,19 +935,22 @@ function MetadataResourceEditPageImpl({
   }, [client, type, name, ownerPackageId, createMode, reloadKey, locale]);
 
   // Lazy-load references the first time the References sheet opens.
-  const [refsLoading, setRefsLoading] = React.useState(false);
+  //
+  // Re-entry guard: a request already in flight is not duplicated, and a
+  // completed scan is not re-run when the sheet is reopened. `idle` and
+  // `error` both fall through — which is what makes the panel's Retry work
+  // without a second code path: it calls this same loader (objectui#5110).
   async function loadReferences() {
-    if (refs != null || refsLoading) return;
-    setRefsLoading(true);
+    if (refsState.status === 'loading' || refsState.status === 'loaded') return;
+    setRefsState({ status: 'loading' });
     try {
       const r = await client.references(type, name);
-      setRefs(r);
+      setRefsState({ status: 'loaded', items: r });
     } catch (err: any) {
-      // Surface as empty list; non-blocking.
-      setRefs([]);
-      console.error('references() failed', err);
-    } finally {
-      setRefsLoading(false);
+      // NOT `{ status: 'loaded', items: [] }`: an unanswered question is not
+      // an answer of "nothing". The panel renders this arm as a failed check
+      // with a retry and says nothing about whether deleting is safe.
+      setRefsState({ status: 'error', message: String(err?.message ?? err) });
     }
   }
 
@@ -1194,14 +1345,7 @@ function MetadataResourceEditPageImpl({
       // real package scope is carried in the URL (`?package=`). The backend
       // stamps it on create and preserves an existing binding on update, so
       // env-local overlays (no `?package=`) are unaffected.
-      const activePackage = (() => {
-        try {
-          const p = new URLSearchParams(window.location.search).get('package');
-          return p && p !== 'all' ? p : undefined;
-        } catch {
-          return undefined;
-        }
-      })();
+      const activePackage = readActivePackageBinding();
       await client.save<any>(type, savedName, itemToSave, {
         force,
         mode: 'draft',
@@ -1353,7 +1497,16 @@ function MetadataResourceEditPageImpl({
     setPublishing(true);
     setError(null);
     try {
-      await client.publish<any>(type, name);
+      // State the SAME package the save step already stated — read from the
+      // same single source, so the two calls of one loop can never disagree.
+      // Absent (not empty) when the designer holds no binding: the framework
+      // branches on the KEY BEING PRESENT downstream, where a present-but-null
+      // package pins the draft lookup to unbound rows and a packaged draft
+      // stops being found (`no_draft`) — see objectstack#10354's own warning.
+      const activePackage = readActivePackageBinding();
+      await client.publish<any>(type, name, {
+        ...(activePackage ? { packageId: activePackage } : {}),
+      });
       const [lay, draftResp] = await Promise.all([
         client.layered<any>(type, name),
         client.getDraft<any>(type, name).catch(() => null),
@@ -1602,6 +1755,14 @@ function MetadataResourceEditPageImpl({
       ? getMetadataPreview(type)
       : undefined;
 
+  // The id scope for THIS editor's form (objectui#5092). Embedded means we are
+  // mounted inside `MetadataDetailDrawer`, which slides over a page that is
+  // still rendering its own form: without a scope segment both forms emit the
+  // same `mdf-{field}` ids for every field name they share, and the drawer's
+  // labels — later in document order — resolve to the page's controls.
+  // The page editor passes `undefined` and its ids stay exactly as they were.
+  const formIdPath = embedded ? DRAWER_METADATA_ID_SCOPE : undefined;
+
   // Optional scoped inspector for the selected sub-element (e.g. a
   // dashboard widget). Registered separately via
   // `registerMetadataInspector()` so a type can opt in independently
@@ -1712,9 +1873,9 @@ function MetadataResourceEditPageImpl({
               className="h-7 w-7 p-0 relative"
             >
               <Link2 className="h-3.5 w-3.5" />
-              {refs && refs.length > 0 && (
+              {refsState.status === 'loaded' && refsState.items.length > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-muted text-foreground text-[9px] leading-[14px] text-center font-medium border">
-                  {refs.length}
+                  {refsState.items.length}
                 </span>
               )}
             </Button>
@@ -1931,10 +2092,8 @@ function MetadataResourceEditPageImpl({
               <div className="text-xs text-amber-900 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-2.5">
                 <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-80" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium">
-                    {layered?.lock === 'full' && t('engine.edit.lockFull', locale)}
-                    {layered?.lock === 'no-overlay' && t('engine.edit.lockNoOverlay', locale)}
-                    {layered?.lock === 'no-delete' && t('engine.edit.lockNoDelete', locale)}
+                  <div className="font-medium" data-testid="lock-banner-title">
+                    {lockBannerTitle(layered?.lock, locale)}
                   </div>
                   {lockReason && <div className="mt-0.5 opacity-90">{lockReason}</div>}
                   {layered?.lockDocsUrl && (
@@ -2458,6 +2617,7 @@ function MetadataResourceEditPageImpl({
                         ) : (
                           <SchemaForm
                             schema={schema}
+                            idPath={formIdPath}
                             form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                             value={draft}
                             onChange={handleCreateAwareChange}
@@ -2481,6 +2641,7 @@ function MetadataResourceEditPageImpl({
             ) : (
               <SchemaForm
                 schema={schema}
+                idPath={formIdPath}
                 form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                 value={draft}
                 onChange={handleCreateAwareChange}
@@ -2548,9 +2709,15 @@ function MetadataResourceEditPageImpl({
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="text-base">
               {t('engine.edit.references', locale)}
-              {refs && (
-                <Badge variant="outline" className="ml-2 text-[10px]">
-                  {refs.length}
+              {/* Only a completed scan may show a count — a `0` badge over a
+                  failed check is the same false measurement in miniature. */}
+              {refsState.status === 'loaded' && (
+                <Badge
+                  variant="outline"
+                  className="ml-2 text-[10px]"
+                  data-testid="refs-count-badge"
+                >
+                  {refsState.items.length}
                 </Badge>
               )}
             </SheetTitle>
@@ -2559,7 +2726,11 @@ function MetadataResourceEditPageImpl({
             </SheetDescription>
           </SheetHeader>
           <div className="flex-1 min-h-0 overflow-auto p-4">
-            <ReferencesPanel refs={refs} loading={refsLoading} locale={locale} />
+            <ReferencesPanel
+              state={refsState}
+              locale={locale}
+              onRetry={() => void loadReferences()}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -2702,25 +2873,64 @@ function MetadataResourceEditPageImpl({
   );
 }
 
+/**
+ * Renders exactly one arm of `ReferencesState` — the union is the whole point
+ * (objectui#5110), so the error arm is checked FIRST and there is no path from
+ * a failure to the empty state's "Safe to delete."
+ */
 function ReferencesPanel({
-  refs,
-  loading,
+  state,
   locale,
+  onRetry,
 }: {
-  refs: MetadataReference[] | null;
-  loading: boolean;
+  state: ReferencesState;
   locale?: string;
+  onRetry: () => void;
 }) {
-  if (loading || refs == null) {
+  if (state.status === 'error') {
     return (
-      <div className="text-sm text-muted-foreground flex items-center gap-2">
+      <Empty data-testid="refs-error">
+        <EmptyTitle className="flex items-center justify-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          {t('engine.edit.refsErrorTitle', locale)}
+        </EmptyTitle>
+        <EmptyDescription>
+          {t('engine.edit.refsErrorDesc', locale)}
+        </EmptyDescription>
+        {state.message ? (
+          <p
+            data-testid="refs-error-cause"
+            className="mt-2 max-w-full break-words font-mono text-xs text-muted-foreground"
+          >
+            {state.message}
+          </p>
+        ) : null}
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          data-testid="refs-retry"
+          onClick={onRetry}
+        >
+          {t('engine.edit.refsRetry', locale)}
+        </Button>
+      </Empty>
+    );
+  }
+  if (state.status !== 'loaded') {
+    return (
+      <div
+        data-testid="refs-scanning"
+        className="text-sm text-muted-foreground flex items-center gap-2"
+      >
         <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.edit.refsScanning', locale)}
       </div>
     );
   }
+  const refs = state.items;
   if (refs.length === 0) {
     return (
-      <Empty>
+      <Empty data-testid="refs-empty">
         <EmptyTitle>{t('engine.edit.refsEmptyTitle', locale)}</EmptyTitle>
         <EmptyDescription>
           {t('engine.edit.refsEmptyDesc', locale)}

@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
  * Alert Schema - Alert/notification component
@@ -106,24 +107,99 @@ export const TableColumnSchema = z.object({
   minWidth: z.union([z.string(), z.number()]).optional().describe('Minimum width'),
   align: z.enum(['left', 'center', 'right']).optional().describe('Column alignment'),
   fixed: z.enum(['left', 'right']).optional().describe('Fixed column position'),
-  type: z.string().optional().describe('Column type'),
+  // The canonical value set, built from the ONE declaration in
+  // `../data-display.ts` rather than restated here (objectui#5853, maintainer
+  // ruling 2026-08-25, Option B). This key was `z.string()`: every typo passed
+  // — `type: 'money'` validated green, matched no renderer branch, and the
+  // column silently fell through to plain text rendering. That is the lenient
+  // -validation face that lets AI-authored metadata errors through, and it is
+  // now a loud parse failure naming the key.
+  type: z.enum(TABLE_COLUMN_TYPES).optional().describe('Column type'),
   sortable: z.boolean().optional().describe('Whether column is sortable'),
   filterable: z.boolean().optional().describe('Whether column is filterable'),
   resizable: z.boolean().optional().describe('Whether column is resizable'),
+  editable: z.boolean().optional().describe('Whether column is editable (for inline editing)'),
   cell: z.function().optional().describe('Custom cell renderer'),
+  // A rendered React node — a runtime slot like `cell` above, so the mirror's
+  // one job is to PASS IT THROUGH: a non-strict z.object() silently STRIPS an
+  // undeclared key, and a stripped `headerIcon` was exactly the second de-facto
+  // contract objectui#6424 closed (the renderer honoured what the published
+  // declaration refused). Declared on the interface, mirrored here, and paired
+  // in `__tests__/zod-mirror-parity.test.ts`.
+  headerIcon: z.any().optional().describe('Icon node rendered into the header cell, before the header text'),
+  // The three field-meta override keys objectui#6425 declared (maintainer
+  // ruling 2026-08-27, per-key): honoured by `object-data-table`'s cell
+  // pipeline — documented behaviour for `format` / `options`, long-shipped
+  // for `currency` — and previously silently STRIPPED by this non-strict
+  // mirror, the same second de-facto contract #6424 closed for `headerIcon`.
+  // The pin is output SURVIVAL, not parse acceptance
+  // (static-table-narrow-surface.test.ts): acceptance was green before the
+  // declaration and cannot distinguish the fix from the defect.
+  format: z.string().optional().describe('Field-meta override: display format pattern (e.g. "$0,0", "0%", "YYYY-MM-DD")'),
+  options: z
+    .array(
+      z.object({
+        value: z.any().describe('Stored value the cell value is matched against'),
+        label: z.string().describe('Label rendered for the matched value'),
+        color: z.string().optional().describe('Badge/dot color for the matched value'),
+      }),
+    )
+    .optional()
+    .describe('Field-meta override: option list for select-flavoured columns'),
+  currency: z.string().optional().describe('Field-meta override: ISO 4217 currency code for currency-formatted cells'),
 });
 
 /**
- * Table Schema - Simple table component
+ * Static Table Column Schema — the narrow declared subset the static `table`
+ * renderer actually reads (objectui#5474, maintainer ruling 2026-08-22,
+ * Option C: split the types). `TableColumnSchema` above remains the rich
+ * shared shape `data-table` honours and is deliberately NOT narrowed.
+ *
+ * The `z.never().optional()` members are ADR-0049 retirement tombstones (the
+ * convention `crud.zod.ts` `confirm` set): an authored value is REFUSED at
+ * parse time with the key named in the error path, instead of being silently
+ * stripped the way an undeclared key would be. Loud refusal is the ruled
+ * outcome — these keys were accepted-and-inert for as long as the static
+ * table shared the rich column type.
+ */
+export const StaticTableColumnSchema = z.object({
+  header: z.string().describe('Column header text'),
+  accessorKey: z.string().describe('Data accessor key'),
+  className: z.string().optional().describe('Column class name'),
+  cellClassName: z.string().optional().describe('Cell class name'),
+  width: z.union([z.string(), z.number()]).optional().describe('Column width'),
+  minWidth: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  align: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table, or a cellClassName like text-right'),
+  fixed: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  type: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  sortable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  filterable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  resizable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  format: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  options: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  currency: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+});
+
+/**
+ * Table Schema - Simple STATIC table component. For hover/stripe styling,
+ * sorting, filtering, selection or inline editing use `data-table`.
+ *
+ * `hoverable` / `striped` are ADR-0049 tombstones (objectui#5474): the static
+ * renderer never implemented either — both carried `@default` annotations and
+ * reference-page teaching describing behaviour that did not exist. An
+ * authored value now fails parse loudly rather than doing nothing silently.
  */
 export const TableSchema = BaseSchema.extend({
   type: z.literal('table'),
   caption: z.string().optional().describe('Table caption'),
-  columns: z.array(TableColumnSchema).describe('Table columns'),
+  columns: z.array(StaticTableColumnSchema).describe('Table columns (static subset — objectui#5474)'),
   data: z.array(z.any()).describe('Table data'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Table footer'),
-  hoverable: z.boolean().optional().describe('Highlight rows on hover'),
-  striped: z.boolean().optional().describe('Striped rows'),
+  hoverable: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented row hover; use data-table'),
+  striped: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented striping; style rows via className, or use data-table'),
 });
 
 /**
@@ -140,7 +216,7 @@ export const DataTableSchema = BaseSchema.extend({
   pageSize: z.number().optional().describe('Default page size'),
   pageSizeOptions: z.array(z.number()).optional().describe('Options for the rows-per-page selector (defaults to 5/10/20/50/100).'),
   searchable: z.boolean().optional().describe('Enable search'),
-  selectable: z.boolean().optional().describe('Enable row selection'),
+  selectable: z.union([z.boolean(), z.enum(['single', 'multiple'])]).optional().describe('Enable row selection — `true`/`multiple` = multi-select, `single` = replace-on-select with no select-all'),
   sortable: z.boolean().optional().describe('Enable sorting'),
   exportable: z.boolean().optional().describe('Enable data export'),
   rowActions: z.array(z.any()).optional().describe('Row action buttons'),
@@ -262,13 +338,44 @@ export const TimelineEventSchema = z.object({
 });
 
 /**
+ * Timeline scale — the six values of `@objectstack/spec`
+ * `ui/TimelineConfig.json#scale`, which are also the six `TIMELINE_SCALES` the
+ * gantt renderer accepts. Mirrors `TimelineScale` in `../data-display.ts`.
+ *
+ * Deliberately NOT exported: every exported const in this directory has to be
+ * registered in `zod-mirror-parity.test.ts`'s `MIRRORS` or `EXCLUSIONS`, and a
+ * shared inline enum is not a mirror of any declaration — it is spelling reuse
+ * between the two keys below.
+ */
+const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', 'year']);
+
+/**
  * Timeline Schema - Timeline component
+ *
+ * Mirrors `TimelineSchema` in `../data-display.ts`, which objectui#6170 aligned
+ * to the key set `TimelineRenderer` actually reads (maintainer ruling
+ * 2026-08-25). `zod-mirror-parity.test.ts` pins the two together: a key
+ * declared there and absent here is `UnmirroredDeclaredKeys` and reddens the
+ * pair, so the nine presentational keys below are not optional to carry.
+ *
+ * `events` / `orientation` / `position` stay declared and stay mirrored: they
+ * have zero read points, but removing them is a breaking narrowing routed
+ * through ADR-0049 rather than done here. `events` follows the declaration from
+ * required to OPTIONAL — strictly more input parses than before.
  */
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
-  events: z.array(TimelineEventSchema).describe('Timeline events'),
-  orientation: z.enum(['vertical', 'horizontal']).optional().describe('Timeline orientation'),
-  position: z.enum(['left', 'right', 'alternate']).optional().describe('Event position'),
+  variant: z.enum(['vertical', 'horizontal', 'gantt']).optional().describe('Layout variant'),
+  items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
+  dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
+  scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
+  timeScale: TimelineScaleSchema.optional().describe('DEPRECATED pre-spec alias for scale; still read as a fallback'),
+  rowLabel: z.string().optional().describe('Header label above the gantt row-label gutter'),
+  minDate: z.string().optional().describe('Override the auto-calculated gantt axis start (YYYY-MM-DD)'),
+  maxDate: z.string().optional().describe('Override the auto-calculated gantt axis end (YYYY-MM-DD)'),
+  events: z.array(TimelineEventSchema).optional().describe('DEPRECATED — zero read points; renders an empty rail. Use items'),
+  orientation: z.enum(['vertical', 'horizontal']).optional().describe('DEPRECATED — zero read points. Use variant'),
+  position: z.enum(['left', 'right', 'alternate']).optional().describe('DEPRECATED — zero read points'),
 });
 
 /**

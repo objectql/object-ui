@@ -13,7 +13,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@object-ui/components';
 import { ArrowLeft, Store } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { InstalledList } from './InstalledListWidget';
+import { InstalledList } from './InstalledListWidget.js';
 
 export function MarketplaceInstalledPage() {
   const navigate = useNavigate();

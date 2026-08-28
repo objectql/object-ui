@@ -22,9 +22,9 @@
  * an input is focused.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { DeclaredActionsBar } from '@object-ui/app-shell';
+import { DeclaredActionsBar, isViaOverrideRow } from '@object-ui/app-shell';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import {
   Button,
@@ -73,6 +73,7 @@ import {
 } from '@object-ui/components';
 import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation } from '@object-ui/i18n';
 import {
   CheckCircle2,
@@ -94,6 +95,7 @@ import {
   Check,
   Circle,
   Paperclip,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   approvalsApi,
@@ -102,6 +104,9 @@ import {
   type ApprovalActionRow,
   type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
+import { useRecordReadability } from './recordReadability';
+import { useHiddenFieldsByObject } from './hiddenFields';
+import { holdsStudioAccess } from '../../components/studioEntry';
 
 type TabKey = 'pending' | 'submitted' | 'all';
 
@@ -309,6 +314,18 @@ const OPAQUE_ID_RE = /^[A-Za-z0-9_-]{15,}$/;
  * card. Lookup foreign keys render their server-resolved record title
  * (`payload_display`); an unresolved opaque id is dropped rather than shown —
  * a business reader gets nothing from `dpOfPMy7cbeEL1jk`.
+ *
+ * `hiddenKeys` carries the object's `hidden: true` declarations (objectui#5565)
+ * and is dropped BEFORE the `max` cut, not after: this card is default UI, so a
+ * field the author hid must not occupy one of its slots — and the field that
+ * would have been seventh is promoted into the freed slot rather than the card
+ * simply rendering one row shorter. That ordering is what makes this a filter
+ * rather than a reshuffle; see `ApprovalsInboxPage.hiddenFieldTrim.test.tsx`,
+ * which pins both halves.
+ *
+ * An empty `hiddenKeys` means "nothing known to be hidden" — including the case
+ * where the metadata read has not answered — and renders today's card. See
+ * `hiddenFields.ts` on why this presentation filter fails open.
  */
 function payloadSummary(
   payload: unknown,
@@ -316,11 +333,13 @@ function payloadSummary(
   labels?: Record<string, string>,
   max = 6,
   excludeKey?: string,
+  hiddenKeys?: ReadonlySet<string>,
 ): Array<[string, string]> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
   const out: Array<[string, string]> = [];
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (hiddenKeys?.has(k)) continue; // author declared `hidden: true` (#5565)
     if (excludeKey && k === excludeKey) continue; // shown as the lead amount
     if (v == null || typeof v === 'object') continue;
     if (String(v).trim() === '') continue;
@@ -348,14 +367,29 @@ const AMOUNT_KEY_RE = /(amount|total|price|value|cost|sum|budget|salary|fee|reve
  * for the inline list display and amount sort. Prefers the server-formatted
  * `payload_display` value (currency, etc.) but always keeps the raw number for
  * ordering. Null when the snapshot has no such field.
+ *
+ * `hiddenKeys` is the fields THIS request's object declares `hidden: true`, and
+ * it is **required** on purpose (objectui#6020). It was optional when
+ * objectui#5565 added it, and four of the five call sites simply did not pass
+ * it — a filter that lives in the function body but is unpassed at the call
+ * site reads exactly like a fixed defect. Required, the compiler asks the one
+ * question that matters at every present and future call site: *whose* hidden
+ * keys? Pass `NO_HIDDEN_FIELDS` only where the answer is genuinely "nothing
+ * known", never to silence the parameter.
+ *
+ * An empty set means "nothing known to be hidden" — including the case where
+ * the metadata read has not answered — and yields today's amount. See
+ * `hiddenFields.ts` on why this presentation filter fails open.
  */
 function decisionAmountEntry(
   r: ApprovalRequestRow,
+  hiddenKeys: ReadonlySet<string>,
 ): { key: string; label: string; value: number; display: string } | null {
   const payload = r.payload;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
+    if (hiddenKeys.has(k)) continue; // author declared `hidden: true` (#5565)
     if (!AMOUNT_KEY_RE.test(k)) continue;
     const num = typeof v === 'number'
       ? v
@@ -371,6 +405,151 @@ function decisionAmountEntry(
   return null;
 }
 
+/** The page's scoped translator, as the row cells receive it. */
+type Translate = (key: string, defaultValue: string, opts?: Record<string, unknown>) => string;
+
+/*
+ * ── Shared row fragments ──────────────────────────────────────────────────
+ *
+ * Module scope on purpose, for the same reason `StatusBadge` above sits here
+ * (objectui#5348). Declared inside `ApprovalsInboxPage` these were a brand-new
+ * component *type* on every render, so React unmounted and remounted every
+ * row's cells instead of updating them — on a page that re-renders on a 60s
+ * clock whether or not anyone is touching it. Two consequences were measured:
+ * transient subtree state (focus, hover) was discarded on each tick, and a
+ * click whose pointer sequence spanned a re-render was delivered to a
+ * detached node and silently swallowed (objectui#5211 hit this and worked
+ * around it at the call site).
+ *
+ * Everything they used to close over is passed in. Do not move them back, and
+ * do not add a fourth cell inside the page body:
+ * `ApprovalsInboxPage.cellIdentity.test.tsx` pins the DOM-node identity of all
+ * three across a clock tick, so a reintroduction fails there. It will NOT fail
+ * lint — `react-hooks/static-components` is `error` in this repo but its
+ * analysis bails out on this component (measured: an arrow-form inner
+ * component injected here and used in JSX produces zero reports).
+ */
+
+function RequestCell({ r, tr }: { r: ApprovalRequestRow; tr: Translate }) {
+  return (
+    <div className="min-w-0">
+      <div className="font-medium truncate">{processLabel(r)}</div>
+      <div className="text-xs text-muted-foreground truncate">
+        {stepLabel(r) || '—'}
+        {(r.round ?? 1) > 1 && (
+          <span className="ml-1.5 text-violet-600 dark:text-violet-400">
+            {tr('roundChip', 'Round {{n}}', { n: r.round })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `href` is `null` for a record this viewer cannot open (objectui#5211) — the
+ * readable/unreadable decision and the URL are ONE prop so the two cannot be
+ * handed in disagreeing with each other.
+ *
+ * `hiddenKeys` belongs to THIS row's object (objectui#6020). The queue spans
+ * many objects, so it is a per-row prop and not something this cell could
+ * resolve for itself — see the page body, which drives it off one lookup.
+ */
+function RecordCell({ r, href, hiddenKeys }: {
+  r: ApprovalRequestRow;
+  href: string | null;
+  hiddenKeys: ReadonlySet<string>;
+}) {
+  // Surface the decision-relevant amount inline so a reviewer can triage the
+  // queue without opening each request (#2762 P1-3) — minus anything the
+  // author declared `hidden: true` (objectui#6020).
+  const amount = decisionAmountEntry(r, hiddenKeys);
+  // objectui#5211: no link into a record this viewer cannot open. The title
+  // still shows — it comes from the request's own payload snapshot, which the
+  // approver was already given — it just stops being an anchor.
+  const title = r.record_title || formatIdentity(r.record_id);
+  return (
+    <div className="min-w-0">
+      {href === null ? (
+        <div className="text-sm truncate max-w-full" title={r.record_id}>{title}</div>
+      ) : (
+      <Link
+        to={href}
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1 text-sm hover:underline truncate max-w-full"
+        title={r.record_id}
+      >
+        <span className="truncate">{title}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+      </Link>
+      )}
+      <div className="text-xs text-muted-foreground truncate">
+        {objectDisplay(r)}
+        {amount && (
+          <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
+            · {amount.display}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InlineActions({
+  r,
+  actionable,
+  busy,
+  needsInputs,
+  tr,
+  onApprove,
+  onReject,
+}: {
+  r: ApprovalRequestRow;
+  actionable: boolean;
+  busy: boolean;
+  needsInputs: boolean;
+  tr: Translate;
+  onApprove: (r: ApprovalRequestRow) => void;
+  onReject: (r: ApprovalRequestRow) => void;
+}) {
+  if (!actionable) return null;
+  // #2829: a request whose node declares decision outputs must go through
+  // the drawer's dialog (the only place those fields are collected) — render
+  // the quick buttons disabled with an explanation instead of hiding them.
+  const needsInputsHint = tr(
+    'needsDecisionInputs',
+    'This approval collects decision outputs — open it to decide.',
+  );
+  return (
+    <div
+      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+      onClick={(e) => e.stopPropagation()}
+      title={needsInputs ? needsInputsHint : undefined}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
+        disabled={busy || needsInputs}
+        onClick={() => onApprove(r)}
+        aria-label={needsInputs ? needsInputsHint : tr('approve', 'Approve')}
+      >
+        <CheckCircle2 className="h-4 w-4" />
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400"
+        disabled={busy || needsInputs}
+        onClick={() => onReject(r)}
+        aria-label={needsInputs ? needsInputsHint : tr('reject', 'Reject')}
+      >
+        <XCircle className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export function ApprovalsInboxPage() {
   const { t, language } = useObjectTranslation();
   const { user } = useAuth();
@@ -380,6 +559,59 @@ export function ApprovalsInboxPage() {
   // stripped from the URL so refresh/back doesn't re-open a dismissed drawer.
   const [searchParams, setSearchParams] = useSearchParams();
   const identities = useMemo(() => buildApproverIdentities(user as any), [user]);
+
+  /**
+   * [objectui#5553] May THIS viewer see the drawer's raw payload snapshot?
+   *
+   * ## What this closes
+   *
+   * The drawer's "Raw data (JSON)" panel rendered on `payload != null` alone —
+   * no principal check of any kind — so every business approver was handed the
+   * submitted record's complete raw row: `id`, `created_by`, `updated_by`,
+   * `owner_id`, `organization_id`, bare lookup ids, and **the fields the
+   * object's metadata declares `hidden: true`**. Reported from a live EHR
+   * deployment on 17.1.0, where the app author's `hidden` declaration is a
+   * patient-data control and this path silently bypassed it. The app author had
+   * no legitimate lever to remove the panel — field `hidden`, view columns, nav,
+   * permission sets and env vars are all ineffective against it — so the only
+   * remedies in the field were patching `dist` or injecting CSS.
+   *
+   * ## The signal, and why this one
+   *
+   * `studio.access` is a declared PLATFORM-scope capability that a tenant org
+   * owner does not hold by design (it is one of the framework's
+   * `PLATFORM_ADMIN_ONLY_CAPABILITIES`), and it already reaches the browser in
+   * `systemPermissions[]` from `GET /api/v1/auth/me/permissions` — the payload
+   * `MePermissionsProvider` mounts around every route this page renders under
+   * (`AppContent`). Nothing new is served, computed, or made authorable here:
+   * `holdsStudioAccess` is reused verbatim from `studioEntry`, which is the
+   * console's existing answer to "is this principal a platform operator rather
+   * than a business user", so the two surfaces cannot drift into two spellings
+   * of one fact. Minting an authorable key for this (`approvals.showRawPayload`
+   * or any sibling) would be new public surface and is deliberately NOT done.
+   *
+   * ## ⛔ Fail CLOSED — inverted from `hasCapabilities`
+   *
+   * `usePermissions().hasCapabilities` fails OPEN on an unreported answer, and
+   * that is right for an action button: the server still refuses the write, and
+   * hiding a holder's button is the worse outcome. This panel has the opposite
+   * stake — the measured defect IS a non-holder seeing it — so the RAW signal is
+   * read instead (`systemPermissions`, whose `undefined`-vs-`[]` distinction
+   * objectui#4656 made load-bearing) and every not-a-reported-grant answer
+   * denies: no provider, a backend predating ADR-0066 that omits the field, and
+   * the resolver's `catch` path that answers 200 with no `systemPermissions` at
+   * all. A deployment whose permission layer just failed must not be the one
+   * that leaks the snapshot. A reported empty array is a real answer and denies
+   * too. The cost of denying wrongly is a platform operator losing a debug
+   * affordance, recoverable with a reload; the cost of granting wrongly is the
+   * leak this card exists to close.
+   *
+   * The server-side residual — the payload reaching the client unfiltered in the
+   * first place — is a separate defect tracked in the objectstack repo. This
+   * gate does not depend on it and does not pretend to fix it.
+   */
+  const { systemPermissions } = usePermissions();
+  const maySeeRawPayload = holdsStudioAccess(systemPermissions);
 
   const tr = useCallback(
     (key: string, defaultValue: string, opts?: Record<string, unknown>) =>
@@ -477,6 +709,51 @@ export function ApprovalsInboxPage() {
   const [selected, setSelected] = useState<ApprovalRequestRow | null>(null);
   const [actions, setActions] = useState<ApprovalActionRow[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
+
+  /**
+   * objectui#5211 — an approver can be routed a request about a record they
+   * cannot read (approver routing goes by position; record visibility is a
+   * separate gate). The link below then dead-ends on the record page's
+   * "may have been deleted", so it is suppressed for exactly those rows.
+   *
+   * One batched list read per distinct object covers the whole page — see
+   * `recordReadability.ts` for the cost model, the fail-open rule, and why
+   * nothing here says anything about WHY a target is unreadable.
+   *
+   * `selected` joins the loaded rows because the drawer can be deep-linked
+   * (`?request=<id>`) to a request that is not in the current row set.
+   */
+  const readabilityTargets = useMemo(
+    () => (selected ? [...rows, selected] : rows),
+    [rows, selected],
+  );
+  const readability = useRecordReadability(readabilityTargets);
+
+  /**
+   * objectui#5565 + objectui#6020 — the fields each object on screen declares
+   * `hidden: true`. `hidden` is a UI contract (objectstack#10749: "`hidden:
+   * true` stays UI-only; `internal: true` is the serialization primitive"), and
+   * every surface below is default UI, so all of them must honour it: the
+   * drawer's summary card and lead amount (#5565), and — this is #6020 — the
+   * queue rows, the mobile cards, and the amount sort.
+   *
+   * ⛔ It is keyed BY OBJECT and not a single set. The queue is N rows spanning
+   * K objects; threading the open request's set into the rows would apply one
+   * object's declarations to every row — hiding fields on rows whose object
+   * never declared them, missing fields on rows whose object did, and looking
+   * fixed while doing it. Every consumer asks with its OWN `object_name`.
+   *
+   * Same targets as the readability probe, so the deep-linked drawer's object
+   * is covered even when its request is not in the current row set. One cached
+   * metadata read per distinct object per mount, empty until it answers — see
+   * `hiddenFields.ts` for the cost model and why this fails open.
+   */
+  const hiddenFieldObjects = useMemo(
+    () => readabilityTargets.map((t) => t.object_name),
+    [readabilityTargets],
+  );
+  const hiddenFields = useHiddenFieldsByObject(hiddenFieldObjects);
+  const hiddenPayloadKeys = hiddenFields.forObject(selected?.object_name);
   // Approve/reject/reassign/send-back/… are server-declared actions rendered by
   // DeclaredActionsBar (objectui#2697 + framework#3300); their param dialog
   // collects the comment and — since the shared upload-widget renderer (#2700/
@@ -815,9 +1092,16 @@ export function ApprovalsInboxPage() {
     if (sortKey === 'amount') {
       // Highest amount first; rows without a detectable amount sink to the
       // bottom (keeping their relative newest-first order).
+      //
+      // objectui#6020: a row whose amount field its object declares
+      // `hidden: true` has no amount HERE either, so it sinks with them. An
+      // ordering IS a disclosure — it leaks the relative magnitude of a hidden
+      // figure to a viewer who never sees the figure — so the queue must not
+      // order on a value it declines to render. Each row is asked about its
+      // own object; a page spanning several objects gets several answers.
       sorted.sort((a, b) => {
-        const av = decisionAmountEntry(a)?.value;
-        const bv = decisionAmountEntry(b)?.value;
+        const av = decisionAmountEntry(a, hiddenFields.forObject(a.object_name))?.value;
+        const bv = decisionAmountEntry(b, hiddenFields.forObject(b.object_name))?.value;
         if (av == null && bv == null) return 0;
         if (av == null) return 1;
         if (bv == null) return -1;
@@ -828,7 +1112,7 @@ export function ApprovalsInboxPage() {
       sorted.sort((a, b) => (submittedAt(a) || '').localeCompare(submittedAt(b) || ''));
     }
     return sorted;
-  }, [rows, query, processFilter, objectFilter, statusFilter, tab, sortKey]);
+  }, [rows, query, processFilter, objectFilter, statusFilter, tab, sortKey, hiddenFields]);
   /** Position of the open request within the visible list (drawer prev/next). */
   const drawerIndex = useMemo(
     () => (selectedId ? filteredRows.findIndex(r => r.id === selectedId) : -1),
@@ -1056,92 +1340,6 @@ export function ApprovalsInboxPage() {
     setSortKey('recent');
     setFocusIndex(-1);
   };
-
-  // ── Shared row fragments ─────────────────────────────────────────
-
-  function RequestCell({ r }: { r: ApprovalRequestRow }) {
-    return (
-      <div className="min-w-0">
-        <div className="font-medium truncate">{processLabel(r)}</div>
-        <div className="text-xs text-muted-foreground truncate">
-          {stepLabel(r) || '—'}
-          {(r.round ?? 1) > 1 && (
-            <span className="ml-1.5 text-violet-600 dark:text-violet-400">
-              {tr('roundChip', 'Round {{n}}', { n: r.round })}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function RecordCell({ r }: { r: ApprovalRequestRow }) {
-    // Surface the decision-relevant amount inline so a reviewer can triage the
-    // queue without opening each request (#2762 P1-3).
-    const amount = decisionAmountEntry(r);
-    return (
-      <div className="min-w-0">
-        <Link
-          to={recordHref(r)}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-sm hover:underline truncate max-w-full"
-          title={r.record_id}
-        >
-          <span className="truncate">{r.record_title || formatIdentity(r.record_id)}</span>
-          <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-        </Link>
-        <div className="text-xs text-muted-foreground truncate">
-          {objectDisplay(r)}
-          {amount && (
-            <span className="ml-1.5 font-medium text-foreground" title={`${amount.label}: ${amount.display}`}>
-              · {amount.display}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function InlineActions({ r }: { r: ApprovalRequestRow }) {
-    if (!isActionable(r)) return null;
-    const busy = inlineActing === r.id;
-    // #2829: a request whose node declares decision outputs must go through
-    // the drawer's dialog (the only place those fields are collected) — render
-    // the quick buttons disabled with an explanation instead of hiding them.
-    const needsInputs = needsDecisionInputs(r);
-    const needsInputsHint = tr(
-      'needsDecisionInputs',
-      'This approval collects decision outputs — open it to decide.',
-    );
-    return (
-      <div
-        className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-        onClick={(e) => e.stopPropagation()}
-        title={needsInputs ? needsInputsHint : undefined}
-      >
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
-          disabled={busy || needsInputs}
-          onClick={() => setApproveTarget(r)}
-          aria-label={needsInputs ? needsInputsHint : tr('approve', 'Approve')}
-        >
-          <CheckCircle2 className="h-4 w-4" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400"
-          disabled={busy || needsInputs}
-          onClick={() => setRejectTarget(r)}
-          aria-label={needsInputs ? needsInputsHint : tr('reject', 'Reject')}
-        >
-          <XCircle className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 max-w-6xl">
@@ -1423,8 +1621,14 @@ export function ApprovalsInboxPage() {
                               />
                             </TableCell>
                           )}
-                          <TableCell><RequestCell r={r} /></TableCell>
-                          <TableCell><RecordCell r={r} /></TableCell>
+                          <TableCell><RequestCell r={r} tr={tr} /></TableCell>
+                          <TableCell>
+                            <RecordCell
+                              r={r}
+                              href={readability.isUnreadable(r) ? null : recordHref(r)}
+                              hiddenKeys={hiddenFields.forObject(r.object_name)}
+                            />
+                          </TableCell>
                           <TableCell>
                             {isSystemSubmitter(r) ? (
                               // Flow-/system-initiated: name the origin instead of a
@@ -1459,7 +1663,17 @@ export function ApprovalsInboxPage() {
                               ) : null;
                             })()}
                           </TableCell>
-                          <TableCell className="w-20"><InlineActions r={r} /></TableCell>
+                          <TableCell className="w-20">
+                            <InlineActions
+                              r={r}
+                              actionable={isActionable(r)}
+                              busy={inlineActing === r.id}
+                              needsInputs={needsDecisionInputs(r)}
+                              tr={tr}
+                              onApprove={setApproveTarget}
+                              onReject={setRejectTarget}
+                            />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1480,7 +1694,8 @@ export function ApprovalsInboxPage() {
                         {r.record_title || formatIdentity(r.record_id)}
                         <span className="text-muted-foreground text-xs ml-1.5">{objectDisplay(r)}</span>
                         {(() => {
-                          const amount = decisionAmountEntry(r);
+                          // objectui#6020: this row's OWN object decides.
+                          const amount = decisionAmountEntry(r, hiddenFields.forObject(r.object_name));
                           return amount ? (
                             <span className="text-xs ml-1.5 font-medium" title={amount.label}>· {amount.display}</span>
                           ) : null;
@@ -1672,13 +1887,26 @@ export function ApprovalsInboxPage() {
               // Decision-critical amount leads the card (#2762 P2) — a filled
               // figure at the top instead of a value buried bottom-right in the
               // generic field grid. Excluded from that grid below so it shows once.
-              const drawerAmount = decisionAmountEntry(selected);
-              const summary = payloadSummary(selected.payload, selected.payload_display, selected.payload_labels, 6, drawerAmount?.key);
+              // Both halves of this card read the same snapshot, so both take
+              // the same `hidden` trim (objectui#5565) — otherwise a hidden
+              // amount-like field would simply move from the field grid to the
+              // bold lead figure at the top of the very card being fixed.
+              const drawerAmount = decisionAmountEntry(selected, hiddenPayloadKeys);
+              const summary = payloadSummary(selected.payload, selected.payload_display, selected.payload_labels, 6, drawerAmount?.key, hiddenPayloadKeys);
               return (
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
+                      {/* Same suppression as the row (objectui#5211) — the drawer
+                          offers the same link to the same record for the same
+                          viewer, so fixing only the row would move the dead end
+                          one click deeper instead of removing it. */}
+                      {readability.isUnreadable(selected) ? (
+                        <div className="text-base font-semibold truncate">
+                          {selected.record_title || formatIdentity(selected.record_id)}
+                        </div>
+                      ) : (
                       <Link
                         to={recordHref(selected)}
                         className="text-base font-semibold hover:underline inline-flex items-center gap-1.5"
@@ -1686,6 +1914,7 @@ export function ApprovalsInboxPage() {
                         <span className="truncate">{selected.record_title || formatIdentity(selected.record_id)}</span>
                         <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       </Link>
+                      )}
                       <div className="text-xs text-muted-foreground">{objectDisplay(selected)}</div>
                     </div>
                     <div className="text-right text-xs text-muted-foreground shrink-0">
@@ -1828,27 +2057,48 @@ export function ApprovalsInboxPage() {
               })()}
 
               {(selected.flow_steps?.length ?? 0) > 1 && (
-                <div className="flex items-center px-1" aria-label={tr('stepProgress', 'Approval steps')}>
-                  {selected.flow_steps!.map((s, i) => (
-                    <Fragment key={s.id}>
-                      {i > 0 && <div className={cn('h-px flex-1 mx-2', s.state === 'done' || s.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                // objectui#5554 — the step strip is a VERTICAL stepper, at
+                // every step count. A horizontal row's intrinsic width grows
+                // without bound with step count and label length, so a real
+                // 6-step flow with ordinary CJK labels measured 1070px inside
+                // a 527px drawer: steps 4-6 were reachable only by dragging
+                // the drawer's own scrollbar, which pushed the rest of the
+                // drawer off-screen. A column caps width at the container at
+                // any step count and any label length, so there is no flow
+                // length or viewport at which it silently regresses — which
+                // is exactly what a count- or measurement-triggered switch
+                // would reintroduce. Nothing here may pin intrinsic width:
+                // no `shrink-0` on the rows, no `whitespace-nowrap` on the
+                // labels, and no horizontal scroller.
+                <ol className="flex flex-col px-1" aria-label={tr('stepProgress', 'Approval steps')}>
+                  {selected.flow_steps!.map((s, i, steps) => {
+                    const next = steps[i + 1];
+                    return (
+                      <li key={s.id} className="flex items-start gap-2">
+                        <div className="flex flex-col items-center self-stretch">
+                          <span className={cn(
+                            'flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] font-semibold',
+                            s.state === 'done' && 'bg-emerald-500 text-white',
+                            s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
+                            s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
+                          )}>
+                            {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
+                          </span>
+                          {next && (
+                            // Tinted by the step it leads INTO — the same rule
+                            // the horizontal connector used, now running down
+                            // the rail instead of across it.
+                            <div className={cn('w-px flex-1 min-h-3 my-1', next.state === 'done' || next.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />
+                          )}
+                        </div>
                         <span className={cn(
-                          'flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold',
-                          s.state === 'done' && 'bg-emerald-500 text-white',
-                          s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
-                          s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
-                        )}>
-                          {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
-                        </span>
-                        <span className={cn(
-                          'text-xs',
+                          'min-w-0 flex-1 pt-0.5 text-xs break-words',
                           s.state === 'current' ? 'font-medium' : 'text-muted-foreground',
                         )}>{s.label}</span>
-                      </div>
-                    </Fragment>
-                  ))}
-                </div>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
 
               <div>
@@ -1858,7 +2108,14 @@ export function ApprovalsInboxPage() {
                 ) : (
                   <ol className="relative space-y-3 pl-5 before:absolute before:left-[7px] before:top-1 before:bottom-1 before:w-px before:bg-border">
                     {actions.map((a) => {
-                      const color = a.action === 'approve' ? 'bg-emerald-500'
+                      // objectui#5178 — an admin override does not wear the
+                      // ordinary decision's dot. Same rule and same predicate as
+                      // the record page's approval panel (both call
+                      // `isViaOverrideRow`), so the two timelines cannot drift
+                      // on what counts as an override.
+                      const viaOverride = isViaOverrideRow(a);
+                      const color = viaOverride ? 'bg-amber-500'
+                                  : a.action === 'approve' ? 'bg-emerald-500'
                                   : a.action === 'reject'  ? 'bg-destructive'
                                   : a.action === 'submit'  ? 'bg-blue-500'
                                   : a.action === 'reassign' ? 'bg-indigo-500'
@@ -1897,6 +2154,20 @@ export function ApprovalsInboxPage() {
                             <span className="font-medium">{actionText}</span>
                             <span className="text-muted-foreground">·</span>
                             <span title={a.actor_id || ''}>{actorName}</span>
+                            {/* The marker framework#4466 wrote and nothing read
+                                (objectui#5178). Only an explicit
+                                `via_override: true` earns it. */}
+                            {viaOverride && (
+                              <Badge
+                                variant="outline"
+                                className="gap-1 border-amber-500/60 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                                title={tr('viaOverrideHint', 'The actor held no approver slot on this step — admitted by the admin-override path.')}
+                                data-testid="via-override-chip"
+                              >
+                                <ShieldAlert className="h-3 w-3" aria-hidden />
+                                {tr('viaOverrideChip', 'Admin override')}
+                              </Badge>
+                            )}
                             <span
                               className="ml-auto text-muted-foreground text-[10px]"
                               title={formatDate(a.created_at)}
@@ -1964,8 +2235,12 @@ export function ApprovalsInboxPage() {
                 )}
               </div>
 
-              {/* Raw snapshot, collapsed by default — for debugging, not the read path */}
-              {selected.payload != null && (
+              {/* Raw snapshot — a platform-operator debug affordance, never the
+                  approver's read path. Gated on `maySeeRawPayload` (see its
+                  definition for the defect, the signal, and the fail-CLOSED
+                  posture); a business approver gets the structured summary,
+                  chain, activity and actions above and nothing else. */}
+              {maySeeRawPayload && selected.payload != null && (
                 <details className="group">
                   <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
                     {tr('rawData', 'Raw data (JSON)')}
@@ -2042,6 +2317,12 @@ export function ApprovalsInboxPage() {
                       {tr('returnedHint', 'An approver sent this back to you. The record is unlocked — fix the data, then resubmit to start a new approval round.')}
                     </div>
                     <div className="flex gap-2 flex-wrap items-center">
+                      {/* NOT readability-suppressed (objectui#5211), deliberately:
+                          this branch renders only for the SUBMITTER of a returned
+                          request, whose whole job here is to edit that record —
+                          a different persona from the approver the suppression is
+                          for, and one who demonstrably reached the record to
+                          submit it. */}
                       <Button asChild size="sm" variant="outline">
                         <Link to={recordHref(selected)}>
                           <ExternalLink className="h-4 w-4 mr-1" />

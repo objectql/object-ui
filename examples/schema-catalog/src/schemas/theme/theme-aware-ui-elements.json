@@ -1,10 +1,11 @@
 {
   "type": "stack",
-  "spacing": 4,
+  "gap": 4,
   "children": [
     {
       "type": "flex",
-      "className": "gap-2 flex-wrap",
+      "gap": 2,
+      "wrap": true,
       "children": [
         {
           "type": "button",
@@ -35,7 +36,8 @@
     },
     {
       "type": "flex",
-      "className": "gap-2 flex-wrap",
+      "gap": 2,
+      "wrap": true,
       "children": [
         {
           "type": "badge",

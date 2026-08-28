@@ -94,6 +94,37 @@ export interface InlineEditContextValue {
    */
   approvalProgress?: ApprovalProgress;
   /**
+   * Whether the viewer is the SUBMITTER of the pending approval request
+   * (objectui#6464). Recall is the submitter's lever and the server enforces
+   * exactly that — a non-submitter's recall is refused — so a recall button
+   * lit for everyone who can read the record is a button whose click must
+   * fail. The host resolves the identity (server-resolved `viewer.is_submitter`
+   * on the pending request, with an id comparison as the pre-framework#3310
+   * fallback) for the same reason it resolves `locked`: the renderer stays
+   * DataSource-agnostic and never re-derives who submitted what.
+   *
+   * TRI-STATE, and the third state is the load-bearing one:
+   *   `true`      — the viewer submitted this approval; offer recall.
+   *   `false`     — the host consulted the pending request and this viewer is
+   *                 not its submitter; withdraw the recall affordance.
+   *   `undefined` — the host does not resolve submitter identity at all
+   *                 (no approvals API, band driven by the record's
+   *                 `approval_status` mirror alone). Behaviour is UNCHANGED
+   *                 from before this signal existed: recall stays offered.
+   *
+   * The `undefined` case defaults to *showing* on purpose, mirroring how
+   * `approvalPending` falls back to `locked`: omission preserves a host's
+   * previous behaviour. Defaulting it to "hide" would silently take the
+   * submitter's only unlock lever away from every host that never learns of
+   * this prop — trading a cosmetic defect for a functional loss.
+   *
+   * ⚠️ FEEDBACK ONLY. This decides who is SHOWN the entry, never who MAY
+   * recall: the server authorizes the recall itself and rejects a
+   * non-submitter regardless of what any client renders. Nothing may treat
+   * this as an authorization verdict.
+   */
+  approvalIsSubmitter?: boolean;
+  /**
    * Human-readable reason for the approval lock, surfaced as the band's
    * tooltip. Optional — consumers fall back to their own localized default
    * when omitted.
@@ -153,6 +184,14 @@ export interface InlineEditProviderProps {
    * for `first_response` nodes and for hosts that don't read approvals.
    */
   approvalProgress?: ApprovalProgress;
+  /**
+   * Whether the viewer submitted the pending approval request
+   * (objectui#6464). Surfaced verbatim so the recall affordance is offered to
+   * the submitter only. Omitted ⇒ `undefined` ⇒ recall is offered exactly as
+   * it was before this prop existed (see `InlineEditContextValue`), so a host
+   * that resolves no approval identity is unchanged.
+   */
+  approvalIsSubmitter?: boolean;
   /** Optional human-readable lock reason, surfaced as the band tooltip. */
   lockedReason?: string;
   children: React.ReactNode;
@@ -163,6 +202,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
   locked = false,
   approvalPending,
   approvalProgress,
+  approvalIsSubmitter,
   lockedReason,
   children,
 }) => {
@@ -211,6 +251,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       locked,
       approvalPending: pending,
       approvalProgress,
+      approvalIsSubmitter,
       lockedReason,
       draft,
       autoFocusField,
@@ -223,7 +264,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       setSaving,
       setError,
     }),
-    [editing, canEdit, locked, pending, approvalProgress, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
+    [editing, canEdit, locked, pending, approvalProgress, approvalIsSubmitter, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
   );
 
   return <InlineEditContext.Provider value={value}>{children}</InlineEditContext.Provider>;

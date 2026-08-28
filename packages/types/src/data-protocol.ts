@@ -17,8 +17,8 @@
  */
 
 // Import existing base types to avoid duplication
-import type { SortConfig as BaseSortConfig } from './objectql';
-import type { FilterBuilderOperator as BaseFilterOperator } from './complex';
+import type { SortConfig as BaseSortConfig } from './objectql.js';
+import type { FilterBuilderOperator as BaseFilterOperator } from './complex.js';
 
 // Spec-owned vocabulary, bound rather than re-declared (objectstack#4115). The
 // spec exports these as zod schemas, not as types, so they are derived through
@@ -1014,12 +1014,38 @@ export type ConditionalValidation = Omit<
  * Uniqueness validation — objectui-local, NOT spec vocabulary.
  *
  * @deprecated The spec removed this deliberately: a SELECT-then-INSERT check is
- * racy (TOCTOU) where a DB constraint is not. Declare a unique **index**
- * (`ObjectSchema.indexes`, `{ fields, unique: true }`, `partial` for a scoped
- * constraint) or field-level `unique: true` instead. `ValidationRuleSchema`
- * rejects `type: 'unique'`, so a rule in this shape cannot reach the server —
- * `ObjectValidationEngine` only evaluates it for callers that build rules by
- * hand.
+ * racy (TOCTOU) where a DB constraint is not. Enforce it in the database
+ * instead — and note that `unique` is scoped vocabulary (ADR-0120), so the
+ * replacement has to state a scope rather than a bare boolean:
+ *
+ * - A unique **index**: an `ObjectSchema.indexes` entry
+ *   `{ fields, unique: 'global' | 'organization' }`. `'organization'` is one
+ *   holder per organization (the driver prepends the NULL-safe organization
+ *   key part); `'global'` is one holder across the installation. On THIS
+ *   surface bare `unique: true` is the deprecated positional spelling of
+ *   `'global'` — lint `unique/unscoped-declared-index` warns in 17.x and
+ *   protocol 18 rejects it.
+ * - Field-level `unique` for a single-field constraint. The same token does
+ *   NOT mean the same thing on both surfaces: at field level bare `true` is
+ *   the positional spelling of `'organization'` and stays valid, though new
+ *   code spells `'organization'` so the scope is legible without knowing the
+ *   default.
+ * - A **partial** (predicated) constraint is not declarable at all. It is
+ *   built at the database layer by a runtime migration issuing
+ *   `CREATE UNIQUE INDEX … WHERE`. `indexes[].partial` was retired in
+ *   `@objectstack/spec` 17.0.0 (ADR-0049) and is now a tombstone the parse
+ *   rejects at any value — no driver ever emitted the `WHERE` clause, so a
+ *   declared partial index had been materializing as a FULL one.
+ *
+ * What would falsify the above: `UniqueScopeSchema` and `IndexSchema` in
+ * `@objectstack/spec` are what decide it. If the scope union gains a member,
+ * the `partial` tombstone is lifted, or protocol 18 lands its rejection, this
+ * paragraph is the thing that goes stale — re-read those two schemas, not this
+ * comment.
+ *
+ * `ValidationRuleSchema` rejects `type: 'unique'`, so a rule in this shape
+ * cannot reach the server — `ObjectValidationEngine` only evaluates it for
+ * callers that build rules by hand.
  */
 export interface UniquenessValidation extends BaseValidation {
   type: 'unique';

@@ -1,5 +1,528 @@
 # @object-ui/plugin-dashboard
 
+## 17.6.0
+
+### Minor Changes
+
+- 4dbcae7: BREAKING: `dashboardComponents` is re-keyed from 11 PascalCase component class
+  names to the 8 schema `type` keys the package actually registers
+  (`dashboard`, `metric`, `metric-card`, `object-metric`, `pivot`,
+  `object-pivot`, `dashboard-grid`, `object-data-table`), aligning the map with
+  its four sibling `*Components` maps (objectui#5064, Route A per the
+  2026-08-18 maintainer ruling). Every value is the exact component the
+  side-effect import registers for that type — for the two `object-*` types
+  that is the internal data-source-gate wrapper, not the exported widget. The
+  three config-panel components (`DashboardConfigPanel`, `WidgetConfigPanel`,
+  `DashboardWithConfig`) leave the map; they remain named exports. Any code
+  reading the old keys (e.g. `dashboardComponents.DashboardRenderer`) breaks —
+  two independent word-boundary greps measured zero such consumers in-tree.
+  Per AGENTS.md §版本号策略, objectui's major tracks `@objectstack`'s major, not
+  its own breaking-change count — this package's own breaking changes are
+  scored `minor` with the break spelled out in this body, which is what makes
+  this a `minor` (maintainer ruling, 2026-08-19).
+- 58398ba: fix(plugin-dashboard): `ObjectDataTable` resolves column identity before it hands columns to the table
+  
+  `normalizeColumns` converted the `string[]` shorthand and returned every object
+  column **raw**. `data-table` is an adapter, and its column key is `accessorKey`
+  (`TableColumn.accessorKey`) — a key `@object-ui/core` deliberately holds outside
+  the metadata identity fold, where `column-identity.ts` names it
+  `TABLE_ADAPTER_COLUMN_KEY`. So a column authored in the spec-canonical spelling,
+  `{ field: 'stage' }`, reached the adapter carrying no `accessorKey` at all: the
+  widget rendered a header over `row[undefined]` — every cell blank, nothing said
+  — and `computeLookupExpand`'s `$expand` whitelist, which resolved
+  `c.accessorKey || c.name`, missed the same column, so a `field`-spelled lookup
+  also lost its related record and showed a raw FK id.
+  
+  Identity is now resolved once, here, through the shared `columnIdentity` reader
+  and stamped onto the adapter's key. This is the move objectui#5022 made in
+  `RelatedList` and objectui#5068 generalized in `ObjectGrid`: metadata vocabulary
+  in, adapter vocabulary out, one translation in one place.
+  
+  **Affected input.** A column authored `{ field: … }` on an `object-data-table`
+  now renders its cells and, when the field is relational, enters `$expand`. Both
+  were previously empty. Columns authored `{ accessorKey: … }` are untouched, by
+  reference. An author-supplied `accessorKey` is never overwritten — a deliberate
+  divergence between the table slot and the metadata key belongs to the author —
+  and an entry whose identity resolves to nothing is returned untouched, so
+  nothing is invented for it.
+  
+  The other half of objectui#5120 — retiring `data-table`'s undeclared `col.name`
+  alias — is **not** in this change. The card's census-first fork clause tripped:
+  `skills/objectui/guides/data-integration.md` and
+  `skills/objectui/guides/schema-expressions.md` both instruct authors to spell a
+  `data-table` column `{ "name": …, "label": … }`, so the limb has real authorized
+  usage and the deletion went back to the maintainer. This change is a
+  prerequisite for that deletion rather than a substitute: it is what stops
+  `object-data-table` from depending on the alias.
+- f6fc565: `ObjectMetricWidgetProps` now speaks `@objectstack/spec`'s `I18nLabel` vocabulary on `label`, `trend.label`, `description` and `title`.
+  
+  These four members still declared `string | { key?: string; defaultValue?: string }`
+  — the key-reference label form `@objectstack/spec` RETIRED at 17.0.0-rc.6
+  (objectstack#5055). The sibling `MetricWidgetProps` was migrated to
+  `string | I18nLabel` for exactly this reason in objectui#4358; this interface was
+  missed in that pass, and it was the last declaration of the retired shape in any
+  package's shipped `src` (objectui#5264).
+  
+  It was not inert. `ObjectMetricWidget` forwards `label` / `description` / `trend`
+  straight to `MetricWidget`, which resolves them with `pickLocalized`. The retired
+  object matches no locale limb, so resolution fell through to that resolver's last
+  resort — the first string property in insertion order — and a metric authored in
+  the natural `{ key, defaultValue }` spelling painted the RAW DOTTED TRANSLATION KEY
+  onto the KPI card as its visible label. Written the other way round the English
+  fell out instead. That property-order dependence is why the defect never read as
+  systematic in review.
+  
+  Breaking semantics, stated per this repo's version policy (objectui's own
+  breaking changes ship as `minor` so the fixed group's major stays aligned with
+  `@objectstack`; see AGENTS.md §版本号策略):
+  
+  - **What starts type-checking:** the inline per-locale map — `label={{ en:
+    'Revenue', 'zh-CN': '收入' }}` — which is the ONLY object form the spec admits
+    today. Against the old declaration it was a compile error (TS2322/TS2353,
+    excess property `en`), so a consumer writing the correct vocabulary could not
+    build. This is the substance of the change and it is a WIDENING.
+  - **What stops type-checking:** nothing in practice. `I18nLabel`'s object half is
+    `InlineLocaleMap`, which erases to `Record<string, string>` in the emitted
+    `.d.ts` — the BCP-47 key regex is a Zod runtime refinement and does not survive
+    into the type — so `{ key, defaultValue }` remains structurally assignable. The
+    retired form is refused where refusal is expressible: `I18nLabelSchema` rejects
+    it at authoring time, in both property orders. No renderer-side tolerance was
+    added for it (AGENTS.md #0.1).
+  - **Behaviour change on the drill-down panel title.** `drawerTitle` read
+    `title?.defaultValue` / `label?.defaultValue` directly. An inline per-locale map
+    has no such limb, so an authored drill title resolved to `''` and the drawer
+    silently fell back to the literal word "Details". It now resolves through the
+    same `pickLocalized` and the same UI language as the tile, so the drawer and the
+    card that opened it can no longer disagree. A metric still passing the retired
+    form (only reachable by cast, or from stored metadata) sees the drawer follow
+    the card instead of diverging from it.
+- 9ce096f: Give a chart bucket an identity distinct from its display label
+  
+  objectui#4508. `buildChartSeries` used the bucket's DISPLAY string as the
+  bucket's own key, so two pairs of genuinely different groups were conflated —
+  and the segment click that drills a bar back to its records inherited both
+  conflations. The maintainer ruling (2026-08-14) approved the sentinel-identity
+  direction, aligning the chart branch with the distinct-bucket-id form the pivot
+  TABLE (`buildPivot`) already uses over the same dataset rows.
+  
+  Two collisions, one cause:
+  
+  - **A null group and an empty-string group drew ONE bar.** The pivot branch
+    keyed buckets by `String(xRaw ?? '')`, which spells `null` and `''`
+    identically. The bar took its label from whichever row created the bucket, and
+    the other group's segment then resolved to no row at all — a visible bar whose
+    click did nothing.
+  - **A record whose stored value spells the bucket label stole the null bucket's
+    drill.** A row storing the literal text `(None)` (or any localized
+    `chart.nullCategory` — `(未指定)` and the other nine packs) kept its own
+    bucket, so two bars carried the same axis text and BOTH resolved to the first.
+    That one is a wrong drill, not a dead one: clicking the null bucket's bar
+    opened the drawer on another group's records.
+  
+  What changed:
+  
+  - **`chartBucketId`** (`@object-ui/core`) is the bucket identity — the SAME
+    encoder `buildPivot` keys its buckets with (`pivotBucketId` over
+    `pivotDimensionValue`), so the two surfaces stop answering one question two
+    ways. The pivot branch now buckets by it, which is what makes null and `''`
+    two groups again.
+  - **`CHART_BUCKET_ID_KEY`** carries that identity on an emitted row, written
+    exactly where two DISTINCT buckets paint the same axis text — the complete set
+    of cases where the display string cannot name what was clicked. An ordinary
+    chart's rows are returned untouched (by identity), so no renderer-internal key
+    reaches an authoring surface.
+  - **`findChartSeriesRow`** takes that identity back as `options.bucketId` and
+    treats it as authoritative. The renderers forward it: the drill event gains
+    `categoryId` (`ChartSegmentClickEvent`, now declared once in
+    `@object-ui/core` instead of inline in three packages), `AdvancedChartImpl`
+    reads it off the clicked row on the cartesian, pie and funnel paths, and
+    `DatasetWidget.handleChartDrill` hands it to the lookup.
+  
+  Behaviour change worth noting: an empty-string category no longer resolves to a
+  null-valued row. That tolerance was justified as the drill layer's own spelling
+  of "no group value", but no producer of this lookup's `category` writes it,
+  while `''` IS the axis text a genuine empty-string group paints — so the
+  tolerance was giving that group's bar a different group's records. A host that
+  forwards no `categoryId` keeps its existing drill unchanged.
+
+### Patch Changes
+
+- ef0d150: The dashboard config sidebar translates: `WidgetConfigPanel` and `DashboardConfigPanel` are wired through `t()`.
+  
+  Both panels build a `ConfigPanelSchema` — breadcrumb, section titles, field
+  labels, placeholders, help text and option labels — and neither imported a
+  translation hook at all, so all 61 of their user-visible strings were English
+  literals. Both are exported from the package barrel and mounted by
+  `DashboardWithConfig` as the dashboard editing sidebar, so a user on any
+  non-English console opened a panel that stayed English inside chrome that had
+  translated around it.
+  
+  They now resolve through a new `dashboard.config.*` namespace — 75 keys, added
+  to all ten locale packs. The namespace sits beside `dashboard.trend.*` and
+  `dashboard.filters.*`, which is where this package's other translated surfaces
+  already read from, and the panels reach it through
+  `useConfigPanelTranslation`, a `createSafeTranslation` hook whose
+  `CONFIG_PANEL_DEFAULT_TRANSLATIONS` map carries the English defaults for hosts
+  that mount no `I18nProvider`.
+  
+  The keys are authored fresh against the wording the panels actually ship rather
+  than restored from the retired `configPanel.*` block: that vocabulary had no
+  reader, was never validated against a shipped label, and covered 16 of the 61
+  strings. Where the two name the same word the translations are reused.
+  
+  Every `en` pack value and every built-in default is byte-identical to the
+  literal it replaces, so English rendering and provider-less rendering are
+  unchanged — asserted row by row, in both directions, against a frozen table of
+  the pre-change literals.
+- 375efb4: Publish the authoring surfaces of the four GA `object-*` blocks
+  
+  `object-form`, `object-grid`, `object-master-detail-form` and `object-metric`
+  each honoured far more keys than they declared as registry `inputs`. An author —
+  very often an AI author — who wrote one of the undeclared keys got an
+  `unknown-prop` report from `sdui-parser` on a key that works, while the designer
+  panel and the generated `sdui-intrinsics.d.ts` denied it existed.
+  
+  68 keys are now declared with descriptions written to teach correct authoring:
+  `object-form` +20 (record binding, button labels, post-submit behaviour, mobile
+  overrides), `object-grid` +21 (sorting, pagination, grouping, selection, row and
+  bulk actions, navigation, export), `object-master-detail-form` +10, and
+  `object-metric` +14 (formatting, comparison, drill-down). No renderer behaviour
+  changes — this documents what already shipped, so the manifest, the generated
+  `.d.ts`, the designer panel and the renderers finally agree.
+  
+  Ten of `object-grid`'s spec-declared keys are deliberately NOT published:
+  its own `@deprecated` legacy spellings (`fields`, `staticData`, `selectable`,
+  `pageSize`, `showSearch`, `showPagination`, `defaultSort`, `defaultFilters`,
+  `resizableColumns`, `title`). The renderer keeps reading them so existing
+  documents render, but recommending a deprecated alias as new authoring surface
+  would harden it into a second dialect. Each canonical replacement — `columns`,
+  `data`, `selection`, `pagination`, `searchableFields`, `sort`, `filter`,
+  `resizable`, `label` — is declared, and each carries a description naming the
+  legacy spelling it supersedes.
+- bea374e: A KPI card's sub-caption now translates from its own convention key
+  
+  objectui#4032 item 4. The metric card renders two authored strings, and they
+  are two different authored fields:
+  
+  | authored field        | rendered as             | bundle key                                |
+  |-----------------------|-------------------------|-------------------------------------------|
+  | `widget.description`  | the shared card header  | `dashboards.<d>.widgets.<id>.description` |
+  | `options.description` | the KPI sub-caption     | `dashboards.<d>.widgets.<id>.subCaption`  |
+  
+  Only the first resolved. The metric dispatch spread `...options` straight
+  through, so the sub-caption reached `MetricWidget` as the raw authored English
+  and a `zh` dashboard showed a translated header above an untranslated caption.
+  
+  They get two keys, not one — the objectstack#5428 item-4 ruling (2026-08-06):
+  "两个作者字段两个 key". That is why PR #4358 landed items 1-3 and deliberately
+  stopped here: at the time `@objectstack/spec` accepted no segment for the
+  sub-caption and the only key it would take was `description`, the shared key the
+  ruling forbids. objectstack#8056 added `subCaption` to the widget translation
+  node, and it ships in `@objectstack/spec@17.0.0` — the version this repo pins.
+  
+  The server half already existed: `translateDashboard` overlays `subCaption` onto
+  `options.description` on the `/meta` path, so a served document was already
+  correct. This is the client half — the same key path, for the app bundles
+  objectui loads into `I18nProvider` itself.
+  
+  - `@object-ui/i18n` gains `widgetSubCaption(dashboardName, widgetId, fallback?)`,
+    mirroring `widgetDescription` limb for limb rather than re-implementing
+    namespace discovery inside the plugin.
+  - `DashboardRenderer`'s `tWidgetSubCaption` composes the two channels in the
+    order `tWidgetTitle` already fixed — the authored value is collapsed to the
+    active language first (an inline per-locale map, the `pickLocalized` seam),
+    and the plain string that falls out is offered to the bundle as its fallback —
+    so a bundle entry always wins over an inline map, and neither channel is
+    replaced by the other. The resolved value is assigned after the `...options`
+    spread in both the `object-metric` and static-value branches.
+  
+  The separation is pinned in both directions, because a shared key is exactly
+  what a later tidy-up would reach for: the `description` key never reaches
+  `options.description`, and `subCaption` never reaches `widget.description`. On a
+  `kpi` / `gauge` / `bullet` widget both are on screen at once, so one shared key
+  would make a single translation entry overwrite the other field's text.
+  
+  Untranslated dashboards are unchanged: with no bundle entry the resolver hands
+  back exactly what the spread would have, and with nothing authored and nothing
+  translated it answers `undefined` rather than `''`, so a card that has no
+  sub-caption grows no caption row.
+- e6cd3c2: Docs only: `packages/plugin-dashboard/README.md`'s TypeScript section no longer
+  imports two type names that exist nowhere (objectui#5015). Every README import was
+  judged against the entry module's real export surface — 20 names, read from the
+  build product's `dist/index.d.ts` through the TypeScript compiler API — and every
+  corrected snippet was type-checked against that same build product under `strict`.
+  
+  - **`DashboardSchema`** — taught as the dashboard's schema type, imported from this
+    package. Not on its export surface, and not on `@object-ui/types`' either. It
+    *looks* present because it occurs in three comments here
+    (`src/DashboardRenderer.tsx:884`, `src/DashboardGridLayout.tsx:76` and `:88`) and
+    as the name of the metadata-level Zod schema in `@objectstack/spec/ui` — an
+    identifier grep hits both, an export-surface check hits neither. The authored
+    type does exist under its real name, so the example is rewritten around it rather
+    than dropped: `DashboardComponentSchema` from `@object-ui/types`.
+  - **`MetricCardSchema`** — pure fiction: zero hits repo-wide under a word boundary,
+    outside this README. There is no per-widget-family schema type at all — one
+    `DashboardWidgetSchema` covers every `type`, and family-specific settings live
+    under `options` — so the name could not be corrected to a sibling. The example now
+    types its widgets as `DashboardWidgetSchema` and shows the three authored forms
+    the type really carries: a dataset-bound KPI, a static single-value widget with
+    its number under `options`, and a registered component node in the widget's
+    `component` slot.
+  
+  The section also states what the type set does *not* cover, because the old snippet
+  implied otherwise: `value`, `trend` and `trendValue` are `MetricCard`'s **component**
+  props, and `DashboardWidgetSchema` declares none of the three (each measured on its
+  own, since the first excess property short-circuits the rest of the diagnostic).
+  `MetricCard`'s props interface is not on this package's export surface either.
+  
+  No export was added, re-exported or renamed to make the old names true, and the
+  package's real `dashboardComponents` export is untouched. No code, types or runtime
+  behaviour change — the diff is one README and this changeset. The correction reaches
+  npm with the package's next publish, which is why it declares a patch: `README.md`
+  is in the package's published `files`.
+- 671c0d3: `packages/plugin-dashboard/README.md`: two teaching snippets did not survive being
+  copied. Both were verified against the package's **build artifact**
+  (`dist/index.d.ts`) — export names via the TS compiler API
+  (`checker.getExportsOfModule`), each changed TypeScript block compiled against
+  those same declarations under `strict`.
+  
+  - **The `onSchemaChange` persistence example (`TS2345` as written).** The callback
+    receives a `DashboardComponentSchema`, whose `name` is optional (`BaseSchema.name`
+    in `@object-ui/types`), and `client.meta.saveItem(type, name, item)` declares
+    `name: string` (`@objectstack/client@17.0.0`) — so
+    `saveItem('dashboard', next.name, next)` is `Argument of type 'string | undefined'
+    is not assignable to parameter of type 'string'` in any `strict` consumer. This was
+    the one snippet on the page marked `✅ Preferred`, directly under the paragraph
+    telling readers that persistence is theirs to wire, i.e. the block most likely to be
+    copied whole. It now handles the missing name explicitly (narrow, then write) and
+    says why in prose: the type requires it, and what the server does with an absent
+    name is **not** measured here, so the example declines to send one rather than
+    guessing. No production code was touched to make the old line true — `name` stays
+    optional, and the identity question for SDUI dashboard nodes stays with objectui#4600.
+  - **The `Object.entries(dashboardComponents).forEach(register)` loop.** `dashboardComponents`
+    is a real export, but its eleven keys are component class names
+    (`DashboardRenderer`, `MetricCard`, `WidgetConfigPanel`, …), not schema types — so
+    the loop registered eleven names no schema author writes, tripped the
+    no-namespace deprecation warning once per key
+    (`packages/core/src/registry/Registry.ts:198`), and registered none of the eight
+    types this package actually claims. It did not need to: those eight are already
+    registered by the side-effect import on the line above it. The section is replaced
+    by the family form used for the sibling plugins — the real register-key table
+    (`view:dashboard`, `plugin-dashboard:metric`, `metric-card`, `object-metric`,
+    `pivot`, `object-pivot`, `dashboard-grid`, `object-data-table`, with the bare-name
+    fallback rule and the two internal `object-*` wrappers named honestly), plus the
+    thing the old snippet was reaching for: registering an exported component under a
+    key of your own. `dashboardComponents` itself keeps only a statement of measured
+    fact, with no recommended usage, because the shape of that export is under
+    adjudication in objectui#5064.
+  
+  No code, types or runtime behaviour change — the diff is one README plus this
+  changeset. It declares a patch because `README.md` is in the package's published
+  `files`, so the correction reaches npm with the next release.
+- e05db88: A clicked cartesian mark names its own series, and the drill title reads its label
+  
+  objectui#4672, objectui#4682.
+  
+  **The dead pivoted drill.** objectui#4680 fixed what a cartesian click could
+  read out of recharts 3's `MouseHandlerDataParam`, and measured the wall it could
+  not get past: a chart-level click is an AXIS interaction, and recharts
+  dispatches those with `activeDataKey` hard-coded `undefined`, because the shared
+  cursor spans every series at that tick. A pivoted dataset chart — 2 dimensions,
+  1 measure, the shape ADR-0021 introduced — needs the series to resolve its drill
+  row, so every segment of every such dashboard chart stayed a dead click. The
+  series was left unresolved rather than guessed, and the card carried the rest.
+  
+  The answer is the mark itself. This renderer draws the `Bar` / `Line` / `Area`,
+  so an item-level `onClick` closes over the very `dataKey` it was rendered with —
+  the series is statically known, not inferred from tooltip state.
+  
+  Both handlers fire for one gesture (measured: item first, chart second, sharing
+  one `nativeEvent` object), so the item handler does not emit. It RECORDS its
+  series, stamped with that gesture, and the chart-level handler composes the one
+  event. That is the double-fire answer and the additive property together:
+  
+  - **one click, one drill event**, because there is one emit site — not a second
+    event suppressed after the fact;
+  - **a click that lands on no mark is untouched**: it records nothing and falls
+    through to the objectui#4680 axis answer exactly as shipped — category, bucket
+    identity, and the series only where one series is plotted. Empty plot area
+    stays category-only, and "drill the whole category" was rejected as a
+    different product question. Nothing that resolved before stops resolving; a
+    line's `dot={false}` stroke simply GAINS the exact series where it is hit;
+  - pairing on the shared DOM event rather than on a flag means a record left by
+    one gesture can never be adopted by a later click.
+  
+  The clicked key is forwarded exactly as rendered, `''` included: the
+  empty-string second-dimension group draws its own bar since objectui#4673, and
+  `''` is falsy, so a truthiness test on the way out would send no series at all
+  and leave that bar's drill standing on the reader's coercion instead of on what
+  was clicked.
+  
+  **The opaque drill title.** `ChartSegmentClickEvent` gains `seriesLabel`, and
+  `DatasetWidget`'s drill drawer titles itself from `seriesLabel ?? series`.
+  `ev.series` stays the LOOKUP key — `findChartSeriesRow` resolves it through the
+  same assignment `buildChartSeries` made — and only the title reads the label.
+  
+  The two strings are equal for every ordinary group, which is why reading the key
+  as a title went unnoticed. They part company when a group's label cannot name
+  it: the null bucket beside a record whose stored value literally spells
+  `(None)`, which is objectui#4508's collision on the series axis, reachable since
+  objectui#4673. Both groups then key by `chartBucketId`, and the drawer opened on
+  the right records under the title `Backlog / [null]`. An internal id where a
+  label belongs reads as broken DATA rather than as a broken title.
+  
+  Neither string can do the other's job, which is why this is a second field
+  rather than a change to the first: the label is not resolvable (it is exactly
+  what the colliding groups share) and the key is not showable. `seriesLabel` is
+  optional and absent wherever a renderer resolved no label, so every other
+  chart's title is byte-identical.
+- 5ffcc14: fix(plugin-report): forward the chart chrome and series presentation `ReportChartSchema` declares (objectui#4877)
+  
+  A report's embedded chart forwarded exactly six keys to the registered chart
+  component — `chartType`, `data`, `height`, `isAnimationActive`, `series`,
+  `xAxisKey`. Everything else `ReportChartSchema` declares as authorable never
+  left the report renderer, so it was inert metadata: the author writes it, the
+  schema accepts it, nothing reads it.
+  
+  `showLegend` was the sharpest case because dropping it does not merely ignore
+  the author, it INVERTS them: `AdvancedChartImpl` computes
+  `legendVisible = showLegend !== false`, so an absent value means the legend is
+  on and an explicit `showLegend: false` still drew one.
+  
+  Now lowered, under objectui#4229's ruled data/presentation split:
+  
+  - chrome — `showLegend`, `showDataLabels`, `colors` (both the positional-palette
+    array and the per-category record), `subtitle`, `description`, `annotations`,
+    `interaction`, `height`;
+  - per-series presentation — `color`, `stack`, `type`, `yAxis`, `dashArray`,
+    `opacity`, `variant`, matched by `series[].name` so series MEMBERSHIP stays
+    with the dataset.
+  
+  `title` is deliberately not forwarded: the report renderer paints it as its own
+  heading above the plot, and forwarding it would draw a second one inside the
+  chart's frame. `aria` is not lowered either — nothing on this path reads it
+  (`AdvancedChartImpl` has no `aria` prop, and this renderer hands the component a
+  schema directly rather than through `SchemaRenderer`'s flat ARIA injection), so
+  forwarding it would move declared-but-unread one layer down.
+  
+  The two helpers (`chartConfigPresentation`, `mergeAuthoredPresentation`) moved
+  from `plugin-dashboard`'s `DatasetWidget` to `@object-ui/core` beside
+  `buildChartSeries`, the derivation they merge onto, so both surfaces lower one
+  vocabulary once instead of keeping a second copy (the duplication objectui#4389
+  filed as a defect). `@object-ui/core` additionally exports `mergeAuthoredSeries`
+  — the series merge alone — for a surface whose axes are bare dimension/measure
+  NAME strings rather than spec `ChartAxis` objects, which is what a report chart
+  declares. `DatasetWidget` re-exports both names, so its public surface and its
+  rendering are unchanged.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

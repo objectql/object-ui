@@ -5,7 +5,9 @@
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between mb-6",
+      "align": "center",
+      "justify": "between",
+      "className": "mb-6",
       "children": [
         {
           "type": "text",
@@ -41,14 +43,14 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "smartphone",
+                  "icon": "smartphone",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -84,14 +86,14 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "watch",
+                  "icon": "watch",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -127,14 +129,14 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "laptop",
+                  "icon": "laptop",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -170,14 +172,14 @@
               "children": [
                 {
                   "type": "icon",
-                  "name": "headphones",
+                  "icon": "headphones",
                   "className": "h-16 w-16 text-muted-foreground"
                 }
               ]
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",

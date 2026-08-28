@@ -1,7 +1,7 @@
 import React, { useId } from 'react';
 import { Switch, Checkbox, Label } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * BooleanField - Toggle input supporting switch and checkbox variants

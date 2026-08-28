@@ -41,46 +41,117 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
-import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
+import type { ComponentMeta } from '@object-ui/core';
+import { AlertTriangle, ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { toast } from 'sonner';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useMetadataLocale, t, tFormat } from './i18n';
-import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold';
-import { ColorVariantPicker } from './color-variant-field';
-import { ConditionBuilder } from './inspectors/ConditionBuilder';
-import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope';
+import { useMetadataLocale, t, tFormat } from './i18n.js';
+import type { FormFieldSpec, VisibilityPredicate } from './form-spec.js';
+import { usePredicateScope } from '@object-ui/react';
+import { buildPredicateCtx, visibleOptions, type PredicateCtx } from './predicate.js';
+import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFilterFold.js';
+import { ColorVariantPicker } from './color-variant-field.js';
+import { ConditionBuilder } from './inspectors/ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope.js';
+import {
+  type LoadState,
+  isLoading,
+  loadErrorOf,
+  loadedData,
+  NOT_ASKED,
+  offeredOptions,
+  usePickerLoad,
+} from './loadState.js';
 
+/* -------------------------------------------------------------------------- */
+/* The option catalogs a picker reads off {@link WidgetContext}                */
+/* -------------------------------------------------------------------------- */
+
+/** One entry of the bound object's field catalog (`field-ref`, `field-multi`). */
+export interface ObjectFieldOption {
+  name: string;
+  label?: string;
+  type?: string;
+}
+
+/** One entry of the source object's view catalog (`view-ref`). */
+export interface ObjectViewOption {
+  name: string;
+  label?: string;
+}
+
+/** One entry of the source object's action catalog (`action-multi`). */
+export interface ObjectActionOption {
+  name: string;
+  label?: string;
+  locations?: string[];
+}
+
+/**
+ * A catalog handed to the pickers, in whichever of the four states its load is
+ * actually in (objectui#5228).
+ *
+ * ## What this replaced, and why the replacement is a type and not a rule
+ *
+ * Until objectui#5228 this boundary spelled a catalog as a plain array plus two
+ * side channels — a `*Loading` flag and a `catalogErrors` record — which meant a
+ * FAILED load arrived here as `[]`, byte-identical to a load that completed and
+ * found nothing. Nothing in the types said the failure channel existed: the
+ * requirement lived in `CatalogErrors`' own doc comment, which had to open with
+ * "a picker MUST consult this before it renders its catalog". That is a comment
+ * doing a type's job, and it is one line away from being ignored —
+ *
+ * ```ts
+ * const fields = context?.objectFields ?? [];   // type-correct, reads fine,
+ * ```
+ *
+ * — which renders a refusal, a dropped connection or an expired session as the
+ * metadata graph's own answer of "this object has no fields", the defect
+ * objectui#5170 and objectui#5169 were filed for.
+ *
+ * As a union that read does not compile: `LoadState<T>` is not an array, so
+ * every site that wants the list has to go through {@link offeredOptions},
+ * whose parameter type excludes the `error` arm. The failure decision stops
+ * being a rule a reviewer has to remember and becomes a precondition the
+ * compiler checks, at exactly the sites that must decide what a failure looks
+ * like.
+ *
+ * ## Absent still means something
+ *
+ * The catalogs stay optional — a host that never fetches views omits
+ * `objectViews` — and absence reads as {@link NOT_ASKED}, the `idle` arm. A
+ * question never asked is not a failure and must not render as one (ADR-0110
+ * D3).
+ */
 export interface WidgetContext {
-  /** Names of all object metadata records (for `ref:object`). */
-  objectNames?: string[];
-  /** Loading flag for the object list. */
-  objectsLoading?: boolean;
+  /** Names of all object metadata records (for `ref:object`, `object-selector`). */
+  objectNames?: LoadState<string[]>;
   /**
-   * Field catalog of the bound object. Drives the `field-ref` /
-   * `field-multi` pickers so View config props that reference a field
-   * (kanban.groupByField, calendar.startDateField, chart.xAxisField, …)
-   * render as dropdowns of the object's real fields instead of free text.
+   * Field catalog of the bound object. Drives the `field-ref` / `field-multi`
+   * pickers so View config props that reference a field (kanban.groupByField,
+   * calendar.startDateField, chart.xAxisField, …) render as dropdowns of the
+   * object's real fields instead of free text.
    */
-  objectFields?: Array<{ name: string; label?: string; type?: string }>;
-  /** Loading flag for the field catalog. */
-  objectFieldsLoading?: boolean;
+  objectFields?: LoadState<ObjectFieldOption[]>;
   /**
-   * View catalog of the bound/source object. Drives the `view-ref` picker
-   * so `interfaceConfig.sourceView` renders as a dropdown of the source
-   * object's real views instead of a free-text name the author can typo.
+   * View catalog of the bound/source object. Drives the `view-ref` picker so
+   * `interfaceConfig.sourceView` renders as a dropdown of the source object's
+   * real views instead of a free-text name the author can typo.
    */
-  objectViews?: Array<{ name: string; label?: string }>;
-  /** Loading flag for the view catalog. */
-  objectViewsLoading?: boolean;
+  objectViews?: LoadState<ObjectViewOption[]>;
   /**
    * Action catalog of the bound/source object. Drives the `action-multi`
    * picker so interface-page toolbar `buttons` reference the object's real
    * actions (ActionSchema) instead of free-text — correct-by-construction.
+   *
+   * Rides the same request as {@link WidgetContext.objectFields} today, and
+   * `ResourceEditPage` derives both from that one state (see `mapLoaded`), so
+   * the two agree by construction rather than by the reader knowing they share
+   * a fetch — which is what the old `catalogErrors.fields` key, consulted by
+   * the *action* picker to learn whether *actions* had failed, asked of them.
    */
-  objectActions?: Array<{ name: string; label?: string; locations?: string[] }>;
-  /** Loading flag for the action catalog. */
-  objectActionsLoading?: boolean;
+  objectActions?: LoadState<ObjectActionOption[]>;
   /**
    * Per-value sub-schemas for the `dynamic-config` widget: a map from a parent
    * field's value (e.g. the chosen driver id) to the JSON-Schema describing the
@@ -98,44 +169,120 @@ export interface WidgetContext {
   componentIds?: Array<{ id: string; type?: string; label?: string }>;
 }
 
+/* Stable empties for the arms that have no catalog to offer yet — `idle` and
+   `loading`. Module-level so {@link offeredOptions} returns the SAME array
+   across renders and a memo downstream of it does not churn. Never a failure
+   fallback: no failure can reach `offeredOptions` at all. */
+const NO_OBJECT_NAMES: string[] = [];
+const NO_OBJECT_FIELDS: ObjectFieldOption[] = [];
+const NO_OBJECT_VIEWS: ObjectViewOption[] = [];
+const NO_OBJECT_ACTIONS: ObjectActionOption[] = [];
+
 export interface WidgetProps {
+  /**
+   * The host field id, handed down ONLY to a widget declared
+   * `labelling: 'control'` in {@link WIDGET_LABELLING} — the host's
+   * `<Label htmlFor>` points at it, so the widget must put it on the LABELABLE
+   * element that is the field's primary control (objectui#4871).
+   *
+   * A `'group'` widget receives `undefined` here on purpose: `<label for>` is
+   * inert on a container, and taking the id anyway would make the IDREF resolve
+   * while still naming nobody — the cosmetic half-fix objectui#4010 refused.
+   */
   id?: string;
+  /**
+   * The host label's own `id`, handed down ONLY to a widget declared
+   * `labelling: 'group'`. The widget answers it with `aria-labelledby` on the
+   * surface that IS the field (a `role="group"` / `role="radiogroup"`
+   * container), which is the one naming channel that works on a non-labelable
+   * element. `undefined` for `'control'` widgets — one label, one channel
+   * (objectui#3978).
+   */
+  ariaLabelledBy?: string;
   schema: Record<string, any>;
   value: unknown;
   onChange: (v: unknown) => void;
   readOnly?: boolean;
   context?: WidgetContext;
-  /** Optional FormFieldSpec with type/options/reference/constraints */
-  fieldSpec?: {
-    field: string;
-    type?: string;
-    options?: Array<{ label: string; value: string; color?: string }>;
-    reference?: string;
-    maxLength?: number;
-    minLength?: number;
-    min?: number;
-    max?: number;
-    multiple?: boolean;
-    dependsOn?: string | string[];  // NEW: field name(s) this widget depends on
-    /** Sub-fields for `composite` / `repeater` types */
-    fields?: Array<any>;
-    /** Code editor language (for type=code) */
-    language?: string;
-    /** Form-level helpers passed through from FormField */
-    label?: string;
-    placeholder?: string;
-    helpText?: string;
-    widget?: string;
-    colSpan?: number;
-    immutable?: boolean;
-    readonly?: boolean;
-    required?: boolean;
-  };
+  /**
+   * The authored field spec — the SAME declaration the form layout is written
+   * against (`./form-spec.js`), not a second description of it. This was an
+   * inline copy until objectui#5040, and the copies disagreed: only this one
+   * declared `dependsOn`, which {@link FieldSelectorWidget} and
+   * {@link DynamicConfigWidget} both read below.
+   */
+  fieldSpec?: FormFieldSpec;
   /** All form data (for reading dependency values) */
   formData?: Record<string, unknown>;
 }
 
 export type WidgetRenderer = (props: WidgetProps) => React.ReactElement;
+
+/* -------------------------------------------------------------------------- */
+/* Shared failure state for every option picker (objectui#5170)               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one thing every picker renders when its option catalog failed to load.
+ *
+ * Before this existed there was no failure state anywhere in this file: the
+ * loaders in `ResourceEditPage` caught a fault by writing the empty array, and
+ * each picker then rendered its EMPTY copy — which is not neutral wording. It
+ * names a cause, and on a failed load the cause it names is false:
+ *
+ *   • `ref:object`      → "object_name (no objects detected)"  — a measurement
+ *   • `field-ref`       → "No object bound"   — but an object IS bound
+ *   • `view-ref`        → "No object bound"   — likewise
+ *   • `filter-mode`     → "Bind a source object to pick filter fields."
+ *   • `action-multi`    → "Bind a source object to pick actions"
+ *
+ * So an operator authoring a view, a permission row or an action was told, in
+ * so many words, that the thing they are looking for does not exist — and an
+ * author who concludes "this object has no fields" tends to go and create one.
+ *
+ * One component, used by every picker, so the answer is the same wherever the
+ * question is asked. The copy states that the list could not be loaded and
+ * makes NO claim in either direction about whether options exist — the honest
+ * answer when the question was never answered — and shows the cause. Every
+ * picker keeps whatever control lets the author see and edit the value already
+ * stored, because a failed catalog must not also block authoring.
+ *
+ * ⛔ The empty-state copy above is deliberately untouched: it is correct for a
+ * load that COMPLETED and found nothing, and this card is additive. Rendering
+ * it is now reachable only from a completed load.
+ */
+function PickerLoadFailure({
+  message,
+  testId,
+}: {
+  message: string;
+  testId: string;
+}) {
+  const locale = useMetadataLocale();
+  return (
+    <div
+      data-testid={testId}
+      role="status"
+      className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"
+    >
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        {t('engine.form.optionsLoadFailedTitle', locale)}
+      </div>
+      <p className="mt-1 text-amber-800">
+        {t('engine.form.optionsLoadFailedDesc', locale)}
+      </p>
+      {message ? (
+        <p
+          data-testid={`${testId}-cause`}
+          className="mt-1 max-w-full break-words font-mono text-[10px] text-amber-700"
+        >
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* ref:object — pick an object by name                                        */
@@ -149,9 +296,30 @@ function RefObjectWidget({
   context,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const names = context?.objectNames ?? [];
+  const objectsState = context?.objectNames ?? NOT_ASKED;
   const v = value == null ? '' : String(value);
-  if (context?.objectsLoading) {
+  // The object list FAILED to load — not the same fact as "there are no
+  // objects", which is what the empty branch below says out loud (objectui#5170).
+  // The freeform input is kept, and enabled, so a failed catalog does not also
+  // block authoring.
+  //
+  // objectui#5228: this arm is now checked because the compiler makes it be —
+  // `offeredOptions` below refuses a state that still carries the `error` arm,
+  // so the list cannot be read until this decision is written down.
+  if (objectsState.status === 'error') {
+    return (
+      <div className="space-y-1.5">
+        <PickerLoadFailure message={objectsState.message} testId="ref-object-load-failed" />
+        <Input
+          id={id}
+          value={v}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        />
+      </div>
+    );
+  }
+  if (isLoading(objectsState)) {
     return (
       <Input
         id={id}
@@ -161,6 +329,7 @@ function RefObjectWidget({
       />
     );
   }
+  const names = offeredOptions(objectsState, NO_OBJECT_NAMES);
   // If list is empty (e.g. no objects defined yet), fall back to a
   // freeform text input so the user can still type a value.
   if (names.length === 0) {
@@ -326,7 +495,7 @@ function ObjectSelectorWidget({
   fieldSpec,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const names = context?.objectNames ?? [];
+  const objectsState = context?.objectNames ?? NOT_ASKED;
   const multiple = fieldSpec?.multiple ?? false;
   
   // Parse value: string[], string (comma-separated), or empty
@@ -357,34 +526,54 @@ function ObjectSelectorWidget({
     onChange(multiple ? newSelection : '');
   };
 
-  if (context?.objectsLoading) {
+  if (isLoading(objectsState)) {
     return <Input id={id} value={t('engine.form.loadingObjects', locale)} readOnly disabled />;
   }
+
+  // The object list FAILED to load (objectui#5170). The picker below would
+  // otherwise render as a completed, empty dropdown — indistinguishable from an
+  // install that genuinely has no objects. Already-selected values stay visible
+  // and removable; only the "add" picker is replaced.
+  /* Whatever is already selected, kept visible and removable in EVERY arm —
+     the shape objectui#5227 landed for `field-selector`: a failed catalog must
+     not also block authoring. */
+  const selectedChips = selectedValues.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {selectedValues.map(obj => (
+        <div
+          key={obj}
+          className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
+        >
+          <span>{obj}</span>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => handleRemove(obj)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (objectsState.status === 'error') {
+    return (
+      <div className="space-y-2">
+        {selectedChips}
+        <PickerLoadFailure message={objectsState.message} testId="object-selector-load-failed" />
+      </div>
+    );
+  }
+
+  const names = offeredOptions(objectsState, NO_OBJECT_NAMES);
 
   return (
     <div className="space-y-2">
       {/* Selected items */}
-      {selectedValues.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedValues.map(obj => (
-            <div
-              key={obj}
-              className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
-            >
-              <span>{obj}</span>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => handleRemove(obj)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {selectedChips}
 
       {/* Object picker */}
       <Select
@@ -412,6 +601,63 @@ function ObjectSelectorWidget({
 /* field-selector — smart field picker (depends on selected object)          */
 /* -------------------------------------------------------------------------- */
 
+/** One entry of the `field-selector` catalog, as the REST endpoint spells it. */
+interface FieldSelectorOption {
+  name: string;
+  label: string;
+  type: string;
+}
+
+/** Stable identity for the non-`loaded` arms, so no consumer re-renders on a fresh `[]`. */
+const EMPTY_FIELD_SELECTOR_OPTIONS: FieldSelectorOption[] = [];
+
+/**
+ * Fetch the bound object's field catalog for {@link FieldSelectorWidget}
+ * (objectui#5227).
+ *
+ * This is the one loader in this family that does NOT go through
+ * `MetadataClient` — it is a raw `fetch` to a REST path no other widget here
+ * uses — which is why objectui#5170 missed it and why the option catalogs on
+ * {@link WidgetContext} do not reach it. It had TWO ways to render
+ * a fault as a measurement, and a union that guarded only the first would have
+ * left the second wide open:
+ *
+ *   1. the `catch` wrote `setFields([])` — byte-identical to a successful
+ *      response with no fields — and cleared the loading flag, so a dropped
+ *      connection rendered as a completed, empty picker;
+ *   2. it never checked `res.ok`, so a 4xx/5xx whose body happens to parse as
+ *      JSON landed in the SUCCESS branch with `data.fields` undefined, and the
+ *      old `|| []` rendered that refusal as "no fields" — worse than (1),
+ *      because no error was ever raised for the `catch` to swallow.
+ *
+ * Both now leave through the same door: a throw, which {@link usePickerLoad}
+ * can only turn into the `error` arm. The message follows the convention the
+ * other raw-`fetch` callers in this package already use (`useRecordApprovals`,
+ * `suggestedBindingsApi`, `studio-design/packages-io`): the server's own
+ * message when it sent one, otherwise the status.
+ */
+async function fetchFieldSelectorOptions(objectName: string): Promise<FieldSelectorOption[]> {
+  const res = await fetch(`/api/v1/objects/${objectName}/fields`);
+  // Read the body BEFORE branching on `ok`: a refusal usually carries the more
+  // useful sentence, and a non-JSON body must not be mistaken for a refusal
+  // that said nothing (it still throws below — it just cannot add a cause).
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    /* empty or non-JSON body */
+  }
+  if (!res.ok) {
+    const detail = payload?.error?.message ?? payload?.error ?? payload?.message;
+    throw new Error(
+      typeof detail === 'string' && detail ? detail : `HTTP ${res.status}`,
+    );
+  }
+  // `payload.fields` narrows to the list; anything else is an answer we cannot
+  // read, and the completed-load arm is the only one that reaches here.
+  return Array.isArray(payload?.fields) ? (payload.fields as FieldSelectorOption[]) : [];
+}
+
 function FieldSelectorWidget({
   id,
   value,
@@ -421,37 +667,26 @@ function FieldSelectorWidget({
   formData,
 }: WidgetProps) {
   const locale = useMetadataLocale();
-  const [fields, setFields] = React.useState<Array<{ name: string; label: string; type: string }>>([]);
-  const [loading, setLoading] = React.useState(false);
-  
+
   // Resolve dependency: fieldSpec.dependsOn or fieldSpec.reference or 'objectName'
   const dependsOnRaw = fieldSpec?.dependsOn || fieldSpec?.reference || 'objectName';
   const dependsOnField = Array.isArray(dependsOnRaw) ? dependsOnRaw[0] : dependsOnRaw;
   const objectName = formData?.[dependsOnField] as string | undefined;
 
-  // Load fields when objectName changes
-  React.useEffect(() => {
-    if (!objectName) {
-      setFields([]);
-      return;
-    }
-
-    setLoading(true);
-    fetch(`/api/v1/objects/${objectName}/fields`)
-      .then(r => r.json())
-      .then(data => {
-        setFields(data.fields || []);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to load fields:', err);
-        setFields([]);
-        setLoading(false);
-      });
-  }, [objectName]);
+  // Four structurally distinct arms, one per `LoadState` — the shape this
+  // directory landed for the other pickers (objectui#5170) and for the
+  // References panel before them (objectui#5110). `null` while no object is
+  // bound is the `idle` arm: a question never asked is not a failure.
+  const loadFields = React.useMemo(
+    () => (objectName ? () => fetchFieldSelectorOptions(objectName) : null),
+    [objectName],
+  );
+  const fieldsState = usePickerLoad<FieldSelectorOption[]>(loadFields);
+  const fields = loadedData(fieldsState, EMPTY_FIELD_SELECTOR_OPTIONS);
+  const loadError = loadErrorOf(fieldsState);
 
   const multiple = fieldSpec?.multiple ?? false;
-  
+
   // Parse value
   const selectedValues = React.useMemo(() => {
     if (!value) return [];
@@ -461,7 +696,7 @@ function FieldSelectorWidget({
 
   const handleToggle = (fieldName: string) => {
     if (readOnly) return;
-    
+
     if (!multiple) {
       onChange(fieldName);
       return;
@@ -470,7 +705,7 @@ function FieldSelectorWidget({
     const newSelection = selectedValues.includes(fieldName)
       ? selectedValues.filter(v => v !== fieldName)
       : [...selectedValues, fieldName];
-    
+
     onChange(newSelection);
   };
 
@@ -484,40 +719,60 @@ function FieldSelectorWidget({
     return <Input id={id} value={t('engine.form.selectObjectFirst', locale)} readOnly disabled />;
   }
 
-  if (loading) {
+  if (isLoading(fieldsState)) {
     return <Input id={id} value={t('engine.form.loadingFields', locale)} readOnly disabled />;
+  }
+
+  /* Whatever is already stored, kept visible and removable in EVERY completed
+     arm — a failed catalog must not also block authoring. */
+  const selectedChips = selectedValues.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {selectedValues.map(field => {
+        const fieldMeta = fields.find(f => f.name === field);
+        return (
+          <div
+            key={field}
+            className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
+          >
+            <span>{fieldMeta?.label || field}</span>
+            <code className="text-xs text-muted-foreground">{fieldMeta?.type}</code>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => handleRemove(field)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // The catalog FAILED to load — not the same fact as "this object has no
+  // fields". The picker below is REPLACED rather than decorated (the shape
+  // `field-ref` uses): with no options it could only render as a dead,
+  // disabled dropdown next to a banner saying the options are unknown, which
+  // is the very conflation this arm exists to end.
+  if (loadError) {
+    return (
+      <div className="space-y-2">
+        {selectedChips}
+        <PickerLoadFailure message={loadError} testId="field-selector-load-failed" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-2">
       {/* Selected fields */}
-      {selectedValues.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedValues.map(field => {
-            const fieldMeta = fields.find(f => f.name === field);
-            return (
-              <div
-                key={field}
-                className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-sm"
-              >
-                <span>{fieldMeta?.label || field}</span>
-                <code className="text-xs text-muted-foreground">{fieldMeta?.type}</code>
-                {!readOnly && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(field)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {selectedChips}
 
-      {/* Field picker */}
+      {/* Field picker. `fields.length === 0` here means a load that COMPLETED
+          and found nothing — the disabled trigger is that measurement, and it
+          is now reachable only from the `loaded` arm. */}
       <Select
         value=""
         onValueChange={handleToggle}
@@ -552,6 +807,7 @@ function MasterDetailWidget({
   onChange,
   readOnly,
   context,
+  ariaLabelledBy,
 }: WidgetProps) {
   const locale = useMetadataLocale();
   // Unwrap anyOf/oneOf: pick the first array-of-object branch.
@@ -574,7 +830,11 @@ function MasterDetailWidget({
   if (cols.length === 0) {
     // Falls back to JSON if the array items aren't a typed object.
     return (
-      <div className="rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300">
+      <div
+        role="group"
+        aria-labelledby={ariaLabelledBy}
+        className="rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300"
+      >
         {t('engine.form.masterDetailSchemaError', locale)}
       </div>
     );
@@ -595,7 +855,11 @@ function MasterDetailWidget({
   }
 
   return (
-    <div className="space-y-2">
+    // A table of per-cell inputs plus row actions — a composite, so the host's
+    // visible label names this container by IDREF (objectui#4871). Same shape
+    // and same reason as `grid`'s `labelling: 'group'` in packages/fields
+    // (objectui#4857): no `<label for>` can reach a table.
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       <div className="overflow-x-auto rounded border border-border/40">
         <table className="w-full text-sm">
           <thead className="bg-muted/40">
@@ -860,18 +1124,32 @@ function humanizeOption(v: string): string {
  * free-text tag input the generic array renderer fell back to — the author
  * picks from the real allowed values instead of typing (and mistyping) them.
  */
-function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
+function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec, formData, ariaLabelledBy }: WidgetProps) {
+  const hostScope = usePredicateScope();
   // Prefer explicit form options; else the JSON Schema enum on the items.
-  const options: Array<{ label: string; value: string }> = React.useMemo(() => {
-    if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
-      return fieldSpec!.options!.map((o) => ({ label: o.label, value: o.value }));
-    }
-    const enumVals: unknown =
-      schema?.items?.enum ?? schema?.enum ?? [];
-    return (Array.isArray(enumVals) ? enumVals : [])
-      .filter((v): v is string => typeof v === 'string')
-      .map((v) => ({ label: humanizeOption(v), value: v }));
-  }, [fieldSpec, schema]);
+  //
+  // ⚠️ RAW — every per-option `visibleWhen` is carried through untouched
+  // (objectui#6247). This list answers the two questions that must NOT depend
+  // on a predicate: whether this widget renders at all (the degradation branch
+  // below) and what ORDER a selection is stored in (`toggle`). Only
+  // `renderedOptions` is filtered.
+  const options: Array<{ label: string; value: string; visibleWhen?: VisibilityPredicate }> =
+    React.useMemo(() => {
+      if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+        return fieldSpec!.options!.map((o) => ({ label: o.label, value: o.value, visibleWhen: o.visibleWhen }));
+      }
+      const enumVals: unknown =
+        schema?.items?.enum ?? schema?.enum ?? [];
+      return (Array.isArray(enumVals) ? enumVals : [])
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => ({ label: humanizeOption(v), value: v }));
+    }, [fieldSpec, schema]);
+
+  // The CONTENT half: what the author is offered right now.
+  const renderedOptions = React.useMemo(
+    () => visibleOptions(options, buildPredicateCtx(formData, hostScope)),
+    [options, formData, hostScope],
+  );
 
   const selected = React.useMemo(
     () => (Array.isArray(value) ? (value as unknown[]).filter((v): v is string => typeof v === 'string') : []),
@@ -885,19 +1163,41 @@ function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
     const set = new Set(selected);
     if (set.has(opt)) set.delete(opt);
     else set.add(opt);
+    // ⚠️ RAW list, not the rendered one (objectui#6247, Fork C → C1: no
+    // pruning). Ordering against the filtered list would DROP any already-
+    // selected value whose option is currently hidden — pruning authored
+    // metadata through the back door, on the next unrelated click, with no
+    // author action that says "remove this". A hidden-but-selected value
+    // survives; it is simply not offered again.
     const next = options.map((o) => o.value).filter((v) => set.has(v));
     onChange(next.length ? next : undefined);
   }
 
+  // ⚠️ RAW length (objectui#6247, Fork B → B1). Testing the FILTERED length
+  // here would make "withdraw every option" degrade to the free-text tag
+  // editor — the opposite of the narrowing the author wrote, and a change of
+  // naming channel that objectui#4871 removed from this file. A field whose
+  // options are all withdrawn stays this widget and renders an empty group.
   if (options.length === 0) {
     // No known option set — degrade to the comma-tag editor so the field
     // is still editable rather than rendering an empty box.
-    return <StringTagsWidget value={value} onChange={onChange} readOnly={readOnly} schema={schema} fieldSpec={fieldSpec} />;
+    //
+    // The degradation stays INSIDE this widget's named group rather than
+    // handing the tag editor the host id: the declaration
+    // (`multiselect: 'group'`) is read by the host BEFORE the option list is
+    // known, so a fallback that changed naming channel would be exactly the
+    // runtime self-selection objectui#4871 removed from `color-picker`. The
+    // group is named; the tag input inside it is a sub-control.
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy}>
+        <StringTagsWidget value={value} onChange={onChange} readOnly={readOnly} schema={schema} fieldSpec={fieldSpec} />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5" role="group">
-      {options.map((o) => {
+    <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={ariaLabelledBy}>
+      {renderedOptions.map((o) => {
         const on = selected.includes(o.value);
         return (
           <button
@@ -947,8 +1247,23 @@ const NO_FIELD = '__none__';
  */
 function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
   const locale = useMetadataLocale();
-  const fields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
   const current = value == null ? '' : String(value);
+  // Four structurally distinct arms, one per `LoadState` (objectui#5170), so a
+  // fault can never be read as a measurement. Note what the empty placeholder
+  // below claims: "No object bound" — on a failed load an object IS bound, so
+  // that sentence names a cause that is not the real one, which is why the
+  // failure arm replaces the picker rather than decorating it (the shape #5110
+  // landed for the References panel).
+  if (fieldsState.status === 'error') {
+    return <PickerLoadFailure message={fieldsState.message} testId="field-ref-load-failed" />;
+  }
+  // Same in-file precedent as `ref:object` / `object-selector`: an unanswered
+  // question renders as "asking", never as an answer of none.
+  if (isLoading(fieldsState)) {
+    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
+  }
+  const fields = offeredOptions(fieldsState, NO_OBJECT_FIELDS);
   const inCatalog = !current || fields.some((f) => f.name === current);
   return (
     <Select
@@ -957,7 +1272,9 @@ function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps)
       disabled={readOnly}
     >
       <SelectTrigger id={id}>
-        <SelectValue placeholder={fields.length ? t('engine.form.selectField', locale) : t('engine.form.noObjectBound', locale)} />
+        <SelectValue
+          placeholder={fields.length ? t('engine.form.selectField', locale) : t('engine.form.noObjectBound', locale)}
+        />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NO_FIELD}>
@@ -1010,8 +1327,18 @@ export function resolveStoredViewRef(
  */
 function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
   const locale = useMetadataLocale();
-  const views = context?.objectViews ?? [];
+  const viewsState = context?.objectViews ?? NOT_ASKED;
   const current = value == null ? '' : String(value);
+  // objectui#5170 — same four arms as {@link FieldRefWidget}. The empty
+  // placeholder says "No object bound", which is false when the object IS bound
+  // and only its view catalog could not be fetched.
+  if (viewsState.status === 'error') {
+    return <PickerLoadFailure message={viewsState.message} testId="view-ref-load-failed" />;
+  }
+  if (isLoading(viewsState)) {
+    return <Input id={id} value={t('engine.form.loadingOptions', locale)} readOnly disabled />;
+  }
+  const views = offeredOptions(viewsState, NO_OBJECT_VIEWS);
   // Mirror the runtime resolver (InterfaceListPage.resolveSourceView): a stored
   // value resolves if it's an exact view name, OR a bare name matching a view's
   // `<object>.<name>` suffix, OR the special `default`/`list` (→ object default
@@ -1025,7 +1352,9 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
       disabled={readOnly}
     >
       <SelectTrigger id={id}>
-        <SelectValue placeholder={views.length ? t('engine.form.selectEllipsis', locale) : t('engine.form.noObjectBound', locale)} />
+        <SelectValue
+          placeholder={views.length ? t('engine.form.selectEllipsis', locale) : t('engine.form.noObjectBound', locale)}
+        />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NO_FIELD}>
@@ -1061,9 +1390,16 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
  * `yAxisFields`, `searchableFields`, …). Preserves order; supports reorder
  * and removal; values outside the catalog are retained.
  */
-function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const locale = useMetadataLocale();
-  const fields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  // objectui#5228 — the failure is decided here, before the catalog is read:
+  // `offeredOptions` below does not accept a state that still carries the
+  // `error` arm, so the add picker cannot be fed a list without this line.
+  const loadError = loadErrorOf(fieldsState);
+  const fields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
     : typeof value === 'string' && value
@@ -1089,7 +1425,13 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
   };
 
   return (
-    <div className="space-y-2">
+    // An ORDERED SET, not a single control: reorder/remove buttons per chip plus
+    // an auxiliary "add" picker. Measured for objectui#4871's ledger — the add
+    // picker (the only element that ever carried the host id) is gated behind
+    // `!readOnly`, so a `control` declaration was true in the editable state and
+    // DANGLING in the read-only one. A declaration that is conditionally true is
+    // the shape the #4871 ruling removed, so the whole set is the named surface.
+    <div className="space-y-2" role="group" aria-labelledby={ariaLabelledBy}>
       {selected.length > 0 && (
         <div className="space-y-1">
           {selected.map((name, i) => (
@@ -1135,16 +1477,28 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
           ))}
         </div>
       )}
+      {/* objectui#5170 — the field catalog failed to load, so the add picker
+          below is empty for a reason that has nothing to do with the object.
+          Selected chips above stay editable. */}
+      {loadError && (
+        <PickerLoadFailure message={loadError} testId="field-multi-load-failed" />
+      )}
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
-          <SelectTrigger id={id}>
+          {/* No host id here: the group above is the named surface, and an id
+              on this auxiliary trigger would make the host's `for` resolve to
+              "add a field" — a label click would open the picker rather than
+              name the set (objectui#4871, the #4857 `grid` reading). */}
+          <SelectTrigger aria-label={t('engine.form.addField', locale)}>
             <SelectValue
               placeholder={
-                fields.length
-                  ? remaining.length
-                    ? t('engine.form.addField', locale)
-                    : t('engine.form.allFieldsAdded', locale)
-                  : t('engine.form.noObjectBound', locale)
+                loadError
+                  ? t('engine.form.optionsLoadFailedTitle', locale)
+                  : fields.length
+                    ? remaining.length
+                      ? t('engine.form.addField', locale)
+                      : t('engine.form.allFieldsAdded', locale)
+                    : t('engine.form.noObjectBound', locale)
               }
             />
           </SelectTrigger>
@@ -1368,10 +1722,18 @@ const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
 const slugifyTabName = (s: string): string =>
   (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tab';
 
-function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
-  const objectFields = context?.objectFields ?? [];
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  // objectui#5170 — every "Bind a source object…" line below is a CAUSE claim.
+  // On a failed catalog load a source object IS bound, so each of them names
+  // the wrong reason; the failure state replaces them. objectui#5228: reading
+  // the catalog at all now requires having written this decision first.
+  const loadError = loadErrorOf(fieldsState);
+  const objectFields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
 
   const setMode = (next: 'none' | UFMode) => {
     if (readOnly) return;
@@ -1445,7 +1807,11 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   const setShowAllRecords = (c: boolean) => onChange({ ...(uf ?? {}), element: 'tabs', showAllRecords: c });
 
   return (
-    <div className="space-y-3">
+    // The host's visible label names this whole editor (mode choice + the field
+    // / tab pickers that follow), by IDREF — objectui#4871. The inner
+    // radiogroup keeps its OWN name: it is a sub-choice ("which element"), not
+    // the field, and the two names are about different things.
+    <div className="space-y-3" role="group" aria-labelledby={ariaLabelledBy}>
       {/* Segmented mode selector */}
       <div className="inline-flex rounded-md border border-input bg-background p-0.5" role="radiogroup" aria-label="Filter element">
         {FILTER_MODES.map((m) => {
@@ -1519,9 +1885,11 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
               </SelectContent>
             </Select>
           )}
-          {objectFields.length === 0 && (
+          {loadError ? (
+            <PickerLoadFailure message={loadError} testId="filter-mode-fields-load-failed" />
+          ) : objectFields.length === 0 ? (
             <p className="text-xs text-muted-foreground">Bind a source object to pick filter fields.</p>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -1569,6 +1937,7 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
                   value={tab.filter as FilterRuleLite[] | undefined}
                   onChange={(f) => patchTab(ti, { filter: f as any })}
                   fields={objectFields}
+                  loadError={loadError}
                   readOnly={readOnly}
                 />
               </div>
@@ -1592,9 +1961,11 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
             Show “All records” tab
           </label>
 
-          {objectFields.length === 0 && (
+          {loadError ? (
+            <PickerLoadFailure message={loadError} testId="filter-mode-tabs-load-failed" />
+          ) : objectFields.length === 0 ? (
             <p className="text-xs text-muted-foreground">Bind a source object to build tab filter rules.</p>
-          )}
+          ) : null}
         </div>
       )}
     </div>
@@ -1608,8 +1979,18 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
 /* This makes "buttons = object actions" correct-by-construction (the picker  */
 /* only offers actions the object actually defines).                          */
 /* -------------------------------------------------------------------------- */
-function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
-  const actions = context?.objectActions ?? [];
+function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
+  const locale = useMetadataLocale();
+  const actionsState = context?.objectActions ?? NOT_ASKED;
+  // objectui#5228 — this picker used to read `catalogErrors.fields` to learn
+  // whether the ACTION catalog had failed, because the two ride the same
+  // `client.get('object', …)` request. That is still true, but it is now the
+  // producer's job to say so (`ResourceEditPage` derives both catalogs from the
+  // one `LoadState`), and this picker simply reads its own.
+  const loadError = loadErrorOf(actionsState);
+  const actions = actionsState.status === 'error'
+    ? NO_OBJECT_ACTIONS
+    : offeredOptions(actionsState, NO_OBJECT_ACTIONS);
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
     : typeof value === 'string' && value
@@ -1629,7 +2010,13 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
   };
 
   return (
-    <div className="space-y-2" data-testid="action-multi">
+    // Same ordered-set shape as {@link FieldRefMultiWidget}, and the same
+    // measured reason for `labelling: 'group'` (objectui#4871): the add trigger
+    // that used to carry the host id disappears in the read-only state.
+    <div className="space-y-2" data-testid="action-multi" role="group" aria-labelledby={ariaLabelledBy}>
+      {loadError && (
+        <PickerLoadFailure message={loadError} testId="action-multi-load-failed" />
+      )}
       {selected.length > 0 && (
         <div className="space-y-1">
           {selected.map((name, i) => (
@@ -1651,8 +2038,9 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
       )}
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
-          <SelectTrigger id={id} data-testid="action-multi-add">
-            <SelectValue placeholder={actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
+          {/* No host id — see {@link FieldRefMultiWidget}'s add trigger. */}
+          <SelectTrigger data-testid="action-multi-add" aria-label="Add action button">
+            <SelectValue placeholder={loadError ? t('engine.form.optionsLoadFailedTitle', locale) : actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
           </SelectTrigger>
           <SelectContent>
             {remaining.map((a) => (
@@ -1703,11 +2091,25 @@ const SPEC_TO_FB: Record<string, string> = {
 
 interface FilterRuleLite { field: string; operator: string; value?: unknown }
 
-function FilterBuilderField({ value, onChange, fields, readOnly }: {
+function FilterBuilderField({ value, onChange, fields, readOnly, id, loadError }: {
   value?: FilterRuleLite[];
   onChange: (rules: FilterRuleLite[]) => void;
   fields: Array<{ name: string; label?: string; type?: string }>;
   readOnly?: boolean;
+  /**
+   * Why `fields` is empty, when the reason is that the catalog failed to load
+   * rather than that no object is bound (objectui#5170). Absent on a completed
+   * load, empty or not.
+   */
+  loadError?: string;
+  /**
+   * Host field id, forwarded onto the trigger BUTTON — a labelable element, so
+   * the host's `<label for>` reaches it (objectui#4871). Only the standalone
+   * `filter-builder` widget passes one; the in-widget call site inside
+   * {@link FilterModeWidget}'s tab editor is a sub-control of a group and
+   * carries its own name instead.
+   */
+  id?: string;
 }) {
   // The metadata-admin `t` above is a static engine-string table; refusal
   // copy lives in the shared console locale packs, so it resolves through the
@@ -1745,14 +2147,16 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" disabled={readOnly}
+        <Button id={id} variant="outline" size="sm" disabled={readOnly}
           className="h-8 w-full justify-between text-xs font-normal" data-testid="filter-builder-trigger">
           <span className="truncate text-left">{summary || <span className="text-muted-foreground">+ Add filter…</span>}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[440px] max-w-[90vw] p-3">
-        {fields.length === 0 ? (
+        {loadError ? (
+          <PickerLoadFailure message={loadError} testId="filter-builder-load-failed" />
+        ) : fields.length === 0 ? (
           <p className="text-xs text-muted-foreground">Bind a source object to add filter conditions.</p>
         ) : (
           <FilterBuilder fields={fbFields} value={group as any} onChange={handle} />
@@ -1762,76 +2166,170 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
   );
 }
 
-function FilterBuilderWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function FilterBuilderWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  const loadError = loadErrorOf(fieldsState);
+  const fields = fieldsState.status === 'error'
+    ? NO_OBJECT_FIELDS
+    : offeredOptions(fieldsState, NO_OBJECT_FIELDS);
   return (
+    // The whole face is ONE labelable element — a popover trigger `<button>` —
+    // so this stays on the plain `<label for>` channel and simply stops dropping
+    // the id the host hands down (objectui#4871: measured DANGLING before).
     <FilterBuilderField
+      id={id}
       value={value as FilterRuleLite[] | undefined}
       onChange={(rules) => onChange(rules.length ? rules : undefined)}
-      fields={context?.objectFields ?? []}
+      fields={fields}
+      loadError={loadError}
       readOnly={readOnly}
     />
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* color-picker — semantic swatch row (enum) or native hex input (free color) */
+/* color-picker / color-input — TWO registrations, picked by the HOST         */
 /* -------------------------------------------------------------------------- */
 
-function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
-  const enumOpts: Array<{ value: string; label?: string }> | null =
-    Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length
-      ? fieldSpec!.options!.map((o) => ({ value: o.value, label: o.label }))
-      : Array.isArray(schema?.enum)
-        ? (schema!.enum as unknown[]).filter((v): v is string => typeof v === 'string').map((v) => ({ value: v }))
-        : null;
-
-  if (enumOpts && enumOpts.length) {
-    return (
-      <ColorVariantPicker
-        // Self-owned name, not the host label's IDREF (objectui#4010).
-        //
-        // `MetadataField` renders `<Label htmlFor={id}>` above this widget and
-        // hands it the same `id`. That works for a labelable control — the free
-        // colour branch below is one — but this branch renders a
-        // `div[role="radiogroup"]`, which no `<label for>` can name. The host
-        // cannot publish an `id` for us to reference instead, because WHICH of
-        // these two branches renders is decided HERE, from `schema`/`fieldSpec`,
-        // after that label is already written; teaching the host to decide it
-        // needs a `labelling` declaration per widget (the shape
-        // `packages/components`' form renderer already has, objectui#3961) and
-        // is filed as objectui#4871 rather than guessed at here.
-        //
-        // So the group carries its own name, exactly as this file's other
-        // unassociated groups do (`FilterModeWidget`'s segmented radiogroup,
-        // and the free-colour `<input type="color">` below). The text is the
-        // host's own first-precedence label source so the two agree wherever set —
-        // WCAG 2.5.3 (Label in Name) is about the visible text, not a generic
-        // stand-in — falling back to this file's existing constant.
-        ariaLabel={fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color'}
-        value={value == null ? undefined : String(value)}
-        onChange={(v) => onChange(v)}
-        disabled={readOnly}
-        options={enumOpts}
-      />
-    );
+/**
+ * The semantic palette a colour field declares, or an EMPTY array when it
+ * declares none (objectui#4871).
+ *
+ * This is the split point of what used to be one `color-picker` widget with a
+ * runtime `if`. Both the host — which must know, BEFORE it writes the label,
+ * whether this field renders a `radiogroup` or a labelable input — and the
+ * widgets themselves read the palette through this one function, so producer
+ * and consumer cannot disagree about which surface will render. (Same discipline
+ * `packages/components`' `resolveFieldLabelling` follows against
+ * `renderFieldComponent`.)
+ */
+export function colorPaletteOptions(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+): Array<{ value: string; label?: string }> {
+  if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+    return fieldSpec!.options!.map((o) => ({ value: o.value, label: o.label }));
   }
+  if (Array.isArray(schema?.enum)) {
+    return (schema!.enum as unknown[])
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => ({ value: v }));
+  }
+  return [];
+}
 
-  // Free color → native picker + hex text.
+/**
+ * Which of the two colour registrations a field resolves to — `'color-picker'`
+ * (a declared palette ⇒ swatch `radiogroup`) or `'color-input'` (free colour ⇒
+ * native picker).
+ *
+ * The maintainer ruling of 2026-08-17 (objectui#4871, point 4) split the single
+ * conditional registration precisely so this choice happens in the HOST, from
+ * the schema, ahead of the label — passing both naming channels down for the
+ * widget to pick at runtime would have re-introduced the inference the ruling
+ * removes.
+ */
+export function resolveColorWidgetKey(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+): 'color-picker' | 'color-input' {
+  // ⚠️ Reads {@link colorPaletteOptions}, the RAW palette, and it must keep
+  // doing so (objectui#6247, Fork B → B1). This function decides which of the
+  // two colour REGISTRATIONS the host mounts, and objectui#4871 point 4 put
+  // that decision in the host, from the schema, BEFORE the label is written.
+  // Filtering here would make the labelling channel itself predicate-dependent:
+  // withdrawing the last swatch would silently re-register the field as
+  // `color-input` and move its accessible name onto a different element.
+  return colorPaletteOptions(schema, fieldSpec).length > 0 ? 'color-picker' : 'color-input';
+}
+
+/**
+ * The palette a colour field OFFERS right now — {@link colorPaletteOptions}
+ * with each option's `visibleWhen` applied (objectui#6247).
+ *
+ * The CONTENT half of the B1 split: the source list is still chosen on the RAW
+ * `fieldSpec.options` (identically to {@link colorPaletteOptions}, so producer
+ * and consumer cannot disagree about which list is in play, and a fully
+ * withdrawn palette can never fall through to the schema `enum` and resurrect
+ * the very swatches the predicate withdrew), and only its ELEMENTS are
+ * filtered. An emptied palette renders an empty `radiogroup` — still
+ * `color-picker`, per {@link resolveColorWidgetKey}.
+ *
+ * The `enum` arm is returned unfiltered because a JSON-Schema enum member has
+ * no per-option predicate to read; there is nothing there to withhold.
+ */
+export function visibleColorPaletteOptions(
+  schema: Record<string, unknown> | undefined,
+  fieldSpec: WidgetProps['fieldSpec'],
+  ctx: PredicateCtx,
+): Array<{ value: string; label?: string }> {
+  if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+    return visibleOptions(fieldSpec!.options!, ctx).map((o) => ({ value: o.value, label: o.label }));
+  }
+  return colorPaletteOptions(schema, fieldSpec);
+}
+
+/**
+ * `color-picker` — a declared palette, rendered as a swatch `radiogroup`.
+ * `labelling: 'group'`: `role="radiogroup"` is a container, so the host's label
+ * publishes an id and this surface answers it by IDREF (objectui#4010 named the
+ * group; objectui#4871 is what finally removed the host's dangling `for`).
+ */
+function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, formData, ariaLabelledBy }: WidgetProps) {
+  const hostScope = usePredicateScope();
+  // Exactly one naming channel, chosen by which one the caller can supply
+  // (`ColorVariantPickerNaming` makes that a type-level XOR, objectui#4010):
+  // `SchemaForm` publishes a label id and takes the IDREF arm; a caller that
+  // renders this widget standalone — with no visible label in a position to
+  // publish an id — falls to the self-owned name, kept equal to the visible
+  // text wherever there is one (WCAG 2.5.3).
+  const naming = ariaLabelledBy
+    ? ({ ariaLabelledBy } as const)
+    : ({
+        ariaLabel:
+          fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color',
+      } as const);
+  return (
+    <ColorVariantPicker
+      {...naming}
+      value={value == null ? undefined : String(value)}
+      onChange={(v) => onChange(v)}
+      disabled={readOnly}
+      options={visibleColorPaletteOptions(schema, fieldSpec, buildPredicateCtx(formData, hostScope))}
+    />
+  );
+}
+
+/**
+ * `color-input` — free colour, rendered as the native picker plus a hex mirror.
+ * `labelling: 'control'`: `input[type="color"]` IS a labelable element and is
+ * the field's primary control, so it takes the host id and the plain
+ * `<label for>` names it. The hex box beside it edits the same value and carries
+ * its own name — before objectui#4871 it had none at all.
+ */
+function ColorInputWidget({ id, value, onChange, readOnly }: WidgetProps) {
+  const locale = useMetadataLocale();
   const v = value == null ? '' : String(value);
   return (
     <div className="flex items-center gap-2">
       <input
+        id={id}
         type="color"
         value={/^#([0-9a-f]{6})$/i.test(v) ? v : '#000000'}
         disabled={readOnly}
         onChange={(e) => onChange(e.target.value)}
         className="h-8 w-10 shrink-0 rounded border border-input bg-background p-0.5 disabled:opacity-60"
-        aria-label="Color"
+        // No `aria-label` beside the host's `<label for>`: an `aria-label` WINS
+        // the accessible-name computation, so keeping the old constant here
+        // would have overridden the field's visible label with "Color" — one
+        // label, two channels, the broken one louder (objectui#3978).
+        aria-label={id ? undefined : 'Color'}
       />
       <Input
         value={v}
         placeholder="#RRGGBB"
         disabled={readOnly}
+        aria-label={t('engine.form.colorHex', locale)}
         onChange={(e) => onChange(e.target.value || undefined)}
         className="h-8 text-sm font-mono"
       />
@@ -1853,14 +2351,28 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
  * pair is shape-preserving, so the plain-`string` predicate fields this widget
  * also serves keep round-tripping as strings.
  */
-function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
+function ConditionWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
+  // objectui#5228 — `ConditionBuilder` renders a field dropdown and has no
+  // failure state of its own, so a failed catalog reaches it as "no fields to
+  // pick from". Passing `undefined` rather than an empty array is what it
+  // already treats as "no catalog wired": the two arms it cannot tell apart are
+  // collapsed onto the one that does NOT assert the object has no fields.
+  const fieldsState = context?.objectFields ?? NOT_ASKED;
+  const conditionFields =
+    fieldsState.status === 'loaded' ? fieldsState.data : undefined;
   return (
-    <ConditionBuilder
-      value={expressionSource(value)}
-      onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
-      fields={context?.objectFields}
-      disabled={readOnly}
-    />
+    // `ConditionBuilder` is a multi-control composite (field / operator / value
+    // rows plus add-condition buttons) shared with the curated inspectors, so
+    // the naming wrapper lives HERE — the widget owns the host contract, the
+    // shared builder stays host-agnostic (objectui#4871).
+    <div role="group" aria-labelledby={ariaLabelledBy}>
+      <ConditionBuilder
+        value={expressionSource(value)}
+        onCommit={(cel) => onChange(writeExpressionSource(value, cel))}
+        fields={conditionFields}
+        disabled={readOnly}
+      />
+    </div>
   );
 }
 
@@ -1923,7 +2435,14 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
         placeholder={stored ? (schema?.description ? '•••••••• set — type to replace' : '•••••••• set — leave blank to keep') : (typeof schema?.description === 'string' ? '' : 'Enter a value')}
         onChange={(e) => update(e.target.value)}
         className="h-8 text-sm font-mono"
-        aria-label="Secret value"
+        // Same single-channel rule as `color-input`'s picker (objectui#4871):
+        // this widget declares `labelling: 'control'`, so when the host hands
+        // down an `id` its `<label for>` is the naming channel — and an
+        // `aria-label` here WINS the accessible-name computation, which had the
+        // visible field label ("API Key", "Client Secret") replaced by the
+        // constant "Secret value" on every SchemaForm render. Kept only for a
+        // caller that renders this widget with no host label at all.
+        aria-label={id ? undefined : 'Secret value'}
       />
       <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={readOnly} aria-label={reveal ? 'Hide value' : 'Reveal value'} onClick={() => setReveal((r) => !r)}>
         {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -1949,7 +2468,7 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
  * that changes fields per driver, but it is generic: any "pick X → these
  * settings" pattern can reuse it by populating `dynamicSchemas`.
  */
-function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context }: WidgetProps) {
+function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context, ariaLabelledBy }: WidgetProps) {
   const dep = Array.isArray(fieldSpec?.dependsOn) ? fieldSpec!.dependsOn![0] : fieldSpec?.dependsOn;
   const depVal = dep ? (formData?.[dep] as string | undefined) : undefined;
   const sub = depVal != null ? context?.dynamicSchemas?.[String(depVal)] : undefined;
@@ -1963,14 +2482,26 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
   };
 
   if (!depVal) {
-    return <p className="text-xs text-muted-foreground">Select {dep ?? 'an option'} to configure.</p>;
+    // Every branch answers the host's IDREF, so the field's visible label owns
+    // this surface in each of its three states (objectui#4871) — a group named
+    // in one state and anonymous in another is the conditional shape the #4871
+    // ruling removed.
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
+        Select {dep ?? 'an option'} to configure.
+      </div>
+    );
   }
   if (!sub || Object.keys(props).length === 0) {
-    return <p className="text-xs text-muted-foreground">No configuration needed for "{String(depVal)}".</p>;
+    return (
+      <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
+        No configuration needed for "{String(depVal)}".
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border/60 p-3">
+    <div className="space-y-2 rounded-md border border-border/60 p-3" role="group" aria-labelledby={ariaLabelledBy}>
       {Object.entries(props).map(([key, p]) => {
         const label = (p as any)?.title || key;
         const cur = cfg[key];
@@ -1979,7 +2510,10 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
           return (
             <div key={key} className="flex items-center justify-between gap-2">
               <Label className="text-xs">{label}</Label>
-              <Switch checked={Boolean(cur)} disabled={readOnly} onCheckedChange={(c) => setKey(key, c)} />
+              {/* Sub-controls of a `labelling: 'group'` widget carry their OWN
+                  names (objectui#4857's composite rule) — this one was the last
+                  anonymous control inside the group. */}
+              <Switch aria-label={label} checked={Boolean(cur)} disabled={readOnly} onCheckedChange={(c) => setKey(key, c)} />
             </div>
           );
         }
@@ -2023,7 +2557,12 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
   );
 }
 
-export const WIDGETS: Record<string, WidgetRenderer> = {
+// `satisfies` (not a `Record<string, …>` annotation) so the KEY SET survives as
+// a literal union — that union is what makes `WIDGET_LABELLING` below exhaustive
+// BY CONSTRUCTION: adding a widget here without deciding how the host's label
+// reaches it is a compile error, not a silent fall-through to the dangling-`for`
+// path (objectui#4871, the registry gate ruled jointly with objectui#4857).
+export const WIDGETS = {
   'ref:object': RefObjectWidget,
   'ref:component': RefComponentWidget,
   'filter-mode': FilterModeWidget,
@@ -2035,7 +2574,8 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'filter-builder': FilterBuilderWidget,
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
-  'color-picker': ColorPickerWidget,
+  'color-picker': ColorSwatchGroupWidget,
+  'color-input': ColorInputWidget,
   'condition': ConditionWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
@@ -2043,7 +2583,104 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'code': CodeWidget,
   'secret': SecretWidget,
   'dynamic-config': DynamicConfigWidget,
+} satisfies Record<string, WidgetRenderer>;
+
+/** Every key of {@link WIDGETS}, as a literal union. */
+export type RegisteredWidgetKey = keyof typeof WIDGETS;
+
+/**
+ * The labelling vocabulary this host implements, DERIVED from the repo-wide
+ * declaration type rather than restated (`ComponentMeta['labelling']`,
+ * objectui#3961 → #4857 → #4871's joint ruling: no host may keep a local
+ * variant of it).
+ *
+ * `'display'` is excluded on a MEASURED basis, not an editorial one: every one
+ * of this registry's widgets is an editable control or an editable composite —
+ * none is the "pure display in every state" case `'display'` names, so this host
+ * has no display CHANNEL to route one to. Excluding it here means adding such a
+ * widget is a compile error at the declaration, pointing at the host that must
+ * grow the `#4788` wrapper first — instead of a `'display'` declaration silently
+ * degrading to the group channel and naming nothing (a widget declared
+ * `'display'` spreads no props, so an `aria-labelledby` handed to it lands
+ * nowhere). Deriving by `Exclude` keeps the vocabulary single-sourced: rename or
+ * re-spell a member in `packages/core` and this stops compiling.
+ */
+export type WidgetLabelling = Exclude<NonNullable<ComponentMeta['labelling']>, 'display'>;
+
+/**
+ * How the HOST's visible label reaches each registered widget — the reviewed
+ * table that replaced twenty scattered per-widget judgements (objectui#4871,
+ * maintainer ruling of 2026-08-17, point 1: ledger first, then declare).
+ * (Nineteen before the `color-picker` split; objectui#4871's own body says
+ * "17", which the ledger corrected — see the PR.)
+ *
+ * Measured on real `SchemaForm` renders at `167ec42e7`, both states, three
+ * columns per widget: does the host `for` RESOLVE and to a LABELABLE element /
+ * is the rendered face labelable at all / does the group have an accessible
+ * name. The ledger is in the PR body; the three readings that decided a
+ * classification are called out on the widgets themselves.
+ *
+ * ## `'control'` — the host's `<label for>` reaches a real labelable element
+ *
+ * The widget puts `id` on the ONE labelable element that is the field's primary
+ * control, in EVERY branch it can render (loading, empty-catalog, read-only).
+ * Auxiliary affordances beside it — a chip's remove button, a reveal toggle —
+ * keep their own names; they are not what the field's label names. "In every
+ * branch" is the load-bearing half: `field-multi` and `action-multi` look like
+ * this in the editable state and were measured DANGLING in the read-only one,
+ * which is why they are NOT here.
+ *
+ * ## `'group'` — no `<label for>` can reach it; the WIDGET answers by IDREF
+ *
+ * Two shapes, one declaration, exactly as `packages/fields`' own table splits
+ * them (objectui#4857):
+ *
+ *  - real composites — `filter-mode` (mode radiogroup + field/tab pickers),
+ *    `master-detail` (a table of per-cell inputs), `condition` (predicate rows),
+ *    `dynamic-config` (a driver-shaped sub-form), `field-multi` / `action-multi`
+ *    (an ordered set with reorder/remove buttons plus an auxiliary add picker);
+ *  - single non-labelable surfaces — `color-picker`'s `div[role="radiogroup"]`,
+ *    `multiselect`'s `div[role="group"]` of checkbox buttons, and `code`, whose
+ *    only focusable is Monaco's internal textarea that this widget never renders.
+ *
+ * The host publishes its label's `id`, drops the `for` (inert on a container,
+ * and a second broken channel beside a working one — objectui#3978/#4010), and
+ * hands the id down as `ariaLabelledBy`; the widget puts it on the surface that
+ * IS the field.
+ */
+export const WIDGET_LABELLING: Record<RegisteredWidgetKey, WidgetLabelling> = {
+  'ref:object': 'control',
+  'ref:component': 'control',
+  'filter-mode': 'group',
+  'object-selector': 'control',
+  'field-selector': 'control',
+  'field-ref': 'control',
+  'field-multi': 'group',
+  'action-multi': 'group',
+  'filter-builder': 'control',
+  'view-ref': 'control',
+  'icon': 'control',
+  'color-picker': 'group',
+  'color-input': 'control',
+  'condition': 'group',
+  'master-detail': 'group',
+  'string-tags': 'control',
+  'multiselect': 'group',
+  'code': 'group',
+  'secret': 'control',
+  'dynamic-config': 'group',
 };
+
+/**
+ * The declared labelling of a widget key, for the host's channel decision.
+ * An UNREGISTERED key (a passthrough hint, a third-party name) resolves to
+ * `'control'` — byte for byte what `FieldRow` emitted before the
+ * declaration existed.
+ */
+export function widgetLabelling(widget: string | undefined): WidgetLabelling {
+  if (!widget) return 'control';
+  return WIDGET_LABELLING[widget as RegisteredWidgetKey] ?? 'control';
+}
 
 /* -------------------------------------------------------------------------- */
 /* CodeWidget — Monaco editor for `type: 'code'` fields                       */
@@ -2076,11 +2713,15 @@ export function CodeWidget({
   onChange,
   readOnly,
   fieldSpec,
+  ariaLabelledBy,
 }: WidgetProps) {
   const language = inferCodeLanguage(fieldSpec, schema);
   const stringValue = typeof value === 'string' ? value : (value == null ? '' : String(value));
   return (
-    <div className="rounded-md border border-border/50 overflow-hidden">
+    // The editor's own focusable is Monaco's internal textarea — this widget
+    // never renders it and cannot put the host id on it, so a `<label for>` can
+    // never reach the editing surface. Named by IDREF instead (objectui#4871).
+    <div className="rounded-md border border-border/50 overflow-hidden" role="group" aria-labelledby={ariaLabelledBy}>
       <div className="flex items-center justify-between px-2 py-1 bg-muted/40 border-b border-border/30 text-[10px] font-mono text-muted-foreground">
         <span>{language}</span>
         {readOnly && <span>read-only</span>}

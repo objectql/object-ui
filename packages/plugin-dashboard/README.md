@@ -16,6 +16,30 @@ Dashboard plugin for Object UI - Create beautiful dashboards with metrics, chart
 pnpm add @object-ui/plugin-dashboard
 ```
 
+## Requires a bundler — plain Node cannot import this package
+
+`DashboardGridLayout` imports `react-grid-layout`'s stylesheet at module scope
+(`import 'react-grid-layout/css/styles.css'`), and Node has no loader for `.css` at all.
+Importing the published entry from plain Node ESM — no bundler, no loader hooks — therefore
+resolves and then fails during evaluation:
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+  for .../react-grid-layout/css/styles.css
+```
+
+**This is a supported-configuration statement, not a bug to report.** Unbundled Node
+consumption is not supported for style-carrying plugin packages. It was ruled that way on
+[objectui#5384](https://github.com/objectstack-ai/objectui/issues/5384) — deliberately, over
+the alternative of moving the stylesheet out of module scope — because the grid's layout rules
+are not optional and no unbundled-Node consumer exists to serve.
+
+Consume it through a host that handles CSS imports, which every supported host does: Vite,
+webpack, or Next with the package listed in `transpilePackages`. If you have a real need to
+import it under plain Node — SSR with no bundler, a Node-side script — please open an issue.
+That reopens the question as a design decision rather than a defect, and the shape of your
+consumer is the missing input.
+
 ## Usage
 
 ### Automatic Registration (Side-Effect Import)
@@ -39,17 +63,61 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the eight `ComponentRegistry.register(...)`
+calls in `src/index.tsx`, which claim exactly these schema types. The keys below
+are read off those calls:
+
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `view:dashboard` | `dashboard` | `DashboardRenderer` — the widget container |
+| `plugin-dashboard:metric` | `metric` | `MetricWidget` — one KPI value |
+| `plugin-dashboard:metric-card` | `metric-card` | `MetricCard` — KPI with trend and icon |
+| `plugin-dashboard:object-metric` | `object-metric` | internal wrapper around `ObjectMetricWidget` — aggregates over an object |
+| `plugin-dashboard:pivot` | `pivot` | `PivotTable` — pivot over rows you pass in |
+| `plugin-dashboard:object-pivot` | `object-pivot` | internal wrapper around `ObjectPivotTable` — pivot queried from an object |
+| `plugin-dashboard:dashboard-grid` | `dashboard-grid` | `DashboardGridLayout` — the drag/resize editable grid |
+| `plugin-dashboard:object-data-table` | `object-data-table` | `ObjectDataTable` — table queried from an object |
+
+`ComponentRegistry.register` publishes `namespace:type`, and — unless the call
+passes `skipFallback: true` — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback branch at `:226`). No
+call in this package passes `skipFallback`, so each type above resolves under
+both spellings. The two `object-*` types are served by internal wrappers that
+first resolve the spec's per-element `dataSource` binding (through
+`ElementDataSourceGate` from `@object-ui/react`) and then render the exported
+component, which is why those rows name a wrapper rather than an export.
+
+### Registering a component under your own key
+
+To serve one of this package's components under a key of your own, register the
+exported component — that is what a manual registration is here:
 
 ```typescript
-import { dashboardComponents } from '@object-ui/plugin-dashboard';
 import { ComponentRegistry } from '@object-ui/core';
+import { MetricCard } from '@object-ui/plugin-dashboard';
 
-// Register dashboard components
-Object.entries(dashboardComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+ComponentRegistry.register('my-metric', MetricCard, {
+  namespace: 'my-app',
+  label: 'My Metric',
+  category: 'Dashboard',
 });
 ```
+
+There is also a `dashboardComponents` export: the manual-integration map, keyed
+by the **same eight schema types** as the table above (objectui#5064 re-keyed it
+from component class names). Each key maps to the exact component the import
+registers for that type — for the two `object-*` types that is the internal
+data-source-gate wrapper, not the exported widget. Iterating it with
+`ComponentRegistry.register(type, component)` therefore re-registers the eight
+types the import has already claimed, which is still not the manual registration
+above: each such call passes no `meta`, so it trips the no-namespace deprecation
+warning in `register` (`packages/core/src/registry/Registry.ts:198`) and
+rewrites each bare-name registry entry without its `label`/`category` metadata
+(the `namespace:type` entries are untouched). The side-effect import remains the
+whole of registration.
 
 ## Schema API
 
@@ -317,23 +385,70 @@ here.
 
 ## TypeScript Support
 
-```typescript
-import type { DashboardSchema, MetricCardSchema } from '@object-ui/plugin-dashboard';
+This package ships **components, not schema types** — its whole type export
+surface is `WidgetConfigPanelProps`, `ConfigPanelTranslate` and the three
+`WidgetDataset*` catalog types, none of which describe an authored dashboard.
+The authored shape is typed by `@object-ui/types`:
 
-const metricCard: MetricCardSchema = {
-  type: 'metric-card',
+| Import from `@object-ui/types` | What it types |
+| --- | --- |
+| `DashboardComponentSchema` | the whole `type: 'dashboard'` node — `columns`, `gap`, `widgets`, `header`, `globalFilters`, `dateRange`, `refreshInterval`, … |
+| `DashboardWidgetSchema` | one entry of `widgets[]` — the spec's `DashboardWidget` keys, plus objectui's own (`component`, `layout`, `options`, …) |
+| `DashboardWidgetLayout` | a widget's `{ x, y, w, h }` grid box |
+
+```typescript
+import type {
+  DashboardComponentSchema,
+  DashboardWidgetSchema,
+} from '@object-ui/types';
+
+// Dataset-bound KPI — the widget vocabulary (see "Dashboard-level filters").
+const revenue: DashboardWidgetSchema = {
+  id: 'kpi_revenue',
+  type: 'metric',
   title: 'Revenue',
-  value: '$123,456',
-  trend: 'up',
-  trendValue: '+12%'
+  dataset: 'invoices',
+  values: ['count'],
+  colorVariant: 'success',
 };
 
-const dashboard: DashboardSchema = {
+// Single-value widget with no query: the number lives under `options`.
+const users: DashboardWidgetSchema = {
+  id: 'kpi_users',
+  type: 'metric',
+  title: 'Total Users',
+  options: { value: '1,234' },
+};
+
+// Component format: a registered component node in the widget's `component`
+// slot. Its keys are that COMPONENT's props, not widget keys.
+const custom: DashboardWidgetSchema = {
+  id: 'kpi_custom',
+  component: {
+    type: 'metric-card',
+    title: 'Revenue',
+    value: '$123,456',
+    trend: 'up',
+    trendValue: '+12%',
+  },
+  layout: { x: 0, y: 0, w: 3, h: 2 },
+};
+
+const dashboard: DashboardComponentSchema = {
   type: 'dashboard',
   columns: 3,
-  widgets: [metricCard]
+  gap: 4,
+  widgets: [revenue, users, custom],
 };
 ```
+
+There is **no per-widget-family schema type**: one `DashboardWidgetSchema`
+covers every `type` (`metric`, `bar`, `table`, …) and the family-specific
+settings live under `options`. `MetricCard`'s own props — `value`, `trend`,
+`trendValue` — are the component's, not the widget's: `DashboardWidgetSchema`
+declares none of them, and the component's props interface is not on this
+package's export surface either. So a `metric-card` node is typed only where it
+appears as a component (the `component` slot above), not as a widget family.
 
 ## Customization
 
@@ -371,8 +486,10 @@ object schema once and infers the renderer from the bound field:
 | `percent` | `0%` / `0.0%` formatted (honour `format`) |
 
 Author overrides always win — pass `type`, `format`, `options`,
-`referenceTo`, or your own `cell` function on a column to bypass
-auto-detection.
+`currency`, `referenceTo`, or your own `cell` function on a column to
+bypass auto-detection. An explicit `currency` (ISO 4217 code, e.g.
+`"EUR"`) wins over both the symbol inferred from `format` and the tenant
+default currency.
 
 ```jsonc
 {
@@ -390,9 +507,7 @@ auto-detection.
 }
 ```
 
-## DashboardGridLayout — persisting drag / resize edits
-
-### DashboardRenderer — design-mode widget reorder
+## DashboardRenderer — design-mode widget reorder
 
 When `DashboardRenderer` is used in design mode (`designMode={true}` plus an
 `onWidgetsReorder` callback), widgets become sortable via
@@ -417,9 +532,25 @@ through the `onSchemaChange` callback.
 <DashboardGridLayout
   schema={dashboard}
   // ✅ Preferred — write the updated schema through your data adapter.
-  onSchemaChange={(next) => client.meta.saveItem('dashboard', next.name, next)}
+  onSchemaChange={(next) => {
+    // `name` is optional on the schema, and `saveItem` requires it — decide
+    // what an unnamed dashboard means to your host instead of writing through.
+    if (!next.name) return;
+    client.meta.saveItem('dashboard', next.name, next);
+  }}
 />
 ```
+
+The guard is not defensive noise: the callback receives a
+`DashboardComponentSchema`, whose `name` is optional (`BaseSchema.name` in
+`@object-ui/types`), while `client.meta.saveItem(type, name, item)` declares
+`name: string`. Passing `next.name` straight through is `TS2345` under `strict`
+(`Argument of type 'string | undefined' is not assignable to parameter of type
+'string'`), so a copied snippet does not compile — and what the server does with
+an absent name has **not** been measured here, which is the other reason this
+example declines to send one rather than guessing. A host that already knows
+which metadata item the grid is editing should pass that name from its own state
+instead of reading it off the node.
 
 If `onSchemaChange` is **not** provided, layout edits stay in component
 state and are lost on refresh — a `console.warn` is emitted in development

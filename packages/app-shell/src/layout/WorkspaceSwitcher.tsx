@@ -5,9 +5,10 @@
  * expect "which org am I in / switch org" to live (Linear/Vercel/GitHub style).
  *
  * - Single-org users (the vast majority): render NOTHING. With one org there is
- *   nothing to switch to and the name isn't actionable, so it's pure chrome —
- *   the product logo already carries branding / "go home". The switcher is a
- *   multi-org affordance.
+ *   nothing to switch to, so a dropdown here would control nothing. The
+ *   switcher is a multi-org affordance. Where a tenancy wall IS in force the
+ *   org name still matters at one membership — `CurrentOrganizationIndicator`
+ *   renders it read-only there (objectui#5287), without a control.
  * - Multi-org users: the active org name + a dropdown to switch orgs inline
  *   (full-page reload so the active-org context refreshes app-wide, mirroring
  *   OrganizationsPage), plus shortcuts to manage members / create a workspace.
@@ -33,25 +34,9 @@ import {
   DropdownMenuSeparator,
 } from '@object-ui/components';
 import { ChevronsUpDown, Check, Plus, Users } from 'lucide-react';
-import { resolveRootUrl } from '../console/organizations/resolveHomeUrl';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-
-function getOrgInitials(name: string): string {
-  return name
-    .split(/[\s_-]+/)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function OrgBadge({ name }: { name: string }) {
-  return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-semibold text-muted-foreground">
-      {getOrgInitials(name)}
-    </span>
-  );
-}
+import { resolveRootUrl } from '../console/organizations/resolveHomeUrl.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { OrgBadge } from './OrgBadge.js';
 
 export function WorkspaceSwitcher() {
   const { t } = useObjectTranslation();
@@ -81,9 +66,12 @@ export function WorkspaceSwitcher() {
   // nothing rather than an empty switcher.
   if (!current) return null;
 
-  // Single-org: render nothing. With only one org there's nothing to switch to
-  // and the name carries no actionable meaning, so it's just noise next to the
-  // product logo. The switcher appears only once a second org exists.
+  // Single-org: render nothing. With only one org there's nothing to switch to,
+  // so a dropdown here would be a control that controls nothing. The switcher
+  // appears only once a second org exists. On a walled deployment the org NAME
+  // is still load-bearing context at one membership — `CurrentOrganizationIndicator`
+  // renders it read-only for exactly this case (objectui#5287); this rule is
+  // unchanged.
   if (orgList.length <= 1) return null;
 
   const handleSwitch = async (org: AuthOrganization) => {

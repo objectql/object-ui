@@ -43,8 +43,20 @@ import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/ty
 // ObjectView, so a spec `ViewFilterRule[]` lowers in exactly one place.
 import { mergeFilterNodes } from '@object-ui/core';
 import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
-import { useFieldTranslation } from './useFieldTranslation';
-import { useRecordQuery } from './useRecordQuery';
+import { useFieldTranslation } from './useFieldTranslation.js';
+import { useRecordQuery } from './useRecordQuery.js';
+// The one place a lookup column's display value is decided — shared with the
+// inline dropdown in LookupField so a single `lookup_columns` declaration
+// cannot render two different ways (objectui#5492).
+import {
+  normalizeColumn,
+  fieldToLabel,
+  resolveSchemaOptions,
+  buildLookupColumnDescriptors,
+  renderLookupColumnValue,
+  type SchemaOption,
+  type LookupCellRendererResolver,
+} from './lookupColumnDisplay.js';
 
 /** Default page size for the Record Picker dialog */
 const DEFAULT_PAGE_SIZE = 10;
@@ -59,7 +71,7 @@ const SKELETON_ROW_COUNT = 5;
  * Cell renderer function signature — matches getCellRenderer from @object-ui/fields.
  * Accepts a field type and returns a React component that renders a formatted cell.
  */
-export type CellRendererResolver = (fieldType: string) => React.FC<{ value: any; field: any }>;
+export type CellRendererResolver = LookupCellRendererResolver;
 
 /**
  * Filter column definition used by the inline filter bar.
@@ -128,25 +140,6 @@ export interface RecordPickerGridSlotProps {
 }
 
 /**
- * Normalise a lookup_columns entry (string | LookupColumnDef) into a
- * concrete LookupColumnDef object.
- */
-function normalizeColumn(col: string | LookupColumnDef): LookupColumnDef {
-  return typeof col === 'string' ? { field: col } : col;
-}
-
-/**
- * Pretty-print a field name as a column header label.
- * Converts snake_case / camelCase to Title Case.
- */
-function fieldToLabel(field: string): string {
-  return field
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-/**
  * Convert LookupFilterDef[] to a Record<string, any> compatible with
  * QueryParams.$filter.  Supports operator mapping for eq/ne/gt/lt/gte/lte/
  * contains/in/notIn.
@@ -187,41 +180,6 @@ export function lookupFiltersToRecord(
     }
   }
   return result;
-}
-
-/**
- * A select option as the object schema declares it — `{ value, label }` plus
- * whatever the renderer also reads (`color`, …), which the i18n translation
- * carries through untouched.
- */
-type SchemaOption = { value: any; label: string; [key: string]: any };
-
-/**
- * Resolve a field's select options from the referenced object's schema field
- * definition (`fieldsMeta[field]`), translated through the shared i18n option
- * path.
- *
- * This is the SINGLE source for both surfaces that need option labels: the
- * table cells (#3333) and the filter panel's select inputs (#3336) — so a
- * picker column and the filter input for that same column can never disagree
- * about what an option is called.
- *
- * Returns `undefined` when the schema field declares no options: a select
- * field with no authored options genuinely has nothing to offer, and
- * synthesising entries from the loaded page's raw stored values would paper
- * over the metadata gap with a list that changes per page.
- */
-function resolveSchemaOptions(
-  meta: { options?: unknown } | undefined,
-  objectName: string,
-  fieldName: string,
-  translateOptions: (o: string, f: string, opts: SchemaOption[]) => SchemaOption[],
-): SchemaOption[] | undefined {
-  const raw = meta?.options;
-  if (!Array.isArray(raw) || raw.length === 0) return undefined;
-  const options = raw as SchemaOption[];
-  if (!objectName) return options;
-  return translateOptions(objectName, fieldName, options);
 }
 
 /**
@@ -535,27 +493,13 @@ export function RecordPickerDialog({
     return [{ field: displayField, label: fieldToLabel(displayField) }];
   }, [columnsProp, displayField]);
 
-  // Field descriptors handed to the type-aware cell renderers, enriched from
-  // the referenced object's schema (`fieldsMeta`) the same way the list view
-  // enriches its columns. This is what lets a `select` column resolve its
-  // option label (options + i18n) instead of title-casing the raw value
-  // (#3333). Columns whose def carries no `type` inherit the schema field's
-  // type so authored string `lookup_columns` format identically.
-  const columnFieldDescriptors = useMemo<Record<string, any>>(() => {
-    const map: Record<string, any> = {};
-    for (const col of resolvedColumns) {
-      const meta = fieldsMeta?.[col.field];
-      const type = col.type ?? meta?.type;
-      if (!type) continue;
-      const descriptor: any = meta
-        ? { ...meta, name: col.field, type }
-        : { name: col.field, type };
-      const options = resolveSchemaOptions(meta, objectName, col.field, translateOptions);
-      if (options) descriptor.options = options;
-      map[col.field] = descriptor;
-    }
-    return map;
-  }, [resolvedColumns, fieldsMeta, objectName, translateOptions]);
+  // Field descriptors handed to the type-aware cell renderers — built by the
+  // SHARED helper, the same call the inline dropdown makes, so both surfaces
+  // enrich one `lookup_columns` declaration identically (objectui#5492).
+  const columnFieldDescriptors = useMemo<Record<string, any>>(
+    () => buildLookupColumnDescriptors(resolvedColumns, fieldsMeta, objectName, translateOptions),
+    [resolvedColumns, fieldsMeta, objectName, translateOptions],
+  );
 
   // Auto-generate filter columns from lookupFilters when no explicit filterColumns given.
   // Each LookupFilterDef becomes a filterable field with inferred type.
@@ -816,60 +760,21 @@ export function RecordPickerDialog({
     }
   }, [focusedRow]);
 
-  // Get display value for a cell — type-aware rendering when cellRenderer is provided
-  const renderCellContent = useCallback((record: any, col: LookupColumnDef): React.ReactNode => {
-    // When the column is the auto-inferred displayField column and the
-    // referenced object declares a `titleFormat`, render via the template so
-    // users see human-readable names instead of a raw id when the displayField
-    // (commonly defaulted to `name`) doesn't exist on the record.
-    if (titleFormat && col.field === displayField) {
-      const EMPTY = '\u0000';
-      const SEP = '[-\\u2013\\u2014|/·,:]';
-      let any = false;
-      const raw = titleFormat.replace(/\{([^{}]+)\}/g, (_m, key) => {
-        const v = (record as any)[key.trim()];
-        if (v !== null && v !== undefined && v !== '') {
-          any = true;
-          return String(v);
-        }
-        return EMPTY;
-      });
-      if (any) {
-        const out = raw
-          .replace(new RegExp(`\\s*${SEP}\\s*${EMPTY}`, 'g'), '')
-          .replace(new RegExp(`${EMPTY}\\s*${SEP}\\s*`, 'g'), '')
-          .replace(new RegExp(EMPTY, 'g'), '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (out) return out;
-      }
-    }
-
-    const val = record[col.field];
-
-    // Use type-aware renderer when a field descriptor (column `type`, or the
-    // schema field's type via `fieldsMeta`) and a resolver are available.
-    const descriptor = columnFieldDescriptors[col.field];
-    if (descriptor && cellRenderer) {
-      const Renderer = cellRenderer(descriptor.type);
-      if (Renderer) {
-        return <Renderer value={val} field={descriptor} />;
-      }
-    }
-
-    // Fallback: plain text formatting
-    if (val === null || val === undefined) return '';
-    if (typeof val === 'object') {
-      // Handle MongoDB types / expanded references
-      if (val.$numberDecimal) return String(Number(val.$numberDecimal));
-      if (val.$oid) return String(val.$oid);
-      if (val.$date) return new Date(val.$date).toLocaleDateString(displayLocale);
-      if (val.name || val.label) return String(val.name || val.label);
-      return JSON.stringify(val);
-    }
-    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-    return String(val);
-  }, [cellRenderer, titleFormat, displayField, columnFieldDescriptors, displayLocale]);
+  // Get display value for a cell. Delegated to the SHARED lookup-column
+  // renderer (objectui#5492) — the inline dropdown in LookupField calls the
+  // very same function, so this table and that popover cannot answer one
+  // `lookup_columns` declaration two different ways.
+  const renderCellContent = useCallback(
+    (record: any, col: LookupColumnDef): React.ReactNode =>
+      renderLookupColumnValue(record, col, {
+        descriptors: columnFieldDescriptors,
+        cellRenderer,
+        titleFormat,
+        displayField,
+        displayLocale,
+      }),
+    [cellRenderer, titleFormat, displayField, columnFieldDescriptors, displayLocale],
+  );
 
   // Render sort indicator for a column
   const renderSortIcon = useCallback((field: string) => {
@@ -1279,7 +1184,12 @@ export function RecordPickerDialog({
                             </TableCell>
                           )}
                           {resolvedColumns.map(col => (
-                            <TableCell key={col.field} className="py-2.5">
+                            // `data-lookup-cell` names the column this cell
+                            // renders, so the two-surface agreement pin can
+                            // compare it against the inline dropdown's
+                            // `data-lookup-preview` for the same column
+                            // (objectui#5492).
+                            <TableCell key={col.field} className="py-2.5" data-lookup-cell={col.field}>
                               {renderCellContent(record, col)}
                             </TableCell>
                           ))}

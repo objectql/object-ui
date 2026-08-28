@@ -82,20 +82,48 @@ describe('parseAiQuotaError', () => {
     expect(parseAiQuotaError('')).toBeNull();
   });
 
-  // The three-dialect matrix (objectui#3491 / cloud#944). The two live producers
-  // fill `error` in opposite ways and ADR-0112 declares a third shape they are
-  // converging on (cloud#1168); every one of them must be readable HERE before
-  // any producer moves, and every one must miss on a non-quota code.
+  // The FOUR-dialect matrix (objectui#3491 / cloud#944, widened by
+  // objectui#3804). The two live producers fill `error` in opposite ways,
+  // ADR-0112 declares the envelope shape, and cloud#1168 -> cloud PR #1238
+  // landed the fourth: that envelope carrying the SCREAMING_SNAKE ledger
+  // vocabulary with the companions inside `error.details`. Every one of them
+  // must be readable HERE, and every one must miss on a non-quota code.
+  //
+  // ⚠️ DEGENERATE-CONTROL NOTE. This file already exercised the lowercase trio
+  // heavily, so a lowercase-only case proves nothing about this change: it
+  // passes against the unfixed code too. The assertions that actually pin the
+  // NEW behavior are exactly (a) everything driven by `LEDGER_CODES`, and
+  // (b) the `declared envelope + ledger vocabulary` describe below, including
+  // its `error.details` companion reads (which fail on the old code even with
+  // a lowercase code, because `error.details` was not read at all).
   describe('dialect matrix', () => {
     const err = (payload: unknown) => new Error(JSON.stringify(payload));
+    // Legacy vocabulary — transition-period producers still emit it.
     const CODES = [
       'ai_design_quota_exhausted',
       'ai_data_chat_trial_exhausted',
       'ai_allowance_exhausted',
     ] as const;
+    // Ledger vocabulary landed by cloud PR #1238. NEW-BEHAVIOR assertions.
+    const LEDGER_CODES = [
+      'AI_DESIGN_QUOTA_EXHAUSTED',
+      'AI_DATA_CHAT_TRIAL_EXHAUSTED',
+      'AI_ALLOWANCE_EXHAUSTED',
+    ] as const;
 
     describe('flat guardrail dialect — `error` holds the code', () => {
       it.each(CODES)('hits on %s', (code) => {
+        expect(parseAiQuotaError(err({ error: code, message: 'zh', upgrade: true }))).toMatchObject({
+          code,
+          message: 'zh',
+          upgrade: true,
+        });
+      });
+
+      // NEW BEHAVIOR: the guardrail's flat limb now speaks the ledger
+      // vocabulary too, so a producer that converged its CODE before its SHAPE
+      // is still parsed.
+      it.each(LEDGER_CODES)('hits on the ledger code %s', (code) => {
         expect(parseAiQuotaError(err({ error: code, message: 'zh', upgrade: true }))).toMatchObject({
           code,
           message: 'zh',
@@ -124,9 +152,17 @@ describe('parseAiQuotaError', () => {
         ).toMatchObject({ code: 'ai_allowance_exhausted', message: prose });
       });
 
+      // NEW BEHAVIOR: same limb, ledger vocabulary.
+      it.each(LEDGER_CODES)('hits on the ledger code %s', (code) => {
+        expect(
+          parseAiQuotaError(err({ error: '', code, resetAt: '2026-08-09T00:00:00Z' })),
+        ).toMatchObject({ code, message: '' });
+      });
+
       it('misses on the code service-ai emits today, which is not in the set', () => {
-        // Documents a real remaining gap rather than asserting it away: the
-        // shape is now readable, the vocabulary is cloud#1168's to align.
+        // Documents a real remaining gap rather than asserting it away. Still
+        // a gap after cloud#1238: `ai_quota_exhausted` is in NEITHER vocabulary
+        // — not the legacy trio, not the ledger trio.
         expect(
           parseAiQuotaError(err({ error: '', code: 'ai_quota_exhausted', resetAt: 'x' })),
         ).toBeNull();
@@ -135,6 +171,14 @@ describe('parseAiQuotaError', () => {
 
     describe('declared envelope (ADR-0112) — code nested under `error`', () => {
       it.each(CODES)('hits on %s', (code) => {
+        expect(
+          parseAiQuotaError(err({ success: false, error: { code, message: 'zh' } })),
+        ).toMatchObject({ code, message: 'zh' });
+      });
+
+      // NEW BEHAVIOR: the envelope now carries the ledger vocabulary, which is
+      // the only vocabulary a spec-conformant `error.code` may use.
+      it.each(LEDGER_CODES)('hits on the ledger code %s', (code) => {
         expect(
           parseAiQuotaError(err({ success: false, error: { code, message: 'zh' } })),
         ).toMatchObject({ code, message: 'zh' });
@@ -150,6 +194,171 @@ describe('parseAiQuotaError', () => {
 
       it('misses when the nested error carries no code at all', () => {
         expect(parseAiQuotaError(err({ success: false, error: { message: 'zh' } }))).toBeNull();
+      });
+    });
+
+    // ---- THE FOURTH DIALECT (objectui#3804) --------------------------------
+    // What cloud PR #1238 actually shipped: the declared envelope, the ledger
+    // vocabulary, and the companion fields nested inside `error.details`.
+    // EVERY assertion in this describe is a new-behavior assertion — the old
+    // code never read `error.details` at all, so even the lowercase-code case
+    // here fails against origin/main.
+    describe('declared envelope + ledger vocabulary — companions in `error.details`', () => {
+      const landed = (code: string) => ({
+        success: false,
+        error: {
+          code,
+          message: 'zh',
+          details: {
+            messageEn: 'Your AI allowance is used up.',
+            upgrade: false,
+            topUp: true,
+            resetsTonight: true,
+          },
+        },
+      });
+
+      it.each(LEDGER_CODES)('reads %s with its nested companion fields', (code) => {
+        expect(parseAiQuotaError(err(landed(code)))).toEqual({
+          code,
+          message: 'zh',
+          messageEn: 'Your AI allowance is used up.',
+          upgrade: false,
+          topUp: true,
+          resetsTonight: true,
+        });
+      });
+
+      it('prefers the declared `error.details` companions over the legacy top-level ones', () => {
+        // The realistic transitional producer double-emits. The declared
+        // position wins, matching the total order the code lookup already uses.
+        expect(
+          parseAiQuotaError(
+            err({
+              success: false,
+              error: {
+                code: 'AI_ALLOWANCE_EXHAUSTED',
+                message: 'zh',
+                details: { messageEn: 'nested', upgrade: true, topUp: false },
+              },
+              messageEn: 'top-level',
+              upgrade: false,
+              topUp: true,
+            }),
+          ),
+        ).toMatchObject({
+          messageEn: 'nested',
+          upgrade: true,
+          topUp: false,
+        });
+      });
+
+      it('falls back to the top-level companions when the envelope carries no details', () => {
+        // The legacy limb stays reachable — this is the shape a producer that
+        // moved its CODE but not its COMPANIONS emits.
+        expect(
+          parseAiQuotaError(
+            err({
+              success: false,
+              error: { code: 'AI_DESIGN_QUOTA_EXHAUSTED', message: 'zh' },
+              messageEn: 'top-level',
+              upgrade: true,
+            }),
+          ),
+        ).toMatchObject({
+          code: 'AI_DESIGN_QUOTA_EXHAUSTED',
+          messageEn: 'top-level',
+          upgrade: true,
+          topUp: false,
+        });
+      });
+
+      it('leaves resetsTonight undefined unless a producer sends an actual boolean', () => {
+        // The POSITION of this field is measured (cloud#1238 puts it in
+        // `error.details`); its TYPE is not pinned by anything we can read from
+        // this repo. So a non-boolean is dropped rather than coerced into a
+        // `false` no producer declared.
+        const r = parseAiQuotaError(
+          err({
+            success: false,
+            error: {
+              code: 'AI_ALLOWANCE_EXHAUSTED',
+              details: { resetsTonight: '2026-08-26T00:00:00Z' },
+            },
+          }),
+        );
+        expect(r?.resetsTonight).toBeUndefined();
+        expect(
+          parseAiQuotaError(
+            err({
+              success: false,
+              error: { code: 'AI_ALLOWANCE_EXHAUSTED', details: { resetsTonight: false } },
+            }),
+          )?.resetsTonight,
+        ).toBe(false);
+      });
+
+      it('ignores a non-object `details` instead of throwing', () => {
+        expect(
+          parseAiQuotaError(
+            err({ success: false, error: { code: 'AI_ALLOWANCE_EXHAUSTED', details: [1, 2] } }),
+          ),
+        ).toMatchObject({ code: 'AI_ALLOWANCE_EXHAUSTED', upgrade: false, topUp: false });
+        expect(
+          parseAiQuotaError(
+            err({ success: false, error: { code: 'AI_ALLOWANCE_EXHAUSTED', details: 'nope' } }),
+          ),
+        ).toMatchObject({ code: 'AI_ALLOWANCE_EXHAUSTED', upgrade: false, topUp: false });
+      });
+    });
+
+    // ---- THE VOCABULARY THAT STAYS GENERIC (objectui#3804) -----------------
+    // cloud PR #1238 deliberately left `POST /api/v1/ai/agents/:name/chat`'s
+    // per-turn message cap on the standard `QUOTA_EXCEEDED`: it has no upgrade
+    // / top-up / trial next step, which is the exact distinction the 2026-08-11
+    // Option A ruling drew when admitting the three `AI_*` codes to the ledger.
+    //
+    // ⚠️ These assertions PASS against origin/main as well — they are
+    // regression pins for behavior this PR PRESERVES, not new-behavior
+    // assertions. They exist because the cross-seat relay asked for a pin that
+    // per-turn 429s keep being handled, and this is where that handling lives.
+    describe('generic QUOTA_EXCEEDED (per-turn cap) keeps the rate-limit path', () => {
+      const perTurn = {
+        success: false,
+        error: {
+          code: 'QUOTA_EXCEEDED',
+          message: 'zh',
+          category: 'rate_limit',
+          details: { resetAt: '2026-08-26T00:00:00Z' },
+        },
+      };
+
+      it('is not a quota-CTA refusal, so no upgrade / top-up CTA is offered', () => {
+        // Recognizing it here would render ErrorBanner's "Upgrade needed" +
+        // "Upgrade plan" to a user whose cap resets in a minute.
+        expect(parseAiQuotaError(err(perTurn))).toBeNull();
+      });
+
+      it('routes to the unsent rate-limit notice instead', () => {
+        // ChatbotEnhanced renders SendErrorNotice (with the "you're sending
+        // too quickly" copy and the typed text restored) exactly when
+        // `isUnsentSendError(e) && !parseAiQuotaError(e)`.
+        const e = tagged(429, JSON.stringify(perTurn));
+        expect(isUnsentSendError(e)).toBe(true);
+        expect(isRateLimitError(e)).toBe(true);
+        expect(isUnsentSendError(e) && !parseAiQuotaError(e)).toBe(true);
+      });
+
+      it('a non-quota 429 still falls through to the generic path', () => {
+        const e = tagged(
+          429,
+          JSON.stringify({
+            success: false,
+            error: { code: 'RATE_LIMIT_EXCEEDED', message: 'zh' },
+          }),
+        );
+        expect(parseAiQuotaError(e)).toBeNull();
+        expect(isUnsentSendError(e) && !parseAiQuotaError(e)).toBe(true);
       });
     });
 

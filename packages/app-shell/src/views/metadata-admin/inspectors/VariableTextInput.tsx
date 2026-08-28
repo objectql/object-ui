@@ -28,7 +28,7 @@ import {
   CommandGroup,
   CommandItem,
 } from '@object-ui/components';
-import type { ScopeGroup } from './useFlowScope';
+import type { ScopeGroup } from './useFlowScope.js';
 
 export type VariableFieldMode = 'expression' | 'template';
 

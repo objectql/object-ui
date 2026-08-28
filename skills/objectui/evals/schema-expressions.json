@@ -4,32 +4,34 @@
     {
       "id": 1,
       "prompt": "I have a statistic card in my Object UI schema but the value shows literally as ${data.revenue} instead of the actual number. Here's my schema: { \"type\": \"statistic\", \"value\": \"${data.revenue}\", \"label\": \"Revenue\" }. What's wrong?",
-      "expected_output": "Identifies that top-level 'value' and 'label' are not expression-evaluated, and provides the corrected schema using props.value and props.label.",
+      "expected_output": "Identifies that top-level 'value' and 'label' are not expression-evaluated, and does NOT offer props.value / props.label as the fix — that envelope is evaluated and then discarded, rendering nothing. Corrects it by resolving the value in the host before rendering, or by carrying it on a text node's content.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "props.value",
-          "props.label",
+          "content",
           "${data."
         ],
         "must_not_contain": [
-          "top-level value works"
+          "top-level value works",
+          "props.value",
+          "props.label"
         ]
       }
     },
     {
       "id": 2,
       "prompt": "I need to make a button visible only to admin users AND only when the record status is 'active'. Also, the button should show the record owner's name. Show me the correct schema.",
-      "expected_output": "Produces a schema with combined visible/hidden expression using && operator, and uses props.label with template expression for the owner name.",
+      "expected_output": "Produces a schema with combined visible/hidden expression using && operator, and does not put the owner name in props.label — that envelope is evaluated and then discarded. The name is resolved in the host, or carried on a text node's content.",
       "files": [],
       "assertions": {
         "must_contain": [
           "visible",
           "&&",
-          "props.label",
           "${"
         ],
-        "must_not_contain": []
+        "must_not_contain": [
+          "props.label"
+        ]
       }
     },
     {

@@ -22,7 +22,7 @@
 import {
   DESIGNER_SURFACE_PARAM,
   formatSurfaceParam,
-} from '../../views/metadata-admin/nav-selection';
+} from '../../views/metadata-admin/nav-selection.js';
 
 export interface BuiltArtifact {
   type: string;

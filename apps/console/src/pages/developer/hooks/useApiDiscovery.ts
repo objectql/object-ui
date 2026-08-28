@@ -138,17 +138,6 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'GET', path: '/usage', desc: 'AI quota headroom per meter (console usage indicator)' },
     ],
   },
-  workflow: {
-    group: 'Workflow',
-    defaultRoute: '/api/v1/workflow',
-    endpoints: [
-      { method: 'GET', path: '/:object/config', desc: 'Get workflow configuration' },
-      { method: 'GET', path: '/:object/:recordId/state', desc: 'Get workflow state' },
-      { method: 'POST', path: '/:object/:recordId/transition', desc: 'Execute workflow transition', bodyTemplate: { targetState: '' } },
-      { method: 'POST', path: '/:object/:recordId/approve', desc: 'Approve workflow step', bodyTemplate: { comment: '' } },
-      { method: 'POST', path: '/:object/:recordId/reject', desc: 'Reject workflow step', bodyTemplate: { comment: '' } },
-    ],
-  },
   realtime: {
     group: 'Realtime',
     defaultRoute: '/api/v1/realtime',
@@ -209,23 +198,30 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'DELETE', path: '/views/:id', desc: 'Delete view' },
     ],
   },
-  feed: {
-    group: 'Feed',
-    defaultRoute: '/api/v1/feed',
-    endpoints: [
-      { method: 'GET', path: '/:object/:recordId', desc: 'Get feed items' },
-      { method: 'POST', path: '/:object/:recordId', desc: 'Post feed item', bodyTemplate: { body: '' } },
-    ],
-  },
   // The KEY is the canonical service-slot name, because it is looked up
   // straight in `/discovery`'s `services` map (`discoveredServices[serviceName]`
-  // below) — and that map is keyed by `CoreServiceName`. The slot is
+  // below) — and that map is keyed by `CoreServiceName`. The slot WAS
   // `file-storage`; the ROUTE is `/api/v1/storage`. Keying this `storage` (as it
   // was until #4240) missed on every host, and the miss is indistinguishable
   // from "no such service" — so the deliberate fail-closed branch hid all three
   // endpoints everywhere, forever. The group's display name stays `Storage`:
   // that is the route's name and the user-facing one, and it is not derived
   // from the key.
+  //
+  // #5286: the framework's #9683 ruling (2026-08-18) inverted the slot's own
+  // canonical spelling — `storage` is now canonical and `file-storage` is a
+  // deprecated alias both discovery producers mirror byte-equal for the
+  // alias's v17 lifetime. This entry stays keyed `file-storage` rather than
+  // being re-keyed to `storage`: the locally pinned `@objectstack/spec`
+  // dependency has not published `storage` as a `CoreServiceName` member yet
+  // (verified 2026-08-19 against the installed package — see
+  // `DEPRECATED_SERVICE_SLOT_ALIASES` below), so re-keying now would fail the
+  // "every service-gated catalog key is a canonical slot" tripwire in the
+  // test file against the real, currently-installed types. What DOES change
+  // here is the discovery lookup: it reads the canonical `services.storage`
+  // first and falls back to this key, so the group renders from either
+  // spelling. Re-key this entry to `storage` and delete the alias table
+  // once the dependency catches up.
   'file-storage': {
     group: 'Storage',
     defaultRoute: '/api/v1/storage',
@@ -235,6 +231,26 @@ export const SERVICE_ENDPOINT_CATALOG: Record<string, { group: string; defaultRo
       { method: 'DELETE', path: '/:fileId', desc: 'Delete file' },
     ],
   },
+};
+
+/**
+ * Deprecated → canonical `CoreServiceName` slot aliases (framework #9683,
+ * maintainer ruling 2026-08-18: `storage` is now the canonical slot; the
+ * compound `file-storage` spelling is a deprecated alias kept for
+ * `@objectstack/spec`'s v17 lifetime). `/discovery`'s `services` map reports
+ * BOTH keys — byte-equal — for as long as the alias lives, so
+ * {@link useApiDiscovery}'s lookup below reads the canonical key first and
+ * falls back to the deprecated one only when the canonical key is entirely
+ * absent (a backend that predates the #9683 mirror row). Both spellings are
+ * pinned in `useApiDiscovery.test.ts`.
+ *
+ * This table is keyed by the CATALOG's key (still `file-storage`, see the
+ * comment on that entry above), not by every `CoreServiceName` value — add
+ * an entry here only when a catalog key itself has a deprecated spelling to
+ * bridge.
+ */
+export const DEPRECATED_SERVICE_SLOT_ALIASES: Record<string, string> = {
+  'file-storage': 'storage',
 };
 
 export function buildServiceEndpoints(serviceName: string, routePrefix: string): EndpointDef[] {
@@ -289,9 +305,13 @@ export function useApiDiscovery() {
 
       const serviceEndpoints: EndpointDef[] = [];
       for (const [serviceName, catalog] of Object.entries(SERVICE_ENDPOINT_CATALOG)) {
-        const serviceInfo = discoveredServices[serviceName] as
-          | (DiscoveryServiceStatus & { route?: string })
-          | undefined;
+        // #5286: read the canonical slot name first (framework #9683) and
+        // fall back to the catalog's own (possibly deprecated) key — see
+        // `DEPRECATED_SERVICE_SLOT_ALIASES`'s doc comment above.
+        const canonicalSlot = DEPRECATED_SERVICE_SLOT_ALIASES[serviceName];
+        const serviceInfo = (
+          (canonicalSlot ? discoveredServices[canonicalSlot] : undefined) ?? discoveredServices[serviceName]
+        ) as (DiscoveryServiceStatus & { route?: string }) | undefined;
         // ADR-0076 D12 (framework#2462): gate on the shared honest-capability
         // check — `stub`/`unavailable`/`handlerReady:false` entries must not
         // render endpoint groups (`degraded` still serves and stays visible).

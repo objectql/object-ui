@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { StackSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '../../lib/utils';
@@ -22,7 +22,19 @@ const StackRenderer = forwardRef<HTMLDivElement, { schema: StackSchema; classNam
     const direction = schema.direction || 'col';
     const justify = schema.justify || 'start';
     const align = schema.align || 'stretch'; // Stack items usually stretch
-    const gap = schema.gap ?? (schema as any).spacing ?? 2;
+    // `gap` ONLY. `stack.tsx` also read an undeclared `spacing` here, through an
+    // `as any` that existed to get past the type system saying it wasn't there —
+    // `StackSchema` extends `FlexSchema`, whose only spacing key is `gap`, and the
+    // registration below has always listed `gap` alone. That second reader made
+    // `spacing` a de-facto contract nothing declared: 135 catalog nodes across 39
+    // files were authored with it, rendered correctly, and taught every copying
+    // author (and every few-shot retrieval over these examples) a key the types do
+    // not have. Re-typing such a node to `flex` — semantically one `direction`
+    // away — would have dropped the spacing silently, because `flex.tsx` never
+    // read `spacing`. Fixed at the PRODUCER (AGENTS.md #0.1): the 135 nodes now
+    // author `gap`, and the alias is gone rather than legalised into the schema,
+    // where it would only have been a second name for `gap` (objectui#4890).
+    const gap = schema.gap ?? 2;
     const wrap = schema.wrap || false;
     
     const stackClass = cn(
@@ -60,21 +72,29 @@ const StackRenderer = forwardRef<HTMLDivElement, { schema: StackSchema; classNam
       className
     );
 
-    // Extract designer-related props
-    const { 
-        'data-obj-id': dataObjId, 
-        'data-obj-type': dataObjType,
-        style, 
-        ...stackProps 
-    } = props;
+    // DOM pass-through is a WHITELIST — objectui#3291's discipline, executed by
+    // {@link toDomProps}. Mechanism and full argument: `grid.tsx`'s docblock
+    // (objectui#4787 / PR #5573) and `packages/core/src/utils/dom-props.ts`.
+    //
+    // MEASURED (objectui#5574): every `stack` node in `examples/schema-catalog`
+    // rendered through the real `SchemaRenderer` and read off the DOM — 157
+    // illegitimate attributes across 153 nodes, `gap` 153 and `align` 4. Both are
+    // keys CONSUMED off `schema` above; the bare `{...stackProps}` spread put them
+    // on the div a second time, as attributes HTML does not define. Note what the
+    // count says about the previous fix here: objectui#4890 renamed 135 authored
+    // `spacing` keys to `gap`, which moved the leak's NAME and not the leak.
+    //
+    // `style` is forwarded by name (the objectui#4435 route) as this container's
+    // designer sizing channel; `data-obj-*` arrive through the open `data-*`
+    // family {@link toDomProps} already forwards, so they need no special case.
+    const { style, ...hostProps } = props;
 
     return (
       <div 
         ref={ref}
+        {...toDomProps(hostProps)}
         className={stackClass} 
-        {...stackProps}
-        // Apply designer props
-        {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
+        style={style}
       >
         {schema.children && renderChildren(schema.children)}
       </div>

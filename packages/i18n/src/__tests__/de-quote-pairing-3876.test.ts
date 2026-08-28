@@ -254,8 +254,18 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // `grid.import.savedMappingHint` / `savedMappingPreviewNote` German quotes,
     // 50 once objectui#3919 germanised the three `approvalsInbox` values,
     // 51 once objectstack#8270 added `home.build.noCapability`, which names the
-    // withheld „Metadaten verwalten“ permission in the gate's reason line.
-    expect(okSpans, 'correctly paired spans').toBe(51);
+    // withheld „Metadaten verwalten“ permission in the gate's reason line,
+    // 52 once objectui#5417 added `flowRunner.completed`, which names the flow
+    // it just finished — „{{flow}}“, an interpolated span, so the pairing is
+    // asserted around a hole rather than around literal prose,
+    // 53 once objectui#5232 added `console.objectView.viewConfigPermissionDenied`,
+    // which names the same withheld „Metadaten verwalten“ permission as
+    // `home.build.noCapability` above — the org-wide view-config gate's refusal,
+    // 54 once objectui#6301 added `packagedAutomation.cloneCreated`, which names
+    // the flow a clone just produced — „{{name}}“, an interpolated span like
+    // `flowRunner.completed` above, so the pairing is again asserted around a
+    // hole rather than around literal prose.
+    expect(okSpans, 'correctly paired spans').toBe(54);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -267,11 +277,18 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // 45 / 47 / 2 at objectui#3876's landing; 47 / 47 / 0 after objectui#3920
     // translated the two English values; 50 / 50 / 0 after objectui#3919 gave the
     // three `approvalsInbox` values German quotes; 51 / 51 / 0 after
-    // objectstack#8270 added `home.build.noCapability`. See the header for why the
+    // objectstack#8270 added `home.build.noCapability`; 52 / 52 / 0 after
+    // objectui#5417 added `flowRunner.completed`. See the header for why the
     // naive equality was false on the file #3876 left behind — and note that it is
     // now true for a *different* reason (rdq went to zero), which is why the
     // identity below is asserted as arithmetic rather than as `close === open`.
-    expect({ open, close, rdq }).toEqual({ open: 51, close: 51, rdq: 0 });
+    // 53 / 53 / 0 after objectui#5232 added
+    // `console.objectView.viewConfigPermissionDenied`; 54 / 54 / 0 after
+    // objectui#6301 added `packagedAutomation.cloneCreated`. `rdq` staying at 0
+    // is the load-bearing half: each new value added a MATCHED „…“ pair, not a
+    // stray closer that would have made `close === open` true for the wrong
+    // reason.
+    expect({ open, close, rdq }).toEqual({ open: 54, close: 54, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);

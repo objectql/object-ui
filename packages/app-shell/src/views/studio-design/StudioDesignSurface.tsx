@@ -17,9 +17,9 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { StudioChatDock } from './StudioAiCopilot';
-import { nextCenterTab, type StudioCenterTab } from './centerTab';
-import { useIsWideViewport } from './wideViewport';
+import { StudioChatDock } from './StudioAiCopilot.js';
+import { nextCenterTab, type StudioCenterTab } from './centerTab.js';
+import { useIsWideViewport } from './wideViewport.js';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -31,6 +31,10 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
 } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
@@ -50,7 +54,6 @@ import {
   Code2,
   Eye,
   Loader2,
-  Save,
   Pencil,
   Check,
   Plus,
@@ -70,52 +73,58 @@ import {
   PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react';
-import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
-import { getStudioCanvasPreview } from './studio-canvas-preview';
-import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
-import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel';
-import { getMetadataInspector } from '../metadata-admin/inspector-registry';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata';
+import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry.js';
+import { getStudioCanvasPreview } from './studio-canvas-preview.js';
+import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor.js';
+import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel.js';
+import { getMetadataInspector } from '../metadata-admin/inspector-registry.js';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata.js';
 import {
   DESIGNER_SEL_PARAM,
+  DESIGNER_SURFACE_PARAM,
+  formatSurfaceParam,
   parseNavSelParam,
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
-} from '../metadata-admin/nav-selection';
-import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor';
-import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
-import { loadPackageSurfaces } from './packageSurfaces';
-import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface';
-import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink';
-import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel';
-import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
+} from '../metadata-admin/nav-selection.js';
+import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor.js';
+import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
+import { emitMetadataRefresh, subscribeMetadataRefresh } from '../../assistant/assistantBus.js';
+import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
+import { loadPackageSurfaces } from './packageSurfaces.js';
+import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
+import { useSurfaceDeepLink, resolveSurfaceDeepLink, type SurfaceTarget } from './useSurfaceDeepLink.js';
+import { SurfaceDeepLinkProvider, useRequestedSurface } from './surfaceDeepLinkChannel.js';
+import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
+import { OWD_CREATE_MODELS, OWD_DEFAULT, type OwdCreateModel } from './owd-sharing.js';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel.js';
+import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas.js';
 import {
   readFields,
   writeFields,
   newField,
-} from '../metadata-admin/previews/object-fields-io';
-import { CreateItemDialog } from './CreateItemDialog';
+} from '../metadata-admin/previews/object-fields-io.js';
+import { CreateItemDialog } from './CreateItemDialog.js';
 import {
   CreatePackageDialog,
   PackageDetailSheet,
   type InstalledPackageRow,
-} from '../metadata-admin/PackagesPage';
-import { ObjectFormDesigner } from './ObjectFormDesigner';
-import { ObjectGroupInspector } from './ObjectGroupInspector';
-import { ObjectValidationsPanel } from './ObjectValidationsPanel';
-import { ObjectSettingsPanel } from './ObjectSettingsPanel';
-import { PackageOwdOverviewPanel } from './PackageOwdOverviewPanel';
-import { ObjectApiPanel } from './ObjectApiPanel';
-import { ObjectHooksPanel } from './ObjectHooksPanel';
-import { ObjectActionsPanel } from './ObjectActionsPanel';
-import { getIcon } from '../../utils/getIcon';
-import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io';
-import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
-import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
+} from '../metadata-admin/PackagesPage.js';
+import { ObjectFormDesigner } from './ObjectFormDesigner.js';
+import { ObjectGroupInspector } from './ObjectGroupInspector.js';
+import { ObjectValidationsPanel } from './ObjectValidationsPanel.js';
+import { ObjectSettingsPanel } from './ObjectSettingsPanel.js';
+import { PackageOwdOverviewPanel } from './PackageOwdOverviewPanel.js';
+import { ObjectApiPanel } from './ObjectApiPanel.js';
+import { ObjectHooksPanel } from './ObjectHooksPanel.js';
+import { ObjectActionsPanel } from './ObjectActionsPanel.js';
+import { getIcon } from '../../utils/getIcon.js';
+import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io.js';
+import { DraftChangesPanel } from '../../preview/DraftChangesPanel.js';
+import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl.js';
 import { toast } from 'sonner';
 
 // ADR-0057 P3c follow-up (#2477 item 3) — the folded layout's side-by-side
@@ -123,12 +132,95 @@ import { toast } from 'sonner';
 // the rule is testable without mounting this surface; see that module for why
 // 1280 is the right line and what the canvas measures there.
 
+/**
+ * The create dialog's OWD options reuse the SETTINGS tab's own label and gloss
+ * strings verbatim (objectui#5418). The card's complaint was that the Settings
+ * page "is excellent — four options, each with a plain-language gloss" and that
+ * nothing routes the author there; copying the wording rather than writing a
+ * second, shorter one is what keeps the two surfaces from drifting into two
+ * descriptions of one security baseline.
+ */
+const OWD_OPTION_LABEL_KEY: Record<OwdCreateModel, string> = {
+  private: 'engine.studio.settings.sharingPrivate',
+  public_read: 'engine.studio.settings.sharingPublicRead',
+  public_read_write: 'engine.studio.settings.sharingPublicReadWrite',
+};
+const OWD_OPTION_DESC_KEY: Record<OwdCreateModel, string> = {
+  private: 'engine.studio.settings.sharingDescPrivate',
+  public_read: 'engine.studio.settings.sharingDescPublicRead',
+  public_read_write: 'engine.studio.settings.sharingDescPublicReadWrite',
+};
+
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
   { key: 'automations', label: 'Automations', Icon: Workflow },
   { key: 'interfaces', label: 'Interfaces', Icon: LayoutDashboard },
+];
+// objectui#5813 — debounced draft auto-save, shared by the pillars' editors.
+// Drafts never touch the live app, so persisting them automatically is
+// zero-risk; the 保存草稿 buttons it replaces were a standing tax on the
+// topbars AND a real loss point (forgot-to-save). Semantics:
+//  - re-arms 1.5s after the LAST edit (the snapshot key changes per edit);
+//  - `blocked` mirrors each site's old disabled-guard — in particular a
+//    CEL-blocking inspector must gate the TIMER, not just a button, or the
+//    timer publishes the malformed definition a second later (objectui#4306);
+//  - a FAILED save does not retry until the user edits again (the snapshot
+//    it attempted is remembered), so an invalid draft can't toast-loop.
+function useDraftAutoSave(opts: {
+  dirty: boolean;
+  blocked: boolean;
+  snapshot: unknown;
+  save: () => void | Promise<void>;
+}): void {
+  const { dirty, blocked, snapshot, save } = opts;
+  const snapKey = React.useMemo(() => {
+    try {
+      return JSON.stringify(snapshot ?? null);
+    } catch {
+      // Unserializable draft (never the case for metadata bodies): a constant
+      // key means one auto-save per dirty period instead of per edit —
+      // degraded but pure (the react compiler forbids impure render calls).
+      return '"__unserializable__"';
+    }
+  }, [snapshot]);
+  const lastAttemptRef = React.useRef<string | null>(null);
+  const saveRef = React.useRef(save);
+  React.useEffect(() => {
+    saveRef.current = save;
+  });
+  React.useEffect(() => {
+    if (!dirty || blocked) return;
+    if (lastAttemptRef.current === snapKey) return;
+    const timer = setTimeout(() => {
+      lastAttemptRef.current = snapKey;
+      void saveRef.current();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [dirty, blocked, snapKey]);
+}
+
+// objectui#5813 — Access is a low-frequency ADMIN surface, demoted from the
+// top-level pillar row into the 「更多」 overflow (maintainer ruling
+// 2026-08-24: primary nav aligns with the Data/Automations/Interfaces maker
+// mental model). The PAGE is untouched: the /studio/:pkg/access route, the
+// pillar dispatch and PILLAR_FOR_SURFACE_TYPE all still point here.
+const OVERFLOW_PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'access', label: 'Access', Icon: Shield },
 ];
+
+/**
+ * Which pillar owns a surface type — the routing half of a live surface
+ * request (see surfaceDeepLinkChannel). Only the types a pillar actually
+ * RESOLVES are listed, mirroring the `resolveSurfaceDeepLink` call sites
+ * below; an unlisted type is delivered in place rather than guessed at,
+ * because navigating to the wrong pillar costs the author their position and
+ * buys nothing.
+ */
+const PILLAR_FOR_SURFACE_TYPE: Readonly<Record<string, string>> = {
+  object: 'data',
+  flow: 'automations',
+  permission: 'access',
+};
 
 const KIND_ICON: Record<string, LucideIcon> = {
   group: Folder,
@@ -386,11 +478,12 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const tab = params.tab ?? 'interfaces';
   const locale = useMetadataLocale();
 
-  // Courtesy gate (ADR-0057 D10): a read-only code/installed package refuses
-  // authoring server-side (ADR-0070), so don't let the user build up doomed
-  // local edits first — disable the authoring affordances up front. Unknown
-  // writability (fetch failed / still loading) stays ungated; the server gate
-  // remains the authority either way.
+  // Courtesy gate (the framework's ADR-0124 D1 — server enforces, client is
+  // courtesy): a read-only code/installed package refuses authoring
+  // server-side (ADR-0070), so don't let the user build up doomed local edits
+  // first — disable the authoring affordances up front. Unknown writability
+  // (fetch failed / still loading) stays ungated; the server gate remains the
+  // authority either way.
   const [pkgWritable, setPkgWritable] = React.useState<boolean | null>(null);
   React.useEffect(() => {
     let cancelled = false;
@@ -441,26 +534,15 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // one atomic pass (POST /packages/:id/publish-drafts), reviewed as a whole in
   // DraftChangesPanel. There is no per-item publish.
   const [changesOpen, setChangesOpen] = React.useState(false);
-  const [pendingCount, setPendingCount] = React.useState<number | null>(null);
   const [publishing, setPublishing] = React.useState(false);
   const [publishNonce, setPublishNonce] = React.useState(0); // ↑ → pillars re-read the published baseline
   const [draftNonce, setDraftNonce] = React.useState(0); // ↑ → refresh the pending-draft count
 
-  const refreshPending = React.useCallback(async () => {
-    try {
-      const res = await fetch(`/api/v1/meta/_drafts?packageId=${encodeURIComponent(packageId)}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) return setPendingCount(null);
-      const data = (await res.json()) as unknown;
-      const list = (Array.isArray(data) ? data : ((data as { drafts?: unknown[] })?.drafts ?? [])) as unknown[];
-      setPendingCount(list.length);
-    } catch {
-      setPendingCount(null);
-    }
-  }, [packageId]);
+  // objectui#5801 — the shared pending-drafts source: same fetch, same count,
+  // and the assistant bus's metadata-refresh pulse keeps this topbar in step
+  // with every OTHER surface's publishes (chat bar, home banner) — previously
+  // a publish from the right dock never updated this count.
+  const { count: pendingCount, refresh: refreshPending } = usePendingDrafts({ packageId });
 
   React.useEffect(() => {
     void refreshPending();
@@ -497,6 +579,9 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         setChangesOpen(false);
       }
       setPublishNonce((n) => n + 1);
+      // objectui#5801 — announce the publish so the chat bar / home banner /
+      // draft cards converge without their own polling.
+      emitMetadataRefresh();
     } catch (e) {
       toast.error(formatMetadataError(e));
     } finally {
@@ -568,23 +653,35 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     [appAddObjects, loadPackageObjects, shellClient, packageId, locale],
   );
 
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const apps = (await shellClient.list('app', { packageId })) as Array<Record<string, unknown>>;
-        const first = (apps || [])
-          .map((a) => ({ name: String(a.name ?? ''), label: String(a.label ?? a.name ?? '') }))
-          .filter((a) => a.name)[0];
-        if (!cancelled) setPackageApp(first ?? null);
-      } catch {
-        if (!cancelled) setPackageApp(null);
+  // objectui#5800 顺手修 — the topbar's app detection used to disagree with the
+  // Interfaces pillar's (published-only read, no draftNonce dep, no refresh
+  // subscription, and never re-run on a pillar switch since /data and /access
+  // share one route element): a deep-link to /access could report 「还没有应用」
+  // while /data showed the app at the same moment. Same resolution as the
+  // pillar now: published first, DRAFT app fallback, re-resolved on draft
+  // saves and on the metadata-refresh pulse.
+  const resolvePackageApp = React.useCallback(async (): Promise<void> => {
+    try {
+      const apps = (await shellClient.list('app', { packageId })) as Array<Record<string, unknown>>;
+      let first = (apps || [])
+        .map((a) => ({ name: String(a.name ?? ''), label: String(a.label ?? a.name ?? '') }))
+        .filter((a) => a.name)[0];
+      if (!first) {
+        const drafts = await shellClient.listDrafts?.({ packageId, type: 'app' });
+        const d = drafts?.[0] as { name?: unknown; label?: unknown } | undefined;
+        if (d?.name) first = { name: String(d.name), label: String(d.label ?? d.name) };
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [shellClient, packageId, publishNonce]);
+      setPackageApp(first ?? null);
+    } catch {
+      setPackageApp(null);
+    }
+  }, [shellClient, packageId]);
+  React.useEffect(() => {
+    void resolvePackageApp();
+    return subscribeMetadataRefresh(() => {
+      void resolvePackageApp();
+    });
+  }, [resolvePackageApp, publishNonce, draftNonce]);
 
   // ADR-0057 P3 — the decided Studio grid: `[left: nav/tree] [center: canvas +
   // properties] [right: chat]`. NOT keyed on the async agent catalog (that
@@ -594,194 +691,266 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // — the cloud edition migrates on its own schedule.
   const chatDockMode = !aiSlot;
 
+  /**
+   * Host side of the live `?surface=` channel. Producers below the provider —
+   * today the pending-changes sheet's security block, which names a draft the
+   * publish door would refuse — hand us a surface identity and we put the
+   * author in front of it:
+   *
+   *  - ANOTHER pillar's surface still travels through the URL, because that
+   *    pillar is unmounted and its mount-time capture is the mechanism built
+   *    for exactly this. Vetoed (`false`) when the author declines to abandon
+   *    unsaved edits, so a request never outlives the navigation it needed.
+   *  - THIS pillar's surface is the case the capture cannot serve at all —
+   *    nothing remounts — so the channel carries it and the pillar applies it
+   *    once.
+   *
+   * Either way the sheet closes: a selection nobody can see is not navigation.
+   */
+  const requestSurface = React.useCallback(
+    (target: SurfaceTarget): boolean | void => {
+      const pillar = PILLAR_FOR_SURFACE_TYPE[target.type];
+      if (pillar && pillar !== tab) {
+        if (!confirmLeavePillar()) return false;
+        shellNavigate(
+          `/studio/${packageId}/${pillar}?${DESIGNER_SURFACE_PARAM}=${encodeURIComponent(formatSurfaceParam(target))}`,
+        );
+      }
+      setChangesOpen(false);
+    },
+    [tab, packageId, confirmLeavePillar, shellNavigate],
+  );
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* The ADR-0080 `aiSlot` seam — a cloud edition may still inject its own
-        * left copilot panel; the built-in copilot is the RIGHT dock below. */}
-      {aiSlot ? (
-        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : null}
+    <SurfaceDeepLinkProvider onRequest={requestSurface}>
+      <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+        {/* The ADR-0080 `aiSlot` seam — a cloud edition may still inject its own
+          * left copilot panel; the built-in copilot is the RIGHT dock below. */}
+        {aiSlot ? (
+          <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
+        ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
-          * `shrink-0`, and PackageSwitcher's trigger is `whitespace-nowrap`),
-          * so on a narrow viewport this whole strip overflows instead of any
-          * one piece silently clipping off past the screen edge. Scrolling
-          * the header is a worse look than a proper responsive redesign, but
-          * it guarantees every pillar and the Publish button stay reachable. */}
-        <header className="flex items-center gap-3 overflow-x-auto border-b px-3 py-2">
-          {/* Never a dead end: walk back to the platform Home / builder landing. */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!confirmLeavePillar()) return;
-              shellNavigate('/home');
-            }}
-            title={t('engine.studio.home', locale)}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <HomeIcon className="h-4 w-4" />
-          </button>
-          <div className="shrink-0">
-            <PackageSwitcher packageId={packageId} tab={tab} beforeNavigate={confirmLeavePillar} />
-          </div>
-          <span className="shrink-0 text-muted-foreground">·</span>
-          <nav className="flex shrink-0 gap-1">
-            {PILLARS.map((p) => (
-              <Link
-                key={p.key}
-                to={`/studio/${packageId}/${p.key}`}
-                onClick={(e) => {
-                  // Re-clicking the open pillar re-navigates to the same URL —
-                  // nothing unmounts. Modified/aux clicks open a new tab and
-                  // leave this one (and its edits) alone; react-router defers
-                  // those to the browser, so don't veto them either.
-                  if (tab === p.key) return;
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  if (!confirmLeavePillar()) e.preventDefault();
-                }}
-                className={
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
-                  (tab === p.key
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground')
-                }
-              >
-                <p.Icon className="h-3.5 w-3.5" />
-                {t(`engine.studio.pillar.${p.key}`, locale)}
-              </Link>
-            ))}
-          </nav>
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
+            * `shrink-0`, and PackageSwitcher's trigger is `whitespace-nowrap`),
+            * so on a narrow viewport this whole strip overflows instead of any
+            * one piece silently clipping off past the screen edge. Scrolling
+            * the header is a worse look than a proper responsive redesign, but
+            * it guarantees every pillar and the Publish button stay reachable. */}
+          <header className="flex items-center gap-3 overflow-x-auto border-b px-3 py-2">
+            {/* Never a dead end: walk back to the platform Home / builder landing. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmLeavePillar()) return;
+                shellNavigate('/home');
+              }}
+              title={t('engine.studio.home', locale)}
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <HomeIcon className="h-4 w-4" />
+            </button>
+            <div className="shrink-0">
+              <PackageSwitcher packageId={packageId} tab={tab} beforeNavigate={confirmLeavePillar} />
+            </div>
+            <span className="shrink-0 text-muted-foreground">·</span>
+            <nav className="flex shrink-0 gap-1">
+              {PILLARS.map((p) => (
+                <Link
+                  key={p.key}
+                  to={`/studio/${packageId}/${p.key}`}
+                  onClick={(e) => {
+                    // Re-clicking the open pillar re-navigates to the same URL —
+                    // nothing unmounts. Modified/aux clicks open a new tab and
+                    // leave this one (and its edits) alone; react-router defers
+                    // those to the browser, so don't veto them either.
+                    if (tab === p.key) return;
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    if (!confirmLeavePillar()) e.preventDefault();
+                  }}
+                  className={
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
+                    (tab === p.key
+                      ? 'bg-primary/10 font-medium text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                  }
+                >
+                  <p.Icon className="h-3.5 w-3.5" />
+                  {t(`engine.studio.pillar.${p.key}`, locale)}
+                </Link>
+              ))}
+              {/* objectui#5813 — low-frequency surfaces live in 「更多」. The
+                  trigger takes the active pillar styling when one of them is
+                  open, so the demotion never hides WHERE you are. Each item is
+                  a real router Link carrying the SAME dirty-guard as the
+                  primary pillars — an overflow entry must not become the one
+                  door that silently discards edits. */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    data-testid="studio-nav-more"
+                    className={
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
+                      (OVERFLOW_PILLARS.some((p) => tab === p.key)
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                    }
+                  >
+                    {OVERFLOW_PILLARS.some((p) => tab === p.key)
+                      ? t(`engine.studio.pillar.${tab}`, locale)
+                      : t('engine.studio.more', locale)}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-44 p-1">
+                  {OVERFLOW_PILLARS.map((p) => (
+                    <Link
+                      key={p.key}
+                      to={`/studio/${packageId}/${p.key}`}
+                      onClick={(e) => {
+                        if (tab === p.key) return;
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                        if (!confirmLeavePillar()) e.preventDefault();
+                      }}
+                      className={
+                        'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors ' +
+                        (tab === p.key
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                      }
+                    >
+                      <p.Icon className="h-3.5 w-3.5" />
+                      {t(`engine.studio.pillar.${p.key}`, locale)}
+                    </Link>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </nav>
 
-          {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {packageApp ? (
+            {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {/* objectui#5800 — the 打开应用 teleport is retired: the canvas's 运行
+                  mode IS the way to try the app without leaving the workbench.
+                  The published-app state needs no chrome at all. */}
+              {packageApp ? null : appDraftPending ? (
+                <span
+                  title={t('engine.studio.app.willOpenAfterPublish', locale)}
+                  className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
+                >
+                  {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAppCreating(true)}
+                  disabled={readOnly}
+                  title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t('engine.studio.app.create', locale)}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => window.open(resolveConsoleUrl(`apps/${encodeURIComponent(packageApp.name)}`), '_blank')}
-                title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
+                onClick={() => setChangesOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t('engine.studio.app.open', locale)}
+                <GitBranch className="h-3.5 w-3.5" />
+                {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
               </button>
-            ) : appDraftPending ? (
-              <span
-                title={t('engine.studio.app.willOpenAfterPublish', locale)}
-                className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
-              >
-                {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
-              </span>
-            ) : (
               <button
                 type="button"
-                onClick={() => setAppCreating(true)}
-                disabled={readOnly}
-                title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
-                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                // Publish is review-then-confirm: open the pending-changes panel,
+                // whose footer button fires the actual atomic package publish —
+                // never straight from this header click (objectui#2261).
+                onClick={() => setChangesOpen(true)}
+                disabled={publishing || !hasPending || readOnly}
+                title={
+                  readOnly
+                    ? t('engine.studio.pkg.readonlyHint', locale)
+                    : hasPending
+                      ? t('engine.studio.publishTitle', locale)
+                      : t('engine.studio.publishNoneTitle', locale)
+                }
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
               >
-                <Plus className="h-3.5 w-3.5" />
-                {t('engine.studio.app.create', locale)}
+                {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+                {t('engine.studio.publish', locale)}
               </button>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1">
+            {tab === 'data' ? (
+              <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            ) : tab === 'automations' ? (
+              <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            ) : tab === 'access' ? (
+              <AccessPillar
+                packageId={packageId}
+                publishNonce={publishNonce}
+                onDraftSaved={onDraftSaved}
+                readOnly={readOnly}
+                onDirtyChange={setPillarDirty}
+              />
+            ) : (
+              <InterfacesPillar
+                packageId={packageId}
+                publishNonce={publishNonce}
+                draftNonce={draftNonce}
+                onDraftSaved={onDraftSaved}
+                onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
+                readOnly={readOnly}
+                foldInspector={chatDockMode}
+                onDirtyChange={setPillarDirty}
+              />
             )}
-            <button
-              type="button"
-              onClick={() => setChangesOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <GitBranch className="h-3.5 w-3.5" />
-              {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
-            </button>
-            <button
-              type="button"
-              // Publish is review-then-confirm: open the pending-changes panel,
-              // whose footer button fires the actual atomic package publish —
-              // never straight from this header click (objectui#2261).
-              onClick={() => setChangesOpen(true)}
-              disabled={publishing || !hasPending || readOnly}
-              title={
-                readOnly
-                  ? t('engine.studio.pkg.readonlyHint', locale)
-                  : hasPending
-                    ? t('engine.studio.publishTitle', locale)
-                    : t('engine.studio.publishNoneTitle', locale)
-              }
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-              {t('engine.studio.publish', locale)}
-            </button>
           </div>
-        </header>
-
-        <div className="min-h-0 flex-1">
-          {tab === 'data' ? (
-            <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
-          ) : tab === 'automations' ? (
-            <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
-          ) : tab === 'access' ? (
-            <AccessPillar
-              packageId={packageId}
-              publishNonce={publishNonce}
-              onDraftSaved={onDraftSaved}
-              readOnly={readOnly}
-              onDirtyChange={setPillarDirty}
-            />
-          ) : (
-            <InterfacesPillar
-              packageId={packageId}
-              publishNonce={publishNonce}
-              draftNonce={draftNonce}
-              onDraftSaved={onDraftSaved}
-              onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
-              readOnly={readOnly}
-              foldInspector={chatDockMode}
-              onDirtyChange={setPillarDirty}
-            />
-          )}
         </div>
+
+        {/* ADR-0057 P3c — the copilot as the shared right dock (same package-
+          * scoped build thread as the left panel it replaces; self-gates on the
+          * agent catalog like the copilot always has). */}
+        {chatDockMode && <StudioChatDock packageId={packageId} locale={locale} />}
+
+        <DraftChangesPanel
+          open={changesOpen}
+          onOpenChange={setChangesOpen}
+          packageId={packageId}
+          onPublish={readOnly ? undefined : doPublish}
+          publishing={publishing}
+        />
+
+        <CreateItemDialog
+          open={appCreating}
+          onOpenChange={setAppCreating}
+          title={t('engine.studio.app.create', locale)}
+          labelFieldLabel={t('engine.studio.app.nameLabel', locale)}
+          labelPlaceholder={t('engine.studio.app.namePlaceholder', locale)}
+          idFieldLabel={t('engine.studio.app.idLabel', locale)}
+          idPlaceholder={t('engine.studio.app.idPlaceholder', locale)}
+          submitLabel={t('engine.studio.createDraft', locale)}
+          submittingLabel={t('engine.studio.creating', locale)}
+          busy={appBusy}
+          error={appErr}
+          locale={locale}
+          onSubmit={({ label, name }) => void doCreateApp(label, name)}
+          extra={
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={appAddObjects}
+                onChange={(e) => setAppAddObjects(e.target.checked)}
+                className="h-3.5 w-3.5 accent-primary"
+              />
+              {t('engine.studio.app.scaffoldNav', locale)}
+            </label>
+          }
+        />
       </div>
-
-      {/* ADR-0057 P3c — the copilot as the shared right dock (same package-
-        * scoped build thread as the left panel it replaces; self-gates on the
-        * agent catalog like the copilot always has). */}
-      {chatDockMode && <StudioChatDock packageId={packageId} locale={locale} />}
-
-      <DraftChangesPanel
-        open={changesOpen}
-        onOpenChange={setChangesOpen}
-        packageId={packageId}
-        onPublish={readOnly ? undefined : doPublish}
-        publishing={publishing}
-      />
-
-      <CreateItemDialog
-        open={appCreating}
-        onOpenChange={setAppCreating}
-        title={t('engine.studio.app.create', locale)}
-        labelFieldLabel={t('engine.studio.app.nameLabel', locale)}
-        labelPlaceholder={t('engine.studio.app.namePlaceholder', locale)}
-        idFieldLabel={t('engine.studio.app.idLabel', locale)}
-        idPlaceholder={t('engine.studio.app.idPlaceholder', locale)}
-        submitLabel={t('engine.studio.createDraft', locale)}
-        submittingLabel={t('engine.studio.creating', locale)}
-        busy={appBusy}
-        error={appErr}
-        locale={locale}
-        onSubmit={({ label, name }) => void doCreateApp(label, name)}
-        extra={
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={appAddObjects}
-              onChange={(e) => setAppAddObjects(e.target.checked)}
-              className="h-3.5 w-3.5 accent-primary"
-            />
-            {t('engine.studio.app.scaffoldNav', locale)}
-          </label>
-        }
-      />
-    </div>
+    </SurfaceDeepLinkProvider>
   );
 }
 
@@ -851,10 +1020,17 @@ function NavTree({
  * editing an app's navigation. The Studio adds flat top-level items
  * (`navigation[i]`), so binding is a business-friendly object picker rather
  * than the raw path field of the generic AppNavInspector: picking an object
- * writes `{ object }` (which the runtime resolves to that object's record
- * list) and, if the label is still the placeholder, adopts the object's label.
+ * writes `{ type: 'object', objectName }` (which the runtime resolves to that
+ * object's record list) and, if the label is still the placeholder, adopts the
+ * object's label. The comment used to say it writes `{ object }` — the bare
+ * spelling `AppSchema` answers with `unrecognized_keys`; the code has always
+ * written the canonical key and cleared `object` (objectui#4881).
+ *
+ * Exported for tests (`StudioDesignSurface.navItemInspector.test.tsx`) — the
+ * object picker's canonical-key binding is pinned there directly rather than
+ * by driving the whole pillar. Not re-exported from the package index.
  */
-function StudioNavItemInspector({
+export function StudioNavItemInspector({
   navId,
   appDraft,
   objects,
@@ -885,7 +1061,13 @@ function StudioNavItemInspector({
   const patch = (updates: Record<string, unknown>) => {
     onNavPatch({ navigation: nav.map((n, i) => (i === idx ? { ...n, ...updates } : n)) });
   };
-  const boundObject = String(node.object ?? node.objectName ?? '');
+  // Canonical key FIRST (objectui#4881). `object` is a spelling `AppSchema`
+  // rejects with `unrecognized_keys`, so it can only ever appear on a draft
+  // that cannot be saved; when a draft carries both, the picker must show the
+  // key the schema accepts, never the one it refuses. Whether the fallback
+  // read should exist at all — a draft carrying `object` ALONE still displays
+  // as bound — is objectui#5518, deliberately left out of #4881's scope.
+  const boundObject = String(node.objectName ?? node.object ?? '');
   const curLabel = String(node.label ?? node.title ?? node.name ?? '');
   // A nav card is a placeholder until its label is edited or a target adopts a
   // real label. Match both the legacy English sentinel and the locale-specific
@@ -1236,6 +1418,13 @@ export function InterfacesPillar({
   // running app, not an editable draft — schema editing is the Data pillar's
   // job — so those leaves are not draft-editable in this canvas.
   const isEditable = !!Preview && !StudioCanvas;
+  // objectui#5800 — 设计⇄运行: one canvas, two modes (ADR-0080's pivot made
+  // visible). Run mode is pure subtraction: `editing=false` drops the design
+  // overlays (dashboard widget overlays, page block canvas) and the SAME
+  // renderer serves the interactive runtime — click 新建, enter a record.
+  // Selection state is retained so switching back to design keeps context.
+  const [canvasMode, setCanvasMode] = React.useState<'design' | 'run'>('design');
+  const designing = canvasMode === 'design';
   // `kind: 'html'`/`'react'` pages are a `source` string (ADR-0080/0081),
   // rendered by SourcePageEditor as a code-editor + live-preview split — there
   // is no block tree, so `selection` never populates and the generic "click a
@@ -1268,6 +1457,7 @@ export function InterfacesPillar({
         const body = extractDraftBody(draftResp);
         setDraft(body ? { ...baseline, ...body } : baseline);
         setHasDraft(!!body);
+        setIfDirty(false);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -1279,8 +1469,14 @@ export function InterfacesPillar({
     };
   }, [client, current, isEditable, publishNonce]);
 
+  // objectui#5813 — a local dirty flag so auto-save only arms after a real
+  // edit, never on the load-effect's own setDraft.
+  const [ifDirty, setIfDirty] = React.useState(false);
   const onPatch = React.useCallback(
-    (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
+    (patch: Record<string, unknown>) => {
+      setDraft((d) => ({ ...d, ...patch }));
+      setIfDirty(true);
+    },
     [],
   );
   const doSave = React.useCallback(async () => {
@@ -1289,6 +1485,7 @@ export function InterfacesPillar({
     try {
       await client.save(current.type, current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
+      setIfDirty(false);
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -1296,6 +1493,12 @@ export function InterfacesPillar({
       setSaving(false);
     }
   }, [client, current, draft, onDraftSaved]);
+  useDraftAutoSave({
+    dirty: ifDirty,
+    blocked: !current || !isEditable || !!saving || readOnly || inspectorBlocking > 0,
+    snapshot: draft,
+    save: doSave,
+  });
 
   // nav editing — patch appDraft.navigation, then save/publish the App overlay
   const onNavPatch = React.useCallback((patch: Record<string, unknown>) => {
@@ -1328,6 +1531,13 @@ export function InterfacesPillar({
       setNavSaving(false);
     }
   }, [client, appName, appDraft, onDraftSaved]);
+  // objectui#5813 — nav edits auto-save while edit mode is open.
+  useDraftAutoSave({
+    dirty: navDirty,
+    blocked: !appName || !editNav || !!navSaving || readOnly,
+    snapshot: appDraft,
+    save: doNavSave,
+  });
 
   // ADR-0057 P3c — the canvas and the inspector are rendered by BOTH layouts
   // below (the classic three-zone row, and the folded center-tabs grid that
@@ -1337,9 +1547,33 @@ export function InterfacesPillar({
   const canvasEl = (
     <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
       <div className="mb-3 flex shrink-0 items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-          <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
-        </span>
+        {/* objectui#5800 — the 设计⇄运行 switch replaces the static 实时预览
+            chip: same renderer either way, the switch only adds/removes the
+            design affordances. */}
+        <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1" data-testid="canvas-mode-toggle">
+          <button
+            type="button"
+            onClick={() => setCanvasMode('design')}
+            aria-pressed={designing}
+            className={
+              'rounded-md px-2.5 py-0.5 text-[11px] transition-all ' +
+              (designing ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+            }
+          >
+            {t('engine.studio.if.modeDesign', locale)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCanvasMode('run')}
+            aria-pressed={!designing}
+            className={
+              'rounded-md px-2.5 py-0.5 text-[11px] transition-all ' +
+              (!designing ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+            }
+          >
+            {t('engine.studio.if.modeRun', locale)}
+          </button>
+        </div>
         {current && (
           <span className="text-[11px] text-muted-foreground">
             {current.type} · {current.name}
@@ -1401,9 +1635,9 @@ export function InterfacesPillar({
             type={current.type}
             name={current.name}
             draft={draft}
-            editing
-            selection={selection}
-            onSelectionChange={setSelection}
+            editing={designing}
+            selection={designing ? selection : null}
+            onSelectionChange={designing ? setSelection : undefined}
             onPatch={onPatch}
             locale={locale}
           />
@@ -1587,21 +1821,13 @@ export function InterfacesPillar({
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly || inspectorBlocking > 0}
-          title={
-            inspectorBlocking > 0
-              ? t('perm.cel.saveBlocked', locale)
-              : readOnly
-                ? t('engine.studio.pkg.readonlyHint', locale)
-                : undefined
-          }
-          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        {/* objectui#5813 — drafts auto-save; the spinner is the affordance. */}
+        {saving === 'draft' && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="if-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1">
@@ -1655,18 +1881,12 @@ export function InterfacesPillar({
                     {t('engine.studio.unpublished', locale)}
                   </span>
                 )}
-                <button type="button"
-                  onClick={doNavSave}
-                  disabled={!navDirty || !!navSaving}
-                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
-                >
-                  {navSaving === 'draft' ? (
+                {navSaving === 'draft' && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" data-testid="nav-autosaving">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Save className="h-3 w-3" />
-                  )}
-                  {t('engine.studio.saveDraft', locale)}
-                </button>
+                    {t('engine.studio.autoSaving', locale)}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -1930,6 +2150,25 @@ export function DataPillar({
   // (ADR-0080, `appStudioObjectPath`) lands here with a specific object;
   // shared plumbing (see useSurfaceDeepLink).
   const initialSurface = useSurfaceDeepLink(current);
+  // The LIVE half of the same plumbing (see surfaceDeepLinkChannel): a
+  // producer already inside this mounted pillar — the pending-changes sheet's
+  // security block, naming the object the publish door would refuse — asks for
+  // an object long after the capture ref above was read.
+  //
+  // Applied AT MOST ONCE, by id. A standing request re-resolved on every rail
+  // reload (publish, package switch) would drag the author back off whatever
+  // they had since selected, which is the regression the mount-time ref exists
+  // to prevent — so the id is marked spent as soon as the loaded rail has been
+  // consulted, whether or not it held a match.
+  const requestedSurface = useRequestedSurface();
+  const appliedRequestRef = React.useRef(0);
+  React.useEffect(() => {
+    if (!requestedSurface || !objectsLoaded) return;
+    if (requestedSurface.id === appliedRequestRef.current) return;
+    appliedRequestRef.current = requestedSurface.id;
+    const match = resolveSurfaceDeepLink(objects, requestedSurface.target, 'object');
+    if (match) setCurrent(match);
+  }, [requestedSurface, objects, objectsLoaded]);
   const [objDraft, setObjDraft] = React.useState<Record<string, unknown>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1988,11 +2227,32 @@ export function DataPillar({
   // Left-rail search + inline "new object" creator (design §4: rail = search + New).
   const [query, setQuery] = React.useState('');
   const [creating, setCreating] = React.useState(false);
+  // The OWD the create dialog will author (objectui#5418). Pre-selected to the
+  // platform's own recommended baseline; the author sees it and can change it
+  // before the object exists. Reset by `openCreateDialog` below rather than by
+  // an effect on `creating` — the effect spelling re-renders the dialog a
+  // second time on every open purely to undo a previous session's pick.
+  const [createOwd, setCreateOwd] = React.useState<OwdCreateModel>(OWD_DEFAULT);
+  const openCreateDialog = React.useCallback(() => {
+    setError(null);
+    setCreateOwd(OWD_DEFAULT);
+    setCreating(true);
+  }, []);
   const [createBusy, setCreateBusy] = React.useState(false);
   // Whether the selected object exists beyond the draft (published/code baseline).
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
   // Records grid must not fire data SQL against it.
   const [hasBaseline, setHasBaseline] = React.useState(true);
+  /**
+   * The field names that EXIST on the server for the current object — i.e. the
+   * ones a data query may name in `select`.
+   *
+   * Measured, not assumed (cloud#1652): saving a field as a DRAFT returns 200
+   * and `state=draft`, and the very next `select` naming it still answers
+   * `400 INVALID_FIELD`. Materialisation happens at PUBLISH, so the draft body
+   * is the wrong source for a projection even after a successful save.
+   */
+  const [publishedFieldNames, setPublishedFieldNames] = React.useState<Set<string>>(new Set());
   // The package's object-name namespace (framework#2694). New objects are
   // auto-prefixed with `<namespace>_` so an author can never draft a prefix-less
   // object that publish would later reject (code NAMESPACE_PREFIX).
@@ -2083,6 +2343,10 @@ export function DataPillar({
         setObjDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
         setHasDraft(!!draftBody);
         setHasBaseline(!!(lay.effective ?? lay.code));
+        // The projection baseline: the object as the SERVER has it. `objDraft`
+        // below merges the draft on top, which is right for the editor and
+        // wrong for a `select`.
+        setPublishedFieldNames(new Set(readFields(baseline.fields).entries.map((e) => e.name)));
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -2128,7 +2392,56 @@ export function DataPillar({
     () =>
       readFields(objDraft.fields)
         .entries.map((e) => e.name)
-        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions'),
+        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n) && n !== 'actions')
+        // cloud#1652 — a column the server does not have yet must not reach the
+        // `select`. "+ add field" appends `field_<N>` to the DRAFT, this array
+        // is a fetch input, and the data API refuses an unknown projection key
+        // by design (dropping it would silently answer a NARROWER projection
+        // with a WIDER one). The result was that adding a field replaced the
+        // whole grid with "该视图的查询被拒绝" — on the most ordinary edit there is.
+        //
+        // Filtering here rather than at the fetch keeps ONE source of truth for
+        // what the grid asks for. The new field is still selected in the
+        // inspector, which is where it gets configured; it joins the grid once
+        // it is published and therefore queryable.
+        .filter((n) => publishedFieldNames.has(n)),
+    [objDraft.fields, publishedFieldNames],
+  );
+
+  /**
+   * The design-mode FORM's fields: the object's own fields, dropping
+   * framework-managed/audit fields — the same base set `gridColumns` above
+   * uses, but WITHOUT its `actions` exclusion. The grid drops a field named
+   * `actions` because the grid always pins its own row-actions column headed
+   * "Actions"; the form has no such column, so a data field literally named
+   * `actions` stays editable here. That filter difference is why this is a
+   * SECOND memo rather than a reuse of `gridColumns` — sharing it would
+   * silently drop an `actions` field from the rendered form.
+   *
+   * Memoized for an IDENTITY reason, not a fetch reason (objectui#4574,
+   * ruled to the objectui#4567 producer-side pattern above). `ObjectForm`
+   * lists `schema.fields` in its field-generation effect's dependency array
+   * BY IDENTITY (plugin-form/src/ObjectForm.tsx). Built inline, this
+   * allocated a fresh array on every render of the pillar, so that effect
+   * (ending in `setFormFields(generatedFields)`) re-ran on every keystroke —
+   * redundant recomputation, NOT a duplicate query: the effect is a pure
+   * derivation, and the object-schema fetch and the record load are separate
+   * effects, neither of which depends on `schema.fields`. Unlike #4567,
+   * there is no `dataSource` call in this effect's dependency chain today —
+   * but there is a latent hazard: if one is ever added there, this becomes a
+   * #4567 with no producer-side change needed, because the identity is
+   * already stable.
+   *
+   * Keyed on `objDraft.fields` rather than `objDraft`, same reasoning as
+   * `gridColumns`: `onPatch` replaces the draft object while keeping
+   * `fields` identical, so the looser key would churn (and re-run the form's
+   * field-generation effect) on every unrelated draft edit (icon, label).
+   */
+  const formFields = React.useMemo(
+    () =>
+      readFields(objDraft.fields)
+        .entries.map((e) => e.name)
+        .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
     [objDraft.fields],
   );
 
@@ -2156,7 +2469,7 @@ export function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(
-    async (label: string, rawName: string) => {
+    async (label: string, rawName: string, sharingModel: OwdCreateModel) => {
       if (readOnly) return;
       // Auto-prefix with the package namespace (framework#2694) so a prefix-less
       // object can't be authored; the rule lives in packages-io/spec.
@@ -2168,7 +2481,7 @@ export function DataPillar({
       setCreateBusy(true);
       setError(null);
       try {
-        const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale));
+        const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale), sharingModel);
         await client.save('object', name, body, { mode: 'draft', packageId });
         const surface: Surface = { type: 'object', name, label };
         setObjects((prev) => [...prev, surface]);
@@ -2195,7 +2508,8 @@ export function DataPillar({
       setHasDraft(true);
       setDirty(false);
       setSavedAt(new Date());
-      toast.success(tFormat('engine.studio.data.savedDraft', locale, { label: current.label }));
+      // No success toast: with auto-save (objectui#5813) it would fire after
+      // every editing pause — the quiet last-saved hint is the affordance.
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -2203,6 +2517,15 @@ export function DataPillar({
       setSaving(false);
     }
   }, [client, current, objDraft, onDraftSaved, packageId, locale]);
+
+  // objectui#5813 — auto-save replaces the 保存草稿 button; the blocked guard
+  // is the button's old disabled-condition verbatim.
+  useDraftAutoSave({
+    dirty,
+    blocked: !current || !!saving || readOnly || saveBlocking > 0,
+    snapshot: objDraft,
+    save: doSave,
+  });
 
   // Drag-reorder columns → reorder the object's `fields` metadata (field display
   // order follows metadata order), saved as a DRAFT. Published later via the
@@ -2244,15 +2567,23 @@ export function DataPillar({
   // recessed `bg-muted` track with an elevated `bg-background` pill on the
   // active segment — the inverse of the old transparent-track/grey-active
   // styling, which read as toolbar chrome rather than a distinct nav layer.
+  // objectui#5813 — the 90% path is 记录/表单 (fields ARE the grid's columns,
+  // with 添加字段 right beside them, so a separate fields tab would ADD a
+  // surface, not remove one). The five power tabs keep their panels untouched
+  // behind one 「高级」 menu — capability stays, the default view stops taxing
+  // every visit with seven choices (maintainer ruling 2026-08-24).
   const dataTabs: ReadonlyArray<{ key: typeof viewMode; label: string }> = [
     { key: 'grid', label: t('engine.studio.data.tab.records', locale) },
     { key: 'form', label: t('engine.studio.data.tab.form', locale) },
+  ];
+  const advancedDataTabs: ReadonlyArray<{ key: typeof viewMode; label: string }> = [
     { key: 'rules', label: t('engine.studio.data.tab.rules', locale) },
     { key: 'hooks', label: t('engine.studio.data.tab.hooks', locale) },
     { key: 'actions', label: t('engine.studio.data.tab.actions', locale) },
     { key: 'api', label: t('engine.studio.data.tab.api', locale) },
     { key: 'settings', label: t('engine.studio.data.tab.settings', locale) },
   ];
+  const activeAdvancedTab = advancedDataTabs.find((tabDef) => tabDef.key === viewMode);
 
   // The selected object's own icon (from its metadata) — prefer the loaded
   // draft body, fall back to the rail header. getIcon degrades to Database.
@@ -2291,31 +2622,21 @@ export function DataPillar({
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
-        {savedAt && !dirty && (
+        {/* objectui#5813 — drafts auto-save (see useDraftAutoSave above); the
+            hint is the whole affordance: saving spinner while in flight, the
+            last-saved time once landed. The old 保存草稿 button is retired. */}
+        {saving === 'draft' ? (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="data-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        ) : savedAt && !dirty ? (
           <span className="ml-auto text-[11px] text-muted-foreground" data-testid="data-saved-at">
             {tFormat('engine.studio.data.lastSaved', locale, {
               time: savedAt.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
             })}
           </span>
-        )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !dirty || !!saving || readOnly || saveBlocking > 0}
-          title={
-            saveBlocking > 0
-              ? t('perm.cel.saveBlocked', locale)
-              : readOnly
-                ? t('engine.studio.pkg.readonlyHint', locale)
-                : undefined
-          }
-          className={
-            (savedAt && !dirty ? '' : 'ml-auto ') +
-            'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50'
-          }
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        ) : null}
       </div>
 
       <div className="relative flex min-h-0 flex-1">
@@ -2386,10 +2707,7 @@ export function DataPillar({
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  setError(null);
-                  setCreating(true);
-                }}
+                onClick={openCreateDialog}
                 className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
@@ -2412,10 +2730,7 @@ export function DataPillar({
                   <button
                     type="button"
                     data-testid="empty-state-new-object"
-                    onClick={() => {
-                      setError(null);
-                      setCreating(true);
-                    }}
+                    onClick={openCreateDialog}
                     className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                   >
                     <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
@@ -2447,6 +2762,40 @@ export function DataPillar({
                       {tab.label}
                     </button>
                   ))}
+                  {/* 「高级」 — the five power panels (objectui#5813). When one
+                      is open the trigger wears its NAME and the active pill, so
+                      the collapsed default never hides where you are. */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="data-tabs-advanced"
+                        aria-pressed={Boolean(activeAdvancedTab)}
+                        className={
+                          'inline-flex items-center gap-1 rounded-md px-3 py-1 text-[13px] transition-all ' +
+                          (activeAdvancedTab
+                            ? 'bg-background font-medium text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground')
+                        }
+                      >
+                        {activeAdvancedTab
+                          ? activeAdvancedTab.label
+                          : t('engine.studio.data.tab.advanced', locale)}
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {advancedDataTabs.map((tab) => (
+                        <DropdownMenuItem
+                          key={tab.key}
+                          onSelect={() => setViewMode(tab.key)}
+                          className={viewMode === tab.key ? 'font-medium text-primary' : undefined}
+                        >
+                          {tab.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 {(viewMode === 'grid' || viewMode === 'form') && !readOnly && (
                   <button
@@ -2701,9 +3050,11 @@ export function DataPillar({
                           type: 'object-form',
                           objectName: current.name,
                           mode: 'create',
-                          fields: readFields(objDraft.fields)
-                            .entries.map((e) => e.name)
-                            .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
+                          // Memoized above at the top of the component: this array's
+                          // IDENTITY is a dependency of ObjectForm's field-generation
+                          // effect, so rebuilding it inline here re-ran that effect on
+                          // every keystroke-level render of the pillar (objectui#4574).
+                          fields: formFields,
                         } as never
                       }
                       dataSource={adapter as never}
@@ -2782,7 +3133,42 @@ export function DataPillar({
         busy={createBusy}
         error={error}
         locale={locale}
-        onSubmit={({ label, name }) => void doCreateObject(label, name)}
+        extra={
+          /* Record sharing (OWD) — the third thing `新建对象` must ask for
+             (objectui#5418). Without it the object saves as a draft happily and
+             is then REFUSED at 发布 → 全部发布 by `security-owd-unset`, a wall
+             the author meets only after building the whole object. The gloss is
+             the SAME string the Settings tab shows for each model, so the two
+             surfaces cannot describe one baseline two ways.
+
+             `controlled_by_parent` is absent on purpose — see OWD_CREATE_MODELS:
+             a just-created object has no master-detail field for it to derive
+             access from. */
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-muted-foreground">
+              {t('engine.studio.data.owdLabel', locale)}
+            </span>
+            <select
+              value={createOwd}
+              data-testid="create-object-owd"
+              onChange={(e) => setCreateOwd(e.target.value as OwdCreateModel)}
+              className="w-full rounded border bg-background px-2 py-1 text-[12px]"
+            >
+              {OWD_CREATE_MODELS.map((m) => (
+                <option key={m} value={m}>
+                  {t(OWD_OPTION_LABEL_KEY[m], locale)}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {t(OWD_OPTION_DESC_KEY[createOwd], locale)}
+            </span>
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {t('engine.studio.data.owdHint', locale)}
+            </span>
+          </label>
+        }
+        onSubmit={({ label, name }) => void doCreateObject(label, name, createOwd)}
       />
     </div>
   );
@@ -2964,7 +3350,10 @@ function AutomationsPillar({
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setAutoDirty(false);
+        }
       }
     })();
     return () => {
@@ -2972,8 +3361,13 @@ function AutomationsPillar({
     };
   }, [client, current, publishNonce]);
 
+  // objectui#5813 — local dirty flag: auto-save arms only after a real edit.
+  const [autoDirty, setAutoDirty] = React.useState(false);
   const onPatch = React.useCallback(
-    (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
+    (patch: Record<string, unknown>) => {
+      setDraft((d) => ({ ...d, ...patch }));
+      setAutoDirty(true);
+    },
     [],
   );
   const doSave = React.useCallback(async () => {
@@ -2983,6 +3377,7 @@ function AutomationsPillar({
     try {
       await client.save('flow', current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
+      setAutoDirty(false);
       onDraftSaved?.();
     } catch (e) {
       setError(formatMetadataError(e));
@@ -2990,6 +3385,12 @@ function AutomationsPillar({
       setSaving(false);
     }
   }, [client, current, draft, onDraftSaved]);
+  useDraftAutoSave({
+    dirty: autoDirty,
+    blocked: !current || !isEditable || !!saving || readOnly,
+    snapshot: draft,
+    save: doSave,
+  });
 
   // Enable/disable persists via the flow's deployment `status` (active = on,
   // obsolete = off) — the engine honors it on the next publish. The switch flips
@@ -3048,15 +3449,13 @@ function AutomationsPillar({
             {flowEnabled ? t('engine.studio.auto.enabled', locale) : t('engine.studio.auto.disabled', locale)}
           </button>
         )}
-        <button type="button"
-          onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-        >
-          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {t('engine.studio.saveDraft', locale)}
-        </button>
+        {/* objectui#5813 — drafts auto-save; the spinner is the affordance. */}
+        {saving === 'draft' && (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground" data-testid="auto-autosaving">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('engine.studio.autoSaving', locale)}
+          </span>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1">

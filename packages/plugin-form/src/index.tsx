@@ -11,8 +11,11 @@ import { ComponentRegistry } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   SchemaRendererContext,
+  noDataSourceMessage,
+  useResolvedDataSource,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
+import type { DataSource } from '@object-ui/types';
 import { ObjectForm } from './ObjectForm';
 
 export { ObjectForm };
@@ -66,13 +69,22 @@ export { deriveDetail, deriveColumns, deriveFormFields, findRelationshipField, r
 export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
 
 // Register object-form component
-const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
-  // Resolve dataSource from the SchemaRendererProvider context (same as
-  // object-view): ObjectForm needs a dataSource to fetch the object schema and
-  // auto-generate its fields. Without this, an `object-form` rendered straight
-  // through SchemaRenderer (e.g. the Studio view preview) has no fields.
-  const ctx = useContext(SchemaRendererContext as React.Context<any>);
-  const dataSource = ctx?.dataSource ?? undefined;
+const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
+  schema,
+  dataSource: dataSourceProp,
+}) => {
+  // ObjectForm needs a dataSource to fetch the object schema and auto-generate
+  // its fields. Without one, an `object-form` rendered straight through
+  // SchemaRenderer (e.g. the Studio view preview) has no fields.
+  //
+  // Resolved through the family's shared rule (objectui#5378): an explicit
+  // adapter first, the `SchemaRendererProvider` context second. The explicit
+  // half is additive — this block used to read context ONLY, so nothing that
+  // worked before resolves differently now; what changes is that the three
+  // blocks in the family no longer answer "where does the adapter come from?"
+  // three different ways, which is the split that made the getting-started
+  // guide satisfiable by neither wiring.
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953). A
   // page that declared `dataSource: { object }` and no `objectName` rendered a
   // field-less shell: `ObjectForm` gates its whole schema fetch on `objectName`.
@@ -91,6 +103,19 @@ const ObjectFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       dataSource={dataSource}
       testId="object-form"
       errorTitle="This form’s data source could not be resolved"
+      // `ObjectForm` builds its fields from the object's metadata, which only an
+      // adapter can serve — its own effect calls the branch it comments as
+      // "cannot proceed" and then renders a field-less card in silence
+      // (objectui#5378 item 2). The one escape hatch is inline `customFields`,
+      // which is exactly what `hasInlineFields` gates on inside the component,
+      // so the two stay in step. A form with no `objectName` is a different
+      // defect and is left to report itself.
+      requiresDataSource={
+        !(schema?.customFields?.length > 0)
+        && typeof schema?.objectName === 'string'
+        && schema.objectName.length > 0
+      }
+      noDataSourceMessage={noDataSourceMessage('object-form', schema?.objectName)}
     >
       {(bound) => <ObjectForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
@@ -283,7 +308,24 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
     { name: 'sections', type: 'array', label: 'Parent Sections' },
     { name: 'details', type: 'array', label: 'Detail Collections', required: true },
     { name: 'recordId', type: 'string', label: 'Parent Record Id', description: 'The parent record to load in `edit` mode. Leave unset for `create`.' },
-    { name: 'formType', type: 'string', label: 'Parent Form Presentation', description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
+    // TWO values, not the six `object-form` declares (objectui#5939). A bare
+    // `string` here let an out-of-vocabulary value match NO renderer branch and
+    // fall through to the flat field list with no diagnostic — measured: a
+    // `formType` of `'wizzard'` renders the parent half with its section headers
+    // silently gone. The vocabulary is narrowed to what the master-detail
+    // composition actually supports, which the repo already states twice:
+    // `MasterDetailFormSchema.formType?: 'simple' | 'tabbed'`
+    // (MasterDetailForm.tsx) and the coercion `formType === 'tabbed' ? 'tabbed'
+    // : 'simple'` ObjectForm.tsx uses when it routes a `subforms` schema in here.
+    // The other four are reachable branches that BREAK this composition, each
+    // observed rather than assumed: `drawer`/`modal` host the parent half in a
+    // portal dialog outside the master-detail container, so the single bottom
+    // Save bar finds no `<form>` to submit; `wizard` mounts only the current
+    // step's fields and turns that Save bar into a `Next`; `split` renders two
+    // panels but persists through `dataSource.create` instead of the batch.
+    // Declaring them would mint choices an authoring UI offers and this block
+    // cannot honour.
+    { name: 'formType', type: 'enum', label: 'Parent Form Presentation', enum: ['simple', 'tabbed'], description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
     { name: 'fields', type: 'array', label: 'Parent Fields', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'submitText', type: 'string', label: 'Submit Button Text', description: 'Label of the button that saves the parent and every detail row in one batch.' },

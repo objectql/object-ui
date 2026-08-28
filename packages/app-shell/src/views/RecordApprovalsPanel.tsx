@@ -8,17 +8,32 @@
 
 import * as React from 'react';
 import { cn, Badge, Button } from '@object-ui/components';
-import { Stamp, Check, Circle, Paperclip, Loader2, Send } from 'lucide-react';
+import { Stamp, Check, Circle, Paperclip, Loader2, Send, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/react';
 import {
+  isSubmitterOf,
   listApprovalActions,
   remindApprovalRequest,
   type ApprovalActionLite,
   type ApprovalActionAttachmentLite,
   type ApprovalRequestLite,
-} from '../hooks/useRecordApprovals';
+} from '../hooks/useRecordApprovals.js';
+import { isViaOverrideRow } from '../utils/approvalOverride.js';
+import {
+  approverCopyFrom,
+  approverDisplay,
+  formatIdentity,
+  prettifyMachineName,
+  unresolvedApproverRefs,
+  DEFAULT_APPROVER_COPY,
+  type ApproverDisplayCopy,
+} from '../utils/approverIdentity.js';
+import {
+  useApproverDirectory,
+  type ApproverDirectory,
+} from '../hooks/useApproverDirectory.js';
 
 /**
  * RecordApprovalsPanel — the record page's read-only approval surface
@@ -97,25 +112,11 @@ const ACTION_DOT: Record<string, string> = {
 };
 
 /**
- * Render an actor/approver identifier in a friendly form (mirrors the
- * Approval Center): emails as-is, `role:<name>` labeled, opaque 16+ char ids
- * middle-truncated — a raw UUID wall is exactly what #3461 complains about.
+ * Identity formatting moved to `utils/approverIdentity` in objectui#5414 — the
+ * panel, the merged timeline and the admin-override dialog must not each own a
+ * copy. Re-exported here because this module is where it was published.
  */
-export function formatIdentity(id: string | null | undefined): string {
-  if (!id) return '—';
-  if (id.includes('@')) return id;
-  if (id.startsWith('role:')) return `Role: ${id.slice(5)}`;
-  if (id.length > 14) return `${id.slice(0, 6)}…${id.slice(-4)}`;
-  return id;
-}
-
-/** `manager_review` → "Manager Review" (display fallback for legacy rows). */
-function prettifyMachineName(raw: string | null | undefined): string {
-  if (!raw) return '—';
-  const base = String(raw).replace(/^flow:/, '').trim();
-  return base.split(/[_\-\s]+/).filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '—';
-}
+export { formatIdentity };
 
 /**
  * Collapse the pending-approver chips, keyed by (name, group) so 会签
@@ -124,22 +125,54 @@ function prettifyMachineName(raw: string | null | undefined): string {
  * with a count. Mirrors the Approval Center's `approverChips` (#2762 P1-2 /
  * objectui#2807); the tooltip keeps the underlying ids inspectable.
  */
+export interface ApproverChip {
+  label: string;
+  group?: string;
+  count: number;
+  title: string;
+  /**
+   * The people filling the seat, already joined for display. Absent (rather
+   * than empty) when there is nothing to add, so a caller comparing chips with
+   * `toEqual` sees the same shape it always did.
+   */
+  detail?: string;
+  /** Probed AND empty — set only when the seat is genuinely unstaffed. */
+  unstaffed?: boolean;
+}
+
 export function approverChips(
   r: ApprovalRequestLite,
-): Array<{ label: string; group?: string; count: number; title: string }> {
+  opts?: { directory?: ApproverDirectory; copy?: ApproverDisplayCopy },
+): ApproverChip[] {
+  const copy = opts?.copy ?? DEFAULT_APPROVER_COPY;
+  const directory = opts?.directory ?? {};
   const order: string[] = [];
-  const byKey = new Map<string, { label: string; group?: string; count: number; title: string }>();
+  const byKey = new Map<string, ApproverChip>();
   for (const a of r.pending_approvers || []) {
-    const label = r.pending_approver_names?.[a] || formatIdentity(a);
+    const shown = approverDisplay(a, {
+      serverName: r.pending_approver_names?.[a],
+      resolved: directory[a],
+      copy,
+    });
+    const label = shown.label;
     const gs = r.pending_approver_groups?.[a];
     const group = gs && gs.length ? gs.join(' / ') : undefined;
-    const key = group ? `${label} ${group}` : label;
+    // The seat's people are part of its identity: two positions can share a
+    // label, and collapsing them would merge two different slates into one chip.
+    const key = [label, shown.detail, group].filter(Boolean).join(' ');
     const seen = byKey.get(key);
     if (seen) {
       seen.count += 1;
       if (a && !seen.title.split(', ').includes(a)) seen.title += `, ${a}`;
     } else {
-      byKey.set(key, { label, group, count: 1, title: a || label });
+      byKey.set(key, {
+        label,
+        group,
+        count: 1,
+        title: a || label,
+        ...(shown.detail ? { detail: shown.detail } : {}),
+        ...(shown.unstaffed ? { unstaffed: true } : {}),
+      });
       order.push(key);
     }
   }
@@ -182,6 +215,25 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
   const [actionsLoading, setActionsLoading] = React.useState(false);
   const [reminding, setReminding] = React.useState(false);
 
+  /**
+   * Resolve the pending approvers the SERVER could not name (objectui#5414).
+   *
+   * `positi…ager` was `formatIdentity('position:sales_manager')` — the raw
+   * engine reference, middle-truncated to fit its chip. The gate below keeps
+   * this free on a backend that resolves its own slate: a request whose
+   * `pending_approver_names` covers every id yields an empty list, and the
+   * hook never touches the adapter.
+   */
+  const approverRefs = React.useMemo(
+    () => unresolvedApproverRefs(pendingRequest),
+    [pendingRequest],
+  );
+  const approverDirectory = useApproverDirectory(approverRefs);
+  const approverCopy = React.useMemo<ApproverDisplayCopy>(
+    () => approverCopyFrom(t as unknown as Parameters<typeof approverCopyFrom>[0]),
+    [t],
+  );
+
   // Reload key: the id set plus each request's decision state, as a stable
   // string — so the timeline refetches when a decision lands (the host's
   // hook refresh flips `status` or bumps the enriched `decision_progress`
@@ -217,11 +269,14 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
    * Remind is the submitter's lever (server-authorized): prefer the
    * server-resolved `viewer.is_submitter` from the enriched pending row and
    * fall back to a plain id match for backends predating framework#3310.
+   *
+   * The derivation moved to `isSubmitterOf` unchanged (objectui#6464) so the
+   * record band's Recall gate reads the SAME answer — two copies of it would be
+   * two definitions of who submitted. `?? false` restates this call site's own
+   * reading of "no pending request": there is nothing to remind about, so the
+   * button is gone either way.
    */
-  const isSubmitter = pendingRequest
-    ? pendingRequest.viewer?.is_submitter
-      ?? (!!currentUserId && pendingRequest.submitter_id === currentUserId)
-    : false;
+  const isSubmitter = isSubmitterOf(pendingRequest, currentUserId) ?? false;
 
   const handleRemind = React.useCallback(async () => {
     if (!pendingRequest) return;
@@ -332,29 +387,49 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
 
       <div className="px-4 py-3 space-y-3">
         {/* Flow-level step strip — where in the multi-level flow this record
-            sits; present on the enriched pending row only (single reads). */}
+            sits; present on the enriched pending row only (single reads).
+
+            objectui#5554 — VERTICAL, at every step count. This panel's strip
+            used to scroll itself horizontally, which is better than the
+            console drawer's (that one dragged its whole container), but it
+            still parked the tail steps behind a scroll gesture with no
+            affordance, and readers took the clipped strip for "no more data".
+            A column caps width at the container at any step count and any
+            label length, so there is no flow length or viewport at which it
+            regresses — which is what a count- or measurement-triggered switch
+            back to a row would reintroduce. Kept identical to the console
+            drawer's stepper on purpose: same family, same treatment. Nothing
+            here may pin intrinsic width — no `shrink-0` on the rows, no
+            `whitespace-nowrap` on the labels, no horizontal scroller. */}
         {(pendingRequest?.flow_steps?.length ?? 0) > 1 && (
-          <div className="flex items-center overflow-x-auto" aria-label={tr('stepProgress', 'Approval steps')}>
-            {pendingRequest!.flow_steps!.map((s, i) => (
-              <React.Fragment key={s.id}>
-                {i > 0 && <div className={cn('h-px flex-1 min-w-4 mx-2', s.state === 'done' || s.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />}
-                <div className="flex items-center gap-1.5 shrink-0">
+          <ol className="flex flex-col" aria-label={tr('stepProgress', 'Approval steps')}>
+            {pendingRequest!.flow_steps!.map((s, i, steps) => {
+              const next = steps[i + 1];
+              return (
+                <li key={s.id} className="flex items-start gap-2">
+                  <div className="flex flex-col items-center self-stretch">
+                    <span className={cn(
+                      'flex items-center justify-center h-5 w-5 shrink-0 rounded-full text-[10px] font-semibold',
+                      s.state === 'done' && 'bg-emerald-500 text-white',
+                      s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
+                      s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
+                    )}>
+                      {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    {next && (
+                      // Tinted by the step it leads INTO — the same rule the
+                      // horizontal connector used, now running down the rail.
+                      <div className={cn('w-px flex-1 min-h-3 my-1', next.state === 'done' || next.state === 'current' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-border')} />
+                    )}
+                  </div>
                   <span className={cn(
-                    'flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold',
-                    s.state === 'done' && 'bg-emerald-500 text-white',
-                    s.state === 'current' && 'bg-amber-500 text-white ring-2 ring-amber-200 dark:ring-amber-500/30',
-                    s.state === 'upcoming' && 'bg-muted text-muted-foreground border',
-                  )}>
-                    {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
-                  </span>
-                  <span className={cn(
-                    'text-xs whitespace-nowrap',
+                    'min-w-0 flex-1 pt-0.5 text-xs break-words',
                     s.state === 'current' ? 'font-medium' : 'text-muted-foreground',
                   )}>{s.label}</span>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
+                </li>
+              );
+            })}
+          </ol>
         )}
 
         {/* Aggregation progress — server-computed tally (quorum/unanimous
@@ -429,9 +504,19 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
               {tr('waitingOn', 'Waiting on')}
             </div>
             <div className="flex flex-wrap gap-1">
-              {approverChips(pendingRequest).map((chip, i) => (
-                <Badge key={`${chip.label}-${chip.group ?? ''}-${i}`} variant="outline" className="text-[11px]" title={chip.title}>
+              {approverChips(pendingRequest, { directory: approverDirectory, copy: approverCopy }).map((chip, i) => (
+                <Badge
+                  key={`${chip.label}-${chip.group ?? ''}-${i}`}
+                  variant="outline"
+                  className="text-[11px]"
+                  /* The raw `position:…` reference belongs on hover, not as the
+                     primary identification — objectui#5414. */
+                  title={chip.title}
+                  data-testid="approver-chip"
+                  data-unstaffed={chip.unstaffed ? 'true' : undefined}
+                >
                   {chip.label}
+                  {chip.detail && <span className="ml-1 text-muted-foreground">· {chip.detail}</span>}
                   {chip.group && <span className="ml-1 text-muted-foreground">· {chip.group}</span>}
                   {chip.count > 1 && <span className="ml-1 text-muted-foreground">×{chip.count}</span>}
                 </Badge>
@@ -470,14 +555,36 @@ export const RecordApprovalsPanel: React.FC<RecordApprovalsPanelProps> = ({
             <ol className="relative space-y-3 pl-5 before:absolute before:left-[7px] before:top-1 before:bottom-1 before:w-px before:bg-border">
               {actions.map((a) => (
                 <li key={a.id} className="relative text-xs">
+                  {/* objectui#5178 — an admin override does not wear the ordinary
+                      decision's dot. `approve` is emerald here, which is exactly
+                      the "byte-for-byte like an ordinary approval" the card
+                      reports; an override gets the amber attention dot instead,
+                      so the distinction survives a glance down the timeline. */}
                   <span
-                    className={`absolute -left-[18px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${ACTION_DOT[a.action] ?? 'bg-muted-foreground'}`}
+                    className={`absolute -left-[18px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${
+                      isViaOverrideRow(a) ? 'bg-amber-500' : ACTION_DOT[a.action] ?? 'bg-muted-foreground'
+                    }`}
                     aria-hidden
                   />
                   <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className="font-medium">{actionText(a)}</span>
                     <span className="text-muted-foreground">·</span>
                     <span title={a.actor_id || ''}>{actorName(a)}</span>
+                    {/* The marker framework#4466 wrote and nothing read. Only an
+                        explicit `via_override: true` earns it — see
+                        `isViaOverrideRow` for why "not recorded" must not
+                        render as either answer. */}
+                    {isViaOverrideRow(a) && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-amber-500/60 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                        title={tr('viaOverrideHint', 'The actor held no approver slot on this step — admitted by the admin-override path.')}
+                        data-testid="via-override-chip"
+                      >
+                        <ShieldAlert className="h-3 w-3" aria-hidden />
+                        {tr('viaOverrideChip', 'Admin override')}
+                      </Badge>
+                    )}
                     {a.step_name && (
                       <span className="text-muted-foreground">· {prettifyMachineName(a.step_name)}</span>
                     )}

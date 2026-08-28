@@ -79,3 +79,34 @@ describe('groupNotifications', () => {
     expect(groupNotifications([])).toEqual([]);
   });
 });
+
+describe('objectui#5203 — `actor_name` is not part of InboxNotification', () => {
+  it('TYPE PIN: re-declaring the field fails this file', () => {
+    const row: InboxNotification = {
+      id: 'n1',
+      type: 'collab.assignment',
+      title: 'Assigned to you',
+      // @ts-expect-error objectui#5203 removed `actor_name` from the shape — it
+      // had no producer (`mergeInboxRows` never mapped it), no consumer, and no
+      // column on `sys_inbox_message` to map FROM. Re-declaring it makes this
+      // line compile and fails the pin.
+      actor_name: 'Li Si',
+    };
+    // Same discipline as the objectui#5190 pin in
+    // `InboxPopover.linklessFallback.test.tsx`: the assertion above is erased at
+    // runtime, so `tsc -p tsconfig.test.json` (this package's `type-check`
+    // script, and the CI `Type Check` job) is what actually checks it. The
+    // runtime line below only keeps the suite honest about having run.
+    expect(row.id).toBe('n1');
+  });
+
+  it('groups a row that carries the retired key anyway, ignoring it', () => {
+    // A stray row from some future producer cannot resurrect the field by
+    // arriving with it: grouping keys off `(type, title)` and the key is simply
+    // not part of the contract. Cast because the shape no longer declares it.
+    const stray = { ...n({ id: 's1' }), actor_name: 'Li Si' } as InboxNotification;
+    const groups = groupNotifications([stray, n({ id: 's2' })]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].items.map((i) => i.id)).toEqual(['s1', 's2']);
+  });
+});

@@ -7,7 +7,7 @@
  * Set / Profile metadata item:
  *
  *   • Top section — object-level CRUD + VAMA (View All / Modify All)
- *     + lifecycle (Transfer / Restore / Purge).
+ *     + lifecycle (Transfer).
  *   • Lower section — field-level R/W for the fields of any object
  *     selected from the table above.
  *
@@ -70,11 +70,11 @@ import {
 } from '@object-ui/components';
 import { useAdapter } from '@object-ui/react';
 import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fields';
-import { PageShell } from './PageShell';
-import { HistoryPanel } from './ResourceHistoryPage';
-import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
-import { t as translate, useMetadataLocale } from './i18n';
-import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
+import { PageShell } from './PageShell.js';
+import { HistoryPanel } from './ResourceHistoryPage.js';
+import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata.js';
+import { t as translate, useMetadataLocale } from './i18n.js';
+import { PermissionAdvancedFacets } from './PermissionAdvancedFacets.js';
 import { errorCodeIs } from '@object-ui/types';
 import {
   mergePermissionSlice,
@@ -82,7 +82,7 @@ import {
   type ObjectPerm,
   type FieldPerm,
   type PermissionSetDraft,
-} from './permission-slice';
+} from './permission-slice.js';
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Domain shapes                                                      */
@@ -177,8 +177,11 @@ function getObjectActions(
     { key: 'allowEdit', short: 'U', tip: translate('perm.action.edit', locale) },
     { key: 'allowDelete', short: 'D', tip: translate('perm.action.delete', locale) },
     { key: 'allowTransfer', short: 'Tr', tip: translate('perm.action.transfer', locale) },
-    { key: 'allowRestore', short: 'Re', tip: translate('perm.action.restore', locale) },
-    { key: 'allowPurge', short: 'Pu', tip: translate('perm.action.purge', locale) },
+    // No `Re` (allowRestore) / `Pu` (allowPurge) columns: both keys are retired
+    // (objectui#6595 — see the tombstone on `ObjectPerm` in `permission-slice`
+    // for the full account and the M2 return path on objectstack#1883). They
+    // gated ObjectQL operations that have never existed, so every tick was a
+    // grant no runtime read. `allowTransfer` is enforced upstream and stays.
     { key: 'viewAllRecords', short: 'VA', tip: translate('perm.action.viewAll', locale) },
     { key: 'modifyAllRecords', short: 'MA', tip: translate('perm.action.modifyAll', locale) },
   ];
@@ -635,14 +638,39 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
   function bulkSetObject(objectName: string, action: 'all' | 'none' | 'crud' | 'read') {
     setDraft((prev) => {
-      const next: ObjectPerm =
-        action === 'none'
-          ? {}
-          : action === 'all'
-          ? Object.fromEntries(OBJECT_ACTIONS.map((a) => [a.key, true])) as ObjectPerm
+      // `none` REPLACES the row with `{}` — deliberately, unlike the three
+      // granting arms below (#6605). The defect those arms had was a GRANT
+      // that silently dropped a narrowing: "All" deleting a `readScope: 'own'`
+      // widens effective read access with no diff and no error. `none` grants
+      // nothing, so nothing survives for a scope to narrow; merging here would
+      // instead leave `allowExport: true` (and the scopes) alive after a click
+      // on the button labelled "None" — a permissive outcome that does not
+      // exist today. What an admin's "None" means is a behaviour decision, not
+      // a mechanical merge; pinned by
+      // `PermissionMatrixEditor.bulkMergeKeys.test.tsx`.
+      if (action === 'none') {
+        return { ...prev, objects: { ...prev.objects, [objectName]: {} } };
+      }
+      // The granting arms MERGE (#6605): start from the current row, reset the
+      // keys this matrix authors (`OBJECT_ACTIONS`), then set the granted
+      // ones. Keys the matrix does not model — `allowExport`, `readScope`,
+      // `writeScope`, anything an older or newer editor wrote — ride through
+      // exactly as they do on the per-checkbox path (`updateObjectPerm`'s
+      // spread). Replacing the row wholesale is what silently deleted them,
+      // and both save doors persist the row as-is: the environment door writes
+      // the whole record, and at package scope `mergePermissionSlice` takes
+      // in-scope rows entirely from `edited` (ADR-0086 P0), so `base` cannot
+      // restore what a bulk click dropped.
+      const cur = prev.objects[objectName] ?? {};
+      const next: ObjectPerm = { ...cur };
+      for (const a of OBJECT_ACTIONS) delete next[a.key];
+      const grants: Array<keyof ObjectPerm> =
+        action === 'all'
+          ? OBJECT_ACTIONS.map((a) => a.key)
           : action === 'crud'
-          ? { allowCreate: true, allowRead: true, allowEdit: true, allowDelete: true }
-          : { allowRead: true };
+          ? ['allowCreate', 'allowRead', 'allowEdit', 'allowDelete']
+          : ['allowRead'];
+      for (const key of grants) next[key] = true;
       return {
         ...prev,
         objects: { ...prev.objects, [objectName]: next },
@@ -1013,7 +1041,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
         {/* Column legend — the matrix header cells already carry a native
             `title` tooltip per column, but a hover-only affordance on
-            unfamiliar two-letter abbreviations (Tr/Re/Pu/VA/MA) is easy to
+            unfamiliar two-letter abbreviations (Tr/VA/MA) is easy to
             miss. Spell them out once, up front. */}
         <div className="px-6 py-2 border-b flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {OBJECT_ACTIONS.map((a) => (
@@ -1154,9 +1182,11 @@ function PermissionTable({
   onOpenOwd,
 }: PermissionTableProps) {
   return (
-    // objectui#2600 B3 — the fixed columns (object + 9 CRUD + bulk) need ~960px;
+    // objectui#2600 B3 — the fixed columns (object + 7 CRUD + bulk) need ~960px;
     // a min-width makes the enclosing overflow-auto container scroll instead of
     // squishing the CRUD grid and clipping the Bulk column off the right edge.
+    // The min-width is deliberately unchanged by the two columns objectui#6595
+    // retired: it is a floor, so the grid simply has more room to breathe.
     <table className="w-full min-w-[960px] text-sm">
       <thead className="sticky top-0 bg-background border-b z-10">
         <tr>

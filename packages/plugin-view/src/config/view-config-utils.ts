@@ -6,6 +6,11 @@
  */
 
 import type { FilterGroup, SortItem } from '@object-ui/components';
+// The retirement gate (objectui#4914, ruling B). This package carries no
+// `@object-ui/fields` dependency — and does not gain one here — so it reads
+// the gate from its home in `@object-ui/core`, which `fields` re-exports
+// verbatim. One table, one dedupe set, no new package edge.
+import { isRetiredFieldType, reportRetiredFieldType } from '@object-ui/core';
 import { VIEW_FILTER_OPERATORS, VIEW_FILTER_OPERATOR_ALIASES } from '@objectstack/spec/ui';
 import type { ViewFilterOperator } from '@objectstack/spec/ui';
 
@@ -45,6 +50,14 @@ const CANONICAL_TO_BUILDER: Record<ViewFilterOperator, string | null> = {
     'equals': 'equals',
     'not_equals': 'notEquals',
     'contains': 'contains',
+    // Case-insensitive contains, canonical in `VIEW_FILTER_OPERATORS` as of
+    // `@objectstack/spec` 17.1.0 (objectui#5328). The builder HAS an equivalent
+    // — `containsCaseInsensitive`, which authors the spec's `$icontains`
+    // (filter-builder.tsx:160, objectui#4023) — so this is a real row and not a
+    // `null`: mapping it to `contains` would quietly rewrite a case-insensitive
+    // filter into a case-sensitive one the next time the view was saved, the
+    // same folding the `is_null` note below refuses.
+    'icontains': 'containsCaseInsensitive',
     'not_contains': 'notContains',
     'starts_with': 'startsWith',
     'ends_with': 'endsWith',
@@ -120,17 +133,36 @@ export const __CANONICAL_TO_BUILDER = CANONICAL_TO_BUILDER;
 
 /**
  * Normalize raw field types to the 5 categories supported by FilterBuilder/SortBuilder.
- * Lookup-like types (lookup, master_detail, user, owner) map to 'select' because
+ * Lookup-like types (lookup, master_detail, user) map to 'select' because
  * FilterBuilder handles them identically when options are provided — the distinction
  * between select and lookup operators is handled within FilterBuilder itself via the
  * original field.type passed through ListView's filterFields.
+ *
+ * This is a defensive normalizer over an OPEN backend vocabulary, not a
+ * consumer of the spec's closed `FieldType`: `picklist`, `money`, `int`,
+ * `datetime_tz` and a dozen more spellings here have never been declarable
+ * either, and they are deliberate compatibility members. That is the measured
+ * reason (comment 5324769751) the retired spelling could not simply be deleted
+ * from the list and called dead — it was reachable, and deletion alone would
+ * have degraded it to `'text'` in SILENCE.
+ *
+ * THE GATE (objectui#4914, ruling B) runs ahead of every category test, which
+ * answers the boundary question the maintainer settled on record: `owner`
+ * arriving through a backend-vocabulary normalizer is an authoring error to
+ * refuse loudly, not legitimate foreign input to tolerate. The retired spelling
+ * still lands on `'text'` — the answer an unrecognised spelling gets — but the
+ * author is handed the migration prescription on the way there.
  */
 export function normalizeFieldType(rawType?: string): 'text' | 'number' | 'boolean' | 'date' | 'select' {
     const t = (rawType || '').toLowerCase();
+    if (isRetiredFieldType(t)) {
+        reportRetiredFieldType(t);
+        return 'text';
+    }
     if (['integer', 'int', 'float', 'double', 'number', 'currency', 'money', 'percent', 'rating'].includes(t)) return 'number';
     if (['date', 'datetime', 'datetime_tz', 'timestamp', 'time'].includes(t)) return 'date';
     if (['boolean', 'bool', 'checkbox', 'switch'].includes(t)) return 'boolean';
-    if (['select', 'picklist', 'single_select', 'multi_select', 'enum', 'status', 'lookup', 'master_detail', 'user', 'owner'].includes(t)) return 'select';
+    if (['select', 'picklist', 'single_select', 'multi_select', 'enum', 'status', 'lookup', 'master_detail', 'user'].includes(t)) return 'select';
     return 'text';
 }
 
@@ -288,12 +320,28 @@ export function toFilterGroup(draftFilter: any): FilterGroup {
     return { id: 'root', logic: parsed.logic, conditions: parsed.conditions };
 }
 
-/** Convert draft sort → SortItem[] for SortBuilder */
+/**
+ * Convert draft sort → SortItem[] for SortBuilder.
+ *
+ * Reads **`order`**, and only `order`. The retired spelling is **`direction`**
+ * (objectui#6011): this used to fold `s.order || s.direction || 'asc'`, which
+ * accepted two spellings for one key and silently preferred the canonical one.
+ * That is the tolerance layer objectui#4869 ruled against — a spelling the sink
+ * does not recognise gets ruled into the contract or rejected at the producer,
+ * never absorbed here — and objectui#5293 retired the same word on
+ * `ObjectViewProps.views[].sort`. A draft entry still spelled
+ * `{ field, direction }` now takes the `'asc'` default instead of the direction
+ * it asked for.
+ *
+ * ⛔ Do not re-add the alias. `SortUI`'s own file-local `toSortItems` is a
+ * DIFFERENT symbol: it maps `SortEntry[]`, whose `direction` key is
+ * type-correct on `SortUISchema`, and it is not this export.
+ */
 export function toSortItems(draftSort: any): SortItem[] {
     return (Array.isArray(draftSort) ? draftSort : []).map((s: any) => ({
         id: s.id || crypto.randomUUID(),
         field: s.field || '',
-        order: (s.order || s.direction || 'asc') as 'asc' | 'desc',
+        order: (s.order || 'asc') as 'asc' | 'desc',
     }));
 }
 

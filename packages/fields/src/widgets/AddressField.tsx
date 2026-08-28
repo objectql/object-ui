@@ -1,10 +1,10 @@
 import React, { useId } from 'react';
 import { Input, Label, EmptyValue } from '@object-ui/components';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
-import { useFieldTranslation } from './useFieldTranslation';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 // The value shape and the single-line formatting rule now live in a pure module
 // so the display (read) cell renderer formats a stored address exactly the way
 // this widget's readonly branch does — one rule, not two copies that drift
@@ -14,14 +14,14 @@ import {
   readPostalCode,
   type AddressValue,
   type LegacyAddressValue,
-} from './address-format';
+} from './address-format.js';
 
 // Re-exported through its declaring module rather than bare, so the spec-symbol
 // guard resolves the name to where it is actually defined: `address-format`
 // imports `AddressValue` from `@objectstack/spec/data` (objectui#4167), and a
 // bare `export type { AddressValue }` here would read to that guard as a second,
 // local declaration of a name the spec owns.
-export type { AddressValue } from './address-format';
+export type { AddressValue } from './address-format.js';
 
 /**
  * Address field widget - provides a structured address input

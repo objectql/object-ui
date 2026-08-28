@@ -118,6 +118,23 @@ export default tseslint.config({
     // signature needs no exemptions — 47 legitimate `options` objects exist
     // repo-wide and not one carries a `$`-prefixed key.
     'object-ui/no-query-params-under-options': 'error',
+    // objectui#5458 ratchet — the other half of the same class:
+    // `find(obj, { top: 200 })`, the query option spelled without its `$` at
+    // the TOP level. `convertQueryParams` copies exactly the `$`-prefixed keys
+    // `QueryParams` declares, so the bare spelling is dropped with no throw and
+    // no warning, and the same `[key: string]: any` makes it type-check. Three
+    // live sites, and the app-shell one INVERTED rather than widened:
+    // `find(name, { limit: 0 })` fetched the footer's record count by reading
+    // every row in the object, on every mount of every list view, because
+    // `$top: 0` is honoured end to end as "no records" and `limit` reached
+    // nothing. A sibling rule rather than a second predicate on the one above:
+    // that rule's signature (`$`-key under `options`) is unmistakable in any
+    // object literal, while every name on this one's list is an ordinary key
+    // outside a finder call, so the two need different anchors — and one
+    // `eslint-disable` must not silence both halves. Error so the next one
+    // fails at write time; all three sites were converted first, so this lints
+    // clean today with no allowlist.
+    'object-ui/no-unprefixed-query-params': 'error',
     // objectui#3090 tripwire — the spec's FormField/FormFieldSchema are the
     // form-VIEW vocabulary (`field` = object-field reference), a DIFFERENT
     // layer from objectui's runtime form-field contract (`name` = data path);
@@ -216,5 +233,36 @@ export default tseslint.config({
   plugins: { 'object-ui': objectUi },
   rules: {
     'object-ui/no-inline-spec-config': 'error',
+  },
+}, {
+  // objectui#5191 ratchet — `getBadgeColorClasses(color, value)` returns a
+  // class string and therefore cannot carry an author-declared hex: it
+  // quantizes the declared colour onto one of nine palette families. The
+  // correct answer is `getBadgeHexAppearance(color)`, whose `className` reads
+  // CSS custom properties that only its `style` half supplies. A class-only
+  // call compiles, renders, and looks right for family-name declarations (the
+  // common case), so it fails only for authors who declared a hex — and it
+  // fails by rendering a plausible NEIGHBOURING colour rather than by breaking.
+  // objectui#5141 fixed that in the cell renderer and objectui#5183 fixed four
+  // more sites; both rounds were per-site, because nothing rejected the
+  // class-only call at write time. Error so the fifth badge surface fails CI
+  // instead of shipping a quietly wrong colour — `.github/workflows/lint.yml`
+  // sets no `--max-warnings`, so a `warn` here could not fail anything. Every
+  // live call site pairs the two helpers already (plugin-grid ObjectGrid group
+  // header + compact card, plugin-kanban card badges), so this lints clean
+  // today with no allowlist.
+  //
+  // `packages/fields` is ignored because it OWNS both helpers: it defines them,
+  // its own badge renderer pairs them anyway, and
+  // `src/__tests__/badge-hex-fidelity-5141.test.tsx` deliberately exercises
+  // each half in isolation — that is the helper's own coverage, not a badge
+  // surface. Everywhere else, including tests, is in scope: outside `fields` a
+  // call to this helper IS a badge surface, and the repo is at zero unpaired
+  // instances today.
+  files: ['**/*.{ts,tsx}'],
+  ignores: ['packages/fields/**'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-unpaired-badge-color-classes': 'error',
   },
 });

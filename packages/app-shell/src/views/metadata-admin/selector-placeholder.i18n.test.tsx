@@ -3,6 +3,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { WIDGETS } from './widgets';
+import { loaded } from './loadState';
 import { t } from './i18n';
 
 afterEach(() => {
@@ -35,7 +36,7 @@ describe('metadata-admin selector placeholders (objectui#4387 key collapse)', ()
         schema={{ type: 'string' }}
         value=""
         onChange={() => {}}
-        context={{ objectNames: ['account', 'contact'] }}
+        context={{ objectNames: loaded(['account', 'contact']) }}
         fieldSpec={{ field: 'objectName', multiple: false }}
       />,
     );
@@ -45,10 +46,17 @@ describe('metadata-admin selector placeholders (objectui#4387 key collapse)', ()
   it('the single-select field picker renders the surviving key value', async () => {
     // The picker only reaches its Select once a bound object's fields have
     // loaded — before that it is the "(Select an object first)" / "Loading
-    // fields…" input, neither of which carries the placeholder under test.
+    // fields…" input, neither of which carries the placeholder under test, and
+    // since objectui#5227 a load that FAILED renders the failure block instead.
+    // Hence `ok` / `status`: this stub stood in for a successful response but
+    // spelled neither, which was only expressible while the loader ignored
+    // `res.ok` — the second mouth of the defect #5227 closed. A real `Response`
+    // always carries both.
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
         json: async () => ({ fields: [{ name: 'name', label: 'Name', type: 'text' }] }),
       }),
     );

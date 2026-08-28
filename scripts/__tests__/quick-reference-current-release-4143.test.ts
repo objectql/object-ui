@@ -12,10 +12,19 @@ import { fileURLToPath } from 'node:url';
  *
  * The card's premise also said the block's Node/pnpm/React rows were "currently
  * accurate". Two of the three were. **Node was not** — the row read `≥ 20` while
- * root `engines.node` has been `>=22`, and the row *names that anchor in its own
- * text*. A claim that cites its anchor and disagrees with it is the strongest
- * possible argument that review alone does not hold this block: the reviewer had
- * the pointer and still did not follow it.
+ * root `engines.node` was `>=22` at the time, and the row *names that anchor in
+ * its own text*. A claim that cites its anchor and disagrees with it is the
+ * strongest possible argument that review alone does not hold this block: the
+ * reviewer had the pointer and still did not follow it.
+ *
+ * `engines.node` has since moved again, to `>=22.11` (objectui#5306 / PR #6311) —
+ * and objectui#6313 is the same shape of drift one decimal place down: the
+ * forward assertion below derived its expected floor with `match(/(\d+)/)`,
+ * which keeps only the LEADING integer group and silently discards everything
+ * after it. `>=22.11` derived a floor of `22`, so a row reading exactly `≥ 22`
+ * (missing the `.11` its own anchor carries) passed. The derivation below now
+ * strips the comparator and keeps the WHOLE version string instead, so the row
+ * and the anchor can no longer disagree at the minor version.
  *
  * ## Why a per-block pin and not the repo's existing ratchet
  *
@@ -38,13 +47,40 @@ import { fileURLToPath } from 'node:url';
  *
  * ## The two directions
  *
- * Forward: each anchored row must state what its manifest says. Bump the manifest
- * without touching the block and the row that lies goes red, naming the file to edit.
+ * Forward: each anchored row must state EXACTLY the version literals its manifest
+ * produces — a row's literals are extracted as whole tokens and compared to the derived
+ * set by equality. Bump the manifest without touching the block and the row that lies
+ * goes red, naming the file to edit.
+ *
+ * That sentence used to be false, and objectui#4913 is the accounting. The forward
+ * assertions asked `toContain`, which accepts any row carrying the derived value as a
+ * SUBSTRING — so every PREFIX SUPERSET of the anchor passed. Measured on this file:
+ * GA manifests against a doc still reading `^17.0.0-rc.6` kept both range rows green,
+ * because `'^17.0.0-rc.6'.includes('^17.0.0')`. `^17.0.0.1` and `^17.0.0-beta` passed
+ * identically, and so did a `≥ 220` Node row against an `engines.node` floor of 22 —
+ * the hole was the comparison, not the prerelease suffix, so it was in every anchored
+ * row here rather than in the two that happened to get caught. What did catch the drift
+ * was the reverse sweep, answering a different question and covering this one only by
+ * accident: of the two directions, the broken one was the one this header guaranteed.
  *
  * Reverse (the last `it` below): no version literal may appear in the block that this
  * test did not derive. Without it the gate covers only the rows that exist today — a
  * new hand-written `- **Turbo:** 2.x` row would sail in beside them and rot on the
  * same schedule, which is the whole defect class, re-created one bullet to the left.
+ * The forward equality does not make it redundant and it must not be dropped on that
+ * argument: forward asks whether THIS row still says what its anchor says, reverse asks
+ * whether anything here was never derived at all. A brand-new row is invisible to the
+ * first and caught by the second — two directions, two questions.
+ *
+ * ## Where the forward direction still stops
+ *
+ * Both directions reason about version LITERALS (`VERSION_LITERAL` below), so prose
+ * wrapped around a correct literal is pinned by neither. A row hedged to
+ * `^17.0.0 or higher` states its anchor's literal and no other one, and passes — that
+ * is measured too, not assumed. Closing it would mean writing the rows' wording into
+ * this file, and the rows carry hand-written anchor notes precisely so they can be
+ * reworded; the boundary is recorded here instead, so the next reader knows where the
+ * guarantee above runs out.
  *
  * ## The one row nothing here can hold to account
  *
@@ -94,6 +130,21 @@ function peerMajors(range: string): string[] {
     .split('||')
     .map((comparator) => comparator.trim().match(/^[\^~>=<\s]*(\d+)\./)?.[1])
     .filter((major): major is string => major !== undefined);
+}
+
+/**
+ * The floor an `engines`-style range states, as the WHOLE version string — not just
+ * its leading integer group.
+ *
+ * objectui#6313: the previous derivation, `match(/(\d+)/)?.[1]`, kept only the
+ * leading digits, so `>=22.11` produced a floor of `22` and silently discarded the
+ * `.11` rather than failing. A row reading exactly `≥ 22` then satisfied an anchor
+ * that actually says `22.11`. Stripping the comparator and keeping the remainder
+ * whole means the row and the anchor can no longer disagree at any segment the
+ * anchor carries.
+ */
+function versionFloor(range: string): string | undefined {
+  return range.match(/^[\^~>=<\s]*(.+)$/)?.[1];
 }
 
 /**
@@ -155,6 +206,51 @@ function row(label: string): string {
   return value as string;
 }
 
+/**
+ * A version literal, in the spellings this block uses. Deliberately narrow in the same
+ * way `doc-version-claims.test.ts` argues for: a bare integer is not a version (the
+ * rows contain `§2`, and prose elsewhere counts things), so a literal must be
+ * operator-prefixed or dotted.
+ *
+ * Both directions read the block through this one regex: the forward assertions extract
+ * a row's literals with it, and the reverse sweep collects the same tokens across every
+ * row. One tokenizer means the two cannot disagree about what a version literal IS — a
+ * spelling neither can see is one hole to record (see the header), not two to discover
+ * separately.
+ */
+const VERSION_LITERAL = /(?:\^|~|>=|<=|>|<|≥|≤)\s*v?\d[\w.-]*|\bv?\d+\.[A-Za-z0-9][\w.-]*/g;
+
+const normalize = (literal: string): string => literal.replace(/\s+/g, '');
+
+/**
+ * The version literals a row states, as WHOLE tokens — de-duplicated and sorted, so the
+ * comparison below is about WHICH literals a row states, not the order it states them
+ * in or how often. `matchAll` does not advance `VERSION_LITERAL.lastIndex` (it iterates
+ * over an internal clone), so the shared global regex is safe to reuse per row.
+ */
+function statedLiterals(value: string): string[] {
+  return [...new Set([...value.matchAll(VERSION_LITERAL)].map((match) => normalize(match[0])))].sort();
+}
+
+/**
+ * The forward direction, for one anchored row: the literals the row states must be
+ * EXACTLY the literals its anchor produced.
+ *
+ * Equality on extracted tokens, never `toContain` over the raw row (objectui#4913, and
+ * the header's first section for the measurements). Two properties follow from
+ * comparing the whole set rather than asking "does it include":
+ *
+ * - A row may not smuggle in a SECOND, un-anchored literal beside the right one. That
+ *   is the reverse sweep's rule applied per row, so the failure names the row to edit
+ *   instead of pointing at the block.
+ * - A derivation that produces a literal the row does not state fails LOUD here. In the
+ *   reverse set an over-broad derivation only widens what the block is allowed to say
+ *   (see `peerMajors` above for the shape of that mistake).
+ */
+function expectRowStates(label: string, derived: string[], message: string): void {
+  expect(statedLiterals(row(label)), message).toEqual([...new Set(derived.map(normalize))].sort());
+}
+
 describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () => {
   /**
    * Every `@object-ui/*` package is one `fixed` group in `.changeset/config.json`, so
@@ -189,10 +285,11 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
     ).toHaveLength(1);
 
     const workspaceVersion = [...distinct][0];
-    expect(
-      row('Version'),
-      `${docRel} must state the workspace version as "${workspaceVersion}"`,
-    ).toContain(workspaceVersion);
+    expectRowStates(
+      'Version',
+      [workspaceVersion],
+      `${docRel} must state the workspace version as exactly "${workspaceVersion}"`,
+    );
   });
 
   it('quotes the `@objectstack/spec` range the manifests declare', () => {
@@ -209,7 +306,7 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
         `${docRel}'s Spec row names both as its anchor and can no longer state one value`,
     ).toBe(fromRoot);
 
-    expect(row('Spec'), `${docRel} must state the spec range as "${fromRoot}"`).toContain(fromRoot as string);
+    expectRowStates('Spec', [fromRoot as string], `${docRel} must state the spec range as exactly "${fromRoot}"`);
   });
 
   it('quotes the `@objectstack/client` range the manifests declare', () => {
@@ -223,8 +320,10 @@ describe('QUICK_REFERENCE.md "Current Release" — package + spec versions', () 
         `${docRel}'s Client row names both as its anchor and can no longer state one value`,
     ).toBe(fromConsole);
 
-    expect(row('Client'), `${docRel} must state the client range as "${fromConsole}"`).toContain(
-      fromConsole as string,
+    expectRowStates(
+      'Client',
+      [fromConsole as string],
+      `${docRel} must state the client range as exactly "${fromConsole}"`,
     );
   });
 });
@@ -239,25 +338,90 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
     const engine = rootManifest.engines?.node;
     expect(engine, 'root package.json must still declare engines.node').toBeDefined();
 
-    const floor = (engine as string).match(/(\d+)/)?.[1];
-    expect(floor, `engines.node must still carry a numeric floor (got "${engine}")`).toBeDefined();
+    const floor = versionFloor(engine as string);
+    expect(floor, `engines.node must still carry a version floor (got "${engine}")`).toBeDefined();
+    expectRowStates(
+      'Node.js',
+      [`≥ ${floor}`],
+      `${docRel} must state the Node floor as exactly "≥ ${floor}" to match engines.node "${engine}"`,
+    );
+  });
+
+  /**
+   * objectui#6313: `match(/(\d+)/)?.[1]` on `engines.node` kept only the leading
+   * integer group, so `>=22.11` derived a floor of `22` and a row reading exactly
+   * `≥ 22` — missing the `.11` its own anchor states — passed. Two properties, both
+   * measured against the REAL `engines.node` rather than a hard-coded literal, so
+   * this cannot itself go stale the way the row it guards did:
+   *
+   * - The old (leading-integer) and new (whole-string) derivations must disagree
+   *   whenever the anchor carries a minor — proving the fix changed what floor
+   *   comes OUT, not just how it is computed. If `engines.node` ever loses its
+   *   minor this assertion goes quiet, which is why the next one does not depend
+   *   on that disagreement to make its point.
+   * - A row stating the coarser, pre-fix floor must be REJECTED by the same
+   *   equality `expectRowStates` uses above. This is the entire point of the card:
+   *   if `≥ 22` were accepted before the fix and still accepted after it, the
+   *   derivation changed without changing what the pin enforces.
+   */
+  it('derives the Node floor as the whole version, not just its leading integer group', () => {
+    const engine = rootManifest.engines?.node as string;
+    const staleFloor = engine.match(/(\d+)/)?.[1];
+    const floor = versionFloor(engine);
+
     expect(
-      row('Node.js'),
-      `${docRel} must state the Node floor as "≥ ${floor}" to match engines.node "${engine}"`,
-    ).toContain(`≥ ${floor}`);
+      floor,
+      `engines.node ("${engine}") no longer carries a minor segment for the leading-integer ` +
+        `derivation ("${staleFloor}") to differ from — objectui#6313's regression case needs one ` +
+        're-anchored to keep exercising the disagreement',
+    ).not.toBe(staleFloor);
+
+    expect(
+      statedLiterals(`≥ ${staleFloor}`),
+      `a row reading "≥ ${staleFloor}" must NOT satisfy the derived Node floor "≥ ${floor}" — ` +
+        'accepting it is exactly the objectui#6313 staleness this pin exists to catch',
+    ).not.toEqual(statedLiterals(`≥ ${floor}`));
+  });
+
+  /**
+   * The coarseness objectui#4913 already fixed for `toContain` (a numerically-prefixed
+   * SUPERSET like `≥ 220` passing against a derived `≥ 22`) must not come back now that
+   * the floor is derived differently. Built off the real anchor's leading integer group
+   * so this states the exact shape the card's own history section records, rather than
+   * a made-up number.
+   */
+  it('rejects a `≥ 220`-shaped row as equal to a shorter derived Node floor', () => {
+    const engine = rootManifest.engines?.node as string;
+    const staleFloor = engine.match(/(\d+)/)?.[1] as string;
+
+    expect(
+      statedLiterals(`≥ ${staleFloor}0`),
+      `"≥ ${staleFloor}0" must not equal "≥ ${staleFloor}" — a numeric-prefix superset is not the ` +
+        'same version literal, the objectui#4913 regression this guards',
+    ).not.toEqual(statedLiterals(`≥ ${staleFloor}`));
   });
 
   it('states the pnpm floor and the pinned `packageManager`', () => {
     const engine = rootManifest.engines?.pnpm;
     expect(engine, 'root package.json must still declare engines.pnpm').toBeDefined();
-    const floor = (engine as string).match(/(\d+)/)?.[1];
+    const floor = versionFloor(engine as string);
 
     const pinned = rootManifest.packageManager;
     expect(pinned, 'root package.json must still declare packageManager').toBeDefined();
+    // Split off the version the same way the reverse sweep does, so one derivation
+    // serves both directions and they cannot drift apart on this row.
+    const pinnedVersion = (pinned as string).split('@').pop() as string;
 
-    const value = row('pnpm');
-    expect(value, `${docRel} must state the pnpm floor as "≥ ${floor}"`).toContain(`≥ ${floor}`);
-    expect(value, `${docRel} must quote the pinned packageManager "${pinned}"`).toContain(pinned as string);
+    expectRowStates(
+      'pnpm',
+      [`≥ ${floor}`, pinnedVersion],
+      `${docRel}'s pnpm row must state exactly the floor "≥ ${floor}" and the pinned "${pinned}"`,
+    );
+
+    // Containment deliberately, and only over the part that is NOT a version literal:
+    // the equality above holds the digits, this holds the tool they belong to, so a row
+    // quoting the right version against the wrong package manager still goes red.
+    expect(row('pnpm'), `${docRel} must quote the pinned packageManager "${pinned}"`).toContain(pinned as string);
   });
 
   /**
@@ -273,10 +437,12 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
     const majors = peerMajors(peer as string);
     expect(majors.length, `could not read majors out of the react peer range "${peer}"`).toBeGreaterThan(0);
 
-    const value = row('React');
-    for (const major of majors) {
-      expect(value, `${docRel} must name React ${major}.x — the peer range is "${peer}"`).toContain(`${major}.x`);
-    }
+    const expected = majors.map((major) => `${major}.x`);
+    expectRowStates(
+      'React',
+      expected,
+      `${docRel} must name exactly React ${expected.join(' + ')} — the peer range is "${peer}"`,
+    );
   });
 });
 
@@ -309,27 +475,18 @@ describe('QUICK_REFERENCE.md "Current Release" — the unanchored TypeScript row
         'has an anchor at last and must be pinned to it here, replacing this exemption',
     ).toEqual([]);
 
-    const value = row('TypeScript');
-    expect(value, `${docRel}'s TypeScript row must still state "${UNANCHORED_LITERAL}"`).toContain(
-      UNANCHORED_LITERAL,
+    expectRowStates(
+      'TypeScript',
+      [UNANCHORED_LITERAL],
+      `${docRel}'s TypeScript row must still state exactly "${UNANCHORED_LITERAL}"`,
     );
     expect(
-      value,
+      row('TypeScript'),
       `${docRel}'s TypeScript row is the one unanchored claim in the block and must keep saying so, ` +
         'so a reader can tell it apart from the rows a test holds to account',
     ).toMatch(/not a manifest fact/i);
   });
 });
-
-/**
- * A version literal, in the spellings this block uses. Deliberately narrow in the same
- * way `doc-version-claims.test.ts` argues for: a bare integer is not a version (the
- * rows contain `§2`, and prose elsewhere counts things), so a literal must be
- * operator-prefixed or dotted.
- */
-const VERSION_LITERAL = /(?:\^|~|>=|<=|>|<|≥|≤)\s*v?\d[\w.-]*|\bv?\d+\.[A-Za-z0-9][\w.-]*/g;
-
-const normalize = (literal: string): string => literal.replace(/\s+/g, '');
 
 describe('QUICK_REFERENCE.md "Current Release" — no un-derived literal', () => {
   it('contains only version literals this test derives from a manifest', () => {
@@ -341,8 +498,8 @@ describe('QUICK_REFERENCE.md "Current Release" — no un-derived literal', () =>
     add(consoleManifest.version);
     add(rootManifest.devDependencies?.['@objectstack/spec']);
     add(consoleManifest.devDependencies?.['@objectstack/client']);
-    add(`≥ ${rootManifest.engines?.node?.match(/(\d+)/)?.[1]}`);
-    add(`≥ ${rootManifest.engines?.pnpm?.match(/(\d+)/)?.[1]}`);
+    add(`≥ ${versionFloor(rootManifest.engines?.node ?? '')}`);
+    add(`≥ ${versionFloor(rootManifest.engines?.pnpm ?? '')}`);
     add(rootManifest.packageManager?.split('@').pop());
     for (const major of peerMajors(reactManifest.peerDependencies?.react ?? '')) {
       add(`${major}.x`);

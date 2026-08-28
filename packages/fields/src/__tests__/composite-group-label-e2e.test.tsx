@@ -124,7 +124,7 @@ beforeAll(() => {
     ComponentRegistry.register(type, Component as any, {
       namespace: 'field',
       skipFallback: true,
-      // The declaration under test, mirroring `FIELD_TYPES_GROUP_LABELLED`.
+      // The declaration under test, mirroring `FIELD_WIDGET_LABELLING`.
       labelling: 'group',
     });
   }
@@ -302,7 +302,7 @@ describe('the group name does not swallow the sub-controls\' own names (objectui
 describe('an undeclared single-control field keeps the plain `for` association (objectui#3961)', () => {
   it('text: the label still points at the input, with no second naming channel', () => {
     // The positive control for the DECLARATION. `text` is not in
-    // `FIELD_TYPES_GROUP_LABELLED`, so it must travel the unchanged path: a
+    // `FIELD_WIDGET_LABELLING`, so it must travel the unchanged path: a
     // working `for`, and NO `aria-labelledby` — two channels naming one control
     // is what #3290 / #3222 / #3952 each refused.
     renderForm([{ name: 'f_text', label: 'Plain Text', type: 'text' }]);

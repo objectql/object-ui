@@ -23,7 +23,14 @@ vi.mock('@object-ui/react', async () => {
     // around the hook inside ObjectTimeline — which meant this mock's gap was
     // silently absorbed by production code that had a rules-of-hooks bug
     // (objectui#2879). With that removed, the mock has to be complete.
-    useObjectLabel: () => ({
+    //
+    // objectui#5623: ObjectTimeline now calls the SHARED `useSafeFieldLabel`
+    // (from `@object-ui/react`, re-exported from `@object-ui/i18n`) instead of
+    // a local `useObjectLabel`-based wrapper, so this mock has to cover that
+    // name instead — a mock without it would leave `useSafeFieldLabel`
+    // `undefined` (this `vi.mock` factory replaces the whole module, no
+    // `...actual` spread) and throw on the destructure.
+    useSafeFieldLabel: () => ({
       fieldOptionLabel: (_o: string, _f: string, _v: string, fallback: string) => fallback,
       translateOptions: (_o: string, _f: string, opts: unknown[]) => opts,
       fieldLabel: (_o: string, _f: string, fallback: string) => fallback,

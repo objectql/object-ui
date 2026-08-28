@@ -10,7 +10,7 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 > **Import:** All types are available from `@object-ui/types`.
 >
 > ```typescript
-> import type { PageSchema, FormSchema, TableSchema, /* ... */ } from '@object-ui/types';
+> import type { PageNodeSchema, FormSchema, TableSchema, /* ... */ } from '@object-ui/types';
 > ```
 
 ---
@@ -22,7 +22,9 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 The foundational building block of ObjectUI. Every component in the system is described by a `SchemaNode`. It can be a full schema object, or a primitive value rendered as text.
 
 ```typescript
-// Type definition
+import type { BaseSchema } from '@object-ui/types';
+
+// The definition `@object-ui/types` declares
 type SchemaNode = BaseSchema | string | number | boolean | null | undefined;
 ```
 
@@ -68,7 +70,7 @@ All schema types extend `BaseSchema`. These shared properties are available on e
 
 ## Layout Schemas
 
-### PageSchema
+### PageNodeSchema
 
 Top-level page container. Defines a full page with optional regions (header, sidebar, footer).
 
@@ -196,7 +198,7 @@ A responsive grid layout. Columns can be a fixed number or responsive breakpoint
 | `gap` | `number` | Gap between grid items (Tailwind spacing scale). |
 | `children` | `SchemaNode \| SchemaNode[]` | Grid items. |
 
-**Related:** [DivSchema](#divschema), [CardSchema](#cardschema), [DashboardSchema](#dashboardschema)
+**Related:** [DivSchema](#divschema), [CardSchema](#cardschema), [DashboardComponentSchema](#dashboardcomponentschema)
 
 ---
 
@@ -233,7 +235,7 @@ A tabbed interface for organizing content into switchable panels.
 | `orientation` | `"horizontal" \| "vertical"` | Tab bar orientation. |
 | `items` | `TabItem[]` | Tab definitions, each with `value`, `label`, `icon`, `content`, and optional `disabled`. |
 
-**Related:** [CardSchema](#cardschema), [PageSchema](#pageschema)
+**Related:** [CardSchema](#cardschema), [PageNodeSchema](#pagenodeschema)
 
 ---
 
@@ -391,19 +393,21 @@ An interactive button with variants, icons, and loading states.
 
 ### TableSchema
 
-A data table with columns, optional striping, and hover effects.
+A simple static table: it renders inline `data` against `columns`, nothing
+more. For row hover highlighting, striping, sorting, filtering, selection or
+inline editing use the interactive `data-table` — the static `table` deliberately
+does not implement those (objectui#5474 retired the keys that once suggested it
+did; authoring them is now refused by validation instead of silently ignored).
 
 ```json
 {
   "type": "table",
   "caption": "Recent Orders",
-  "hoverable": true,
-  "striped": true,
   "columns": [
-    { "name": "id", "label": "#", "width": 60 },
-    { "name": "customer", "label": "Customer" },
-    { "name": "amount", "label": "Amount", "align": "right" },
-    { "name": "status", "label": "Status" }
+    { "accessorKey": "id", "header": "#", "width": 60 },
+    { "accessorKey": "customer", "header": "Customer" },
+    { "accessorKey": "amount", "header": "Amount", "cellClassName": "text-right" },
+    { "accessorKey": "status", "header": "Status" }
   ],
   "data": [
     { "id": 1, "customer": "Acme Corp", "amount": "$1,200", "status": "Paid" },
@@ -416,13 +420,11 @@ A data table with columns, optional striping, and hover effects.
 | Property | Type | Description |
 |----------|------|-------------|
 | `caption` | `string` | Table caption / title text. |
-| `columns` | `TableColumn[]` | Column definitions with `name`, `label`, `width`, `align`, `sortable`, `render`. |
+| `columns` | `StaticTableColumn[]` | Column definitions — the static subset: `accessorKey` (the row key to read) and `header` (heading text) are required; `width`, `className`, and `cellClassName` are the only other keys this renderer honours. Interactive column keys (`align`, `sortable`, `filterable`, `resizable`, `editable`, `cell`, `fixed`, `minWidth`, `type`) belong to `data-table`'s rich `TableColumn` and are refused here. |
 | `data` | `any[]` | Array of row data objects. |
 | `footer` | `SchemaNode \| string` | Footer content below the table. |
-| `hoverable` | `boolean` | Highlight rows on hover. |
-| `striped` | `boolean` | Alternate row background colors. |
 
-**Related:** [CRUDSchema](#crudschema), [ObjectGridSchema](#objectgridschema)
+**Related:** [ObjectGridSchema](#objectgridschema)
 
 ---
 
@@ -469,7 +471,7 @@ A chart visualization supporting multiple chart types.
 | `animate` | `boolean` | Enable entry animations. |
 | `config` | `Record<string, any>` | Additional chart library configuration. |
 
-**Related:** [DashboardSchema](#dashboardschema), [CardSchema](#cardschema)
+**Related:** [DashboardComponentSchema](#dashboardcomponentschema), [CardSchema](#cardschema)
 
 ---
 
@@ -521,88 +523,33 @@ A hierarchical tree component for nested data with expand/collapse and selection
 
 ## CRUD Schemas
 
-### CRUDSchema
+### CRUDSchema — retired
 
-A complete CRUD (Create, Read, Update, Delete) interface with table, toolbar, filters, pagination, and batch/row actions.
+`CRUDSchema` and the `crud` node type were **removed** in objectui#5373 under
+ADR-0049 (enforce-or-remove). The type had four declaration faces — a TypeScript
+interface, a zod mirror, a branch in the schema validator and a `CRUDBuilder` —
+and no registered renderer, for the whole life of the key. A node that spelled it
+painted the OBJUI-001 "Unknown component type" panel, so this page was teaching a
+shape that could not render.
 
-```json
-{
-  "type": "crud",
-  "title": "Products",
-  "resource": "products",
-  "api": "/api/products",
-  "selectable": "multiple",
-  "defaultSort": "name",
-  "defaultSortOrder": "asc",
-  "columns": [
-    { "name": "name", "label": "Product Name", "sortable": true },
-    { "name": "price", "label": "Price", "align": "right" },
-    { "name": "stock", "label": "Stock", "sortable": true },
-    { "name": "status", "label": "Status" }
-  ],
-  "fields": [
-    { "name": "name", "label": "Product Name", "type": "text", "required": true },
-    { "name": "price", "label": "Price", "type": "number", "required": true },
-    { "name": "stock", "label": "Stock", "type": "number" },
-    { "name": "status", "label": "Status", "type": "select", "options": [
-      { "label": "Active", "value": "active" },
-      { "label": "Draft", "value": "draft" }
-    ]}
-  ],
-  "operations": {
-    "create": true,
-    "read": true,
-    "update": true,
-    "delete": true,
-    "export": true
-  },
-  "toolbar": {
-    "showSearch": true,
-    "showFilters": true,
-    "showExport": true,
-    "actions": [
-      { "type": "action", "label": "Add Product", "level": "primary", "icon": "Plus" }
-    ]
-  },
-  "filters": [
-    { "name": "status", "label": "Status", "type": "select", "options": [
-      { "label": "Active", "value": "active" },
-      { "label": "Draft", "value": "draft" }
-    ]}
-  ],
-  "pagination": {
-    "pageSize": 20,
-    "pageSizeOptions": [10, 20, 50, 100]
-  },
-  "rowActions": [
-    { "type": "action", "label": "Edit", "icon": "Pencil", "actionType": "dialog" },
-    { "type": "action", "label": "Delete", "icon": "Trash2", "level": "danger", "actionType": "confirm" }
-  ],
-  "batchActions": [
-    { "type": "action", "label": "Delete Selected", "level": "danger", "actionType": "confirm" }
-  ]
-}
-```
+There is no drop-in replacement, because a CRUD screen is a composition rather
+than one node. Build it from the shapes that do render:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `title` | `string` | CRUD view title. |
-| `resource` | `string` | Resource identifier for API calls. |
-| `api` | `string` | Base API endpoint URL. |
-| `columns` | `TableColumn[]` | **Required.** Column definitions for the table view. |
-| `fields` | `FormField[]` | Field definitions for create/edit forms. |
-| `operations` | `object` | Toggle CRUD operations: `create`, `read`, `update`, `delete`, `export`, `import`. |
-| `toolbar` | `CRUDToolbar` | Toolbar configuration with search, filters, and custom actions. |
-| `filters` | `CRUDFilter[]` | Filter definitions. |
-| `pagination` | `CRUDPagination` | Pagination settings with `pageSize` and `pageSizeOptions`. |
-| `selectable` | `boolean \| "single" \| "multiple"` | Row selection mode. |
-| `rowActions` | `ActionSchema[]` | Actions available on each row. |
-| `batchActions` | `ActionSchema[]` | Actions for selected rows. |
-| `defaultSort` / `defaultSortOrder` | `string` / `"asc" \| "desc"` | Default sort field and direction. |
-| `mode` | `"table" \| "grid" \| "list" \| "kanban"` | Display mode for the CRUD view. |
-| `emptyState` | `SchemaNode` | Custom empty state content. |
+| What `CRUDSchema` promised | What to author instead |
+|---|---|
+| The record table, with toolbar, filters, pagination and row/batch actions | [ObjectGridSchema](#objectgridschema) |
+| The create/edit form | [ObjectFormSchema](#objectformschema) |
+| The single-record read view | [DetailSchema](#detailschema) / [DetailViewSchema](#detailviewschema) |
+| Whole-object screens that bundle the above | [ObjectViewSchema](#objectviewschema) |
 
-**Related:** [ActionSchema](#actionschema), [TableSchema](#tableschema), [ObjectGridSchema](#objectgridschema)
+The `defaultSort` and `defaultSortOrder` keys documented here were `CRUDSchema`'s
+own — a flat field name plus a separate direction. They are gone with it.
+[ObjectGridSchema](#objectgridschema) declares its own, differently shaped
+`defaultSort` (an object with `field` and `order`); that key is unaffected.
+
+Authoring `crud` is now refused by name: `validateSchema` from `@object-ui/core`
+returns a `RETIRED_TYPE` error on `schema.type` naming the migration above, and
+`objectui check` reports the type as unknown.
 
 ---
 
@@ -620,12 +567,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
   "api": "/api/orders",
   "method": "POST",
   "data": { "status": "submitted" },
-  "confirm": {
-    "title": "Submit Order?",
-    "message": "This will send the order to the warehouse.",
-    "confirmText": "Yes, Submit",
-    "confirmVariant": "default"
-  },
+  "confirmText": "This will send the order to the warehouse.",
   "successMessage": "Order submitted successfully",
   "errorMessage": "Failed to submit order",
   "chain": [
@@ -637,9 +579,7 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
     }
   ],
   "chainMode": "sequential",
-  "condition": {
-    "expression": "${data.items.length > 0}"
-  },
+  "condition": "${data.items.length > 0}",
   "retry": {
     "maxAttempts": 3,
     "delay": 1000
@@ -656,17 +596,17 @@ A powerful action definition supporting API calls, confirmations, dialogs, chain
 | `api` | `string` | API endpoint for `ajax` actions. |
 | `method` | `string` | HTTP method: `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`, `"PATCH"`. |
 | `data` | `any` | Request body data. |
-| `confirm` | `object` | Confirmation dialog with `title`, `message`, `confirmText`, `cancelText`. |
+| `confirmText` | `string` | Confirmation message shown before executing — the one confirm spelling, addressed by the translation bundle. (A structured `confirm` object was retired in objectui#4314.) |
 | `dialog` | `object` | Modal dialog with `title`, `content`, `size`, `actions`. |
 | `chain` | `ActionSchema[]` | Actions to execute after this action completes. |
 | `chainMode` | `"sequential" \| "parallel"` | How chained actions execute. |
-| `condition` | `ActionCondition` | Conditional execution with `expression`, `then`, `else`. |
+| `condition` | `boolean \| string \| { dialect?, source }` | Execution gate — the action runs only while this predicate holds (boolean, bare CEL, `${...}` template, or the normalized envelope). Declared and false skips the action; absent executes it. It is a **gate, not a branch**: express a branch as separate actions with mutually exclusive `condition`s. (The `{ expression, then, else }` branch shape was retired in objectui#3917 — nothing read it, so it ran unconditionally.) |
 | `successMessage` / `errorMessage` | `string` | Toast messages on success/failure. |
 | `reload` | `boolean` | Reload data after action completes. |
 | `redirect` | `string` | URL to navigate to after action. |
 | `retry` | `object` | Retry config with `maxAttempts` and `delay`. |
 
-**Related:** [CRUDSchema](#crudschema), [ButtonSchema](#buttonschema)
+**Related:** [DetailSchema](#detailschema), [ButtonSchema](#buttonschema)
 
 ---
 
@@ -685,7 +625,7 @@ A single-record detail view with grouped fields, actions, and tabs.
       "title": "Customer Info",
       "fields": [
         { "name": "customer", "label": "Customer", "type": "text" },
-        { "name": "email", "label": "Email", "type": "link" },
+        { "name": "email", "label": "Email", "type": "email" },
         { "name": "created", "label": "Created", "type": "date", "format": "MMM d, yyyy" }
       ]
     },
@@ -727,7 +667,7 @@ A single-record detail view with grouped fields, actions, and tabs.
 | `showBack` | `boolean` | Show a back navigation button. |
 | `loading` | `boolean` | Show loading state. |
 
-**Related:** [DetailViewSchema](#detailviewschema), [CRUDSchema](#crudschema)
+**Related:** [DetailViewSchema](#detailviewschema), [ObjectGridSchema](#objectgridschema)
 
 ---
 
@@ -752,11 +692,11 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
   "resizableColumns": true,
   "striped": true,
   "columns": [
-    "name",
-    "email",
-    "company",
-    "phone",
-    { "name": "status", "label": "Status", "sortable": true }
+    { "field": "name" },
+    { "field": "email" },
+    { "field": "company" },
+    { "field": "phone" },
+    { "field": "status", "label": "Status", "sortable": true }
   ],
   "defaultSort": { "field": "name", "order": "asc" },
   "operations": {
@@ -782,7 +722,7 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
 | Property | Type | Description |
 |----------|------|-------------|
 | `objectName` | `string` | **Required.** ObjectQL object API name. |
-| `columns` | `string[] \| ListColumn[]` | Columns to display. Strings auto-resolve from object metadata. |
+| `columns` | `string[] \| ListColumn[]` | Columns to display. Either a plain array of field names (`["name", "email"]`), which auto-resolve from object metadata, or an array of `ListColumn` objects whose identity key is `field` (`{ "field": "status", "label": "Status" }`) — never `name`. **Do not mix the two forms in one array:** the array is dispatched on its first entry, so column objects sitting behind a bare string are dropped. |
 | `filter` | `any[]` | Pre-applied filter conditions. |
 | `sort` | `string \| SortConfig[]` | Default sort configuration. |
 | `searchableFields` | `string[]` | Fields included in search. |
@@ -795,7 +735,7 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
 | `frozenColumns` | `number` | Number of columns frozen on scroll. |
 | `navigation` | `ViewNavigationConfig` | SPA navigation configuration. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [CRUDSchema](#crudschema), [TableSchema](#tableschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [TableSchema](#tableschema)
 
 ---
 
@@ -873,7 +813,6 @@ A complete object management interface combining grid, form, search, filters, an
   "showSearch": true,
   "showFilters": true,
   "showCreate": true,
-  "showRefresh": true,
   "showViewSwitcher": true,
   "operations": {
     "create": true,
@@ -916,7 +855,7 @@ A complete object management interface combining grid, form, search, filters, an
 | `defaultListView` | `string` | Key of the default list view. |
 | `table` | `Partial<ObjectGridSchema>` | Grid configuration overrides. |
 | `form` | `Partial<ObjectFormSchema>` | Form configuration overrides. |
-| `showSearch` / `showFilters` / `showCreate` / `showRefresh` | `boolean` | Toggle toolbar features. |
+| `showSearch` / `showFilters` / `showCreate` | `boolean` | Toggle toolbar features. |
 | `showViewSwitcher` | `boolean` | Show view type toggle (grid, kanban, etc.). |
 | `operations` | `object` | Enabled CRUD operations. |
 | `navigation` | `ViewNavigationConfig` | SPA-aware navigation. |
@@ -972,11 +911,11 @@ A drag-and-drop Kanban board with columns and cards.
 | `onColumnAdd` | `function` | Callback when a new column is added. |
 | `onCardAdd` | `function` | Callback when a new card is added to a column. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [CRUDSchema](#crudschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 
 ---
 
-### DashboardSchema
+### DashboardComponentSchema
 
 A widget-based dashboard with configurable grid layout and auto-refresh.
 
@@ -1041,15 +980,17 @@ Each widget supports `colSpan` and `rowSpan` to control its size in the grid. Th
 
 ### CalendarViewSchema
 
-A multi-view calendar for displaying and managing events.
+A multi-view calendar computed from the node's `data` records. There is no
+authorable `events` key: the renderer builds one event per record in `data`,
+reading the fields the field-name properties point at (objectui#5667; an
+authored `events` is dropped by design, objectui#4433).
 
 ```json
 {
   "type": "calendar-view",
-  "defaultView": "month",
-  "views": ["month", "week", "day", "agenda"],
-  "editable": true,
-  "events": [
+  "view": "month",
+  "currentDate": "2024-03-15T12:00:00.000Z",
+  "data": [
     {
       "id": "evt-1",
       "title": "Team Standup",
@@ -1065,23 +1006,32 @@ A multi-view calendar for displaying and managing events.
       "color": "#8b5cf6",
       "allDay": false
     }
-  ]
+  ],
+  "allowCreate": true,
+  "className": "h-[600px] border rounded-lg"
 }
 ```
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `events` | `CalendarEvent[]` | **Required.** Events with `id`, `title`, `start`, `end`, optional `color` and `allDay`. |
-| `defaultView` | `CalendarViewMode` | Initial view: `"month"`, `"week"`, `"day"`, `"agenda"`. |
-| `views` | `CalendarViewMode[]` | Available view modes the user can switch between. |
-| `editable` | `boolean` | Allow creating and modifying events. |
-| `defaultDate` | `string \| Date` | Initial calendar date. |
-| `onEventClick` | `function` | Callback when an event is clicked. |
-| `onEventCreate` | `function` | Callback for new event creation: `(start, end)`. |
-| `onEventUpdate` | `function` | Callback when an event is modified. |
-| `onDateChange` | `function` | Callback when the visible date range changes. |
+| `data` | `any` | Records rendered as events — an array, or a binding expression that resolves to one. |
+| `titleField` | `string` | Record field for the event title. Default `"title"`. |
+| `startDateField` | `string` | Record field for the event start date/time. Default `"start"`. |
+| `endDateField` | `string` | Record field for the event end date/time. Default `"end"`. |
+| `allDayField` | `string` | Record field for the all-day flag. Default `"allDay"`. |
+| `colorField` | `string` | Record field for the event color. Default `"color"`. |
+| `view` | `CalendarViewMode` | View mode: `"month"`, `"week"`, `"day"` — the full union. `"agenda"` was retired in objectui#5740 and now fails validation. Default `"month"`. |
+| `currentDate` | `string \| Date` | Initial calendar date — an ISO date string when authored as JSON. |
+| `allowCreate` | `boolean` | Show the "New event" affordance; clicking it dispatches a `create` action. Default `false`. |
+| `onEventClick` | `function` | Host-only: forwarded when a React host supplies a function; authored JSON cannot produce one. |
+| `onViewChange` | `function` | Host-only: same rule as `onEventClick`. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [DashboardSchema](#dashboardschema)
+Nine formerly declared keys — `events` (was required, and dropped by the
+renderer), `defaultView`, `defaultDate`, `date`, `views`, `editable`,
+`onEventCreate`, `onEventUpdate`, `onDateChange` — were retired in
+objectui#5667: nothing read them on the authored-node path.
+
+**Related:** [ObjectViewSchema](#objectviewschema), [DashboardComponentSchema](#dashboardcomponentschema)
 
 ---
 
@@ -1114,7 +1064,7 @@ An enhanced detail view for a single record with sections, tabs, related records
       "fields": [
         { "name": "firstName", "label": "First Name", "type": "text" },
         { "name": "lastName", "label": "Last Name", "type": "text" },
-        { "name": "email", "label": "Email", "type": "link" },
+        { "name": "email", "label": "Email", "type": "email" },
         { "name": "avatar", "label": "Photo", "type": "image" }
       ]
     }
@@ -1286,7 +1236,7 @@ Import only the types you need:
 
 ```typescript
 // Layout
-import type { PageSchema, DivSchema, CardSchema, GridSchema, TabsSchema } from '@object-ui/types';
+import type { PageNodeSchema, DivSchema, CardSchema, GridSchema, TabsSchema } from '@object-ui/types';
 
 // Forms
 import type { FormSchema, InputSchema, SelectSchema, ButtonSchema } from '@object-ui/types';
@@ -1295,13 +1245,13 @@ import type { FormSchema, InputSchema, SelectSchema, ButtonSchema } from '@objec
 import type { TableSchema, ChartSchema, TreeViewSchema } from '@object-ui/types';
 
 // CRUD
-import type { CRUDSchema, ActionSchema, DetailSchema } from '@object-ui/types';
+import type { ActionSchema, DetailSchema } from '@object-ui/types';
 
 // ObjectQL
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { KanbanSchema, DashboardSchema, CalendarViewSchema } from '@object-ui/types';
+import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';

@@ -44,8 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import { getIcon } from '../utils/getIcon';
-import { resolveKeyedI18nLabel } from '../utils';
+import { getIcon } from '../utils/getIcon.js';
+import { resolveKeyedI18nLabel } from '../utils/index.js';
 
 export interface ContextSelectorFilter {
   key: string;
@@ -405,7 +405,7 @@ function SelectorControl({
   const Icon = getIcon(def.icon);
   const rawLabel = resolveKeyedI18nLabel(def.label as any, t) || def.id;
   const label = rawLabel === 'Package'
-    ? (t?.('common.package', { defaultValue: rawLabel }) ?? rawLabel)
+    ? (t?.('common.package', { defaultValue: 'Package' }) ?? rawLabel)
     : rawLabel;
   const placeholder = t?.('actionDialog.selectPlaceholder', {
     label,

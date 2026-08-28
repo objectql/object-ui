@@ -54,6 +54,13 @@
  */
 
 import { useObjectTranslation } from '@object-ui/i18n';
+// Type-only (erased at build): the overlay-scope and lock-state label tables
+// below are keyed by their producer's own union rather than by hand — see
+// `LAYER_SCOPE_ZH` and `LOCK_STATE_ZH`.
+import type {
+  MetadataAuditEntry,
+  MetadataOverlayScope,
+} from '@object-ui/data-objectstack';
 
 export type SupportedLocale = 'en-US' | 'zh-CN';
 
@@ -275,11 +282,28 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.lockFull': 'This item is locked and cannot be edited or deleted.',
   'engine.edit.lockNoOverlay': 'This item is locked and cannot be edited.',
   'engine.edit.lockNoDelete': 'This item is locked and cannot be deleted.',
+  // objectui#5024 — the headline for a lock state this console has no
+  // sentence for. Reachable without any change here: `layered()` casts the
+  // wire value through unchecked, so a newer server can send a fifth state
+  // today. Names the raw token because the operator who sees it is the only
+  // one who can report which state their server sent.
+  'engine.edit.lockUnknown':
+    'This item is locked, but this console does not recognise the lock state \u2018{state}\u2019 — it may come from a newer server. Some operations will be blocked.',
   'engine.edit.history': 'History',
   'engine.edit.auditTab': 'Audit log',
   'engine.edit.auditCount': 'events',
   'engine.edit.auditEmptyTitle': 'No audit events yet',
   'engine.edit.auditEmptyDescription': 'No save, publish, rollback, delete or reset attempts have been recorded for this item. Once someone tries to change it (allowed or denied), the attempt will appear here.',
+  // …and the FAILED read (objectui#5169). The empty copy above is a POSITIVE
+  // CLAIM about the record — true for a read that completed and found nothing,
+  // a lie for one that never completed — and it used to render next to the
+  // failure banner and a measured `0 events`. This copy states only that the
+  // read did not complete and makes no claim in either direction about whether
+  // attempts were recorded. Any reword must keep that property; "no attempts
+  // have been recorded" is exactly the sentence this state exists to avoid.
+  'engine.edit.auditErrorTitle': 'Audit trail could not be read',
+  'engine.edit.auditErrorDescription':
+    'The audit read did not complete, so whether anything has been recorded for this item is unknown. This is not a statement that no attempts were made — use Refresh to ask again.',
   'engine.edit.auditColTime': 'Time',
   'engine.edit.auditColActor': 'Actor',
   'engine.edit.auditColOperation': 'Operation',
@@ -367,7 +391,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.flowNode.id': 'ID',
   'engine.inspector.flowNode.label': 'Label',
   'engine.inspector.flowNode.type': 'Node Type',
-  'engine.inspector.flowNode.description': 'Description',
   'engine.inspector.flowNode.configuration': 'Configuration',
   'engine.inspector.flowNode.config': 'Config (JSON)',
   'engine.inspector.flowNode.advanced': 'Advanced (JSON)',
@@ -652,10 +675,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.add.page:tabs.items': 'Add tab',
   'engine.inspector.pageBlock.field.page:tabs.items.key': 'Key',
   'engine.inspector.pageBlock.field.page:tabs.items.label': 'Label',
-  'engine.inspector.pageBlock.field.page:accordion.title': 'Title',
+  // `…field.page:accordion.title` and `…field.page:accordion.items.value`
+  // retired with their designer fields (objectui#5212): neither is read by
+  // `PageAccordionRenderer` nor declared by `PageAccordionProps`, so a key kept
+  // past its field is dead vocabulary the next author reads as a live surface.
   'engine.inspector.pageBlock.field.page:accordion.items': 'Sections',
   'engine.inspector.pageBlock.add.page:accordion.items': 'Add section',
-  'engine.inspector.pageBlock.field.page:accordion.items.value': 'Key',
   'engine.inspector.pageBlock.field.page:accordion.items.label': 'Label',
   'engine.inspector.pageBlock.field.record:related_list.objectName': 'Object',
   'engine.inspector.pageBlock.field.record:related_list.relationshipField': 'Relationship field',
@@ -874,6 +899,16 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.refsScanning': 'Scanning references…',
   'engine.edit.refsEmptyTitle': 'No references found',
   'engine.edit.refsEmptyDesc': 'Nothing in the metadata graph points at this item. Safe to delete.',
+  // …and its FAILED state (objectui#5110), which must never be confusable with
+  // the empty one above: the copy states that the check did not complete and
+  // deliberately makes no claim — in either direction — about whether deleting
+  // is safe, because the question was not answered. Any wording change here
+  // must keep that property; "no references were found" is exactly the
+  // sentence this state exists to avoid.
+  'engine.edit.refsErrorTitle': 'Reference check failed',
+  'engine.edit.refsErrorDesc':
+    'The reference scan did not complete, so what depends on this item is unknown. This is not a statement that deleting it is safe — run the check again before you decide.',
+  'engine.edit.refsRetry': 'Retry check',
   // Destructive-change (force save) dialog (ResourceEditPage).
   'engine.edit.destructiveTitle': 'Destructive change detected',
   'engine.edit.destructiveDesc':
@@ -931,6 +966,10 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.form.removeRow': 'Remove row',
   'engine.form.dragToReorder': 'Drag to reorder',
   'engine.form.arrayPlaceholder': 'comma, separated, values',
+  // Accessible name for the hex mirror beside the native colour picker. The
+  // picker itself is named by the field's visible label (objectui#4871); this
+  // second input edits the same value and needs a name of its own.
+  'engine.form.colorHex': 'Hex value',
   'engine.form.loadingObjects': 'Loading objects…',
   'engine.form.noObjects': 'object_name (no objects detected)',
   'engine.form.selectObject': 'Select object…',
@@ -942,6 +981,18 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.form.selectField': 'Select field…',
   'engine.form.addFields': 'Add fields…',
   'engine.form.noObjectBound': 'No object bound',
+  // The FAILURE state shared by every option picker (objectui#5170). It must
+  // never be confusable with the empty-state copy around it — `noObjects`
+  // ("no objects detected") is a MEASUREMENT and `noObjectBound` names a CAUSE,
+  // and on a failed load both are false. This copy states only that the list
+  // could not be loaded and makes no claim in either direction about whether
+  // options exist, because the question was not answered. Any reword must keep
+  // that property: "no options were found" is exactly the sentence this state
+  // exists to avoid.
+  'engine.form.loadingOptions': 'Loading options…',
+  'engine.form.optionsLoadFailedTitle': 'Options could not be loaded',
+  'engine.form.optionsLoadFailedDesc':
+    'This list did not load, so it is not a statement that no options exist. Reload the editor to ask again.',
   'engine.form.none': '— None —',
   'engine.form.notInObject': '(not in object)',
   'engine.form.searchIcons': 'Search icons…',
@@ -1093,8 +1144,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'perm.action.edit': 'Edit',
   'perm.action.delete': 'Delete',
   'perm.action.transfer': 'Transfer ownership',
-  'perm.action.restore': 'Restore deleted records (reserved — deletes are hard today)',
-  'perm.action.purge': 'Hard delete (purge)',
   'perm.action.viewAll': 'View All Records (bypass sharing)',
   'perm.action.modifyAll': 'Modify All Records (bypass sharing)',
   'perm.col.object': 'Object',
@@ -1424,6 +1473,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.creating': 'Creating…',
   'engine.studio.createDraft': 'Create (save as draft)',
   'engine.studio.saveDraft': 'Save draft',
+  'engine.studio.more': 'More',
+  'engine.studio.autoSaving': 'Saving…',
+  'engine.studio.data.tab.advanced': 'Advanced',
   // Standard create-dialog field labels (shared by object / app / flow / permission).
   'engine.studio.app.nameLabel': 'App name',
   'engine.studio.app.idLabel': 'Identifier',
@@ -1618,13 +1670,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.settings.sharing': 'Record sharing (OWD)',
   'engine.studio.settings.sharingHint': 'Baseline record visibility applied before positions and sharing rules (ADR-0056/0090)',
   'engine.studio.settings.sharingModel': 'Sharing model (sharingModel) — who can see and edit records another user owns',
-  'engine.studio.settings.sharingUnset': '(not set — defaults to Private)',
+  'engine.studio.settings.sharingUnset': '(not set — publishing is refused)',
   'engine.studio.settings.sharingPrivate': 'Private — owner only',
   'engine.studio.settings.sharingPublicRead': 'Public read — everyone reads, only the owner writes',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write — everyone reads and writes',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent — inherited from the master record',
   'engine.studio.settings.sharingDescUnset':
-    'Not set — the platform defaults to Private (ADR-0090): only the owner can access records. Pick an explicit model to widen visibility.',
+    'Not set — publishing this object is REFUSED (security-owd-unset). The runtime does fall back to Private (ADR-0090 D1), but the baseline has to be an authored decision, not an accident. Pick a model — Private is the same behaviour, chosen on purpose.',
   'engine.studio.settings.sharingDescPrivate':
     'Only the owner (plus users granted via positions or sharing rules) can access a record. Read / Edit permissions then apply to owned records only.',
   'engine.studio.settings.sharingDescPublicRead':
@@ -1685,6 +1737,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.if.noApp': 'This package has no app yet.',
   'engine.studio.if.noNavItems': 'No nav items yet — (click “Edit” above to add)',
   'engine.studio.if.previewIsRuntime': 'Live preview',
+  'engine.studio.if.modeDesign': 'Design',
+  'engine.studio.if.modeRun': 'Run',
   'engine.studio.if.tabCanvas': 'Canvas',
   'engine.studio.if.noAppTitle': 'This package has no app yet',
   'engine.studio.if.noAppHint': 'Create an app to design its navigation and interfaces.',
@@ -1712,6 +1766,11 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.noObjects': 'No objects yet — create one below to start',
   'engine.studio.data.labelPlaceholder': 'Display name (e.g. Repair Ticket)',
   'engine.studio.data.idPlaceholder': 'Identifier (e.g. repair_ticket)',
+  // [objectui#5418] The create dialog's third field. `新建对象` used to ask for
+  // exactly two things and produce an object the publish door refuses.
+  'engine.studio.data.owdLabel': 'Record sharing (OWD) — who can see records another user owns',
+  'engine.studio.data.owdHint':
+    'Required to publish, and changeable later under Settings → Record sharing. Private matches what the runtime already does when no model is set.',
   'engine.studio.data.newObject': 'New object',
   'engine.studio.data.readOnlyPackage': 'This package is read-only — switch to or create a writable package to add objects',
   'engine.studio.data.firstObjectTitle': 'Start with your first object',
@@ -2051,11 +2110,19 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.lockFull': '该元数据已锁定，不可编辑或删除。',
   'engine.edit.lockNoOverlay': '该元数据已锁定，不可编辑。',
   'engine.edit.lockNoDelete': '该元数据已锁定，不可删除。',
+  'engine.edit.lockUnknown':
+    '该元数据已锁定，但当前控制台无法识别锁状态“{state}”——它可能来自更新版本的服务端。部分操作将被阻止。',
   'engine.edit.history': '历史',
   'engine.edit.auditTab': '审计日志',
   'engine.edit.auditCount': '条记录',
   'engine.edit.auditEmptyTitle': '暂无审计记录',
   'engine.edit.auditEmptyDescription': '该元数据尚未发生任何保存、发布、回滚、删除或重置操作。一旦有人尝试修改（无论允许或拒绝），都会在此显示。',
+  // The zh half of the audit failure state (objectui#5169). Same rule as the en
+  // table above: the empty copy is a positive claim about the record, so this
+  // copy must state only that the read did not complete.
+  'engine.edit.auditErrorTitle': '审计记录读取失败',
+  'engine.edit.auditErrorDescription':
+    '审计读取没有完成，因此无法得知这一项是否有过记录。这并不表示没有发生过任何尝试 —— 请使用「刷新」重新读取。',
   'engine.edit.auditColTime': '时间',
   'engine.edit.auditColActor': '操作人',
   'engine.edit.auditColOperation': '操作',
@@ -2140,7 +2207,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.flowNode.id': 'ID',
   'engine.inspector.flowNode.label': '标签',
   'engine.inspector.flowNode.type': '节点类型',
-  'engine.inspector.flowNode.description': '描述',
   'engine.inspector.flowNode.configuration': '配置',
   'engine.inspector.flowNode.config': '配置（JSON）',
   'engine.inspector.flowNode.advanced': '高级（JSON）',
@@ -2407,10 +2473,11 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.add.page:tabs.items': '添加标签页',
   'engine.inspector.pageBlock.field.page:tabs.items.key': '键',
   'engine.inspector.pageBlock.field.page:tabs.items.label': '标签',
-  'engine.inspector.pageBlock.field.page:accordion.title': '标题',
+  // `…field.page:accordion.title` / `…items.value` retired with their designer
+  // fields — see the matching note in the `en` table above. Removed from BOTH
+  // tables in the same edit so the two key sets stay identical.
   'engine.inspector.pageBlock.field.page:accordion.items': '分区',
   'engine.inspector.pageBlock.add.page:accordion.items': '添加分区',
-  'engine.inspector.pageBlock.field.page:accordion.items.value': '键',
   'engine.inspector.pageBlock.field.page:accordion.items.label': '标签',
   'engine.inspector.pageBlock.field.record:related_list.objectName': '对象',
   'engine.inspector.pageBlock.field.record:related_list.relationshipField': '关联字段',
@@ -2544,6 +2611,22 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.flowNode.try_catch.hint': '用错误处理与重试保护步骤',
   'engine.flowNode.approval.label': '审批',
   'engine.flowNode.approval.hint': '暂停等待人工决策',
+  // objectui#5416 — `approval_revise` was the ONE palette entry with no zh
+  // row, so it alone rendered the server descriptor: an English name and the
+  // descriptor's three-line English paragraph in a list where every other node
+  // is a Chinese name and a short Chinese phrase.
+  //
+  // This is a translation, not an override. The English stays exactly where
+  // the other 21 node types keep theirs — `defineActionDescriptor` in the
+  // framework's plugin-approvals — and `translateNodeLabel`/`translateNodeHint`
+  // fall back to it whenever this table has no row, which is the whole reason
+  // the en table carries no `engine.flowNode.*` entry at all. Wording follows
+  // the 修订 vocabulary this console already uses for the same loop
+  // (`engine.flowCanvas.addReviseLoop`, `engine.flowCanvas.awaitingRevision`),
+  // and the hint is a one-line phrase like its siblings rather than a
+  // translation of the descriptor's paragraph.
+  'engine.flowNode.approval_revise.label': '修订窗口',
+  'engine.flowNode.approval_revise.hint': '审批退回后暂停,等待提交人重新提交',
   'engine.flowNode.screen.label': '交互页面',
   'engine.flowNode.screen.hint': '收集用户输入',
   'engine.flowNode.http.label': 'HTTP 请求',
@@ -2669,6 +2752,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.refsScanning': '正在扫描引用…',
   'engine.edit.refsEmptyTitle': '未找到引用',
   'engine.edit.refsEmptyDesc': '元数据图中没有任何项指向它,可以安全删除。',
+  // …以及它的失败态(objectui#5110):必须与上面的空态不可混淆 —— 文案只说明检查
+  // 没有完成,对「删除是否安全」不做任何方向的断言,因为这个问题根本没有被回答。
+  // 后续改写务必保留这一性质;「未找到引用」正是此状态要避免的那句话。
+  'engine.edit.refsErrorTitle': '引用检查失败',
+  'engine.edit.refsErrorDesc':
+    '引用扫描没有完成，因此无法得知哪些内容依赖此项。这并不表示删除它是安全的 —— 请重新执行检查后再做决定。',
+  'engine.edit.refsRetry': '重新检查',
   // 破坏性变更(强制保存)对话框(ResourceEditPage)。
   'engine.edit.destructiveTitle': '检测到破坏性变更',
   'engine.edit.destructiveDesc': '框架拒绝了本次保存,因为它会丢弃或收窄正在使用的数据。请检查这些问题并确认以强制覆盖。',
@@ -2721,6 +2811,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.form.removeRow': '删除行',
   'engine.form.dragToReorder': '拖动排序',
   'engine.form.arrayPlaceholder': '用逗号分隔多个值',
+  'engine.form.colorHex': '十六进制值',
   'engine.form.loadingObjects': '正在加载对象…',
   'engine.form.noObjects': 'object_name（未检测到对象）',
   'engine.form.selectObject': '选择对象…',
@@ -2732,6 +2823,14 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.form.selectField': '选择字段…',
   'engine.form.addFields': '添加字段…',
   'engine.form.noObjectBound': '未绑定对象',
+  // The zh half of the shared picker failure state (objectui#5170). Same rule
+  // as the en table above: this copy must never be confusable with the empty
+  // copy around it, and must make no claim in either direction about whether
+  // options exist.
+  'engine.form.loadingOptions': '正在加载选项…',
+  'engine.form.optionsLoadFailedTitle': '选项加载失败',
+  'engine.form.optionsLoadFailedDesc':
+    '这个列表没有加载成功,因此它并不表示不存在可选项。请重新加载编辑器后再试。',
   'engine.form.none': '— 无 —',
   'engine.form.notInObject': '（不在对象中）',
   'engine.form.searchIcons': '搜索图标…',
@@ -2817,6 +2916,32 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.packages.form.defaultDatasource': '默认数据源',
   'engine.packages.form.scope': '范围',
   'engine.packages.form.dependencies': '依赖',
+
+  // objectui#5416 — help text for the package manifest form.
+  //
+  // The LABELS above have always been translated while the help line under
+  // each one stayed English, so `新建软件包` rendered 显示名称 over
+  // "Human-readable package name" — a translated label and an untranslated
+  // sentence on consecutive lines of the same field.
+  //
+  // These are zh-ONLY on purpose, and the EN table deliberately has no
+  // counterpart. The English help text is `@objectstack/spec`'s own
+  // `ManifestSchema` `.describe()` (framework repo), which the form already
+  // reads through the spec-derived JSONSchema; `getPackageForm` looks these up
+  // with `tOptional`, so en-US finds nothing here and keeps falling through to
+  // the spec's sentence. Copying the English into this table instead would
+  // create a SECOND English source of truth that silently diverges the next
+  // time the spec is edited — the exact producer-side hazard the ObjectUI
+  // contract-first rule exists to stop. Only the zh rendering belongs here.
+  'engine.packages.form.help.name': '软件包的可读名称。',
+  'engine.packages.form.help.id': '软件包的唯一标识，采用反向域名格式。',
+  'engine.packages.form.help.namespace': '简短的命名空间标识；同时是本软件包内每个对象名称的强制前缀（例如 “todo” → 对象名 “todo_task”、“todo_project”）。',
+  'engine.packages.form.help.version': '软件包版本（语义化版本号）。',
+  'engine.packages.form.help.type': '软件包类型。',
+  'engine.packages.form.help.description': '软件包描述。',
+  'engine.packages.form.help.defaultDatasource': '本软件包内所有对象的默认数据源。',
+  'engine.packages.form.help.scope': '部署范围：cloud（云端）、system（系统）、project（项目）。',
+  'engine.packages.form.help.dependencies': '软件包依赖。',
   'engine.packages.view.title': '软件包信息',
   'engine.packages.detail.viewInfo': '查看信息',
   'engine.packages.detail.type': '类型',
@@ -2880,8 +3005,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'perm.action.edit': '编辑',
   'perm.action.delete': '删除',
   'perm.action.transfer': '转移所有者',
-  'perm.action.restore': '恢复已删除记录（预留 — 当前为硬删除）',
-  'perm.action.purge': '彻底删除',
   'perm.action.viewAll': '查看所有记录（绕过共享规则）',
   'perm.action.modifyAll': '修改所有记录（绕过共享规则）',
   'perm.col.object': '对象',
@@ -3200,6 +3323,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.creating': '创建中…',
   'engine.studio.createDraft': '创建(存为草稿)',
   'engine.studio.saveDraft': '保存草稿',
+  'engine.studio.more': '更多',
+  'engine.studio.autoSaving': '保存中…',
+  'engine.studio.data.tab.advanced': '高级',
   // Standard create-dialog field labels (shared by object / app / flow / permission).
   'engine.studio.app.nameLabel': '应用名称',
   'engine.studio.app.idLabel': '标识',
@@ -3394,13 +3520,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.settings.sharing': '记录共享模型(OWD)',
   'engine.studio.settings.sharingHint': '在岗位与共享规则之前生效的记录可见性基线(ADR-0056/0090)',
   'engine.studio.settings.sharingModel': '共享模型(sharingModel)—— 谁能查看和编辑他人拥有的记录',
-  'engine.studio.settings.sharingUnset': '(未设置 —— 默认 Private)',
+  'engine.studio.settings.sharingUnset': '(未设置 —— 发布会被拒绝)',
   'engine.studio.settings.sharingPrivate': 'Private 私有 —— 仅记录所有者',
   'engine.studio.settings.sharingPublicRead': 'Public read 公共只读 —— 所有人可读,仅所有者可写',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write 公共读写 —— 所有人可读可写',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent 受父级控制 —— 继承自主记录',
   'engine.studio.settings.sharingDescUnset':
-    '未设置 —— 平台默认 Private(ADR-0090):仅所有者能访问记录。如需放宽可见性请显式选择模型。',
+    '未设置 —— 该对象无法发布(security-owd-unset)。运行时确实会回落为 Private(ADR-0090 D1),但这条基线必须是显式作出的决定,而不是疏漏。请选择一个模型 —— 选 Private 的行为完全相同,区别在于它是有意选定的。',
   'engine.studio.settings.sharingDescPrivate':
     '只有所有者(以及经岗位或共享规则授予的用户)能访问记录。此时读取 / 编辑权限仅作用于自己拥有的记录。',
   'engine.studio.settings.sharingDescPublicRead':
@@ -3461,6 +3587,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.if.noApp': '这个软件包还没有应用。',
   'engine.studio.if.noNavItems': '还没有导航项 —(点上方「编辑」添加)',
   'engine.studio.if.previewIsRuntime': '实时预览',
+  'engine.studio.if.modeDesign': '设计',
+  'engine.studio.if.modeRun': '运行',
   'engine.studio.if.tabCanvas': '画布',
   'engine.studio.if.noAppTitle': '这个软件包还没有应用',
   'engine.studio.if.noAppHint': '创建一个应用来设计它的导航与界面。',
@@ -3488,6 +3616,10 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.noObjects': '还没有对象 — 在下方新建一个开始',
   'engine.studio.data.labelPlaceholder': '显示名(如:报修工单)',
   'engine.studio.data.idPlaceholder': '标识符(如:repair_ticket)',
+  // [objectui#5418] 新建对象对话框的第三项。此前只问两项,产出的对象会被发布门拒绝。
+  'engine.studio.data.owdLabel': '记录共享模型(OWD)—— 谁能看到他人拥有的记录',
+  'engine.studio.data.owdHint':
+    '发布必填,之后可在“设置 → 记录共享模型”中修改。Private 与未设置时运行时的实际行为一致。',
   'engine.studio.data.newObject': '新建对象',
   'engine.studio.data.readOnlyPackage': '此包为只读——请切换到或新建一个可写的包后再添加对象',
   'engine.studio.data.firstObjectTitle': '从第一个对象开始',
@@ -4103,6 +4235,65 @@ export function translateFlowMeta(
 }
 
 /**
+ * zh-CN labels for the overlay-scope vocabulary, keyed by the spec's own enum.
+ *
+ * The key type is `@objectstack/spec`'s `GetMetaItemLayeredResponseSchema`
+ * `overlayScope` union, reached through `MetadataOverlayScope` — so the day the
+ * spec adds a scope this record stops compiling and names the label that is
+ * missing, instead of the badge silently shipping a raw English value. That
+ * silent path is objectui#4982: `overlayScope` reached the badge untranslated
+ * while the only two values it can hold had no entry in the table below.
+ *
+ * Deliberately zh-only, like every other group here — `translateConsoleValue`
+ * returns the raw value for the other nine locale packs by existing design, and
+ * whether to extend it is a separate decision, not a rider on this fix.
+ */
+const LAYER_SCOPE_ZH: Record<NonNullable<MetadataOverlayScope>, string> = {
+  org: '组织',
+  env: '环境',
+};
+
+/**
+ * zh-CN labels for the ADR-0010 §3.6 four-state metadata lock, keyed by the
+ * producer field the only consumer actually renders.
+ *
+ * The key type is `MetadataAuditEntry['lockState']`, which since objectui#5024
+ * is `MetadataLockState` — derived from `GetMetaItemLayeredResponseSchema`'s
+ * `z.enum` in `@objectstack/spec`. It was a hand-written union in
+ * `packages/data-objectstack/src/metadata-client.ts` when this comment was
+ * first written, on the belief that the spec had no enum to derive from; the
+ * spec does declare one (17.1.0), so the question of ownership this comment
+ * used to leave open is answered upstream, not here. Binding the keys means a
+ * fifth lock state stops this record from compiling and names the label that is
+ * missing, instead of the column silently shipping a raw English token.
+ *
+ * That silent path is objectui#5004, and it was total rather than partial: the
+ * table used to hold `draft` / `locked` / `published` / `none` — a draft-status
+ * vocabulary — so of the three values the audit column can actually show, zero
+ * had an entry. A zh-CN admin read bare `no-overlay` / `no-delete` / `full`.
+ *
+ * Wording tracks the lock banner sentences a reader meets on the same screen
+ * (`engine.edit.lockNoOverlay` 不可编辑 / `lockNoDelete` 不可删除 / `lockFull`
+ * 不可编辑或删除), compressed to state names for a narrow badge column.
+ *
+ * `none` is currently unreachable through the sole call site — `AuditPanel`
+ * renders an em dash for an unlocked/`null` row rather than a word — and is kept
+ * anyway: the key set follows the producer's type, so the record stays complete
+ * over the domain and does not need editing the day that presentation choice
+ * changes.
+ *
+ * Deliberately zh-only, like every other group here — `translateConsoleValue`
+ * returns the raw value for the other nine locale packs by existing design, and
+ * whether to extend it is a separate decision, not a rider on this fix.
+ */
+const LOCK_STATE_ZH: Record<NonNullable<MetadataAuditEntry['lockState']>, string> = {
+  none: '无',
+  'no-overlay': '禁止编辑',
+  'no-delete': '禁止删除',
+  full: '完全锁定',
+};
+
+/**
  * zh-CN labels for the metadata-editor side panels' raw enum-ish values —
  * History operation badges, Audit operation/outcome/lock-state, and the Layered
  * diff tab badges. Shared by every metadata type (not flow-specific). English
@@ -4121,8 +4312,15 @@ const CONSOLE_VALUE_ZH: Record<string, Record<string, string>> = {
     rollback: '回滚',
   },
   outcome: { allowed: '允许', denied: '拒绝', forced: '强制' },
-  lock: { draft: '草稿', locked: '已锁定', published: '已发布', none: '无' },
-  layer: { artifact: '工件', none: '无', merged: '合并', set: '已设', overlay: '覆盖' },
+  lock: LOCK_STATE_ZH,
+  layer: {
+    artifact: '工件',
+    none: '无',
+    merged: '合并',
+    set: '已设',
+    overlay: '覆盖',
+    ...LAYER_SCOPE_ZH,
+  },
 };
 
 /** Localized label for a metadata-editor side-panel value (English = raw). */
@@ -4230,6 +4428,30 @@ export function translateSchemaFieldHelp(
 
 export function t(key: string, locale?: SupportedLocale | string): string {
   return pickTable(locale).strings[key] ?? key;
+}
+
+/**
+ * Like {@link t}, but returns `undefined` when the active locale's table has
+ * no entry — instead of echoing the key back as if it were a translation.
+ *
+ * For strings this console does not OWN (objectui#5416). The package form's
+ * help text is `@objectstack/spec`'s `ManifestSchema` `.describe()`, produced
+ * in the framework repo and already reaching the form through the
+ * spec-derived JSONSchema; only the zh rendering lives here. A caller uses
+ * this so an en-US console finds nothing and falls through to the producer's
+ * own sentence, rather than reading a copy of it that this repo would then
+ * have to keep in step with the spec by hand.
+ *
+ * ⚠️ Never reach for this to paper over a MISSING key in a string this
+ * console does own — a missing key must stay loud (`t` echoing `engine.…`
+ * back is what makes it visible). Use it only where a producer-owned fallback
+ * is the deliberate other half.
+ */
+export function tOptional(
+  key: string,
+  locale?: SupportedLocale | string,
+): string | undefined {
+  return pickTable(locale).strings[key];
 }
 
 /**

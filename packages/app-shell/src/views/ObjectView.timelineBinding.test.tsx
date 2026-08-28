@@ -23,19 +23,28 @@
  * (they read `'due_date'`), while every other case in this file and in
  * `ListView.timeline-binding.test.tsx` stays green — the fabricated value is
  * only ever observable when the view declared nothing.
+ *
+ * FIXTURE TRIAGE (objectui#6557). The shared `objectDef` here used to be
+ * `{ name: 'crm_campaign', titleField: 'name' }`, and the no-timeline-config
+ * case below asserted `out.titleField === 'name'` while its comment credited
+ * the OBJECT with supplying it. That fixture pinned nothing: `'name'` is also
+ * the literal floor, so the assertion resolved identically with the object leg
+ * deleted — and the key itself is one `@objectstack/spec`'s `strictObject`
+ * REJECTS (`unrecognized_keys`), so no legal object could carry it. The leg is
+ * gone and the function now takes only `viewDef`; what the object-level key
+ * does NOT do is pinned with a DISTINGUISHABLE value in
+ * `ObjectView.titleFieldConvergence.test.tsx`, where `'name'`-vs-`'headline'`
+ * can actually tell the two worlds apart.
  */
 
 import { describe, it, expect } from 'vitest';
 import { timelineViewOptions } from './ObjectView';
 
-const objectDef = { name: 'crm_campaign', titleField: 'name' };
-
 describe('timelineViewOptions — the object page forwards, it does not resolve (#3129)', () => {
   it('forwards a declared spec binding untouched', () => {
-    const out = timelineViewOptions(
-      { timeline: { startDateField: 'start_date', endDateField: 'end_date', scale: 'month' } },
-      objectDef,
-    );
+    const out = timelineViewOptions({
+      timeline: { startDateField: 'start_date', endDateField: 'end_date', scale: 'month' },
+    });
     expect(out.startDateField).toBe('start_date');
     expect(out.endDateField).toBe('end_date');
     // Every spec key survives — the whole config is spread, not whitelisted.
@@ -43,12 +52,12 @@ describe('timelineViewOptions — the object page forwards, it does not resolve 
   });
 
   it('promotes the legacy `dateField` alias onto the spec key', () => {
-    expect(timelineViewOptions({ timeline: { dateField: 'start_date' } }, objectDef).startDateField)
+    expect(timelineViewOptions({ timeline: { dateField: 'start_date' } }).startDateField)
       .toBe('start_date');
   });
 
   it('invents NO date field when the view declares none', () => {
-    const out = timelineViewOptions({ timeline: { titleField: 'campaign_name' } }, objectDef);
+    const out = timelineViewOptions({ timeline: { titleField: 'campaign_name' } });
     expect(out.startDateField).toBeUndefined();
     expect(out.titleField).toBe('campaign_name');
   });
@@ -56,14 +65,15 @@ describe('timelineViewOptions — the object page forwards, it does not resolve 
   it('invents NO date field for a view with no timeline config at all', () => {
     // The calendar-bound view from the report: the axis lives under `calendar`,
     // and leaving `startDateField` absent here is what lets ListView find it.
-    const out = timelineViewOptions({ calendar: { startDateField: 'start_date' } }, objectDef);
+    const out = timelineViewOptions({ calendar: { startDateField: 'start_date' } });
     expect(out.startDateField).toBeUndefined();
-    // The object's declared title field is the one thing this layer still
-    // contributes — ListView has no access to objectDef.
+    // With no timeline config at all there is nothing to forward, so the
+    // literal floor answers — the same two-rung shape the calendar and gantt
+    // branches of this page have always used.
     expect(out.titleField).toBe('name');
   });
 
-  it("falls back to 'name' when the object declares no titleField", () => {
-    expect(timelineViewOptions({}, { name: 'crm_campaign' }).titleField).toBe('name');
+  it("falls back to 'name' when the view declares no titleField", () => {
+    expect(timelineViewOptions({}).titleField).toBe('name');
   });
 });

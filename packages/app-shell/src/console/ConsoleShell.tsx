@@ -16,28 +16,30 @@ import { AuthGuard, useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { SchemaRendererProvider, ActionProvider, NotificationProvider } from '@object-ui/react';
 import { NotificationAlerts, NotificationSnackbar } from '@object-ui/components';
-import { presentNotificationToast } from '../chrome/notificationToast';
-import { useActionModal } from '../hooks/useActionModal';
-import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
+import { presentNotificationToast } from '../chrome/notificationToast.js';
+import { useActionModal } from '../hooks/useActionModal.js';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
-import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
-import { withSettleSignal } from '../observability/settleSignal';
-import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
-import { appRouteSegment } from '../utils/appRoute';
-import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
-import { PreviewModeProvider } from '../preview/PreviewModeContext';
-import { NavigationProvider } from '../context/NavigationContext';
-import { FavoritesProvider } from '../context/FavoritesProvider';
-import { RecentItemsProvider } from '../context/RecentItemsProvider';
-import { FlowPaletteRecentsProvider } from '../context/FlowPaletteRecentsProvider';
+import { AdapterProvider, useAdapter } from '../providers/AdapterProvider.js';
+import { withSettleSignal } from '../observability/settleSignal.js';
+import { MetadataProvider, useMetadata } from '../providers/MetadataProvider.js';
+import { appRouteSegment } from '../utils/appRoute.js';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
+import { PreviewModeProvider } from '../preview/PreviewModeContext.js';
+import { NavigationProvider } from '../context/NavigationContext.js';
+import { FavoritesProvider } from '../context/FavoritesProvider.js';
+import { RecentItemsProvider } from '../context/RecentItemsProvider.js';
+import { FlowPaletteRecentsProvider } from '../context/FlowPaletteRecentsProvider.js';
 import {
   UserStateAdaptersProvider,
   useAttachUserStateAdapters,
-} from '../context/UserStateAdapters';
-import { ThemeProvider } from '../chrome/ThemeProvider';
-import { LoadingScreen } from '../chrome/LoadingScreen';
-import { RemediationOverlay } from './RemediationOverlay';
-import { ImpersonationBanner } from '../layout/ImpersonationBanner';
+} from '../context/UserStateAdapters.js';
+import { ThemeProvider } from '../chrome/ThemeProvider.js';
+import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { RedirectWithSplash } from '../chrome/RedirectWithSplash.js';
+import { RemediationOverlay } from './RemediationOverlay.js';
+import { HostNavigationBridge } from './HostNavigationBridge.js';
+import { ImpersonationBanner } from '../layout/ImpersonationBanner.js';
 
 // The console's every pre-React / pre-auth gate (Suspense fallback, adapter
 // not ready, org/auth loading) renders this. It used to be a bare, unbranded
@@ -132,6 +134,22 @@ function GlobalActionRuntimeProvider({ dataSource, children }: { dataSource: unk
  *               which is the whole difference between it and a banner
  */
 export function ConsoleShell({ children }: { children: ReactNode }) {
+  return (
+    /* objectui#4989 — hand published renderers this console's OWN navigate, so a
+       destination they resolved (a form's ruled `submitBehavior.url`) is
+       travelled to through the router that knows the deployment's basename
+       instead of a full-page `window.location.assign` against the origin root.
+       Outermost, because the renderers that read it are reached from every
+       console route and several arrive through `ComponentRegistry`, where no
+       prop could be passed. */
+    <HostNavigationBridge>
+      <ConsoleShellProviders>{children}</ConsoleShellProviders>
+    </HostNavigationBridge>
+  );
+}
+
+/** The provider stack itself — see {@link ConsoleShell}, which wraps it. */
+function ConsoleShellProviders({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system" storageKey="object-ui-theme">
       {/* `defaultDuration` matches ConsoleToaster's 4s toast default and
@@ -331,12 +349,21 @@ export function RequireOrganization({ children }: { children: ReactNode }) {
   if (isOrganizationsLoading) return <LoadingFallback />;
   const orgList = organizations ?? [];
   const orgFeatureEnabled = orgList.length > 0 || !!activeOrganization;
-  if (orgFeatureEnabled && !activeOrganization) return <Navigate to="/organizations" replace />;
+  // `RedirectWithSplash` at every DECIDE below, not a bare `<Navigate>`
+  // (objectui#6378 / #6507): this gate renders `LoadingFallback` while it waits
+  // (one line up), and a bare redirect renders null — so the splash the user is
+  // looking at is dropped and nothing replaces it until `/organizations`
+  // renders at transition priority. Measured on the three sibling gates #6506
+  // fixed: 41-147 ms of empty `#root`, a white flash on 67/87 boots. The
+  // replacement paints the SAME `LoadingScreen` this gate was already showing,
+  // so the handoff changes no pixels.
+  if (orgFeatureEnabled && !activeOrganization)
+    return <RedirectWithSplash to="/organizations" replace />;
   // No org at all: on multi-org, send them to /organizations (the create
   // screen); wait for the flag so we don't flash /home then redirect.
   if (orgList.length === 0 && !activeOrganization) {
     if (multiOrgEnabled === null) return <LoadingFallback />;
-    if (multiOrgEnabled) return <Navigate to="/organizations" replace />;
+    if (multiOrgEnabled) return <RedirectWithSplash to="/organizations" replace />;
   }
   return <>{children}</>;
 }
@@ -362,7 +389,14 @@ export function RequireAiSurface({
 }) {
   const { enabled, isLoading } = useAiSurfaceEnabled();
   if (isLoading) return <LoadingFallback />;
-  if (!enabled) return <Navigate to={redirectTo} replace />;
+  // Splash-preserving handoff (objectui#6507). This is a BOOT-path redirect
+  // even though `/ai` is reachable from inside the console: every in-app entry
+  // point gates on this same `useAiSurfaceEnabled` signal (`AppHeader`'s
+  // assistant button, `ConsoleLayout`'s dock, `HomeLayout`/`HomePage`), so on a
+  // runtime where this branch fires none of them is rendered. What reaches it
+  // is a stale bookmark or an external link — a first navigation, with the
+  // splash still up and no layout underneath.
+  if (!enabled) return <RedirectWithSplash to={redirectTo} replace />;
   return <>{children}</>;
 }
 
@@ -381,7 +415,18 @@ export function AuthenticatedRoute({
   loginPath?: string;
 }) {
   return (
-    <AuthGuard fallback={<Navigate to={loginPath} />} loadingFallback={<LoadingFallback />}>
+    // The same splash-preserving handoff as the gates above, written as two
+    // props rather than two returns (objectui#6507): `loadingFallback` paints
+    // while the session resolves and `fallback` is what replaces it the moment
+    // it decides. A bare `<Navigate>` there renders null, which is the same
+    // blank viewport #6378 measured — and `apps/console` already converted its
+    // own copy of this composition (`ProtectedRoute.tsx`) under #6506, so a
+    // consumer assembling protected routes from THIS wrapper would otherwise
+    // get the unfixed handoff.
+    <AuthGuard
+      fallback={<RedirectWithSplash to={loginPath} />}
+      loadingFallback={<LoadingFallback />}
+    >
       <ConnectedShell>
         {requireOrganization ? <RequireOrganization>{children}</RequireOrganization> : children}
       </ConnectedShell>
@@ -396,7 +441,12 @@ export function AuthenticatedRoute({
 export function RootRedirect() {
   const { loading } = useMetadata();
   if (loading) return <LoadingFallback />;
-  return <Navigate to="/home" replace />;
+  // Splash-preserving handoff (objectui#6507). `apps/console` mounts its own
+  // `RootLandingRedirect` rather than this one, and #6506 converted that twin
+  // after measuring the WIDEST window of the campaign on it (147 ms) — this is
+  // byte-for-byte the same shape, published to consumers via
+  // `@object-ui/app-shell`.
+  return <RedirectWithSplash to="/home" replace />;
 }
 
 /**
@@ -410,6 +460,18 @@ export function RootRedirect() {
  * that makes the hub mount at all.
  */
 export function SystemRedirect() {
+  // ⚠️ DELIBERATELY a bare `<Navigate>`, unlike every other redirect in this
+  // file (objectui#6507). It does carry the null-render shape on a first
+  // navigation — but it is the one site here that ALSO fires with the console
+  // already painted: `SettingsView.tsx` navigates to `/system/settings` from a
+  // button, and `AppSidebar.tsx` links to `/system`. Neither is gated on
+  // anything, so both are live in exactly the runtimes this component serves.
+  // The #6507 triage ruling is explicit that a redirect firing under an
+  // already-painted layout must KEEP that layout rather than gain a splash, so
+  // converting this one would trade a boot-path blank for a full-screen splash
+  // flashing over a working console. Splitting the two paths (deep link vs
+  // in-app navigation) needs a measurement neither #6378 nor #6507 has taken.
+  // Pinned as unconverted by `__tests__/bootRedirectCoverage.test.tsx`.
   const location = useLocation();
   const suffix = location.pathname.replace(/^\/system/, '');
   const target = suffix ? `/apps/setup/system${suffix}` : '/apps/setup/system';
@@ -495,5 +557,11 @@ export function SetupRedirect() {
   const location = useLocation();
   if (loading) return <LoadingFallback />;
   const target = resolveSetupAppPath(apps as SetupAppLike[] | undefined);
-  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+  // Splash-preserving handoff (objectui#6507) — the gate one line up renders
+  // `LoadingFallback`, so a bare redirect would drop it for nothing. Unlike
+  // `SystemRedirect` beside it, `/setup` has no in-app producer: it is mounted
+  // as a route and reached by bookmark, deep link or runbook, i.e. always as a
+  // first navigation with the splash up. (The home launcher's card links to
+  // `/apps/<segment>` directly, not through this alias.)
+  return <RedirectWithSplash to={`${target}${location.search}${location.hash}`} replace />;
 }

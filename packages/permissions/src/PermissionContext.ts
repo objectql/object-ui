@@ -29,6 +29,16 @@ export interface PermissionContextValue {
   /** Current user roles */
   roles: string[];
   /**
+   * [objectui#5683] The acting user's id, from `/me/permissions` (`userId`) —
+   * or `null` when the mounted provider has no backend answer to give (the
+   * role-based `PermissionProvider`, no provider at all, or an anonymous
+   * session). `null` means "unknown", and consumers must fall back to
+   * server-side behavior rather than substituting any other identity — the
+   * create-form `current_user` default seeding leaves the field empty and the
+   * key omitted, which is exactly the case the engine resolves at insert.
+   */
+  userId: string | null;
+  /**
    * [ADR-0066] System capabilities held by the user (union of permission-set
    * `systemPermissions`), when the backend actually reports them.
    *

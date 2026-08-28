@@ -15,8 +15,8 @@
  * through them any more.
  */
 
-import { registerMetadataResource } from '../registry';
-import { DatasourceResourcePage } from './DatasourceResourcePage';
+import { registerMetadataResource } from '../registry.js';
+import { DatasourceResourcePage } from './DatasourceResourcePage.js';
 
 let registered = false;
 

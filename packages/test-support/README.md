@@ -46,6 +46,42 @@ code imports — nothing in `src/` of a released package may import this.
   `packages/app-shell/src/__tests__/widget-dom-leak-sweep.test.tsx`.
 - `src/__tests__/dom-leak-judge.test.tsx` — the calibration fixtures that prove
   the judge, once, for both gates.
+- `src/spec-tombstones.ts` — the ADR-0087 D2 tombstone judge:
+  `authorableShapeKeys`, `listedShapeKeys`, `tombstonedShapeKeys`,
+  `isShapeKeyTombstoned`, `tombstoneEvidence`, `shapeMemberTypeName`,
+  `resolvePropsShape`. Answers "does `@objectstack/spec` still ACCEPT this key,
+  or does it list a tombstone that rejects it by name?" — the question raw
+  `Object.keys(schema.shape)` cannot answer, because a retired key stays in the
+  shape (objectui#3809). Consumed by
+  `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts` (both parity
+  directions), `packages/layout/src/__tests__/page-header-authorable-keys.test.tsx`,
+  `packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts`
+  and `packages/app-shell/src/views/metadata-admin/previews/__tests__/block-config.test.ts`
+  (the last two converged off local structural-only copies by objectui#4947).
+  No copy of the judgement is left in-tree: gates import this module, they do
+  not write the criterion out again.
+- `src/spec-enum-options.ts` — the spec enum-vocabulary reader:
+  `shapeEnumOptions(schema, key)`. Answers "which names does this key of the
+  contract accept?" — the question four spec-parity suites each answered with a
+  byte-for-byte identical hand-written walk into Zod's `def.innerType`
+  (objectui#5872). Consumed by
+  `packages/components/src/__tests__/data-table-selection-mode.test.tsx`,
+  `packages/plugin-list/src/__tests__/add-record-position-spec-parity.test.tsx`,
+  `packages/plugin-list/src/__tests__/user-filter-arity-spec-parity.test.tsx`
+  and `packages/plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`.
+  No copy of this reader is left in-tree. The other Zod-internals reader classes
+  the same card censused — array-element unwrapping, the wrapper-key walk — are
+  NOT confined here yet and are still hand-copied; converting them is a separate
+  round, one reader class at a time.
+- `src/__tests__/spec-enum-options.test.ts` — the calibration for that reader:
+  one synthetic fixture per wrapper spelling it claims to walk (bare enum,
+  `.optional()`, `.default()`, a stack, and a `lazySchema()` thunk), the `[]`
+  cases that keep a consuming suite's non-vacuity assertion from being a rubber
+  stamp, and a non-empty check against the four real `@objectstack/spec` pairs.
+- `src/__tests__/spec-tombstones.test.ts` — the calibration for that judge: one
+  synthetic fixture per recognition channel (so neither can quietly stop
+  working), plus a cross-check of the structural verdict against what the
+  installed contract's own `safeParse` actually rejects.
 
 ## Conventions
 

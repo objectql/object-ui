@@ -7,10 +7,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from './useAuth';
-import { SocialSignInButtons } from './SocialSignInButtons';
-import { looksLikePhoneIdentifier, normalizePhoneIdentifier } from './phone-identifier';
-import type { AuthLinkComponentProps } from './types';
+import { useAuth } from './useAuth.js';
+import { SocialSignInButtons } from './SocialSignInButtons.js';
+import { looksLikePhoneIdentifier, normalizePhoneIdentifier } from './phone-identifier.js';
+import type { AuthLinkComponentProps } from './types.js';
 import {
   AUTH_FIELD_LABEL_CLASS,
   AUTH_INPUT_CLASS,
@@ -20,7 +20,7 @@ import {
   AuthErrorBanner,
   AuthFormHeader,
   AuthSpinner,
-} from './authStyles';
+} from './authStyles.js';
 
 /** Translatable labels for the LoginForm */
 export interface LoginFormLabels {

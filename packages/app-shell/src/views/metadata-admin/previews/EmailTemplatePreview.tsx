@@ -15,8 +15,8 @@
 
 import * as React from 'react';
 import { Mail } from 'lucide-react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
 
 function detectVariables(text: string): string[] {
   const out = new Set<string>();

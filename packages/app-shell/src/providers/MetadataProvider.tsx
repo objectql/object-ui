@@ -7,13 +7,14 @@ import {
   type ReactNode,
 } from 'react';
 import { expandViewContainer } from '@objectstack/spec/ui';
+import { ActiveOrganizationStorage, TokenStorage, useAuth } from '@object-ui/auth';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataCacheState } from '@object-ui/react';
-import { usePreviewDrafts } from '../preview/PreviewModeContext';
-import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory';
-import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus';
+import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
+import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory.js';
+import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus.js';
 
 export type { MetadataCacheState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';
@@ -77,6 +78,165 @@ const TYPE_BY_STATE_KEY: Record<keyof Omit<MetadataCacheState, 'loading' | 'erro
 };
 
 const SESSION_STORAGE_PREFIX = 'objectui:metadata:';
+
+/**
+ * Storage scope for a deployment with no active organization — a single-tenant
+ * install, or a brand-new user before provisioning. A real org id can never
+ * collide with it (`@` is not produced by the id generator), and the moment an
+ * org DOES become active the scope changes, so a list cached with no org is
+ * never served to one.
+ */
+const NO_ORG_SCOPE = '@none';
+
+/**
+ * The active organization id, read the SAME way the request that filled this
+ * cache reads it (objectui#4486).
+ *
+ * `createAuthenticatedFetch` stamps `X-Tenant-ID` from
+ * `ActiveOrganizationStorage` on every `/api/v1/meta/*` call, so deriving the
+ * cache scope from that same storage makes the key equal to the tenant the
+ * items were fetched under — the cache cannot describe itself as belonging to
+ * an org other than the one the server filtered for.
+ *
+ * Deliberately NOT `useAuth().activeOrganization?.id`: that resolves
+ * ASYNCHRONOUSLY (AuthProvider fetches the membership list after mount), so at
+ * seed time — the whole point of this cache — it is still `null` and every boot
+ * would miss its own entry. The storage value is already correct at mount
+ * because the previous session wrote it.
+ */
+function activeOrgScope(): string {
+  try {
+    return ActiveOrganizationStorage.get() || NO_ORG_SCOPE;
+  } catch {
+    return NO_ORG_SCOPE;
+  }
+}
+
+/**
+ * Storage scope for "nobody is signed in" — see {@link principalScope}. Shares
+ * the `@` convention with {@link NO_ORG_SCOPE}; {@link fingerprintToken} emits
+ * base-36 digits only, so a real principal can never produce it.
+ */
+const ANON_PRINCIPAL = '@anon';
+
+/**
+ * 64 bits of non-reversible key material derived from the session token — two
+ * FNV-1a passes with different constants and finalizers, each emitted as a
+ * zero-padded base-36 word so the halves cannot re-associate into a colliding
+ * pair.
+ *
+ * Deliberately NOT `crypto.subtle.digest`: that is ASYNC and this value is
+ * needed synchronously on the mount path. It is not standing in for a security
+ * primitive either — the token itself already sits in same-origin
+ * `localStorage`, so hashing hides nothing from anyone who can read this key.
+ * It exists so the key can DISCRIMINATE principals without printing a live
+ * credential into a storage key name.
+ */
+function fingerprintToken(token: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0xc2b2ae35;
+  for (let i = 0; i < token.length; i += 1) {
+    const code = token.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 0x01000193);
+    h2 = Math.imul(h2 ^ code, 0x85ebca6b);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 15), 0x2545f491);
+  h2 = Math.imul(h2 ^ (h2 >>> 13), 0x27d4eb2f);
+  const word = (h: number) => (h >>> 0).toString(36).padStart(7, '0');
+  return `${word(h1)}${word(h2)}`;
+}
+
+/**
+ * Fingerprint of the session this cache was filled under (objectui#5198).
+ *
+ * `sessionStorage` is per-TAB, not per-session, and no sign-out call site
+ * reloads the page — so signing out and signing a DIFFERENT person in inside
+ * the same tab used to seed them from the previous user's entry. What sits
+ * there is that user's PERMISSION-FILTERED app list (the server filters
+ * `GET /api/v1/meta/:type` per session), which makes it a cross-principal
+ * disclosure rather than ordinary staleness. Org-scoping does not close it:
+ * two users in the SAME org compute the same {@link activeOrgScope}.
+ *
+ * `AuthProvider.signOut` purges these entries, and that is the commissioned
+ * fix; this scope is the half that does not depend on remembering it. An entry
+ * written under one session is not AT the key the next session computes, so it
+ * is unreadable by construction however sign-out paths evolve.
+ *
+ * Why the TOKEN rather than `useAuth().user?.id` — the same reason
+ * {@link activeOrgScope} reads storage instead of the context: the user
+ * resolves ASYNCHRONOUSLY (`AuthProvider` fetches the session after mount), so
+ * at seed time, which is the entire point of this cache, it is still `null`
+ * and every boot would miss its own entry. `TokenStorage` is the one identity
+ * already correct synchronously at mount, and it is the SAME credential the
+ * request that filled the cache authenticated with — so, exactly as with the
+ * tenant scope, the key cannot claim a principal the server did not filter for.
+ *
+ * A token ROTATION (impersonation, objectui#4467) changes the fingerprint,
+ * which is correct — the principal genuinely changed. The cost of any change
+ * here is one cache MISS, i.e. a refetch, never stale data.
+ *
+ * Client-local by construction: no new field on the session response and no
+ * extra request — see the issue's scope ruling.
+ */
+function principalScope(): string {
+  let token: string | null = null;
+  try {
+    token = TokenStorage.get();
+  } catch {
+    /* SSR / storage unavailable */
+  }
+  return token ? fingerprintToken(token) : ANON_PRINCIPAL;
+}
+
+/**
+ * `objectui:metadata:<type>:<orgId>:<principal>` — see {@link activeOrgScope}
+ * and {@link principalScope}. Both scopes come from the same client-local
+ * storage the request that filled the entry tenanted and authenticated itself
+ * with, so a key can never describe a principal/tenant pair the server did not
+ * filter for.
+ */
+function sessionKeyForOrg(type: string, orgScope: string): string {
+  return `${SESSION_STORAGE_PREFIX}${type}:${orgScope}:${principalScope()}`;
+}
+
+function sessionKeyFor(type: string): string {
+  return sessionKeyForOrg(type, activeOrgScope());
+}
+
+/**
+ * Delete every seed entry belonging to a principal other than the one reading
+ * now — the pre-#4486 unscoped entry (`objectui:metadata:<type>`), the
+ * pre-#5198 principal-blind one (`objectui:metadata:<type>:<orgId>`), and
+ * anything a previous user of this tab left behind.
+ *
+ * Re-keying alone only fixes tabs going FORWARD: a tab already open across the
+ * upgrade — or across a sign-out on a build without the purge — still holds
+ * the older blob under its old key. Nothing reads those keys any more, so they
+ * are inert; but an inert blob is still another organization's (objectui#4486)
+ * or another person's (objectui#5198) app list sitting in storage, and the
+ * cheapest correct answer to "does already cached data need invalidating" is to
+ * delete it the first time the new code looks.
+ *
+ * Entries of the CURRENT principal are kept whatever their org: those are this
+ * user's own other workspaces, which #4486 already keys correctly and which a
+ * switch back is entitled to seed from.
+ */
+function dropForeignPrincipalEntries(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const mine = `:${principalScope()}`;
+    // Snapshot the keys first (`Object.keys`) — removing entries during a live
+    // index walk shifts the ones behind it, skipping half of them. Same idiom
+    // as the `MarketplacePackagePage` purge loop.
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith(SESSION_STORAGE_PREFIX) && !key.endsWith(mine)) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 function isDev(): boolean {
   try {
@@ -257,6 +417,10 @@ export function mergeViewsIntoObjects(objects: any[], views: any[]): any[] {
   return objects.map(obj => {
     const extra = byObject[obj.name];
     if (!extra) return obj;
+    // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+    // `list_views` / `form_views` legs are compatibility READS for stored pre-settlement
+    // documents (that stock has never been censused: objectstack#7917). Never WRITE snake keys
+    // — the merge below emits camelCase only.
     const existingListViews = obj.listViews || obj.list_views || {};
     const existingFormViews = obj.formViews || obj.form_views || {};
     const merged: any = {
@@ -346,7 +510,7 @@ function emptyEntry(): TypeCacheEntry {
 function loadFromSession(type: string): any[] | null {
   if (typeof sessionStorage === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(SESSION_STORAGE_PREFIX + type);
+    const raw = sessionStorage.getItem(sessionKeyFor(type));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
@@ -355,12 +519,25 @@ function loadFromSession(type: string): any[] | null {
   }
 }
 
-function saveToSession(type: string, items: any[]): void {
+function saveToSession(type: string, items: any[], orgScope: string = activeOrgScope()): void {
   if (typeof sessionStorage === 'undefined') return;
   try {
-    sessionStorage.setItem(SESSION_STORAGE_PREFIX + type, JSON.stringify(items));
+    sessionStorage.setItem(sessionKeyForOrg(type, orgScope), JSON.stringify(items));
   } catch {
     /* quota or serialization failure */
+  }
+}
+
+/**
+ * Delete the entry a type wrote while the active organization was still
+ * unknown — see {@link NO_ORG_SCOPE} and objectui#5243.
+ */
+function removeNoOrgSeedEntry(type: string): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.removeItem(sessionKeyForOrg(type, NO_ORG_SCOPE));
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -371,6 +548,9 @@ function saveToSession(type: string, items: any[]): void {
 export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: MetadataProviderProps) {
   const cacheRef = useRef<Map<string, TypeCacheEntry>>(new Map());
   const itemPromisesRef = useRef<Map<string, ItemPromiseMap>>(new Map());
+  // Types whose session entry this boot wrote under NO_ORG_SCOPE because the
+  // active organization had not resolved yet (objectui#5243).
+  const unscopedSeedTypesRef = useRef<Set<string>>(new Set<string>());
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
 
@@ -489,7 +669,21 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
           }
           // Never let the draft-overlaid world poison the published session
           // cache — preview is ephemeral by design.
-          if (type === 'app' && !preview) saveToSession(type, items);
+          if (type === 'app' && !preview) {
+            const orgScope = activeOrgScope();
+            saveToSession(type, items, orgScope);
+            // objectui#5243 — remember that THIS boot wrote the entry before
+            // the active organization was known, so the org-resolution effect
+            // below can move it onto the key the next boot will look under.
+            // Recorded per write (not per mount) because it is the write that
+            // either did or did not know its scope; a later write that DOES
+            // know it retires the note.
+            if (orgScope === NO_ORG_SCOPE) {
+              unscopedSeedTypesRef.current.add(type);
+            } else {
+              unscopedSeedTypesRef.current.delete(type);
+            }
+          }
           debug(`fetched type=${type} items=${items.length} in ${Date.now() - started}ms`);
           bump();
           return items;
@@ -637,13 +831,114 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<Error | null>(null);
 
+  // ── An org change drops the whole cache (objectui#4486) ───────────────────
+  //
+  // Scoping the sessionStorage seed by org covers the RELOADING switch paths
+  // (`WorkspaceSwitcher` and `OrganizationsPage` both full-page-navigate to the
+  // console root after `switchOrganization` resolves). It does NOT cover the
+  // switch path that stays inside the SPA:
+  // `console/organizations/manage/OrganizationLayout` calls `switchOrganization`
+  // from an effect whenever the `/organizations/:slug` segment names a
+  // different org, with no reload at all. On that path the IN-MEMORY cache
+  // below is what answers `useMetadata().apps`, and it would keep serving the
+  // previous org's items until the 5-minute TTL lapsed.
+  //
+  // The card's invariant is about the data, not the storage key, so it is
+  // enforced where the data actually lives: one organization's metadata never
+  // survives into another organization's reads. Same shape as the preview-mode
+  // clear above — swapping the active org swaps the world every `/meta/*`
+  // request resolves in.
+  const { activeOrganization } = useAuth();
+  const activeOrgId = activeOrganization?.id ?? null;
+  const lastOrgId = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = lastOrgId.current;
+    lastOrgId.current = activeOrgId;
+    // The FIRST resolution (unknown → known) is NOT a switch. AuthProvider
+    // resolves the active organization asynchronously after mount, so this
+    // effect sees `null → <id>` on every normal boot; clearing there would
+    // throw away the eager `app`/`object`/`view` fetches while they are still
+    // in flight and make the next render refetch all three — precisely the
+    // doubled-request regression objectui#4042 pinned.
+    if (previous === null || previous === activeOrgId) {
+      // ── The seed written before the org was known (objectui#5243) ────────
+      //
+      // Not a switch, but it IS the moment the scope of this boot's own seed
+      // entry becomes known. On a browser that has never signed in,
+      // `ActiveOrganizationStorage` is empty at mount and the eager `app`
+      // fetch — one round trip — lands long before AuthProvider's
+      // `getSession` → `listOrganizations` → `getActiveOrganization` chain
+      // stamps it. So the entry goes to `…:@none:…`, every later boot computes
+      // the real org id, and the seed misses the boot right after a first
+      // login while the `@none` entry is orphaned until the tab closes.
+      //
+      // Moving the label is sound because the entry is correctly SCOPED and
+      // merely mislabelled: that first request carried no `X-Tenant-ID` (same
+      // empty storage), and the server does not read that header for tenant
+      // scoping — `resolveAuthzContext` takes `tenantId` from
+      // `session.activeOrganizationId` and nothing else, and the environment
+      // chain reads only the hostname and `X-Environment-Id`. The response was
+      // therefore computed for exactly the organization being stamped here.
+      //
+      // Deliberately NOT "wait for the org before seeding": the docblock on
+      // `activeOrgScope` already records why the async context value cannot
+      // gate the seed — it resolves after mount, so gating on it makes EVERY
+      // boot miss its own entry, which is the optimization's whole point.
+      // And deliberately not a refetch: that would trade this card's miss for
+      // the objectui#4042 request-budget regression.
+      if (previous === null && activeOrgId && unscopedSeedTypesRef.current.size > 0) {
+        for (const type of unscopedSeedTypesRef.current) {
+          const entry = cacheRef.current.get(type);
+          if (entry && entry.status === 'ready' && entry.items.length > 0) {
+            // Written from the LIVE entry rather than copied through storage:
+            // the items are already in hand, so no parse, and a cached EMPTY
+            // list stays a miss exactly as objectui#4486 requires.
+            saveToSession(type, entry.items, activeOrgId);
+          }
+          removeNoOrgSeedEntry(type);
+        }
+        unscopedSeedTypesRef.current.clear();
+      }
+      return;
+    }
+
+    let cancelled = false;
+    cacheRef.current.clear();
+    itemPromisesRef.current.clear();
+    // `apps` is the one collection read straight off the entry
+    // (`getEntry('app').items`) instead of through `readType`, so unlike every
+    // lazy type it is NOT re-armed by a consumer reading it. Without this kick
+    // the clear above would leave the nav permanently empty on the no-reload
+    // path. And `initialLoading` goes back up for the same reason the cached-
+    // empty case is a miss: while the new org's list is in flight, "no apps" is
+    // not yet an answer.
+    setInitialLoading(true);
+    void ensureType('app').finally(() => {
+      if (!cancelled) setInitialLoading(false);
+    });
+    bump();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrgId, bump, ensureType]);
+
   useEffect(() => {
     let cancelled = false;
 
     // Session-cached apps are PUBLISHED-world data — seeding them while in
     // draft preview would flash the wrong universe before the fetch lands.
     const cached = previewDrafts ? null : loadFromSession('app');
-    if (cached) {
+    dropForeignPrincipalEntries();
+    // A cached EMPTY list is a MISS, not a hit (objectui#4486).
+    //
+    // `[]` is truthy, so an empty cached list used to take this branch and
+    // clear `initialLoading` — which made "no apps (cached, possibly stale)"
+    // indistinguishable from "no apps (fresh)" for every consumer that gates on
+    // `loading`. There is also nothing to gain: seeding zero items saves no
+    // render, while the `status: 'ready'` it stamped made `getTypeStatus('app')`
+    // claim a settled answer the provider did not have. Falling through leaves
+    // the entry `idle` and `initialLoading` true until the fetch below lands.
+    if (cached && cached.length > 0) {
       const entry = getEntry('app');
       entry.items = cached;
       entry.status = 'ready';

@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from '@object-ui/components';
 import type { HighlightField } from '@object-ui/types';
+import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { useSafeFieldLabel, useInlineEdit } from '@object-ui/react';
 import { Check, X, Pencil } from 'lucide-react';
@@ -140,13 +141,32 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               resolvedType === 'currency' ||
               resolvedType === 'percent' ||
               resolvedType === 'decimal';
+            // Two independent reasons a chip needs the wide basis, kept
+            // separate because only one of them is a shared table:
+            //  1. long-text DISPLAY types, whose value simply does not fit a
+            //     9rem column — this surface's own list, unchanged here;
+            //  2. REFERENCE-BEARING types, whose inline editor is a record
+            //     picker (see the `dataSource` prop doc above, which already
+            //     names `lookup` / `user` together as the reference editors).
+            // The second is NOT restated here: it is `EXPANDABLE_FIELD_TYPES`
+            // in `@object-ui/core`, the one relational family every other face
+            // reads (objectui#4770 / #4790 / #4815 / #5312 / #5692). The
+            // literal that stood here diverged in BOTH directions
+            // (objectui#5874): it lacked `user` and `tree` — whose picker needs
+            // the same room as `lookup`'s, so gaining them RESTORES the stated
+            // rule — and it carried `reference`, a spelling neither source of
+            // `resolvedType` can produce (`HighlightField['type']` is a closed
+            // union without it, and `@objectstack/spec`'s `FieldType` refuses
+            // it), exactly where `owner` sat before objectui#4814 retired it.
+            //
+            // Pinned by an identity spy on that `has`. Extending this surface
+            // later: OR in another surface-local disjunct, the way (1) is
+            // written. Never `new Set([...EXPANDABLE_FIELD_TYPES, ...])`.
             const isWide =
               resolvedType === 'email' ||
               resolvedType === 'url' ||
               resolvedType === 'textarea' ||
-              resolvedType === 'reference' ||
-              resolvedType === 'lookup' ||
-              resolvedType === 'master_detail';
+              (!!resolvedType && EXPANDABLE_FIELD_TYPES.has(resolvedType));
             const isBoolean = resolvedType === 'boolean';
             const isEmpty = value === null || value === undefined || value === '';
 

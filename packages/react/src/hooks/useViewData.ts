@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useMemo, useContext } from 'react';
 import type { DataSource, ViewData, QueryParams, QueryResult } from '@object-ui/types';
 import { resolveDataSource, type ResolveDataSourceOptions } from '@object-ui/core';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 // ---------------------------------------------------------------------------
 // Types

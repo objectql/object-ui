@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef, useId } from 'react';
-import type { FormField, DataSource } from '@object-ui/types';
+import type { FormField, DataSource, ObjectFormSchema } from '@object-ui/types';
 import {
   Sheet,
   SheetContent,
@@ -49,7 +49,9 @@ import {
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
 import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
+import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 
 /**
  * Container-query-based grid classes for form field layout.
@@ -89,6 +91,12 @@ export interface DrawerFormSectionConfig {
   fields: (string | FormField)[];
   collapsible?: boolean;
   collapsed?: boolean;
+  /**
+   * ADR-0089 `FormSection.visibleWhen` — conditional visibility for the
+   * section's divider HEADER, evaluated by the form renderer with the canonical
+   * engine and the host predicate scope (#6010/#6111). Fails OPEN.
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
   /** Custom CSS class for the section's divider header. */
   className?: string;
 }
@@ -149,6 +157,21 @@ export interface DrawerFormSchema {
   readOnly?: boolean;
   layout?: 'vertical' | 'horizontal';
   columns?: number;
+  /**
+   * Override persistence — the seam a host uses to own the write. Declared as
+   * `ObjectFormSchema['submitHandler']` rather than restated, so this variant
+   * and the canonical key `ObjectForm` forwards can never drift apart.
+   * When supplied, the form validates and hands the collected values
+   * to this handler INSTEAD of calling `dataSource.create` /
+   * `dataSource.update`; the returned record is passed on to `onSuccess`.
+   *
+   * `MasterDetailForm` supplies it to route the parent AND its child
+   * collections through one atomic `batchTransaction` (#2679 / ADR-0034
+   * item 4). A renderer that does not read it writes the parent on its own and
+   * escapes that transaction — objectui#6176.
+   */
+  submitHandler?: ObjectFormSchema['submitHandler'];
+
   onSuccess?: (data: any) => void | Promise<void>;
   onError?: (error: Error) => void;
   onCancel?: () => void;
@@ -180,6 +203,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   className,
 }) => {
   const { fieldLabel, sectionLabel } = useSafeFieldLabel();
+  const { userId: currentUserId } = usePermissions();
   const { t } = useDiscardTranslation();
   const previewMode = usePreviewMode();
   const [objectSchema, setObjectSchema] = useState<any>(null);
@@ -256,7 +280,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         // Declared static defaults are this form's opening values (#4047) —
         // see `schemaDefaults` for the create-only boundary and for why
         // runtime defaults are left to the server.
-        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+        setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
         setLoading(false);
         return;
       }
@@ -375,7 +399,14 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
     setIsSubmitting(true);
     try {
-      if (!dataSource) {
+      // No submit TARGET: a declared `submitHandler` owns the write and needs no
+      // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+      // nor a `dataSource` is target-less. The one target-less form that is still
+      // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+      // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+      // adapter-less submit, bypassing a declared host seam and persisting
+      // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+      if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
         if (schema.onSuccess) {
           await schema.onSuccess(data);
         }
@@ -386,14 +417,29 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
 
       let result;
       const payload = sanitizeFormData(data, objectSchema);
-      if (schema.mode === 'create') {
-        // Omit the fields the producer owns (#4069) — see
-        // `omitServerResolvedDefaults` for why an empty key is not the same as
-        // no key at insert time.
-        result = await dataSource.create(
-          schema.objectName,
-          omitServerResolvedDefaults(payload, objectSchema),
-        );
+      // Omit the fields the producer owns (#4069) — see
+      // `omitServerResolvedDefaults` for why an empty key is not the same as
+      // no key at insert time. Create only: on an edit form a cleared column is
+      // a real removal. Computed ONCE so every persistence route below — the
+      // host-owned seam included — writes the identical payload.
+      const writePayload = schema.mode === 'create'
+        ? omitServerResolvedDefaults(payload, objectSchema)
+        : payload;
+
+      if (schema.submitHandler) {
+        // The host owns persistence (e.g. MasterDetailForm batching the parent
+        // + its child collections into ONE atomic transaction). The form
+        // validates and hands the values over; it does NOT create/update
+        // itself. Same seam and same precedence as SimpleObjectForm — every
+        // renderer `ObjectForm` routes to must check it FIRST, or a declared
+        // host-owned write silently becomes an independent one (objectui#6176).
+        result = await schema.submitHandler(writePayload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of reporting
+        // success — the `catch` below hands this to `schema.onError` and rethrows.
+        throw noSubmitTargetError();
+      } else if (schema.mode === 'create') {
+        result = await dataSource.create(schema.objectName, writePayload);
       } else if (schema.mode === 'edit' && schema.recordId) {
         // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks the
         // user to keep editing (drawer stays open, draft intact) or overwrite.
@@ -540,11 +586,20 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       schema.sections.forEach((section, index) => {
         const sectionKey = section.name || String(index);
         const isCollapsed = collapsedSections[sectionKey] ?? (section.collapsed ?? false);
+        // Resolved before the divider push so the membership claim below can
+        // name exactly the fields this group contributes (#6236).
+        const sectionFields = buildSectionFields(section);
 
         allFields.push({
           name: `__section_${sectionKey}`,
           label: section.label || '',
           type: 'section-divider',
+          // ADR-0089 section predicate (#6111) — the renderer evaluates it on
+          // this pseudo-field with the host predicate scope bound (#6010).
+          visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): resolved member names, so the
+          // predicate gates the whole group.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,
@@ -554,7 +609,6 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           className: (section as any).className,
         } as any);
 
-        const sectionFields = buildSectionFields(section);
         if (isCollapsed) {
           allFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
         } else {
@@ -601,6 +655,11 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
             name: `__section_${sectionKey}`,
             label: title,
             type: 'section-divider',
+            // ADR-0089 section predicate (#6111).
+            visibleWhen: (section as any).visibleWhen,
+            // The membership claim (#6236): resolved member names, so the
+            // predicate gates the whole group.
+            fields: body.map(f => f.name),
             colSpan: 4,
             collapsible: section.collapsible,
             collapsed: isCollapsed,

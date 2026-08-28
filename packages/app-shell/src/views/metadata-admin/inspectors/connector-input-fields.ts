@@ -64,9 +64,9 @@
  */
 
 import * as React from 'react';
-import { jsonSchemaToFlowFields } from './json-schema-to-fields';
-import type { FlowConfigField } from './flow-node-config';
-import { apiBase } from '../previews/useFlowNodePalette';
+import { jsonSchemaToFlowFields } from './json-schema-to-fields.js';
+import type { FlowConfigField } from './flow-node-config.js';
+import { apiBase } from '../previews/useFlowNodePalette.js';
 
 /** Where a connector node's mapped inputs live on the node (spec-structured). */
 export const CONNECTOR_INPUT_PATH: readonly string[] = ['connectorConfig', 'input'];

@@ -7,8 +7,8 @@
  */
 
 import { useMemo } from 'react';
-import { useBreakpoint } from './useBreakpoint';
-import { resolveResponsiveValue } from './breakpoints';
+import { useBreakpoint } from './useBreakpoint.js';
+import { resolveResponsiveValue } from './breakpoints.js';
 import type { BreakpointName, SpecResponsiveConfig } from '@object-ui/types';
 
 /**

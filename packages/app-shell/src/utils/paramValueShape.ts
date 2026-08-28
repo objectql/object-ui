@@ -33,7 +33,7 @@
  * a declared shape, or if a pinned endpoint contract changes.
  */
 import type { ActionParamDef } from '@object-ui/core';
-import { paramToField } from './paramToField';
+import { paramToField } from './paramToField.js';
 
 /**
  * The vocabulary of emitted value shapes. A closed union so the table, the

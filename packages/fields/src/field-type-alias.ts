@@ -27,14 +27,30 @@ export interface FieldTypeMappingConfig {
  *
  * `select` is the only member, and the narrowness is measured, not assumed. The
  * spec's `MULTI_CAPABLE_TYPES` is larger — select / lookup / file / image, with
- * `radio` on the select branch and `user` storing like `lookup` — but every
- * other member renders both arities INSIDE one widget: `LookupField`,
- * `FileField` and `ImageField` each branch on `multiple` themselves, so their
+ * `radio` on the select branch and `user` storing like `lookup` — and every
+ * member EXCEPT `radio` renders both arities INSIDE one widget: `LookupField`,
+ * `FileField` and `ImageField` each branch on `multiple` themselves, and
+ * `UserField` inherits that branch by delegating to `LookupField`, so their
  * registry id, and with it their `labelling` declaration, is the same either
  * way. A `select` declared `multiple: true` renders `MultiSelectField` instead:
  * a different component, whose labelled surface is a chip row's container that
  * a `<label for>` cannot address (it must be named by IDREF, which is what
  * `field:multiselect`'s `labelling: 'group'` declares — objectui#3975/#3961).
+ *
+ * `radio` is the EXCEPTION, and it is deliberate rather than a gap to be patched
+ * here: `RadioField` reads `multiple` nowhere, so a spec-legal
+ * `{ type: 'radio', multiple: true }` renders an ordinary single-value radio
+ * group — radio is the one `MULTI_CAPABLE_TYPES` member with no multi-arity
+ * renderer at all. Do not paper over that by mapping radio onto a checkbox
+ * group: this repo's emitted value-shape contract pins radio as single-value
+ * (`@object-ui/app-shell`'s `PARAM_VALUE_SHAPES` declares `radio` with
+ * `cardinality: 'scalar'`, drift-tested in `paramValueShape.test.ts`), so a
+ * multi-value rendering would emit `string[]` where that contract says
+ * `string`. The mismatch is being addressed on the PRODUCER side instead: the
+ * maintainer ruling of 2026-08-22 refuses an authored `radio` + `multiple: true`
+ * at the spec's schema/publish entrance, prescribing `checkboxes`/`multiselect`/
+ * `tags`. That work is tracked in objectstack-ai/objectstack#11437 (filed, not
+ * landed as of this comment), with objectui#4015 as the decision anchor.
  *
  * So the widget id has to carry the arity. When it did not, the host label was
  * associated by the declaration registered under `select` — a single-value
@@ -48,70 +64,30 @@ const MULTI_VALUE_FORM_TYPES: Record<string, string> = {
 };
 
 /**
- * TOMBSTONE table — field-type spellings this renderer has RETIRED, mapped to
- * the prescription an author must follow instead (ADR-0049 enforce-or-remove).
+ * The retirement half of this module — the TOMBSTONE table
+ * {@link RETIRED_FIELD_TYPES}, the {@link isRetiredFieldType} gate, and the
+ * once-per-spelling reporter — now lives in `@object-ui/core`
+ * (`utils/retired-field-types.ts`), hoisted there by objectui#4914 so that
+ * `@object-ui/components`' filter builder can read the SAME table: `fields`
+ * depends on `components`, so the six ruled predicate faces could not all
+ * reach a table that lived here. The module's docblock carries the full
+ * reasoning, including why a second copy in `components` would have broken the
+ * ruling's "fires once" clause on day one.
  *
- * A retired spelling is not merely absent: absence here means
- * {@link mapFieldTypeToFormType}'s `|| 'field:text'` tail would hand back a
- * working plain text input, which is the failure mode this table exists to
- * prevent. An author who writes a retired name — or an AI author who copies one
- * out of a stale doc — must be TOLD, not quietly given a text box that looks
- * like it worked. So each entry resolves to {@link RETIRED_WIDGET_KEY_PREFIX}
- * plus the retired name: a registered tombstone widget that renders a visible
- * refusal naming the migration (`packages/fields/src/index.tsx`), while
- * {@link reportRetiredFieldType} writes the same prescription to the console.
- *
- * `owner` (objectui#4814, ruling A′): a synonym for `user` with zero behavioral
- * delta — both resolved to the SAME `UserField` widget — and absent from the
- * spec's closed 48-member `FieldType`, so no object schema could ever declare
- * it; it was reachable only through hand-written SDUI. Three code faces had
- * already drifted apart on this one word (the form's data-source rule excluded
- * it while plugin-grid's bulk dialog included it), which is the standing
- * evidence that a second spelling for one concept is a drift channel, not a
- * convenience. The idiom survives verbatim as `{ type: 'user', name: 'owner' }`.
+ * Re-exported from here, and from the `./index` barrel, so `@object-ui/fields`'
+ * published surface is exactly what it was plus the newly ruled gate. This file
+ * remains the retirement table's first consumer (the `field:text` tail below).
  */
-export const RETIRED_FIELD_TYPES: Readonly<Record<string, string>> = Object.freeze({
-  owner:
-    "[object-ui] Field type `owner` was RETIRED (objectui#4814). It was a synonym " +
-    "for `user` with no behavioral difference, and it is not a member of " +
-    "`@objectstack/spec`'s FieldType. Write the record-owner field as " +
-    "`{ type: 'user', name: 'owner' }` — the field NAME carries the ownership " +
-    "meaning, the type carries the widget. The `widget: 'field:owner'` spelling " +
-    "is retired with it.",
-});
+export {
+  RETIRED_FIELD_TYPES,
+  isRetiredFieldType,
+  reportRetiredFieldType,
+  resetRetiredFieldTypeReports,
+} from '@object-ui/core';
+import { reportRetiredFieldType } from '@object-ui/core';
 
 /** Namespace prefix the retired spellings resolve into. */
 const RETIRED_WIDGET_KEY_PREFIX = 'field:';
-
-/**
- * Spellings already reported this session, so a retired type inside a rendered
- * list logs its prescription ONCE instead of once per row. The message is a
- * fix instruction for an author, not a per-render event — a 1000-row grid
- * repeating it 1000 times buries the very thing it is trying to surface.
- */
-const reportedRetiredTypes = new Set<string>();
-
-/**
- * Report a retired field-type spelling loudly, once per spelling.
- *
- * @param fieldType - The spelling the author wrote.
- * @returns `true` when `fieldType` is retired (whether or not this call was the
- * one that logged), so callers can branch on it without a second table lookup.
- */
-export function reportRetiredFieldType(fieldType: string): boolean {
-  const prescription = RETIRED_FIELD_TYPES[fieldType];
-  if (!prescription) return false;
-  if (!reportedRetiredTypes.has(fieldType)) {
-    reportedRetiredTypes.add(fieldType);
-    console.error(prescription);
-  }
-  return true;
-}
-
-/** Test seam — forget which spellings have been reported. */
-export function resetRetiredFieldTypeReports(): void {
-  reportedRetiredTypes.clear();
-}
 
 /**
  * Map field type to form component type

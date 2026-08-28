@@ -44,22 +44,22 @@ import {
   Table2,
 } from 'lucide-react';
 import { Button } from '@object-ui/components';
-import { useRecentItems, type RecentItem } from '../../context/RecentItemsProvider';
+import { useRecentItems, type RecentItem } from '../../context/RecentItemsProvider.js';
 import {
   useMetadataClient,
   useMetadataTypes,
   useGlobalDiagnostics,
   type RichMetadataTypeEntry,
-} from './useMetadata';
-import { MetadataQuickFind } from './QuickFind';
+} from './useMetadata.js';
+import { MetadataQuickFind } from './QuickFind.js';
 import {
   translateMetadataType,
   translateMetadataDomain,
   t,
   tFormat,
   useMetadataLocale,
-} from './i18n';
-import { buildPackageScopeOptions } from './package-scope';
+} from './i18n.js';
+import { buildPackageScopeOptions } from './package-scope.js';
 
 const HIDDEN_TYPES = new Set(['field', 'package']);
 

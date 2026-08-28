@@ -32,8 +32,11 @@ pnpm test
 ```
 
 The console is a **pure SPA** and requires an external ObjectStack backend.
-Point it at any running ObjectStack instance via `VITE_SERVER_URL` in
-`apps/console/.env.development` (defaults to `http://localhost:3000`).
+`VITE_SERVER_URL` in `apps/console/.env.development` ships empty (same-origin);
+the Vite dev server proxies `/api/*` to `http://localhost:3000` by default, or
+to `DEV_PROXY_TARGET` when set — e.g.
+`DEV_PROXY_TARGET=https://demo.objectstack.ai pnpm dev` — to point dev at a
+different backend without leaving same-origin.
 
 To run a backend locally, use the `@objectstack/cli` from a separate
 ObjectStack project checkout — we no longer ship an in-repo dev-server
@@ -49,9 +52,11 @@ The console runs as a standalone SPA against any ObjectStack backend:
 
 - Vite dev server with Hot Module Replacement (HMR), opens at
   http://localhost:5180.
-- Talks to the ObjectStack backend defined by `VITE_SERVER_URL`
-  (default `http://localhost:3000`).
-- Vite proxies `/api/*` and `/_account/*` to that backend.
+- `VITE_SERVER_URL` is empty by default (same origin); Vite proxies `/api/*`
+  to `http://localhost:3000`, or to `DEV_PROXY_TARGET` when set, to reach the
+  ObjectStack backend.
+- Only `/api/*` is proxied — `/_auth/*` and `/_account/*` are **not**
+  proxied.
 
 ### 2. Standalone SPA preview
 **Command:** `pnpm start`

@@ -10,7 +10,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import {
   useCollaborationTranslation,
   type CollaborationTranslate,
-} from './useCollaborationTranslation';
+} from './useCollaborationTranslation.js';
 
 export interface Comment {
   id: string;

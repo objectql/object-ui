@@ -95,6 +95,7 @@ export interface BoardProps {
 
 ### 2. Build the Implementation
 
+<!-- doc-snippet: fragment — step 2 of the tutorial: this is the plugin package's own src/BoardImpl.tsx and it imports ./types, the sibling module step 1 tells the reader to write, so it cannot resolve in isolation -->
 ```tsx
 // src/BoardImpl.tsx
 import React from 'react';
@@ -133,6 +134,7 @@ export default function BoardImpl({ schema, className }: BoardProps) {
 
 ### 3. Create the Entry Point
 
+<!-- doc-snippet: fragment — step 3 of the tutorial: the plugin package's own src/index.tsx, importing ./BoardImpl and ./types — both are files the reader created in steps 1 and 2 -->
 ```tsx
 // src/index.tsx
 import React, { Suspense } from 'react';
@@ -180,6 +182,8 @@ Field widgets follow the `FieldWidgetComponentProps` interface from `@object-ui/
 
 ```typescript
 // FieldWidgetComponentProps<T> shape (from packages/fields/src/widgets/types.ts)
+import type { FieldMetadata } from '@object-ui/types';
+
 type FieldWidgetComponentProps<T = any> = {
   value: T;
   onChange: (val: T) => void;
@@ -209,6 +213,7 @@ grids, reports). That is precisely why a **field widget** needs an adapter when
 it is rendered from a schema node instead of from a form. Wrap it once, at
 registration, and the widget only ever implements one contract:
 
+<!-- doc-snippet: fragment — registration excerpt: ColorPickerField is the widget the reader writes in the next section, shown here first so the registration call reads in one piece -->
 ```tsx
 import { ComponentRegistry } from '@object-ui/core';
 import { withFieldCarrier } from '@object-ui/fields';
@@ -292,6 +297,7 @@ export function ColorPickerField({
 
 Register it as a field widget:
 
+<!-- doc-snippet: fragment — the plugin package's own src/index.tsx again, importing ./ColorPickerField — the file written in the block immediately above -->
 ```tsx
 // src/index.tsx
 import { ComponentRegistry } from '@object-ui/core';
@@ -317,6 +323,7 @@ export { ColorPickerField };
 
 Namespaces prevent type collisions between plugins:
 
+<!-- doc-snippet: fragment — continues the board example: BoardRenderer is the component defined in step 3's src/index.tsx, not re-declared here -->
 ```tsx
 import { ComponentRegistry } from '@object-ui/core';
 
@@ -337,6 +344,8 @@ Use `skipFallback: true` in the metadata if you do **not** want the component to
 ### Querying Registered Components
 
 ```tsx
+import { ComponentRegistry } from '@object-ui/core';
+
 ComponentRegistry.has('board');                              // boolean
 ComponentRegistry.getAllTypes();                              // string[]
 ComponentRegistry.getNamespaceComponents('plugin-board');     // ComponentConfig[]
@@ -346,6 +355,7 @@ ComponentRegistry.getNamespaceComponents('plugin-board');     // ComponentConfig
 
 Define your schema interface in `types.ts` and extend `BaseSchema`:
 
+<!-- doc-snippet: fragment — abridged restatement of step 1's src/types.ts — BoardColumn and BoardItem are the interfaces declared alongside it there, elided to keep the extends BaseSchema line in focus -->
 ```typescript
 import type { BaseSchema } from '@object-ui/types';
 
@@ -358,6 +368,7 @@ export interface BoardSchema extends BaseSchema {
 
 Declare `ComponentInput` entries when registering so the visual designer can offer a property panel:
 
+<!-- doc-snippet: fragment — continues the board example: ComponentRegistry and BoardRenderer both come from step 3's src/index.tsx; this block shows only the inputs metadata -->
 ```tsx
 ComponentRegistry.register('board', BoardRenderer, {
   inputs: [
@@ -378,10 +389,14 @@ ComponentRegistry.register('board', BoardRenderer, {
 
 ObjectUI uses **Vitest + React Testing Library**. Place tests next to the implementation.
 
+<!-- doc-snippet: fragment — the plugin package's own src/BoardImpl.test.tsx, importing ./BoardImpl — the implementation the reader wrote in step 2 -->
 ```tsx
 // src/BoardImpl.test.tsx
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+// `toBeInTheDocument` is a jest-dom matcher, not a Vitest one — without this
+// import the assertions below do not type-check and do not run.
+import '@testing-library/jest-dom';
 import BoardImpl from './BoardImpl';
 
 const schema = {
@@ -458,6 +473,7 @@ npm publish --access public
 pnpm add @object-ui/plugin-board
 ```
 
+<!-- doc-snippet: fragment — consumer-side excerpt: @object-ui/plugin-board is the package the reader has just been taught to build and publish, so it does not resolve from this repo -->
 ```tsx
 // app/main.tsx — import once, auto-registers
 import '@object-ui/plugin-board';

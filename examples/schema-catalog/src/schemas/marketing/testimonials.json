@@ -32,35 +32,36 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 4,
+              "gap": 4,
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center gap-1",
+                  "align": "center",
+                  "gap": 1,
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]
@@ -72,7 +73,8 @@
                 },
                 {
                   "type": "flex",
-                  "className": "items-center gap-3",
+                  "align": "center",
+                  "gap": 3,
                   "children": [
                     {
                       "type": "avatar",
@@ -81,7 +83,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -106,35 +108,36 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 4,
+              "gap": 4,
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center gap-1",
+                  "align": "center",
+                  "gap": 1,
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]
@@ -146,7 +149,8 @@
                 },
                 {
                   "type": "flex",
-                  "className": "items-center gap-3",
+                  "align": "center",
+                  "gap": 3,
                   "children": [
                     {
                       "type": "avatar",
@@ -155,7 +159,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -180,35 +184,36 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 4,
+              "gap": 4,
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center gap-1",
+                  "align": "center",
+                  "gap": 1,
                   "children": [
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     },
                     {
                       "type": "icon",
-                      "name": "star",
+                      "icon": "star",
                       "className": "h-4 w-4 fill-yellow-500 text-yellow-500"
                     }
                   ]
@@ -220,7 +225,8 @@
                 },
                 {
                   "type": "flex",
-                  "className": "items-center gap-3",
+                  "align": "center",
+                  "gap": 3,
                   "children": [
                     {
                       "type": "avatar",
@@ -229,7 +235,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",

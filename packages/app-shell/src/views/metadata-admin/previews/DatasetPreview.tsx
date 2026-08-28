@@ -18,9 +18,9 @@
 
 import * as React from 'react';
 import { Loader2, BarChart3, AlertTriangle, PackageOpen } from 'lucide-react';
-import { useAdapter } from '../../../providers/AdapterProvider';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewEmptyState, PreviewErrorBoundary } from './PreviewShell';
+import { useAdapter } from '../../../providers/AdapterProvider.js';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewEmptyState, PreviewErrorBoundary } from './PreviewShell.js';
 import {
   formatMeasure,
   formatDimensionValue,

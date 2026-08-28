@@ -79,12 +79,23 @@ import {
   pivotBucketId,
   pivotDimensionValue,
   pivotCellKey,
+  // objectui#4906 — the report chart's per-category derivation, reusing the
+  // exact chain `DatasetWidget` already runs (see the call site below): the
+  // category dimension's own option COLOURS (`buildOptionColorMap`) and its
+  // declared picklist ORDER (`buildCategoryOrder`, framework#3588), fed
+  // LOCALIZED options (`localizeFieldOptions` + `dimensionOptionTranslator`) so
+  // they key by the same string the relabeled rows carry.
+  buildOptionColorMap,
+  buildCategoryOrder,
+  localizeFieldOptions,
+  dimensionOptionTranslator,
+  deriveDimensionLabelMaps,
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
-import { useDatasetDimensionLabels } from './useDatasetDimensionLabels';
+import { useDatasetDimensionLabels, useDatasetDimensionMeta } from './useDatasetDimensionLabels';
 
 type Row = Record<string, unknown>;
 
@@ -140,6 +151,17 @@ interface DatasetReportLike {
   columns?: string[];
   values?: string[];
   runtimeFilter?: Record<string, unknown>;
+  /**
+   * ⛔ NOT an authorable key, and NEVER applied as a filter (objectui#5137).
+   *
+   * `ReportSchema` (`@objectstack/spec`) is `z.core.$strict` and rejects
+   * `filter` outright, naming the replacement itself
+   * (`Did you mean … → runtimeFilter?`) — so a document carrying it did not
+   * arrive through the validated path. It stays declared for exactly one reason:
+   * so {@link warnOnRejectedFilterAlias} can SEE it on a stored document and
+   * say out loud that no filter was applied. Reading it AS a scope filter is
+   * the consumer tolerance this card removed. Author `runtimeFilter`.
+   */
   filter?: Record<string, unknown>;
   /**
    * Result ordering, most significant key first (framework#3916). Each `by`
@@ -177,6 +199,75 @@ export function isDatasetReport(value: unknown): value is DatasetReportLike {
   if (typeof v.dataset === 'string' && v.dataset.length > 0) return true;
   // A joined report whose blocks are dataset-bound.
   return v.type === 'joined' && Array.isArray(v.blocks) && v.blocks.some((b) => typeof b?.dataset === 'string');
+}
+
+// Warn-once memo for the rejected `filter` key. Keyed by SITE (which already
+// carries the report / block name) plus the offending value's key set, so two
+// different stale filters on one page both report — the author has to fix every
+// producer, not just the first one seen, and a bare site key would mute the
+// second. The key set rather than a full serialization because this reads
+// stored JSON that crosses the repo boundary: a warning must not be able to
+// throw on its way out.
+const warnedFilterAliases = new Set<string>();
+
+/** Reset the warn-once memo. Exported for tests. */
+export function resetReportFilterAliasWarnings(): void {
+  warnedFilterAliases.clear();
+}
+
+const isDev = (): boolean =>
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !==
+  'production';
+
+/**
+ * Dev-mode only: say out loud that a stored document's `filter` was NOT applied.
+ *
+ * objectui#5137 removed the `report.runtimeFilter ?? report.filter` alias read
+ * (and its per-block twin). `filter` is not an authorable key — `ReportSchema`
+ * (`@objectstack/spec`) is `z.core.$strict` and refuses it, naming the
+ * replacement itself — so honouring it here made the runtime looser than the
+ * contract the spec publishes, and which message an author met was a function
+ * of which path their document travelled.
+ *
+ * Deleting the read ALONE would have been a silent narrowing: a stored document
+ * still carrying `filter` renders **unfiltered**, which for a scoped report is
+ * worse than an error. (Server-side permissions still apply, so this is not an
+ * access-control hole — it is rows the AUTHOR meant to exclude, shown without
+ * anyone being told.) So the key does not go quiet: it is said out loud, once
+ * per offending document.
+ *
+ * The rename hint is copied verbatim from the spec's own `unrecognized_keys`
+ * message (`@objectstack/spec` 17.0.0) so an author meets one message rather
+ * than two dialects of one message.
+ *
+ * Non-breaking by construction: changes no types, rejects nothing, renders
+ * everything it rendered before, and is a no-op under `NODE_ENV=production`.
+ */
+function warnOnRejectedFilterAlias(node: DatasetReportLike, site: string): void {
+  if (!isDev()) return;
+  const rejected = node.filter;
+  if (rejected === undefined) return;
+  const shape =
+    rejected && typeof rejected === 'object'
+      ? Object.keys(rejected as Record<string, unknown>).sort().join(',')
+      : String(rejected);
+  const memo = `${site}:${shape}`;
+  if (warnedFilterAliases.has(memo)) return;
+  warnedFilterAliases.add(memo);
+  console.warn(
+    `[ObjectUI] ${site} carries \`filter\`, which is not an authorable key. ` +
+      'Did you mean `filter` → `runtimeFilter`? ' +
+      'NO filter was applied — it renders UNFILTERED, showing rows the report ' +
+      'was scoped to exclude. `ReportSchema` (`@objectstack/spec`) is strict and ' +
+      'rejects `filter`, so this document did not come through the validated ' +
+      'path; the renderer no longer reads it either. Fix the producer: rename ' +
+      '`filter` to `runtimeFilter`. (objectui#5137)',
+  );
+}
+
+/** How a report / block names itself in the warning above. */
+function describeReportSite(report: DatasetReportLike): string {
+  return `Report \`${report.name ?? '(unnamed)'}\``;
 }
 
 function resolveText(label: unknown, fallback: string): string {
@@ -712,6 +803,30 @@ function authoredSeriesLabel(series: unknown, measure: string, language: string 
  *
  * Both helpers live in `@object-ui/core` beside each other, which is what keeps
  * this surface and the dashboard widget lowering ONE vocabulary once.
+ *
+ * ## The category dimension's own colours + declared order (objectui#4906)
+ *
+ * `chartConfigPresentation` takes a SECOND argument — the category dimension's
+ * own option colours, resolved from its select/lookup field metadata — and
+ * merges it UNDER an explicit author `colors` map, never over it (the
+ * precedence `chartConfigPresentation`'s own doc comment states). Until this
+ * card the report chart called it with no second argument at all, so a
+ * dimension like `health` never painted its own green/amber/red the way the
+ * SAME dimension does on a dashboard chart — only an authored `colors` record
+ * ever reached the renderer, and with none authored the chart fell to the
+ * positional palette.
+ *
+ * `categoryOrder` (framework#3588 — a picklist's declared option order IS the
+ * domain order) is the same story: derived below from the SAME field metadata
+ * and spread onto the chart schema, so a funnel's stages render in the
+ * declared pipeline order instead of sorting by value.
+ *
+ * Both are derived through `useDatasetDimensionMeta` — the exact hook and the
+ * exact `localizeFieldOptions` → `buildOptionColorMap` / `buildCategoryOrder`
+ * chain `DatasetWidget` (plugin-dashboard) already runs for its own chart —
+ * reused here rather than re-derived, which is the whole point: a second,
+ * independently-written copy of the same rule is the defect shape this repo
+ * keeps paying for (objectui#5301's four-copy resolver, one of them inverted).
  */
 function DatasetReportChart({
   dataset,
@@ -751,7 +866,7 @@ function DatasetReportChart({
     order,
   );
   const ChartComponent = useRegistryComponent('chart');
-  const { fieldLabel } = useSafeFieldLabel();
+  const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
   // objectui#4878 — the null-category bucket's LABEL. `@object-ui/core` is
   // React-free and cannot read the locale bundle, so `buildChartSeries` falls
   // back to the English `NULL_CATEGORY_LABEL`; the resolved string has to come
@@ -774,11 +889,31 @@ function DatasetReportChart({
   // put the two spellings of one value on one screen, which is the defect this
   // family exists to close.
   const chartDimensions = React.useMemo(() => (xAxis ? [xAxis] : []), [xAxis]);
-  const dimensionLabels = useDatasetDimensionLabels(
-    state.object,
-    state.dimensionFields,
-    chartDimensions,
-  );
+  // objectui#4906 — `useDatasetDimensionMeta`, NOT the label-only
+  // `useDatasetDimensionLabels` above: this chart derives more from the
+  // resolved field metadata than label maps (see the file-level doc comment
+  // above this component). Mirrors `DatasetWidget`'s own call exactly.
+  const dimensionMeta = useDatasetDimensionMeta(state.object, state.dimensionFields, chartDimensions);
+  const { categoryColors, dimensionLabels, categoryOrder } = React.useMemo(() => {
+    if (!dimensionMeta) return { categoryColors: null, dimensionLabels: null, categoryOrder: null };
+    const { metaByPath, relabel } = dimensionMeta;
+    // Colours and declared order read `option.label`, so they are fed the
+    // LOCALIZED options — the same "translate the options, then render them"
+    // shape `DatasetWidget` uses — which is what keeps them keyed by the
+    // string the relabeled rows below actually carry. `relabel[0]` is the
+    // chart's one x-axis dimension: `chartDimensions` above is at most one
+    // entry, so `relabel` never has a second.
+    const firstDimPath = relabel[0]?.path;
+    const firstDimMeta = firstDimPath ? metaByPath[firstDimPath] : undefined;
+    const firstDimOptions = firstDimPath
+      ? localizeFieldOptions(firstDimMeta?.options, dimensionOptionTranslator(firstDimMeta, fieldOptionLabel))
+      : undefined;
+    return {
+      categoryColors: buildOptionColorMap(firstDimOptions),
+      dimensionLabels: deriveDimensionLabelMaps(metaByPath, relabel, fieldOptionLabel),
+      categoryOrder: buildCategoryOrder(firstDimOptions),
+    };
+  }, [dimensionMeta, fieldOptionLabel]);
 
   const title = typeof chart.title === 'string' ? chart.title : undefined;
 
@@ -912,7 +1047,12 @@ function DatasetReportChart({
   // would draw a SECOND one inside the chart's own frame. `aria` is not lowered
   // by the whitelist at all — nothing on this path reads it (see that helper's
   // header for the ruling and where it is tracked).
-  const { title: _chartOwnTitle, ...chrome } = chartConfigPresentation(chart);
+  //
+  // objectui#4906 — `categoryColors` (derived above) is the SECOND argument,
+  // exactly as `DatasetWidget` passes its own. `chartConfigPresentation` merges
+  // it UNDER any explicit author `colors` map found on `chart`, so an authored
+  // colour still wins per category (objectui#4877's precedence, preserved).
+  const { title: _chartOwnTitle, ...chrome } = chartConfigPresentation(chart, categoryColors);
 
   return (
     <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
@@ -938,6 +1078,11 @@ function DatasetReportChart({
           // chart freezes at frame 0 (pie/donut would show no ring).
           isAnimationActive: false,
           ...chrome,
+          // objectui#4906 — the category dimension's DECLARED picklist order
+          // (framework#3588), derived above. Omitted (rather than `undefined`)
+          // when the dimension carries no options, so an ordered-sequence
+          // chart's own default (value-descending) still applies.
+          ...(categoryOrder ? { categoryOrder } : {}),
         }}
       />
     </div>
@@ -1242,10 +1387,11 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
   onDrill,
   className,
 }) => {
-  const outerFilter = mergeFilters(
-    (report.runtimeFilter ?? report.filter) as Record<string, unknown> | undefined,
-    runtimeFilter,
-  );
+  // objectui#5137 — `runtimeFilter` ONLY. `filter` is rejected by the strict
+  // spec, so it is not read here either; it is reported instead of applied.
+  const reportSite = describeReportSite(report);
+  warnOnRejectedFilterAlias(report, reportSite);
+  const outerFilter = mergeFilters(report.runtimeFilter, runtimeFilter);
   // ADR-0021 D2: `drilldown` defaults on; the host must still supply a sink.
   const drillSink = report.drilldown === false ? undefined : onDrill;
   // The DECLARED type drives the branch (#2941) — never the data shape.
@@ -1261,7 +1407,9 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
         style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
       >
         {report.blocks.map((block, index) => {
-          const blockFilter = mergeFilters(outerFilter, (block.runtimeFilter ?? block.filter) as Record<string, unknown> | undefined);
+          // objectui#5137 — same rule per block: `runtimeFilter` only.
+          warnOnRejectedFilterAlias(block, `${reportSite} block \`${block.name ?? index}\``);
+          const blockFilter = mergeFilters(outerFilter, block.runtimeFilter);
           const blockAcross = readNames(block.columns);
           // #3916 — each block orders ITSELF. A joined container selects nothing
           // of its own (the schema rejects `order` on it), and every block is an

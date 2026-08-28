@@ -25,11 +25,11 @@ import type { AuthInvitation, AuthInvitationStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check, X, Mail } from 'lucide-react';
 import { toast } from 'sonner';
-import { useOrgContext } from './orgContext';
-import { canCancelInvitations, canInviteMembers } from './orgCapabilities';
-import { resolveConsoleUrl } from '../resolveHomeUrl';
-import { resolveOrgRoleLabel } from '../orgRoleLabel';
-import { resolveOrgErrorMessage } from '../orgErrorMessage';
+import { useOrgContext } from './orgContext.js';
+import { canCancelInvitations, canInviteMembers } from './orgCapabilities.js';
+import { resolveConsoleUrl } from '../resolveHomeUrl.js';
+import { resolveOrgRoleLabel } from '../orgRoleLabel.js';
+import { resolveOrgErrorMessage } from '../orgErrorMessage.js';
 
 type StatusFilter = 'all' | 'pending' | 'accepted' | 'rejected' | 'canceled';
 

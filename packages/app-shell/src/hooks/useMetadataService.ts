@@ -11,8 +11,8 @@
  */
 
 import { useMemo } from 'react';
-import { useAdapter } from '../providers/AdapterProvider';
-import { MetadataService } from '../services/MetadataService';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { MetadataService } from '../services/MetadataService.js';
 
 export function useMetadataService(): MetadataService | null {
   const adapter = useAdapter();

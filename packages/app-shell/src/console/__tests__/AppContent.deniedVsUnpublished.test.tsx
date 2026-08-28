@@ -117,7 +117,7 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   // Irrelevant to this branch (`requestedAppMissing` returns above the no-app
   // guard), pinned to the least-privileged value so nothing here can be an
   // admin-only result.
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));
 
 const actionRunnerStub = { registerHandler: vi.fn(), getContext: () => ({}) };

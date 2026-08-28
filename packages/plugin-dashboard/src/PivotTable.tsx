@@ -98,6 +98,30 @@ function displayKey(key: string, labels?: Record<string, string>): string {
 }
 
 /**
+ * "No rows" as ONE stable value, never a per-render `[]` literal
+ * (objectui#5562).
+ *
+ * `PivotTable` spelled the empty array TWICE — as the destructuring default
+ * for `schema.data` and as the `Array.isArray` fallback — so a schema that
+ * declares no `data` key, or whose `data` is a provider-config object rather
+ * than rows, produced a FRESH array identity on every render. That value is
+ * the first entry of the cross-tabulation memo's dependency list
+ * (`[data, rowField, columnField, valueField, aggregation]`), so the memo
+ * rebuilt its two ordered key sets, its `bucket[row][col]` map, the aggregated
+ * matrix and the row/column/grand totals on every render, over nothing.
+ *
+ * Both spellings now resolve to this one module-scope value, so "no rows" is
+ * stable across renders and the memo holds. Same fix, same reason as
+ * `data-table.tsx`'s EMPTY_COLUMNS/EMPTY_ROWS (objectui#4618) and
+ * `ObjectPivotTable`'s (objectui#4629); this is the direct-use path those two
+ * did not cover.
+ *
+ * Frozen so a consumer that mutates the array it was handed cannot corrupt the
+ * shared instance for every other pivot on the page.
+ */
+const EMPTY_ROWS = Object.freeze([]) as unknown as PivotTableSchema['data'];
+
+/**
  * The aggregations this pivot computes — the renderer half of the spec's
  * `ChartAggregateFunctionSchema` (`ui/chart.zod.ts`), the UI-side subset the
  * spec deliberately carved out of the engine's 8-name `AggregationFunction`.
@@ -143,7 +167,8 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLa
     columnField,
     valueField,
     aggregation = 'sum',
-    data: rawData = [],
+    // Module-scope empty, never a `[]` literal — see EMPTY_ROWS.
+    data: rawData = EMPTY_ROWS,
     showRowTotals = false,
     showColumnTotals = false,
     format,
@@ -172,8 +197,11 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLa
     ? 'cursor-pointer hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px]'
     : '';
 
-  // Ensure data is always an array – provider config objects must not reach iteration
-  const data = Array.isArray(rawData) ? rawData : [];
+  // Ensure data is always an array – provider config objects must not reach
+  // iteration. The fallback is the shared empty, not a literal, so a
+  // provider-config schema does not re-key the cross-tabulation memo below
+  // on every render (objectui#5562).
+  const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
   const { rowKeys, colKeys, matrix, rowTotals, colTotals, grandTotal } = useMemo(() => {
     // Collect unique row/column values preserving insertion order

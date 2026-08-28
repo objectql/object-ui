@@ -24,7 +24,7 @@
  */
 
 import { createAuthenticatedFetch } from '@object-ui/auth';
-import { getCloudBase } from '../../runtime-config';
+import { getCloudBase } from '../../runtime-config.js';
 
 /** Result of ensuring the org's production environment exists. */
 export interface ProvisionedEnvironment {

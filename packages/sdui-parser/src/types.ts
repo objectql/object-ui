@@ -2,7 +2,7 @@
  * ObjectUI — SDUI JSX-source parser (ADR-0080)
  *
  * Types shared by the constrained JSX-source compiler. The parser turns a
- * constrained JSX/HTML+Tailwind *text* into the existing SDUI `SchemaNode`
+ * constrained JSX *text* into the existing SDUI `SchemaNode`
  * tree. It PARSES — it never executes. No `import`, no `eval`, no JS.
  */
 
@@ -63,7 +63,20 @@ export type ManifestInputType =
 
 export interface ManifestInput {
   name: string;
-  type: ManifestInputType;
+  /**
+   * The input's coarse type: ONE kind, or an ARRAY of kinds when the key's
+   * contract is a union (objectui#3832).
+   *
+   * A value passes {@link validateTree}'s coarse check when ANY arm accepts it,
+   * and is reported when none does — the array widens what is legal, it does
+   * not switch the check off.
+   *
+   * The single-kind form is unchanged and stays the canonical spelling for a
+   * one-arm key: `manifestFromConfigs` collapses a one-element array back to
+   * the bare string, so a manifest gains arrays only where a union was really
+   * declared and every already-published entry serializes byte-identically.
+   */
+  type: ManifestInputType | ManifestInputType[];
   required?: boolean;
   /** allowed values for `enum` inputs */
   enum?: Array<string | { value: unknown; label?: string }>;

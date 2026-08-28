@@ -1,0 +1,104 @@
+name: README Exports
+
+# Why this is its own workflow, and not a step in `ci.yml`.
+#
+# The two changes that introduce this drift are (1) a README edit and (2) a
+# source edit that renames or drops an export. `ci.yml` cannot see the first at
+# all: every one of its jobs opens with the `id: relevant` short-circuit whose
+# diff excludes `**/*.md`, so on a README-only pull request its expensive steps
+# are skipped by design (objectui#3523 moved the path filter into the jobs on
+# purpose, and `merge-queue-reporting.test.ts` holds it there). A gate against
+# fabricated README imports, living behind a switch that skips README-only pull
+# requests, would rebuild the hole it exists to close — the conclusion
+# `vi-mock-specifiers.yml`, `docs-links.yml`, `control-bytes.yml`,
+# `skills-paths.yml` and `changeset-presence.yml` each record in their own
+# headers. One gate, one home.
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-readme-exports.test.ts` fails if either is added.
+#
+# ## Why this one pays for an install and a build, when its neighbours do not
+#
+# The cheap-tier gates above run on a checkout plus one `node` call. This one
+# cannot: the export set is read SYMBOL-LEVEL out of each package's declared
+# type entry, which for 36 of the 39 packages is a built `dist/index.d.ts`. The
+# card (objectui#5043) measured why an approximation is not an option — a bare
+# `grep` for `GanttSchema` in `packages/types/src` has six hits, every one of
+# them a substring of `ObjectGanttSchema`, so a text-level export set calls a
+# fabricated name real.
+#
+# Measured cost of the extra steps on the tree this landed on: `turbo run build`
+# over all 39 packages, cold cache, concurrency 2, on a CONTENDED container:
+# 2m42s. That is well inside the same order as `ci.yml`'s own `Type Check` job
+# and an order below `Build & E2E`, which is what makes an unfiltered per-PR run
+# affordable here where it would not be for a full E2E.
+#
+# `scripts/dependabot-merge-gate.mjs` classifies `README Export Check` as a
+# required context — an unclassified blocking check is one a Dependabot merge
+# would be let past (objectui#6135), and since objectui#6160 the `merge_group`
+# floor below DERIVES from that same list.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that can become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: readme-exports-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  readme-exports:
+    name: README Export Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The gate reads each package's DECLARED type entry. Without this step
+      # those files do not exist, and the gate FAILS with `unbuilt` rather than
+      # reporting every README import as fabricated or quietly judging nothing —
+      # see the "a package whose types are not on disk" section in the script.
+      - name: Build every package, so the declared type entries exist
+        run: pnpm exec turbo run build --filter='./packages/*'
+
+      # A README in `packages/<pkg>/` teaching `import { X } from
+      # '@object-ui/<pkg>'` for an `X` the package does not export ships in the
+      # npm tarball and gives the reader TS2305 or a TypeError. One manual sweep
+      # (objectui#5043) found it in seven packages and recorded that as a LOWER
+      # bound, because the method could only see single-line imports.
+      #
+      # GREEN AT REST — zero drift in the tree when this landed and there should
+      # stay zero — so it prints its census rather than a bare "OK", and FAILS if
+      # the population collapses to nothing.
+      - name: Check every README self-import against the real export surface
+        run: pnpm check:readme-exports

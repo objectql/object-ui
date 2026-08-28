@@ -137,6 +137,154 @@ const authedFetch = createAuthenticatedFetch();
 const apiProviderFetch = createAuthenticatedFetch({ sameOriginOnly: true });
 ```
 
+## The `X-Tenant-ID` edge contract
+
+`createAuthenticatedFetch` stamps `X-Tenant-ID` on the requests it wraps. This section is
+that header's contract: what it means, who stamps it, who reads it, what a reader may
+assume, and the one window in which it is not sent at all.
+
+It is written down because **a grep cannot answer any of those questions from this
+repository.** The header's only non-CORS consumer lives in the **cloud** repository, so a
+search confined to this repo and the framework (`objectstack`) finds zero readers and
+reads as *"nothing consumes this stamp"*. That reading is what
+[objectui#5279](https://github.com/objectstack-ai/objectui/issues/5279) was filed on, and
+it is false. Do not act on it.
+
+### What it means
+
+A **routing hint** for the hosting edge — *this request belongs to tenant `<id>`*:
+
+```http
+X-Tenant-ID: <better-auth activeOrganizationId>
+```
+
+The value is the active **organization** id, the same id the session carries as
+`session.activeOrganizationId`. The header is **not** an identity claim, **not** an
+authorization input, and **not** what scopes rows.
+
+### Who stamps it
+
+| | |
+| --- | --- |
+| Stamped by | `createAuthenticatedFetch` ([`src/createAuthenticatedFetch.ts`](src/createAuthenticatedFetch.ts)) |
+| Value read from | `ActiveOrganizationStorage` ([`src/ActiveOrganizationStorage.ts`](src/ActiveOrganizationStorage.ts)) — `localStorage`, key `auth-active-organization-id:u:$userId` (per-user since objectui#5664; the bare key is the retired pre-#5664 spelling) |
+| Condition | that storage holds a non-empty value |
+| *Not* conditioned on | the URL being an `/api/` call. `Authorization` and `Accept-Language` are; this is not |
+| Suppressed by | `createAuthenticatedFetch({ sameOriginOnly: true })` for cross-origin URLs — it returns before any header work |
+| Precedence | overwrites an `X-Tenant-ID` the caller passed in `init.headers` |
+
+`ActiveOrganizationStorage` has exactly one writer, [`AuthProvider`](src/AuthProvider.tsx):
+
+| Event | Effect |
+| --- | --- |
+| `refreshOrganizations` — after `getSession` &rarr; `listOrganizations` &rarr; `getActiveOrganization` resolves (including the ADR-0081 single-membership repair) | set |
+| `switchOrganization` — the org switcher | set, or clear when the server returns no org |
+| `deleteOrganization` / `leaveOrganization`, when the active org is the one going away | clear |
+| sign-out | clear |
+
+### Who reads it
+
+**The cloud edge — yes.** The non-test readers are recorded on objectui#5279:
+`packages/service-tenant/src/tenant-context.ts` (header resolution) and
+`packages/tenant-router/src/spec/turso-multi-tenant.zod.ts`, both in the `cloud`
+repository. That repository is not readable from this one, so those paths are cited as the
+recorded reading rather than re-derived here.
+
+**Its configuration contract, though, IS readable from here**, because this package
+depends on `@objectstack/spec`. `TenantRoutingConfigSchema` (`@objectstack/spec/cloud`) is
+what configures a tenant resolver; parsing an empty config on the version this package
+resolves today (17.1.0) yields:
+
+```text
+enabled:               false
+identificationSources: ["subdomain", "header", "jwt_claim"]
+tenantHeaderName:      "X-Tenant-ID"
+jwtOrganizationClaim:  "organizationId"
+```
+
+Two consequences matter to a client author:
+
+- **The header name is configurable.** `X-Tenant-ID` is its default, not a constant.
+- **The header is one of six identification sources** (`subdomain`, `custom_domain`,
+  `header`, `jwt_claim`, `session`, `default`), and in the default precedence it ranks
+  **second, behind `subdomain`**. On a subdomain-routed deployment it is not the thing
+  that picks the tenant, and a deployment may leave it out of `identificationSources`
+  entirely.
+
+**The framework (`objectstack`) — no.** `resolveAuthzContext`
+(`packages/core/src/security/resolve-authz-context.ts`) derives `tenantId` from the
+API-key principal or from `session.activeOrganizationId`, and from no header;
+`packages/verify/src/harness.org-context.test.ts` pins it — *"`session.activeOrganizationId`
+is the ONE field `resolveAuthzContext` reads into `tenantId`"*. Environment and kernel
+routing read the hostname and `X-Environment-Id`. The framework's only other mentions are
+the CORS preflight allow-list (`DEFAULT_CORS_ALLOW_HEADERS`, whose comment describes
+`X-Tenant-ID` / `X-Environment-Id` as what routes "a request to its environment") and
+`plugin-sharing`, which records that trusting `x-tenant-id` as identity **was a
+vulnerability**: its secure default stopped reading identity from headers because doing so
+let a client forge attribution and enumerate or revoke other users' links.
+
+### What a reader may assume
+
+A reader **may**:
+
+- use it to select the tenant database or environment to route to, subject to its own
+  `identificationSources` precedence;
+- treat it as a hint that may be absent, stale, or contradicted by the session.
+
+A reader **may not**:
+
+- treat it as authenticated identity, or as an authorization decision. It is
+  client-controlled — any caller can send any value, and `plugin-sharing` is the recorded
+  precedent for what happens to a server that trusts it;
+- assume the row scoping it sees downstream came from this header. It did not: the
+  framework scopes from the session;
+- assume the header is present. See below.
+
+### The unstamped-first-request gap
+
+The stamp reads storage that `AuthProvider` fills only **after** `getSession` &rarr;
+`listOrganizations` &rarr; `getActiveOrganization` resolves. Every request that leaves
+before that chain completes carries **no** `X-Tenant-ID` at all.
+
+The window opens in five situations:
+
+1. a browser that has never signed in, or whose site data was cleared, including a private
+   window;
+2. the page load in which the user signs in — from the sign-in response until the
+   organization chain resolves;
+3. after sign-out, which clears the storage, until a new organization resolves;
+4. outside a browser (SSR, tests, a worker), where `localStorage` is unavailable and the
+   storage falls back to a per-process in-memory value that starts empty on every cold
+   start;
+5. a browser where `localStorage` exists but **rejects writes** (Safari private browsing,
+   quota exhaustion). There the window never closes — the in-memory fallback is written
+   but never read back, because `get()` only falls back when reading itself *throws*, and
+   a rejected write leaves reads working and returning `null`. Reported on objectui#5279
+   as a separate defect; it is not fixed here.
+
+Case 1 is not theoretical in this codebase: `app-shell`'s `MetadataProvider` issues its
+eager `app` metadata fetch inside exactly this window, which is why its first-boot cache
+scope needed its own reasoning
+([`packages/app-shell/src/providers/MetadataProvider.tsx`](../app-shell/src/providers/MetadataProvider.tsx),
+pinned by `MetadataProvider.firstBootOrgScope.test.tsx`).
+
+**What a reader observes in the window:** the header is **absent**, never
+present-and-empty. A resolver must fall through to its next configured identification
+source — `subdomain` already outranks it by default, with `jwt_claim`, `session` and
+`defaultTenantId` behind it — rather than fail closed on the absence. It must also not
+cache a routing decision taken inside the window as *the* tenant for the session: the very
+next request will normally carry the header.
+
+**Why the gap does not corrupt data scoping.** A response computed inside the window is
+still computed for the right tenant, because the framework takes `tenantId` from the
+session rather than from the header. The gap is a *routing-input* gap, not a scoping gap.
+This is the same reasoning objectui#5243 relied on when it relabelled a metadata cache
+entry that had been written in the window.
+
+**Closing the gap is a separate decision, not an omission.** The cloud readers observe the
+current behaviour, so changing when the header first appears changes what they see. If it
+should be closed, it needs its own card.
+
 ## Server Feature Flags (`GET /auth/config`)
 
 `createAuthClient().getConfig()` fetches the server's public auth configuration. The

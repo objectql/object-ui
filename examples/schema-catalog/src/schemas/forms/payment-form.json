@@ -4,11 +4,11 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 6,
+      "gap": 6,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "text",
@@ -24,11 +24,11 @@
         },
         {
           "type": "stack",
-          "spacing": 4,
+          "gap": 4,
           "children": [
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "label",
@@ -46,7 +46,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "label",
@@ -69,7 +69,7 @@
               "children": [
                 {
                   "type": "stack",
-                  "spacing": 2,
+                  "gap": 2,
                   "children": [
                     {
                       "type": "label",
@@ -87,7 +87,7 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 2,
+                  "gap": 2,
                   "children": [
                     {
                       "type": "label",
@@ -110,7 +110,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 {
                   "type": "text",
@@ -119,11 +119,11 @@
                 },
                 {
                   "type": "stack",
-                  "spacing": 4,
+                  "gap": 4,
                   "children": [
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "label",
@@ -157,7 +157,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "label",

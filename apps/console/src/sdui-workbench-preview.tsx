@@ -2,7 +2,28 @@
  * (<ListView> + <ObjectForm>) with React state — a master/detail workbench,
  * the exact pattern of examples/app-showcase crm-workbench.page.ts. Rendered
  * through the real PageRenderer; a tiny in-memory adapter stands in for the
- * backend so the real plugins mount and the interaction is genuinely exercised. */
+ * backend so the real plugins mount and the interaction is genuinely exercised.
+ *
+ * ADR-0080 EXCEPTION — Tailwind in page source
+ * The page source below authors Tailwind classNames. The rule forbids that in
+ * real page metadata: `source` is RUNTIME metadata, the console's Tailwind is
+ * compiled at BUILD time by scanning the console's own `src` (`@source
+ * '../src/**'` in index.css) with no safelist, so a utility class authored in a
+ * real page produces no CSS and no error anywhere. `os validate` reports it as
+ * `page-source-className-tailwind` (ADR-0065; ADR-0080's 2026-06-30 amendment;
+ * `content/docs/guide/react-pages.md` §Styling).
+ *
+ * It renders fully styled HERE only because this harness file is itself inside
+ * the scanned `src` — precisely the "works only by coincidence" failure mode
+ * ADR-0065 names. This file is a renderer-PLUMBING preview (do the real
+ * <ListView>/<ObjectForm> blocks mount and interact inside an executed react
+ * page), not an authoring example: DO NOT copy its source string into a page.
+ * The authoring example is `sdui-tiers-preview.tsx`, whose sources carry no
+ * className at all and style with each tier's real primitive.
+ *
+ * `__tests__/sdui-preview-page-source-styling.test.ts` pins this exception:
+ * the note cannot be dropped while the classNames stand, and a NEW harness
+ * cannot inherit the exception unnoticed. */
 import './index.css';
 import '@object-ui/components';
 import '@object-ui/plugin-grid';
@@ -62,8 +83,8 @@ function Page() {
   const [stats, setStats] = React.useState({ total: 0, active: 0 });
   const refreshStats = React.useCallback(async () => {
     if (!adapter) return;
-    const all = await adapter.find('showcase_project', { top: 200 });
-    const rows = Array.isArray(all) ? all : (all && all.records) || [];
+    const all = await adapter.find('showcase_project', { $top: 200 });
+    const rows = Array.isArray(all) ? all : (all && all.data) || [];
     setStats({ total: rows.length, active: rows.filter((r) => r.status === 'active').length });
   }, [adapter]);
   React.useEffect(() => { refreshStats(); }, [refreshStats, reloadKey]);

@@ -1,5 +1,338 @@
 # @object-ui/plugin-report
 
+## 17.6.0
+
+### Minor Changes
+
+- a945271: `DatasetReportRenderer` no longer reads `filter` as an alias for `runtimeFilter`.
+  
+  `filter` is not an authorable key. `ReportSchema` in `@objectstack/spec` (17.0.0)
+  is `z.core.$strict` and rejects it outright, going out of its way to name the
+  replacement: ``Unrecognized key(s) on this report: `filter`. Did you mean
+  `filter` → `runtimeFilter`?`` The renderer accepted the rejected spelling anyway,
+  at two sites — the report-level `report.runtimeFilter ?? report.filter` and the
+  per-joined-block `block.runtimeFilter ?? block.filter`. Metadata that could not
+  be authored through the validated path still rendered when it arrived by some
+  other route, so the strictness the spec promises was not the strictness the
+  runtime enforced. It matters most for AI-authored metadata: a generator emitting
+  `filter` got a working report from this renderer and a hard validation failure
+  from anything that parsed the document first, and which one the author met was a
+  function of which path the document travelled.
+  
+  **Behaviour change — read this if you store report documents.** A stored document
+  still carrying `filter` no longer has that filter applied: it renders
+  **unfiltered**, showing rows the report was scoped to exclude. Server-side
+  permissions are unaffected and still apply, so this is not an access-control
+  change — it is a report showing more rows than its author intended. Scored
+  `minor` per this repo's version policy (AGENTS.md §版本号策略), which reserves
+  `major` for the synchronized `@objectstack` major bump; the narrowing is
+  described here rather than encoded in the number.
+  
+  Because rendering unfiltered *in silence* would be worse than an error, the
+  dropped key is not silent. When a document carrying `filter` reaches the
+  renderer, a dev-mode warning fires once per offending report or block, naming the
+  key, quoting the spec's own rename hint verbatim (so an author meets one message
+  rather than two dialects of one message), and stating that no filter was applied.
+  It is a no-op under `NODE_ENV=production` and changes no types.
+  
+  Fix your documents by renaming `filter` to `runtimeFilter` — the key the schema
+  actually declares, and the one the suggestion has always pointed at. Reports that
+  already author `runtimeFilter`, and hosts that pass the `runtimeFilter` prop, are
+  entirely unaffected.
+
+### Patch Changes
+
+- cb5a7de: A report's embedded chart now paints its category dimension's own option colours and renders ordered-sequence charts (funnel/pyramid) in the field's declared picklist order — the same two derivations a dashboard chart has always gotten for the identical dimension (objectui#4906).
+  
+  `DatasetReportChart` (`DatasetReportRenderer.tsx`) resolved its dimension's option **labels** but called neither `buildOptionColorMap` nor `buildCategoryOrder` — the two `@object-ui/core` helpers `DatasetWidget` (plugin-dashboard) already runs off the same resolved field metadata. The chart forwarded only an author-supplied `colors` record (objectui#4877); with none authored it fell back to the positional palette, and a funnel's stages sorted by value instead of the declared pipeline.
+  
+  This is convergence onto an already-ruled behavior, not new capability: the report path now runs the identical `useDatasetDimensionMeta` → `localizeFieldOptions` → `buildOptionColorMap`/`buildCategoryOrder` chain the dashboard widget uses (framework#3588's declared-picklist-order ruling), reused rather than re-derived.
+  
+  **This visibly changes rendering for an existing report** that groups by a select/lookup dimension carrying option colours, or is declared on an ordered field:
+  
+  - a chart with no authored `colors` now paints each category in that dimension's own option colour (e.g. a `health` dimension now paints its own green/amber/red) instead of the renderer's positional palette;
+  - a `funnel`/`pyramid` chart now orders its stages by the field's declared picklist order instead of sorting by value.
+  
+  Precedence is unchanged and preserved: an authored `colors` record (objectui#4877) still wins over the derived per-category map, merged UNDER it exactly as the dashboard already does — an author's explicit colour for a category is never overridden by the field's own.
+- 0237208: docs(plugin-report): teach the dataset-bound report as the sole authoring shape
+  
+  `packages/plugin-report/README.md` and `content/docs/plugins/plugin-report.mdx`
+  still taught the pre-9.0 query form (`objectName` + column-definition `columns` +
+  `groupingsDown` / `groupingsAcross`) as the live way to write a report, and named
+  three renderers plus `applyInMemoryAggregation` that were removed at the ADR-0021
+  cutover. The current `ReportSchema` is strict and rejects that form outright, so
+  every copyable example on both pages now authors the dataset-bound shape
+  (`dataset` + `rows` / `columns` / `values`, `runtimeFilter`, `order`, `drilldown`,
+  `chart`) through `defineReport`. Stored pre-9.0 documents keep one clearly
+  labelled migration-only section describing the lossy bridge that renders them and
+  the key-by-key direction of migration.
+- 82a9417: docs(plugin-report): rewrite the README export snippets against the real export signatures
+  
+  The `### Export` and `### Live Export` snippets called every export function with
+  the wrong arity or argument order. Every name was real, so the name-set check
+  could not see it — only the calls were wrong:
+  
+  - The six format exporters are `(report: ReportComponentSchema, data: any[], config?: ReportExportConfig): void`.
+    The README called them `(data, filename)`, so a filename string landed in the
+    `data` slot the engine iterates as rows, and there is no filename parameter at
+    all — the download name comes from `config.filename`, else `report.title`. All
+    five are synchronous `void`, so the snippet's `await` was inert.
+    `exportReport` takes the format **first**, which no snippet showed.
+  - `exportWithLiveData(report, options)` requires `dataSource` and `resource` in
+    `LiveExportOptions`; the README passed only `{ format: 'pdf' }`.
+  - `exportExcelWithFormulas(report, data, options)` takes three parameters; the
+    README passed two, and spelled the column key `field` where `ExcelColumnConfig`
+    has the required `name` and `header`. Formula templates use the `{ROW}`
+    placeholder, which the old `SUM(B2:B100)` never exercised.
+  
+  The rewritten blocks are the exporters' own (correct) JSDoc examples, and each
+  one now compiles against the package's built `dist/index.d.ts`. Docs only — no
+  API, export surface or runtime behaviour changed.
+- f331f5a: Docs only: `packages/plugin-report/README.md` no longer teaches three exports the
+  package does not have (objectui#5016). Each was judged individually against the
+  entry module's export surface, and all three turned out to be **survivors of the
+  9.0 cutover** rather than renames — `CHANGELOG.md` records `ReportBuilder`,
+  `ScheduleConfig` and the drill helpers as removed with the pre-9.0 query-form
+  renderers, and the README kept teaching them afterwards:
+  
+  - **`ReportBuilder`** — taught as the main editor component. Removed; there is no
+    authoring component in this package. The Quick Start now teaches the real ones,
+    with their real signatures: `ReportRenderer` (the dispatcher, which takes the
+    report as `schema`), `DatasetReportRenderer` (which takes it as `report`), and
+    `ReportViewer` — whose props are `{ schema, onRefresh }`, so the old
+    `< ReportViewer report={…} showToolbar />` would not have compiled either.
+    `report` / `showToolbar` are keys inside a `ReportViewerSchema`.
+  - **`registerDrillHandler(actionRunner, …)`** — taught as the drill registration
+    call. Removed, and its mechanism no longer exists: drill-down is now a host
+    callback, `onDrill?: (args: DatasetDrillArgs) => void`, and the host owns
+    navigation because the renderer only knows dimension names (ADR-0021 D2). The
+    section is rewritten around what a click actually emits, including why
+    `objectFilter` (raw stored values) is what filters select/lookup dimensions
+    correctly where a display-label `groupKey` would not.
+  - **`ScheduleConfig`** — taught as a configuration component. Removed. A schedule
+    is *data* on the report schema: `ReportComponentSchema.schedule`, typed
+    `ReportScheduleConfig`. Both types live in `@object-ui/types` and are not
+    re-exported here, so the corrected snippet imports them from there —
+    `createScheduleTrigger` is the real export, and its real signature takes
+    `(report, dataSource, resource, onComplete)` and returns
+    `() => Promise< LiveExportResult[] >`, not the single callback the old snippet
+    passed.
+  
+  Two further leftovers of the same removal are corrected: the stale survivor
+  sentence that listed `ReportBuilder` as still available, and the schema-driven
+  example's `"type": "report-builder"`, which no component registers — the
+  registered types are `report`, `spec-report` and `report-viewer`, now listed
+  explicitly. The two feature bullets asserting the removed mechanisms (a
+  `useReportData()` query pipeline, an `ActionRunner`-dispatched `drill` action)
+  state the dataset-bound path instead.
+  
+  No code, types or runtime behaviour change — the diff is one README and this
+  changeset. The correction reaches npm with the package's next publish, which is
+  why it declares a patch: `README.md` is in the package's published `files`.
+- 5ffcc14: fix(plugin-report): forward the chart chrome and series presentation `ReportChartSchema` declares (objectui#4877)
+  
+  A report's embedded chart forwarded exactly six keys to the registered chart
+  component — `chartType`, `data`, `height`, `isAnimationActive`, `series`,
+  `xAxisKey`. Everything else `ReportChartSchema` declares as authorable never
+  left the report renderer, so it was inert metadata: the author writes it, the
+  schema accepts it, nothing reads it.
+  
+  `showLegend` was the sharpest case because dropping it does not merely ignore
+  the author, it INVERTS them: `AdvancedChartImpl` computes
+  `legendVisible = showLegend !== false`, so an absent value means the legend is
+  on and an explicit `showLegend: false` still drew one.
+  
+  Now lowered, under objectui#4229's ruled data/presentation split:
+  
+  - chrome — `showLegend`, `showDataLabels`, `colors` (both the positional-palette
+    array and the per-category record), `subtitle`, `description`, `annotations`,
+    `interaction`, `height`;
+  - per-series presentation — `color`, `stack`, `type`, `yAxis`, `dashArray`,
+    `opacity`, `variant`, matched by `series[].name` so series MEMBERSHIP stays
+    with the dataset.
+  
+  `title` is deliberately not forwarded: the report renderer paints it as its own
+  heading above the plot, and forwarding it would draw a second one inside the
+  chart's frame. `aria` is not lowered either — nothing on this path reads it
+  (`AdvancedChartImpl` has no `aria` prop, and this renderer hands the component a
+  schema directly rather than through `SchemaRenderer`'s flat ARIA injection), so
+  forwarding it would move declared-but-unread one layer down.
+  
+  The two helpers (`chartConfigPresentation`, `mergeAuthoredPresentation`) moved
+  from `plugin-dashboard`'s `DatasetWidget` to `@object-ui/core` beside
+  `buildChartSeries`, the derivation they merge onto, so both surfaces lower one
+  vocabulary once instead of keeping a second copy (the duplication objectui#4389
+  filed as a defect). `@object-ui/core` additionally exports `mergeAuthoredSeries`
+  — the series merge alone — for a surface whose axes are bare dimension/measure
+  NAME strings rather than spec `ChartAxis` objects, which is what a report chart
+  declares. `DatasetWidget` re-exports both names, so its public surface and its
+  rendering are unchanged.
+- 6bb39c4: 报表内嵌图表的度量显示名按三级回落解析，不再直接印原始 `name`
+  
+  数据集绑定的 report chart 此前把度量原样交给图表组件（`series: [{ dataKey }]`，无 label），
+  于是图例、标记 tooltip 与单值卡片的说明文字都落回 dataKey——在全中文控制台上打出
+  `potential_upside_tons`，而同一张报表下方的汇总表、以及绑定同一数据集的 dashboard 图表
+  都能正确解析出授权 `label`。`ReportChartSchema` 自 rc.1 起声明的 `series[].label` 也从未
+  被读取，作者因此没有任何可授权的手段控制这个字符串。
+  
+  现按三级回落解析，与汇总表和 dashboard 的既有口径对齐：
+  
+  1. `chart.series[]` 中 `name` 命中该度量的条目的 `label`（spec 的 `I18nLabel`，按控制台
+     语言解析；同名重复以第一条为准）；
+  2. 绑定数据集的度量 `label`（结果字段的 `label`，即汇总表表头一直在读的同一个值）；
+  3. 度量 `name` 兜底。
+  
+  图例与 tooltip 同源同修：`ChartRenderer` 把 series 的 `label` 写进 `config[dataKey].label`，
+  三处读的是同一个输入。单值族（`metric`/`kpi`/`gauge`）的说明文字与系列图共用这一次解析。
+- 5ffcc14: fix(plugin-report): route a report's embedded chart through `buildChartSeries` so a NULL category is bucketed (objectui#4878)
+  
+  `DatasetReportChart` built its rows as `relabelDimensions(state.rows, …)` and
+  handed them to the registered chart component verbatim. Nothing on that path
+  bucketed a null dimension value, so a report chart passed the renderer a null
+  category — the exact input objectui#4466 measured as drawing **no mark at all**.
+  The cost is not an empty chart but a quietly wrong one: the null group vanishes
+  while the y-axis scale still accommodates it, so the chart reads as valid data.
+  
+  The dashboard and chart-view surfaces never had the defect because they route
+  through `buildChartSeries` (`@object-ui/core`), where the whole null-category
+  family was fixed. The report chart now routes through it too, so those
+  properties are INHERITED rather than re-derived on a third surface:
+  
+  - the null bucket itself (objectui#4466);
+  - its label read from the locale bundle at the call site — `@object-ui/core` is
+    React-free, so a zh console would otherwise draw the bar and label it `(None)`
+    (objectui#4500);
+  - bucket IDENTITY separate from the bucket label, so a stored value that
+    literally spells `(None)` stays a different group (objectui#4508).
+  
+  objectui#4020's three-level measure display name still outranks the label the
+  derivation assigns, including for an `{ en, 'zh-CN' }` label record: core holds
+  no i18n provider and picks first-string-wins, which is exactly the defect class
+  #4020 closed.
+  
+  A report whose chart has no null group is unchanged, byte for byte.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [feb6b16]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [9aecabe]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [375efb4]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [3e0214c]
+- Updated dependencies [800f455]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [27c9cbd]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [b4089be]
+- Updated dependencies [578e025]
+- Updated dependencies [b4bccc7]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [b29488f]
+- Updated dependencies [9fbb9b5]
+- Updated dependencies [90517e1]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [2165d88]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/plugin-grid@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

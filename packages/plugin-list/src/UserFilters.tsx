@@ -12,6 +12,11 @@ import { ChevronDown, X, Plus } from 'lucide-react';
 import type { ListViewSchema } from '@object-ui/types';
 import { normalizeFilterOperator } from '@objectstack/spec/ui';
 import { useSafeFieldLabel, useObjectTranslation } from '@object-ui/i18n';
+// THE GATE the maintainer ruled onto `@object-ui/fields`' surface
+// (objectui#4914, ruling B); the implementation is homed in
+// `@object-ui/core` and re-exported there, so both spellings are one
+// function and one dedupe set.
+import { isRetiredFieldType, reportRetiredFieldType } from '@object-ui/fields';
 
 function useMoreLabel(): string {
   // useObjectTranslation is provider-safe (never throws); no try/catch, which
@@ -46,7 +51,14 @@ interface ResolvedField {
   idField?: string;
 }
 
-const LOOKUP_LIKE_TYPES = new Set(['lookup', 'master_detail', 'user', 'owner']);
+/**
+ * Lookup-like control types.
+ *
+ * `owner` left this set with objectui#4914 — a RETIRED spelling, refused by the
+ * gate in {@link UserFilters}' badge renderer before this membership test runs.
+ * The deletion is lockstep hygiene; the gate is the behavioural half.
+ */
+const LOOKUP_LIKE_TYPES = new Set(['lookup', 'master_detail', 'user']);
 
 /**
  * Control kind for every filter control type the spec's
@@ -499,10 +511,31 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
     const activeCount = selected.filter(v => v !== '' && v !== undefined && v !== null).length;
     const hasSelection = activeCount > 0;
     const singleChoice = kind === 'single-choice';
+    // THE GATE (objectui#4914, ruling B), ahead of the lookup-like test.
+    //
+    // This face was the one the measurement had to work hardest to prove live
+    // (comment 5324769751). The docblock on `FILTER_CONTROL_KINDS` says the
+    // control type comes from the spec's published `UserFilterFieldSchema.type`
+    // — an enum that never held `owner` — which would make this dead. The line
+    // `if (!resolvedType) resolvedType = fieldDef.type;` in `resolveFields`
+    // refutes it: when the view author omits the filter `type`, the resolved
+    // type is adopted VERBATIM from the object definition, so a backend column
+    // typed `owner` flows straight into this predicate.
+    //
+    // The gate answers that traffic the way the maintainer ruled it must be
+    // answered: a retired spelling arriving through a backend-vocabulary
+    // normalizer is an authoring error to refuse loudly, not foreign input to
+    // tolerate. The chip still renders — refusing to draw it would strip a
+    // stored filter out of the toolbar with nothing in its place — but it gets
+    // the ordinary control instead of the remote person picker, and the author
+    // gets the prescription once.
+    const retiredType = isRetiredFieldType(f.type);
+    if (retiredType) reportRetiredFieldType(f.type as string);
     const isLookupLike =
+      !retiredType &&
       LOOKUP_LIKE_TYPES.has(f.type || '') &&
       f.options.length === 0 &&
-      (f.referenceTo || f.type === 'user' || f.type === 'owner');
+      (f.referenceTo || f.type === 'user');
     const popoverWidth = isLookupLike ? 'w-72' : 'w-56';
 
     return (

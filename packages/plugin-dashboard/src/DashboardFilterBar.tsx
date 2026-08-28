@@ -259,13 +259,27 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
       }
       dataSource
         .find(from.object, {
-          fields: [from.valueField, ...(from.labelField ? [from.labelField] : [])],
+          // `$select` / `$top`, not `fields` / `top` (objectui#5458).
+          // `convertQueryParams` copies exactly the `$`-prefixed keys
+          // `QueryParams` declares, so BOTH unprefixed spellings here reached no
+          // branch and were dropped: this "best-effort client-side dedupe (top
+          // 200 records)" was in fact fetching every row AND every column of the
+          // source object. Nothing rejected it — the index signature exists for
+          // adapter-specific params, so both keys type-checked.
+          // Deduped: `valueField === labelField` is the common case (both
+          // default to the same column), and this projection only started
+          // reaching the wire when the key was corrected above — so a repeated
+          // entry would be a NEW thing to send, not a pre-existing one.
+          $select: [...new Set([from.valueField, ...(from.labelField ? [from.labelField] : [])])],
           ...(from.filter ? { $filter: from.filter } : {}),
-          top: 200,
+          $top: 200,
         })
         .then((records: any) => {
           if (cancelled) return;
-          const rows: any[] = Array.isArray(records) ? records : records?.items ?? [];
+          // `QueryResult` carries `data` — never `items`, which is not a member
+          // of the contract. With a real adapter the old read resolved to `[]`,
+          // so this fallback path produced NO options at all (objectui#5458).
+          const rows: any[] = Array.isArray(records) ? records : records?.data ?? [];
           // Real records, not an aggregate answer: `r[valueField]` IS the
           // stored value here, so there is no raw sidecar to pair with.
           setDynamicOptions(pairOptionRows(rows, undefined, from));

@@ -17,8 +17,8 @@ import {
   triggerFieldRefs,
   type ScopeGroupId,
   type ScopeRef,
-} from './flow-scope';
-import { useObjectFields } from '../previews/useObjectFields';
+} from './flow-scope.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
 
 export interface ScopeGroup {
   id: ScopeGroupId;

@@ -25,6 +25,12 @@
  *
  * ## The ratchet, and its two ledgers
  *
+ * The positive assertion requires the `aria-invalid="true"` carrier to be
+ * FOCUSABLE (objectui#5223). A mark on a wrapper satisfies a row-wide query
+ * while telling a keyboard or screen-reader user nothing, so without that
+ * requirement the cheapest way to clear a ledger row also left the defect
+ * alive and invisible to the next agent.
+ *
  * Widgets listed in {@link NOT_YET_DELIVERED} are known not to deliver the
  * attribute today. They are asserted in the OPPOSITE direction — the sweep
  * proves they still do NOT deliver — so fixing one turns its entry red and
@@ -55,8 +61,10 @@
  *  3. The two ledgers are asserted DISJOINT and to name only real types, so a
  *     row cannot be double-booked or left pointing at a widget that is gone.
  *
- * What survives in `NOT_YET_DELIVERED` is tracked as follow-up work; this file
- * is the source of truth for what is left.
+ * `NOT_YET_DELIVERED` is now EMPTY (objectui#3318 closed the last row, `grid`),
+ * and a case below asserts it stays that way. This file remains the source of
+ * truth for the registry's state: 45 types, every one of them either delivering
+ * on a focusable control or carrying a measured NOT_APPLICABLE verdict.
  *
  * ## Discipline inherited from the #3291 sweep
  *
@@ -186,16 +194,26 @@ const WIDGETS: Record<string, ComponentType<any>> = {
  * accessibility gap tracked in objectui#3318, not an accepted state: the field
  * shows its red message while assistive tech is told nothing.
  *
- * The objectui#3318 delivery batch cleared 20 of the original 29 entries with
- * the objectui#3222/#3306 pattern, and the remainder pass cleared `slider` and
- * reclassified seven (see {@link NOT_APPLICABLE}). One is left, and it is the
- * one that needs a DESIGN rather than a spread:
+ * ## THE LEDGER IS EMPTY — 29 -> 20 -> 9 -> 1 -> 0
  *
- * - `grid` — composite line-item editor with its own per-CELL `aria-invalid`
- *   for line validation; driving it from a FORM-level failure has no obvious
- *   target (which cell? the add-row button?). It is emphatically NOT a
- *   `NOT_APPLICABLE` candidate: its row DOES offer a focusable control, which
- *   is exactly what that ledger's guard measures.
+ * Every registered widget now either delivers `aria-invalid` on a focusable
+ * control or carries a measured {@link NOT_APPLICABLE} verdict. The history,
+ * so the zero is readable as an achievement rather than an oversight:
+ *
+ *  - objectui#3345 cleared 20 with the objectui#3222/#3306 spread pattern;
+ *  - objectui#4933 cleared `slider` and reclassified seven (NOT_APPLICABLE);
+ *  - objectui#3318's final pass cleared `grid`, the one that needed a DESIGN
+ *    rather than a spread. It is a composite line-item editor that reports
+ *    validity per CELL, so a FORM-level failure had no obvious target (which
+ *    cell? the add-row button?). The adopted answer drives the widget's own
+ *    per-cell channel from the host's `error` slot: a required grid that fails
+ *    while EMPTY now flags the ghost entry row's required cells, marking each
+ *    cell's own input. It was never a `NOT_APPLICABLE` candidate — its row DOES
+ *    offer a focusable control, which is what that ledger's guard measures.
+ *
+ * The set stays here, empty, because it is the RATCHET and not a to-do list:
+ * emptiness is asserted below, so the next widget that cannot deliver has to
+ * face that choice in review instead of quietly acquiring a ledger row.
  *
  * Do NOT add to this list to make a new widget pass; fix the widget (the
  * objectui#3222/#3306 pattern: spread `toDomProps(props)` onto the real
@@ -205,7 +223,7 @@ const WIDGETS: Record<string, ComponentType<any>> = {
  * widget turns its own ledger row red until it is removed here. The ledger only
  * shrinks.
  */
-const NOT_YET_DELIVERED: ReadonlySet<string> = new Set(['grid']);
+const NOT_YET_DELIVERED: ReadonlySet<string> = new Set<string>([]);
 
 /**
  * THE SECOND LEDGER — widget types for which `aria-invalid` is not a delivery
@@ -253,7 +271,7 @@ const NOT_APPLICABLE: ReadonlyMap<string, string> = new Map([
   ],
   [
     'signature',
-    'Drawing surface is a <canvas> with no keyboard path; the one other element, Clear, is disabled while empty. Its LABEL is a separate half and IS delivered — see FIELD_TYPES_GROUP_LABELLED.',
+    'Drawing surface is a <canvas> with no keyboard path; the one other element, Clear, is disabled while empty. Its LABEL is a separate half and IS delivered — see FIELD_WIDGET_LABELLING.',
   ],
   [
     'filter-condition',
@@ -289,6 +307,34 @@ const OPTIONS = [
   { label: 'Beta', value: 'beta' },
 ];
 
+/**
+ * `grid` is the same shape of dependency as the option widgets above, and it
+ * was measured, not assumed (objectui#3318). A grid with no `columns` renders
+ * an empty table: MEASURED on `origin/main` at `bd977f86f`, its whole row after
+ * a real failure is
+ *
+ * ```
+ * bare grid          focusables=[button]                       inputs=0
+ * grid with columns  focusables=[input(Item), input(Qty), button]  inputs=2
+ * ```
+ *
+ * — the lone focusable in the bare state is the auxiliary "Add line" BUTTON,
+ * whose action is not what is invalid and which objectui#4857 already refused
+ * to route field identity onto. So the bare state has no control to mark, and
+ * asserting delivery there would only ever be satisfiable by the one carrier
+ * this sweep forbids.
+ *
+ * Giving it columns renders the widget's REAL editing surface, which is what
+ * every realistic config is (the widget's own header: "Every realistic config
+ * is a composite: many cell inputs, each with its own `aria-label`"). This
+ * makes the assertion stricter, not looser — the sweep now has to find the
+ * mark on a genuine cell control.
+ */
+const GRID_COLUMNS = [
+  { name: 'item', label: 'Item', required: true },
+  { name: 'qty', label: 'Qty', type: 'number', required: true },
+];
+
 /** `null` is MISSING for the presence-check `required` (cloud#972). */
 const MISSING_VALUE = null;
 
@@ -299,6 +345,7 @@ function fieldConfig(type: string) {
     type: `field:${type}`,
     required: true,
     ...(OPTION_TYPES.has(type) ? { options: OPTIONS } : {}),
+    ...(type === 'grid' ? { columns: GRID_COLUMNS } : {}),
   };
 }
 
@@ -378,6 +425,23 @@ describe('every registered field widget announces a failed validation (objectui#
     expect(Object.keys(WIDGETS).sort()).toEqual([...FORM_FIELD_TYPES].sort());
   });
 
+  it('the NOT_YET_DELIVERED ledger is empty and stays empty', () => {
+    // The ratchet's terminal state, made mechanical (objectui#3318). The
+    // header has always said "do NOT add to this list to make a new widget
+    // pass", but that was prose: a new widget could acquire a ledger row and
+    // the sweep would happily assert it still fails, which reads in review as
+    // a considered decision rather than an unfixed gap.
+    //
+    // Reaching zero is what makes enforcing it possible, so it is enforced
+    // here. If you are reading this because your new widget turned it red:
+    // deliver `aria-invalid` on the widget's focusable control (the
+    // objectui#3222/#3306 pattern), or — if it genuinely renders no control —
+    // put it in NOT_APPLICABLE, whose guard will MEASURE that claim. Editing
+    // this assertion is the third road, and it is deliberately a visible,
+    // reviewable act rather than a quiet one.
+    expect([...NOT_YET_DELIVERED]).toEqual([]);
+  });
+
   it('both ledgers only name types that exist', () => {
     // A renamed/removed widget must not leave a stale ledger entry that would
     // silently assert against nothing.
@@ -414,7 +478,7 @@ describe('every registered field widget announces a failed validation (objectui#
   });
 
   it.each(DELIVERING)(
-    'field:%s — carries aria-invalid inside its row after a real failure',
+    'field:%s — carries aria-invalid on a FOCUSABLE control in its row after a real failure',
     async (type) => {
       renderForm(fieldConfig(type));
       const row = await formRow();
@@ -426,10 +490,33 @@ describe('every registered field widget announces a failed validation (objectui#
       expect(row.querySelector('[aria-invalid="true"]')).toBeNull();
 
       const after = await failValidation();
+      const carriers = Array.from(after.querySelectorAll('[aria-invalid="true"]'));
+
       expect(
-        after.querySelector('[aria-invalid="true"]'),
+        carriers.length,
         `field:${type} rendered its "is required" message but no element in its row carries aria-invalid="true" — assistive tech is never told the field failed`,
-      ).not.toBeNull();
+      ).toBeGreaterThan(0);
+
+      // THE WRAPPER-MARK HOLE, closed (objectui#5223). Until this half existed,
+      // the assertion above was a query over the WHOLE ROW, so a mark on a
+      // non-focusable wrapper — a `div`, a `td`, a text span — passed as
+      // "delivered" while the control the user actually edits still announced
+      // nothing. That is not a hypothetical: it is the cheapest way to turn a
+      // ledger row green, it reads clean in review, and nothing else in this
+      // file would have caught it (the wrapper check guards NOT_APPLICABLE rows
+      // only). `aria-invalid` is control-channel state; assistive tech reads it
+      // from the element a keyboard user can land on, so that is where it must
+      // sit.
+      const describeEl = (el: Element) => {
+        const role = el.getAttribute('role');
+        return `${el.tagName.toLowerCase()}${role ? `[role=${role}]` : ''}`;
+      };
+      expect(
+        carriers.filter((el) => el.matches(FOCUSABLE)).map(describeEl),
+        `field:${type} carries aria-invalid ONLY on non-focusable element(s) [${carriers
+          .map(describeEl)
+          .join(', ')}] — a wrapper mark (objectui#5223). It satisfies a row-wide query while the control the user edits announces nothing. Put the state on the focusable control itself.`,
+      ).not.toEqual([]);
     },
   );
 

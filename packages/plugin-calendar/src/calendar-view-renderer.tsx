@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CalendarViewSchema } from '@object-ui/types';
-import { CalendarView, type CalendarEvent, type CalendarViewProps } from './CalendarView';
+import { CalendarView, type CalendarViewEvent, type CalendarViewProps } from './CalendarView';
 import React from 'react';
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -268,7 +268,7 @@ ComponentRegistry.register('calendar-view',
     onAction?: unknown;
     [key: string]: unknown;
   }) => {
-    // Transform schema data to CalendarEvent format
+    // Transform schema data to CalendarViewEvent format
     const events = React.useMemo(() => {
       if (!schema.data || !Array.isArray(schema.data)) return [];
       
@@ -331,7 +331,7 @@ ComponentRegistry.register('calendar-view',
         ? (onAction as (action: { type: string; payload: unknown }) => void)
         : undefined;
 
-    const handleEventClick = (event: CalendarEvent) => {
+    const handleEventClick = (event: CalendarViewEvent) => {
       dispatchAction?.({
         type: 'event-click',
         payload: event

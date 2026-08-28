@@ -30,11 +30,11 @@ import type { AuthOrganizationMember, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, MoreHorizontal, UserMinus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { useOrgContext } from './orgContext';
-import { InviteMemberDialog } from './InviteMemberDialog';
-import { canInviteMembers, canRemoveMembers } from './orgCapabilities';
-import { resolveOrgRoleLabel } from '../orgRoleLabel';
-import { resolveOrgErrorMessage } from '../orgErrorMessage';
+import { useOrgContext } from './orgContext.js';
+import { InviteMemberDialog } from './InviteMemberDialog.js';
+import { canInviteMembers, canRemoveMembers } from './orgCapabilities.js';
+import { resolveOrgRoleLabel } from '../orgRoleLabel.js';
+import { resolveOrgErrorMessage } from '../orgErrorMessage.js';
 
 function getMemberInitials(name?: string): string {
   if (!name) return '?';

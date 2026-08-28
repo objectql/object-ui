@@ -19,32 +19,36 @@ The File Field component provides a file upload interface with support for multi
 
 ## Field Schema
 
-```plaintext
-interface FileFieldSchema {
-  type: 'file';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: FileMetadata | FileMetadata[];  // Current file(s)
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // File Options
-  multiple?: boolean;            // Allow multiple files
-  accept?: string[];             // Accepted MIME types
-  max_size?: number;             // Max file size in bytes
-  max_files?: number;            // Max number of files
-}
+A file field is authored as `FileFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the upload limits.
+A stored file is `UploadedFileMetadata`, exported from the same package.
 
-interface FileMetadata {
-  name: string;                  // File name
-  original_name?: string;        // Original file name
-  size?: number;                 // File size in bytes
-  mime_type?: string;            // MIME type
-  url?: string;                  // File URL
-}
+```ts
+import type { FileFieldMetadata, UploadedFileMetadata } from '@object-ui/types';
+
+const attachments: FileFieldMetadata = {
+  type: 'file',
+  name: 'attachments',
+  label: 'Attachments',
+  help: 'PDF or Word, up to 10 MB each.',
+  multiple: true,
+  accept: ['application/pdf', 'application/msword'],
+  max_size: 10 * 1024 * 1024,
+  max_files: 5,
+};
+
+// The shape of one stored file — the field's VALUE, not its metadata.
+const storedFile: UploadedFileMetadata = {
+  name: 'contract.pdf',
+  original_name: 'Contract (signed).pdf',
+  size: 248_310,
+  mime_type: 'application/pdf',
+  url: 'https://files.example.com/contract.pdf',
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Accepted File Types
 
@@ -79,7 +83,7 @@ accept: ['image/*']  // All images
 
 In tables/grids, displays file count:
 
-```plaintext
+```ts
 import { FileCellRenderer } from '@object-ui/fields';
 
 // Renders: "3 files" or "document.pdf"

@@ -7,7 +7,7 @@
  */
 
 import * as React from 'react';
-import type { PresenceUser } from './usePresence';
+import type { PresenceUser } from './usePresence.js';
 
 /**
  * Scope key for record-level presence ("who else is viewing this record").

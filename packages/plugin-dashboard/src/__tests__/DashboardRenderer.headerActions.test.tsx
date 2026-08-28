@@ -7,14 +7,24 @@
  */
 
 /**
- * Dashboard header actions must reach the ActionRunner, whatever their type.
+ * Dashboard header: action dispatch, and when the header wrapper exists at all.
  *
- * The click handler used to allow-list `modal` / `script` only: a `url` action
- * navigated, those two dispatched, and EVERY other declared type — `flow`,
- * `api`, `form`, `navigation` — fell through to a `console.warn` and did
- * nothing at all. A screen flow could not even be launched from a dashboard
- * (framework#3528). The runner owns the type registry, so the renderer no
- * longer second-guesses it.
+ * 1. Header actions must reach the ActionRunner, whatever their type. The click
+ *    handler used to allow-list `modal` / `script` only: a `url` action
+ *    navigated, those two dispatched, and EVERY other declared type — `flow`,
+ *    `api`, `form`, `navigation` — fell through to a `console.warn` and did
+ *    nothing at all. A screen flow could not even be launched from a dashboard
+ *    (framework#3528). The runner owns the type registry, so the renderer no
+ *    longer second-guesses it.
+ *
+ * 2. The header wrapper must cost zero pixels when every child is suppressed.
+ *    It used to render whenever `header` was merely declared, while each child
+ *    was additionally gated on `!hideHeaderText` — the flag the console page
+ *    chrome sets because it already renders the dashboard's title and
+ *    description. Chrome present + no `header.actions` therefore emitted
+ *    `<div class="col-span-full mb-4"></div>`: zero children, but a full grid
+ *    row (measured 64px) plus `mb-4` above the filter bar, on every console
+ *    dashboard page (objectui#5812).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -67,5 +77,79 @@ describe('DashboardRenderer header actions', () => {
     await waitFor(() => expect(pushState).toHaveBeenCalled());
     expect(handler).not.toHaveBeenCalled();
     pushState.mockRestore();
+  });
+});
+
+/**
+ * A dashboard authored the way the flagship exemplar authors them: `header`
+ * declared with both text flags ON, because a standalone embed genuinely does
+ * render the title and description. The console page chrome then suppresses
+ * that text with `hideHeaderText` — it renders it itself.
+ */
+function textHeaderDashboard(
+  header: Record<string, unknown> = { showTitle: true, showDescription: true },
+): DashboardComponentSchema {
+  return {
+    type: 'dashboard',
+    title: 'Executive Dashboard',
+    description: 'Pipeline and revenue at a glance',
+    widgets: [],
+    header,
+  } as unknown as DashboardComponentSchema;
+}
+
+/** The header wrapper's own signature — `mb-2` belongs to the filter bar. */
+const HEADER_WRAPPER = '.col-span-full.mb-4';
+
+describe('DashboardRenderer header wrapper', () => {
+  it('emits no wrapper when the console chrome suppresses the text and no actions are declared', () => {
+    const { container } = render(
+      <DashboardRenderer schema={textHeaderDashboard()} hideHeaderText />,
+    );
+
+    expect(container.querySelector(HEADER_WRAPPER)).toBeNull();
+    expect(screen.queryByText('Executive Dashboard')).toBeNull();
+    expect(screen.queryByText('Pipeline and revenue at a glance')).toBeNull();
+
+    // Zero pixels, not merely zero text. With no filters, no `onRefresh` and no
+    // widgets, a collapsed header leaves the dashboard root with no children at
+    // all; the empty node used to sit here and claim a whole grid row.
+    const root = container.firstElementChild;
+    expect(root).not.toBeNull();
+    expect(root!.children.length).toBe(0);
+  });
+
+  it('still renders title and description for a standalone embed', () => {
+    const { container } = render(<DashboardRenderer schema={textHeaderDashboard()} />);
+
+    const wrapper = container.querySelector(HEADER_WRAPPER);
+    expect(wrapper).not.toBeNull();
+    expect(screen.getByText('Executive Dashboard')).toBeTruthy();
+    expect(screen.getByText('Pipeline and revenue at a glance')).toBeTruthy();
+  });
+
+  it('keeps the wrapper for declared header actions even under the console chrome', () => {
+    const schema = textHeaderDashboard({
+      showTitle: true,
+      showDescription: true,
+      actions: [{ label: 'New Report', actionUrl: '/reports/new', actionType: 'url' }],
+    });
+
+    const { container } = render(<DashboardRenderer schema={schema} hideHeaderText />);
+
+    // The chrome renders the dashboard's text, never its actions — so the
+    // wrapper survives, carrying the buttons and nothing else.
+    expect(container.querySelector(HEADER_WRAPPER)).not.toBeNull();
+    expect(screen.getByRole('button', { name: /New Report/i })).toBeTruthy();
+    expect(screen.queryByText('Executive Dashboard')).toBeNull();
+  });
+
+  it('emits no wrapper for a standalone embed that authored both text flags off', () => {
+    const { container } = render(
+      <DashboardRenderer schema={textHeaderDashboard({ showTitle: false, showDescription: false })} />,
+    );
+
+    expect(container.querySelector(HEADER_WRAPPER)).toBeNull();
+    expect(screen.queryByText('Executive Dashboard')).toBeNull();
   });
 });

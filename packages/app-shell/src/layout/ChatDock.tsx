@@ -29,12 +29,13 @@ import {
 import { Maximize2, MessagesSquare, PanelRightClose } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAgents } from '@object-ui/plugin-chatbot';
-import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage';
-import { AiUsageIndicator } from './AiUsageIndicator';
-import { useChatConversation } from '../hooks';
-import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope';
-import { resolveSurfaceAgent } from '../hooks/surfaceAgent';
-import { getRuntimeConfig } from '../runtime-config';
+import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage.js';
+import { AiUsageIndicator } from './AiUsageIndicator.js';
+import { useChatConversation } from '../hooks/index.js';
+import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope.js';
+import { resolveSurfaceAgent } from '../hooks/surfaceAgent.js';
+import { useCanAuthorMetadata } from '../hooks/useCanAuthorMetadata.js';
+import { isAiStudioEnabled } from '../runtime-config.js';
 import {
   clampDockWidth,
   maximizedDockWidth,
@@ -42,7 +43,7 @@ import {
   writeStoredDockExpanded,
   DOCK_DEFAULT_WIDTH,
   DOCK_WIDTH_STORAGE_KEY,
-} from './chatDockState';
+} from './chatDockState.js';
 
 function readStoredWidth(key: string): number {
   try {
@@ -255,14 +256,19 @@ function ChatDockConversation({
   onCanvasOpenChange,
 }: ChatDockConversationProps) {
   const { agents, isLoading, error } = useAgents({ apiBase });
+  // cloud#1674 maker convergence — the console dock is a maker surface, so an
+  // authoring-capable principal's ambient thread upgrades ask→build inside the
+  // ONE resolver; business sessions keep the ask ambient thread unchanged.
+  const canAuthorMetadata = useCanAuthorMetadata();
   const activeAgent = React.useMemo(
     () =>
       resolveSurfaceAgent('default', {
         agents,
         appDefaultAgent: defaultAgent,
-        aiStudioEnabled: getRuntimeConfig().features.aiStudio !== false,
+        aiStudioEnabled: isAiStudioEnabled(),
+        canAuthorMetadata,
       }),
-    [agents, defaultAgent],
+    [agents, defaultAgent, canAuthorMetadata],
   );
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`

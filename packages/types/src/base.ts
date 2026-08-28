@@ -351,6 +351,28 @@ export interface ComponentRendererProps<TSchema extends BaseSchema = BaseSchema>
 }
 
 /**
+ * One coarse control kind a {@link ComponentInput} may declare.
+ *
+ * Named and exported (objectui#3832) because an input's `type` is no longer a
+ * single one of these: it is one OR an array of them, and both the declaration
+ * sites and the consumers that read it need the arm vocabulary by name rather
+ * than re-spelling the eleven literals. Widening it is a contract change — see
+ * `ComponentInputSchema` in `zod/base.zod.ts`, which enforces the same set.
+ */
+export type ComponentInputControlType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'enum'
+  | 'array'
+  | 'object'
+  | 'color'
+  | 'date'
+  | 'code'
+  | 'file'
+  | 'slot';
+
+/**
  * Input field configuration for component metadata.
  * Describes what properties a component accepts in the designer/editor.
  */
@@ -361,9 +383,70 @@ export interface ComponentInput {
   name: string;
 
   /**
-   * Input control type
+   * Input control type — ONE coarse kind, or an ARRAY of them when the key's
+   * contract is a union (objectui#3832).
+   *
+   * The array form exists because a spec key is often a union while this field
+   * used to be a single kind, so a declaration had to pick one arm and the
+   * repo's own manifest gate then reported the other arm's legal values:
+   * `sdui-parser`'s `checkType` warned `type-mismatch` on the inline
+   * translation maps (`{ en, "zh-CN" }`) that the very same inputs' own
+   * `description` teaches an author to write. One platform authority
+   * contradicting itself on the write it just recommended, at warning severity
+   * — which is worse than it sounds, because noise on legal writes trains
+   * authors (AI authors included) to dismiss the `unknown-prop` and
+   * `type-mismatch` reports that ARE real.
+   *
+   * Semantics of the array form: the arms are alternatives, and a value passes
+   * validation when ANY arm accepts it. That is the only leniency — a value
+   * matching none of the declared arms is still reported, so a union is not a
+   * way to opt out of the gate. Declare only arms the contract accepts AND the
+   * renderer resolves; an arm the renderer drops advertises a shape that never
+   * reaches the screen. `element:record_picker.emptyText` was held at a single
+   * `'string'` arm for exactly that reason until objectui#5590 taught its render
+   * site to resolve the inline locale map, and the second arm was declared in
+   * that same change — which is the order this rule prescribes, not an
+   * exception to it.
+   *
+   * The single-kind form stays valid and unchanged, and it is the canonical
+   * spelling for a key with one arm: the manifest serializer collapses a
+   * one-element array back to the bare string, so the published
+   * `sdui.manifest.json` gains arrays only where a union was really declared.
+   *
+   * ## The arms are COARSE KINDS — and that is the ceiling (objectui#5006)
+   *
+   * An arm names a value's *kind*, never its *domain*. `'number'` is the only
+   * numeric arm and `ComponentInput` has no `integer` / `min` / `max` slot to
+   * pair with it, so a key whose contract is narrower than "some number" has
+   * no way to say so here. Worked example — `page:header.maxVisible`, whose
+   * spec type is a POSITIVE SAFE INTEGER: `@objectstack/spec` rejects `0`,
+   * `-1` and `1.5`, while this declaration's `'number'` arm admits all three
+   * and `checkType` raises no diagnostic on any of them.
+   *
+   * **Ruled (maintainer, 2026-08-17): the coarse arm plus `description` IS the
+   * publication face's expression ceiling today, and SPEC IS THE SOLE JUDGE OF
+   * VALUES.** So spell the domain out in `description`, in the author's own
+   * terms ("A positive integer — the contract rejects 0 and fractional
+   * values"), and let `os validate` / `os build` be the gate that enforces it.
+   * `description` documents, it does not check: objectui deliberately raises
+   * no authoring-time diagnostic on an out-of-domain value. A *renderer*
+   * reading such a key should therefore agree with spec rather than tolerate
+   * what spec rejects — `page:header`'s `readMax` was tightened to exactly the
+   * contract for this reason, so the loosest layer stops deciding behaviour.
+   *
+   * Two directions were **deferred**, not rejected on merit: giving
+   * `ComponentInput` real constraint slots (two sources of truth, free to
+   * drift), and binding `checkType` to spec's Zod member when a
+   * `ComponentPropsMap` entry exists (one truth, but couples `sdui-parser` to
+   * spec). The ruling names the reopen condition: **a measured case of an
+   * author — human or agent — shipping a spec-rejected value that objectui's
+   * silence let through.** Until that is measured, do not widen this field.
+   *
+   * @example 'string'
+   * @example ['string', 'object']   // a string or an inline translation map
+   * @example ['string', 'number']   // element:text_input.defaultValue
    */
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object' | 'color' | 'date' | 'code' | 'file' | 'slot';
+  type: ComponentInputControlType | ComponentInputControlType[];
 
   /**
    * Display label in the editor
@@ -450,11 +533,6 @@ export interface ComponentMeta {
    * Default property values for new instances
    */
   defaultProps?: Record<string, any>;
-
-  /**
-   * Default children for container components
-   */
-  defaultChildren?: SchemaNode[];
 
   /**
    * Example configurations for documentation

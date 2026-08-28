@@ -58,68 +58,59 @@
  *     (reported back on cloud#1049 for the cloud seat).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { SchemaRenderer, useCapabilityGate } from '@object-ui/react';
 import { actionRendersAt } from '@object-ui/types';
 import { Button, Skeleton } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { useNavRunAction } from '../hooks/useNavRunAction.js';
 import {
   decideEnvironmentCta,
   upgradeDialogSpec,
   type EntitlementDialogSpec,
   type EnvironmentEntitlementsState,
-} from './entitlements';
+} from './entitlements.js';
 
 const CREATE_ACTION = 'create_environment';
 
 /**
- * Deep-link support (#844): `?runAction=create_environment` on the
- * environments route auto-opens the create dialog once entitlements have
- * resolved — the welcome page's "Create your environment" CTA uses it so the
- * user doesn't land on the list and have to find the create button again.
- * The param is consumed exactly once (stripped from the URL on consumption)
- * so refresh / back don't re-open the dialog.
+ * Deep-link support (#844, re-based onto the DECLARED slot by objectui#5216):
+ * an object nav entry declaring `runAction: 'create_environment'` resolves to
+ * an environments href carrying `?runAction=`, and landing on it auto-opens the
+ * create dialog once entitlements have resolved — so the welcome page's "Create
+ * your environment" CTA lands the user IN the dialog instead of on the list,
+ * hunting for a second create button.
+ *
+ * Read-once / consume-once now lives in {@link useNavRunAction}, shared with the
+ * generic object list; this wrapper contributes only the environment-specific
+ * arming condition. What it retires: the bare `'runAction'` literal read off
+ * `window.location.search` and compared to a hard-coded action name — a private
+ * convention with a second copy at the producing end and no schema behind
+ * either.
  *
  * ## Arming is destructive — only arm when there is something to trigger (#4123)
  *
  * Consumption is modelled as "strip the param", so arming SPENDS a one-shot
  * user intent. Arm it when nothing can act on it and the intent is not merely
  * lost, it is unrecoverable: the URL no longer carries it, so a reload cannot
- * retry. That is why the caller passes a non-null `ctaKind` only once the
- * create action is actually on the bar — see `hasCreateAction` below. When it
- * is not, the honest degradation is to leave the URL alone: the next mount
- * that CAN act on the deep link still does (a reload, or the action arriving
- * with fresh metadata).
+ * retry. Hence both conjuncts below: the create action must actually be on the
+ * bar (`hasCreateAction`), AND entitlements must have resolved — `upgrade_...`
+ * routes to the upgrade dialog instead, and while loading we must not trigger
+ * an action whose meaning (prod vs dev create) isn't known yet. When either
+ * fails, the honest degradation is to leave the URL alone: the next mount that
+ * CAN act on the deep link still does.
+ *
+ * A requested name this toolbar does not answer to is the same "leave it alone"
+ * case — see `useNavRunAction` on why the client degrades quietly while the
+ * AUTHORING tier rejects the undefined reference loudly.
  */
-function useAutoRunCreate(ctaKind: string | null): boolean {
-  // Deliberately router-free (window.location + history.replaceState): the
-  // toolbar also renders in tests/hosts without a Router, and the param is a
-  // one-shot signal, not navigation state.
-  const [requested] = useState<boolean>(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('runAction') === CREATE_ACTION;
-    } catch {
-      return false;
-    }
-  });
-  const consumed = useRef(false);
-  // Only meaningful once the entitlement state has resolved: `upgrade_...`
-  // routes to the upgrade dialog instead, and while loading we must not
-  // trigger an action whose meaning (prod vs dev create) isn't known yet.
-  const shouldRun = requested && !consumed.current && ctaKind != null;
-  useEffect(() => {
-    if (!shouldRun) return;
-    consumed.current = true;
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('runAction');
-      window.history.replaceState(window.history.state, '', url);
-    } catch {
-      /* URL cleanup is cosmetic — never fail the trigger over it */
-    }
-  }, [shouldRun]);
-  return shouldRun;
+function useAutoRunCreate(hasCreateAction: boolean, ctaKind: string | null): boolean {
+  return (
+    useNavRunAction(
+      (requested) => requested === CREATE_ACTION && hasCreateAction && ctaKind != null,
+    ) !== null
+  );
 }
 
 /** Non-create toolbar actions, rendered through the normal bar in every state. */
@@ -174,7 +165,7 @@ export function EnvironmentListToolbar({ actions, entitlements, onUpgrade }: Pro
   // has actions" (#4123). The old predicate armed on `toolbarActions.length > 0`,
   // so a toolbar carrying any other action consumed `?runAction=create_environment`
   // and triggered nothing (measured: `urlParam=null execute=0`), unrecoverably.
-  const autoRunCreate = useAutoRunCreate(hasCreateAction ? ctaKind : null);
+  const autoRunCreate = useAutoRunCreate(hasCreateAction, ctaKind);
 
   // Deep-linked "create" while in the upgrade state opens the SAME upgrade
   // prompt — the honest answer to "create" here. In an effect, not render:

@@ -11,6 +11,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { InputSchema } from '@object-ui/types';
 import { Input, Label } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 const InputRenderer = ({ schema, className, onChange, value, ...props }: { schema: InputSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
   // Handle change for both raw inputs and form-bound inputs
@@ -54,7 +55,7 @@ const InputRenderer = ({ schema, className, onChange, value, ...props }: { schem
         step={schema.step}
         maxLength={schema.maxLength}
         pattern={schema.pattern}
-        {...inputProps} 
+        {...toFormControlDomProps(inputProps)}
       />
       {schema.description && <p className="text-sm text-muted-foreground">{schema.description}</p>}
       {schema.error && <p className="text-sm font-medium text-destructive">{schema.error}</p>}

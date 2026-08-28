@@ -5,21 +5,21 @@
  * Imported as a side effect from `metadata-admin/index.ts`.
  */
 
-import { registerMetadataInspector } from '../inspector-registry';
-import { registerMetadataDefaultInspector } from '../default-inspector-registry';
-import { DashboardWidgetInspector } from './DashboardWidgetInspector';
-import { DashboardDefaultInspector } from './DashboardDefaultInspector';
-import { FlowInspector } from './FlowInspector';
-import { AppNavInspector } from './AppNavInspector';
-import { ViewInspector, ViewDefaultInspector } from './ViewInspector';
-import { PageBlockInspector } from './PageBlockInspector';
-import { PageDefaultInspector } from './PageDefaultInspector';
-import { ReportDefaultInspector } from './ReportDefaultInspector';
-import { ObjectFieldInspector } from './ObjectFieldInspector';
-import { ObjectDefaultInspector } from './ObjectDefaultInspector';
-import { DatasetDefaultInspector } from './DatasetDefaultInspector';
-import { ActionDefaultInspector } from './ActionDefaultInspector';
-import { HookDefaultInspector } from './HookDefaultInspector';
+import { registerMetadataInspector } from '../inspector-registry.js';
+import { registerMetadataDefaultInspector } from '../default-inspector-registry.js';
+import { DashboardWidgetInspector } from './DashboardWidgetInspector.js';
+import { DashboardDefaultInspector } from './DashboardDefaultInspector.js';
+import { FlowInspector } from './FlowInspector.js';
+import { AppNavInspector } from './AppNavInspector.js';
+import { ViewInspector, ViewDefaultInspector } from './ViewInspector.js';
+import { PageBlockInspector } from './PageBlockInspector.js';
+import { PageDefaultInspector } from './PageDefaultInspector.js';
+import { ReportDefaultInspector } from './ReportDefaultInspector.js';
+import { ObjectFieldInspector } from './ObjectFieldInspector.js';
+import { ObjectDefaultInspector } from './ObjectDefaultInspector.js';
+import { DatasetDefaultInspector } from './DatasetDefaultInspector.js';
+import { ActionDefaultInspector } from './ActionDefaultInspector.js';
+import { HookDefaultInspector } from './HookDefaultInspector.js';
 
 export function registerBuiltinInspectors(): void {
   registerMetadataInspector('dashboard', DashboardWidgetInspector);

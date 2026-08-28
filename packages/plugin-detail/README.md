@@ -22,6 +22,36 @@ pnpm add @object-ui/plugin-detail
 
 ## Usage
 
+### Two ways to reach a data source
+
+`detail-view` needs a data source to load a record, and there are two ways to
+give it one. They are equivalent, and an explicit prop wins when both are
+present:
+
+```tsx
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+
+// 1. Injected by an ancestor — the pattern the rest of the family uses, and the
+//    one to reach for when a page renders several data-bound blocks.
+<SchemaRendererProvider dataSource={dataSource}>
+  <SchemaRenderer schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} />
+</SchemaRendererProvider>
+
+// 2. Handed to one placement — what `<DetailView dataSource={…} />` has always
+//    taken, and what the examples below use.
+<DetailView schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} dataSource={dataSource} />
+```
+
+Route 1 is new as of objectui#5378: this block used to read the adapter from its
+prop ONLY, while its siblings `object-grid` and `object-form` read it from
+context only, so a page could satisfy one of them or the other and never both.
+Nothing that worked before changed — route 2 is unaffected — and a block that
+resolves neither now renders a **No data source resolved** panel naming itself
+and the object it was about to read, instead of an empty shell.
+
+Note the record id is `resourceId` here. `object-form`'s is `recordId`; the two
+blocks do not share that key.
+
 ### Basic Example
 
 ```tsx
@@ -202,12 +232,17 @@ reads the collection size from `QueryResult.total` (falling back to a
 `hasMore` estimate), so large child tables never ship wholesale to the
 browser. A user column sort becomes a server `$orderby` (ordering stays
 global across pages), and the node's `sort` prop seeds the initial order.
-Because that `$orderby` names a flat field, a **relational column**
-(`lookup` / `master_detail` / `user` / `tree`) would order the collection by the
-stored foreign-key id while its cells show related-record names — so on the
-windowed path those columns offer no sort button at all. In client mode the
-sort key is the label this list already resolved for the cell, so the button
-stays and orders by that name.
+Because that `$orderby` names a flat field, two kinds of column cannot survive
+the trip. A **relational column** (`lookup` / `master_detail` / `user` / `tree`)
+would order the collection by the stored foreign-key id while its cells show
+related-record names (`objectui#3096`); a **`formula` column** has no
+materialized column to order by at all — silently unordered rows under a `200`
+before `objectstack#6994`, a `400 INVALID_SORT` after it (`objectui#3950`). So on
+the windowed path neither offers a sort affordance, at either of this card's two
+sort entry points: the embedded table's column headers, and the button row a
+`list` card keeps because it has no headers. In client mode the sort key is the
+value the cell shows — the label this list already resolved, the formula result
+the server hydrated — so the affordance stays and orders by that.
 Passing `data` directly keeps the historical client-side slicing, and typing
 in the opt-in filter box temporarily falls back to the full-fetch client
 pipeline (the contains-filter sweeps every field, which no generic server
@@ -259,6 +294,16 @@ shared draft (`InlineEditProvider` from `@object-ui/react`), committed by
 - **Approval lock**: hosts pass `locked` / `lockedHint` to the save bar and
   gate `InlineEditProvider.canEdit` when the record is approval-locked, so a
   locked record hides its edit affordances instead of rejecting at Save.
+- **Approval band & recall** (#6464): the band reads `approvalPending` /
+  `approvalProgress` from the same provider, and offers its **Recall** button
+  only where the click can succeed. Recall is the submitter's lever — the
+  server authorizes it on submitter identity and refuses everyone else — so
+  hosts that resolve approvals pass `InlineEditProvider.approvalIsSubmitter`.
+  It is tri-state on purpose: `false` withdraws the button from a resolved
+  non-submitter, `true` keeps it, and **omitting it leaves the button exactly
+  as it was** — a host that resolves no approval identity is unchanged rather
+  than losing its submitter's only unlock lever. It gates the affordance only;
+  the recall endpoint remains the authority on who may actually recall.
 
 ## Links
 

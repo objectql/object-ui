@@ -7,8 +7,8 @@
  */
 
 import React from 'react';
-import { useAuth } from './useAuth';
-import { getUserInitials } from './types';
+import { useAuth } from './useAuth.js';
+import { getUserInitials } from './types.js';
 
 export interface UserMenuProps {
   /** Custom avatar URL override */

@@ -9,27 +9,27 @@
  * after this module runs — `registerMetadataPreview` is last-write-wins.
  */
 
-import { registerMetadataPreview } from '../preview-registry';
-import { PagePreview } from './PagePreview';
-import { ViewPreview } from './ViewPreview';
-import { DashboardPreview } from './DashboardPreview';
-import { ReportPreview } from './ReportPreview';
-import { AppPreview } from './AppPreview';
-import { ObjectPreview } from './ObjectPreview';
-import { EmailTemplatePreview } from './EmailTemplatePreview';
-import { FlowPreview } from './FlowPreview';
-import { AgentPreview } from './AgentPreview';
-import { ToolPreview } from './ToolPreview';
-import { PermissionPreview } from './PermissionPreview';
-import { ActionPreview } from './ActionPreview';
-import { JobPreview } from './JobPreview';
-import { TranslationPreview } from './TranslationPreview';
-import { PositionPreview } from './PositionPreview';
-import { SkillPreview } from './SkillPreview';
-import { DatasourcePreview } from './DatasourcePreview';
-import { ValidationPreview } from './ValidationPreview';
-import { DatasetPreview } from './DatasetPreview';
-import { BookPreview } from './BookPreview';
+import { registerMetadataPreview } from '../preview-registry.js';
+import { PagePreview } from './PagePreview.js';
+import { ViewPreview } from './ViewPreview.js';
+import { DashboardPreview } from './DashboardPreview.js';
+import { ReportPreview } from './ReportPreview.js';
+import { AppPreview } from './AppPreview.js';
+import { ObjectPreview } from './ObjectPreview.js';
+import { EmailTemplatePreview } from './EmailTemplatePreview.js';
+import { FlowPreview } from './FlowPreview.js';
+import { AgentPreview } from './AgentPreview.js';
+import { ToolPreview } from './ToolPreview.js';
+import { PermissionPreview } from './PermissionPreview.js';
+import { ActionPreview } from './ActionPreview.js';
+import { JobPreview } from './JobPreview.js';
+import { TranslationPreview } from './TranslationPreview.js';
+import { PositionPreview } from './PositionPreview.js';
+import { SkillPreview } from './SkillPreview.js';
+import { DatasourcePreview } from './DatasourcePreview.js';
+import { ValidationPreview } from './ValidationPreview.js';
+import { DatasetPreview } from './DatasetPreview.js';
+import { BookPreview } from './BookPreview.js';
 
 export function registerBuiltinPreviews(): void {
   // UI surfaces

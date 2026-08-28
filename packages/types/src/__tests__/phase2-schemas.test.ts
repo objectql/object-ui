@@ -1,27 +1,15 @@
 /**
  * Tests for Phase 2 Schema Definitions
- * Testing AppSchema, ThemeComponentSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
+ * Testing AppSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
  */
 import { describe, it, expect } from 'vitest';
 import {
   AppComponentSchema,
-  AppActionSchema,
-  AppMenuItemSchema,
-  ThemeComponentSchema,
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
   ReportComponentSchema,
   ReportBuilderSchema,
-  ReportViewerSchema,
   BlockSchema,
   BlockLibrarySchema,
-  BlockEditorSchema,
-  BlockInstanceSchema,
   ActionSchema,
-  ActionExecutionModeSchema,
-  ActionCallbackSchema,
-  ActionConditionSchema,
-  CRUDSchema,
   DetailViewSchema,
   ViewSwitcherSchema,
   FilterUISchema,
@@ -29,6 +17,7 @@ import {
   AnyComponentSchema,
   ListViewSchema,
 } from '../zod/index.zod';
+import type { ActionSchema as CrudActionSchema } from '../crud';
 
 describe('Phase 2: AppComponentSchema Zod Validation', () => {
   it('should validate a complete AppComponentSchema', () => {
@@ -111,9 +100,32 @@ describe('Phase 2: AppComponentSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
-  it('should validate a complete ThemeComponentSchema', () => {
-    const theme = {
+describe('Phase 2: Theme component kinds — retirement pins', () => {
+  // ALL theme component kinds are retired:
+  //
+  // - `type: 'theme'` (`ThemeComponentSchema`) in objectui#5489, under the
+  //   maintainer ruling of 2026-08-21 on objectstack#10485 (option B) — a
+  //   theme-manager COMPONENT no renderer ever implemented.
+  // - `type: 'theme-switcher'` / `'theme-preview'` (`ThemeSwitcherSchema` /
+  //   `ThemePreviewSchema`), and `ThemeUnionSchema` itself, in objectui#5647,
+  //   by inheritance of the same ruling: the sweep that measured `'theme'`
+  //   unregistered measured both siblings identically — zero
+  //   `ComponentRegistry.register(...)` / `registerLazy(...)` sites, zero
+  //   placeholder entries, zero fixtures.
+  //
+  // These pins keep them retired: the shapes the old acceptance tests proved
+  // VALID are now proven REFUSED, so a re-added kind fails here rather than
+  // reappearing silently in the published `@object-ui/types/zod` surface.
+  //
+  // Attribution note: the objectui#5489 pin proved its refusal sat on the
+  // `type` discriminator of `ThemeUnionSchema`; that union is gone with its
+  // last two members, so discriminator-level attribution is no longer
+  // expressible and the refusals below read `AnyComponentSchema` directly.
+  // The control that keeps them meaningful is the positive leg at the end —
+  // a still-declared kind parsing GREEN through the same pipeline — so a
+  // broken `AnyComponentSchema` cannot read as three successful refusals.
+  it('refuses the retired theme component kinds, while a live kind still parses', () => {
+    const retiredWrapper = {
       type: 'theme',
       mode: 'dark',
       activeTheme: 'professional',
@@ -146,16 +158,12 @@ describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
       storageKey: 'app-theme',
     };
 
-    const result = ThemeComponentSchema.safeParse(theme);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.mode).toBe('dark');
-      expect(result.data.themes).toHaveLength(1);
-    }
-  });
+    // The `type: 'theme'` wrapper: gone from every union that used to carry it.
+    expect(AnyComponentSchema.safeParse(retiredWrapper).success).toBe(false);
 
-  it('should validate ThemeSwitcherSchema', () => {
-    const switcher = {
+    // The objectui#5647 siblings — these exact shapes are the fixtures the old
+    // acceptance tests proved VALID against the retired Zod objects.
+    const retiredSwitcher = {
       type: 'theme-switcher',
       variant: 'dropdown',
       showMode: true,
@@ -163,9 +171,20 @@ describe('Phase 2: ThemeComponentSchema Zod Validation', () => {
       lightIcon: 'Sun',
       darkIcon: 'Moon',
     };
+    expect(AnyComponentSchema.safeParse(retiredSwitcher).success).toBe(false);
 
-    const result = ThemeSwitcherSchema.safeParse(switcher);
-    expect(result.success).toBe(true);
+    const retiredPreview = {
+      type: 'theme-preview',
+      showColors: true,
+      showTypography: true,
+      showComponents: true,
+    };
+    expect(AnyComponentSchema.safeParse(retiredPreview).success).toBe(false);
+
+    // Positive control on the same pipeline (see the block comment above): a
+    // still-declared kind parses GREEN, so the three refusals measure the
+    // retirement, not a broken union.
+    expect(AnyComponentSchema.safeParse({ type: 'action', label: 'Control Action' }).success).toBe(true);
   });
 });
 
@@ -360,19 +379,48 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
       type: 'action',
       label: 'Delete Record',
       actionType: 'confirm',
-      confirm: {
-        title: 'Confirm Deletion',
-        message: 'Are you sure you want to delete this record?',
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        confirmVariant: 'destructive',
-      },
+      confirmText: 'Are you sure you want to delete this record?',
       api: '/api/records/123',
       method: 'DELETE',
     };
 
     const result = ActionSchema.safeParse(confirmAction);
     expect(result.success).toBe(true);
+  });
+
+  it('refuses the retired structured confirm object (objectui#4314)', () => {
+    const structured = {
+      type: 'action',
+      label: 'Delete Record',
+      actionType: 'confirm',
+      confirm: { title: 'Confirm Deletion', message: 'Are you sure?' },
+    };
+
+    // Zod half of the `crud.ts` `confirm?: never` tombstone: any authored
+    // value is a LOUD parse rejection — never a silent strip, which would let
+    // the author believe the dialog they configured exists. Absent stays
+    // valid (accept case above).
+    const result = ActionSchema.safeParse(structured);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.path.join('.'))).toContain('confirm');
+    }
+  });
+
+  it('carries the retirement to TypeScript authors (confirm is `never`)', () => {
+    const action: CrudActionSchema = {
+      type: 'action',
+      label: 'Delete',
+      // @ts-expect-error `confirm` is retired (objectui#4314) — its `message`
+      // outranked `confirmText`, the only spelling the translation bundle
+      // knows. `?: never` carries the retirement to authors writing
+      // TypeScript; the Zod refusal above carries it to JSON.
+      confirm: { message: 'Delete this item?' },
+    };
+    // The contract lives in the directive above: per this package's
+    // `type-check` (tsc -p tsconfig.test.json compiles every test file),
+    // putting the key back makes the directive unused and fails the build.
+    expect(action.type).toBe('action');
   });
 
   it('should validate dialog action type', () => {
@@ -424,8 +472,41 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate conditional action execution', () => {
-    const conditionalAction = {
+  // `condition` is an execution GATE, not a branch DSL (objectui#3917). Each
+  // arm below is one the runtime honours — `ActionRunner.execute` asks
+  // `hasDeclaredPredicate(action.condition)` and then `evaluateCondition`, both
+  // of which read exactly boolean / bare CEL / `${…}` template / the
+  // `{ dialect, source }` envelope `objectstack build` emits. Before the
+  // retirement `condition` required an `expression` key, so EVERY spelling in
+  // this table was refused by the schema while being honoured at runtime.
+  it.each([
+    ['a boolean', false],
+    ['a bare CEL predicate', 'data.amount > 1000'],
+    ['a ${…} template', '${data.amount > 1000}'],
+    ['the normalized envelope', { dialect: 'cel', source: 'data.amount > 1000' }],
+  ])('should accept a condition gate written as %s', (_label, condition) => {
+    const gatedAction = {
+      type: 'action',
+      label: 'Approve',
+      actionType: 'button',
+      condition,
+    };
+
+    const result = ActionSchema.safeParse(gatedAction);
+    expect(result.success).toBe(true);
+  });
+
+  // The retirement itself (objectui#3917). This is the shape two docs pages
+  // taught with worked examples while NOTHING read `expression` / `then` /
+  // `else`: the object carries no `source`, so the runtime's normalizer read it
+  // as "no gate declared" and ran the action unconditionally — the predicate
+  // never evaluated, the branches never dispatched, zero diagnostics. Asserting
+  // the FULL parse is red (not merely that some issue exists) is the point: the
+  // verdict on this authoring surface has to be a refusal, and it has to be
+  // pinned to the `condition` key, or the next widening restores the silent
+  // accept without any test noticing.
+  it('should refuse the retired { expression, then, else } branch shape', () => {
+    const branchAction = {
       type: 'action',
       label: 'Approve',
       actionType: 'button',
@@ -444,8 +525,12 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
       },
     };
 
-    const result = ActionSchema.safeParse(conditionalAction);
-    expect(result.success).toBe(true);
+    const result = ActionSchema.safeParse(branchAction);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issues = result.error.issues.filter((i) => i.path[0] === 'condition');
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0].code).toBe('invalid_union');
   });
 
   it('should validate action with tracking', () => {
@@ -621,7 +706,8 @@ describe('Phase 2: AnyComponentSchema Union Type', () => {
   it('should validate any Phase 2 schema through union type', () => {
     const schemas = [
       { type: 'app', name: 'test-app' },
-      { type: 'theme', mode: 'light' },
+      // `{ type: 'theme' }` removed with the kind itself (objectui#5489); its
+      // refusal is pinned in the theme describe block above.
       { type: 'report', title: 'Test Report' },
       { type: 'block', meta: { name: 'test-block' } },
       { type: 'action', label: 'Test Action' },

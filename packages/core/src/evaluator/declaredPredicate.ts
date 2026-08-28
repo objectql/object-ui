@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { toPredicateInput } from './predicateInput';
+import { toPredicateInput } from './predicateInput.js';
 
 /**
  * Is the predicate TEXT blank — in EITHER spelling? (objectui#3960)

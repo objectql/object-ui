@@ -19,9 +19,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, X, Rocket, GitCompareArrows, Sparkles } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
-import { usePublishAllDrafts } from './usePublishAllDrafts';
-import { DraftChangesPanel } from './DraftChangesPanel';
+import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext.js';
+import { usePendingDrafts } from './usePendingDrafts.js';
+import { usePublishAllDrafts } from './usePublishAllDrafts.js';
+import { DraftChangesPanel } from './DraftChangesPanel.js';
 
 export function DraftPreviewBar() {
   const preview = usePreviewDrafts();
@@ -31,30 +32,14 @@ export function DraftPreviewBar() {
   const { publishAll, publishing } = usePublishAllDrafts(t);
   const [changesOpen, setChangesOpen] = useState(false);
   // Pending-draft count for the Changes button label — what Publish will
-  // actually promote. Refreshed per pathname so drafts staged while the
-  // preview is open (the chat keeps building) update the count.
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  // actually promote. The shared source (objectui#5801) refreshes on the
+  // metadata-refresh pulse; the pathname effect keeps the old "drafts staged
+  // while the preview is open" trigger too.
+  const { count: pendingCount, refresh: refreshPending } = usePendingDrafts({ enabled: Boolean(preview) });
   useEffect(() => {
     if (!preview) return;
-    let cancelled = false;
-    void fetch('/api/v1/meta/_drafts', {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return;
-        const list = Array.isArray(data) ? data : data?.drafts ?? [];
-        setPendingCount(Array.isArray(list) ? list.length : null);
-      })
-      .catch(() => {
-        /* count is decorative — the panel itself reports errors */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [preview, location.pathname]);
+    void refreshPending();
+  }, [preview, location.pathname, refreshPending]);
 
   if (!preview) return null;
 

@@ -27,13 +27,13 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@object-ui/components';
-import { SchemaBrowser } from './SchemaBrowser';
-import { ValidationPanel } from './ValidationPanel';
+import { SchemaBrowser } from './SchemaBrowser.js';
+import { ValidationPanel } from './ValidationPanel.js';
 import {
   refreshCatalog,
   ExternalServiceUnavailableError,
   type ExternalCatalog,
-} from './api';
+} from './api.js';
 
 export interface ExternalDatasourcePanelProps {
   /** The datasource's saved name. Empty while the datasource is unsaved. */

@@ -14,19 +14,62 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { FormField, DataSource } from '@object-ui/types';
+import type { FormField, DataSource, ObjectFormSchema } from '@object-ui/types';
 import { Button, cn, toast } from '@object-ui/components';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { resolveFieldRuleState, evalFieldPredicate, isMissingForRequired, isServerOwnedValue } from '@object-ui/core';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { FormSectionContainer } from './FormSection';
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { seedCreateValues, omitServerResolvedDefaults, isCreateFormMode } from './schemaDefaults';
+import { usePermissions } from '@object-ui/permissions';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
-import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
+import { resolveSuccessNavigate, type SubmitBehavior } from './successBehavior';
+import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
+import {
+  useSubmitRedirectNavigation,
+  type PendingSubmitRedirect,
+} from './submitRedirectNavigation';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 import type { FormSectionConfig } from './TabbedForm';
+
+/**
+ * What the submitter is told when a DECLARED `navigateOnSuccess` produced no
+ * destination — objectui#5034 point 2.
+ *
+ * The write succeeded, so this rides on the success toast as a note rather than
+ * becoming an error or a blocking panel: turning a successful write into an
+ * error state would be a worse lie than the silence it replaces. What was
+ * missing is one fact, and only one: the navigation the author declared did not
+ * happen. Before this, the toast was byte-identical to the toast a form with no
+ * `navigateOnSuccess` at all produces, so an author who mistyped the destination
+ * — or whose record carried no usable id — saw a form that looked entirely
+ * healthy and had silently stopped honouring a key they wrote.
+ *
+ * Maintainer ruling, 2026-08-17: "A refused declared navigation is surfaced: the
+ * success toast carries a note that the declared navigation was not performed —
+ * never indistinguishable from the no-key case."
+ *
+ * The note names no REASON on purpose. `resolveSuccessNavigate` answers null for
+ * two different causes (no usable id on the written record; a destination the
+ * same-origin guard refused) and returns no discriminant, so a reason in this
+ * copy could only be re-derived by reimplementing that helper's internals at the
+ * call site — where it would drift from the helper, and would additionally bake
+ * an acceptance rule into user-visible prose, which objectui#5034 has since
+ * narrowed once already. The diagnosable detail — the template the author
+ * actually wrote — goes to `console.warn` at each call site instead.
+ *
+ * Lives here rather than in `successBehavior.ts` (the natural home, but read-only
+ * for this card) and is imported BY `ObjectForm`, which is the dependency
+ * direction that already exists — ObjectForm imports WizardForm, never the
+ * reverse. Single-sourced so a wizard and a flat form cannot tell a submitter
+ * two different things about one refusal; a test pins that they do not.
+ */
+export const NAVIGATE_ON_SUCCESS_REFUSED_NOTE =
+  'The `navigateOnSuccess` destination declared for this form was refused, '
+  + 'so the navigation did not happen.';
 
 // Falls back to English when no i18n provider is mounted.
 const useWizardTranslation = createSafeTranslation(
@@ -161,6 +204,21 @@ export interface WizardFormSchema {
   readOnly?: boolean;
   
   /**
+   * Override persistence — the seam a host uses to own the write. Declared as
+   * `ObjectFormSchema['submitHandler']` rather than restated, so this variant
+   * and the canonical key `ObjectForm` forwards can never drift apart.
+   * When supplied, the form validates and hands the collected values
+   * to this handler INSTEAD of calling `dataSource.create` /
+   * `dataSource.update`; the returned record is passed on to `onSuccess`.
+   *
+   * `MasterDetailForm` supplies it to route the parent AND its child
+   * collections through one atomic `batchTransaction` (#2679 / ADR-0034
+   * item 4). A renderer that does not read it writes the parent on its own and
+   * escapes that transaction — objectui#6176.
+   */
+  submitHandler?: ObjectFormSchema['submitHandler'];
+
+  /**
    * Callbacks
    */
   onSuccess?: (data: any) => void | Promise<void>;
@@ -213,6 +271,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const { userId: currentUserId } = usePermissions();
   const { t } = useWizardTranslation();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -236,7 +295,34 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // Without this the last step's form stayed mounted and fully filled after a
   // successful create, with nothing disabling "Create" — a second click fired
   // a second create request (duplicate record).
-  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
+  //
+  // `refusal` carries the second fact a REFUSED `redirect` destination has to
+  // report (objectui#4989): the write succeeded — hence the confirmation this
+  // state already renders — but the authored destination is out of contract, so
+  // nothing was navigated to and the author needs the reason. Same reasoning as
+  // ObjectForm's copy of this state: a refused destination is not a failed
+  // submit, so it must not travel in an error channel.
+  const [submitted, setSubmitted] = useState<
+    { title?: string; message?: string; refusal?: string } | null
+  >(null);
+  // The accepted destination of a `submitBehavior: { kind: 'redirect' }` submit
+  // plus the delay declared for it (objectui#5033). Same reasoning as
+  // ObjectForm's copy of this state, and the same reason it is a state and not a
+  // timer armed in the handler: a bare `setTimeout` there was owned by nobody, so
+  // the pending full-page navigation outlived this wizard and yanked back a
+  // submitter who had closed the modal/drawer variant or navigated on. The delay
+  // is captured with the destination so the pause cannot be restarted mid-wait by
+  // a host re-render carrying a different `delayMs`.
+  const [pendingRedirect, setPendingRedirect] = useState<PendingSubmitRedirect | null>(null);
+
+  // The delayed leg of a `redirect` submit behaviour, owned by this component:
+  // unmounting cancels the wait. `delayMs` semantics are untouched — the pause is
+  // still a pause, an unset value is still a zero timer, i.e. "go now". The host's
+  // injected navigate is used when one was supplied, so a mounted host's basename
+  // is applied (objectui#4989 defect 4); with no host seam this is the same
+  // `window.location.assign` as before. Same hook as ObjectForm's redirect arm —
+  // see `submitRedirectNavigation.ts`.
+  useSubmitRedirectNavigation(pendingRedirect);
 
   // Stable id for the *inner* step form's <form> element. The wizard's
   // Next/Create buttons live in the footer, OUTSIDE that form, and submit it
@@ -288,7 +374,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // Declared static defaults are this wizard's opening values (#4047)
           // — see `schemaDefaults` for the create-only boundary and for why
           // runtime defaults are left to the server.
-          setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+          setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
           seededRef.current = true;
         }
         setLoading(false);
@@ -333,6 +419,24 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // `required` suppression use, so this wizard cannot be seeded as a create
   // form and gated as an edit one.
   const isCreateWizard = isCreateFormMode(schema);
+
+  /**
+   * The host shell's global predicate scope (`ExpressionProvider` →
+   * `PredicateScopeProvider`) — `current_user` plus the ADR-0068 `user` /
+   * `ctx.user` / `os.user` aliases, `app`, `data`, `features`. Empty `{}` when
+   * no provider is mounted, which is the same "nothing to bind" the renderer
+   * sees (objectui#6110).
+   *
+   * Read HERE, at the component's top level, because the only consumer is a
+   * `useCallback` — a hook cannot be called inside one, and the gate below is
+   * invoked from a submit handler where no React context is readable at all.
+   * It joins that callback's dependency list for the same reason it joins the
+   * renderer's (#6010): a scope change — the host switching organisations, so
+   * `current_user.positions` changes — can flip a `visibleWhen` exactly as a
+   * keystroke can, and a memoized gate holding the old scope would answer the
+   * final submit with a principal the user no longer is.
+   */
+  const predicateScope = usePredicateScope();
 
   // Current section fields
   const currentSectionFields = useMemo(() => {
@@ -387,7 +491,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               serverOwnedValue: isServerOwnedValue(field, isCreateWizard),
             },
             undefined,
-            undefined,
+            // The host predicate scope, so `current_user` resolves here exactly
+            // as it does in the form renderer that DREW this field (#6010).
+            // Without it this gate faults on every `current_user` predicate and
+            // fails OPEN, demanding a field the wizard itself hid (#6110).
+            predicateScope,
             `field '${name}'`,
           );
           // View-level FormField.visibleOn hides the field the same way a
@@ -397,7 +505,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // receives the ADR-0089 canonical view-level `visibleWhen` spelling.
           const viewVisible =
             (field as any).visibleOn == null ||
-            evalFieldPredicate((field as any).visibleOn, record, true, undefined, undefined, {
+            evalFieldPredicate((field as any).visibleOn, record, true, undefined, predicateScope, {
               context: `visibleOn of field '${name}'`,
             });
           // A hidden or read-only field is not the user's to fill in.
@@ -408,7 +516,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       });
       return out;
     },
-    [schema.sections, buildSectionFields, isCreateWizard],
+    [schema.sections, buildSectionFields, isCreateWizard, predicateScope],
   );
 
   // Handle step data collection (merge partial data into formData)
@@ -449,7 +557,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Final submission
       setSubmitting(true);
       try {
-        if (!dataSource) {
+        // No submit TARGET: a declared `submitHandler` owns the write and needs no
+        // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+        // nor a `dataSource` is target-less. The one target-less form that is still
+        // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+        // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+        // adapter-less submit, bypassing a declared host seam and persisting
+        // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+        if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
           if (schema.onSuccess) {
             await schema.onSuccess(mergedData);
           }
@@ -457,14 +572,30 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         }
         
         let result;
-        if (schema.mode === 'create') {
-          // Omit the fields the producer owns (#4069) — see
-          // `omitServerResolvedDefaults` for why an empty key is not the same
-          // as no key at insert time.
-          result = await dataSource.create(
-            schema.objectName,
-            omitServerResolvedDefaults(mergedData, objectSchema),
-          );
+        // Omit the fields the producer owns (#4069) — see
+        // `omitServerResolvedDefaults` for why an empty key is not the same
+        // as no key at insert time. Create only: on an edit form a cleared
+        // column is a real removal. Computed ONCE so every persistence route
+        // below — the host-owned seam included — writes the identical payload.
+        const writePayload = schema.mode === 'create'
+          ? omitServerResolvedDefaults(mergedData, objectSchema)
+          : mergedData;
+
+        if (schema.submitHandler) {
+          // The host owns persistence (e.g. MasterDetailForm batching the
+          // parent + its child collections into ONE atomic transaction). The
+          // form validates and hands the values over; it does NOT create/update
+          // itself. Same seam and same precedence as SimpleObjectForm — every
+          // renderer `ObjectForm` routes to must check it FIRST, or a declared
+          // host-owned write silently becomes an independent one
+          // (objectui#6176).
+          result = await schema.submitHandler(writePayload);
+        } else if (!dataSource) {
+          // No route left: no host seam and no adapter. Refuse instead of reporting
+          // success — the `catch` below hands this to `schema.onError` and rethrows.
+          throw noSubmitTargetError();
+        } else if (schema.mode === 'create') {
+          result = await dataSource.create(schema.objectName, writePayload);
         } else if (schema.mode === 'edit' && schema.recordId) {
           // OCC-guarded: sends `ifMatch` from the record we read; a 409 asks
           // the user to keep editing (skip the success path) or overwrite.
@@ -474,7 +605,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             dataSource,
             objectName: schema.objectName,
             recordId: schema.recordId,
-            payload: mergedData,
+            payload: writePayload,
             baseRecord: formData,
           });
           if (outcome.status === 'cancelled') return;
@@ -483,20 +614,49 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         
         if (schema.onSuccess) {
           await schema.onSuccess(result);
-        } else if (schema.submitBehavior) {
+        } else if (!schema.submitHandler && schema.submitBehavior) {
           const behavior = schema.submitBehavior;
           switch (behavior.kind) {
             case 'redirect': {
-              if (isSameOriginUrl(behavior.url)) {
-                setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+              // objectstack#7496 ruled this url a RELATIVE in-app path with
+              // `{{record.field_name}}` interpolation, URL-escaped when the
+              // redirect is built. Same consumption as ObjectForm's redirect
+              // arm, through the same module, so a wizard and a flat form cannot
+              // disagree about one authored value — see `submitRedirect.ts` for
+              // why the shape verdict is the spec's own and what it does not fix.
+              //
+              // The old line asked `isSameOriginUrl`, which accepts a same-origin
+              // ABSOLUTE url the contract refuses at the authoring door, and
+              // dropped everything else in SILENCE after a successful write
+              // (objectui#4989 defects 2, 3 and 5).
+              const verdict = resolveSubmitRedirect(
+                behavior.url,
+                submitRedirectScope(mergedData, result),
+              );
+              if (!verdict.ok) {
+                // The write SUCCEEDED and only the destination is out of
+                // contract: confirm the submit, replace the still-filled step
+                // form so there is nothing left to resubmit, and show the spec's
+                // own prescription for the author.
+                toast.error(verdict.refusal);
+                setSubmitted({
+                  message: schema.successMessage
+                    || (schema.mode === 'create' ? 'Created' : 'Saved'),
+                  refusal: verdict.refusal,
+                });
+                break;
               }
+              // Hand the accepted destination to the effect that owns the wait
+              // (objectui#5033). The verdict flow above is unchanged: this arm
+              // still decides WHETHER to navigate, no longer when.
+              setPendingRedirect({ url: verdict.url, delayMs: behavior.delayMs ?? 0 });
               break;
             }
             case 'continue':
               // Back to a fresh step 1 for the next entry — "fresh" means the
               // same opening values the wizard had, defaults included (#4047),
               // not a blank object the first entry never started from.
-              setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+              setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
               setCompletedSteps(new Set());
               setCurrentStep(0);
               setResetNonce((n) => n + 1);
@@ -514,19 +674,46 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               break;
             }
           }
-        } else {
+        } else if (!schema.submitHandler) {
           // Legacy declarative success behaviors for metadata-only wizards.
+          // Skipped when a `submitHandler` owns persistence: the host already
+          // reports the outcome, so a second toast/redirect here would
+          // double-confirm (the guard SimpleObjectForm applies for the same
+          // reason).
           const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.
-            window.location.assign(nav);
+            //
+            // WHO travels is what ObjectForm's arm does; see the long comment
+            // there (objectui#5034, points 1 and 3). The destination goes to the
+            // state the seam-owning effect above reads, so a mounted host's
+            // basename is applied instead of the origin root. Unconditionally,
+            // because `resolveSuccessNavigate` now accepts relative references
+            // only — the `window.location.assign` arm that used to stand here is
+            // unreachable and was deleted with the ruling that made it so.
+            setPendingRedirect({ url: nav, delayMs: 0 });
             return result;
           }
-          toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+          if (schema.navigateOnSuccess) {
+            // Declared, and refused (objectui#5034 point 2). The write succeeded,
+            // so this stays a success toast — with the one fact that was missing
+            // attached to it. The template goes to the console for the author,
+            // where naming it cannot mislead the submitter.
+            console.warn(
+              '[WizardForm] `navigateOnSuccess` was declared but produced no destination:',
+              schema.navigateOnSuccess,
+            );
+            toast.success(
+              schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+              { description: NAVIGATE_ON_SUCCESS_REFUSED_NOTE },
+            );
+          } else {
+            toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+          }
           if (schema.resetOnSuccess && schema.mode === 'create') {
             // Back to a fresh step 1 for the next entry — same opening values
             // as the first entry, defaults included (#4047).
-            setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues));
+            setFormData(seedCreateValues(objectSchema, schema.initialData || schema.initialValues, { currentUserId }));
             setCompletedSteps(new Set());
             setCurrentStep(0);
             setResetNonce((n) => n + 1);
@@ -593,13 +780,27 @@ export const WizardForm: React.FC<WizardFormProps> = ({
 
   if (submitted) {
     return (
-      <div className={cn('w-full', className, schema.className)}>
+      <div className={cn('w-full space-y-4', className, schema.className)}>
         <div className="rounded-md border bg-card p-8 text-center">
           <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
           {submitted.message && (
             <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
           )}
         </div>
+        {/*
+          A refused `redirect` destination (objectui#4989) keeps the confirmation
+          above — the record WAS written — and adds the reason nothing was
+          navigated to. `role="alert"` because it appears after the submit the
+          user just made, so it has to reach a screen reader without a focus move.
+        */}
+        {submitted.refusal && (
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+          >
+            {submitted.refusal}
+          </div>
+        )}
       </div>
     );
   }

@@ -30,8 +30,8 @@ import {
   useMetadataTypes,
   useGlobalDiagnostics,
   type MetadataDiagnosticsEntry,
-} from './useMetadata';
-import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n';
+} from './useMetadata.js';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n.js';
 
 type Severity = 'error' | 'warning';
 

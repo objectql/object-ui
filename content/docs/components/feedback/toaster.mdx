@@ -3,8 +3,6 @@ title: "Toaster"
 description: "Container for displaying toast notifications"
 ---
 
-import { DemoGrid } from '@/app/components/ComponentDemo';
-
 The Toaster component provides a container for toast notifications. It should be placed once at the root level of your application to enable toast functionality.
 
 ## Basic Usage
@@ -13,15 +11,6 @@ The Toaster component is typically added to your app's layout and doesn't requir
 
 <SchemaExample id="components-feedback-toaster/default-toaster" />
 
-## Providers
-
-ObjectUI supports two toast providers:
-
-<DemoGrid>
-  <SchemaExample id="components-feedback-toaster/default-provider" />
-  <SchemaExample id="components-feedback-toaster/sonner-provider" />
-</DemoGrid>
-
 ## Schema
 
 ```plaintext
@@ -29,7 +18,6 @@ interface ToasterSchema {
   type: 'toaster';
   
   // Configuration
-  provider?: 'default' | 'sonner';      // Toast provider (default: 'default')
   position?: 'top-left' | 'top-center' | 'top-right' | 
              'bottom-left' | 'bottom-center' | 'bottom-right';  // Toast position
   limit?: number;                        // Maximum number of toasts (default: 5)
@@ -57,7 +45,7 @@ interface ToasterSchema {
     { type: 'page', title: 'Dashboard', body: [...] },
     
     // Toaster at root level
-    { type: 'toaster', provider: 'sonner' }
+    { type: 'toaster' }
   ]
 }
 ```
@@ -75,7 +63,6 @@ The Toaster component works in conjunction with Toast components to display noti
 ## Notes
 
 - Place the Toaster component once in your app's root layout
-- The `default` provider uses the standard Shadcn/UI toast system
-- The `sonner` provider uses Sonner for more advanced toast features
+- ObjectUI ships a single toaster implementation, backed by Sonner
 - Toast notifications are triggered separately using toast functions or Toast components
 - The Toaster manages the positioning and lifecycle of all toasts

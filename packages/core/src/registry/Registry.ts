@@ -6,27 +6,55 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { SchemaNode } from '../types/index.js';
+import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
 
-export type ComponentInput = {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object' | 'color' | 'date' | 'code' | 'file' | 'slot';
-  label?: string;
-  defaultValue?: any;
-  required?: boolean;
-  enum?: string[] | { label: string; value: any }[];
-  description?: string;
-  advanced?: boolean;
-  inputType?: string;
-};
+/**
+ * What a registration DECLARES about one authorable prop.
+ *
+ * This is the declaration the component registrations themselves import, so it
+ * is the one an author's manifest is ultimately built from — and it is now
+ * RE-EXPORTED from `@object-ui/types` rather than restated here
+ * (objectui#4972), the disposition objectui#4580 ruled for the identical
+ * shape: *a structural copy would reproduce the defect the moment either side
+ * moved.* This package already depends on `@object-ui/types`, so the edge
+ * exists and adds no cycle, and `src/types/index.ts` re-exports `SchemaNode`
+ * from there the same way.
+ *
+ * The copy this replaces had ALREADY moved, which is why the card is not
+ * hypothetical: it carried nine keys while `base.ts` carried thirteen, so
+ * `min` / `max` / `step` / `placeholder` were missing from *the copy every
+ * registration actually imports*. Those four keys were therefore unwritable at
+ * any real registration — a plain TS error — while `ComponentInputSchema` (the
+ * zod schema) and `ComponentMeta.inputs` both accepted them. The publication
+ * face advertised four keys the authoring face rejected; the divergence was
+ * dormant only because no registration had tried to write one yet.
+ */
+export type { ComponentInput } from '@object-ui/types';
 
-export type ComponentMeta = {
-  label?: string; // Display name in designer
-  icon?: string; // Icon name or svg string
-  category?: string; // Grouping category
+/**
+ * The keys the REGISTRY adds on top of the one `ComponentMeta` declaration:
+ * registration mechanics (`tier` / `namespace` / `skipFallback`) and the
+ * host-labelling contract (`labelling`). None of the four has a counterpart on
+ * the general type in `@object-ui/types`, and none is being moved there —
+ * publishing registry mechanics on the general type was the alternative
+ * objectui#6067 weighed and rejected.
+ *
+ * They live in their OWN named type so that `ComponentMeta` below can be
+ * DERIVED from the canonical declaration instead of restating it. Until
+ * objectui#6067 this file carried a second, thirteen-key structural copy of
+ * the name: the nine shared members restated from `@object-ui/types`' `base.ts`,
+ * these four added here, and `tags` / `description` — declared on the canonical
+ * type and on the `ComponentMetaSchema` zod mirror — simply absent. That is
+ * objectui#4580's ruling coming true for the third type in a row: *a
+ * structural copy would reproduce the defect the moment either side moved.*
+ * objectui#5671 executed the same convergence for `ComponentInput` in this very
+ * file, and objectui#5893 closed the identical two-key delta inside
+ * `@object-ui/types`.
+ */
+export type RegistryComponentMetaExtras = {
   /**
    * Public contract tier (ADR-0080). `'public'` = part of the curated,
    * type-checked, AI-facing block set (gets a strengthened contract, the
@@ -47,7 +75,11 @@ export type ComponentMeta = {
   skipFallback?: boolean;
   /**
    * How a HOST must associate its own visible label with what this component
-   * renders (objectui#3961). Read by the form renderer; absent ⇒ `'control'`.
+   * renders (objectui#3961, extended by objectui#4857). Read by the form
+   * renderer; absent ⇒ `'control'`. This closed three-value vocabulary is the
+   * single repo-wide answer to "how does a host learn what a widget will
+   * render" (maintainer ruling of 2026-08-17, joint with objectui#4871) — no
+   * host may keep a local variant of it.
    *
    * - `'control'` — the component's outermost rendered element is a LABELABLE
    *   HTML element (`input` / `textarea` / `select` / `button` / …), so the host
@@ -60,7 +92,18 @@ export type ComponentMeta = {
    *   nothing and contributes no accessible name (`HTMLLabelElement.control` is
    *   `null`) — so the host must instead give its label an `id` and hand the
    *   component `aria-labelledby`, which associates by IDREF and works on any
-   *   element.
+   *   element. The COMPONENT consumes those keys on its own surface.
+   * - `'display'` — the rendered surface is a pure display in EVERY state:
+   *   there is no focusable control and the component itself spreads nothing
+   *   (computed / system-generated values such as `formula` / `summary` /
+   *   `auto_number` / `vector`). The host must not emit a `<label for>` at all
+   *   — no labelable element will ever exist for it to reach, in the editable
+   *   state as much as the readonly one — and instead wraps the component's
+   *   output in the host's own container carrying the field id,
+   *   `aria-labelledby`, `aria-describedby` and `role="group"` (the
+   *   objectui#4788 channel, driven by this declaration rather than by
+   *   `readonly` alone). Unlike `'group'`, the WIDGET is not expected to
+   *   consume anything: the host's wrapper is the named surface.
    *
    * This is a DECLARATION, not a guess: the host cannot infer it from the DOM a
    * widget happens to render, and a widget that fails to declare it falls back
@@ -68,22 +111,32 @@ export type ComponentMeta = {
    * label-association tests (objectui#3952) instead of silently producing an
    * unlabelled group.
    */
-  labelling?: 'control' | 'group';
-  inputs?: ComponentInput[];
-  defaultProps?: Record<string, any>; // Default props when dropped
-  defaultChildren?: SchemaNode[]; // Default children when dropped
-  examples?: Record<string, any>; // Example configurations
-  isContainer?: boolean; // Whether the component can have children
-  resizable?: boolean; // Whether the component can be resized in the designer
-  resizeConstraints?: {
-    width?: boolean;
-    height?: boolean;
-    minWidth?: number;
-    maxWidth?: number;
-    minHeight?: number;
-    maxHeight?: number;
-  };
+  labelling?: 'control' | 'group' | 'display';
 };
+
+/**
+ * What a registration DECLARES about one component — the type every
+ * `ComponentRegistry.register` / `registerLazy` call is checked against.
+ *
+ * ONE declaration of the shared members: this is `@object-ui/types`'
+ * `ComponentMeta` (the declaration `ComponentMetaSchema` mirrors and the
+ * plugin-facing surface publishes) intersected with the registry-only keys
+ * above. The nine shared members are no longer restated here, so they cannot
+ * drift again, and `tags` / `description` now reach the registration surface —
+ * the two keys the divergence had made unwritable at the very declaration most
+ * component registrations import.
+ *
+ * NOTE for anyone pinning this: every member of both halves is OPTIONAL, so
+ * `extends` is mutually TRUE between the two shapes even when their key sets
+ * differ. Measured on the EMITTED `.d.ts` of both packages immediately before
+ * this convergence: `Core extends Canonical` and `Canonical extends Core` were
+ * BOTH `true` while `tags` / `description` were missing and four keys were
+ * extra. An assignability assertion is therefore a ghost here — it was green on
+ * the diverged tree. `__tests__/component-meta-derives-from-canonical.test.ts`
+ * compares `keyof` sets instead and keeps the assignability check beside it as
+ * the labelled control that shows why.
+ */
+export type ComponentMeta = CanonicalComponentMeta & RegistryComponentMetaExtras;
 
 export type ComponentConfig<T = any> = ComponentMeta & {
   type: string;
@@ -172,7 +225,7 @@ export class Registry<T = any> {
         `  registry.register('${type}', MyComponent);\n\n` +
         `  // After:\n` +
         `  registry.register('${type}', MyComponent, { namespace: 'my-plugin' });\n\n` +
-        `  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md`
+        `  See: https://www.objectui.org/docs/guide/plugin-development#namespaced-registration`
       );
     }
     

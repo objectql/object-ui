@@ -125,6 +125,12 @@ beforeAll(() => {
   ComponentRegistry.register('anchorprobe', AnchorProbe, { namespace: 'field' });
   ComponentRegistry.register('textprobe', TextProbe, { namespace: 'field' });
   ComponentRegistry.register('displayonlyprobe', DisplayOnlyProbe, { namespace: 'field' });
+  // The same face WITH the objectui#4857 declaration — the production shape of
+  // the display-only four (`formula` / `summary` / `auto_number` / `vector`).
+  ComponentRegistry.register('displaydeclaredprobe', DisplayOnlyProbe, {
+    namespace: 'field',
+    labelling: 'display',
+  });
   ComponentRegistry.register('groupprobe', GroupProbe, { namespace: 'field', labelling: 'group' });
   // NOT in the `field` namespace — the bare-name fallback, whose contract is
   // `schema`, not `FieldWidgetComponentProps`.
@@ -343,12 +349,88 @@ describe('nothing else changed shape (the paths this issue does not touch)', () 
     expect(document.querySelector('[role="group"]')).toBeNull();
   });
 
-  it('a bare-name SDUI component is not a field widget and is left alone', () => {
+  it('a bare-name SDUI component is not a field widget and gets no group', () => {
     renderForm([FIELD('barenameprobe', { readonly: true })], { f_barenameprobe: 'Hello' });
 
-    // Its contract is `schema`, not `FieldWidgetComponentProps`; the ruling
-    // scoped the wrapper to registered FIELD widgets.
+    // #4788's assertion, unchanged: the wrapper is scoped to registered FIELD
+    // widgets, and this type is not one.
     expect(group('f_barenameprobe')).toBeNull();
-    expect(screen.getByTestId('bare-name')).toBeInTheDocument();
+
+    // The SECOND half of this test used to be `getByTestId('bare-name')` — it
+    // asserted that a form field REACHED the bare-name component, which was
+    // true only because of the cross-namespace fallback objectui#5254's ruling
+    // removed. A form field's type now resolves a `field:` widget or nothing,
+    // so this type takes the builtin `default` input branch instead. The probe
+    // is still registered (bare, no namespace) and still resolvable as an SDUI
+    // NODE — it is simply no longer reachable as a FIELD.
+    expect(ComponentRegistry.get('barenameprobe')).toBeTruthy(); // counter-probe
+    expect(screen.queryByTestId('bare-name')).toBeNull();
+    expect(item('f_barenameprobe').querySelector('input')).toBeTruthy();
+  });
+});
+
+describe('a `labelling: "display"` declaration extends the wrapper to the EDITABLE state (objectui#4857)', () => {
+  it('EDITABLE display-declared widget: wrapped, named, described — the #4788 shape without `readonly`', () => {
+    renderForm([FIELD('displaydeclaredprobe')], { f_displaydeclaredprobe: 'computed' });
+
+    const g = group('f_displaydeclaredprobe');
+    expect(g).not.toBeNull();
+    expect(g).toHaveAttribute('role', 'group');
+    expect(byId(g!.getAttribute('id'))).toBe(g);
+
+    const label = hostLabel('f_displaydeclaredprobe');
+    expect(label).not.toHaveAttribute('for');
+    const labelled = idrefs(g!, 'aria-labelledby');
+    expect(byId(labelled[0])).toBe(label);
+    expect(byId(labelled[1])).toBe(g);
+    expect(byId(idrefs(g!, 'aria-describedby')[0])).toHaveTextContent('Some help');
+    expect(g).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('EDITABLE + `disabled`: the wrapper still applies — the real object-form path for computed fields', () => {
+    // ObjectForm maps `formula` / `summary` / `auto_number` to `disabled: true`,
+    // never `readonly: true` (a deliberate distinction the #4857 ruling kept —
+    // option 1, re-mapping it, was rejected). The gate reads the DECLARATION,
+    // so the disabled path is covered without touching that mapping.
+    renderForm([FIELD('displaydeclaredprobe', { disabled: true })], {
+      f_displaydeclaredprobe: 'computed',
+    });
+
+    const g = group('f_displaydeclaredprobe');
+    expect(g).not.toBeNull();
+    expect(g).toHaveAccessibleName('Label displaydeclaredprobe computed');
+  });
+
+  it('READONLY display-declared widget: both arms true, still exactly ONE wrapper', () => {
+    renderForm([FIELD('displaydeclaredprobe', { readonly: true })], {
+      f_displaydeclaredprobe: 'computed',
+    });
+
+    expect(
+      item('f_displaydeclaredprobe').querySelectorAll('[data-slot="readonly-field-group"]'),
+    ).toHaveLength(1);
+    expect(item('f_displaydeclaredprobe').querySelectorAll('[role="group"]')).toHaveLength(1);
+  });
+
+  it('an UNDECLARED display-only widget stays on the single-control path while editable', () => {
+    // The fallback the declaration exists to replace: without `labelling:
+    // "display"` the host cannot know the widget renders no control, so the
+    // editable state keeps the (dangling) `for`. Pinned so the registry-level
+    // "registered ⇒ declared" gate in `@object-ui/fields` is what carries the
+    // guarantee, not a host-side guess.
+    renderForm([FIELD('displayonlyprobe')], { f_displayonlyprobe: 'computed' });
+
+    expect(group('f_displayonlyprobe')).toBeNull();
+    expect(hostLabel('f_displayonlyprobe')).toHaveAttribute('for');
+  });
+
+  it('a display declaration does NOT wrap a label-less field (nothing would name it)', () => {
+    renderForm(
+      [{ name: 'f_nolabel_display', type: 'displaydeclaredprobe', description: 'Some help' }],
+      { f_nolabel_display: 'computed' },
+    );
+
+    expect(group('f_nolabel_display')).toBeNull();
+    expect(document.querySelector('[role="group"]')).toBeNull();
   });
 });

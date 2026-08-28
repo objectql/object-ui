@@ -1,5 +1,5 @@
 ---
-title: "Report Schema (ReportSchema)"
+title: "Report Schema (ReportComponentSchema)"
 description: "Enterprise reports with aggregation, export, and scheduling"
 ---
 
@@ -7,11 +7,11 @@ import { SchemaExample } from '@/app/components/ComponentDemo';
 
 # Report Schema
 
-The `ReportSchema` enables creating comprehensive data reports with field aggregation, multiple export formats, and automated scheduling.
+The `ReportComponentSchema` enables creating comprehensive data reports with field aggregation, multiple export formats, and automated scheduling.
 
 ## Overview
 
-ReportSchema provides:
+ReportComponentSchema provides:
 - **Field aggregation** - Sum, average, count, min, max, distinct
 - **Export formats** - PDF, Excel, CSV, JSON, HTML
 - **Scheduled reports** - Daily, weekly, monthly, quarterly, yearly
@@ -36,9 +36,9 @@ ReportSchema provides:
 ## Basic Usage
 
 ```plaintext
-import type { ReportSchema } from '@object-ui/types';
+import type { ReportComponentSchema } from '@object-ui/types';
 
-const salesReport: ReportSchema = {
+const salesReport: ReportComponentSchema = {
   type: 'report',
   title: 'Monthly Sales Report',
   description: 'Sales performance analysis',
@@ -73,6 +73,11 @@ const salesReport: ReportSchema = {
 
 ## Properties
 
+The tables in this section describe `ReportComponentSchema`, declared by
+`@object-ui/types` (`packages/types/src/reports.ts`) and imported by name in the
+example above. They group its properties by topic; the declaration remains the
+complete list.
+
 ### Basic Configuration
 
 | Property | Type | Description |
@@ -89,8 +94,9 @@ interface ReportField {
   name: string;                    // Field name
   label?: string;                  // Display label
 
-  // Drives type-aware cell rendering. Auto-hydrated from the bound
-  // object's ObjectField when the report has an `objectName`.
+  // Drives type-aware cell rendering. Author-provided only — the renderer
+  // reads `type` straight off this field and does not infer it from any
+  // bound object (ReportComponentSchema has no `objectName`).
   type?:
     | 'string' | 'text' | 'number' | 'date' | 'datetime' | 'time' | 'boolean'
     | 'select' | 'multi_select' | 'status'
@@ -127,9 +133,14 @@ related record, `boolean` becomes ✓/✗, `email`/`url`/`phone` become
 `mailto:`/external/`tel:` links, `image` becomes a thumbnail. Any
 unknown type falls back to plain text.
 
-When the report binds an `objectName`, columns inherit `type`,
-`options`, `referenceTo`, and `label` from the corresponding
-`ObjectField` automatically — author-provided values always win.
+There is no automatic hydration from a bound object — `ReportComponentSchema`
+has no `objectName` property, and nothing in `packages/plugin-report`
+resolves one. `ReportViewer`'s `renderCellValue` reads `field.type` directly
+off each `ReportField` entry and passes it (plus `field.options` /
+`field.referenceTo`) straight into `getCellRenderer`; `field.label || field.name`
+is what renders the column header. Declare `type` (and `options` /
+`referenceTo` where relevant) on every field that needs type-aware
+rendering — a field with no `type` falls back to plain text.
 
 ### Aggregation Types
 
@@ -211,7 +222,7 @@ interface ReportSchedule {
 ## Complete Example
 
 ```plaintext
-const comprehensiveReport: ReportSchema = {
+const comprehensiveReport: ReportComponentSchema = {
   type: 'report',
   title: 'Quarterly Sales Analysis',
   description: 'Comprehensive sales performance analysis by region and product',
@@ -431,9 +442,9 @@ const viewer: ReportViewerSchema = {
 ## Runtime Validation
 
 ```plaintext
-import { ReportSchema } from '@object-ui/types/zod';
+import { ReportComponentSchema } from '@object-ui/types/zod';
 
-const result = ReportSchema.safeParse(myReport);
+const result = ReportComponentSchema.safeParse(myReport);
 
 if (result.success) {
   console.log('Valid report configuration');
@@ -444,7 +455,7 @@ if (result.success) {
 
 ## Use Cases
 
-ReportSchema is perfect for:
+ReportComponentSchema is perfect for:
 
 - **Analytics dashboards** - Display key business metrics and KPIs
 - **Business intelligence** - Generate insights from operational data

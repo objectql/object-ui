@@ -24,11 +24,11 @@ import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import type { ViewSwitcherSchema, ViewType } from '@object-ui/types';
 import {
   Activity,
-  BarChart3,
   Calendar,
+  ChartColumn,
+  ChartGantt,
   FileText,
-  GanttChartSquare,
-  Grid,
+  Grid3x3,
   Images,
   LayoutGrid,
   List,
@@ -69,17 +69,30 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   tree: 'Tree',
 };
 
+// objectui#5586 — every value here is a name lucide still carries in its
+// runtime `icons` record, deliberately NOT one of the deprecated ALIASES it
+// keeps only as a named export. The compiler cannot tell the two apart:
+// `BarChart3`, `GanttChartSquare` and `Grid` all import and all render, and all
+// three were absent from `icons` on lucide-react 1.31.0. That distinction is
+// load-bearing here because the sibling producer — `ObjectView`'s `iconMap` —
+// supplies the SAME glyphs as STRINGS, which `resolveIcon` below looks up in
+// exactly that record: there a deprecated spelling resolves to nothing and the
+// view renders with no icon at all. Keeping this map on record-live names keeps
+// the two halves comparable and keeps a dead spelling from being copied back
+// into the string map. This map's membership is judged by the repo-level gate
+// `scripts/check-lucide-icon-record-names.mjs` (objectui#5633); the string map
+// beside it is judged there too and rendered in `ViewSwitcher.test.tsx`.
 const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   list: List,
   detail: FileText,
-  grid: Grid,
+  grid: Grid3x3,
   kanban: LayoutGrid,
   calendar: Calendar,
   timeline: Activity,
   map: Map,
   gallery: Images,
-  gantt: GanttChartSquare,
-  chart: BarChart3,
+  gantt: ChartGantt,
+  chart: ChartColumn,
   tree: ListTree,
 };
 

@@ -19,7 +19,7 @@
  * Hand-rolled declarations are clearer than schema-walking heuristics.
  */
 
-import { registerMetadataResource, anchorByField } from './registry';
+import { registerMetadataResource, anchorByField } from './registry.js';
 
 
 export function registerBuiltinAnchors(): void {

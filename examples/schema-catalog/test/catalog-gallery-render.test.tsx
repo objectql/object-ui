@@ -34,8 +34,10 @@
  *   components-disclosure-toggle-group 1    core-schema-renderer 1
  *
  * That is the red this file was written against. `apps/site/app/components/
- * registerCatalogBlocks.ts` now loads the nine further packages that census
- * resolves to, which takes 31 of those 33 tiles from the panel to a drawn
+ * registerCatalogBlocks.ts` loads the nine further packages that census
+ * resolved to — further packages have joined that list since, none of them
+ * from this census (see the host file's own header) — which takes 31 of those
+ * 33 tiles from the panel to a drawn
  * component. What registration cannot reach is named — never skipped silently —
  * in the tables below. Four classes were defects in the entries, one issue each:
  *
@@ -123,7 +125,7 @@
  * entries render `role="alert"` because that is what an Alert IS — the
  * assertion is correct for a dashboard tile and wrong for the corpus.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import '@object-ui/components';
 // Mirrors apps/site/app/components/registerCatalogBlocks.ts, in its order.
@@ -138,6 +140,8 @@ import '@object-ui/plugin-map';
 import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
+import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';
 import { SidebarProvider } from '@object-ui/components';
 import { registerLayout } from '@object-ui/layout';
 import { ComponentRegistry } from '@object-ui/core';
@@ -145,6 +149,12 @@ import { SchemaRenderer, SchemaRendererContext, toRenderableSchema } from '@obje
 import fs from 'node:fs';
 import path from 'node:path';
 import { allExamples } from '../src/index.js';
+// Plain-JS CI helper; types are inferred from the `.mjs` source (`allowJs`), the
+// same route `scripts/__tests__/known-schema-types-derivation-5115.test.ts`
+// takes. objectui#6024 reuses this derivation rather than re-deriving: a second
+// copy of "which package registers which key" is the enumeration this pin
+// exists to stop keeping by hand.
+import { deriveRegistryKeys } from '../../../scripts/check-doc-component-types.mjs';
 
 registerLayout();
 
@@ -166,6 +176,17 @@ const DATASOURCE_REQUIRED = 'DataSource required for object/api providers';
 
 const ALL_DIAGNOSTICS = [UNKNOWN_COMPONENT, FAILED_TO_RENDER, DATASOURCE_REQUIRED];
 
+/**
+ * The placeholder every `@object-ui/plugin-form` container paints while it
+ * fetches (`ObjectForm.tsx:1092`, and the same string in `TabbedForm`,
+ * `SplitForm`, `WizardForm`, `DrawerForm`). NOT a diagnostic — it is a frame on
+ * the way to the tile — but `renderEntry` has to settle past it, so it is a
+ * literal here for the same reason the three above are: a reworded placeholder
+ * should turn this file red for review rather than silently stop being waited
+ * for.
+ */
+const FORM_LOADING = 'Loading form...';
+
 /** The packages the gallery host must load, in the host's own order. */
 const HOST_PACKAGES = [
   '@object-ui/plugin-dashboard',
@@ -179,6 +200,8 @@ const HOST_PACKAGES = [
   '@object-ui/plugin-markdown',
   '@object-ui/plugin-timeline',
   '@object-ui/plugin-view',
+  '@object-ui/plugin-form',
+  '@object-ui/plugin-grid',
 ];
 
 /**
@@ -270,8 +293,62 @@ const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
  * The gallery's data source, in the shape `SchemaThumbnail` supplies it. Kept
  * as a local literal rather than imported from `apps/site` because `apps/**` is
  * outside every root Vitest project (`vitest.config.mts` `sharedExclude`); the
- * host-parity case at the end guards the two from drifting apart.
+ * host-parity cases at the end guard the two from drifting apart.
+ *
+ * objectui#5113 added the object surface (`getObjectSchema` / `find` / the
+ * writes) to the host fixture, because `object-view` reaches its data through
+ * exactly this context value — `dataSource` is not a schema key. The same is
+ * true of `object-grid`, which is how objectui#5856 could give `plugin-grid`
+ * real entries without touching the fixture at all. Both categories' entries
+ * render through it, which is what `CATEGORY_OWN_TYPE` below asserts. What the
+ * mirror reproduces is the host's SURFACE and its rows; the query semantics
+ * ($search / $orderby / windowing) are the host's, and the parity case pins the
+ * method names rather than re-deriving them here.
+ *
+ * objectui#6317 widened that guard where it had to be widened. Pinning method
+ * NAMES left the field declarations unwatched, and they drifted: the host
+ * declared `options` on `role` / `status` in `4b0b12630` and this schema did
+ * not follow for 330 commits, with every case in this file green throughout.
+ * The `USERS_SCHEMA` below is now compared to the host's WHOLE, options
+ * included — see the #6317 cases at the end of this file.
  */
+const USERS_ROWS = [
+  { id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', department: 'Engineering', status: 'active', created_at: '2024-01-14' },
+  { id: '2', name: 'Bob Chen', email: 'bob@example.com', role: 'member', department: 'Design', status: 'active', created_at: '2024-02-03' },
+  { id: '3', name: 'Carla Gómez', email: 'carla@example.com', role: 'member', department: 'Sales', status: 'invited', created_at: '2024-03-21' },
+  { id: '4', name: 'Dan Whitfield', email: 'dan@example.com', role: 'viewer', department: 'Support', status: 'suspended', created_at: '2024-04-09' },
+  { id: '5', name: 'Emily Novak', email: 'emily@example.com', role: 'member', department: 'Engineering', status: 'active', created_at: '2024-05-30' },
+];
+
+const USERS_SCHEMA = {
+  name: 'users',
+  label: 'Users',
+  fields: {
+    name: { label: 'Name', type: 'text' },
+    email: { label: 'Email', type: 'email' },
+    role: {
+      label: 'Role',
+      type: 'select',
+      options: [
+        { label: 'Admin', value: 'admin' },
+        { label: 'Member', value: 'member' },
+        { label: 'Viewer', value: 'viewer' },
+      ],
+    },
+    department: { label: 'Department', type: 'text' },
+    status: {
+      label: 'Status',
+      type: 'select',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Invited', value: 'invited' },
+        { label: 'Suspended', value: 'suspended' },
+      ],
+    },
+    created_at: { label: 'Created', type: 'date' },
+  },
+};
+
 const galleryDataSource = {
   queryDataset: async (
     _dataset: string,
@@ -288,7 +365,29 @@ const galleryDataSource = {
       : [{ [measure]: 69 }];
     return { rows, fields: [] };
   },
+  getObjectSchema: async (objectName: string) =>
+    objectName === 'users' ? USERS_SCHEMA : { name: objectName, label: objectName, fields: {} },
+  find: async (objectName: string) =>
+    objectName === 'users'
+      ? { data: [...USERS_ROWS], total: USERS_ROWS.length }
+      : { data: [], total: 0 },
+  findOne: async (objectName: string, id: string | number) =>
+    (objectName === 'users' ? USERS_ROWS : []).find((row) => String(row.id) === String(id)) ?? null,
+  create: async (_objectName: string, data: Record<string, unknown>) => ({ ...data, id: 'demo' }),
+  update: async (_objectName: string, id: string | number, data: Record<string, unknown>) => ({ ...data, id }),
+  delete: async () => true,
 };
+
+/** The method names the host fixture must expose for the mirror to be one. */
+const GALLERY_DATA_SOURCE_METHODS = [
+  'queryDataset',
+  'getObjectSchema',
+  'find',
+  'findOne',
+  'create',
+  'update',
+  'delete',
+];
 
 /** The two wrapper elements this harness adds around the entry's own root. */
 const WRAPPER_ELEMENTS = 2;
@@ -296,6 +395,12 @@ const WRAPPER_ELEMENTS = 2;
 interface Rendered {
   text: string;
   elements: number;
+  /**
+   * The values of the tile's form controls. `textContent` cannot see them, and
+   * for a FORM that is exactly where the data it was given ends up — see
+   * `carriesFixtureRecord` below.
+   */
+  controlValues: string[];
   unmount: () => void;
 }
 
@@ -337,9 +442,22 @@ async function renderEntry(schema: unknown): Promise<Rendered> {
       drewSomething(container.querySelectorAll('*').length, container.textContent ?? ''),
     ).toBe(true),
   );
+  // A third shape (objectui#6167), and the one that makes the two above
+  // insufficient: a data-bound form holds its first paint behind
+  // `Loading form...` while it fetches the object schema and the record. That
+  // placeholder is 5 elements of real DOM, so `drewSomething` accepts it — and
+  // every assertion after it would then be measured against a frame that was
+  // never the tile. Measured: without this wait the `plugin-form` entries'
+  // DATA-provenance cases PASS in a whole-file run (the 570 renders before them
+  // leave the promises resolved) and FAIL when the file is run with `-t`, which
+  // is the definition of a reading that is not a measurement.
+  await waitFor(() => expect(container.textContent ?? '').not.toContain(FORM_LOADING));
   return {
     text: container.textContent ?? '',
     elements: container.querySelectorAll('*').length,
+    controlValues: Array.from(
+      container.querySelectorAll('input, textarea, select'),
+    ).map((el) => (el as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value ?? ''),
     unmount,
   };
 }
@@ -541,8 +659,8 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
      * The objectui#4600 separation, restated because objectui#4616 is exactly
      * the change that would tempt someone to collapse it: the per-page demo
      * hosts opt into their plugins through `PluginLoader`, and importing this
-     * module from them would make every docs page carrying a demo load all
-     * eleven graphs eagerly.
+     * module from them would make every docs page carrying a demo load every
+     * graph in that list eagerly.
      */
     it.each(['InteractiveDemo.tsx', 'LiveSplitDemo.tsx'])(
       '%s still does NOT import it (PluginLoader stays lazy there)',
@@ -550,5 +668,899 @@ describe('objectui#4616 — every catalog entry renders in the docs gallery', ()
         expect(read(host)).not.toContain('registerCatalogBlocks');
       },
     );
+  });
+});
+
+/**
+ * EVERY `plugin-*` CATEGORY'S ENTRIES ACTUALLY USE THEIR PLUGIN
+ * (objectui#5113 for `plugin-view`, objectui#5856 for `plugin-grid`,
+ * objectui#6024 for the generalization to all thirteen).
+ *
+ * The sweep above answers "does every tile draw". It cannot answer the question
+ * objectui#5113 was filed on: whether an example mounted under a PLUGIN's docs
+ * page exercises that plugin. Two categories failed it in exactly the same way,
+ * one card apart. `plugin-view`'s three entries used to be hand-built static
+ * card layouts — `card` / `flex` / `text` / `badge`, no `object-view` node
+ * anywhere — sitting on `content/docs/plugins/plugin-view.mdx` under an
+ * "Interactive Examples" heading and inside a `PluginLoader plugins={['view']}`
+ * wrapper none of them used. `plugin-grid`'s two were the same defect on
+ * `content/docs/plugins/plugin-grid.mdx`. Every check in the repo was green on
+ * all five: the types they named ARE registered (`check-doc-component-types`
+ * asks only that), and the tiles DID draw (the sweep above asks only that).
+ * Neither gate can see this defect, which is why this one exists.
+ *
+ * ## The two halves, and which entries carry which
+ *
+ * The card that generalized this named the hazard it had to avoid, and it is
+ * the reason the classification below is COUNTED rather than implied: a pin
+ * turned on for thirteen categories that silently applies only its cheap half
+ * to eleven of them is WORSE than the honest two-category pin it replaced —
+ * the coverage number goes up, the assurance goes down, and the number is what
+ * gets quoted. So every entry's tier is derived, printed by
+ * `it('states its own coverage split…')`, and pinned there as a literal that a
+ * new category or a re-tiered entry turns red.
+ *
+ *  1. STRUCTURE (every entry) — the entry authors a node whose `type` is in the
+ *     set its OWN package registers.
+ *  2. MOUNT (every entry) — that node sits where the renderer actually paints.
+ *     Measured by substitution: replace every own-type node with an inert probe
+ *     and re-render; the probe's marker has to reach the DOM. This is the half
+ *     that generalizes objectui#5113's RENDER assertion, and it is the answer
+ *     to the specific hole in STRUCTURE — a STRAY node. A `type` that is not a
+ *     node at all (a field's `type: 'select'`, a validation rule's
+ *     discriminant), a node under a branch the parent never renders, or one
+ *     behind a satisfied `hidden` expression all satisfy STRUCTURE and all fail
+ *     MOUNT.
+ *  3. DATA PROVENANCE (only entries that bind to an object the gallery fixture
+ *     serves) — the tile shows a record that exists ONLY in the gallery's data
+ *     source, so the rows on screen came through the registered renderer →
+ *     `dataSource.find`, not out of the entry's own JSON. This is
+ *     objectui#5113's original second fact, unweakened.
+ *
+ * ## What "shows a record" means, after objectui#6167
+ *
+ * The provenance token is looked for in the tile's TEXT **and** in the values
+ * of its form CONTROLS, because those are two different places the same fact
+ * lands. A grid puts a row into text; a form puts the record into
+ * `input.value`, which `textContent` cannot see. Measured on the `plugin-form`
+ * entries this card added: `Alice Johnson` arrives as the value of
+ * `input[name]`, while the whole tile's text reads
+ * `NameEmailDepartmentCancelSave changes`. A text-only reading would have
+ * called a correctly bound form unbound — the blind-instrument failure, on the
+ * very half that does the work.
+ *
+ * The widening is a SUPERSET of the old reading, so it cannot turn a red entry
+ * green by relaxing anything; and `it('the provenance instrument still fails
+ * on a surface with no record behind it')` below is the control that it still
+ * discriminates — the same renderer in `create` mode paints the same controls
+ * with nothing in them, and fails.
+ *
+ * (3) is the strongest of the three and it does NOT generalize, for a reason
+ * that is a property of the entries rather than a gap in this file: the other
+ * eleven categories author their data INLINE (`data`, `staticData`, `messages`,
+ * `columns`, `content`), so there is no record that could only have come from
+ * the fixture. Measured, entry by entry, on this card's merge-base: exactly the
+ * five `plugin-view` / `plugin-grid` entries author `objectName` at all. Rather
+ * than declare that in a table, `DATA_BOUND` is derived from each entry's own
+ * JSON against the fixture's own object names — a category that becomes
+ * object-bound picks the half up with no edit here, and one that loses it moves
+ * the printed split and turns the summary red.
+ *
+ * ## What MOUNT does and does not claim
+ *
+ * It claims the entry's own-plugin node occupies a painted position in the
+ * tile. It does not claim the plugin's renderer produced any particular pixel:
+ * that is what (3) claims where it applies. Two weaker formulations were built
+ * and MEASURED before being rejected, both as "the live tile shows content the
+ * probe-substituted tile does not":
+ *
+ *   - by TEXT: `plugin-charts` renders recharts into a container that happy-dom
+ *     gives zero size, so two of its three tiles paint no text at all
+ *     (`advanced-line-chart`, `simple-bar-chart` — 0 new tokens against the
+ *     probe render). The assertion would be red on entries that are correct.
+ *   - by ELEMENT COUNT: same two tiles measured 3 elements live against 3
+ *     probe-substituted, i.e. no margin at all, and the `React.lazy` categories
+ *     (`kanban`, `markdown`, `code-editor`) make the count depend on whether
+ *     the dynamic import has landed.
+ *
+ * A discriminator that is red on correct entries gets the gate deleted, so the
+ * honest claim is the one asserted, and the split says how far it goes.
+ *
+ * ## The map is DERIVED from the `register()` calls, never enumerated
+ *
+ * A hard-coded `category → type` table is the same enumeration the `register()`
+ * calls already own, and it rots the first time a plugin renames a type. So
+ * `CATEGORY_OWN_TYPES` comes out of `deriveRegistryKeys` — the same derivation
+ * `scripts/check-doc-component-types.mjs` runs for its own universe and
+ * `scripts/regenerate-known-schema-types.mjs` for its generated list — keyed by
+ * the `packages/<dir>/…` site each key was registered from. Catalog category
+ * and package directory are the same string (`plugin-view` ↔
+ * `packages/plugin-view`), which is what makes the join a derivation rather
+ * than a second table.
+ *
+ * That it is a derivation is not a claim to take on trust — the rot it exists
+ * to prevent had ALREADY happened by the time it was written. The card that
+ * asked for this carried a hand-written table reading `plugin-form  form`, and
+ * measured against the register calls that is wrong: `form` is registered by
+ * `packages/components/src/renderers/form/form.tsx`, not by
+ * `@object-ui/plugin-form`, whose own keys are `object-form`,
+ * `embeddable-form`, `form-analytics` and `object-master-detail-form`. The two
+ * `plugin-form` entries were therefore the third instance of the #5113 defect,
+ * and were ledgered in `OWN_PLUGIN_DEBT` below until objectui#6167 rewrote them
+ * as real `object-form` nodes; the ledger is empty as of that card. An
+ * enumerated table would have inherited that mistake and reported them green.
+ *
+ * ## Why the set, not a single type
+ *
+ * `plugin-charts` breaks one-type-per-category: its entries author `chart` AND
+ * `bar-chart`, both registered by `packages/plugin-charts`. The value is a SET,
+ * and the rule stays PER ENTRY — *every* entry authors a node whose type is in
+ * the set its own package registers. Deliberately NOT "the category authors at
+ * least one type this package registers", which one conforming entry satisfies
+ * while every other entry in the category drifts.
+ *
+ * The types are asserted to be REGISTERED separately from the render, because a
+ * type that resolves to nothing fails every case below with the OBJUI-001 panel
+ * rather than with anything about the entries. That separation was written for
+ * `object-grid`, which used to reach this registry ONLY because
+ * `@object-ui/plugin-view` imports `ObjectGrid` from `@object-ui/plugin-grid` —
+ * load-bearing and invisible. objectui#6025 made both `@object-ui/plugin-grid`
+ * and `@object-ui/plugin-form` declared imports of the gallery host, so
+ * resolution no longer rides on that component import. The transitive path
+ * still exists and still works, which is precisely why "is it registered"
+ * cannot judge whether the declaration is there — see
+ * `objectui#6025 — the gallery DECLARES the packages its entries need` below.
+ *
+ * ## No environment exclusions, and that is a result rather than an oversight
+ *
+ * `plugin-editor` and `plugin-map` are in `EXCLUSIONS` above because Monaco
+ * wants a CDN loader and maplibre wants WebGL2 and a live tile host. Neither
+ * half here needs them to render: MOUNT replaces the own-type node with the
+ * probe, so `code-editor` and `object-map` never mount, and DATA PROVENANCE
+ * does not apply to either (no `objectName`). Both categories carry the same
+ * assertions as every other non-object-bound category — the environment limit
+ * costs them nothing in this pin.
+ */
+/** Catalog categories that sit on a plugin's docs page. */
+const PLUGIN_CATEGORIES = [
+  ...new Set(entries.map((e) => e.meta.category).filter((c) => c.startsWith('plugin-'))),
+].sort();
+
+/**
+ * `process.cwd()` is the repo root by construction — `scripts/vitest-
+ * invocation-guard.mjs` refuses any run whose Vitest root is not it.
+ */
+const derivedRegistry = deriveRegistryKeys(process.cwd());
+
+/**
+ * category → the key set `packages/<category>` registers, joined on the
+ * registration SITE. Both spellings a package produces are kept (the bare
+ * `object-view` and the namespaced `plugin-view:object-view`), because an entry
+ * may legitimately author either.
+ */
+const CATEGORY_OWN_TYPES = new Map<string, Set<string>>();
+for (const [key, sites] of derivedRegistry.keys as Map<string, string[]>) {
+  for (const site of sites) {
+    const owner = /^packages\/([^/]+)\//.exec(site)?.[1];
+    if (!owner || !PLUGIN_CATEGORIES.includes(owner)) continue;
+    if (!CATEGORY_OWN_TYPES.has(owner)) CATEGORY_OWN_TYPES.set(owner, new Set());
+    CATEGORY_OWN_TYPES.get(owner)!.add(key);
+  }
+}
+
+/** Every `type` string anywhere in a schema tree. */
+function nodeTypes(node: unknown, acc: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(node)) {
+    for (const n of node) nodeTypes(n, acc);
+    return acc;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'type' && typeof v === 'string') acc.add(v);
+      nodeTypes(v, acc);
+    }
+  }
+  return acc;
+}
+
+const ownTypesIn = (schema: unknown, own: Set<string>) =>
+  [...nodeTypes(schema)].filter((t) => own.has(t)).sort();
+
+/**
+ * The inert stand-in MOUNT substitutes for the entry's own-plugin nodes. It is
+ * namespaced with `skipFallback` so it claims no bare key any catalog entry
+ * could name, and it is unregistered on teardown because the registry is a
+ * process-level singleton.
+ */
+const PROBE_TYPE = 'catalog-pin:own-plugin-probe';
+const PROBE_MARK = 'OWN-PLUGIN-NODE-PAINTED-HERE';
+ComponentRegistry.register(
+  'own-plugin-probe',
+  () => <span data-testid="own-plugin-probe">{PROBE_MARK}</span>,
+  { namespace: 'catalog-pin', skipFallback: true },
+);
+afterAll(() => {
+  ComponentRegistry.unregister('own-plugin-probe', 'catalog-pin');
+});
+
+/** The entry's schema with every own-plugin node swapped for the probe. */
+function substituteOwnNodes(node: unknown, own: Set<string>): unknown {
+  if (Array.isArray(node)) return node.map((n) => substituteOwnNodes(n, own));
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      out[k] =
+        k === 'type' && typeof v === 'string' && own.has(v)
+          ? PROBE_TYPE
+          : substituteOwnNodes(v, own);
+    }
+    return out;
+  }
+  return node;
+}
+
+/**
+ * The objects the gallery fixture actually serves rows for. Read off the
+ * fixture above rather than restated, so an entry binding to some other object
+ * is classified as not-data-bound instead of being asserted against rows the
+ * fixture would never return.
+ */
+const FIXTURE_OBJECTS = new Set([USERS_SCHEMA.name]);
+
+/** The record that exists ONLY in the fixture — the provenance token. */
+const FIXTURE_ONLY_RECORD = USERS_ROWS[0].name;
+
+/**
+ * Did the fixture's record reach the DOM at all? TEXT **or** the value of a
+ * form control — see "What \"shows a record\" means" in the header. A form is
+ * the case that needs the second half: its record lands in `input.value`,
+ * where `textContent` cannot see it.
+ */
+const carriesFixtureRecord = (r: Rendered) =>
+  r.text.includes(FIXTURE_ONLY_RECORD) ||
+  r.controlValues.some((v) => v.includes(FIXTURE_ONLY_RECORD));
+
+/** Does the entry bind to an object the fixture serves? Read off its own JSON. */
+function bindsFixtureObject(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some((n) => bindsFixtureObject(n));
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'objectName' && typeof v === 'string' && FIXTURE_OBJECTS.has(v)) return true;
+      if (bindsFixtureObject(v)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Entries that author NO node of their own package's types — the #5113 defect,
+ * still open. Ledgered rather than skipped, keyed to the card that owns the
+ * fix, and asserted below to STILL FAIL: an entry that starts conforming fails
+ * this file until its line is deleted, so the ledger cannot rot green.
+ *
+ * EMPTY as of objectui#6167, and that emptiness is an assertion rather than a
+ * dormant mechanism: the coverage-split case below pins `ledgered-debt` to `[]`,
+ * so the day an entry is added here the split moves and says so. The two lines
+ * it used to carry were `plugin-form/basic-form` and `plugin-form/contact-form`,
+ * deleted by that card together with the entries they described — the ledger is
+ * emptied by fixing entries, never by editing this list.
+ *
+ * ⛔ This is not an exemption list. Nothing may be added here to make a red
+ * turn green — a new entry that does not use its own plugin is a defect in that
+ * entry, and the fix is the entry.
+ */
+const OWN_PLUGIN_DEBT: Record<string, string> = {};
+
+const pluginEntries = entries.filter((e) => PLUGIN_CATEGORIES.includes(e.meta.category));
+const isDataBound = (e: (typeof pluginEntries)[number]) => bindsFixtureObject(e.schema);
+
+describe('objectui#6024 — the derivation this pin is built on', () => {
+  it('resolves every registration site — an unresolved one would shrink the sets silently', () => {
+    expect(derivedRegistry.findings).toEqual([]);
+  });
+
+  it('is not vacuous: every plugin category resolved to a non-empty key set', () => {
+    const empty = PLUGIN_CATEGORIES.filter((c) => !(CATEGORY_OWN_TYPES.get(c)?.size ?? 0));
+    expect(empty).toEqual([]);
+    expect(derivedRegistry.counters.resolved).toBeGreaterThan(100);
+  });
+
+  /**
+   * The provenance token is only provenance if the entries it is asserted
+   * against cannot supply it. Asserted rather than asserted-in-a-comment: an
+   * entry that happened to author the fixture's first record would turn the
+   * DATA half into a tautology — green forever, checking nothing.
+   *
+   * Scoped to the `plugin-*` corpus, which is this pin's universe, and that
+   * scope is measured rather than assumed: two entries elsewhere in the catalog
+   * DO author the string (`components-layout-card/profile-detail-card` and
+   * `components-layout-card/user-list-card`, found by this case on the first
+   * run). They are hand-built cards about a person named like the fixture's
+   * first row, they are not held to the DATA half, and a corpus-wide assertion
+   * would have been red on two correct entries.
+   */
+  it(`no plugin-* entry authors ${FIXTURE_ONLY_RECORD} — for them it exists only in the fixture`, () => {
+    const authoring = pluginEntries
+      .filter((e) => JSON.stringify(e.schema).includes(FIXTURE_ONLY_RECORD))
+      .map((e) => e.id);
+    expect(authoring).toEqual([]);
+  });
+
+  /**
+   * THE PROVENANCE INSTRUMENT STILL DISCRIMINATES (objectui#6167).
+   *
+   * `carriesFixtureRecord` reads text OR control values, which is a WIDER
+   * reading than the `r.text` one objectui#5113 wrote. A widened instrument has
+   * to be shown to still fail on the thing it is meant to catch, or the entries
+   * it newly admits are admitted by relaxation.
+   *
+   * The control is the `plugin-form` entries' own shape with ONE thing changed:
+   * a `recordId` the fixture does not serve. Same renderer, same object, same
+   * mode, same harness — so what it measures is the record and nothing else.
+   * Its controls still render, which is asserted first: without that, a form
+   * that painted nothing would satisfy the line below while measuring nothing.
+   *
+   * (`mode: 'create'` was tried first and is NOT usable here: it paints its
+   * shell before the object schema resolves, so `renderEntry` — which settles
+   * on "something was drawn" — returns with zero controls. The edit path holds
+   * its first paint until the fetch lands, which is why this shape settles.)
+   */
+  it('the provenance instrument still fails on a surface with no record behind it', async () => {
+    const r = await renderEntry({
+      type: 'object-form',
+      objectName: 'users',
+      mode: 'edit',
+      recordId: 'no-such-record',
+      fields: ['name', 'email', 'department'],
+    });
+    try {
+      expect(
+        r.controlValues.length,
+        'the control form rendered no controls at all, so the assertion below would ' +
+          'pass without measuring anything',
+      ).toBeGreaterThan(0);
+      expect(carriesFixtureRecord(r)).toBe(false);
+    } finally {
+      teardown(r);
+    }
+  });
+
+  /**
+   * THE SPLIT, STATED BY THE GATE ITSELF. Breadth is not depth: this case is
+   * what stops "the pin covers all thirteen categories" from being read as
+   * "all thirteen carry the strong half". The literal is measured, and a new
+   * category, a new entry, or an entry changing tier turns it red for review.
+   */
+  it('states its own coverage split — how many entries carry which half', () => {
+    const tierOf = (e: (typeof pluginEntries)[number]) =>
+      OWN_PLUGIN_DEBT[e.id] ? 'ledgered-debt' : isDataBound(e) ? 'structure+mount+data' : 'structure+mount';
+    const byTier: Record<string, string[]> = {};
+    for (const e of pluginEntries) (byTier[tierOf(e)] ??= []).push(e.id);
+    const categoriesIn = (tier: string) =>
+      [...new Set((byTier[tier] ?? []).map((id) => id.split('/')[0]))].sort();
+
+    expect({
+      categories: PLUGIN_CATEGORIES.length,
+      entries: pluginEntries.length,
+      'structure+mount+data': {
+        categories: categoriesIn('structure+mount+data'),
+        entries: (byTier['structure+mount+data'] ?? []).length,
+      },
+      'structure+mount': {
+        categories: categoriesIn('structure+mount'),
+        entries: (byTier['structure+mount'] ?? []).length,
+      },
+      'ledgered-debt': byTier['ledgered-debt'] ?? [],
+    }).toEqual({
+      categories: 13,
+      entries: 41,
+      // The strong half — the tile shows a record only the fixture holds.
+      // These are the three categories whose entries bind to `users`.
+      'structure+mount+data': {
+        categories: ['plugin-form', 'plugin-grid', 'plugin-view'],
+        entries: 7,
+      },
+      // The other eleven author their data inline, so no fixture-only record
+      // can reach their tiles. They carry STRUCTURE and MOUNT, and nothing here
+      // claims otherwise.
+      'structure+mount': {
+        categories: [
+          'plugin-calendar',
+          'plugin-charts',
+          'plugin-chatbot',
+          'plugin-dashboard',
+          'plugin-editor',
+          'plugin-gantt',
+          'plugin-kanban',
+          'plugin-map',
+          'plugin-markdown',
+          'plugin-timeline',
+        ],
+        entries: 34,
+      },
+      // Open defects with an owning card, NOT exemptions. See OWN_PLUGIN_DEBT.
+      // EMPTY as of objectui#6167 — every plugin category is now held to the
+      // rule, and adding a line to the ledger moves this literal.
+      'ledgered-debt': [],
+    });
+  });
+
+  it('every ledgered entry still exists and still fails — the ledger cannot rot green', () => {
+    const ids = new Set(entries.map((e) => e.id));
+    for (const [id, reason] of Object.entries(OWN_PLUGIN_DEBT)) {
+      expect(ids.has(id), `${id} is ledgered but no longer exists in the catalog`).toBe(true);
+      expect(reason).toMatch(/objectui#\d+/);
+      const entry = entries.find((e) => e.id === id)!;
+      const own = CATEGORY_OWN_TYPES.get(entry.meta.category) ?? new Set<string>();
+      expect(
+        ownTypesIn(entry.schema, own),
+        `${id} now authors a node its own package registers — delete its OWN_PLUGIN_DEBT ` +
+          'line so the entry is held to the rule like every other one.',
+      ).toEqual([]);
+    }
+  });
+});
+
+describe.each(PLUGIN_CATEGORIES)(
+  'objectui#5113/#5856/#6024 — the %s entries use their own plugin',
+  (category) => {
+    const own = CATEGORY_OWN_TYPES.get(category) ?? new Set<string>();
+    const categoryEntries = pluginEntries.filter((e) => e.meta.category === category);
+    const held = categoryEntries.filter((e) => !OWN_PLUGIN_DEBT[e.id]);
+
+    it('the category is populated (guard is not vacuous)', () => {
+      expect(categoryEntries.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it(`every type packages/${category} registers resolves in the gallery's registration set`, () => {
+      const unresolved = [...own].filter((t) => !ComponentRegistry.get(t));
+      expect(
+        unresolved,
+        `these types resolve to no renderer, so a render case below would fail with the ` +
+          'OBJUI-001 panel rather than with anything about the entries. For `object-grid` ' +
+          'this is transitive — see the header.',
+      ).toEqual([]);
+    });
+
+    it.each(held.map((e) => [e.id, e.schema] as const))(
+      '%s authors a node whose type its own package registers',
+      (id, schema) => {
+        expect(
+          ownTypesIn(schema, own),
+          `${id} authors none of ${[...own].sort().join(', ')} — it is a picture of the ` +
+            'component rather than the component. Fix the entry, never this list.',
+        ).not.toEqual([]);
+      },
+    );
+
+    it.each(held.map((e) => [e.id, e.schema] as const))(
+      '%s mounts that node where the tile actually paints',
+      async (id, schema) => {
+        const r = await renderEntry(substituteOwnNodes(schema, own));
+        try {
+          expect(
+            r.text,
+            `${id} authors a node its own package registers, but replacing it with an inert ` +
+              'probe changes nothing on screen — the node never reached the DOM, so it is a ' +
+              'stray rather than the thing the tile is made of.',
+          ).toContain(PROBE_MARK);
+        } finally {
+          teardown(r);
+        }
+      },
+    );
+
+    const dataBound = held.filter((e) => isDataBound(e));
+    if (dataBound.length > 0) {
+      it.each(dataBound.map((e) => [e.id, e.schema] as const))(
+        '%s puts data from the gallery data source on screen',
+        async (id, schema) => {
+          const r = await renderEntry(schema);
+          try {
+            // Not authored anywhere in the catalog — it exists only in the
+            // fixture, which the case above pins. Read out of the text OR a
+            // control's value: a grid shows it, a form holds it.
+            expect(
+              carriesFixtureRecord(r),
+              `${id} renders with ${FIXTURE_ONLY_RECORD} nowhere in it — not in the tile's ` +
+                "text and not in a form control's value — so nothing on screen came through " +
+                'the registered renderer → `dataSource.find`.',
+            ).toBe(true);
+          } finally {
+            teardown(r);
+          }
+        },
+      );
+    }
+  },
+);
+
+/**
+ * DECLARED, NOT TRANSITIVE (objectui#6025).
+ *
+ * ## Why this is not the same question as "is the type registered"
+ *
+ * `object-grid` resolved in this registry long before the host declared it, and
+ * it still would if the declaration were deleted: `@object-ui/plugin-view`
+ * imports `ObjectGrid` from `@object-ui/plugin-grid`
+ * (`packages/plugin-view/src/ObjectView.tsx:37`), and importing that entry runs
+ * its `register` calls. The same is true of `@object-ui/plugin-form` one line
+ * below it. Measured on this card's merge-base, importing exactly the eleven
+ * packages the host then carried: `object-grid`, `object-form`,
+ * `plugin-form:object-form`, `embeddable-form`, `form-analytics`,
+ * `object-master-detail-form`, `record:line_items`, `view:form` and
+ * `import-wizard` ALL resolved.
+ *
+ * So `expect(ComponentRegistry.get('object-grid')).toBeTruthy()` — which this
+ * file does assert, for its own reason, in every category's own case — passes
+ * in the declared world and in the transitive one alike. For THIS question it
+ * is a ghost: an assertion that cannot fail in either world.
+ *
+ * What is asserted here instead is the host's DECLARATION, and it is a real
+ * judge because of the case it leans on: the parity case above ties
+ * `HOST_PACKAGES` to the literal import list in `registerCatalogBlocks.ts`.
+ * Remove the import from the host and parity reds; remove it from both and this
+ * case reds. No transitive import can satisfy either, because neither reads the
+ * registry at all.
+ *
+ * The rule is derived, not enumerated: every `plugin-*` CATEGORY that has
+ * catalog entries names a package the gallery renders through, so the host must
+ * load that package by name. A new plugin category with entries picks the
+ * requirement up with no edit here.
+ */
+describe('objectui#6025 — the gallery DECLARES the packages its entries need', () => {
+  it('every plugin category with catalog entries is loaded BY NAME by the host', () => {
+    expect(
+      PLUGIN_CATEGORIES.length,
+      'no plugin categories were derived, so this case would be vacuous',
+    ).toBeGreaterThanOrEqual(13);
+
+    const undeclared = PLUGIN_CATEGORIES.map((category) => `@object-ui/${category}`).filter(
+      (pkg) => !HOST_PACKAGES.includes(pkg),
+    );
+    expect(
+      undeclared,
+      'these packages register the types their own category’s entries author, and the ' +
+        'gallery host does not name them. Whether the types resolve anyway through some ' +
+        'other package’s component import is a different question and not this one — add ' +
+        'the side-effect import to `apps/site/app/components/registerCatalogBlocks.ts` and ' +
+        'mirror it in `HOST_PACKAGES`.',
+    ).toEqual([]);
+  });
+});
+
+/**
+ * HOST PARITY for the fixture, same technique and same reason as the
+ * registration-set parity above: the mirror at the top of this file is what
+ * the assertions run against, so a host fixture that lost `find` would leave
+ * this file green while the docs page went back to an empty view.
+ */
+describe('objectui#5113 — the docs-site hosts supply the same fixture', () => {
+  const siteDir = path.join(process.cwd(), 'apps/site/app/components');
+  const read = (f: string) => fs.readFileSync(path.join(siteDir, f), 'utf8');
+
+  it('the host fixture exposes every method this mirror implements', () => {
+    const source = read('galleryDataSource.ts');
+    const missing = GALLERY_DATA_SOURCE_METHODS.filter(
+      (method) => !new RegExp(`\\basync ${method}\\s*\\(`).test(source),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it.each(['SchemaThumbnail.tsx', 'InteractiveDemo.tsx'])(
+    '%s hands it to the renderer',
+    (host) => {
+      expect(read(host)).toMatch(/^import \{ galleryDataSource \} from '\.\/galleryDataSource';$/m);
+      expect(read(host)).toContain('dataSource: galleryDataSource');
+    },
+  );
+});
+
+/**
+ * objectui#6317 — every `select` field in the fixture declares the options its
+ * own rows use, and this mirror declares exactly what the host declares.
+ *
+ * ## The defect
+ *
+ * `ObjectForm` copies a field's options through verbatim — `formField.options =
+ * field.options || []` (`packages/plugin-form/src/ObjectForm.tsx`) — so a
+ * `select` field with no `options` renders the "No options available" empty
+ * state. Measured through this file's own render path, an `object-form` over
+ * `users` with no `fields` restriction:
+ *
+ *   before: "NameEmailRoleNo options availableDepartmentStatusNo options
+ *            availableCancelUpdate"
+ *   after:  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *            InvitedSuspendedCancelUpdate"
+ *
+ * and the record's own `role` / `status` join the form's control values
+ * (`["Alice Johnson","alice@example.com","Engineering"]` → `["Alice Johnson",
+ * "alice@example.com","admin","Engineering","active"]`), so the two fields stop
+ * being dropped on the way in.
+ *
+ * ## Why the grid and view tiles do NOT move with it
+ *
+ * Worth recording, because the expectation going in was that they would.
+ * `ObjectGrid` SYNTHESISES options for an option-less select from the distinct
+ * values in the loaded rows (`packages/plugin-grid/src/ObjectGrid.tsx` —
+ * `fieldMeta.options = uniqueValues.map(v => ({ value: v, label:
+ * humanizeLabel(String(v)) }))`), so `admin` already printed as "Admin".
+ * Measured: the tile text of all seven `users`-bound entries is byte-identical
+ * before and after this declaration. The grid has a fallback for the missing
+ * declaration; the FORM path has none. That asymmetry is the whole card.
+ *
+ * ## Two directions, because a one-sided pin cannot see this drift
+ *
+ * The host declared these options in `4b0b12630` and this mirror did not
+ * follow for 330 commits — with every case in this file green throughout. The
+ * `select`-coverage case below catches a fixture that declares neither; the
+ * parity case catches the two files declaring different things.
+ */
+
+interface UsersFieldDecl {
+  label?: string;
+  type?: string;
+  options?: Array<{ label: string; value: string }>;
+}
+
+/** Distinct values the mirror's rows carry for one field — walked, not grepped. */
+function distinctRowValues(field: string): Set<string> {
+  const seen = new Set<string>();
+  for (const row of USERS_ROWS) {
+    const value = (row as Record<string, unknown>)[field];
+    if (value !== undefined && value !== null) seen.add(String(value));
+  }
+  return seen;
+}
+
+/**
+ * The host's `USERS_SCHEMA`, read off its source. `apps/**` is outside every
+ * root Vitest project, which is the same constraint that makes this file a
+ * mirror in the first place. Brace-matched rather than pattern-matched and then
+ * JSON-ified, so an extraction that stops working fails LOUDLY here rather than
+ * quietly comparing less than it claims to.
+ */
+function readHostUsersFields(source: string): Record<string, UsersFieldDecl> {
+  const start = source.indexOf('const USERS_SCHEMA = {');
+  expect(start, 'the host fixture no longer declares `const USERS_SCHEMA = {`').toBeGreaterThan(-1);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  expect(end, 'the host `USERS_SCHEMA` literal has unbalanced braces').toBeGreaterThan(-1);
+  const json = source
+    .slice(open, end + 1)
+    .replace(/'/g, '"')
+    .replace(/([{,[]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":')
+    .replace(/,(\s*[}\]])/g, '$1');
+  let parsed: { fields?: Record<string, UsersFieldDecl> };
+  try {
+    parsed = JSON.parse(json) as { fields?: Record<string, UsersFieldDecl> };
+  } catch (error) {
+    throw new Error(
+      'the host `USERS_SCHEMA` is no longer a plain single-quoted literal, so this ' +
+        'parity case can no longer read it — a comment inside the literal, or an ' +
+        'apostrophe inside a string, would each do it. Fix the reader, not the pin.',
+      { cause: error },
+    );
+  }
+  expect(parsed.fields, 'the host `USERS_SCHEMA` declares no `fields`').toBeTruthy();
+  return parsed.fields as Record<string, UsersFieldDecl>;
+}
+
+describe('objectui#6317 — a `select` field declares the options its rows use', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+
+  it('the fixture declares select fields at all — otherwise the cases below are vacuous', () => {
+    expect(selectFields).not.toEqual([]);
+  });
+
+  it.each(selectFields)('`%s` declares options, and they cover its rows exactly', (name) => {
+    const declared = mirrorFields[name].options;
+    expect(
+      declared,
+      `\`${name}\` is declared \`type: 'select'\` with no \`options\`. ObjectForm copies ` +
+        'a field\'s options through verbatim, so a form bound to it renders the "No ' +
+        'options available" empty state — on a docs page whose whole purpose is to ' +
+        'show the component working.',
+    ).toBeTruthy();
+    const optionValues = new Set((declared ?? []).map((option) => String(option.value)));
+    const rowValues = distinctRowValues(name);
+    expect(
+      [...rowValues].filter((value) => !optionValues.has(value)),
+      `rows carry these \`${name}\` values that no option declares — they would render as a blank cell`,
+    ).toEqual([]);
+    expect(
+      [...optionValues].filter((value) => !rowValues.has(value)),
+      `these \`${name}\` options match no row, so nothing in the gallery demonstrates them`,
+    ).toEqual([]);
+  });
+
+  it('the host fixture declares the SAME field surface, options included', () => {
+    const hostSource = fs.readFileSync(
+      path.join(process.cwd(), 'apps/site/app/components/galleryDataSource.ts'),
+      'utf8',
+    );
+    expect(
+      readHostUsersFields(hostSource),
+      'the host fixture and this mirror declare different `users` field surfaces. They ' +
+        'are ONE fixture in two files and have to move together: the host gained its ' +
+        '`role` / `status` options in 4b0b12630 and this mirror did not follow for 330 ' +
+        'commits, with every case in this file green the whole time.',
+    ).toEqual(mirrorFields);
+  });
+});
+
+/**
+ * objectui#6537 — the two `plugin-form` entries stop steering around the
+ * fixture's `select` fields.
+ *
+ * ## What the entries were working around
+ *
+ * Both `plugin-form` entries authored a field list that omitted `role` and
+ * `status` — the only two `select` fields the `users` fixture declares:
+ * `object-form-record` listed `["name","email","department"]` and
+ * `object-form-tabbed-sections` sectioned over `[name,email]` /
+ * `[department,created_at]`. That was never an authoring choice. Until
+ * objectui#6317 this mirror declared both fields with NO `options`, and
+ * `ObjectForm` copies a field's options through verbatim (`formField.options =
+ * field.options || []`), so a form over either one painted the "No options
+ * available" empty state — on a docs page whose whole purpose is to show the
+ * component working. The five `plugin-grid` / `plugin-view` entries over the
+ * same object never steered around them, because `ObjectGrid` SYNTHESISES
+ * options for an option-less select from the loaded rows. That asymmetry is
+ * what #6317 measured, and it is why only the FORM entries carried a
+ * workaround.
+ *
+ * #6317 declared the options in the host fixture's `users` schema and in this
+ * mirror, so the constraint is gone and both entries carry the full field
+ * surface again.
+ *
+ * Measured through this file's own render path, before and after this card:
+ *
+ *   object-form-record
+ *     before "NameEmailDepartmentCancelSave changes"
+ *     after  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *             InvitedSuspendedCancelSave changes"
+ *   object-form-tabbed-sections
+ *     before "IdentityOrganisationNameEmailDepartmentCreatedCancelSave changes"
+ *     after  "IdentityOrganisationAccessNameEmailDepartmentCreatedRoleAdmin
+ *             AdminMemberViewerStatusActiveActiveInvitedSuspendedCancelSave
+ *             changes"
+ *
+ * ("Admin" twice: the closed trigger shows the selected option's label, and
+ * the option list carries it again.) The record's own values join the form's
+ * controls with them — `["Alice Johnson","alice@example.com","Engineering"]`
+ * becomes `["Alice Johnson","alice@example.com","admin","Engineering",
+ * "active"]` — so the two fields stop being dropped on the way in.
+ *
+ * That the text MOVES is the point, and it is the half #6317 could not show:
+ * the seven `users`-bound tiles were byte-identical across that card because
+ * the grid synthesises what the declaration was missing. The form path has no
+ * such fallback, so here the declaration is visible.
+ *
+ * The tabbed entry is measurable from its `identity` default tab because
+ * `TabbedForm` keeps EVERY panel mounted inside one `<form>` (objectui#2959,
+ * so a tab the user leaves keeps its values and one submit spans them all) —
+ * the `Access` tab's controls are in the DOM without activating it.
+ *
+ * ## Why this is a pin and not just an edit
+ *
+ * The workaround is invisible in the entries themselves — a shorter `fields`
+ * list reads as a deliberately trimmed demo, and every case in this file was
+ * green the whole time it was there. Nothing would notice it coming back. So
+ * the rule is stated positively and DERIVED from the fixture: every
+ * `plugin-form` entry authors every `select` field the fixture declares, and
+ * each of those fields puts its declared option labels on screen. A field that
+ * becomes a `select`, or an option that is added, joins this pin with no edit
+ * here; an entry that drops one turns it red.
+ *
+ * The render half is what makes it a measurement rather than a restatement of
+ * the JSON: an authored field that renders the empty state satisfies the
+ * authoring half and fails here.
+ */
+
+/** The empty state a `select` with no options paints (`packages/fields/src/widgets/useFieldTranslation.ts`, `packages/components/src/renderers/form/form.tsx`). Copied as a literal for the same reason the three diagnostics at the top of this file are: it is user-visible contract for this pin. */
+const OPTIONS_EMPTY = 'No options available';
+
+/**
+ * Field NAMES an entry authors, at any depth: the string members of any
+ * `fields` array. Walked rather than read off a known path, because the two
+ * entries put them in different places — one at the root, one inside
+ * `sections[].fields` — and a path-specific reader would report the tabbed
+ * entry as authoring none, which is the vacuous green this pin has to avoid.
+ */
+function authoredFieldNames(node: unknown, acc: string[] = []): string[] {
+  if (Array.isArray(node)) {
+    for (const n of node) authoredFieldNames(n, acc);
+    return acc;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'fields' && Array.isArray(v)) {
+        for (const f of v) if (typeof f === 'string') acc.push(f);
+      }
+      authoredFieldNames(v, acc);
+    }
+  }
+  return acc;
+}
+
+describe('objectui#6537 — the `plugin-form` entries author the fixture\'s `select` fields', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+  const formEntries = entries.filter((e) => e.meta.category === 'plugin-form');
+  const cases = formEntries.map((e) => [e.id, e.schema] as const);
+
+  it('is not vacuous: there are form entries, they restrict their fields, and the fixture has selects', () => {
+    expect(formEntries.map((e) => e.id)).not.toEqual([]);
+    expect(selectFields).not.toEqual([]);
+    // An entry that authors NO field list takes the whole object surface and
+    // would satisfy the authoring case below for free.
+    expect(
+      formEntries.filter((e) => authoredFieldNames(e.schema).length === 0).map((e) => e.id),
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s authors every select field the fixture declares', (_id, schema) => {
+    const authored = authoredFieldNames(schema);
+    expect(
+      selectFields.filter((name) => !authored.includes(name)),
+      'this entry steers around a `select` field of the object it binds to. That was a ' +
+        'workaround for an option-less fixture field (objectui#6317) and the fixture now ' +
+        'declares the options — a form demo that avoids the only pickers in its object ' +
+        'demonstrates less than the component does.',
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s puts every declared option label on screen', async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(
+        r.text.includes(OPTIONS_EMPTY),
+        `the tile paints "${OPTIONS_EMPTY}" — a select reached the form with no options`,
+      ).toBe(false);
+      const missing = selectFields.flatMap((name) =>
+        (mirrorFields[name].options ?? [])
+          .map((option) => option.label)
+          .filter((label) => !r.text.includes(label)),
+      );
+      expect(
+        missing,
+        'these option labels the fixture declares are not on the tile, so the picker the ' +
+          'docs page exists to show is not being shown',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
+  });
+
+  it.each(cases)("%s carries the record's own select values in its controls", async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(r.controlValues.length).toBeGreaterThan(0);
+      const record = USERS_ROWS[0] as Record<string, unknown>;
+      expect(
+        selectFields.filter((name) => !r.controlValues.includes(String(record[name]))),
+        "the record's own values for these select fields never reached a form control, so " +
+          'the field is on screen but the record is being dropped on the way in',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
   });
 });

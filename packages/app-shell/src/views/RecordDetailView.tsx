@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
+import { ACTIVITY_TYPE_TO_FEED_TYPE, RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -19,50 +19,51 @@ import { buildExpandFields, resolveRecordIdParamSeed, userActionPredicates } fro
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
 import { Database, ChevronLeft } from 'lucide-react';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { SkeletonDetail } from '../skeletons';
-import { ManagedByBadge } from '../components/ManagedByBadge';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
-import { deriveRelatedLists } from '../utils/deriveRelatedLists';
-import { hasExplicitDiscussion, hasExplicitAttachments, hasExplicitApprovals } from '../utils/pageSchemaIntrospect';
-import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog';
-import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
-import { FlowRunner, type ScreenFlowState, type ScreenSpec } from './FlowRunner';
-import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
-import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
-import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
-import { resolveActionParams } from '../utils/resolveActionParams';
-import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
-import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
-import { interpretFlowResponse } from '../utils/flowResponse';
-import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { SkeletonDetail } from '../skeletons/index.js';
+import { ManagedByBadge } from '../components/ManagedByBadge.js';
+import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances.js';
+import { deriveRelatedLists } from '../utils/deriveRelatedLists.js';
+import { hasExplicitDiscussion, hasExplicitAttachments, hasExplicitApprovals } from '../utils/pageSchemaIntrospect.js';
+import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDialog.js';
+import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog.js';
+import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog.js';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from './FlowRunner.js';
+import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge.js';
+import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync.js';
+import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams.js';
+import { resolveActionParams } from '../utils/resolveActionParams.js';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction.js';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
+import { interpretFlowResponse } from '../utils/flowResponse.js';
+import { useRecordBreadcrumbTitle } from '../context/NavigationContext.js';
 // Audit provenance renders as the one-line <RecordMetaFooter>; the other
 // framework-injected bookkeeping columns are hidden from the body outright.
 // Both sets are derived, not restated — see record-detail-system-fields.ts.
-import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields';
+import { AUDIT_FIELD_NAMES, HIDDEN_SYSTEM_FIELD_NAMES } from './record-detail-system-fields.js';
 import type { FeedItem } from '@object-ui/types';
-import type { ActionDef, ActionParamDef } from '@object-ui/core';
-import { useRecordApprovals, recordLockedByApproval } from '../hooks/useRecordApprovals';
-import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
-import { RecordApprovalsPanel } from './RecordApprovalsPanel';
-import { DeclaredActionsBar } from './DeclaredActionsBar';
+import type { ActionDef, ActionParamDef, ConfirmationHandler } from '@object-ui/core';
+import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
+import { useRecordApprovals, recordLockedByApproval, isSubmitterOf } from '../hooks/useRecordApprovals.js';
+import { RecordAttachmentsPanel } from './RecordAttachmentsPanel.js';
+import { RecordApprovalsPanel } from './RecordApprovalsPanel.js';
+import { DeclaredActionsBar } from './DeclaredActionsBar.js';
 import {
   SYS_APPROVAL_REQUEST_OBJECT,
   RECORD_APPROVAL_ACTION_LOCATION,
   RECORD_APPROVAL_EXCLUDED_ACTIONS,
-} from './recordApprovalActions';
+} from './recordApprovalActions.js';
 // Side-effect registration of `record:approvals` — synthesized record pages
 // reference the node whenever the record has approval requests (#3461), so
 // the type must resolve wherever this view renders, not only under hosts
 // that import the app-shell barrel.
-import './record-approvals-renderer';
-import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
-import { getRecordDisplayName } from '../utils';
-import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay';
-import { useFavorites } from '../hooks/useFavorites';
-import { useActionModal } from '../hooks/useActionModal';
-import { useRecentItems } from '../hooks/useRecentItems';
+import './record-approvals-renderer.js';
+import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer.js';
+import { getRecordDisplayName } from '../utils/index.js';
+import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay.js';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useActionModal } from '../hooks/useActionModal.js';
+import { useRecentItems } from '../hooks/useRecentItems.js';
 
 interface RecordDetailViewProps {
   dataSource: any;
@@ -491,13 +492,39 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     [objectName, objectDef, actionResultDialog],
   );
 
-  const confirmHandler = useCallback((message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => {
+  // Typed as the PUBLISHED `ConfirmationHandler`, not a re-spelled copy of its
+  // shape (objectui#5835). This view runs its own confirm runtime rather than
+  // consuming `useConsoleActionRuntime`, and the inline
+  // `(message: string, options?: { title?; confirmText?; cancelText? })` this
+  // replaced was a near-duplicate that the compiler had no way to keep in step
+  // with the real type — the same drift family as objectui#5610 / objectui#3320.
+  //
+  // `options` is inert ON THIS PATH and that is not a reason to narrow it. The
+  // handler is only ever handed to the runner as `onConfirm`, and the runner
+  // calls it with ONE argument (the structured `confirm` arm that forwarded a
+  // bag was retired, objectui#4314). The parameter is LIVE elsewhere:
+  // `handleDeleteView` in `ObjectView.tsx` calls a `ConfirmationHandler`
+  // directly with all three fields localized. One published type, two call
+  // paths, one of which never fills the bag — settled KEEP, 2026-08-22 ruling
+  // on objectui#5205.
+  //
+  // The field set this hands `ActionConfirmDialog` must stay identical to the
+  // one `useConsoleActionRuntime` hands the same dialog; that parity is pinned
+  // by `RecordDetailView.confirmRuntimeParity-5835.test.tsx`, which reads what
+  // ARRIVES at the dialog from both runtimes rather than comparing the two
+  // declarations to each other.
+  const confirmHandler = useCallback<ConfirmationHandler>((message, options) => {
     return new Promise<boolean>((resolve) => {
       setConfirmState({ open: true, message, options, resolve });
     });
   }, []);
 
-  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: any) => {
+  // The SECOND param-collection handler the console mounts, narrowed to the
+  // same seam contract as `useConsoleActionRuntime`'s (objectui#5611). It does
+  // not read `overrideNotice` itself — it takes the envelope so the two
+  // handlers on this seam cannot drift apart from each other, and so a reader
+  // added here later has the key declared rather than reaching for a cast.
+  const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: ConsoleActionDispatch) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // Related-list row actions retarget a CHILD object (e.g. sys_member rows
       // on an org record page) and stash the clicked row under
@@ -535,8 +562,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       setParamState({
         open: true,
         params: localized,
-        // Title the dialog as the action rather than the generic "Action parameters".
-        title: action?.label || action?.title,
+        // Title the dialog as the action rather than the generic "Action
+        // parameters" — from `label` alone, the one spelling an action carries
+        // for this. The `|| action?.title` fallback that used to sit here read
+        // a key declared on no action surface at all — not `@objectstack/spec`'s
+        // `ActionSchema` (44 keys walked at spec 17.0.0), not `ActionDef` or its
+        // pinned `ACTION_DEF_KEYS` / `SPEC_ACTION_KEYS`, not `@object-ui/types`'
+        // renderer view (`ui-action.ts`) or `crud.ts` — and forwarded by none of
+        // the four action renderers, so it could not fire from authored
+        // metadata. This was the SECOND copy of the limb objectui#4282 removed
+        // from `useConsoleActionRuntime`: this view builds its own runtime
+        // rather than routing through that hook, so the two param-collection
+        // handlers drift as a pair (objectui#5610). Reads exactly one key, like
+        // `description` below.
+        title: action?.label,
         description: actionDescription(objForI18n, action?.name, action?.description),
         resolve,
       });
@@ -638,16 +677,42 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           // refusal only once every source has been tried, instead of the
           // silent drop this call site used to fall back to
           // (objectstack#8018, objectui#4669).
+          //
+          // objectui#5176 — the page-record fallback is not enough on its own,
+          // because the header does not wait for the page record. `isLoading`
+          // (the only state the <SkeletonDetail> early return reads) is flipped
+          // false in a route-keyed microtask, while `pageRecord` lands one
+          // `findOne` round-trip later; for that whole window the real header
+          // renders with every `record_header` action live. Clicking inside it
+          // seeded from `null`, which `resolveRecordIdParamSeed` deliberately
+          // abstains on (no value AND no error — "no row context" is not that
+          // guard's business), so the request went out naming no record and the
+          // backend answered `missing_record_id`. That is the reported "click
+          // does nothing, click again and it works".
+          //
+          // `pureRecordId` is the id this page is ADDRESSED by — read off the
+          // URL, present on the first render, and already the fallback the
+          // other three dispatch paths in this file use. Seeding a minimal row
+          // from it makes this path agree with them. It stays a LAST resort
+          // (row and override still outrank it) and keeps the same
+          // retarget guard `interpolationRecord` uses, so a child-object action
+          // is never handed the parent page's id. An action keyed on some other
+          // field via `recordIdField` gets a row without that key, which is the
+          // helper's named refusal — deliberately, since the URL carries the
+          // record's id and nothing else: refusing beats under-specifying.
           const recordIdOverride = (action as { recordId?: unknown }).recordId;
           const rowHasValue = !!rowRecord && rowRecord[rowField] != null;
           if (!rowHasValue && recordIdOverride != null) {
             body[action.recordIdParam] = recordIdOverride;
           } else {
+            const targetsThisRecord = !action.objectName || action.objectName === objectName;
+            const thisRecordSeed: Record<string, any> | undefined = targetsThisRecord
+              ? ((pageRecord as Record<string, any> | undefined)
+                  ?? (pureRecordId != null ? { id: pureRecordId } : undefined))
+              : undefined;
             const seedRecord: Record<string, any> | undefined = rowHasValue
               ? rowRecord
-              : ((!action.objectName || action.objectName === objectName
-                  ? (pageRecord as Record<string, any> | undefined)
-                  : undefined) ?? rowRecord);
+              : (thisRecordSeed ?? rowRecord);
             const seed = resolveRecordIdParamSeed(action, seedRecord);
             if (seed.error) return { success: false, error: seed.error };
             if (seed.value !== undefined) body[action.recordIdParam] = seed.value;
@@ -835,8 +900,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // `action.recordId`; header/more actions carry none and use this page's id.
   // The env ref keeps the handler instance stable across renders (authFetch is
   // memoized once) while the thunks read the live record/object.
-  const serverActionEnvRef = useRef({ objectName, pureRecordId, notifyRecordChanged, t });
-  serverActionEnvRef.current = { objectName, pureRecordId, notifyRecordChanged, t };
+  const serverActionEnvRef = useRef({ objectName, pureRecordId, notifyRecordChanged, t, navigate });
+  serverActionEnvRef.current = { objectName, pureRecordId, notifyRecordChanged, t, navigate };
   const serverActionHandler = useMemo(
     () => createConsoleServerActionHandler({
       fetch: authFetch,
@@ -846,6 +911,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         recordId: (action as { recordId?: unknown }).recordId ?? serverActionEnvRef.current.pureRecordId ?? undefined,
       }),
       onRefresh: () => serverActionEnvRef.current.notifyRecordChanged(),
+      // SPA route hop for a handler-returned `openIn: 'self'` — react-router's
+      // own `navigate`, matching the shared console runtime.
+      navigate: (url: string) => serverActionEnvRef.current.navigate(url),
       // Read through the env ref so the spinner-tab / popup-blocked copy
       // follows a language switch without invalidating the handler instance
       // (objectui#3321).
@@ -955,6 +1023,21 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // whether their click closes the step. Server-computed; `first_response`
   // nodes carry none and the band then shows nothing extra.
   const approvalProgress = approvals.pendingRequest?.decision_progress;
+  // Who may RECALL the pending approval (objectui#6464). Recall is the
+  // submitter's lever and the server refuses everyone else, so a non-submitter
+  // reading a pending record was being offered a button whose click could only
+  // fail. Same source order the approvals panel's Remind gate uses — one
+  // `isSubmitterOf` for both, so the two levers cannot disagree about who
+  // submitted.
+  //
+  // `undefined` when there is no pending request to consult: the band is then
+  // running off the record's `approval_status` mirror alone (a backend with no
+  // approvals API), the host has resolved no identity, and the DetailView keeps
+  // its pre-#6464 behaviour rather than hiding on absent information.
+  //
+  // This gates the AFFORDANCE only. `canEdit` / `approvalLocked` below are
+  // untouched by it, and the recall endpoint authorizes the recall itself.
+  const approvalIsSubmitter = isSubmitterOf(approvals.pendingRequest, user?.id);
 
   // A decision landed through the declared-action bar (objectui#3055). The
   // action itself already POSTed and the runtime already toasted; what the HOST
@@ -1018,7 +1101,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // a record the user may only read: the form opened, the user retyped a
   // field, and the server rejected the save with a 403. Ask the explain
   // engine for the row-level verdict (fail-open; the server stays the
-  // authority per ADR-0057 D10) and fold it into the same affordance gates.
+  // authority per the framework's ADR-0124 D1 — server enforces, client is
+  // courtesy) and fold it into the same affordance gates.
   const recordWriteAllowed = useRecordEditable(
     objectDef?.name,
     pureRecordId,
@@ -1498,31 +1582,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // true), so this surface gives us a Salesforce-style "what happened
     // on this record" feed without any per-app glue.
     //
-    // We map sys_activity.type to FeedItemType so the existing icon /
-    // colour map in RecordActivityTimeline keeps working:
-    //   created/updated/deleted/system → 'field_change'
-    //   assigned/shared                → 'field_change'
-    //   completed                      → 'task'
-    //   commented/mentioned            → 'comment'  (but skipped — we
-    //                                    already load these from
-    //                                    sys_comment to get reactions
-    //                                    and threading)
+    // The sys_activity.type -> FeedItemType reading is `record:activity`'s
+    // exported `ACTIVITY_TYPE_TO_FEED_TYPE` (@object-ui/plugin-detail), NOT a
+    // copy of it (objectui#5878). This merge and that block read the SAME rows
+    // of the SAME system table, so two tables can only ever be a bug: until
+    // this import, objectui#5840's `scheduled` -> `event` entry existed in the
+    // renderer and not here, and a scheduled meeting therefore rendered on a
+    // hand-authored record page and vanished on the console record page. The
+    // shared table's docblock carries which types map where and why
+    // `commented` / `mentioned` / `login` / `logout` deliberately map to
+    // nothing; do not restate it here, and never re-declare the table.
     //
     // sys_activity is system-owned so a 404 ("table not provisioned",
     // older schemas without activities) is silently tolerated.
-    const activityTypeToFeed: Record<string, FeedItem['type'] | undefined> = {
-      created:   'field_change',
-      updated:   'field_change',
-      deleted:   'field_change',
-      assigned:  'field_change',
-      shared:    'field_change',
-      system:    'system',
-      completed: 'task',
-      commented: undefined,
-      mentioned: undefined,
-      login:     undefined,
-      logout:    undefined,
-    };
     if (activitiesEnabled) inFlight.push(dataSource.find('sys_activity', {
       $filter: { object_name: objectName, record_id: pureRecordId },
       $orderby: { timestamp: 'asc' },
@@ -1532,7 +1604,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         if (!res?.data?.length) return;
         const mapped: FeedItem[] = [];
         for (const row of res.data) {
-          const feedType = activityTypeToFeed[row.type];
+          const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[row.type];
           if (!feedType) continue;
           // Prefer the explicit `timestamp` column, but tolerate older
           // rows where the driver leaked the literal "NOW()" — fall
@@ -1906,7 +1978,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // its tab is shown (nothing is preloaded here), and header/row
     // affordances (+ New / View All / row navigation) are wired
     // downstream by `RelatedRecordActionsBridge`.
-    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary }) => {
+    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary, sort: inheritedSort }) => {
       const childObjectDef = objects.find((o: any) => o.name === childObject);
       // A `relatedListTitle` on the relationship wins; else fall back to the
       // localized child-object label.
@@ -1924,6 +1996,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         ...(Array.isArray(columnsOverride) && columnsOverride.length > 0
           ? { columns: columnsOverride }
           : {}),
+        // Row order inherited from the child object's default list view
+        // (objectui#5795, ruled direction 1 on objectstack#11345). Already
+        // normalized to the array arm by `deriveRelatedLists` — the ListView
+        // legacy string dialect (`'seq_no desc'`) is NOT the one the related
+        // list's `normalizeSortSpec` reads, so it must never travel verbatim.
+        // Absent when the child declares no list-view sort, keeping the
+        // synthesized node byte-identical to what it was before.
+        ...(inheritedSort && inheritedSort.length > 0 ? { sort: inheritedSort } : {}),
         ...(childObjectDef?.icon ? { icon: childObjectDef.icon } : {}),
         // `relatedList: 'primary'` prominence flag (ADR-0085) — the list is
         // promoted to its own tab by `buildDefaultTabs`.
@@ -2257,6 +2337,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           locked={approvalLocked}
           approvalPending={approvalPending}
           approvalProgress={approvalProgress}
+          approvalIsSubmitter={approvalIsSubmitter}
           lockedReason={t('detail.lockedTooltip', {
             defaultValue: 'This record has a pending approval request; editing is locked',
           })}
@@ -2335,6 +2416,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 parentObjectName={objectName}
                 parentRecordId={pureRecordId ?? undefined}
                 parentTitle={recordTitle}
+                /* [#4646] The related-list toolbars under this page evaluate
+                   their child objects' `userActions.create` predicates against
+                   THIS record — the spec's "record in scope where the toolbar
+                   renders". Same record and same field definitions the header's
+                   edit/delete predicates above are evaluated against, so one
+                   page cannot hold two answers to "is this record frozen". */
+                parentRecord={pageRecord}
+                parentObjectFields={predicateFields}
               >
                 <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
               </RelatedRecordActionsBridge>
@@ -2439,7 +2528,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         }}
       />
 
-      {/* Action Param Collection Dialog */}
+      {/* Action Param Collection Dialog.
+
+          The close is field-preserving and that is load-bearing, not incidental:
+          Radix holds the dialog mounted through its 200ms exit animation, so
+          whatever this writes is what the user watches fade out. This side was
+          already correct; `useConsoleActionRuntime` — the second runtime mounted
+          into this same dialog — was the one that blanked, and objectui#6431
+          converged it onto this shape. The measurement and the full rationale
+          live at that close site; the parity is pinned by
+          `RecordDetailView.paramRuntimeParity-6431.test.tsx`. */}
       <ActionParamDialog
         state={paramState}
         onOpenChange={(open) => {

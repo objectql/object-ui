@@ -15,7 +15,7 @@ import {
   getPersonSubtitle,
   getPersonAvatarUrl,
   matchRanges,
-} from './personDisplay';
+} from './personDisplay.js';
 
 /**
  * A rich, single-line candidate row for the search-first PeoplePicker:

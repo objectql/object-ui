@@ -16,27 +16,29 @@ The TextArea Field component provides a multi-line text input for collecting lon
 ## Required Field
 
 <SchemaExample id="fields-textarea/required-textarea" />
-
 ## Field Schema
 
-```plaintext
-interface TextAreaFieldSchema {
-  type: 'textarea';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  rows?: number;                 // Number of visible rows (default: 3)
-  value?: string;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Validation
-  min_length?: number;           // Minimum character length
-  max_length?: number;           // Maximum character length
-}
+A textarea field is authored as `TextareaFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the length
+bounds and the editor's visible row count.
+
+```ts
+import type { TextareaFieldMetadata } from '@object-ui/types';
+
+const description: TextareaFieldMetadata = {
+  type: 'textarea',
+  name: 'description',
+  label: 'Description',
+  placeholder: 'Describe this record…',
+  rows: 6,
+  required: false,
+  min_length: 0,
+  max_length: 2000,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Use Cases
 
@@ -49,7 +51,7 @@ interface TextAreaFieldSchema {
 
 When displayed in tables or grids, long text is truncated:
 
-```plaintext
+```ts
 import { TextCellRenderer } from '@object-ui/fields';
 
 // Same renderer as text field - truncates long content

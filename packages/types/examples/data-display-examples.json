@@ -70,26 +70,21 @@
       "columns": [
         {
           "header": "Name",
-          "accessorKey": "name",
-          "sortable": true
+          "accessorKey": "name"
         },
         {
           "header": "Email",
-          "accessorKey": "email",
-          "type": "text"
+          "accessorKey": "email"
         },
         {
           "header": "Role",
-          "accessorKey": "role",
-          "type": "text"
+          "accessorKey": "role"
         }
       ],
       "data": [
         { "id": 1, "name": "John Doe", "email": "john@example.com", "role": "Admin" },
         { "id": 2, "name": "Jane Smith", "email": "jane@example.com", "role": "User" }
-      ],
-      "hoverable": true,
-      "striped": false
+      ]
     },
     "data-table": {
       "type": "data-table",

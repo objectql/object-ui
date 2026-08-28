@@ -11,7 +11,16 @@
  * the two at the designer boundary; positions never leave component state.
  */
 
-import { APP_NAV_ROOT_KEYS } from './inspectors/AppNavInspector';
+/**
+ * Root keys apps accept nav content under (#5600). This describes nav
+ * SHAPE, not the `AppNavInspector` editor, so it lives here rather than
+ * being re-exported out of that 500+ line React component — this module
+ * is pure string/array plumbing and stays importable without dragging a
+ * Radix/dnd-kit-backed inspector into every URL-parsing consumer's graph.
+ * `AppNavInspector`'s own copy never did anything but re-export this
+ * array, so it was deleted there rather than re-imported.
+ */
+export const APP_NAV_ROOT_KEYS = ['nav', 'navigation', 'tabs', 'items', 'menu'];
 
 /** Search param carrying the designer's selected element. */
 export const DESIGNER_SEL_PARAM = 'sel';

@@ -13,8 +13,8 @@
 import * as React from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, CircleDot, GitBranch } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import type { FlowProblem } from './flow-problems';
-import { t as tr } from '../i18n';
+import type { FlowProblem } from './flow-problems.js';
+import { t as tr } from '../i18n.js';
 
 export interface ProblemsPanelProps {
   problems: FlowProblem[];

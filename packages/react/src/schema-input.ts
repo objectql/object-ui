@@ -7,7 +7,7 @@
  */
 
 import type { BaseSchema } from '@object-ui/types';
-import type { SchemaRendererProps } from './SchemaRenderer';
+import type { SchemaRendererProps } from './SchemaRenderer.js';
 
 /**
  * Narrow a loosely-typed metadata node onto {@link SchemaRendererProps.schema}.
@@ -25,10 +25,21 @@ import type { SchemaRendererProps } from './SchemaRenderer';
  * tells no lie — the value a caller forwards renders identically whether or not
  * it passes through here.
  *
- * It exists because the two competing repo-wide `SchemaNode` spellings
- * (`@object-ui/core`'s interface vs `@object-ui/types`' union) have not been
- * reconciled; that reconciliation is tracked separately. When it lands, the
- * call sites using this can go back to forwarding directly.
+ * The bridge is PERMANENT — not scaffolding awaiting a merge. The two competing
+ * repo-wide `SchemaNode` spellings ARE reconciled (objectui#4580, PR #4608):
+ * `@object-ui/core` stopped hand-declaring its own interface and now re-exports
+ * `@object-ui/types`' union, so one declaration is left to disagree with. That
+ * reconciliation resolved in favour of the UNION, while `SchemaRenderer`'s prop
+ * stays deliberately narrow (objectui#4548 ruling Q2 — it declares no `number`
+ * or `boolean`), so a `SchemaNode` is now LESS assignable to that prop than it
+ * was, not more. This step therefore bridges two intentionally different types,
+ * and it stays. ⛔ Do not "tidy" a call site back into a direct forward: the
+ * five `apps/site` sites that were forwarding directly when PR #4608 landed are
+ * what kept `Build Docs` red on `main` for ~5 hours — each one a TS2322 naming
+ * `number` against this function's return type, spelled
+ * `string | BaseSchema | null | undefined` in objectui#4617's logs — until
+ * PR #4621 routed all five through here. An earlier revision of this paragraph
+ * said the reconciliation was still pending and invited exactly that edit.
  */
 export function toRenderableSchema(
   node: BaseSchema | string | number | boolean | null | undefined,

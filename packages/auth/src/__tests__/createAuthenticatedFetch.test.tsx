@@ -111,4 +111,51 @@ describe('createAuthenticatedFetch', () => {
     await createAuthenticatedFetch()('https://third-party.example.com/api/x');
     expect(calls[0].headers.get('Authorization')).toBe('Bearer tok123');
   });
+
+  // ── X-Tenant-ID: the edge contract, pinned (#5279) ────────────────────
+  //
+  // The header IS consumed — by the cloud edge, in a repository this one
+  // cannot see. These cases pin the three statements the README's "The
+  // `X-Tenant-ID` edge contract" section makes about what leaves the browser,
+  // so the prose cannot drift away from the wire without a red test.
+
+  it('sends NO tenant header at all when no organization is active (the unstamped-first-request gap)', async () => {
+    // The gap itself, on the wire. `AuthProvider` fills
+    // `ActiveOrganizationStorage` only after its async organization chain
+    // resolves, so every request before that looks like this one. The
+    // distinction a cloud-side resolver depends on is ABSENT vs
+    // present-and-empty: an empty-string header would make the resolver see a
+    // tenant id of "" instead of falling through to its next identification
+    // source.
+    expect(ActiveOrganizationStorage.get()).toBeNull();
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(API_URL);
+    expect(calls[0].headers.get('X-Tenant-ID')).toBeNull();
+    expect(calls[0].headers.has('X-Tenant-ID')).toBe(false);
+  });
+
+  it('stamps the tenant header on non-API URLs too — recorded, not endorsed (#5279)', async () => {
+    // Unlike `Authorization` and `Accept-Language`, the tenant stamp is not
+    // gated on `isApiCall`. This case exists so that asymmetry is VISIBLE:
+    // it records what ships today, it does not bless it, and the question of
+    // whether the stamp should be gated is reported on #5279 for triage. If
+    // that is answered by gating the stamp, this expectation changes with the
+    // fix — deliberately, rather than silently.
+    ActiveOrganizationStorage.set('org-42');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('http://localhost/static/logo.png');
+    expect(calls[0].headers.get('X-Tenant-ID')).toBe('org-42');
+    // The contrast that makes the asymmetry the point of this case:
+    expect(calls[0].headers.get('Authorization')).toBeNull();
+  });
+
+  it('the active organization wins over an X-Tenant-ID the caller supplied', async () => {
+    // `headers.set` overwrites. Stated in the README as the header's
+    // precedence rule, because a caller reading its own value back off the
+    // request would otherwise be surprised.
+    ActiveOrganizationStorage.set('org-42');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(API_URL, { headers: { 'X-Tenant-ID': 'org-caller' } });
+    expect(calls[0].headers.get('X-Tenant-ID')).toBe('org-42');
+  });
 });

@@ -10,9 +10,12 @@ import React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  noDataSourceMessage,
+  useResolvedDataSource,
   useSchemaContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
+import type { DataSource } from '@object-ui/types';
 import { ObjectGrid } from './ObjectGrid';
 import { VirtualGrid } from './VirtualGrid';
 import { ImportWizard } from './ImportWizard';
@@ -75,9 +78,53 @@ const OBJECT_GRID_DATA_SOURCE: ElementDataSourceMapping = {
   limit: 'pagination.pageSize',
 };
 
+/**
+ * Whether THIS grid placement can only draw rows by querying — i.e. whether a
+ * missing adapter is a defect rather than a legitimate configuration
+ * (objectui#5378 item 2, the `requiresDataSource` contract).
+ *
+ * Every escape hatch `ObjectGrid` itself honours is enumerated here, and the
+ * list is the reason this predicate lives at the call site rather than in the
+ * gate. `getDataConfig` folds an array `data`, a `ViewData` with
+ * `provider: 'value'` and the legacy `staticData` into inline rows and never
+ * reaches the fetch effect; `bind` resolves rows from the surrounding data
+ * scope; and a HOST that owns the fetch — `plugin-list`'s `ListView` is the one
+ * in this repo — hands the window down as a `data` REACT PROP, which is why the
+ * prop is read here too. It is tested with `Array.isArray` because that is the
+ * exact test `ObjectGrid` applies to it (`passedData && Array.isArray(…)`) —
+ * and because `SchemaRenderer` spreads EVERY unstripped schema key as a React
+ * prop, so a mere `'data' in props` would also be true of the schema's own
+ * `data` object and would wave through a grid that really has nowhere to look.
+ *
+ * `objectName` is required last: a grid with no object named it is a different
+ * defect with a different answer, and "no data source" would be the wrong
+ * address for it.
+ */
+const gridNeedsDataSource = (schema: any, hostRows: unknown): boolean => {
+  if (Array.isArray(hostRows)) return false;
+  if (schema?.bind != null) return false;
+  if (Array.isArray(schema?.data)) return false;
+  if (schema?.data?.provider === 'value') return false;
+  if (schema?.staticData != null) return false;
+  return typeof schema?.objectName === 'string' && schema.objectName.length > 0;
+};
+
 // Register object-grid component
 export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
-  const { dataSource } = useSchemaContext() || {};
+  // ONE resolution rule for the whole family (objectui#5378): an explicit
+  // adapter first, the `SchemaRendererProvider` context second.
+  //
+  // This used to be `useSchemaContext() || {}`, and that hook THROWS without a
+  // provider — the `|| {}` could never catch it. So the exact case this card is
+  // about, an author who never wired a provider, surfaced as `SchemaRenderer`'s
+  // error boundary saying «Component "object-grid" failed to render» over a
+  // React hook message that names neither the data source nor the fix. The
+  // adapter was ALSO already reaching `ObjectGrid` as a prop whenever a provider
+  // happened to exist, because `{...props}` is spread last; pulling it out here
+  // makes that precedence explicit and identical to `detail-view`'s, instead of
+  // an accident of spread order that a reordering could silently reverse.
+  const { dataSource: dataSourceProp, ...rest } = props;
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953).
   // Nothing here used to map `dataSource.object` onto the `objectName` this
   // block requires, so a page that declared the binding the spec documents —
@@ -91,8 +138,10 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
       dataSource={dataSource}
       testId="object-grid"
       errorTitle="This grid’s data source could not be resolved"
+      requiresDataSource={gridNeedsDataSource(schema, (rest as { data?: unknown }).data)}
+      noDataSourceMessage={noDataSourceMessage('object-grid', schema?.objectName)}
     >
-      {(bound) => <ObjectGrid schema={bound} dataSource={dataSource} {...props} />}
+      {(bound) => <ObjectGrid schema={bound} {...rest} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
 };
@@ -141,6 +190,27 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
  * spellings — `columns`, `data`, `selection`, `pagination`, `searchableFields`,
  * `sort`, `filter`, `resizable`, `label` — are all declared here, and each
  * description below says so, so the exemption teaches rather than merely omits.
+ *
+ * ## `data` declares the CONTRACT's shape, not the shortcut's (objectui#5090)
+ *
+ * The key landed above with `type: 'array'`, labelled "Static Data" and described
+ * as inline rows — which is the shape of `staticData`, the very alias the
+ * carve-out above refuses to publish, not the shape of `data`. The contract is
+ * `ObjectGridSchema.data?: ViewData` (`packages/types/src/objectql.ts`), and
+ * `ViewData` is the spec's discriminated union on `provider` — four strict object
+ * arms (`object` / `api` / `value` / `schema`), none of them an array. So the
+ * declaration published a shape `tsc` rejects (`TS2322`) and `ViewDataSchema`
+ * refuses, while the one form that satisfies both — `{ provider: 'value', items:
+ * [...] }` — drew `type-mismatch` from this repo's own save gate, because
+ * `checkType`'s `'array'` arm accepts only arrays. The platform contradicted
+ * itself on the only legal write: objectui#4041's shape again, one field over.
+ *
+ * `ObjectGrid`'s renderer does still accept a bare array (`getDataConfig` folds
+ * it to `{ provider: 'value', items }`), and that tolerance is deliberately left
+ * alone here — it is objectui#5068's family, and declaring an arm for it would
+ * publish a shape the contract rejects, which is precisely the carve-out's own
+ * reasoning. An array `data` therefore has the same standing as `staticData`:
+ * read as back-compat, not advertised as authoring surface.
  */
 const GRID_QUERY_INPUTS: ComponentInput[] = [
   { name: 'objectName', type: 'string', label: 'Object Name', required: true },
@@ -152,7 +222,7 @@ const GRID_QUERY_INPUTS: ComponentInput[] = [
   { name: 'sort', type: 'array', label: 'Sort', description: 'Initial sort order, `[{ field, order }]`. The canonical spelling — the deprecated single-sort `defaultSort` is only read when this is absent.' },
   { name: 'pagination', type: 'object', label: 'Pagination', description: 'Pagination config, `{ pageSize, pageSizeOptions, … }`. Its presence is what enables paging; prefer it over the deprecated flat `pageSize` / `showPagination` pair.' },
   { name: 'searchableFields', type: 'array', label: 'Searchable Fields', description: 'Fields the toolbar search box queries. A non-empty list is what enables search — prefer it over the deprecated boolean `showSearch`, which cannot say WHICH fields to search.' },
-  { name: 'data', type: 'array', label: 'Static Data', description: 'Inline rows, which bypass the object query entirely. For demos and fixtures; the canonical spelling — the deprecated `staticData` is the same thing.' },
+  { name: 'data', type: 'object', label: 'Data Source', description: 'Data source configuration — a `ViewData` object discriminated by `provider`: `{ provider: "object", object }` (what an omitted `data` falls back to, using `objectName`), `{ provider: "api", read, write }`, `{ provider: "value", items: [...] }` for inline rows that bypass the object query, or `{ provider: "schema", schemaId }`. The canonical spelling — the deprecated `staticData` is the array-only shortcut for the `value` provider, so inline rows go under `items` here rather than in a bare array.' },
   // ── presentation ──────────────────────────────────────────────────────────
   { name: 'rowHeight', type: 'enum', label: 'Row Height', enum: ['compact', 'short', 'medium', 'tall', 'extra_tall'], description: 'Row density. An unrecognised value falls back to `compact` rather than erroring.' },
   { name: 'frozenColumns', type: 'number', label: 'Frozen Columns', description: 'How many leading columns stay pinned while the grid scrolls horizontally.' },

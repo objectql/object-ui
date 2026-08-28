@@ -31,7 +31,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { slugify } from './metadata-admin/createDerive';
+import { slugify } from './metadata-admin/createDerive.js';
 import {
   deriveFieldOptions,
   isImageLikeField,

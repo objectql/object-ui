@@ -96,19 +96,18 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
     objectLabel: ({ label }: { label?: string }) => label,
     viewLabel: (_o: string, _v: string, fallback?: string) => fallback,
     dashboardLabel: ({ label }: { label?: string }) => label,
-    navGroupLabel: (_a: string, _g: string, fallback?: string) => fallback,
   }),
 }));
 
 // Both clusters below are admin surfaces — UnifiedSidebar's Administration group
-// is gated on `useIsWorkspaceAdmin`. Mutable so the gate can be exercised in
+// is gated on `useWorkspaceAdminStatus`. Mutable so the gate can be exercised in
 // BOTH directions (see the non-admin test): the cluster is built behind an
 // `if (isWorkspaceAdmin)` at construction, and reusing NavigationRenderer must
 // not have introduced a path that renders it for anyone else.
 let isWorkspaceAdmin = true;
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => isWorkspaceAdmin,
+  useWorkspaceAdminStatus: () => ({ isAdmin: isWorkspaceAdmin, isResolved: true }),
   getUserInitials: () => 'U',
 }));
 

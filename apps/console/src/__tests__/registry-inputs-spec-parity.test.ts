@@ -98,8 +98,8 @@
  * exemption red, so the list cannot rot into a permanent allowlist.
  *
  * LIMIT — worth knowing before trusting a pass. This gate compares TOP-LEVEL
- * KEY NAMES and nothing else. Three things it therefore cannot see, all of them
- * real and all filed:
+ * KEY NAMES and nothing else. Two things it therefore cannot see, both real and
+ * both filed:
  *
  *   - member shapes. An `inputs` entry of type `array`/`object` declares no
  *     member shape (`ComponentInput` has no slot for one), so a drifted key
@@ -107,24 +107,139 @@
  *     `record:details.sections`, `record:highlights.fields` and
  *     `record:related_list.add` publish their members in prose and are pinned by
  *     per-block tests next to their renderers. PR #3795's open question;
- *   - types. `ComponentInput.type` is one coarse control kind and cannot spell a
- *     spec union, so a key can be in perfect NAME parity while publishing a
- *     narrower type than the contract accepts (objectui#3832);
- *   - `retiredKey()` tombstones. `Object.keys(shape)` still contains a key the
- *     spec rejects BY NAME, and the two directions then fail opposite ways —
- *     forward reads the tombstone as "accepted" and goes falsely GREEN, reverse
- *     reads it as "declared" and would demand the block publish it, going
- *     falsely RED. Dormant today (zero tombstones in the pinned rc.5) and fixed
- *     in one place — narrowing `specTopLevelKeys` — for both directions at once:
- *     objectui#3809. Until then the reverse direction's exemptions for the
- *     `element:record_picker` trio are what absorb the red, and they say so.
+ *   - types, NARROWER than the contract. A key can be in perfect name parity
+ *     while declaring fewer arms than the spec accepts, and this gate does not
+ *     look. That half is deliberately left to per-block discipline, for the
+ *     reason the ARM DIRECTION section below sets out: narrowing is NOISY, and
+ *     noise is at least audible.
  *
- * A pass means the top-level key names are in parity, nothing more.
+ * A pass means the top-level key names are in parity, and that no declared arm
+ * is one the contract refuses outright — nothing more.
+ *
+ * ── THE ARM DIRECTION, AND WHY ONLY ONE OF ITS TWO HALVES IS GATED ──────────
+ *                                                             (objectui#4971)
+ *
+ * `ComponentInput.type` used to carry ONE coarse kind. objectui#3832 gave it
+ * the ARRAY form so a key whose contract is a union can declare its real arms —
+ * and in doing so created a SECOND way for a declaration to disagree with the
+ * contract. The two are not symmetric, and the asymmetry is the whole argument
+ * for gating one and not the other:
+ *
+ *   - NARROWING — declaring FEWER arms than the spec accepts — produces NOISE.
+ *     `sdui-parser`'s `checkType` reports `type-mismatch` on a value the
+ *     contract is perfectly happy with; the author is warned off a legal write.
+ *     Annoying, occasionally harmful (noise on legal writes trains authors, AI
+ *     authors included, to dismiss the reports that ARE real) — but AUDIBLE.
+ *     Somebody sees it.
+ *   - WIDENING — declaring an arm the spec REJECTS — is SILENT. `checkType`
+ *     clears a value the contract refuses, the manifest and the generated
+ *     `.d.ts` publish it as legal, and `os validate` / `os build` are the first
+ *     thing in the chain to say no, long after the metadata was written.
+ *     `declared = enforced` inverts, and NOTHING announces it.
+ *
+ * Before #3832 only the narrow mode existed, so the gap self-announced. After
+ * it, the silent mode is live and needs a gate. That is this one, and it is
+ * ONE-DIRECTIONAL on purpose: every declared arm must be a shape the contract
+ * accepts (a SUBSET of what the spec takes on that key). It does not ask the
+ * reverse question.
+ *
+ * MEASURED, and this is what "done" meant for #4971. Two fake arms were added
+ * on the #3832 branch, one per specimen. `element:text_input.defaultValue` grew
+ * an `'object'` arm the spec rejects and the per-block
+ * `text-input-inputs-spec-parity.test.ts` pinned it red. `page:card.title` grew
+ * a `'number'` arm the spec rejects and the WHOLE SUITE stayed green — 856
+ * tests, not one gate noticing. The only difference between the two is that
+ * `element:text_input` happens to have a per-block test and `page:card` does
+ * not: the property held by DISCIPLINE, block by block, not by a gate.
+ *
+ * ## What an arm is compared against — the COARSE-KIND ceiling
+ *
+ * An arm names a value's KIND, never its DOMAIN (`ComponentInput.type`, and the
+ * maintainer ruling of 2026-08-17 quoted there: "the coarse arm plus
+ * `description` IS the publication face's expression ceiling today, and SPEC IS
+ * THE SOLE JUDGE OF VALUES"). `page:header.maxVisible` is the worked example —
+ * its contract is a POSITIVE SAFE INTEGER, its arm is `'number'`, and `0` /
+ * `-1` / `1.5` pass this layer by design.
+ *
+ * So the question this gate asks is the one the ruling leaves it: does the
+ * contract accept ANY value of that kind on that key? A `'number'` arm on a key
+ * whose contract is `1..n` is in scope of the ruling and stays green. A
+ * `'number'` arm on a key whose contract is a STRING accepts nothing the
+ * contract accepts, and is what `declared = enforced` cannot survive.
+ *
+ * ## Kind-refusal vs value-refusal — the trap this gate is built around
+ *
+ * The naive probe ("does `safeParse` accept a representative value of this
+ * kind?") is WRONG in two measured ways, and both make a CORRECT arm read as
+ * invented — the false red triage flagged when this card was scoped:
+ *
+ *   1. ENUM CONTRACTS. `record:quick_actions.variant` is a spec enum, declared
+ *      with a `'string'` arm. A representative string is refused — as a VALUE,
+ *      not as a kind. Reading that as "the string arm is fake" would condemn a
+ *      declaration the ruling above expressly permits.
+ *   2. REQUIRED SIBLINGS. `{ filter: … }` alone fails `element:number`'s schema
+ *      for the missing `object` / `aggregate`, and would report every arm of
+ *      every key on such a block as fake.
+ *
+ * `specArmVerdict` therefore reads the ISSUES rather than the boolean: it looks
+ * only at issues about THIS key (so siblings cannot speak for it), and it
+ * refutes an arm only when the refusal is at the key's own node AND is a KIND
+ * refusal (`invalid_type`, or an `invalid_union` whose every branch refuses the
+ * kind). A refusal deeper in the value, or of any other code, means the kind got
+ * in and the CONTENT was judged — which is precisely the ceiling above, so the
+ * arm stands.
+ *
+ * That is the exemption for enum CONTRACTS, and it is a rule rather than a list.
+ * The one thing it must not do is let #4971's own measurement through, so the
+ * calibration is asserted by name: `page:card.title` + `42` must read
+ * `refuses-kind` (the fake arm reds), while `record:quick_actions.variant` +
+ * `'Account'` must read `refuses-content` (the enum arm does not).
+ *
+ * An `enum` ARM is judged differently and exactly, because it is the one arm
+ * whose admitted set is FINITE and written down: `armAccepts` consults the
+ * input's own `enum` list, so every declared member must be a value the spec
+ * accepts. No coarseness is needed and none is taken.
+ *
+ * Two arm kinds are EXEMPT, listed rather than silent: `'slot'` (it describes a
+ * CHILD POSITION, not a value — `armAccepts` admits everything for it, so there
+ * is no value-shaped claim to compare), and an `'enum'` arm that declares NO
+ * members (it admits nothing, so it can widen nothing).
+ *
+ * `retiredKey()` TOMBSTONES USED TO BE THE THIRD — CLOSED, objectui#3809.
+ * ADR-0087 D2 retirement replaces a member with `z.never().optional()` instead
+ * of deleting it, so raw `Object.keys(shape)` reported a key the spec rejects BY
+ * NAME as though the contract accepted it. Both directions read that one set,
+ * and they failed OPPOSITE ways on it: forward went falsely GREEN on a block
+ * publishing a retired key, reverse went falsely RED demanding that a block
+ * publish one. `specTopLevelKeys` now subtracts tombstones, which is the single
+ * point that fixes both, and the derivation's own premise — that a retirement
+ * KEEPS the member — is asserted rather than assumed (`the tombstone premise
+ * still holds`), so the day upstream starts deleting keys outright this filter
+ * is judged dead code instead of silently narrowing nothing.
+ *
+ * The blind spot was NOT dormant by the time it was fixed, which is worth
+ * recording because the issue was filed believing it was. It was written against
+ * `@objectstack/spec@17.0.0-rc.5`, where `ComponentPropsMap` carried no
+ * tombstone at all; the rc.6 pin (objectui#4167) brought EIGHT, the 17.0.0 GA
+ * pin (objectui#4636 / PR objectui#4639) carries the same eight, and the reverse
+ * direction's red was live from rc.6 onward — absorbed, key by key, by the eight
+ * `UNPUBLISHED_EXEMPTIONS` entries that named this issue as the only thing that
+ * could resolve them. Those eight are deleted with this change; the pin below
+ * (`the eight tombstoned keys are recognised, not exempted`) is what keeps their
+ * deletion from being quietly undone by re-exempting a key instead.
  */
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import { ComponentPropsMap } from '@objectstack/spec/ui';
+import { MANIFEST_INPUT_TYPES, inputTypeArms } from '@object-ui/sdui-parser';
+import type { ComponentInput } from '@object-ui/types';
+import {
+  authorableShapeKeys,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  tombstonedShapeKeys,
+} from '@object-ui/test-support';
 
 // The two graphs whose registrations this file reads, at module scope rather
 // than in a hook: their cold transform is billed to the import phase, which has
@@ -132,27 +247,67 @@ import { ComponentPropsMap } from '@objectstack/spec/ui';
 import '@object-ui/components';
 import '../register-plugins';
 
+/** This block's spec props schema, or `undefined` when this pin has none. */
+const specSchema = (type: string): unknown => (ComponentPropsMap as Record<string, unknown>)[type];
+
 /**
- * Top-level keys `ComponentPropsMap[type]` accepts.
+ * Top-level keys `ComponentPropsMap[type]` ACCEPTS — tombstones excluded
+ * (objectui#3809).
  *
- * Reads `.shape` through the same two spellings PR #3795's single-block version
- * uses, so a `lazySchema()`-wrapped entry (every `element:*`) and a plain
- * `z.object` both resolve. Zod-internals access is confined to this function.
+ * This one function is where both directions of this file get their notion of
+ * "the contract's authoring surface", which is why narrowing it here fixes two
+ * opposite defects at once. It used to be raw `Object.keys(shape)`, and an
+ * ADR-0087 D2 retirement does not delete the key — it replaces the member with
+ * `z.never().optional()` — so a key the spec rejects BY NAME kept answering
+ * "declared". Forward that reads as GREEN on a block publishing a retired key;
+ * reverse it reads as RED demanding a block publish one. Same set, opposite
+ * failures.
+ *
+ * The judgement itself lives in `@object-ui/test-support` rather than here: it
+ * had been hand-written four times across this repo's gates, the copies had
+ * already drifted (two structural-only, one absent — this file), and the shared
+ * one is calibrated once against what the contract's own `safeParse` rejects
+ * (`spec-tombstones.test.ts`). Zod-internals access now happens in exactly one
+ * module repo-wide.
  */
 function specTopLevelKeys(type: string): string[] {
-  const schema = (ComponentPropsMap as Record<string, unknown>)[type] as
-    | { shape?: unknown; _def?: { shape?: unknown } }
-    | undefined;
-  const shape = schema?.shape ?? schema?._def?.shape;
-  const resolved = typeof shape === 'function' ? (shape as () => object)() : shape;
-  return resolved && typeof resolved === 'object' ? Object.keys(resolved) : [];
+  return authorableShapeKeys(specSchema(type));
+}
+
+/**
+ * Every top-level key the schema still LISTS — tombstones INCLUDED.
+ *
+ * Deliberately kept alongside the narrowed set, because two questions in this
+ * file are about the RELEASE rather than about the authoring surface, and a
+ * retired key must answer YES to them: "did this pin ever carry the key at all"
+ * (`isDormantOnThisPin`) and "is the tombstone premise still true"
+ * (`the tombstone premise still holds` below). Using the narrowed set for
+ * either would be the same conflation in a new place — a retired key would read
+ * as a key the pin never had.
+ */
+const specListedKeys = (type: string): string[] => listedShapeKeys(specSchema(type));
+
+/** The listed top-level keys this block's spec schema rejects by name. */
+const specTombstonedKeys = (type: string): string[] => tombstonedShapeKeys(specSchema(type));
+
+/**
+ * Declared input ENTRIES for a registered block, or `null` when not registered.
+ *
+ * The arm direction (objectui#4971) needs more of an input than its name — the
+ * declared `type` arms, and an `enum` arm's own member list — so the registry
+ * read happens once, here, and `declaredInputs` projects it. Two readers of
+ * `config.inputs` would be two chances to disagree about which registration a
+ * verdict came from.
+ */
+function declaredInputEntries(type: string): ComponentInput[] | null {
+  const config = ComponentRegistry.getConfig(type);
+  if (!config) return null;
+  return (config.inputs ?? []) as ComponentInput[];
 }
 
 /** Declared input names for a registered block, or `null` when not registered. */
 function declaredInputs(type: string): string[] | null {
-  const config = ComponentRegistry.getConfig(type);
-  if (!config) return null;
-  return (config.inputs ?? []).map((input) => input.name);
+  return declaredInputEntries(type)?.map((input) => input.name) ?? null;
 }
 
 /** Top-level inputs this block declares that its spec props schema rejects. */
@@ -168,7 +323,7 @@ function offSpecInputs(type: string): string[] {
  * Only `aria` qualifies, and only because the reason is genuinely uniform: it is
  * an accessibility escape hatch, not a layout choice, and the blocks that omit
  * it say so in the same words at their registration sites
- * (`plugin-detail/src/index.tsx:335-337`, verbatim: "`aria` is omitted for the
+ * (`plugin-detail/src/index.tsx:554-556`, verbatim: "`aria` is omitted for the
  * same reason it is omitted on `record:details` above"). Publishing it would put
  * an `aria` object in every designer panel and every generated `.d.ts` as though
  * hand-writing ARIA were the normal way to configure a block, when the renderers
@@ -176,7 +331,7 @@ function offSpecInputs(type: string): string[] {
  * reason is per-block belongs in `UNPUBLISHED_EXEMPTIONS` below, not here.
  */
 const GLOBALLY_UNPUBLISHED_SPEC_KEYS: Record<string, string> = {
-  aria: 'Accessibility escape hatch, not a layout choice — renderers derive accessible names from labels and object metadata, and every block omits it for this one reason (plugin-detail/src/index.tsx:335-337). objectui#3808.',
+  aria: 'Accessibility escape hatch, not a layout choice — renderers derive accessible names from labels and object metadata, and every block omits it for this one reason (plugin-detail/src/index.tsx:554-556). objectui#3808.',
 };
 
 /**
@@ -232,6 +387,37 @@ const GA_ONLY_BLOCKS = [
 ];
 
 /**
+ * The five `record:*` blocks `@objectstack/spec` 17.1.0 adds to
+ * `ComponentPropsMap` and `17.0.0` does not carry at all (objectui#5328;
+ * the map goes from 37 entries to 42, and these are the five).
+ *
+ * Exactly the same shape as `GA_ONLY_BLOCKS` above, and for the same reason:
+ * this repo has registered all five with `inputs` for far longer than the spec
+ * has described them — `plugin-detail/src/index.tsx` registers `alert` (:686),
+ * `history` (:662) and `reference_rail` (:675), and `quick_actions` /
+ * `discussion` alongside them — so what moved at the pin bump is the SPEC's
+ * side, not this repo's. They enter `covered` the moment the installed spec
+ * carries them, and the reverse direction then asks each for the keys it does
+ * not publish. Only `record:reference_rail` had one: `entries`, exempted below.
+ */
+const MINOR_17_1_BLOCKS = [
+  'record:alert',
+  'record:discussion',
+  'record:history',
+  'record:quick_actions',
+  'record:reference_rail',
+];
+
+/**
+ * Does the installed `@objectstack/spec` carry the 17.1.0 record set?
+ *
+ * Same observable-fact reasoning as `specCarriesGaBlocks` below, including the
+ * `every` rather than `some`: the five arrived in one release, so a
+ * half-carried state is a broken premise rather than an in-between pin.
+ */
+const specCarries171Blocks = MINOR_17_1_BLOCKS.every((type) => type in ComponentPropsMap);
+
+/**
  * Does the installed `@objectstack/spec` carry the GA element set?
  *
  * The spec ships no version constant, so the observable fact is used instead —
@@ -282,6 +468,7 @@ const PINNED_EXPECTED_COVERED = [
 const EXPECTED_COVERED = [
   ...PINNED_EXPECTED_COVERED,
   ...(specCarriesGaBlocks ? GA_ONLY_BLOCKS : []),
+  ...(specCarries171Blocks ? MINOR_17_1_BLOCKS : []),
 ].sort();
 
 /**
@@ -392,148 +579,100 @@ const OFF_SPEC_EXEMPTIONS: Record<string, string> = {};
  *     configuration the platform silently drops (the objectui#3797 direction, in
  *     reverse) — the choice between wiring it and declaring it with a KNOWN GAP
  *     is a contract decision, not an implementation detail;
- *   - the spec rejects it by name upstream already and only a stale pin still
- *     lists it;
+ *   - the installed pin does not declare the key yet, so declaring the input
+ *     would fail this file's own forward direction today;
  *   - the key is out of the dispatched scope of the change that added this gate,
  *     and its own issue owns it.
+ *
+ * ONE CLASS IS GONE, and it is worth knowing which, because it used to be the
+ * biggest: "the spec rejects this key by name upstream already". A key the spec
+ * REJECTS needs no exemption at all since objectui#3809 — it leaves the accepted
+ * set on its own, so nothing demands it and nothing has to license not
+ * publishing it. Eight entries of that class were harvested (see the comment at
+ * the top of the map). An entry whose reason reduces to "upstream retired it" is
+ * therefore the one thing that may never be ADDED here again: it would go
+ * dangling-and-stale in the same run that wrote it.
  *
  * Every reason cites an issue, which `references a tracking issue` asserts.
  * Verified against renderer read sites at objectui `origin/main` @ `c25222758`
  * with `@objectstack/spec@17.0.0-rc.6` — not assumed from the spec's wording.
- * (The four `…-rc.5` mentions left in the entries below are the stale-pin
- * entries' own prose and belong to their issues, not to this header.)
  */
 const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
-  // ── page:header.icon / page:card.actions — retired upstream (2 keys) ───────
-  // These two used to be a MENU: objectui#3829 filed them as a three-way fork
-  // (wire them; declare them with a KNOWN GAP per the
-  // `record:activity.showSubscriptionToggle` precedent; retire them upstream)
-  // and this entry listed all three so no implementing agent would guess. The
-  // fork is closed. The maintainer ruled route (c) on 2026-08-09 —
-  // zero producers, zero consumers, zero demand — and objectstack#6946 /
-  // PR objectstack#7115 executed it: both keys are ADR-0087 D2 tombstones in
-  // `@objectstack/spec` 17.0.0, live on the rc.6 this repo installs. So the
-  // class here is no longer B (undecided) but the same one as
-  // `record:details.layout` below: the spec rejects the key BY NAME, and the
-  // reverse direction demands it anyway because the tombstone is still a member
-  // of the shape.
-  //
-  // Read the upstream prescriptions before touching either key — they say what
-  // replaces it, which is why neither is coming back. A header's identity is
-  // drawn by the record chrome (`recordChrome`, on by default) plus each
-  // action's own `icon`; a card's buttons are authored as components in
-  // `children` or `footer` (`element:button`, `record:quick_actions`).
-  //
-  // DO NOT DELETE THESE TWO ENTRIES YET, and the reason is the one this file
-  // already writes out twice above: D2 retirement REPLACES the member with
-  // `z.never()` rather than deleting it, so `Object.keys(shape)` still reports
-  // both keys as declared and `carries no stale unpublished-key exemption`
-  // still needs the cover. They resolve when objectui#3809's tombstone
-  // recognition narrows `specTopLevelKeys` — not on a pin bump, and not by
-  // declaring the inputs.
-  //
-  // The objectui half of route (c) is otherwise complete (objectui#3829).
-  // `page:card.actions` had no producer at all; `page:header.icon` had exactly
-  // one — the metadata-admin designer's BLOCK_CONFIG field for the CANONICAL
-  // `page:header`, which kept offering authors an icon box whose value rc.6
-  // rejects by name — and it was removed with its two i18n keys in the same
-  // change that rewrote these entries. The `layout:page-header` ALIAS keeps its
-  // `icon` input deliberately: that is a different renderer with a real read
-  // point (`packages/layout/src/PageHeader.tsx`), so the two are opposite facts,
-  // not an inconsistency.
-  'page:header.icon':
-    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageHeaderRenderer never had a read point: `icon` inside containers.tsx:973-1677 is only ever per-action (`action.icon`, :1428/:1472) or a nav item (:641/:816), and the spec now rejects the key by name, prescribing the record chrome plus per-action icons instead. Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
-  'page:card.actions':
-    'Retired upstream by objectstack#6946 / PR objectstack#7115 (ADR-0087 D2 tombstone) — PageCardRenderer (containers.tsx:703-745) builds its card from title/body/children/footer and never had an actions area, and the spec now rejects the key by name, prescribing buttons authored as components in `children` or `footer` (`element:button`, `record:quick_actions`). Unlike the stale-pin entries below this one is LIVE at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the contract refuses. Resolves via objectui#3809 tombstone recognition, not by declaring the input — objectui#3829.',
-
-  // ── page:tabs.type — the carrier collision, from the other side ────────────
-  // The mirror image of the `page:tabs.tabStyle` exemption in
-  // `OFF_SPEC_EXEMPTIONS` above, and the same single fact seen twice: the spec
-  // spells this concept `type`, the flat SDUI carrier cannot express it (a flat
-  // node is `{ type: 'page:tabs', … }` where `type` is the dispatch tag, and
-  // `SchemaRenderer.tsx:251-270` deliberately refuses to hoist
-  // `properties.type`), and `validate.ts` lists `'type'` in `BASE_PROPS` so it
-  // is skipped as a base prop and could not be validated as an input even if
-  // declared. Publishing it would advertise a key this repo's own parser cannot
-  // check, on a spelling the carrier cannot carry. Convergence is upstream.
-  'page:tabs.type':
-    "Spec's spelling of the tabStyle concept; unpublishable in the flat carrier (`type` is the dispatch key, SchemaRenderer.tsx:251-270) and unvalidatable as an input (validate.ts BASE_PROPS). The renderer does read it when it survives as `properties.type` (containers.tsx:381). Upstream contract decision: objectstack#6776.",
-
-  // ── element:record_picker — retired upstream, stale pin only (3 keys) ──────
-  // objectstack#5775 (ADR-0087 D2) turned these three into `retiredKey()`
-  // tombstones, converging on the `labelField` / `valueField` this renderer
-  // actually reads (`renderers/basic/record-picker.tsx:80-81`). Declaring a key
-  // the spec has retired is the objectui#3797 direction again.
-  //
-  // TWO THINGS THE PIN BUMP WILL DO HERE, and objectui#3808 got the first of
-  // them wrong, so it is written out:
-  //   1. these three do NOT vanish from `Object.keys(shape)`. ADR-0087 D2
-  //      retirement REPLACES the entry with `z.never().optional()`, it does not
-  //      delete it — so they stay "declared" to this gate and these exemptions
-  //      stay live rather than going stale. They resolve when objectui#3809's
-  //      tombstone recognition narrows `specTopLevelKeys`, not when the pin
-  //      moves;
-  //   2. `sort` / `limit` / `emptyText` — which #5775 ADDS and this renderer
-  //      already reads (`record-picker.tsx:79/80` and `:170`) — become brand-new
-  //      A-class gaps, and this gate will go RED demanding them. That red is
-  //      correct and wanted: it is the pin bump's own reminder to declare them,
-  //      the way `record:details.hideFields` was declared here.
-  'element:record_picker.displayField':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone, converging on the `labelField` this renderer reads); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-  'element:record_picker.searchFields':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-  'element:record_picker.multiple':
-    'Retired upstream by objectstack#5775 (ADR-0087 D2 tombstone); declaring it would publish a key the spec rejects by name. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-
-  // ── page:card.body — retired upstream, stale pin only (1 key) ─────────────
-  // The fourth ADR-0087 D2 tombstone from the same upstream issue as the three
-  // above, and it withdraws here for the same reason: objectstack#5775
-  // (PR objectstack#6281) replaced `PageCardProps.body` with `children`, the
-  // spelling every other container uses and the one this renderer reads
-  // (`containers.tsx`, `schema?.body ?? schema?.children`). Continuing to
-  // publish `body` was objectui#4027 — a designer teaching a key the contract
-  // rejects by name.
-  //
-  // The renderer's `body` READ deliberately survives the declaration's removal:
-  // documents stored under the old contract keep rendering until the ADR-0087 D2
-  // conversion rewrites the key at load time. A back-compat read is not an
-  // authoring surface, so it does not belong in `inputs` — the same split the
-  // `page-header-subtitle-alias` sequencing already established in
-  // `packages/layout`.
-  //
-  // Like the record_picker trio, this entry does NOT go stale when the pin
-  // moves: D2 retirement replaces the entry with `z.never().optional()` rather
-  // than deleting it, so `Object.keys(shape)` still reports `body` as declared.
-  // It resolves when objectui#3809's tombstone recognition narrows
-  // `specTopLevelKeys`.
-  'page:card.body':
-    'Retired upstream by objectstack#5775 / PR objectstack#6281 (ADR-0087 D2 tombstone, converging on the `children` this renderer reads and now publishes); declaring it would publish a key the spec rejects by name — objectui#4027. Listed here only because the pinned @objectstack/spec@17.0.0-rc.5 predates the retirement. Resolves via objectui#3809, not via the pin bump.',
-
-  // ── record:details.layout — retired upstream AND withdrawn here (1 key) ───
-  // The fifth D2 tombstone, and the first one whose objectui half has actually
-  // landed — so it is here for a DIFFERENT reason than the four above, and the
-  // difference is worth reading before treating it as more of the same.
-  //
-  // Those four are stale-pin cover: the key is still published in this repo and
-  // the entry says "the pin predates the retirement". This one is the opposite.
-  // objectui#3818 DELETED the `record:details` `layout` input (the spec's
-  // `auto` | `custom` semantics were never implemented — the renderer's only
-  // read tested `inline` | `compact`, values the schema never permitted, so both
-  // legal values took the same branch and the key selected nothing), which is
-  // exactly what this gate's forward direction wants. The entry exists because
-  // the REVERSE direction then demands the key back: `specTopLevelKeys` reads
-  // raw `Object.keys(shape)`, the ADR-0087 D2 tombstone is still an entry in
-  // that shape, and so a key the spec rejects by name reads as "declared, and
-  // you failed to publish it".
-  //
-  // That is objectui#3809's blind spot seen from the other side — it predicted a
-  // false GREEN in the forward direction, and this is the same root cause
-  // producing a false RED in the reverse one. Both vanish together when #3809
-  // narrows `specTopLevelKeys` to non-tombstone members; this entry then goes
-  // stale and `carries no stale unpublished-key exemption` will name it, along
-  // with the four above. Do not resolve it by re-adding the input.
-  'record:details.layout':
-    'Retired upstream by objectstack#6946 (ADR-0087 D2 tombstone) and withdrawn here by objectui#3818 — its published `auto` | `custom` semantics were never implemented, and the spec now rejects the key by name, so publishing it again would teach a key the contract refuses. Unlike the stale-pin entries above this one is live at @objectstack/spec@17.0.0-rc.6: the tombstone stays in `Object.keys(shape)`, so the reverse direction demands a key the forward direction forbids. Resolves via objectui#3809 tombstone recognition, not by declaring the input.',
+  /*
+   * EIGHT TOMBSTONE ENTRIES HARVESTED HERE — objectui#3809, and they were
+   * designed to die exactly this way.
+   *
+   * `page:header.icon`, `page:card.actions`, `page:tabs.type`,
+   * `element:record_picker.displayField` / `.searchFields` / `.multiple`,
+   * `page:card.body` and `record:details.layout`. Every one of them existed for
+   * the same reason, said so in its own words, and named this issue as the only
+   * thing that could resolve it: the key is an ADR-0087 D2 tombstone — retired
+   * upstream, and STILL a member of the spec's shape, because D2 retirement
+   * replaces the member with `z.never().optional()` rather than deleting it. So
+   * the reverse direction, reading raw `Object.keys(shape)`, demanded that this
+   * repo publish a key the contract rejects by name, and each entry was cover
+   * for that false red.
+   *
+   * They are not deleted by hand-picking. `specTopLevelKeys` now subtracts
+   * tombstones, and the two checks that police this list did the rest: the key
+   * is no longer in the accepted set, so `every unpublished-key exemption names a
+   * key the spec really declares` reports each as DANGLING, and
+   * `carries no stale unpublished-key exemption` reports each as STALE. Both
+   * name all eight. Deleting them is the only way to get green, which is the
+   * discipline this file's header promises working end to end.
+   *
+   * THE FIVE UPSTREAM RETIREMENTS these eight came from, kept for the reader who
+   * needs to know why none of the keys is coming back — the prescriptions are
+   * upstream's, not this repo's:
+   *
+   *   - objectstack#5775 / PR objectstack#6281 — the `element:record_picker`
+   *     trio converges on `labelField` / `valueField` (which this renderer reads
+   *     and this repo publishes); `PageCardProps.body` converges on `children`,
+   *     the spelling every other container uses and the one `page:card` now
+   *     publishes (objectui#4027);
+   *   - objectstack#6946 / PR objectstack#7115 — `page:header.icon` (a header's
+   *     identity is the record chrome plus each action's own icon),
+   *     `page:card.actions` (buttons are authored as components in `children` or
+   *     `footer`), and `record:details.layout` (withdrawn here by objectui#3818:
+   *     its published `auto` | `custom` semantics were never implemented);
+   *   - objectstack#6776 — `page:tabs.type`. This one resolves DIFFERENTLY from
+   *     its own entry's prediction, and the difference is worth a sentence. The
+   *     entry read it as a live spec key that the flat SDUI carrier cannot
+   *     express (a node is `{ type: 'page:tabs', … }`, where `type` is the
+   *     dispatch tag, and `validate.ts` lists `'type'` in `BASE_PROPS`), and
+   *     called convergence "upstream". Upstream converged: it retired the `type`
+   *     spelling in favour of `tabStyle`, which this repo already publishes. So
+   *     the carrier collision is not tolerated any more, it is gone — the
+   *     contract now has one spelling, and it is the publishable one.
+   *
+   * Renderer READS of these keys are untouched and stay untouched. A stored
+   * document written against the old contract keeps rendering until an ADR-0087
+   * D2 conversion rewrites it at load time; a back-compat read is not an
+   * authoring surface, so it never belonged in `inputs` (the split
+   * `page-header-subtitle-alias` established in `packages/layout`). This harvest
+   * withdraws EXEMPTIONS, not capability.
+   *
+   * WHAT HAPPENS AT THE NEXT PIN BUMP, so nobody reads the next red as a
+   * regression: the mechanism is now self-clearing. A key upstream retires after
+   * this change enters the shape as a tombstone, leaves the accepted set on
+   * arrival, and any exemption covering it goes dangling-and-stale in the same
+   * run — no issue needed, no filter to remember.
+   *
+   * THAT PREDICTION HAS NOW RUN ONCE, AND IT HELD. The paragraph used to say two
+   * entries below were queued for it: objectstack `origin/main` tombstoned
+   * `targetVariable` on BOTH `element:text_input` and `element:record_picker`
+   * while the installed 17.0.0 still carried both as live. The 17.1.0 pin
+   * (objectui#5328) delivered those retirements, all three directions named the
+   * two entries in the same run, and deleting them was the entire fix —
+   * objectui#3834's "should we publish an intent-only key" question having been
+   * answered upstream, in the negative. The mechanism needed no maintenance to
+   * do that, which is the property worth keeping.
+   *
+   * DO NOT resolve a tombstone red by declaring the input. That publishes a key
+   * the contract rejects by name and fails the forward direction immediately;
+   * the two directions of this file are a vice on exactly that move, which is
+   * why one of them could not be fixed without the other.
+   */
 
   // `element:record_picker.filter` was the ninth entry here — a real A-class gap
   // that fell out of objectui#3808's three-class triage, exempted only because it
@@ -542,50 +681,55 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // exemption` demanded its deletion. It is now pinned as DECLARED, by name,
   // alongside #3808's four at the bottom of this file.
 
-  // ── targetVariable — the spec's own "declarative hint" (2 keys) ────────────
-  // Zero read points repo-wide (`grep -rn targetVariable packages/ apps/` is
-  // empty), and that is by design, not drift: the spec's describe says the live
-  // binding resolves via the variable whose `source` equals the component id,
-  // which is exactly what `usePageVariableBinding(schema?.id)` does
-  // (`text-input.tsx:60`). So publishing it is neither a fix nor a defect — it
-  // is a judgement about whether to publish an intent-only key, with a concrete
-  // risk on the publish side (an author who writes only `targetVariable` and no
-  // variable `source` gets an input that writes nowhere, silently).
-  'element:text_input.targetVariable':
-    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup in usePageVariableBinding(schema.id) (text-input.tsx:60). Whether to publish an intent-only key is an open judgement: objectui#3834.",
-  'element:record_picker.targetVariable':
-    "Spec's own declarative hint with zero read points repo-wide; the live binding is the reverse lookup by component id, as on element:text_input. Whether to publish an intent-only key is an open judgement: objectui#3834.",
+  // TWO targetVariable ENTRIES DELETED HERE — objectui#5328, and they died
+  // exactly the way the docblock above said they would.
+  //
+  // `element:text_input.targetVariable` and `element:record_picker.targetVariable`
+  // were exempted as the spec's own intent-only "declarative hint" with zero read
+  // points repo-wide, pending objectui#3834's question of whether to publish such
+  // a key at all. The `@objectstack/spec` 17.1.0 pin answered it upstream, in the
+  // negative: both keys arrived as ADR-0087 D2 tombstones, so they left the
+  // accepted set and the exemptions covering them went dangling-and-stale in the
+  // same run — named by `every unpublished-key exemption names a key the spec
+  // really declares`, `carries no stale unpublished-key exemption` and `the
+  // tombstoned keys are recognised, not exempted`, all three at once.
+  //
+  // Deleting them is the whole fix. The tombstone judge recognises both keys now,
+  // which is a stronger statement than an exemption ever was: the contract itself
+  // rejects them by name.
 
-  // ── GA-added keys the renderers already honour — held by the PIN (5 keys) ──
-  // A different class from every entry above, and the difference is the whole
-  // reason they are here rather than declared: publishing them is the RIGHT
-  // answer and this file's own bar says so ("a spec key the renderer HONOURS
-  // and `inputs` omits is a plain defect and gets declared"). What blocks it is
-  // the installed contract, not a judgement.
+  // FIVE GA-PENDING ENTRIES DELETED HERE — objectui#4668, and they too were
+  // designed to die exactly this way.
   //
-  // @objectstack/spec 17.0.0 GA declares all five; the pinned 17.0.0-rc.6
-  // declares none of them. Declaring the inputs today would therefore fail the
-  // FORWARD direction of this very file on the pinned spec — and a forward
-  // exemption to cover THAT would go stale, and red, the moment the pin moves.
-  // The two clauses collide and "must stay green on current main" wins, the
-  // same resolution PR objectui#4660 recorded for `SECRET_MASK`.
+  // `page:header.maxVisible` / `page:header.mobileMaxVisible` /
+  // `page:tabs.alwaysShowStrip` / `record:details.inlineEdit` /
+  // `record:details.showHeader` were a class of their own: publishing them was
+  // the RIGHT answer and this file's own bar said so ("a spec key the renderer
+  // HONOURS and `inputs` omits is a plain defect and gets declared"). What held
+  // them was the installed contract, not a judgement — @objectstack/spec 17.0.0
+  // GA declares all five and the then-pinned 17.0.0-rc.6 declared none, so
+  // declaring the inputs would have failed the FORWARD direction of this very
+  // file, and a forward exemption to cover THAT would have gone stale the moment
+  // the pin moved (the collision PR objectui#4660 recorded for `SECRET_MASK`).
   //
-  // So these five are dormant on this pin and fully judged on a GA tree (see
-  // `GA_PENDING_UNPUBLISHED_KEYS`), and objectui#4668 owns declaring them once
-  // objectui#4636 / PR objectui#4639 lands the GA pin. Each dies the moment its
-  // input exists — `carries no stale unpublished-key exemption` is what kills
-  // it, exactly as it killed `element:record_picker.filter` when #3830 declared
-  // that one.
-  'page:header.maxVisible':
-    'GA declares it and PageHeaderRenderer HONOURS it already — containers.tsx:1360, `readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3`, the desktop inline/overflow action budget. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it, so the input would fail this file\'s forward direction today. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'page:header.mobileMaxVisible':
-    'GA declares it and PageHeaderRenderer HONOURS it already — containers.tsx:1359, the mobile half of the same overflow budget (`?? 1`). Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'page:tabs.alwaysShowStrip':
-    'GA declares it and PageTabsRenderer HONOURS it already — containers.tsx:637, `itemsWithValue.length > 1 || schema?.properties?.alwaysShowStrip === true` keeps the strip visible for a single tab. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'record:details.inlineEdit':
-    'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:234, `(schema.inlineEdit ?? true) && objectInlineEditable` gates the inline-edit affordance. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
-  'record:details.showHeader':
-    'GA declares it and RecordDetailsRenderer HONOURS it already — renderers/record-details.tsx:257, `showHeader: schema.showHeader ?? false` reaches DetailView, which reads it at DetailView.tsx:909/:1183. Not published only because the pinned @objectstack/spec@17.0.0-rc.6 does not declare it. Declared by objectui#4668 on the GA pin (objectui#4636 / PR #4639); dormant on this pin, dies when the input lands.',
+  // The GA pin landed (objectui#4636 / PR objectui#4639) and objectui#4668
+  // declared all five at their registration sites, which is what made `carries
+  // no stale unpublished-key exemption` name every one of them at once —
+  // exactly as it killed `element:record_picker.filter` when #3830 declared that
+  // one. They are pinned as DECLARED, by name, in `the five GA keys
+  // objectui#4668 declared are discoverable` at the bottom of this file: the
+  // derived reverse loop goes green just as readily if a declaration is swapped
+  // back for an entry here, which is the cheap move and the one thing the pin
+  // forbids.
+  //
+  // One of the five needed more than a declaration, and it is recorded here
+  // because this list is where the next reader looks: `page:tabs.alwaysShowStrip`
+  // was read ONLY as `schema.properties.alwaysShowStrip`, while `inputs`
+  // publishes top-level keys. Measured on a one-tab schema, the flat form every
+  // layer of the manifest accepts was dropped by the renderer — so #4668 added
+  // the canonical top-level arm in the same change. Publishing a key whose only
+  // read is under a different carrier is not a declaration, it is this gate's own
+  // failure mode moved one layer in.
 
   // ── object-grid's own @deprecated legacy spellings — the RULED carve-out ───
   //                                                          (10 keys)
@@ -651,6 +795,47 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     '@deprecated in ObjectGridSchema ("Moved to top-level resizable"); GA describes it as the "Alternate spelling of `resizable`". Read as back-compat, deliberately not published — the canonical `resizable` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.title':
     '@deprecated in ObjectGridSchema ("Use label instead"); GA describes it as the "Fallback for `label` (the renderer reads `label || title`)". Read as back-compat, deliberately not published — the canonical `label` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+
+  // ── record:reference_rail.entries — a nested collection, newly JUDGED ──────
+  //                                                                   (1 key)
+  // The gap is not new; being GATED is. `@objectstack/spec` 17.1.0 added
+  // `record:reference_rail` to `ComponentPropsMap` (37 entries to 42), so this
+  // file began judging a block it had never covered — the registration in
+  // `plugin-detail/src/index.tsx:675` has always published `hideEmpty` and only
+  // `hideEmpty`. Nothing about the renderer or its inputs changed on the pin
+  // (objectui#5328).
+  //
+  // `entries` is an ARRAY OF OBJECTS — `{objectName, relationshipField, title,
+  // limit, displayField}` per item — and `inputs` is a flat carrier of scalar
+  // fields (`type: 'string' | 'number' | 'boolean' | 'enum'`). The same
+  // "unpublishable in a flat carrier" reading `page:tabs.type` carried, except
+  // here the carrier cannot express the SHAPE rather than colliding on a name.
+  //
+  // DO NOT resolve this by declaring a scalar input for it: a string field
+  // standing in for a list of related-object bindings recommends a write the
+  // renderer cannot honour, which is this gate's own failure mode one layer in
+  // (the `page:tabs.alwaysShowStrip` note above).
+  //
+  // NOT blocked on a contract question any more — that half is settled. The
+  // maintainer ruled Option B (2026-08-22) and objectui#5494 landed it:
+  // `ReferenceRailEntry` is now DERIVED from `@objectstack/spec/ui`
+  // (re-exported, never re-declared — `check:spec-symbols` enforces that), and
+  // the `icon` key the old local interface carried retired with the
+  // derivation. The spec's `ReferenceRailEntrySchema` is `$strict` over
+  // {objectName, relationshipField, title?, limit?, displayField?} and refuses
+  // `icon` at save, so it survives on neither side of the contract.
+  //
+  // The note this replaces also asserted that the renderer READ that key. It
+  // did not — that premise was false when it was written, which is the whole
+  // reason this block was rewritten (objectui#5792). Measured twice,
+  // independently: the spec's `ui-reference-rail-unknown-keys-refused`
+  // migration entry, and a grep over `plugin-detail/src` where the only
+  // surviving `icon` mention in `record-reference-rail.tsx` is prose, while the
+  // same grep finds real reads of `entry.objectName`, `.relationshipField`,
+  // `.title`, `.limit` and `.displayField`. So the SHAPE limit above is the
+  // entire justification for this exemption — it always was sufficient alone.
+  'record:reference_rail.entries':
+    'An array of {objectName, relationshipField, title, limit, displayField} objects; `inputs` is a flat scalar carrier and cannot express it. Newly judged rather than newly missing — @objectstack/spec 17.1.0 added record:reference_rail to ComponentPropsMap, and the registration (plugin-detail/src/index.tsx:675) has always published only `hideEmpty` — the 17.1.0 pin, objectui#5328. The flat-carrier shape limit is the entire reason: the `icon` divergence that once also blocked an entries editor was settled by Option B (maintainer 2026-08-22, objectui#5494).',
 };
 
 /**
@@ -659,8 +844,8 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
  * Every other entry in `UNPUBLISHED_EXEMPTIONS` describes a key the installed
  * spec declares right now — that is what `every unpublished-key exemption names
  * a key the spec really declares` asserts, and it is why a typo cannot hide in
- * the list. These five describe keys only @objectstack/spec 17.0.0 GA has, so
- * on the pinned 17.0.0-rc.6 they describe nothing yet.
+ * the list. These ten describe keys of a block only @objectstack/spec 17.0.0 GA
+ * carries, so on a pin predating the GA element set they describe nothing yet.
  *
  * Pinning them as a SET rather than skipping "any entry the spec does not
  * declare" is the whole safety of the mechanism: only these entries may be
@@ -669,22 +854,27 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
  * directions — so a GA release that dropped one of them fails here instead of
  * leaving an entry that quietly covers nothing.
  *
- * TWO GROUPS, and they are dormant for the same reason but retire differently:
+ * ONE GROUP NOW, and knowing which one LEFT matters more than the one that
+ * stayed:
  *
- *   - the first five are keys on blocks this pin already carries, awaiting
- *     declaration by objectui#4668 once the pin moves. Each dies when its input
- *     lands;
  *   - the ten `object-grid` entries are objectui#4648's RULED carve-out. They
- *     are dormant here only because rc.6 does not carry `object-grid` at all, so
+ *     are dormant only on a pin that does not carry `object-grid` at all, so
  *     none of its keys resolves; on a GA tree they are fully judged. They are
- *     not awaiting declaration — see their reasons above.
+ *     not awaiting declaration — see their reasons above;
+ *   - the FIVE that were listed first here (`page:header.maxVisible`,
+ *     `page:header.mobileMaxVisible`, `page:tabs.alwaysShowStrip`,
+ *     `record:details.inlineEdit`, `record:details.showHeader`) were the other
+ *     kind: keys on blocks the pin already carried, awaiting declaration. They
+ *     retired the way this mechanism intends — the pin moved to GA, objectui#4668
+ *     declared all five, and their exemption entries went stale in the same run.
+ *     A "pending" entry that never lands is the rot this set exists to make
+ *     visible; these five are the worked example of it not happening.
+ *
+ * So the two arms of `isDormantOnThisPin` are no longer symmetric in practice:
+ * a future entry here is either a ruled carve-out on a block the pin may not
+ * carry, or a declaration someone owes. Say which in the reason.
  */
 const GA_PENDING_UNPUBLISHED_KEYS = [
-  'page:header.maxVisible',
-  'page:header.mobileMaxVisible',
-  'page:tabs.alwaysShowStrip',
-  'record:details.inlineEdit',
-  'record:details.showHeader',
   'object-grid.fields',
   'object-grid.staticData',
   'object-grid.selectable',
@@ -707,11 +897,20 @@ const splitExemptionKey = (exemptionKey: string): [string, string] => {
  * Is this a GA-pending entry the installed spec does not carry? Such an entry
  * is judged by neither the dangling nor the stale check — both of those ask
  * questions about a key that does not exist on this pin.
+ *
+ * `specListedKeys`, NOT the narrowed accepted set, and the difference is the one
+ * objectui#3809 is about (see that function's own note). Dormancy is a question
+ * about the RELEASE: does this pin know the key at all? A tombstone answers YES
+ * — the release knows it and refuses it — so an exemption covering a retired key
+ * must stay LIVE and be reported as dangling-and-stale, which is what forces its
+ * deletion. Asking the narrowed set here would call every future retirement
+ * "dormant" and hand a retired key's exemption a permanent hiding place, which
+ * is the same blind spot one layer down.
  */
 const isDormantOnThisPin = (exemptionKey: string): boolean => {
   if (!GA_PENDING_UNPUBLISHED_KEYS.includes(exemptionKey)) return false;
   const [type, specKey] = splitExemptionKey(exemptionKey);
-  return !specTopLevelKeys(type).includes(specKey);
+  return !specListedKeys(type).includes(specKey);
 };
 
 /*
@@ -756,6 +955,305 @@ const unpublishedExemptedFor = (type: string): string[] =>
     .filter((key) => key.startsWith(`${type}.`))
     .map((key) => key.slice(type.length + 1));
 
+// ── the ARM direction (objectui#4971) ────────────────────────────────────────
+//
+// Same `covered` set, same derived-not-restated expectations, same exemption
+// discipline as the two key-name directions above. What moves is the SUBJECT:
+// not which keys a block publishes, but which coarse KINDS it publishes them
+// with. One direction only — see the header: widening is silent, narrowing is
+// merely noisy.
+
+/**
+ * One Zod issue, as far as the arm judge needs to see it.
+ *
+ * Structural rather than imported: the contract's issues arrive as plain data
+ * through `safeParse`, and the three fields read here (`code`, `path`, and the
+ * per-branch `errors` of a union) are the stable shape of that data. `keys` is
+ * the `unrecognized_keys` payload — see `specArmVerdict`.
+ */
+interface SpecIssue {
+  code?: string;
+  path?: readonly unknown[];
+  keys?: readonly string[];
+  values?: readonly unknown[];
+  errors?: readonly (readonly SpecIssue[])[];
+}
+
+interface SpecParser {
+  safeParse: (value: unknown) => { success: boolean; error?: { issues?: readonly SpecIssue[] } };
+}
+
+/** This block's spec props schema as a parser, or `null` when this pin has none. */
+function specParser(type: string): SpecParser | null {
+  const schema = specSchema(type) as Partial<SpecParser> | undefined;
+  return typeof schema?.safeParse === 'function' ? (schema as SpecParser) : null;
+}
+
+/**
+ * Representative values per coarse arm, in the vocabulary `armAccepts` uses
+ * (`packages/sdui-parser/src/validate.ts`) — the arms are KINDS, so one value
+ * of the kind is what witnesses it.
+ *
+ * More than one per structured kind on purpose. `[]` witnesses any array
+ * contract regardless of its element type, and `{}` witnesses an object
+ * contract whose members are all optional; the second entry is what witnesses
+ * the opposite case — a contract with required members, where the empty value
+ * fails on CONTENT (which `specArmVerdict` reads as the kind being accepted).
+ * Either one answering is enough, which is why the verdict is `some`, not
+ * `every`.
+ *
+ * `color` / `date` / `code` / `file` are the string-family kinds `armAccepts`
+ * treats as `typeof value === 'string'`. No registration in this repo declares
+ * one today, so their probes are unexercised vocabulary rather than measured —
+ * they are here so that a first such declaration is JUDGED rather than silently
+ * unjudged, which is what `the probe vocabulary covers every arm a manifest can
+ * carry` asserts.
+ */
+const COARSE_ARM_PROBES: Record<string, readonly unknown[]> = {
+  string: ['Account'],
+  number: [42],
+  boolean: [true],
+  array: [[], ['Account']],
+  object: [{}, { en: 'Account', 'zh-CN': '客户' }],
+  color: ['#336699'],
+  date: ['2026-01-01T00:00:00.000Z'],
+  code: ['const total = 1;'],
+  file: ['logo.png'],
+};
+
+/**
+ * Arm kinds that carry no value-shaped claim, and so cannot be compared to a
+ * contract at all. Listed, never silent (the header's exemption rule).
+ *
+ * `slot` is the whole list: it names a CHILD POSITION rather than a value, and
+ * `armAccepts` admits everything for it (`default: return true`), so "the spec
+ * accepts some value of this kind" is not a question about the declaration.
+ * `page:card.children` / `.footer` and the three `page:*` container `children`
+ * are the five that use it.
+ */
+const ARM_KINDS_WITHOUT_A_VALUE_CLAIM = new Set(['slot']);
+
+/**
+ * The coarse kind of a value, in `armAccepts`'s vocabulary
+ * (`packages/sdui-parser/src/validate.ts`).
+ *
+ * Only ever asked about a value the gate itself produced — a probe, or a
+ * declared enum member — so the question is "which arm would admit this", not a
+ * general type test. The string family (`color` / `date` / `code` / `file`)
+ * collapses to `string` because `armAccepts` makes no distinction between them
+ * either: all five admit exactly `typeof value === 'string'`.
+ */
+function coarseKindOf(value: unknown): string {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  return typeof value;
+}
+
+/**
+ * Is this rejection about the VALUE'S KIND at the node itself, rather than
+ * about its CONTENT?
+ *
+ * `issues` are RELATIVE to the node under judgement — which is why the union
+ * recursion below is not a formality. A union's per-branch issues come back
+ * with paths relative to the union node (measured: `page:card.title` refused a
+ * number as `invalid_union` at `["title"]`, its two branch issues at `[]`), so
+ * a judge that kept matching them against the absolute key path would find
+ * nothing to refute and pass EVERY union key — including objectui#4971's own
+ * `page:card.title` measurement, the one reading this gate exists to turn red.
+ *
+ *  - an issue DEEPER than the node means the kind was accepted and the content
+ *    judged (a missing required member, a bad element) — not a kind refusal;
+ *  - `invalid_type` at the node is the kind refusal itself;
+ *  - `invalid_union` at the node is one only if EVERY branch refuses the kind;
+ *  - `invalid_value` at the node — a closed list of literals — is decided by
+ *    the list: a probe of a kind NO listed value has is refused for its kind,
+ *    while one that shares a kind with some listed value is refused for its
+ *    VALUE. Both halves are load-bearing and were measured on
+ *    `record:quick_actions.variant`, a spec enum of strings: `'Account'` must
+ *    read as a value refusal (or the block's correct `'string'` arm reads as
+ *    invented — the false red triage flagged), and `42` must read as a KIND
+ *    refusal (or a `'number'` arm on an enum contract would be exactly the
+ *    silent widening this gate exists for, waved through by the same rule that
+ *    protects the string arm). One key, both directions, so the two cannot be
+ *    collapsed into one answer;
+ *  - anything else at the node (`too_small`, `invalid_format`, a custom
+ *    refinement) is a VALUE refusal, and the coarse-kind ceiling
+ *    (`ComponentInput.type`, maintainer 2026-08-17) puts it outside what an arm
+ *    claims.
+ */
+function refusesKind(issues: readonly SpecIssue[], probed: unknown): boolean {
+  const here = issues.filter((issue) => (issue.path ?? []).length === 0);
+  if (issues.length > here.length) return false;
+  if (here.length === 0) return false;
+  return here.every(
+    (issue) =>
+      issue.code === 'invalid_type' ||
+      (issue.code === 'invalid_value' &&
+        Array.isArray(issue.values) &&
+        issue.values.length > 0 &&
+        !issue.values.some((allowed) => coarseKindOf(allowed) === coarseKindOf(probed))) ||
+      (issue.code === 'invalid_union' &&
+        (issue.errors ?? []).length > 0 &&
+        (issue.errors ?? []).every((branch) => refusesKind(branch, probed))),
+  );
+}
+
+type ArmVerdict = 'accepts' | 'refuses-content' | 'refuses-kind' | 'no-schema';
+
+/**
+ * What the contract says about ONE value on ONE key — scoped to that key.
+ *
+ * Scoped is the load-bearing word. A whole-parse boolean cannot answer this
+ * question on any block with a REQUIRED key: `{ filter: {} }` fails
+ * `element:number`'s schema for the missing `object` / `aggregate`, and reading
+ * that as a verdict on `filter` would report every arm of every key on such a
+ * block as invented. So only issues about this key count, and a parse whose
+ * every complaint is about a sibling reads as `accepts`.
+ */
+function specArmVerdict(type: string, key: string, value: unknown): ArmVerdict {
+  const parser = specParser(type);
+  if (!parser) return 'no-schema';
+  const result = parser.safeParse({ [key]: value });
+  if (result.success) return 'accepts';
+  const issues = result.error?.issues ?? [];
+  // The key refused BY NAME — strict-mode contracts report it this way, at the
+  // parent with the offending names in `keys`. Defensive: the walk below only
+  // judges keys the accepted set already carries.
+  if (issues.some((issue) => issue.code === 'unrecognized_keys' && (issue.keys ?? []).includes(key)))
+    return 'refuses-kind';
+  const mine = issues
+    .filter((issue) => (issue.path ?? [])[0] === key)
+    .map((issue) => ({ ...issue, path: (issue.path ?? []).slice(1) }));
+  if (mine.length === 0) return 'accepts';
+  return refusesKind(mine, value) ? 'refuses-kind' : 'refuses-content';
+}
+
+/**
+ * The values an `enum` arm admits, flattened from either declaration form.
+ *
+ * The same flattening `enumValues` does in `packages/sdui-parser/src/validate.ts`
+ * — that function is module-private, and the two forms (`['a', 'b']` or
+ * `[{ label, value }]`) are `ComponentInput.enum`'s own published shape rather
+ * than a judgement, so this is a re-read of a data shape, not a second
+ * classifier.
+ */
+function declaredEnumValues(input: ComponentInput): unknown[] {
+  return (input.enum ?? []).map((entry) =>
+    typeof entry === 'object' && entry !== null ? (entry as { value: unknown }).value : entry,
+  );
+}
+
+interface ArmJudgement {
+  /** `BLOCK.INPUT:ARM` — the exemption key format. */
+  id: string;
+  type: string;
+  input: string;
+  arm: string;
+  verdict: 'witnessed' | 'refused' | 'exempt-slot' | 'exempt-empty-enum';
+  /** What the contract actually answered, for the failure message. */
+  evidence: string;
+}
+
+/**
+ * Judge every arm of every declared input on one block.
+ *
+ * Inputs whose NAME the contract does not accept are skipped, not judged: they
+ * are the FORWARD direction's subject (and its exemption list's), and asking
+ * what kind a contract accepts on a key it does not declare has no answer worth
+ * reporting. Today that set is empty — `no covered block declares an off-spec
+ * input` is what the forward direction asserts — so the skip removes nothing.
+ */
+function judgeArms(type: string): ArmJudgement[] {
+  const accepted = new Set(specTopLevelKeys(type));
+  const judgements: ArmJudgement[] = [];
+  for (const input of declaredInputEntries(type) ?? []) {
+    if (!accepted.has(input.name)) continue;
+    for (const arm of inputTypeArms(input.type)) {
+      const id = `${type}.${input.name}:${arm}`;
+      if (ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm)) {
+        judgements.push({ id, type, input: input.name, arm, verdict: 'exempt-slot', evidence: 'describes a child position, not a value' });
+        continue;
+      }
+      if (arm === 'enum') {
+        // EXACT, not coarse: `armAccepts` admits precisely the declared members,
+        // so every one of them must be a value the contract accepts. This is
+        // where an enum arm is judged — the coarse rule never sees it.
+        const members = declaredEnumValues(input);
+        if (members.length === 0) {
+          judgements.push({ id, type, input: input.name, arm, verdict: 'exempt-empty-enum', evidence: 'declares no members, so it admits nothing' });
+          continue;
+        }
+        const refused = members.filter(
+          (member) => specArmVerdict(type, input.name, member) !== 'accepts',
+        );
+        judgements.push({
+          id,
+          type,
+          input: input.name,
+          arm,
+          verdict: refused.length === 0 ? 'witnessed' : 'refused',
+          evidence:
+            refused.length === 0
+              ? `all ${members.length} declared members accepted`
+              : `the contract refuses the declared member(s) ${JSON.stringify(refused)}`,
+        });
+        continue;
+      }
+      const probes = COARSE_ARM_PROBES[arm] ?? [];
+      const verdicts = probes.map((probe) => specArmVerdict(type, input.name, probe));
+      const witnessed = verdicts.some((verdict) => verdict === 'accepts' || verdict === 'refuses-content');
+      judgements.push({
+        id,
+        type,
+        input: input.name,
+        arm,
+        verdict: witnessed ? 'witnessed' : 'refused',
+        evidence: witnessed
+          ? `probe verdicts ${JSON.stringify(verdicts)}`
+          : `the contract refuses the KIND itself — probe verdicts ${JSON.stringify(verdicts)}`,
+      });
+    }
+  }
+  return judgements;
+}
+
+/** Every arm judgement this gate makes, computed once. */
+const ARM_JUDGEMENTS: ArmJudgement[] = covered.flatMap(judgeArms);
+
+/** Arms of `type` the contract refuses outright, as `BLOCK.INPUT:ARM`. */
+const refusedArms = (type: string): string[] =>
+  ARM_JUDGEMENTS.filter((judgement) => judgement.type === type && judgement.verdict === 'refused').map(
+    (judgement) => judgement.id,
+  );
+
+/**
+ * Declared arms the contract refuses, ACCEPTED for now, each with the reason.
+ * Key format: `BLOCK.INPUT:ARM`.
+ *
+ * Third instance of this file's one exemption discipline, and the bar is the
+ * same as `OFF_SPEC_EXEMPTIONS`': the divergence has to be owned by a named,
+ * open piece of work, because neither `@objectstack/spec` nor a declaration is
+ * edited to make a gate green (AGENTS.md #0 / #0.1). Every reason cites an
+ * issue, which `every arm exemption states a reason and references a tracking
+ * issue` asserts, and an entry that stops describing anything is DELETED by
+ * `carries no stale arm exemption`.
+ *
+ * BOTH ENTRIES ARE RED-ON-ARRIVAL FINDINGS, not regressions this change
+ * introduced. objectui#4971 was filed believing there were ZERO fake arms —
+ * true of what it had measured, which was #3832's five multi-arm specimens,
+ * each checked against spec and its renderer. These two are SINGLE-arm
+ * declarations, the form that predates #3832's array `type` entirely, and
+ * nothing had ever compared one to the contract. Finding them on arrival is the
+ * gate working, and the dispatched scope of #4971 is explicit that a red on
+ * arrival gets REPORTED rather than declared away by editing the declaration.
+ */
+const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
+  'element:number.filter:array':
+    'Declared `array` (every other `filter` input in the repo is — object-grid, object-metric, record:related_list, plugin-list, data-list), while ComponentPropsMap[element:number].filter is a record/object ("Filter criteria") and refuses an array outright. The renderer is an opaque passthrough (elements.tsx:375-451, `filter?: unknown` → adapter.aggregate / find), so nothing in-tree settles which side moves: widening the spec entry to the ViewFilterRule array form every sibling filter uses, or re-declaring this one block. A contract question, filed as objectui#6206.',
+  'object-grid.data:object':
+    'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
+};
+
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
   it('judges every spec-carried block that declares an authoring surface', () => {
     // Non-vacuity guard. Every per-block assertion below is generated from
@@ -789,6 +1287,55 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       expect(covered, `${type} no longer declares inputs`).toContain(type);
       expect(specTopLevelKeys(type), `${type} regressed to an empty spec shape`).toContain('children');
     }
+  });
+
+  it('the tombstone premise still holds — a retired key stays IN the shape', () => {
+    // THE PREMISE, asserted rather than assumed (objectui#3809). Every tombstone
+    // filter in this file — in BOTH directions, since they share one accepted
+    // set — is built on one property of ADR-0087 D2: retirement REPLACES the
+    // member with `z.never().optional()` and leaves the entry listed. If
+    // upstream ever retires by DELETING the key instead, the filter stops
+    // narrowing anything and every assertion here goes on passing. That is dead
+    // code nobody can see, and it is the failure mode objectui#3809's own text
+    // warned about before the fix existed.
+    //
+    // So the shape of this assertion is deliberate: it is not "tombstones are
+    // handled correctly", it is "there is still something for the handling to
+    // do". A red here does not mean the gate is wrong; it means the premise
+    // expired, and the filter plus this test plus the harvest comment above are
+    // all now archaeology to be removed together.
+    const listedButRejected = covered.flatMap((type) =>
+      specTombstonedKeys(type).map((key) => `${type}.${key}`),
+    );
+    expect(
+      listedButRejected.length,
+      'no covered block lists a tombstoned key: either this pin predates every ADR-0087 D2 ' +
+        'retirement, or upstream now DELETES retired keys — in which case the tombstone ' +
+        'narrowing in `specTopLevelKeys` is dead code and must be removed, not kept',
+    ).toBeGreaterThan(0);
+
+    // …and the narrowing is not a no-op, per block. `listed` must strictly
+    // exceed `accepted` exactly where a tombstone was found — the third way this
+    // could rot is a judge that reports tombstones while the subtraction quietly
+    // stops using its answer.
+    for (const type of covered) {
+      const tombstoned = specTombstonedKeys(type);
+      if (tombstoned.length === 0) continue;
+      expect(specListedKeys(type).length, `${type} accepted set did not narrow`).toBeGreaterThan(
+        specTopLevelKeys(type).length,
+      );
+      for (const key of tombstoned) {
+        expect(specListedKeys(type), `${type}.${key} is not even listed`).toContain(key);
+        expect(specTopLevelKeys(type), `${type}.${key} survived the narrowing`).not.toContain(key);
+      }
+    }
+
+    // Non-vacuity for the judge itself, in the direction the loops above cannot
+    // reach: a probe that answered "tombstone" for EVERYTHING would satisfy all
+    // of them. `page:card.title` is live contract and this repo publishes it, so
+    // it is the control.
+    expect(isShapeKeyTombstoned(specSchema('page:card'), 'title')).toBe(false);
+    expect(specTopLevelKeys('page:card')).toContain('title');
   });
 
   it.each(covered)('%s declares no top-level input the spec does not accept', (type) => {
@@ -882,7 +1429,7 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     expect(dangling).toEqual([]);
   });
 
-  it('every GA-pending exemption arms exactly with the installed spec, all fifteen together', () => {
+  it('every GA-pending exemption arms exactly with the installed spec, all ten together', () => {
     // The non-vacuity and self-arming half of `GA_PENDING_UNPUBLISHED_KEYS`.
     // Without it the pinned set could name keys no entry covers (licensing
     // nothing while reading as cover) or stay dormant forever on a GA tree that
@@ -1007,10 +1554,13 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
   it('carries no stale unpublished-key exemption — a published key must lose its entry', () => {
     // Keeps the reverse list from rotting the same way. An entry goes stale when
-    // the block declares the input (objectui#3829/#3830/#3834 landing) or when
-    // the spec genuinely deletes the key — note that ADR-0087 D2 retirement is
-    // NOT a deletion, so the `element:record_picker` trio does not go stale on
-    // the pin bump; objectui#3809 is what resolves those.
+    // the block declares the input (objectui#3829/#3830/#3834 landing), when the
+    // spec genuinely deletes the key, or — since objectui#3809 — when the spec
+    // RETIRES it: a tombstone leaves the accepted set, so the reverse direction
+    // stops demanding the key and any entry covering it stops describing
+    // anything. That last arm is what harvested the eight entries named in the
+    // comment above, and it is why no future retirement needs an issue of its
+    // own to clean up after it.
     const stale = Object.keys(UNPUBLISHED_EXEMPTIONS)
       .filter((key) => !isDormantOnThisPin(key))
       .filter((key) => {
@@ -1018,6 +1568,213 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         return !undiscoverableSpecKeys(type).includes(specKey);
       });
     expect(stale).toEqual([]);
+  });
+
+  it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
+    // The pin the harvest leaves behind (objectui#3809). Deleting eight
+    // exemptions is only half the change: the derived assertions above would go
+    // green just as readily if a future edit RE-EXEMPTED one of these keys, or
+    // if the tombstone narrowing stopped working and the entry came back to
+    // absorb the red again. Both moves restore the exact state this issue
+    // existed to end, and neither shows up as a failure anywhere else — which is
+    // the same reason the `#3808 / #3830` and `rc.6 record_picker` pins next door
+    // are written by name.
+    //
+    // Five upstream retirements, eight keys, several facts each. The list is
+    // pin-dependent by construction and that is the point: it is the measurement
+    // (`@objectstack/spec@17.0.0`, and the same eight on the rc.6 that preceded
+    // it — this change was verified on both), so a pin that un-retires one of
+    // them fails HERE, naming the key, instead of resurfacing as an unexplained
+    // red in a derived loop.
+    const HARVESTED: Array<[string, string]> = [
+      ['element:record_picker', 'displayField'],
+      ['element:record_picker', 'multiple'],
+      ['element:record_picker', 'searchFields'],
+      ['page:card', 'actions'],
+      ['page:card', 'body'],
+      ['page:header', 'icon'],
+      ['page:tabs', 'type'],
+      ['record:details', 'layout'],
+    ];
+
+    for (const [type, key] of HARVESTED) {
+      // Still LISTED: the release knows the key. This is the assertion that
+      // distinguishes "retired" from "this pin never had it", and without it the
+      // three below would pass just as well on a key that simply does not exist.
+      expect(specListedKeys(type), `${type} no longer lists ${key} at all`).toContain(key);
+      expect(
+        isShapeKeyTombstoned(specSchema(type), key),
+        `${type}.${key} is listed but no longer reads as a tombstone — did upstream un-retire it?`,
+      ).toBe(true);
+      // Not demanded by the reverse direction any more, which is what made the
+      // exemption unnecessary…
+      expect(
+        undiscoverableSpecKeys(type),
+        `${type}.${key} is being demanded again; the narrowing is not being applied`,
+      ).not.toContain(key);
+      // …and not covered by one either.
+      expect(
+        Object.keys(UNPUBLISHED_EXEMPTIONS),
+        `${type}.${key} is exempted again — a tombstone needs no cover`,
+      ).not.toContain(`${type}.${key}`);
+      // The other resolution the two directions exist to forbid: publishing the
+      // key. The forward direction would red on it, but stating it here is what
+      // makes THIS test the one place a reader learns both halves.
+      expect(
+        declaredInputs(type) ?? [],
+        `${type} publishes ${key}, a key the contract rejects by name`,
+      ).not.toContain(key);
+    }
+
+    // Completeness, derived rather than restated: no OTHER tombstoned key on a
+    // covered block may carry an exemption. An entry for one would be dangling
+    // (the checks above name it), but this states the rule positively so the
+    // next retirement is not resolved by writing an entry that then has to be
+    // harvested a second time.
+    const exemptedTombstones = covered.flatMap((type) =>
+      specTombstonedKeys(type)
+        .filter((key) => Object.keys(UNPUBLISHED_EXEMPTIONS).includes(`${type}.${key}`))
+        .map((key) => `${type}.${key}`),
+    );
+    expect(exemptedTombstones).toEqual([]);
+  });
+
+  // ── the ARM direction (objectui#4971) ──────────────────────────────────────
+
+  it.each(covered)('%s declares no arm the spec refuses outright', (type) => {
+    const unregistered = refusedArms(type).filter((id) => !(id in OFF_SPEC_ARM_EXEMPTIONS));
+    const evidence = ARM_JUDGEMENTS.filter((judgement) => unregistered.includes(judgement.id))
+      .map((judgement) => `${judgement.id} — ${judgement.evidence}`)
+      .join('; ');
+    expect(unregistered, evidence).toEqual([]);
+  });
+
+  it('judges a non-vacuous census — every covered block, every key, every arm', () => {
+    // THE NON-VACUITY GUARD, and the verdict line objectui#4971 asked for. Every
+    // per-block assertion above is generated from `ARM_JUDGEMENTS`; a walk that
+    // resolved nothing — a registry that stopped loading, an `inputTypeArms`
+    // that stopped seeing the array form, a `specTopLevelKeys` that returned
+    // `[]` and skipped every key as off-spec — produces an EMPTY judgement list,
+    // and `[] === []` is what every one of those assertions would then report.
+    // So the census is asserted before anything is derived from it.
+    const keysJudged = new Set(
+      ARM_JUDGEMENTS.map((judgement) => `${judgement.type}.${judgement.input}`),
+    );
+    const exemptSlot = ARM_JUDGEMENTS.filter((j) => j.verdict === 'exempt-slot');
+    const exemptEmptyEnum = ARM_JUDGEMENTS.filter((j) => j.verdict === 'exempt-empty-enum');
+    const census =
+      `blocks ${covered.length} · keys judged ${keysJudged.size} · arms judged ` +
+      `${ARM_JUDGEMENTS.length} · exempt(slot — describes a child position, not a value) ` +
+      `${exemptSlot.length} · exempt(enum arm with no declared members — admits nothing) ` +
+      `${exemptEmptyEnum.length} · refused ${ARM_JUDGEMENTS.filter((j) => j.verdict === 'refused').length} ` +
+      `· registered exemptions ${Object.keys(OFF_SPEC_ARM_EXEMPTIONS).length}`;
+
+    expect(covered.length, census).toBeGreaterThan(0);
+    expect(keysJudged.size, census).toBeGreaterThan(0);
+    expect(ARM_JUDGEMENTS.length, census).toBeGreaterThan(0);
+
+    // …and per block, which is the half a global count cannot see: a block whose
+    // keys all stopped resolving would vanish from the walk while the totals
+    // stayed comfortably non-zero.
+    for (const type of covered) {
+      expect(
+        ARM_JUDGEMENTS.some((judgement) => judgement.type === type),
+        `${type} contributed no arm judgement — ${census}`,
+      ).toBe(true);
+    }
+
+    // The exact arms are NOT pinned here: they are a property of the
+    // registrations, which `EXPECTED_COVERED` and the forward direction already
+    // pin by name. What is pinned is that there is at least one arm per judged
+    // key — the walk cannot report a key it judged nothing about.
+    expect(ARM_JUDGEMENTS.length, census).toBeGreaterThanOrEqual(keysJudged.size);
+  });
+
+  it('the arm judge tells a refused KIND from a refused VALUE — objectui#4971 mutation 3b, by name', () => {
+    // CALIBRATION, and the assertion that keeps this gate honest in BOTH
+    // directions at once. Every other assertion in this section is satisfied by
+    // a judge that never refutes anything, and the enum treatment above is
+    // exactly the kind of rule that could quietly become that judge.
+    //
+    // Reading 1 — the card's own measurement. `page:card.title` is
+    // `string | Record<string,string>`; a `'number'` arm on it is a value the
+    // contract refuses, and adding one is the mutation that left all 856 tests
+    // green before this gate existed. It must read as a KIND refusal.
+    expect(specArmVerdict('page:card', 'title', 42)).toBe('refuses-kind');
+    // …with the control that says the probe is not just refusing everything.
+    expect(specArmVerdict('page:card', 'title', 'Account')).toBe('accepts');
+    expect(specArmVerdict('page:card', 'title', { en: 'Account', 'zh-CN': '客户' })).toBe('accepts');
+
+    // Reading 2 — the false red triage flagged, and the reason the exemption for
+    // enum CONTRACTS is a rule and not a list. `record:quick_actions.variant` is
+    // a spec enum declared with a `'string'` arm: the contract refuses a
+    // representative string as a VALUE, and the coarse-kind ceiling
+    // (`ComponentInput.type`, maintainer 2026-08-17) puts that outside what the
+    // arm claims. A judge that read this as a kind refusal would condemn a
+    // correct declaration.
+    expect(specArmVerdict('record:quick_actions', 'variant', 'Account')).toBe('refuses-content');
+    // …and the same key is proof the two readings cannot collapse into one:
+    // whatever makes the enum arm survive must NOT be what lets `42` through.
+    expect(specArmVerdict('record:quick_actions', 'variant', 42)).toBe('refuses-kind');
+
+    // Reading 3 — a verdict is scoped to its own key. `element:number` requires
+    // `object` and `aggregate`; a whole-parse boolean would call every arm on
+    // the block invented because of two keys the probe never set.
+    expect(specParser('element:number')?.safeParse({ prefix: 'US$' }).success).toBe(false);
+    expect(specArmVerdict('element:number', 'prefix', 'US$')).toBe('accepts');
+  });
+
+  it('the probe vocabulary covers every arm a manifest can carry', () => {
+    // An arm kind with no probe is an arm kind that is silently never judged —
+    // `COARSE_ARM_PROBES[arm] ?? []` yields no verdicts, `some` over nothing is
+    // false, and the judgement would be `refused` on no evidence. So the
+    // vocabulary is compared against the manifest's own set rather than a copy:
+    // an eleventh kind arriving upstream fails here, naming itself.
+    const needsProbe = [...MANIFEST_INPUT_TYPES].filter(
+      (arm) => arm !== 'enum' && !ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm),
+    );
+    expect(needsProbe.length).toBeGreaterThan(0);
+    expect(needsProbe.filter((arm) => (COARSE_ARM_PROBES[arm] ?? []).length === 0)).toEqual([]);
+    // The two kinds judged by another route, asserted so a deletion of either
+    // branch shows up here rather than as silence.
+    expect(MANIFEST_INPUT_TYPES.has('enum')).toBe(true);
+    expect([...ARM_KINDS_WITHOUT_A_VALUE_CLAIM].every((arm) => MANIFEST_INPUT_TYPES.has(arm))).toBe(
+      true,
+    );
+  });
+
+  it('the exact enum branch is exercised — at least one enum arm with real members', () => {
+    // The enum arm is the one judged EXACTLY rather than by kind, so it is the
+    // one branch that could rot into dead code without any assertion noticing:
+    // if no covered block declared an `enum` arm with members, the exact
+    // comparison would run over nothing while the coarse rule kept the file
+    // green. Derived, not pinned to a block — any enum arm keeps it alive.
+    const enumArms = ARM_JUDGEMENTS.filter(
+      (judgement) => judgement.arm === 'enum' && judgement.verdict !== 'exempt-empty-enum',
+    );
+    expect(enumArms.length, 'no covered block declares an enum arm with members').toBeGreaterThan(0);
+  });
+
+  it('every arm exemption names an arm a covered block really declares', () => {
+    // Same reason as its key-name twins: a typo'd entry licenses nothing while
+    // reading as deliberate cover for a real divergence.
+    const declaredIds = new Set(ARM_JUDGEMENTS.map((judgement) => judgement.id));
+    expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !declaredIds.has(id))).toEqual([]);
+  });
+
+  it('every arm exemption states a reason and references a tracking issue', () => {
+    const unjustified = Object.entries(OFF_SPEC_ARM_EXEMPTIONS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([id]) => id);
+    expect(unjustified).toEqual([]);
+  });
+
+  it('carries no stale arm exemption — an arm the contract accepts must lose its entry', () => {
+    // The half that stops this list becoming a permanent allowlist. Once either
+    // side moves — the spec widening the key, or the declaration changing — the
+    // entry stops describing anything and has to be deleted in the same change.
+    const refused = new Set(ARM_JUDGEMENTS.filter((j) => j.verdict === 'refused').map((j) => j.id));
+    expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
   });
 
   it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {
@@ -1072,6 +1829,53 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
         `element:record_picker does not publish ${key}`,
       ).toContain(key);
       expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`element:record_picker.${key}`);
+    }
+  });
+
+  it('the five GA keys objectui#4668 declared are discoverable, block by block', () => {
+    // Named, not merely covered by the derived reverse loop above, for exactly
+    // the reason the #3808 five and the rc.6 record_picker trio next door are:
+    // that loop goes green just as readily if a declaration is REPLACED by an
+    // `UNPUBLISHED_EXEMPTIONS` entry, which is the cheap move under time
+    // pressure and the one thing these five may not resolve to a second time.
+    // Their entries existed for a stated, expiring reason — the pre-GA pin — and
+    // that reason cannot be re-borrowed now that the pin carries the keys.
+    //
+    // Three assertions per key, and the first is the non-vacuity half: if a
+    // later pin dropped one of these from its props schema,
+    // `undiscoverableSpecKeys` would stop naming it and every derived assertion
+    // would pass while the input sat there publishing a key the contract no
+    // longer has — the forward direction would then be the one to red, which is
+    // the correct place for that failure, not here.
+    const declared: Array<[string, string]> = [
+      ['page:header', 'maxVisible'],
+      ['page:header', 'mobileMaxVisible'],
+      ['page:tabs', 'alwaysShowStrip'],
+      ['record:details', 'inlineEdit'],
+      ['record:details', 'showHeader'],
+    ];
+    for (const [type, key] of declared) {
+      expect(specTopLevelKeys(type), `${type} spec no longer declares ${key}`).toContain(key);
+      expect(declaredInputs(type) ?? [], `${type} does not publish ${key}`).toContain(key);
+      expect(Object.keys(UNPUBLISHED_EXEMPTIONS)).not.toContain(`${type}.${key}`);
+      // And they are no longer nameable as dormant: the set that licensed the
+      // dormancy dropped them, so `isDormantOnThisPin` answers false for a
+      // second, independent reason. Without this, re-adding the key to
+      // `GA_PENDING_UNPUBLISHED_KEYS` *and* to the exemption map would restore
+      // the pre-GA state and only `every GA-pending exemption arms exactly with
+      // the installed spec` would notice — and only while the pin carries the
+      // key.
+      expect(GA_PENDING_UNPUBLISHED_KEYS).not.toContain(`${type}.${key}`);
+    }
+
+    // Each carries a description, because for these five the discoverability
+    // IS the fix: an input with an empty description publishes the key to
+    // `sdui.manifest.json` and the `.d.ts` while still telling a designer panel
+    // nothing about what to write in it.
+    for (const [type, key] of declared) {
+      const input = (ComponentRegistry.getConfig(type)?.inputs ?? []).find((i) => i.name === key);
+      expect(input, `${type}.${key} input vanished`).toBeTruthy();
+      expect((input?.description ?? '').length, `${type}.${key} has no description`).toBeGreaterThan(0);
     }
   });
 

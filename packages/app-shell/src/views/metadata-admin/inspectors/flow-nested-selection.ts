@@ -21,7 +21,7 @@
  * codec is not a backward-compat contract.
  */
 
-import { spliceArray } from './_shared';
+import { spliceArray } from './_shared.js';
 
 /** The `MetadataSelection.kind` for a node nested inside a container region. */
 export const NESTED_NODE_KIND = 'nested-node';
@@ -102,12 +102,30 @@ export function regionLabelOf(regionKey: string, container?: { config?: unknown 
 
 // ── C2: node location + write-back ─────────────────────────────────────────
 
-/** A flow node, loose enough for both draft.nodes and a region sub-graph. */
+/**
+ * A flow node, loose enough for both draft.nodes and a region sub-graph.
+ *
+ * This is a READ type over stored metadata, so it stays looser than the spec's
+ * `FlowNode` where the difference is a real layer difference: `type` and
+ * `label` are optional here because a node the author has dropped but not
+ * finished — or a legacy flow read off disk — genuinely occurs without them,
+ * and a reader that cannot represent what it must open is no safer for being
+ * strict. The `[k: string]: unknown` index signature is load-bearing for the
+ * same reason the canvas's `FlowDesignerNode` carries one: node properties this
+ * layer does not understand are round-tripped rather than dropped.
+ *
+ * What it may NOT do is DECLARE a member the contract refuses. `FlowNodeSchema`
+ * is `.strict()` (objectstack#4001), so a declared `description?: string` said
+ * an author may write a key that is `unrecognized_keys` in client validation
+ * and a 422 on save — and the inspector, reading this type, offered a form
+ * field for it (objectui#6287). `FlowNodeInspector.specKeys.test.tsx` pins the
+ * declared members (index signature stripped) as a subset of the spec's own
+ * node keys, so the next addition of that kind fails to compile.
+ */
 export interface FlowNodeLike {
   id: string;
   type?: string;
   label?: string;
-  description?: string;
   config?: Record<string, unknown>;
   [k: string]: unknown;
 }

@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, ReactNode } from 'react';
 import { getSharedDiscovery } from '@object-ui/data-objectstack';
 import { AuthProvider } from '@object-ui/auth';
 import type { PreviewModeOptions } from '@object-ui/auth';
-import { LoadingScreen } from './LoadingScreen';
+import { LoadingScreen } from './LoadingScreen.js';
 import { isServiceUsable, type DiscoveryInfo } from '@object-ui/react';
 
 interface ConditionalAuthWrapperProps {

@@ -30,9 +30,12 @@ import { render, renderHook, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import {
   ElementDataSourceGate,
+  noDataSourceMessage,
   useElementDataSourceSchema,
+  useResolvedDataSource,
   type ElementDataSourceMapping,
 } from '../ElementDataSourceGate';
+import { SchemaRendererProvider } from '../../context/SchemaRendererContext';
 
 const HOT_VIEW = {
   name: 'hot',
@@ -163,6 +166,28 @@ describe('useElementDataSourceSchema — binding with a saved view', () => {
     expect(bound.sort).toEqual([{ field: 'name', order: 'desc' }]);
     expect(bound.pagination).toEqual({ pageSize: 7 });
     expect(bound.viewType).toBe('kanban');
+  });
+
+  it('still resolves a view served under snake `list_views` (stored-data compatibility, #5362)', async () => {
+    // `listViews` (camelCase) is the canonical spelling — @objectstack/spec
+    // declares nothing else, and every fixture above uses it. This pin is the
+    // OTHER half of that settlement: stored app data published before the
+    // canonization has never been censused (objectstack#7917), so the snake
+    // READ fallback in `useElementDataSource` must survive until that census
+    // exists. If this test is failing because the fallback was removed, the
+    // removal needs the census as evidence, not a cleanup rationale.
+    const snakeAdapter = {
+      find: vi.fn(),
+      getObjectSchema: vi.fn().mockResolvedValue({ name: 'account', list_views: { hot: HOT_VIEW } }),
+    };
+    const result = await resolved(
+      { type: 'list-view', dataSource: { object: 'account', view: 'hot' } },
+      FULL,
+      snakeAdapter,
+    );
+    expect(result.current.status).toBe('resolved');
+    expect(result.current.schema.columns).toEqual(['name', 'rating']);
+    expect(result.current.schema.filter).toEqual([['rating', '=', 'hot']]);
   });
 
   it('lets an authored key win over the same key from the view', async () => {
@@ -333,5 +358,117 @@ describe('ElementDataSourceGate — resolution states', () => {
       </ElementDataSourceGate>,
     );
     expect(getByTestId('block').textContent).toBe('task');
+  });
+});
+
+describe('ElementDataSourceGate — no adapter resolved (objectui#5378 item 2)', () => {
+  const Block = ({ schema }: { schema: any }) => (
+    <div data-testid="block">{String(schema?.objectName)}</div>
+  );
+
+  const gate = (props: Record<string, unknown>) => (
+    <ElementDataSourceGate
+      schema={{ objectName: 'account' }}
+      testId="probe"
+      requiresDataSource
+      noDataSourceMessage={noDataSourceMessage('probe-block', 'account')}
+      {...props}
+    >
+      {(bound) => <Block schema={bound} />}
+    </ElementDataSourceGate>
+  );
+
+  it('renders the panel instead of the block when no adapter resolves', () => {
+    const { getByTestId, queryByTestId } = render(gate({}));
+    const panel = getByTestId('probe-no-data-source');
+    expect(panel).toHaveAttribute('role', 'alert');
+    expect(queryByTestId('block')).toBeNull();
+  });
+
+  it('names the block, the object and the ancestor that injects the adapter', () => {
+    // The message has to be an ADDRESS. "Nothing rendered" is what the author
+    // already had; what they did not have is where to look.
+    const { getByTestId } = render(gate({}));
+    const text = getByTestId('probe-no-data-source').textContent ?? '';
+    expect(text).toContain('probe-block');
+    expect(text).toContain('account');
+    expect(text).toContain('SchemaRendererProvider');
+  });
+
+  it('is satisfied by the provider context, not only by an explicit adapter', () => {
+    const { getByTestId, queryByTestId } = render(
+      <SchemaRendererProvider dataSource={makeAdapter() as any}>
+        {gate({})}
+      </SchemaRendererProvider>,
+    );
+    expect(queryByTestId('probe-no-data-source')).toBeNull();
+    expect(getByTestId('block').textContent).toBe('account');
+  });
+
+  it('never fires when the call site did not opt in', () => {
+    // Every other block that uses this gate is untouched: the check is opt-IN
+    // because "needs an adapter" is a statement about the block's own
+    // fallbacks, and a wrong guess paints a configuration error over a
+    // component that is working.
+    const { getByTestId, queryByTestId } = render(
+      <ElementDataSourceGate schema={{ objectName: 'account' }} testId="probe">
+        {(bound) => <Block schema={bound} />}
+      </ElementDataSourceGate>,
+    );
+    expect(queryByTestId('probe-no-data-source')).toBeNull();
+    expect(getByTestId('block').textContent).toBe('account');
+  });
+
+  it('answers "which data source?" before "which view?"', async () => {
+    // With no adapter, the view cannot resolve EITHER — so the view panel would
+    // fire too, reporting "this data source cannot list the saved views", which
+    // is true and points at the view name instead of at the missing injection.
+    const { findByTestId, queryByTestId } = render(
+      <ElementDataSourceGate
+        schema={{ objectName: 'account', dataSource: { object: 'account', view: 'hot' } }}
+        testId="probe"
+        requiresDataSource
+        noDataSourceMessage={noDataSourceMessage('probe-block', 'account')}
+      >
+        {(bound) => <Block schema={bound} />}
+      </ElementDataSourceGate>,
+    );
+    await findByTestId('probe-no-data-source');
+    expect(queryByTestId('probe-datasource-error')).toBeNull();
+  });
+});
+
+describe('useResolvedDataSource — one resolution rule for the family', () => {
+  const read = (explicit: unknown, ambient?: unknown) => {
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      ambient === undefined
+        ? <>{children}</>
+        : <SchemaRendererProvider dataSource={ambient as any}>{children}</SchemaRendererProvider>;
+    return renderHook(() => useResolvedDataSource(explicit), { wrapper }).result.current;
+  };
+
+  it('prefers the explicit adapter over the ambient one', () => {
+    const explicit = makeAdapter();
+    const ambient = makeAdapter();
+    expect(read(explicit, ambient)).toBe(explicit);
+  });
+
+  it('falls back to the provider context', () => {
+    const ambient = makeAdapter();
+    expect(read(undefined, ambient)).toBe(ambient);
+  });
+
+  it('is undefined — not a throw — when there is no provider at all', () => {
+    // `useSchemaContext()` throws here, which is how "this page never wired a
+    // data source" used to surface as an error boundary over a React hook
+    // message instead of as the panel above.
+    expect(read(undefined)).toBeUndefined();
+  });
+
+  it('never mistakes the spec BINDING for an adapter', () => {
+    // Same guard `useElementDataSourceSchema` applies: counting the binding as
+    // an adapter is how "no data source" reads as "resolved".
+    const ambient = makeAdapter();
+    expect(read({ object: 'account', view: 'hot' }, ambient)).toBe(ambient);
   });
 });

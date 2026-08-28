@@ -33,7 +33,7 @@ import type { ConfigPanelSchema } from '../types/config-panel';
  * ## Mechanism: `createSafeTranslation`, the one this package already uses
  *
  * Measured, not chosen: `form.tsx`, `fullscreen-editor.tsx`,
- * `action-param-dialog.tsx`, `data-table.tsx`, `containers.tsx`,
+ * `data-table.tsx`, `containers.tsx`,
  * `filter-builder.tsx`, `sort-builder.tsx`, `navigation-overlay.tsx` and
  * `lib/close-label.tsx` all reach their built-in copy through a
  * `createSafeTranslation` defaults map. The safe hook rather than a bare

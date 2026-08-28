@@ -15,7 +15,7 @@
  * @module
  */
 import React, { useEffect, useRef } from 'react';
-import { useAssistant } from '../assistant/assistantBus';
+import { useAssistant } from '../assistant/assistantBus.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ConsoleChatbotFabProps {

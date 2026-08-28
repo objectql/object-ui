@@ -31,7 +31,7 @@
 
 import { normalizeFilterOperator } from '@objectstack/spec/ui';
 import type { ViewFilterRule } from '@objectstack/spec/ui';
-import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
+import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 
 /** Why a group could not be folded to a flat spec rule list. */
 export type FilterFoldRefusal =
@@ -88,9 +88,28 @@ export const VALUELESS_FILTER_OPERATORS: ReadonlySet<string> = new Set([
     'is_empty', 'is_not_empty', 'is_null', 'is_not_null',
 ]);
 
-/** A value the user has not supplied yet — the same predicate the live query uses. */
-function isMissingValue(value: unknown): boolean {
-    return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+/**
+ * A value the user has not supplied yet — the same predicate the live query
+ * uses, which is now the builder's own {@link isFilterValueComplete}
+ * (objectstack#8815).
+ *
+ * It used to be a local copy of the shape-blind reading (`== null || === '' ||
+ * empty array`), and "the same predicate the live query uses" was true only
+ * because the live query held an identical copy. Both were blind to the
+ * operator's ARITY: a `between` row with one bound typed is an array of length
+ * 2, so both read it as complete — the grid queried a half-open range the server
+ * refuses (`400 INVALID_FILTER`) and this fold PERSISTED it, so the refusal
+ * returned on every later read of that view.
+ *
+ * Reading the builder's export keeps the promise this comment always made: what
+ * is not applied is not persisted, decided in one place instead of two copies
+ * that agreed by luck.
+ */
+function isMissingValue(operator: unknown, value: unknown): boolean {
+    return !isFilterValueComplete(
+        String(operator ?? ''),
+        value as Parameters<typeof isFilterValueComplete>[1],
+    );
 }
 
 function isGroupLike(value: unknown): value is FilterGroupLike {
@@ -178,7 +197,7 @@ export function foldFilterGroupToSpecRules(group: unknown): FilterFoldResult {
         // the next read.
         const takesValue = !VALUELESS_FILTER_OPERATORS.has(String(c.operator))
             && !VALUELESS_FILTER_OPERATORS.has(String(operator));
-        if (takesValue && isMissingValue(c.value)) continue;
+        if (takesValue && isMissingValue(c.operator, c.value)) continue;
         const rule: ViewFilterRule = {
             field: c.field,
             operator,

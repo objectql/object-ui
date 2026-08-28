@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ManifestSchema, deriveNamespaceFromPackageId } from '@objectstack/spec/kernel';
-import { NAMESPACE_RE } from '../studio-design/packages-io';
+import { NAMESPACE_RE } from '../studio-design/packages-io.js';
 import {
   Button,
   Dialog,
@@ -30,9 +30,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@object-ui/components';
-import { useMetadataLocale, t, tFormat } from './i18n';
-import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
-import { getPackageSchema, getPackageForm } from './package-schema';
+import { useMetadataLocale, t, tFormat } from './i18n.js';
+import { SchemaForm, type SchemaFormIssue } from './SchemaForm.js';
+import { getPackageSchema, getPackageForm } from './package-schema.js';
 
 const API = '/api/v1/packages';
 const VERSION_RE = /^\d+\.\d+\.\d+$/;

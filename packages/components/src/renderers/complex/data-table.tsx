@@ -12,8 +12,8 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
-import type { DataTableSchema, TableSortItem } from '@object-ui/types';
-import { useRowPredicate, usePredicateScope } from '@object-ui/react';
+import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
+import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
   Table, 
@@ -101,8 +101,17 @@ function toDateTimeInputValue(value: unknown): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-// Field types that should edit as a numeric `<Input type="number">`.
-const NUMERIC_EDIT_TYPES = new Set(['number', 'currency', 'percent', 'int', 'integer', 'float', 'double']);
+// Column types that should edit as a numeric `<Input type="number">`.
+//
+// `int` / `integer` / `float` / `double` USED to be members (objectui#5853).
+// They were never declared by `TableColumn.type` — they arrived because
+// column-inference producers forwarded an object schema's field type verbatim,
+// which is also why this key had to be read through an `as any` below. Those
+// producers now fold their inferred value onto the declared vocabulary at their
+// emit seam (`normalizeTableColumnType`), so an undeclared spelling can no
+// longer reach this set. Typed as `TableColumnType` so re-adding one is a tsc
+// error rather than a silent re-opening of the undeclared dialect.
+const NUMERIC_EDIT_TYPES = new Set<TableColumnType>(['number', 'currency', 'percent']);
 
 /**
  * Human label for an object/array cell value (e.g. an expanded reference like
@@ -769,20 +778,53 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // every downstream memo on each render (objectui#4618).
   const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
-  // Normalize columns to support legacy keys (label/name) from existing JSONs
+  // The adapter reads the column keys `TableColumn` DECLARES. The `label`
+  // alias is gone (objectui#5351); the `name` alias is HELD, and the hold is
+  // deliberate and documented rather than an oversight.
+  //
+  // These two lines used to normalize each column as
+  // `header: col.header || col.label` and
+  // `accessorKey: col.accessorKey || col.name` — two undeclared aliases for two
+  // declared keys. `TableColumn` (`packages/types/src/data-display.ts`) declares
+  // `header: string` and `accessorKey: string`; it declares neither. So the
+  // declared surface admitted one spelling while the runtime admitted two, which
+  // is the second de-facto contract AGENTS.md #0.1 forbids, and the 2026-08-20
+  // ruling settled the direction for the whole family: retire the consumer-side
+  // alias, unify the producers.
+  //
+  // `header` has retired. Where its translation went — `columnHeader` in
+  // `@object-ui/core`, called by each producer before delivery:
+  //   `ObjectDataTable.normalizeColumns`  (`@object-ui/plugin-dashboard`)
+  //   `RelatedList.normalizeColumn`       (`@object-ui/plugin-detail`)
+  //   `ObjectGrid.generateColumns`        (`@object-ui/plugin-grid`, since #5068)
+  // Metadata vocabulary in, adapter vocabulary out; one translation, one place.
+  //
+  // `accessorKey || col.name` STAYS, pending objectui#5120's remaining step. It
+  // is not that the producers still need it — all three resolve `accessorKey`
+  // themselves, measured — but that two PUBLISHED skill guides teach a directly
+  // authored `data-table` whose columns are spelled `{ name, label }`:
+  //   skills/objectui/guides/data-integration.md
+  //   skills/objectui/guides/schema-expressions.md
+  // `skill-guide-data-table-binding.test.tsx` lifts those blocks out of the real
+  // files at run time and renders them, so retiring `name` here turns that gate
+  // red until the guides move. Retiring the runtime ahead of the instruction
+  // would leave the platform refusing a spelling it still ships, and the failure
+  // it teaches into is the illegible one below: a header over blank cells.
   const initialColumns = useMemo(() => {
     return rawColumns.map((col: any) => ({
       ...col,
-      header: col.header || col.label,
-      accessorKey: col.accessorKey || col.name
+      accessorKey: col.accessorKey || col.name,
     }));
   }, [rawColumns]);
 
   // Auto-size columns: estimate width from header and data content for columns without explicit widths
   const autoSizedWidths = useMemo(() => {
     const widths: Record<string, number> = {};
+    // Spelled identically to `initialColumns` above — the auto-width pass must
+    // measure the SAME columns the table renders, so the two reads move
+    // together (objectui#5351 retired `header`'s alias; `name`'s is held).
     const cols = rawColumns.map((col: any) => ({
-      header: col.header || col.label,
+      header: col.header,
       accessorKey: col.accessorKey || col.name,
       width: col.width,
       fitContent: col.fitContent,
@@ -894,6 +936,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const resizingColumn = useRef<string | null>(null);
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
+  /**
+   * Final width produced by the in-flight drag, so `handleResizeEnd` can report
+   * it once. It has to be a ref, not state: the document-level listeners are one
+   * render's closures and cannot observe a later `columnWidths` update.
+   */
+  const lastResizeWidth = useRef<number | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   // When an edit ends via Enter (already saved) or Escape (cancelled), the
   // input also blurs. This flag tells the blur handler not to save again so we
@@ -1249,6 +1297,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     
     resizingColumn.current = columnKey;
     startX.current = e.clientX;
+    lastResizeWidth.current = null;
     
     const headerCell = (e.target as HTMLElement).closest('th');
     if (headerCell) {
@@ -1269,12 +1318,25 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       ...prev,
       [resizingColumn.current!]: newWidth
     }));
+    lastResizeWidth.current = newWidth;
   };
 
   const handleResizeEnd = () => {
+    const resizedColumn = resizingColumn.current;
+    const finalWidth = lastResizeWidth.current;
     resizingColumn.current = null;
+    lastResizeWidth.current = null;
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleResizeEnd);
+    // objectui#6175: report the SETTLED width, once, at mouseup — never per
+    // mousemove. `onColumnResize` was declared here and invoked nowhere, which
+    // is why ObjectGrid's `saveColumnState` never ran and column widths never
+    // persisted. The host turns this into a real write (localStorage plus
+    // `onColumnStateChange` -> `dataSource.updateViewConfig`), so a per-move
+    // callback would be a write storm on shared view config.
+    if (resizedColumn && finalWidth != null) {
+      schema.onColumnResize?.(resizedColumn, finalWidth);
+    }
   };
 
   // Column reordering handlers
@@ -1933,15 +1995,36 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     </div>
                     {/* CTA slot — when the schema declares an `emptyAction`,
                         render it as an inviting follow-up instead of leaving
-                        the user at a dead end. The node is resolved via the
-                        component registry so it can be any schema node
-                        (button, link, action) authored in JSON. */}
-                    {schema.emptyAction && (() => {
-                      const node: any = schema.emptyAction;
-                      const Comp = node?.type ? ComponentRegistry.get(node.type) : null;
-                      if (Comp) return <Comp schema={node} />;
-                      return null;
-                    })()}
+                        the user at a dead end. The node can be any schema node
+                        (button, link, action) authored in JSON.
+
+                        Mounted through `SchemaRenderer`, NOT by resolving the
+                        registry here. `visibleWhen` is enforced once and
+                        generically in `packages/react/src/SchemaRenderer.tsx`:
+                        `shouldHide` tests it ahead of the hoisted `visible`
+                        (objectui#5454), sets `_hidden`, and the `_hidden` early
+                        return fires BEFORE the registry dispatches. The direct
+                        `ComponentRegistry.get(node.type)` this replaced skipped
+                        that path entirely, so an authored `visibleWhen` on an
+                        `emptyAction` was accepted by the spec and then never
+                        evaluated — declared-not-enforced (objectui#5926 gap 1),
+                        the same class objectui#5401 / #5505 closed for
+                        `record:alert`, one level down.
+
+                        Routing to the ONE gate rather than adding a local
+                        `visibleWhen` test here is the whole point: a second
+                        check on this slot would be a FOURTH evaluator, which is
+                        exactly the drift `page:tabs`' item-level predicate
+                        already records. Same shape as the `empty` renderer's
+                        `action` slot, which has always mounted its authored
+                        node this way. Consequence worth stating: a node whose
+                        `type` is missing or unregistered now gets the
+                        platform's uniform "unknown component type" report
+                        instead of rendering as silent nothing here — one
+                        answer for malformed metadata, not a private one. */}
+                    {schema.emptyAction && typeof schema.emptyAction === 'object' && (
+                      <SchemaRenderer schema={schema.emptyAction} />
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -2113,9 +2196,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                             {isEditing ? (
                               (() => {
                                 // Type-aware inline editor. `col.type` is forwarded
-                                // from ObjectGrid's column inference. Keep this a small,
-                                // readable switch that's easy to extend.
-                                const editType = (col as any).type as string | undefined;
+                                // from a producer's column inference, folded onto the
+                                // DECLARED vocabulary at that producer's emit seam
+                                // (objectui#5853). This used to be
+                                // `(col as any).type as string | undefined` — a cast that
+                                // existed only because the values arriving were not the
+                                // values `TableColumn` declares. They are now, so the read
+                                // is typed and the switch below can only branch on
+                                // spellings the interface actually publishes.
+                                const editType: TableColumnType | undefined = col.type;
 
                                 // Host-injected editor: a higher layer (ObjectGrid) renders
                                 // the dedicated @object-ui/fields widget for this field's
@@ -2196,7 +2285,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   );
                                 }
 
-                                if (editType === 'datetime' || editType === 'datetime-local') {
+                                if (editType === 'datetime') {
                                   return (
                                     <Input
                                       ref={editInputRef}

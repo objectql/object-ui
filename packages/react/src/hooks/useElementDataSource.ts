@@ -31,7 +31,7 @@ import {
   type ElementDataSourceConfig,
   type ElementSavedView,
 } from '@object-ui/core';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 /**
  * Where a resolution attempt stands. Distinguishing `loading` from `missing`
@@ -101,6 +101,8 @@ async function fetchSavedViews(
 
   const embedded = canReadObjectDef
     ? dataSource!.getObjectSchema!(object).then(
+        // `listViews` is canonical (#5362); the snake leg is a compatibility READ for
+        // stored pre-settlement documents (never censused: objectstack#7917).
         (def) => (isRecord(def) ? (def.listViews ?? def.list_views) : undefined),
         () => undefined,
       )

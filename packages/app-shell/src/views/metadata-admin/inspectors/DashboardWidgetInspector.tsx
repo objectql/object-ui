@@ -17,7 +17,7 @@
  */
 
 import * as React from 'react';
-import { ColorVariantPicker } from '../color-variant-field';
+import { ColorVariantPicker } from '../color-variant-field.js';
 import { X } from 'lucide-react';
 import {
   Button,
@@ -29,25 +29,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@object-ui/components';
-import type { DashboardWidgetSchema } from '@object-ui/types';
-import { resolveDashboardFilterDefs, type DashboardFilterDef } from '@object-ui/core';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t, tFormat } from '../i18n';
+import type { DashboardWidgetSchema, DashboardWidgetTypeName } from '@object-ui/types';
+import { resolveDashboardFilterDefs, type DashboardFilterDef, type ComponentMeta } from '@object-ui/core';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t, tFormat } from '../i18n.js';
 // The spec's `I18nLabel` resolver (new in @objectstack/spec 17.0.0-rc.6),
 // aliased apart from objectui's same-named translation-KEY resolver.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
-import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared';
-import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
-import { DatasetNamesEditor } from './ReportDefaultInspector';
-import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog';
-import type { ObjectFieldInfo } from '../previews/useObjectFields';
+// The WRITE-side twin of that resolver (objectui#5301) — see the Title field.
+import { setLocalized } from '@object-ui/i18n';
+import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared.js';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField.js';
+import { DatasetNamesEditor } from './ReportDefaultInspector.js';
+import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog.js';
+import type { ObjectFieldInfo } from '../previews/useObjectFields.js';
 
 // ADR-0021: dashboard widgets author the semantic-layer dataset shape only
 // (dataset + dimensions + values). The pre-ADR-0021 inline single-object query
 // (object / valueField / categoryField / aggregate) was removed from the spec
 // at @objectstack/spec 9.0.0 and is no longer authored here — its fields are
 // gone so no Studio surface can emit the dead shape (framework#3251).
-const WIDGET_TYPES = [
+/**
+ * The widget families this inspector offers. TYPED to `DashboardWidgetTypeName`
+ * (objectui#4600, which closed the widget `type` vocabulary) so the inspector
+ * cannot offer a type validation refuses — every entry here is a spec
+ * visualization family. A hand-written SUBSET is fine; offering something
+ * outside the vocabulary is not.
+ */
+const WIDGET_TYPES: ReadonlyArray<{ value: DashboardWidgetTypeName; label: string }> = [
   { value: 'metric', label: 'KPI Metric' },
   { value: 'bar', label: 'Bar Chart' },
   { value: 'horizontal-bar', label: 'Horizontal Bar' },
@@ -231,36 +240,67 @@ export function DashboardWidgetInspector({
       </div>
 
       {/* The ONE authoring — not display — read of `widget.title`, and the only
-          site in this change where following the rc.6 widening mechanically
-          would have destroyed data. `I18nLabel` now admits an inline per-locale
-          map, and this is a single-line text input: resolving the map into it
-          and writing `e.target.value` straight back would silently collapse
-          every other locale the author wrote, on the first keystroke. So the
-          input stays the plain-string editor it has always been, and a
-          map-valued title is shown resolved and READ-ONLY instead of being
-          flattened. Nothing in any corpus can hit this path yet — `I18nLabel`
-          was plain `string` through 17.0.0-rc.5, so no stored widget title can
-          be a map — which is exactly why the conservative branch is safe to
-          take now and why authoring the map form is follow-up work
-          (objectui#4163, part 2) rather than a guess made here. */}
+          site in this inspector where following the `I18nLabel` widening
+          mechanically would destroy data. `I18nLabel` admits an inline
+          per-locale map and this is a single-line text input, so the read and
+          the write are two different rules:
+
+            READ  the spec's `resolveI18nLabel` — the producer's own resolution
+                  order, which objectui#4163's ruling requires this package to
+                  call rather than hand-roll.
+            WRITE `setLocalized` from `@object-ui/i18n` — replace ONLY the
+                  active locale's entry, carry every other locale across
+                  untouched (objectui#5301's maintainer ruling, 2026-08-20).
+
+          Pairing a spec-side read with an objectui-side write is safe because
+          the two resolvers are held limb for limb by
+          `@object-ui/plugin-list`'s `src/__tests__/i18nLabel-resolver-parity.test.ts`
+          (they differ only in how each spells a MISS, and `setLocalized` always
+          produces a hit for the locale it wrote), and `setLocalized`'s write key
+          follows the first three of those limbs exactly. Pinned locally by the
+          round-trip assertions in `DashboardWidgetInspector.test.tsx` so the
+          transfer is checked here, not merely cited.
+
+          This input used to be READ-ONLY for a map-valued title, justified by
+          "nothing in any corpus can hit this path yet — `I18nLabel` was plain
+          `string` through 17.0.0-rc.5". `@objectstack/spec` is pinned at 17.0.0,
+          so a stored map is reachable and that justification has expired; what
+          the branch did in practice was deny an author the ability to edit a
+          title in their own locale. Authoring EVERY locale from one panel is a
+          different, still-open product question — deliberately not deferred to
+          a tracker here, because the deferral this replaced named objectui#4163
+          part 2 and #4163 closed as completed on 2026-08-15 with the
+          placeholder still in the tree. */}
       <Field id="widget-title" label={t('engine.inspector.widget.title', locale)}>
         <Input
           id="widget-title"
-          value={
-            typeof widget.title === 'string' || widget.title == null
-              ? widget.title ?? ''
-              : resolveInlineI18nLabel(widget.title, locale) ?? ''
+          value={resolveInlineI18nLabel(widget.title, locale) ?? ''}
+          onChange={(e) =>
+            patchWidget({
+              // Never `{ title: e.target.value }` — that is the flattening
+              // write. The cast states the contract `setLocalized` widens for
+              // its own callers: it carries non-string entries across untouched
+              // so its map limb is `Record<string, unknown>`, while a stored
+              // title that parses as `I18nLabel` has string entries only and the
+              // entry written here is `e.target.value`.
+              title: setLocalized(widget.title, locale, e.target.value) as DashboardWidgetSchema['title'],
+            })
           }
-          onChange={(e) => patchWidget({ title: e.target.value })}
           disabled={readOnly}
-          readOnly={widget.title != null && typeof widget.title !== 'string'}
         />
       </Field>
 
       <Field id="widget-type" label={t('engine.inspector.widget.type', locale)}>
         <Select
           value={widget.type ?? 'metric'}
-          onValueChange={(v) => patchWidget({ type: v })}
+          onValueChange={(v) => {
+            // Resolve the Select's string against the list that rendered the
+            // items rather than casting it onto the closed type — a value not in
+            // the palette writes nothing instead of storing a `type` the
+            // platform refuses at publish.
+            const picked = WIDGET_TYPES.find((wt) => wt.value === v);
+            if (picked) patchWidget({ type: picked.value });
+          }}
           disabled={readOnly}
         >
           <SelectTrigger id="widget-type">
@@ -528,8 +568,17 @@ function Field({
    *    carries) it is a DANGLING IDREF — tooling reports an association that
    *    resolves to nothing, which is worse than an unnamed control because it
    *    reads as closed. That was objectui#4010's defect on `widget-color`.
+   *
+   * DERIVED from the repo-wide vocabulary, not a restatement of it: the 2026-08-17
+   * ruling (objectui#4857 + objectui#4871) made `ComponentMeta['labelling']` the
+   * single answer to "how does a host learn what a widget will render" and
+   * forbade host-local variants. `'display'` is excluded because this panel has
+   * no such field — every one of its children is an editable control or a
+   * container of them — and because it has no display CHANNEL to route one to;
+   * introducing one is a compile error here rather than a silent degradation.
+   * Re-spell a member in `packages/core` and this type stops compiling.
    */
-  labelling?: 'control' | 'group';
+  labelling?: Exclude<NonNullable<ComponentMeta['labelling']>, 'display'>;
   children: React.ReactNode;
 }) {
   const group = labelling === 'group';

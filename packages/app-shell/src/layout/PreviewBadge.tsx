@@ -12,7 +12,7 @@
 
 import { Badge, cn } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { getPlatformStage } from '../runtime-config';
+import { getPlatformStage } from '../runtime-config.js';
 
 export interface PreviewBadgeProps {
   /** Extra classes — e.g. responsive visibility / spacing from the caller. */

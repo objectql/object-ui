@@ -10,6 +10,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { CheckboxSchema } from '@object-ui/types';
 import { Checkbox, Label } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import React from 'react';
 
 const CheckboxRenderer = ({ schema, className, onChange, value, ...props }: { schema: CheckboxSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
@@ -43,7 +44,7 @@ const CheckboxRenderer = ({ schema, className, onChange, value, ...props }: { sc
         disabled={schema.disabled}
         required={schema.required}
         name={schema.name}
-        {...checkboxProps} 
+        {...toFormControlDomProps(checkboxProps)}
       />
       <Label htmlFor={schema.id} className={cn("text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70", schema.required && "text-destructive after:content-['*'] after:ml-0.5")}>
         {schema.label}

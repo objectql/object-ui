@@ -41,9 +41,10 @@
  * SPA origin where the cookie doesn't reach the API: the row's verdict is
  * `undefined` and the caller keeps the OBJECT-level answer, i.e. exactly what
  * this list rendered before this hook existed. The server is the authority
- * (ADR-0057 D10) and stays so; hiding a capability on missing data would be a
- * worse defect than the wasted click this fixes, and it is the same posture
- * `useRecordEditable` takes for the detail header.
+ * (the framework's ADR-0124 D1 — server enforces, client is courtesy) and
+ * stays so; hiding a capability on missing data would be a worse defect than
+ * the wasted click this fixes, and it is the same posture `useRecordEditable`
+ * takes for the detail header.
  *
  * The probe rides the host's AUTHENTICATED fetch (`SchemaRendererProvider`'s
  * `apiFetch`) rather than the bare global one: a bearer-token session carries
@@ -53,30 +54,76 @@
  * cookie-session hosts.
  */
 import * as React from 'react';
-import { SchemaRendererContext } from '@object-ui/react';
-
-/** The two write verbs a list row's kebab can offer. */
-export type RecordCrudOperation = 'update' | 'delete';
-
 /**
  * Hard cap on `recordIds` per batch explain request — the SERVER's contract
  * (`EXPLAIN_BATCH_MAX_RECORD_IDS`, objectstack#8326): over-cap requests are
  * refused with `400 VALIDATION_FAILED`, never truncated, and the spec's own
  * TSDoc directs a consumer with more records to paginate under it. A page
- * larger than the cap is therefore split into ceil(N / 200) requests per
+ * larger than the cap is therefore split into ceil(N / cap) requests per
  * operation — still amortized, never one per row.
  *
- * Declared locally because the pinned `@objectstack/spec@17.0.0-rc.6` predates
- * the batch form and exports neither the constant nor the request/response
- * types; the pin bump (objectui#4636) supersedes this declaration.
+ * Imported from the package that OWNS the contract, never re-declared: a hand
+ * copy passes every value comparison on the day it is written and drifts
+ * silently on the day the server moves the cap.
  */
-const EXPLAIN_BATCH_MAX_RECORD_IDS = 200;
+import {
+  EXPLAIN_BATCH_MAX_RECORD_IDS,
+  type ExplainOperation,
+  type ExplainRequest,
+} from '@objectstack/spec/security';
+import { SchemaRendererContext } from '@object-ui/react';
+
+/**
+ * Compile-time proof that `Verbs` is a SUBSET of the spec's `ExplainOperation`,
+ * resolving to `Verbs` unchanged. Widening past the spec's vocabulary is TS2344
+ * on the declaration below rather than a `400 VALIDATION_FAILED` in a browser.
+ */
+type SpecVerbSubset<Verbs extends ExplainOperation> = Verbs;
+
+/**
+ * The two write verbs a list row's kebab can offer.
+ *
+ * DELIBERATELY NARROWER than the spec (objectui#6332). `ExplainOperation` has
+ * eight verbs — `read`, `create`, `restore`, `purge`, `export`, `transfer` as
+ * well as these two — and this hook is contractually limited to the two a row
+ * kebab can act on. Every other verb has a different affordance, a different
+ * caller and a different fail-open story; answering one here would put a
+ * verdict on screen that nothing on this row can use.
+ *
+ * The `SpecVerbSubset` wrapper is what makes that a DECLARED subset rather than
+ * a coincidence: the two members stay written out here (nothing is inherited
+ * from the spec, so the narrowing cannot be widened by an upstream release),
+ * while the constraint fails compilation the moment they stop being verbs the
+ * explain API accepts. It is erased at runtime — the emitted type is exactly
+ * `'update' | 'delete'`.
+ *
+ * ⛔ Do not "simplify" this to `ExplainOperation`, and do not derive it with
+ * `Extract<ExplainOperation, ...>` — `Extract` answers `never` for a member the
+ * spec renames, which is silent narrowing, the failure this wrapper exists to
+ * make loud.
+ */
+export type RecordCrudOperation = SpecVerbSubset<'update' | 'delete'>;
 
 /**
  * One entry of the batch response's `records` array, narrowed to what this hook
  * reads. Wire payloads are `unknown` until proven otherwise — a malformed entry
  * must land on "no verdict for this row" (fail open), never on a coerced
  * boolean.
+ *
+ * ⛔ This is NOT an oversight to tidy up into the spec's response entry type,
+ * and objectui#6332 rejected doing so deliberately. The spec's entry types
+ * `visible` as `boolean`, so asserting it here would make the runtime guards
+ * below (`typeof entry.visible !== 'boolean'`) unreachable in the compiler's
+ * eyes — dead code a future reader or lint rule then deletes, taking the
+ * fail-open path with it. A change that makes runtime safety code look
+ * redundant is not a tightening; it is a silent removal of the safety.
+ *
+ * The response-side contract-first move is not a type at all — it is
+ * `ExplainDecisionSchema.safeParse(...)`, which is a BEHAVIOUR change (the
+ * schema requires `allowed`/`object`/`operation`/`principal`, so a
+ * reduced-but-usable response this hook answers today would start failing
+ * open). That needs its own card and its own fail-open regression coverage.
+ * The request side above is adoptable precisely because it is type-only.
  */
 interface WireRecordVerdict {
   recordId?: unknown;
@@ -168,12 +215,28 @@ export function useRecordCrudVerdicts(opts: {
         const missing = ids.filter((id) => !verdictCache.has(cacheKey(objectName, id, operation)));
         for (let i = 0; i < missing.length; i += EXPLAIN_BATCH_MAX_RECORD_IDS) {
           const chunk = missing.slice(i, i + EXPLAIN_BATCH_MAX_RECORD_IDS);
+          // The body IS the spec's request contract, not a lookalike shaped to
+          // match it (objectui#6332). `satisfies` keeps the literal's own type
+          // while making every key and the verb answer to `ExplainRequestSchema`
+          // — a renamed or mis-cased key (`recordIDs`, `objectName`) is a
+          // compile error here instead of a request the server rejects, or
+          // worse, silently reads as "no ids".
+          //
+          // Type-only: erased at runtime, so nothing about the request that
+          // goes out over the wire changes. This deliberately stops at the
+          // REQUEST — the response below stays `unknown` on purpose (see the
+          // fail-open note in the file header and `WireRecordVerdict`).
+          const body = {
+            object: objectName,
+            operation,
+            recordIds: chunk,
+          } satisfies ExplainRequest;
           try {
             const res = await doFetch('/api/v1/security/explain', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
-              body: JSON.stringify({ object: objectName, operation, recordIds: chunk }),
+              body: JSON.stringify(body),
             });
             if (!res.ok) continue; // 401 / 403 / 501 → fail open
             const decision: unknown = await res.json();

@@ -24,6 +24,7 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { toControlValue, matchOptionValue, type OptionValue } from './option-value';
+import { RHF_RECOGNIZED_RULE_KEYS } from './validationRuleKeys';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../../custom/resizable';
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -33,9 +34,14 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 // (objectui#3398). The icons and the `Dialog` family that used to be imported
 // here belonged to the hand-written copy this branch no longer carries.
 import { FullscreenEditor } from '../../custom/fullscreen-editor';
+// The character counter both long-text render paths render (objectui#3439).
+// Hoisted here from `@object-ui/fields` for the same measured reason, and in
+// the same direction, as `FullscreenEditor` above (objectui#3398 / PR #4193):
+// `fields` depends on `components`, never the reverse.
+import { CharacterCount } from '../../custom/character-count';
 import { cn } from '../../lib/utils';
 import React from 'react';
-import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors } from '@object-ui/react';
+import { SchemaRendererContext, usePredicateScope, isPermissionError, extractWriteErrorMessage, extractFieldErrors, declaredUserMessage } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
@@ -233,6 +239,46 @@ const BOOLEAN_WIDGET_TYPES = new Set([
 const resolveWidgetType = (f: any): string => f?.widget || f?.field?.widget || f?.type;
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
+
+/**
+ * Fields whose unrecognized validation-rule names were already reported, keyed
+ * by field name + the sorted offending keys. Module-level for the same reason
+ * as `basic/div.tsx`'s `_warnedDeprecations`: `rawFields` is a caller-owned
+ * prop, and a schema-driven caller that rebuilds the array per render re-runs
+ * the reporting effect every render — a diagnostic that repeats forever gets
+ * muted by the very reader the message is written for (objectui#3965 measured
+ * ~190 identical notices burying the real errors).
+ */
+const _reportedUnrecognizedRules = new Set<string>();
+
+/**
+ * Report a field's unrecognized validation-rule names ONCE per module load,
+ * dev builds only (#5099's "dev-time error" limb — a customer's production
+ * console is not the audience).
+ *
+ * Same shape as `warnDeprecatedOnce` in `basic/div.tsx` / `basic/span.tsx`,
+ * and order matters the same way there and here: the production check returns
+ * BEFORE the seen-set is marked, so a production render never suppresses the
+ * dev notice. The memo includes the offending keys, not just the field name —
+ * metadata that grows a NEW bad rule after the first report must still shout.
+ */
+function reportUnrecognizedRulesOnce(fieldName: string, unrecognized: string[]): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const memo = `${fieldName}::${[...unrecognized].sort().join(',')}`;
+  if (_reportedUnrecognizedRules.has(memo)) return;
+  _reportedUnrecognizedRules.add(memo);
+  // The message doubles as the fix instruction — it is what an agent
+  // iterating on the metadata will read and follow.
+  console.error(
+    `[object-ui] form field '${fieldName}': validation rule(s) ${unrecognized
+      .map((k) => `'${k}'`)
+      .join(', ')} are not rules react-hook-form runs — the field renders, but these rules ` +
+      `validate NOTHING. Recognized rules: ${[...RHF_RECOGNIZED_RULE_KEYS].join(', ')}. ` +
+      `Check the spelling (\`minLength\`, not \`minlength\`); express email/url checks as a ` +
+      `\`pattern\` whose \`value\` is a RegExp; and declare \`validation\` as an OBJECT — ` +
+      `spreading an array leaves numeric keys that run nothing.`,
+  );
+}
 /**
  * Widget-hint pickers that resolve records / object catalogs and read sibling
  * field values — they need `dataSource` and `dependentValues` threaded exactly
@@ -395,11 +441,10 @@ function normalizeFieldType(type: string): string {
  * unregistered type — resolves to `'control'`: the single-control path, byte for
  * byte what this renderer emitted before the declaration existed.
  */
-function resolveFieldLabelling(type: string): 'control' | 'group' {
+function resolveFieldLabelling(type: string): 'control' | 'group' | 'display' {
   if (BUILTIN_FIELD_TYPES.has(type)) return 'control';
-  return ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling === 'group'
-    ? 'group'
-    : 'control';
+  const declared = ComponentRegistry.getMeta(normalizeFieldType(type), 'field')?.labelling;
+  return declared === 'group' || declared === 'display' ? declared : 'control';
 }
 
 /**
@@ -426,10 +471,16 @@ function resolvesToRegisteredFieldWidget(type: string): boolean {
 }
 
 /**
- * The container a READONLY registered field widget's output is wrapped in, so
- * the field's visible label NAMES and its visible help text DESCRIBES the
- * surface that replaced the control (objectui#4788, maintainer ruling of
- * 2026-08-16 — option E of the measured option set).
+ * The container a registered field widget's replacement-display output is
+ * wrapped in, so the field's visible label NAMES and its visible help text
+ * DESCRIBES the surface that replaced the control (objectui#4788, maintainer
+ * ruling of 2026-08-16 — option E of the measured option set). Reached two
+ * ways: a READONLY registered widget (#4788's original gate, unchanged), and —
+ * since objectui#4857 — a widget declared `labelling: 'display'`, whose whole
+ * surface is such a display in every state (`formula` / `summary` /
+ * `auto_number` / `vector`), so the wrapper applies in the editable state too.
+ * The `data-slot` keeps its original name: what this container wraps is a
+ * read-only display either way, whatever the form's own mode.
  *
  * ## What was broken
  *
@@ -624,6 +675,7 @@ function FullscreenTextarea({
   readOnly,
   disabled,
   error,
+  maxLength,
   ...rest
 }: {
   value?: string;
@@ -633,6 +685,15 @@ function FullscreenTextarea({
   label?: string;
   readOnly?: boolean;
   disabled?: boolean;
+  /**
+   * The declared character cap (objectui#3439). DECLARED rather than left to
+   * ride `rest`, because it now has THREE readers, not one: the native
+   * `maxLength` attribute on each of the two textareas, and the counter that
+   * renders beside them. It rode `rest` for as long as the branch's only use
+   * of it was the attribute — which is also why the legacy `max_length`
+   * spelling silently did nothing here (see the call site).
+   */
+  maxLength?: number;
   /**
    * The field's validation message (objectui#4824). DECLARED, so it is not a
    * passenger on `rest` — it must not reach the inline `<Textarea>` as a stray
@@ -654,6 +715,30 @@ function FullscreenTextarea({
   // single expression of "may a value leave this control".
   const locked = readOnly === true || disabled === true;
   const safeOnChange = (v: string) => { if (locked) return; onChange?.(v); };
+
+  /**
+   * Two description ids off one `useId()` — one per editing surface, exactly as
+   * `TextAreaField` mints them (objectui#3417). They cannot be one id: the
+   * dialog edits a LOCAL draft, so the moment the user types in it the two
+   * surfaces are counting different strings and a shared id would point both
+   * textareas at whichever sentence rendered last.
+   */
+  const instanceId = React.useId();
+  const descriptionId = `${instanceId}-charcount`;
+  const fullscreenDescriptionId = `${instanceId}-fullscreen-charcount`;
+
+  /**
+   * APPENDED, never assigned (objectui#3408's discipline, objectui#3439 here).
+   * `<FormControl>` is a Radix Slot and hands this component an
+   * `aria-describedby` naming the field's description and error message; it
+   * arrives on `rest`. Overwriting it would trade "no cap announced" for "no
+   * error announced" — strictly worse, and silent.
+   */
+  const describedBy =
+    [rest['aria-describedby'], maxLength ? descriptionId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
   return (
     <div className="relative">
       <Textarea
@@ -666,9 +751,33 @@ function FullscreenTextarea({
         value={value ?? ''}
         onChange={(e) => safeOnChange(e.target.value)}
         {...rest}
+        maxLength={maxLength}
+        // After the spread so the composed value wins over the raw host one.
+        aria-describedby={describedBy}
         readOnly={readOnly}
         disabled={disabled}
       />
+      {maxLength ? (
+        /*
+          The INLINE surface's counter, `announceNearLimit` — the same answer
+          `TextAreaField` gives its inline surface (objectui#3417). This is the
+          surface the user types into with the rest of the form around them, so
+          the near-limit warning is the one thing worth interrupting for, and it
+          is threshold-gated and debounced inside the primitive.
+
+          Positioned to clear the expand button when there is one: the button
+          occupies the top-right corner, the digits the bottom-right, which is
+          why this className is not simply the registered widget's.
+        */
+        <CharacterCount
+          length={(value ?? '').length}
+          maxLength={maxLength}
+          descriptionId={descriptionId}
+          announceNearLimit
+          className="absolute bottom-2 right-2 text-xs text-gray-400"
+          testId="form-textarea-character-count"
+        />
+      ) : null}
       <FullscreenEditor
         value={value ?? ''}
         onCommit={safeOnChange}
@@ -681,6 +790,29 @@ function FullscreenTextarea({
         readOnly={readOnly}
         disabled={disabled}
         error={error}
+        /*
+          The FULLSCREEN surface's counter (objectui#3439), the same slot and
+          the same ruling as the registered path's (objectui#3417).
+
+          `announceNearLimit={false}` is a choice about this SURFACE, not a
+          saving on effort: a fullscreen modal is opened deliberately to write
+          at length, the description below already delivers the cap on focus,
+          and the dialog's textarea carries the same native `maxLength` stop. A
+          second live region here would also put two of them in one document,
+          since the inline counter stays mounted behind the overlay.
+        */
+        footer={(draft) =>
+          maxLength ? (
+            <CharacterCount
+              length={draft.length}
+              maxLength={maxLength}
+              descriptionId={fullscreenDescriptionId}
+              announceNearLimit={false}
+              className="text-xs text-muted-foreground self-center"
+              testId="form-textarea-fullscreen-character-count"
+            />
+          ) : null
+        }
       >
         {(draft, setDraft, editorDisabled, editorAria) => (
           <Textarea
@@ -690,6 +822,7 @@ function FullscreenTextarea({
             placeholder={placeholder}
             className="h-full min-h-full resize-none text-base"
             disabled={editorDisabled}
+            maxLength={maxLength}
             data-testid="form-textarea-fullscreen-input"
             /*
               Name + validation state, computed by the primitive and spread whole
@@ -701,9 +834,126 @@ function FullscreenTextarea({
               which Radix `aria-hidden`s for as long as the dialog is open.
             */
             {...editorAria}
+            /*
+              Assigned, not appended — and that is a statement about THIS
+              element, not a relaxation of the composition rule above. The
+              inline control composes because `<FormControl>`'s Slot hands it an
+              `aria-describedby`; this one is built here from scratch, the Slot
+              never reaches it, and the ids the host would have supplied name
+              nodes OUTSIDE the dialog, which Radix `aria-hidden`s while the
+              modal is open. There is nothing to preserve. `editorAria` carries
+              no `aria-describedby` of its own, so this composes with it rather
+              than overwriting it.
+            */
+            aria-describedby={maxLength ? fullscreenDescriptionId : undefined}
           />
         )}
       </FullscreenEditor>
+    </div>
+  );
+}
+
+/**
+ * The built-in (unregistered) `textarea` branch's plain control — objectui#3439.
+ *
+ * ## What it exists to fix
+ *
+ * One `maxLength` declaration produced two experiences. The registered
+ * `field:textarea` widget has shipped four things since objectui#3406/#3408/
+ * #3417 — the native cap, visible `{n}/{max}` digits, a description reached
+ * through `aria-describedby` so the limit is announced ON FOCUS, and a
+ * threshold-gated debounced near-limit notice — while this branch shipped none
+ * of them. Measured on `origin/main`: a screen-reader user on the built-in path
+ * learned the cap only as a validation error AFTER submitting, and a sighted
+ * user saw no count at all.
+ *
+ * That is the family this repo has ruled on four times (objectui#3272, #3400,
+ * #3402, #3404, and #3398's hoist of the fullscreen editor): one form-level
+ * declaration must produce one behaviour on both render paths. The counter is
+ * therefore the SAME component the widget renders, hoisted to this package —
+ * not a second implementation of it.
+ *
+ * ## Why a component and not inline JSX in the branch
+ *
+ * The counter has to sit in a positioned wrapper beside the control, and
+ * `<FormControl>` is a Radix `Slot`: it injects the field's `id` /
+ * `aria-describedby` / `aria-invalid` into whatever ELEMENT the branch returns.
+ * Returning a `<div>` wrapper directly would hand those three to the DIV — the
+ * label would point at an id no control carries and the field would lose its
+ * accessible name and error link, which is objectui#3976 exactly. A component
+ * boundary receives them as props instead, so this one re-addresses them onto
+ * the `<textarea>`. Same reason, same mechanism, as `BuiltinSelectControl`
+ * below and `FullscreenTextarea` above.
+ */
+function BuiltinTextarea({
+  value,
+  placeholder,
+  className,
+  readOnly,
+  maxLength,
+  ...rest
+}: {
+  value?: string;
+  placeholder?: string;
+  className?: string;
+  readOnly?: boolean;
+  /**
+   * The declared cap, resolved by the call site rather than left to ride `rest`
+   * onto the DOM. Two readers now — the native attribute and the counter — and
+   * the call site is where the two authored spellings are reconciled.
+   */
+  maxLength?: number;
+  [key: string]: any;
+}) {
+  /** One id per control; see `FullscreenTextarea` for why the dialog needs a second. */
+  const descriptionId = `${React.useId()}-charcount`;
+
+  /**
+   * APPENDED, never assigned. The Slot's `aria-describedby` names the field's
+   * description and error message and arrives on `rest`; assigning here would
+   * trade "no cap announced" for "no error announced".
+   */
+  const describedBy =
+    [rest['aria-describedby'], maxLength ? descriptionId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
+  // No counter, no wrapper: an unconditional `<div className="relative">` around
+  // every built-in textarea would change the layout of every capless long-text
+  // field in the repo to buy nothing. A field that declares no cap renders
+  // exactly the element it rendered before this component existed.
+  const control = (
+    <Textarea
+      placeholder={placeholder}
+      className={className}
+      {...rest}
+      maxLength={maxLength}
+      // After the spread so the composed value wins over the raw host one.
+      aria-describedby={describedBy}
+      readOnly={readOnly}
+      value={value ?? ''}
+    />
+  );
+
+  if (!maxLength) return control;
+
+  return (
+    <div className="relative">
+      {control}
+      {/*
+        `announceNearLimit` — this is the surface the user types into with the
+        rest of the form around them, the same answer the registered widget's
+        inline surface gives (objectui#3408/#3417). The gating and the debounce
+        live in the primitive, so neither path can drift into its own schedule.
+      */}
+      <CharacterCount
+        length={(value ?? '').length}
+        maxLength={maxLength}
+        descriptionId={descriptionId}
+        announceNearLimit
+        className="absolute bottom-2 right-2 text-xs text-gray-400"
+        testId="form-textarea-character-count"
+      />
     </div>
   );
 }
@@ -795,6 +1045,28 @@ ComponentRegistry.register('form',
       }
     }, [rawFields, specVocabularyFields]);
 
+    // ── Unrecognized validation-rule names fail LOUDLY (#5099) ────────────
+    // react-hook-form's field validator destructures a FIXED rule set (see
+    // validationRuleKeys.ts, pinned against the installed bundle) and drops
+    // every other key without a trace — a misspelled `minlength`, an invented
+    // `email`, or the numeric keys left by spreading an ARRAY into
+    // `validation` all yield a form that LOOKS validated and runs nothing.
+    // `FieldValidationRules` already rejects these at compile time; this
+    // catches the metadata that reaches the renderer as plain JSON, where
+    // TypeScript never ran. Report-only by design: the maintainer ruling on
+    // #5099 explicitly rejected normalizing/compiling at this read point
+    // (consumer tolerance, AGENTS.md #0.1) — the fix belongs at the producer.
+    // Dev-only and once per field+rule-set: see reportUnrecognizedRulesOnce.
+    React.useEffect(() => {
+      for (const f of rawFields as any[]) {
+        const v = f?.validation;
+        if (v == null || typeof v !== 'object') continue;
+        const unrecognized = Object.keys(v).filter((k) => !RHF_RECOGNIZED_RULE_KEYS.has(k));
+        if (unrecognized.length === 0) continue;
+        reportUnrecognizedRulesOnce(String(f?.name), unrecognized);
+      }
+    }, [rawFields]);
+
     // A two-state control has no third state, so a boolean field that nobody
     // supplied a value for starts at `false` — not `undefined`. Without this
     // the switch renders OFF while the form holds NOTHING: the create payload
@@ -881,6 +1153,21 @@ ComponentRegistry.register('form',
     // cannot each answer the mode differently.
     const isCreateForm = previousRecord === undefined;
 
+    // Global predicate scope (from the host shell's ExpressionProvider) — carries
+    // `current_user` (plus the ADR-0068 D1 `user` / `ctx.user` / `os.user` aliases,
+    // `app`, `data`, `features`) so a `visibleWhen` can gate on role/context in
+    // addition to sibling field values. Empty object when no provider is mounted.
+    //
+    // ⛔ Declared HERE, above `readonlyFieldNames`, and not at its historical spot
+    // ~75 lines down (#6010). It used to sit below, which is exactly why the
+    // field-rule call sites could not have it: `readonlyFieldNames`' `useMemo`
+    // factory runs SYNCHRONOUSLY during this render, so a `predicateScope`
+    // declared after it is in the temporal dead zone at that point and reading it
+    // there is a `ReferenceError` on the first render, not a missing binding. The
+    // hook is still called unconditionally and exactly once per render — only its
+    // position among this component's hooks moved, which React does not constrain.
+    const predicateScope = usePredicateScope();
+
     const ruleRecord = React.useMemo(() => {
       // Seed every declared field to `null` so a predicate referencing a field
       // that's absent / not-yet-registered evaluates against a present-null
@@ -939,7 +1226,7 @@ ComponentRegistry.register('form',
             serverOwnedValue: isServerOwnedValue(f, isCreateForm),
           },
           previousRecord,
-          undefined,
+          predicateScope,
           // Same locator as the render path (#5149). A failure here reports the
           // field, not a bare rule kind; `warnPredicateFailure` dedupes by
           // predicate source, so re-evaluating a rule the renderer already
@@ -949,7 +1236,182 @@ ComponentRegistry.register('form',
         if (st.readonly) locked.add(name);
       }
       return locked;
-    }, [fields, ruleRecord, previousRecord, isCreateForm]);
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
+
+    // ── The section grouping contract (objectui#6236, maintainer ruling
+    // 2026-08-27) ─────────────────────────────────────────────────────────────
+    // A `section-divider` that CLAIMS its member fields (`fields: string[]` —
+    // the membership shape `FormFieldTab.fields` / `FormFieldPane.fields`
+    // already model) gates its WHOLE group: when the divider's own visibility
+    // verdict is FALSE, `renderFormField` draws neither the heading (the
+    // divider's own rule check does that half, pinned by
+    // predicate-scope-parity-6010) nor any claimed field (this set does the
+    // other half). Hiding a member this way is the SAME mechanism as the
+    // field's own false predicate — return `null`, so the Controller unmounts,
+    // react-hook-form skips the unmounted field at submit-time validation and
+    // keeps its value (`shouldUnregister` stays default-false). That is
+    // exactly the ruled semantics, inherited from the field-level precedent
+    // (#5594 / #2212) rather than re-implemented: visibility decides what is
+    // DRAWN and nothing else — a hidden section's values still submit — and a
+    // hidden section's fields skip client-side validation, so a user is never
+    // blocked by an error pointing at a control they cannot see (#6110's
+    // defect shape). The server-side contract stays the floor for
+    // genuinely-required data.
+    //
+    // The divider's verdict here replicates the FOUR gates `renderFormField`
+    // applies to the divider row itself — static `hidden`, the legacy
+    // `condition`, `visibleWhen` (via `resolveFieldRuleState`) and `visibleOn`
+    // — with the SAME record assembly (`ruleRecord` / `previousRecord` /
+    // `predicateScope`), the same fail-open fallbacks and the same locator
+    // strings, so heading and group cannot reach different verdicts
+    // (`warnPredicateFailure` dedupes by predicate source, so re-evaluating a
+    // predicate the render path also evaluates cannot double-warn — the
+    // `readonlyFieldNames` memo above already leans on that).
+    //
+    // A divider WITHOUT a claim keeps the pre-#6236 contract (a presentational
+    // row whose predicate gates only the heading); unknown claimed names are
+    // ignored (FormFieldTab parity); a field claimed by several dividers hides
+    // when ANY hidden claimer names it.
+    const hiddenSectionFieldNames = React.useMemo(() => {
+      const hiddenNames = new Set<string>();
+      for (const f of fields as FormFieldConfig[]) {
+        const divider = f as FormFieldConfig & { fields?: unknown };
+        if (divider?.type !== 'section-divider') continue;
+        const claimed = divider.fields;
+        if (!Array.isArray(claimed) || claimed.length === 0) continue;
+        const name = divider.name;
+        let dividerHidden = !!divider.hidden;
+        if (!dividerHidden) {
+          const legacyConditionCel = legacyConditionToCel(divider.condition);
+          if (
+            legacyConditionCel &&
+            !evalFieldPredicate(legacyConditionCel, ruleRecord, true, undefined, undefined, {
+              context: `condition of field '${name}'`,
+            })
+          ) {
+            dividerHidden = true;
+          }
+        }
+        if (!dividerHidden) {
+          const st = resolveFieldRuleState(
+            {
+              visibleWhen: (divider as any).visibleWhen,
+              readonlyWhen: (divider as any).readonlyWhen,
+              requiredWhen: (divider as any).requiredWhen,
+            },
+            ruleRecord,
+            {
+              required: !!divider.required,
+              readonly: (divider as any).readonly === true,
+              serverOwnedValue: isServerOwnedValue(divider, isCreateForm),
+            },
+            previousRecord,
+            predicateScope,
+            `field '${name}'`,
+          );
+          if (!st.visible) dividerHidden = true;
+        }
+        if (!dividerHidden && (divider as any).visibleOn != null) {
+          const viewVisible = evalFieldPredicate(
+            (divider as any).visibleOn,
+            ruleRecord,
+            true,
+            previousRecord,
+            predicateScope,
+            { context: `visibleOn of field '${name}'` },
+          );
+          if (!viewVisible) dividerHidden = true;
+        }
+        if (dividerHidden) {
+          for (const claimedName of claimed) {
+            if (typeof claimedName === 'string') hiddenNames.add(claimedName);
+          }
+        }
+      }
+      return hiddenNames;
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
+
+    // --- Tabbed field layout (#2959) ---------------------------------------
+    // `fieldTabs` spreads THIS form's fields across tab panels. Crucially there
+    // is still exactly ONE <form> / react-hook-form instance: the panels are
+    // force-mounted and merely CSS-hidden, so a tab the user navigated away from
+    // keeps BOTH its values and its validation. (Rendering one form per tab lost
+    // every non-active tab's input — the footer submit button can only be
+    // associated with a single form — and unmounting a tab's fields makes
+    // react-hook-form skip their rules, which let a required field on a tab
+    // nobody opened sail past the client and return as a server 400.)
+    //
+    // Declared here, above the stale-error effect, because the tab predicate
+    // verdicts (#6237, below) join that effect's inputs.
+    const fieldTabs = React.useMemo<FormFieldTab[] | null>(() => {
+      const declared = schema.fieldTabs;
+      if (schema.children || !Array.isArray(declared)) return null;
+      const usable = declared.filter((t) => t && typeof t.key === 'string');
+      return usable.length > 1 ? usable : null;
+    }, [schema.fieldTabs, schema.children]);
+
+    // ── The tabbed arm of the grouping contract (objectui#6237, same
+    // maintainer ruling as #6236) ─────────────────────────────────────────────
+    // A tab may carry the section predicate (`FormFieldTab.visibleWhen`) the
+    // synthesis sites copy from an authored `FormSection.visibleWhen`. The
+    // verdict is evaluated HERE, with the same record assembly the field-level
+    // rules use (`ruleRecord` / `previousRecord` / `predicateScope`, #6010) and
+    // the same fail-open fallback, so a section rendered as a tab and the same
+    // section rendered as a divider cannot reach different verdicts.
+    //
+    // A hidden tab's trigger and panel are simply NOT DRAWN — which unmounts
+    // its fields, the exact mechanism a field's own false predicate uses
+    // (`return null`): react-hook-form keeps the values (`shouldUnregister`
+    // stays default-false), so they still submit, and skips the unmounted
+    // controls at submit-time validation. Those are the ruled semantics
+    // (visibility gates drawing only; the server stays the loud floor),
+    // inherited rather than re-implemented.
+    //
+    // Deliberately NOT folded into the `fieldTabs` memo above: whether the
+    // tabbed arm engages at all (`usable.length > 1`) is judged on the
+    // DECLARED tabs, so a predicate hiding one of two tabs filters what is
+    // drawn instead of collapsing the strip into the untabbed layout
+    // mid-interaction (a collapse would remount every remaining field —
+    // destroying focus and in-progress edits — and would draw the hidden
+    // tab's fields flat, breaking the ruled semantics).
+    const hiddenFieldTabKeys = React.useMemo(() => {
+      const hidden = new Set<string>();
+      for (const tab of fieldTabs ?? []) {
+        const visibleWhen = tab.visibleWhen;
+        if (visibleWhen == null) continue;
+        const visible = evalFieldPredicate(
+          visibleWhen,
+          ruleRecord,
+          true,
+          previousRecord,
+          predicateScope,
+          { context: `visibleWhen of fieldTab '${tab.key}'` },
+        );
+        if (!visible) hidden.add(tab.key);
+      }
+      return hidden;
+    }, [fieldTabs, ruleRecord, previousRecord, predicateScope]);
+
+    // Field names that are NOT drawn because every tab claiming them is hidden
+    // (#6237). A name also claimed by a VISIBLE tab still renders in that
+    // panel, so it stays out of this set — the set mirrors what the panels
+    // actually draw, and feeds the stale-error hygiene below. (The drawing
+    // itself needs no per-field gate: a hidden tab's panel is not rendered.)
+    const hiddenTabFieldNames = React.useMemo(() => {
+      const hidden = new Set<string>();
+      if (!fieldTabs || hiddenFieldTabKeys.size === 0) return hidden;
+      for (const tab of fieldTabs) {
+        if (!hiddenFieldTabKeys.has(tab.key)) continue;
+        for (const name of tab.fields ?? []) {
+          if (typeof name === 'string') hidden.add(name);
+        }
+      }
+      for (const tab of fieldTabs) {
+        if (hiddenFieldTabKeys.has(tab.key)) continue;
+        for (const name of tab.fields ?? []) hidden.delete(name);
+      }
+      return hidden;
+    }, [fieldTabs, hiddenFieldTabKeys]);
 
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
@@ -975,33 +1437,50 @@ ComponentRegistry.register('form',
             serverOwnedValue: isServerOwnedValue(f, isCreateForm),
           },
           previousRecord,
-          undefined,
+          predicateScope,
           `field '${name}'`,
         );
         // View-level FormField.visibleOn hides the field the same way a
         // field-level visibleWhen does (#2212) — fold it into the verdict.
         const viewVisible =
           (f as any).visibleOn == null ||
-          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, previousRecord, undefined, {
+          evalFieldPredicate((f as any).visibleOn, ruleRecord, true, previousRecord, predicateScope, {
             context: `visibleOn of field '${name}'`,
           });
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
+        // A field hidden by its SECTION's predicate (#6236) clears the same
+        // way a field hidden by its own rule does — same rendering verdict,
+        // same stale-error hygiene.
         const errType = (errs[name] as { type?: string } | undefined)?.type;
-        if (!st.visible || !viewVisible || (!st.required && errType === 'required')) form.clearErrors(name);
+        if (
+          !st.visible ||
+          !viewVisible ||
+          hiddenSectionFieldNames.has(name) ||
+          hiddenTabFieldNames.has(name) ||
+          (!st.required && errType === 'required')
+        ) {
+          form.clearErrors(name);
+        }
       }
+      // `predicateScope` joins `ruleRecord` here for the same reason it is passed
+      // above (#6010): a scope change — the host swapping organisations, so
+      // `current_user.positions` changes — can flip a `visibleWhen` to FALSE just
+      // as a keystroke can, and a stale required-error on the field it just hid
+      // must clear on that transition too.
+      // `hiddenSectionFieldNames` joins them (#6236): a section verdict flip is
+      // a visibility transition for every claimed field, and the memo can move
+      // on a `fields` identity change the two record inputs would miss.
+      // `hiddenTabFieldNames` joins for the same reason (#6237): a TAB verdict
+      // flip hides every field the tab claims, and its stale errors must clear
+      // on that transition exactly as a section flip clears its members'.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ruleRecord]);
+    }, [ruleRecord, predicateScope, hiddenSectionFieldNames, hiddenTabFieldNames]);
 
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
     const schemaCtx = React.useContext(SchemaRendererContext);
     const contextDataSource = schemaCtx?.dataSource ?? null;
-
-    // Global predicate scope (from the host shell's ExpressionProvider) — carries
-    // `current_user` etc. so per-option `visibleWhen` can gate on role/context in
-    // addition to sibling field values. Empty object when no provider is mounted.
-    const predicateScope = usePredicateScope();
 
     // Field name → label, for the "select the parent first" gate hint (#2284).
     const fieldLabelByName = React.useMemo(() => {
@@ -1009,22 +1488,6 @@ ComponentRegistry.register('form',
       for (const f of fields as FormFieldConfig[]) if (f?.name) m[f.name] = (f as any).label || f.name;
       return m;
     }, [fields]);
-
-    // --- Tabbed field layout (#2959) ---------------------------------------
-    // `fieldTabs` spreads THIS form's fields across tab panels. Crucially there
-    // is still exactly ONE <form> / react-hook-form instance: the panels are
-    // force-mounted and merely CSS-hidden, so a tab the user navigated away from
-    // keeps BOTH its values and its validation. (Rendering one form per tab lost
-    // every non-active tab's input — the footer submit button can only be
-    // associated with a single form — and unmounting a tab's fields makes
-    // react-hook-form skip their rules, which let a required field on a tab
-    // nobody opened sail past the client and return as a server 400.)
-    const fieldTabs = React.useMemo<FormFieldTab[] | null>(() => {
-      const declared = schema.fieldTabs;
-      if (schema.children || !Array.isArray(declared)) return null;
-      const usable = declared.filter((t) => t && typeof t.key === 'string');
-      return usable.length > 1 ? usable : null;
-    }, [schema.fieldTabs, schema.children]);
 
     /** Field name → the tab that owns it (first claim wins). */
     const tabKeyByFieldName = React.useMemo(() => {
@@ -1035,13 +1498,20 @@ ComponentRegistry.register('form',
       return m;
     }, [fieldTabs]);
 
+    // Only VISIBLE tabs are selectable (#6237): a predicate hiding the ACTIVE
+    // tab re-selects deterministically — the user's pick if its tab is (still)
+    // visible, else the declared default, else the first visible tab — so the
+    // form never shows an empty panel. The pick itself is kept: derived
+    // selection means a hidden pick simply stops winning, and the tab the user
+    // chose becomes active again the moment its predicate re-admits it.
     const activeFieldTab = React.useMemo(() => {
       if (!fieldTabs?.length) return undefined;
-      const keys = fieldTabs.map((t) => t.key);
+      const keys = fieldTabs.map((t) => t.key).filter((k) => !hiddenFieldTabKeys.has(k));
+      if (!keys.length) return undefined;
       if (pickedFieldTab && keys.includes(pickedFieldTab)) return pickedFieldTab;
       if (schema.defaultFieldTab && keys.includes(schema.defaultFieldTab)) return schema.defaultFieldTab;
       return keys[0];
-    }, [fieldTabs, pickedFieldTab, schema.defaultFieldTab]);
+    }, [fieldTabs, hiddenFieldTabKeys, pickedFieldTab, schema.defaultFieldTab]);
 
     // Resolve each tab's declared field names against the form's field list.
     const fieldTabGroups = React.useMemo(() => {
@@ -1059,10 +1529,25 @@ ComponentRegistry.register('form',
     }, [fieldTabs, fields]);
 
     // A field no tab claimed must not vanish — it renders above the tab strip,
-    // visible from every tab.
+    // visible from every tab. Computed from the FULL group list on purpose: a
+    // predicate-hidden tab (#6237) still CLAIMS its fields — they are hidden
+    // with it, not promoted into this leading block.
     const untabbedFields = React.useMemo(
       () => (fieldTabGroups ? unclaimedFields(fieldTabGroups, fields as FormFieldConfig[]) : []),
       [fieldTabGroups, fields],
+    );
+
+    // What the strip and the panels actually draw (#6237): the groups whose
+    // tab the predicate verdict admits. Not drawing a hidden tab's panel IS
+    // the ruled-semantics mechanism — see `hiddenFieldTabKeys`.
+    const visibleFieldTabGroups = React.useMemo(
+      () =>
+        fieldTabGroups
+          ? hiddenFieldTabKeys.size === 0
+            ? fieldTabGroups
+            : fieldTabGroups.filter((g) => !hiddenFieldTabKeys.has(g.key))
+          : null,
+      [fieldTabGroups, hiddenFieldTabKeys],
     );
 
     // --- Split field layout (#2153) ----------------------------------------
@@ -1191,6 +1676,32 @@ ComponentRegistry.register('form',
     const baselineRef = React.useRef<Record<string, unknown>>(
       (defaultValues ?? {}) as Record<string, unknown>,
     );
+    // The window in which a `defaultValues` reset is running. The two
+    // value-notification channels below — `onChange` and the `form_change`
+    // `onAction` — read it, so that what they report across a reset is stated
+    // HERE, explicitly, the way `onDirtyChange` already states it (a few lines
+    // down: it computes its payload from `baselineRef` and is then called
+    // outright).
+    //
+    // Before this ref, those two rode on React's effect ordering instead:
+    // every layout DESTROY runs before any layout CREATE, so a caller passing
+    // a fresh callback each render had its subscription torn down before the
+    // reset and re-established after, and the reset went unreported. That
+    // guarantee was delivered by the CALLBACK'S IDENTITY CHANGING — so a
+    // caller wrapping the same callback in `React.useCallback`, taught
+    // everywhere as a pure performance optimization, kept one identity, the
+    // effect never re-ran, the subscription stayed live across the reset, and
+    // the record landing was delivered as if the user had edited every field
+    // it filled (#2968, measured in #5235). Nothing in the type, the docs or
+    // this renderer said "do not memoize this callback".
+    //
+    // ⛔ NOT decided here (#5235, explicitly left open): whether a value
+    // channel SHOULD report a programmatic reset. That is a contract change.
+    // This only makes the answer the file already gives identity-independent —
+    // the same for memoized and inline callers. If it is ever answered "yes",
+    // the explicit call belongs beside the `onDirtyChangeProp?.(...)` one
+    // below, not back in a subscription's teardown ordering.
+    const resetInFlightRef = React.useRef(false);
     // LAYOUT effect, deliberately — not a passive one. A passive effect runs a
     // commit LATER than the render that produced the new values, so there is a
     // window in which the new inputs are already mounted and interactive but the
@@ -1242,9 +1753,20 @@ ComponentRegistry.register('form',
       // Set the baseline before resetting: `reset`/`setValue` notify the watcher
       // below synchronously, and it reads this to compute dirtiness.
       baselineRef.current = incoming;
-      form.reset(defaultValues);
-      for (const [name, value] of carried) {
-        form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
+      // Everything up to the `finally` is the reset: `reset()` itself plus the
+      // re-application of the carried values, which is part of the same
+      // operation and is no more a user edit than the reset is. RHF delivers
+      // both to `form.watch` subscribers SYNCHRONOUSLY (measured on 7.85, and
+      // relied on by the `baselineRef` line above), so the window shuts before
+      // anything else can run in it — a keystroke least of all.
+      resetInFlightRef.current = true;
+      try {
+        form.reset(defaultValues);
+        for (const [name, value] of carried) {
+          form.setValue(name, value, { shouldValidate: false, shouldDirty: true });
+        }
+      } finally {
+        resetInFlightRef.current = false;
       }
       // Fresh values, so last attempt's rejected-field markers no longer apply.
       setRejectedFieldNames([]);
@@ -1258,17 +1780,21 @@ ComponentRegistry.register('form',
 
     // Watch for form changes - only track changes when onAction is available.
     // LAYOUT effect to stay in the same phase as the `defaultValues` reset
-    // above. React runs every layout DESTROY (mutation phase) before any layout
-    // CREATE, so a caller passing a fresh `onAction` each render — the common
-    // case, it is usually an inline arrow — has this subscription torn down
-    // before the reset runs and re-established after. That is what keeps a
-    // reset from being reported as a user edit. Leaving this passive while the
-    // reset is layout-phase inverts the order: the reset fires into the still
-    // live previous subscription and a record landing looks like the user
-    // editing every field it filled (#2968).
+    // above: a passive subscription is established one commit LATER than the
+    // layout-phase reset, which is a schedule of its own for no reason.
+    //
+    // What keeps a reset from being reported as a user edit is the explicit
+    // window (`resetInFlightRef`), NOT this effect's teardown ordering. That
+    // ordering unsubscribes only when the callback's identity changes, so it
+    // held for inline arrows and quietly did nothing for a caller who
+    // memoized — see the ref's declaration above (#2968, #5235).
     React.useLayoutEffect(() => {
       if (onAction) {
         const subscription = form.watch((data) => {
+          // A `defaultValues` reset is the host's own data landing, not the
+          // user editing every field it fills. Driven from the reset itself,
+          // so it holds for every caller.
+          if (resetInFlightRef.current) return;
           onAction({
             type: 'form_change',
             data,
@@ -1293,6 +1819,37 @@ ComponentRegistry.register('form',
       });
       return () => subscription.unsubscribe();
     }, [form, onDirtyChangeProp]);
+
+    // Surface live values to the host — `FormSchema.onChange`, the value-change
+    // sibling of the submit/dirty/cancel callbacks destructured beside it. It
+    // was declared, typed, exported and documented, but the renderer never
+    // invoked it: authoring `onChange` on a form schema was a silent no-op
+    // (#4259). Same subscription plumbing as the two effects above, so the
+    // value channel cannot drift into its own schedule.
+    //
+    // GUARDED, like the `onAction` subscription and unlike the `onDirtyChange`
+    // one: a form whose author wrote no `onChange` must establish no
+    // subscription at all. Watching unconditionally would put a third
+    // `form.watch` on every form in the product to serve callers who asked for
+    // nothing — a behaviour change for them, where honouring the declaration
+    // is meant to be purely additive.
+    //
+    // Layout-phase for the same reason as the `onAction` effect above, and —
+    // like it — a `defaultValues` reset is kept off this channel by the
+    // explicit window (`resetInFlightRef`), not by whether React happened to
+    // tear this subscription down. The teardown only happens when the
+    // callback's identity changes, i.e. for callers who do not memoize; the
+    // guarantee is not theirs alone (#2968, #5235).
+    React.useLayoutEffect(() => {
+      if (onChangeProp) {
+        const subscription = form.watch((values) => {
+          // The host's own record landing is not the user changing values.
+          if (resetInFlightRef.current) return;
+          onChangeProp(values as Record<string, any>);
+        });
+        return () => subscription.unsubscribe();
+      }
+    }, [form, onChangeProp]);
 
     /**
      * Scroll a field into view and focus a control inside it. The field wrapper
@@ -1346,7 +1903,14 @@ ComponentRegistry.register('form',
       // looking at — naming it is useless if they can't see it. Activate its tab
       // first, then reveal it once that panel has actually been painted (it is
       // display:none until then, so scroll/focus would no-op).
+      //
+      // Unless the tab is predicate-HIDDEN (#6237): only the SERVER can reject
+      // a field there (its client rules are skipped with it), and there is no
+      // panel to activate or control to reveal — the toast above already names
+      // the field. Recording the activation as a pick anyway would yank the
+      // view to that tab whenever its predicate later re-admits it.
       const tabKey = tabKeyByFieldName.get(firstName);
+      if (tabKey && hiddenFieldTabKeys.has(tabKey)) return;
       if (tabKey && tabKey !== activeFieldTab) {
         setPickedFieldTab(tabKey);
         if (typeof requestAnimationFrame === 'function') {
@@ -1465,9 +2029,19 @@ ComponentRegistry.register('form',
         // pi-TgoJ4_DM55Fqz" (objectstack#3821). A permission denial is a
         // condition the UI already knows how to name, so say it in the user's
         // language and keep the server text for the console.
-        const errorMessage = isPermissionError(error)
-          ? t('form.noPermissionToSave')
-          : extractWriteErrorMessage(error) ?? t('form.submitFailed');
+        // …unless the AUTHOR opted in. `userMessage` (objectstack#9934) is the
+        // producer-side marking: a hook sets it at throw time to
+        // say "this text is for the end user". It is a separate field from
+        // `message`, so nothing unmarked can reach here — the substitution above
+        // still governs every platform diagnostic, and #3821 holds by
+        // construction rather than by us guessing what a 403 body contains.
+        // Status-agnostic on purpose: 403 is where this was reported
+        // (objectui#5210), not a fence the contract draws.
+        const errorMessage =
+          declaredUserMessage(error) ??
+          (isPermissionError(error)
+            ? t('form.noPermissionToSave')
+            : extractWriteErrorMessage(error) ?? t('form.submitFailed'));
         if (isPermissionError(error) && typeof console !== 'undefined') {
           console.warn('[form] write denied:', error);
         }
@@ -1568,11 +2142,25 @@ ComponentRegistry.register('form',
       // Skip hidden fields
       if (hidden) return null;
 
+      // A field claimed by a HIDDEN section is not drawn (#6236) — the same
+      // `return null` a field's own false predicate takes, so the ruled
+      // semantics ride the existing mechanism: the value stays in the form
+      // state and still submits, and react-hook-form skips the unmounted
+      // control at submit-time validation. See `hiddenSectionFieldNames`.
+      if (hiddenSectionFieldNames.has(name)) return null;
+
       // Legacy `condition: { field, equals/notEquals/in }` — translated
       // to CEL and evaluated on the canonical engine over the seeded
       // live record (issue #1584), so it agrees with `visibleWhen` and
       // the server. Fail-open (a broken predicate shows the field),
       // matching the CEL rules below.
+      //
+      // Deliberately still `undefined` for `scope` while the two CEL faces below
+      // now receive `predicateScope` (#6010): this predicate is not authored, it
+      // is SYNTHESISED here from a structured `{ field, equals/notEquals/in }`
+      // object, so its text can only ever name `record.<field>`. There is no
+      // authoring path by which it could reference `current_user`, so binding a
+      // scope it cannot read would buy nothing and widen the surface.
       const legacyConditionCel = legacyConditionToCel(condition);
       if (
         legacyConditionCel &&
@@ -1604,7 +2192,14 @@ ComponentRegistry.register('form',
           serverOwnedValue: isServerOwnedValue(field, isCreateForm),
         },
         previousRecord,
-        undefined,
+        // The host shell's predicate scope — `current_user` and friends (#6010).
+        // The SAME bag `resolveCascadingOptions` below already receives, so one
+        // authored predicate text means one thing on every `visibleWhen` surface
+        // (ADR-0068 D1 / ADR-0089 D1: runtime record surfaces bind `record` +
+        // `current_user`). Before this it was `undefined`, and a form-field gate
+        // naming `current_user` named an UNBOUND root — which fails OPEN below,
+        // i.e. showed the field to everyone.
+        predicateScope,
         `field '${name}'`,
       );
       if (!ruleState.visible) return null;
@@ -1617,7 +2212,7 @@ ComponentRegistry.register('form',
       // #5149 (#2212).
       if (
         visibleOn != null &&
-        !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord, undefined, {
+        !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord, predicateScope, {
           context: `visibleOn of field '${name}'`,
         })
       ) {
@@ -1890,28 +2485,48 @@ ComponentRegistry.register('form',
       // the form schema has no owning object.
       const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
 
-      const groupLabelled = resolveFieldLabelling(resolvedType) === 'group';
+      const fieldLabelling = resolveFieldLabelling(resolvedType);
+      const groupLabelled = fieldLabelling === 'group';
 
-      // A READONLY registered field widget renders a replacement display in
-      // place of its control, and drops every prop the host handed down with it
-      // (objectui#4788). The host therefore wraps that output in a named group
-      // of its own — see {@link ReadonlyFieldGroup} for the measurement and the
-      // shape. Three gates, each carrying its own reason:
+      // A registered field widget whose output is a replacement display drops
+      // every prop the host handed down, so the host wraps that output in a
+      // named group of its own — see {@link ReadonlyFieldGroup} for the
+      // measurement and the shape. Two ways a field gets here, one wrapper:
+      //
+      //  - `readonly === true` (objectui#4788): the widget's readonly branch
+      //    renders the display in place of its control. Unchanged semantics —
+      //    this arm still keys off the field STATE, not the declaration, so an
+      //    undeclared third-party widget keeps exactly the #4788 behaviour;
+      //  - `labelling: 'display'` (objectui#4857): the widget declares that its
+      //    surface is a pure display in EVERY state — `formula` / `summary` /
+      //    `auto_number` / `vector` have no editable branch at all — so the
+      //    wrapper applies in the editable state too. Without this arm those
+      //    four lost the host id whenever the form was editable: on the real
+      //    object-form path they arrive as `disabled`, not `readonly`
+      //    (ObjectForm keeps that distinction deliberately — option 1 of the
+      //    #4857 option set was rejected), so the #4788 gate never fired and
+      //    the label's `for` dangled.
+      //
+      // Two further gates, each carrying its own reason:
       //
       //  - `label`: with no visible label there is no naming channel to repair,
       //    and a `role="group"` that nothing names is the inert pair this issue
       //    exists to avoid. Standalone / label-less rendering therefore stays
       //    byte-identical, exactly as `toHostGroupProps` keeps it;
-      //  - `!groupLabelled`: the seven group-labelled widgets already consume
-      //    the host's id / name / description themselves (objectui#3961 →
-      //    #3990 → #4005). Wrapping them too would nest a second group with the
-      //    same name and take the id off the surface those PRs put it on;
+      //  - `!groupLabelled`: the group-labelled widgets already consume the
+      //    host's id / name / description themselves (objectui#3961 → #3990 →
+      //    #4005). Wrapping them too would nest a second group with the same
+      //    name and take the id off the surface those PRs put it on;
       //  - a registered FIELD widget: the builtin branch renders a real control
       //    inside `<FormControl>` in the readonly state too, so its label keeps
       //    a `for` that resolves to a labelable element — measured, and left
-      //    alone.
-      const readonlyHostGroup =
-        readonly === true && !!label && !groupLabelled && resolvesToRegisteredFieldWidget(resolvedType);
+      //    alone. (A `'display'` declaration can only come from a registered
+      //    widget's meta, so for that arm this gate is belt-and-braces.)
+      const hostWrappedDisplay =
+        (readonly === true || fieldLabelling === 'display') &&
+        !!label &&
+        !groupLabelled &&
+        resolvesToRegisteredFieldWidget(resolvedType);
 
       // The visible label is associated by IDREF instead of `for` — it gets an
       // `id`, and the surface that answers to it gets `aria-labelledby`. Two
@@ -1928,14 +2543,15 @@ ComponentRegistry.register('form',
       // list: an id containing a space would silently resolve to two ids,
       // neither of which exists.
       const hostLabelId =
-        label && (groupLabelled || readonlyHostGroup)
+        label && (groupLabelled || hostWrappedDisplay)
           ? `${labelIdPrefix}${String(name).replace(/\s+/g, '_')}-group-label`
           : undefined;
 
       // The widget-facing half. Only the group-labelled path hands the IDREF
-      // DOWN to the widget: on the readonly path the wrapper is the named
-      // surface, and passing the same id to the widget as well would give one
-      // label two consumers — the double channel #3978 removed.
+      // DOWN to the widget: on the host-wrapped path (readonly, or a declared
+      // `'display'` widget) the wrapper is the named surface, and passing the
+      // same id to the widget as well would give one label two consumers — the
+      // double channel #3978 removed.
       const groupLabelId = groupLabelled ? hostLabelId : undefined;
 
       return (
@@ -1962,10 +2578,12 @@ ComponentRegistry.register('form',
                   // beside the `aria-labelledby` would give one label two
                   // association channels, one of which is broken.
                   //
-                  // A readonly registered widget (objectui#4788) reaches the
-                  // same shape through the host's own wrapper, and needs the
-                  // `for` gone for the same reason — it was measurably DANGLING
-                  // there, pointing at an id no element in the document carried.
+                  // A readonly registered widget (objectui#4788) — and a
+                  // widget declared `labelling: 'display'`, in every state
+                  // (objectui#4857) — reaches the same shape through the
+                  // host's own wrapper, and needs the `for` gone for the same
+                  // reason: it was measurably DANGLING there, pointing at an
+                  // id no element in the document carried.
                   {...(hostLabelId ? { id: hostLabelId, htmlFor: undefined } : null)}
                 >
                   {label}
@@ -1999,7 +2617,7 @@ ComponentRegistry.register('form',
                     A readonly registered widget's output goes inside the host's
                     own named group (objectui#4788) — every other field is handed
                     to `<FormControl>`'s Slot exactly as before. */}
-                {withReadonlyHostGroup(readonlyHostGroup ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
+                {withReadonlyHostGroup(hostWrappedDisplay ? hostLabelId : undefined, renderFieldComponent(resolvedType, {
                   ...fieldProps,
                   // Specialized fields need the raw metadata object. `.field`
                   // is the declared metadata slot (#3090 — never the spec
@@ -2128,7 +2746,16 @@ ComponentRegistry.register('form',
         'data-obj-type': dataObjType,
         style,
         onSubmit: _ignoredOnSubmit, // Prevent overwriting our handleSubmit
-        onChange: _ignoredOnChange, // Prevent overwriting our onChange
+        // Keep a top-level `onChange` off the <form> DOM node. Some callers /
+        // the SDUI dispatch spread the whole form node at the top level in
+        // addition to `schema`, and a DOM `onChange` there fires with a
+        // SyntheticEvent — never with form values, so it is not the
+        // `FormSchema.onChange` contract at all. That schema-level callback is
+        // subscribed above (#4259) and is the only `onChange` this renderer
+        // honours; before it was wired there was in fact no "our onChange" for
+        // this line to protect. Dropping the top-level copy is all this does:
+        // it is not re-routed here, and nothing double-fires.
+        onChange: _ignoredOnChange,
         // Extract schema props that should not be spread to DOM (handled separately by schema destructuring above)
         submitLabel: _submitLabel,
         cancelLabel: _cancelLabel,
@@ -2150,6 +2777,17 @@ ComponentRegistry.register('form',
           // `schema` destructure above already consumes them; drop the
           // top-level copies here so nothing bleeds through `...formProps`.
           objectName: _objectName,
+          // The persisted record (objectui#6396). It has a real consumer — the
+          // `previousRecord` memo above, which binds `previous` for field-rule
+          // CEL and is the INSERT/UPDATE signal the read-only submit strip
+          // gates on — but that consumer reads it off `schema`, never off
+          // `props`. This top-level copy is purely the SDUI-dispatch duplicate
+          // described above, and it was the one member of this family missing
+          // from the list: it rode `...formProps` onto <form>, where React
+          // declined it ("does not recognize the `previousValues` prop") AND
+          // still stamped the node with `previousvalues="[object Object]"` —
+          // seen on every edit-mode `object-master-detail-form` header render.
+          previousValues: _previousValuesProp,
           onDirtyChange: _onDirtyChangeProp,
           onCancel: _onCancelProp,
           fields: _fields,
@@ -2205,17 +2843,25 @@ ComponentRegistry.register('form',
             <div className={schema.fieldContainerClass || 'space-y-4'}>
               {renderChildren(schema.children)}
             </div>
-          ) : fieldTabGroups ? (
+          ) : fieldTabGroups && visibleFieldTabGroups ? (
             // Tabbed field layout (#2959): one <form>, one react-hook-form
             // instance, N force-mounted panels. Inactive panels are CSS-hidden
             // (`data-[state=inactive]:hidden`) rather than unmounted, which is
             // what keeps their values and their validation alive.
+            //
+            // Predicate-hidden tabs (#6237) are a different kind of hidden: the
+            // strip and the panel list below draw only `visibleFieldTabGroups`,
+            // so a hidden tab's fields UNMOUNT — the ruled hidden-group
+            // semantics (values kept and submitted, client validation
+            // skipped). With every tab hidden nothing remains to draw, so the
+            // strip is omitted rather than rendered empty.
             <>
               {untabbedFields.length > 0 && (
                 <div className={cn(fieldGridClass, 'mb-4')}>
                   {untabbedFields.map(renderFormField)}
                 </div>
               )}
+              {visibleFieldTabGroups.length > 0 && (
               <Tabs
                 value={activeFieldTab}
                 onValueChange={setPickedFieldTab}
@@ -2235,7 +2881,7 @@ ComponentRegistry.register('form',
                       : fieldTabsPosition === 'bottom' ? 'order-last mt-4' : 'mb-4',
                   )}
                 >
-                  {fieldTabGroups.map((group) => (
+                  {visibleFieldTabGroups.map((group) => (
                     <TabsTrigger
                       key={group.key}
                       value={group.key}
@@ -2257,7 +2903,7 @@ ComponentRegistry.register('form',
                   ))}
                 </TabsList>
                 <div className="min-w-0 flex-1">
-                  {fieldTabGroups.map((group) => (
+                  {visibleFieldTabGroups.map((group) => (
                     <TabsContent
                       key={group.key}
                       value={group.key}
@@ -2275,6 +2921,7 @@ ComponentRegistry.register('form',
                   ))}
                 </div>
               </Tabs>
+              )}
             </>
           ) : fieldPaneGroups ? (
             // Split field layout (#2153): one <form>, one react-hook-form
@@ -2465,6 +3112,192 @@ interface RenderFieldProps {
 // box so they behave like the other field widgets (click-anywhere-to-edit).
 const NATIVE_PICKER_INPUT_TYPES = new Set(['date', 'datetime-local', 'time', 'month', 'week']);
 
+/**
+ * Field types whose native `<input type>` the `default` branch must resolve
+ * from the field's own declared `type` (objectui#5254).
+ *
+ * Both are declared field types in `@object-ui/types`
+ * (`EmailFieldMetadata` / `PasswordFieldMetadata`), and both used to reach a
+ * native input only by ACCIDENT: the bare-name fallback handed the field to
+ * the `ui`-namespace SDUI node renderer registered under the same short name
+ * (./input.tsx), which hard-codes `inputType`. With that fallback gone
+ * (see `renderFieldComponent`) they take this branch, where `inputType` is
+ * whatever the AUTHOR wrote — `undefined` for a plain
+ * `{ name, type: 'password' }`, which would render `type="text"` and put a
+ * secret on screen in clear text.
+ *
+ * So this table is not a new tolerance (AGENTS.md #0.1): it is what keeps the
+ * VISIBLE rendering of these two types byte-identical to what the fallback
+ * produced, while the leak, the duplicate `<label>` and the dead `max_length`
+ * go away. An explicitly authored `inputType` still wins over it.
+ *
+ * Deliberately narrow. Every other declared field type with a native HTML
+ * equivalent (`url`, `phone`, `number`, `color`, `date` …) ALREADY takes this
+ * branch as `type="text"` on the built-in path and is untouched by
+ * objectui#5254 — widening the table beyond a SECRET would change fields no
+ * card has moved or measured.
+ *
+ * ## The two secret spellings added by objectui#5375 (maintainer ruling of
+ * 2026-08-20, half A — defense in depth)
+ *
+ * Measured on `main` at f2e11ae6f, on the built-in path, all three of these
+ * put the value on screen as `type="text"`:
+ *
+ *   ui:password    registry hit = TRUE    rendered type="text"
+ *   secret         registry hit = false   rendered type="text"
+ *   field:secret   registry hit = false   rendered type="text"
+ *
+ *  - **`secret`** is the ObjectQL field type. `mapFieldTypeToFormType` maps it
+ *    to `field:password`, so an OBJECT-derived secret field is already safe —
+ *    it arrives here as `password`. What was not safe is a hand-authored
+ *    `{ name, type: 'secret' }` in a standalone `FormSchema`, which reaches
+ *    this table under its own name and missed it.
+ *  - **`ui:password`** is keyed RAW, not as a declared type, and that is
+ *    deliberate: {@link normalizeFieldType} strips only `field:` (the one
+ *    namespace that means "field widget", objectui#5254), so a `ui:`-qualified
+ *    id arrives here unstripped. It is NOT given a namespace-stripping rule of
+ *    its own — that would re-open the cross-namespace resolution #5254
+ *    deliberately removed, and would silently move `ui:email`, `ui:date` and
+ *    every other `ui:*` id this card never measured.
+ *
+ * `ui:password` is ALSO refused at authoring time as of the same card (half C,
+ * `validateFormSchema` in `@object-ui/core`): a namespaced id that is not
+ * `field:` resolves no field widget and is an authoring error. This entry is
+ * the defense-in-depth half — validation is advisory at render time, so a host
+ * that never validates still must not leak, and an existing author who wrote
+ * the spelling needs no migration to keep a working (masked) field.
+ */
+const NATIVE_INPUT_FIELD_TYPES: Record<string, string> = {
+  email: 'email',
+  password: 'password',
+  // objectui#5375 — see the two paragraphs above. `secret` is a DECLARED type
+  // key (so `field:secret` normalizes into it too); `ui:password` is a RAW key.
+  secret: 'password',
+  'ui:password': 'password',
+};
+
+/**
+ * Declared field types whose VALUE is a SECRET — objectui#5322.
+ *
+ * The one type family where "render something plausible" is the wrong answer.
+ * Every other type in this branch degrades to a text box that is merely LESS
+ * capable than the widget the author declared; a `password` degrades to a text
+ * box that PUTS THE SECRET ON SCREEN, and does it in the shape the author is
+ * least likely to notice (an input, in the right slot, with the right label).
+ *
+ * Membership is the declared type — the `field:` prefix already stripped by
+ * {@link normalizeFieldType} — so each entry answers both its spellings.
+ * An OBJECT-derived secret field reaches this set as `password`, because
+ * `mapFieldTypeToFormType` maps the ObjectQL `secret` type to `field:password`.
+ *
+ * `secret` itself joined the set with objectui#5375 (half A), for the spelling
+ * that mapping never sees: a hand-authored `{ name, type: 'field:secret' }` in
+ * a standalone `FormSchema`. It is a registry key naming a widget nothing
+ * registers, so — exactly like `field:password` — reaching the default branch
+ * with it proves the declared widget is absent, and the value is refused rather
+ * than rendered. The BARE `secret` spelling is not refused: it claims no
+ * registered widget at all, so this branch is its intended home and
+ * `NATIVE_INPUT_FIELD_TYPES` above renders it as the native masked input, the
+ * same answer a bare `password` gets.
+ *
+ * Only members reached with a `field:` prefix are refused — see the gate in
+ * `renderFieldComponent`'s `default` arm — so adding a non-`field:` spelling
+ * here would be a dead entry. `ui:password` is therefore handled by
+ * `NATIVE_INPUT_FIELD_TYPES` alone, and not listed here.
+ */
+const SECRET_FIELD_TYPES = new Set(['password', 'secret']);
+
+/**
+ * `field:<type>` ids already reported missing, keyed by widget id + field name.
+ *
+ * Module-level and de-duplicated for the reason `_reportedUnrecognizedRules`
+ * above is: a schema-driven caller re-renders this field on every keystroke
+ * elsewhere on the form, and a diagnostic that repeats forever gets muted by
+ * the very reader it is written for (objectui#3965).
+ */
+const _reportedMissingSecretWidgets = new Set<string>();
+
+/**
+ * Report a missing SECRET field widget — loudly, once per widget id + field.
+ *
+ * NOT dev-gated, unlike {@link reportUnrecognizedRulesOnce}. That one is a
+ * metadata lint whose audience is the author at their desk; this one is a
+ * REGISTRATION failure on a security-relevant field, and an app that reaches
+ * production in this state is exactly the one whose console should say so.
+ * Same call this file's spec-vocabulary boundary (#3090) and
+ * `RetiredFieldTombstone` (`packages/fields`, objectui#4814) already made for
+ * the same class of entry — one this renderer cannot honour.
+ */
+function reportMissingSecretWidget(widgetType: string, fieldName: string): void {
+  const memo = `${widgetType}::${fieldName}`;
+  if (_reportedMissingSecretWidgets.has(memo)) return;
+  _reportedMissingSecretWidgets.add(memo);
+  // The message doubles as the fix instruction — it is what an agent
+  // iterating on the metadata (or on the host bootstrap) will read and follow.
+  console.error(
+    `[object-ui] form field '${fieldName}': widget '${widgetType}' is NOT registered, so this ` +
+      `form has no widget for a SECRET value. The field renders a refusal instead of an input — ` +
+      `the default input branch would render it as \`type="text"\` and put the secret on screen ` +
+      `in clear text (objectui#5322). Register the field widgets — \`registerAllFields()\` from ` +
+      `\`@object-ui/fields\` — so '${widgetType}' resolves. In a hand-authored standalone form, ` +
+      `write the built-in spelling \`{ type: 'password' }\` instead, which renders the native ` +
+      `masked input on this branch.`,
+  );
+}
+
+/**
+ * The refusal a `field:`-namespaced SECRET field renders when its widget is not
+ * registered — objectui#5322.
+ *
+ * Shape borrowed from `RetiredFieldTombstone` (`packages/fields`) and this
+ * file's own spec-vocabulary boundary (#3090), this repo's settled answer to
+ * "an authored entry this renderer cannot honour": an inline alert that NAMES
+ * the offending entry, plus a `console.error` whose text doubles as the fix
+ * instruction. Nothing is thrown — one unrenderable field must not take down
+ * the rest of the record form — and nothing is silently substituted, which is
+ * the whole point.
+ *
+ * A COMPONENT, not inline JSX, for the same reason `BuiltinSelectEmptyState`
+ * above is one: `renderFieldComponent` is a plain helper that early-returns, so
+ * a hook called there would run conditionally (rules-of-hooks).
+ *
+ * `...rest` is forwarded because `<FormControl>` is a Radix `Slot`: it hands the
+ * control its `id` / `aria-describedby` / `aria-invalid`, so dropping the rest
+ * props here would unlink the field's own label and error message. What is
+ * deliberately NOT forwarded is the field's `value`/`onChange` bundle — the
+ * point of the refusal is that the secret reaches no element at all, so this
+ * component is handed the two identifying strings and nothing else.
+ */
+function MissingSecretFieldWidget({
+  widgetType,
+  fieldName,
+  className,
+  ...rest
+}: {
+  widgetType: string;
+  fieldName: string;
+} & React.HTMLAttributes<HTMLDivElement>) {
+  React.useEffect(() => {
+    reportMissingSecretWidget(widgetType, fieldName);
+  }, [widgetType, fieldName]);
+  return (
+    <div
+      role="alert"
+      data-testid="field-missing-secret-widget"
+      data-missing-field-widget={widgetType}
+      className={cn(
+        'rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive',
+        className,
+      )}
+      {...rest}
+    >
+      {`This field was not rendered: its widget \`${widgetType}\` is not registered. ` +
+        `Register the field widgets (\`registerAllFields()\` from \`@object-ui/fields\`). ` +
+        `A secret is never rendered in a plain text box.`}
+    </div>
+  );
+}
+
 function openNativePickerOnClick(inputType: string | undefined) {
   if (!inputType || !NATIVE_PICKER_INPUT_TYPES.has(inputType)) return undefined;
   return (e: React.MouseEvent<HTMLInputElement>) => {
@@ -2610,57 +3443,67 @@ const BuiltinSelectControl = React.forwardRef<HTMLButtonElement, BuiltinSelectCo
 );
 
 function renderFieldComponent(type: string, props: RenderFieldProps) {
-  // 1. Try to resolve specialized field widget from registry first.
-  //    Form fields should always prefer the `field:<type>` namespace when
-  //    available (e.g. so { type: 'text' } in a form schema resolves to the
-  //    text input field, not the display text widget that shares the same
-  //    short name in the global registry).
+  // 1. Resolve the specialized FIELD WIDGET — and only a field widget.
+  //    A form field's type either names a `field:`-namespaced widget or takes
+  //    the declared `default` input branch below; it never resolves a plain
+  //    SDUI node renderer (objectui#5254, maintainer ruling of 2026-08-19 —
+  //    option B of the measured option set).
   //
-  //    Which entry answered decides which CONTRACT the resolved component
-  //    implements, so the lookups are kept apart rather than folded into one
-  //    `||` chain (objectui#3233):
+  //    The bare `field:<type>` preference was always the point (so { type:
+  //    'text' } in a form schema resolves to the text INPUT, not the display
+  //    `text` widget sharing that short name in the global registry). What is
+  //    gone is the `|| ComponentRegistry.get(type)` tail behind it: a form
+  //    field that missed the `field:` namespace fell through to whatever
+  //    happened to hold the bare name in ANY namespace, which is a
+  //    cross-namespace fallback no contract states.
   //
-  //      - a `field:` entry is a FIELD WIDGET — `FieldWidgetComponentProps`,
-  //        whose metadata carrier is `field` and nothing else since v17;
-  //      - the bare-name fallback is a plain SDUI COMPONENT (the display
-  //        `text` widget, `alert`, `badge` …). Its contract is the universal
-  //        `schema` node every registered component receives from
-  //        `SchemaRenderer`. That key is NOT retired and must still be passed,
-  //        or such a field renders `undefined.className`.
+  //    Measured on `origin/main` at 3fbbea1f3, that tail answered 126 bare
+  //    names on the built-in (no-`registerAllFields()`) path — `div`, `h1`,
+  //    `card`, `button`, even `form` — and 116 of them with the fields package
+  //    registered too. The two that mattered in practice were `email` and
+  //    `password`, registered as `ui`-namespace SDUI node renderers for
+  //    top-level `{ type: 'email' }` nodes (see ./input.tsx). Reached as a
+  //    FIELD they got the field-widget prop bundle they do not implement and
+  //    spread it straight onto the element, so a hand-authored
+  //    `{ name, type: 'email', max_length: 50 }` rendered:
+  //
+  //      attrs=["class","id","max_length","field","aria-describedby",
+  //             "aria-invalid","type","value","name"]   maxlength=null
+  //
+  //    i.e. the raw metadata OBJECT as `field="[object Object]"`, an inert
+  //    `max_length` that capped nothing, and — because that renderer draws its
+  //    own `<Label>` on top of the form's `<FormLabel>` — a SECOND `<label>`
+  //    naming the same control.
+  //
+  //    A `field:` entry is a FIELD WIDGET (`FieldWidgetComponentProps`, whose
+  //    metadata carrier is `field` and nothing else since v17), which is now
+  //    the only contract this function dispatches to. `resolveFieldLabelling`
+  //    and `resolvesToRegisteredFieldWidget` above mirror this resolution and
+  //    already spelled the rule this way; they now agree with it exactly.
   const namespacedWidget = !BUILTIN_FIELD_TYPES.has(type) && !type.includes(':')
     ? ComponentRegistry.get(`field:${type}`)
     : undefined;
+  // A colon-qualified type resolves directly, and only when it names the
+  // `field` namespace (`type: 'field:textarea'`). `ui:email` is not a field
+  // widget any more than the bare `email` was.
   const RegisteredComponent = !BUILTIN_FIELD_TYPES.has(type)
-    ? (namespacedWidget || ComponentRegistry.get(type))
+    ? (namespacedWidget || (type.startsWith('field:') ? ComponentRegistry.get(type) : undefined))
     : undefined;
-  // A colon-qualified type resolves directly, and is a field widget only when
-  // it names the `field` namespace (`type: 'field:textarea'`).
-  const isFieldWidget = !!namespacedWidget || type.startsWith('field:');
 
   if (RegisteredComponent) {
-    const registeredProps = stripRegisteredFieldProps(type, props);
-
-    if (isFieldWidget) {
-      // `field` is the single metadata carrier (objectui#3233). It rides in
-      // `registeredProps` untouched — the caller always sets it (`field.field
-      // || field`, i.e. the raw metadata object, never undefined) and
-      // `stripRegisteredFieldProps` keeps it.
-      //
-      // This used to ALSO pass `schema={props.field || props.schema || props}`,
-      // a second key carrying the *same* object: `props.field` is truthy at the
-      // only call site, so the two chain terms after it were unreachable and
-      // `schema` was always `=== props.field`. Widgets therefore resolved
-      // `field || schema` to `field` on this path every time — which is why
-      // dropping the key here changes no payload, only the number of spellings
-      // a widget author has to know.
-      return <RegisteredComponent {...registeredProps} />;
-    }
-
-    // Non-field component reached through the bare-name fallback: `schema` is
-    // ITS contract, not the retired field-widget carrier, so the original
-    // resolution is preserved verbatim.
-    const nodeSchema = props.field || props.schema || props;
-    return <RegisteredComponent schema={nodeSchema} {...registeredProps} />;
+    // `field` is the single metadata carrier (objectui#3233). It rides in
+    // `registeredProps` untouched — the caller always sets it (`field.field
+    // || field`, i.e. the raw metadata object, never undefined) and
+    // `stripRegisteredFieldProps` keeps it.
+    //
+    // This used to ALSO pass `schema={props.field || props.schema || props}`,
+    // a second key carrying the *same* object: `props.field` is truthy at the
+    // only call site, so the two chain terms after it were unreachable and
+    // `schema` was always `=== props.field`. Widgets therefore resolved
+    // `field || schema` to `field` on this path every time — which is why
+    // dropping the key here changes no payload, only the number of spellings
+    // a widget author has to know.
+    return <RegisteredComponent {...stripRegisteredFieldProps(type, props)} />;
   }
 
   const { inputType, options = [], placeholder, readonly, emptyHint, ...fieldProps } = props;
@@ -2672,26 +3515,72 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
   const readonlyInputClass = readonly && 'bg-muted/40 cursor-default focus-visible:ring-0';
 
   switch (type) {
-    case 'input':
+    case 'input': {
+      // The declared ceiling is resolved HERE, in BOTH authored spellings,
+      // rather than left to ride the pass-through onto the DOM
+      // (objectui#5201). This is the same mechanism the `textarea` branch
+      // below resolves for the same reason (objectui#3439) — this branch was
+      // deliberately left out of that card because the COUNTER half is a
+      // design question for a single-line input; the ceiling half is not.
+      //
+      // Measured on `origin/main`, the pass-through answered the two spellings
+      // differently: a camelCase `maxLength` happened to work because it names
+      // a real DOM attribute, so the element got `maxlength="50"`; the legacy
+      // `max_length` reached the same element as a STRAY, inert
+      // `max_length="50"` attribute and the field had no cap at all — no
+      // truncation, and invalid HTML that reads like a working cap to whoever
+      // greps this file next.
+      //
+      // `maxLength ?? max_length` is not a tolerance invented at a consumer
+      // (AGENTS.md #0.1): the registered `field:*` widgets have dual-read it
+      // since framework#1878 §3, all three producers of a form field do
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`)
+      // and `packages/types`' field types declare `max_length`. Every reader in
+      // the repo honoured it except this branch — which is precisely the one
+      // serving a hand-authored `FormSchema` handed straight to the renderer,
+      // where there is no normalizing producer in between and the author IS
+      // the producer.
+      //
+      // The legacy key is destructured off LOCALLY — not added to
+      // `stripRendererOnlyProps` — because that helper feeds EVERY branch
+      // (`checkbox`, `switch`, `select` and the `default` fallback all share
+      // `domFieldProps`), so extending it would change what reaches the DOM
+      // for widgets this card neither fixes nor tests. The `textarea` branch
+      // strips it the same local way.
+      //
+      // Scope: the CEILING only. Whether a single-line input should also carry
+      // a visible `{n}/{max}` counter and an announced limit the way the
+      // `textarea` branch does is an independent design trade-off that does
+      // NOT follow from #3439's conclusion, and is deliberately not decided
+      // here (the objectui#5201 triage ruling).
+      const { max_length: _maxLengthLegacy, ...inputProps } = domFieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       if (inputType === 'file') {
-        // File inputs cannot be controlled with value prop
-         const { value, ...fileProps } = domFieldProps;
-         return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
+        // File inputs cannot be controlled with value prop. No cap applies to a
+        // file picker, but the stray legacy key must not reach it either — it
+        // is off `inputProps` already.
+        const { value, ...fileProps } = inputProps;
+        return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
       }
       return (
         <Input
           type={inputType || 'text'}
           placeholder={placeholder}
           className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
-          {...domFieldProps}
+          {...inputProps}
+          // After the spread, so the resolved cap wins over the raw camelCase
+          // key `inputProps` still carries (the #3222 discipline). `undefined`
+          // when neither spelling was declared, which renders no attribute.
+          maxLength={maxLength}
           onClick={(e) => {
             openNativePickerOnClick(inputType)?.(e);
-            domFieldProps.onClick?.(e);
+            inputProps.onClick?.(e);
           }}
           readOnly={readonly}
-          value={domFieldProps.value ?? ''}
+          value={inputProps.value ?? ''}
         />
       );
+    }
 
     case 'textarea': {
       // `mobile_fullscreen` is the flag's ONE spelling (objectui#3303). This
@@ -2720,8 +3609,31 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // say the field had failed — measured announcing nothing at all while the
       // inline control announced `aria-invalid="true"` for the same field. The
       // primitive, not this branch, decides what to do with it.
+      //
+      // `maxLength` is resolved HERE, in both authored spellings, rather than
+      // left to ride `rest` onto the DOM (objectui#3439). Measured on
+      // `origin/main`, the pass-through answered the two spellings differently:
+      // a camelCase `maxLength` happened to work because it names a real DOM
+      // attribute, so the element got `maxlength="100"`; the legacy
+      // `max_length` reached the same element as a STRAY, inert
+      // `max_length="100"` attribute and the field had no cap at all — no
+      // truncation, and (before this change) no counter either. The registered
+      // `field:textarea` widget has dual-read `maxLength ?? max_length` since
+      // framework#1878 §3, as do all three producers of a form field
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`),
+      // so this is not a new tolerance invented at a consumer (AGENTS.md #0.1)
+      // — it is this path finally resolving the declaration the way every other
+      // reader in the repo already resolves it. A hand-authored `FormSchema`
+      // handed straight to this renderer, which is the standalone/embedded host
+      // this branch exists for, has no producer in between to normalize it.
+      //
+      // `max_length` is then kept OFF the element: it is not a DOM attribute in
+      // any spelling, so leaving it in `rest` renders invalid HTML that looks
+      // like a working cap to the next reader.
       const { mobile_fullscreen, label, error } = fieldProps as any;
-      const rest = stripRendererOnlyProps(fieldProps);
+      const { max_length: _maxLengthLegacy, ...textareaProps } = fieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
+      const rest = stripRendererOnlyProps(textareaProps);
       if (mobile_fullscreen) {
         return (
           <FullscreenTextarea
@@ -2737,16 +3649,20 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
             // was on. (`disabled` rides `rest`, which no strip touches.)
             className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
             {...rest}
+            // After the spread, so the resolved cap wins over the raw
+            // camelCase key `rest` still carries (the #3222 discipline).
+            maxLength={maxLength}
             readOnly={readonly}
             value={rest.value ?? ''}
           />
         );
       }
       return (
-        <Textarea
+        <BuiltinTextarea
           placeholder={placeholder}
           className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
           {...rest}
+          maxLength={maxLength}
           readOnly={readonly}
           value={rest.value ?? ''}
         />
@@ -2809,19 +3725,152 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       );
     }
 
-    default:
+    default: {
+      // ── The unregistered-widget default, objectui#5322 ──────────────────
+      //
+      // Two spellings reach this branch and they do NOT mean the same thing,
+      // so the ruling of 2026-08-19 is answered on each in its own terms
+      // ("the unregistered-widget default must respect the declared input
+      // type, OR refuse to render the value rather than degrade to clear
+      // text", with "for `password` specifically, prefer masking/refusal over
+      // best-effort rendering"):
+      //
+      //  - A BARE `password` / `email` is a declared input type on the
+      //    built-in path. It claims no registered widget, this branch IS its
+      //    intended home, and `NATIVE_INPUT_FIELD_TYPES` renders it natively
+      //    (objectui#5254). Nothing below changes that — a fix that traded one
+      //    spelling for the other would not be a fix.
+      //
+      //  - A `field:`-prefixed id is a REGISTRY KEY. Reaching this branch with
+      //    one is proof of an unmet contract: the app declares a widget that
+      //    is not registered (no `registerAllFields()`, or no
+      //    `@object-ui/fields` at all). `mapFieldTypeToFormType` emits the
+      //    prefixed id for EVERY object-derived form, so this is the normal
+      //    path and not an edge case.
+      //
+      // Measured on this branch point (f2e11ae6f), before the change, with
+      // nothing registered under `field:`:
+      //
+      //   field:password → type="text"   attrs=["class","id",
+      //                    "aria-describedby","aria-invalid","type","name"]
+      //   field:email    → type="text"
+      //   password       → type="password"      (PR5326, unchanged)
+      //   email          → type="email"         (PR5326, unchanged)
+      //
+      // i.e. the object-derived spelling of a password field put the secret on
+      // screen in clear text. PRE-EXISTING: `NATIVE_INPUT_FIELD_TYPES` is keyed
+      // on the raw type, so the prefixed spelling always missed it — this is
+      // not a regression from objectui#5254, which was measured on
+      // `origin/main` before that change too.
+      //
+      // The declared type — the prefix stripped — is what the two halves below
+      // read. Only `field:` is stripped (`normalizeFieldType`): it is the one
+      // namespace that means "field widget" and the one the producer emits.
+      // A `ui:`-qualified id therefore arrives here UNSTRIPPED and is matched
+      // raw where it is matched at all (`ui:password`, objectui#5375) — no
+      // second namespace gets a stripping rule, because that would re-open the
+      // cross-namespace resolution objectui#5254 deliberately removed.
+      const declaredType = normalizeFieldType(type);
+
+      // ── Half 1: REFUSE, for a secret ────────────────────────────────────
+      // Masking the value would already close the leak the card names, and it
+      // is what the bare spelling does. It is not enough HERE, because here we
+      // additionally KNOW the app shipped without the widget it declares: a
+      // masked box would let the user type a secret into a form whose password
+      // widget (its own strength meter, confirm pair, reveal toggle, submit
+      // handling) is absent, and would look like it worked. So the value is
+      // not rendered at all, in any form, and the refusal says why.
+      //
+      // Deliberately narrow — the SECRET types only, and only under `field:`.
+      // Every other unregistered `field:*` id (`field:currency`,
+      // `field:qrcode` …) still renders the text box it renders today: turning
+      // the whole class into refusals would change fields no card has moved or
+      // measured, the same restraint `NATIVE_INPUT_FIELD_TYPES` above states.
+      // `field:secret` joined `SECRET_FIELD_TYPES` with objectui#5375 and so
+      // is refused here too; the BARE `secret` spelling is not — it names no
+      // registry key, so it takes the native masked input below.
+      if (type.startsWith('field:') && SECRET_FIELD_TYPES.has(declaredType)) {
+        return (
+          <MissingSecretFieldWidget
+            widgetType={type}
+            fieldName={String(fieldProps.name ?? '')}
+          />
+        );
+      }
+
+      // The declared ceiling is resolved HERE, in BOTH authored spellings,
+      // rather than left to ride the pass-through onto the DOM
+      // (objectui#5253). Identical mechanism, identical reasons and identical
+      // shape to the `input` branch above (objectui#5201) and the `textarea`
+      // branch (objectui#3439) — this fallback was simply out of #5201's
+      // scoped surface, so it kept the defect after that card landed.
+      //
+      // Measured on `origin/main` at 87d9202b1, with a `type` that is neither
+      // a `BUILTIN_FIELD_TYPES` member nor a registered component (so this
+      // branch renders it), the pass-through answered the two spellings
+      // differently:
+      //
+      //   max_length: 50 → attrs=[…,"max_length",…]  maxlength=null
+      //   maxLength: 50 → attrs=[…,"maxlength",…]    maxlength="50"
+      //
+      // i.e. camelCase capped by COINCIDENCE (it names a real DOM attribute),
+      // while the legacy `max_length` capped NOTHING and landed as a stray,
+      // inert `max_length="50"` attribute — invalid HTML that reads like a
+      // working cap to the next reader. Two independent defects.
+      //
+      // `maxLength ?? max_length` is not a tolerance invented at a consumer
+      // (AGENTS.md #0.1): the registered `field:*` widgets have dual-read it
+      // since framework#1878 §3, all three producers of a form field do
+      // (`ObjectForm`, `sectionFields`, `EmbeddableForm.applyDefaultMaxLengths`)
+      // and `packages/types`' field types declare `max_length`. This branch —
+      // like the `input` one — serves a hand-authored `FormSchema` handed
+      // straight to the renderer, where there is no normalizing producer in
+      // between and the author IS the producer.
+      //
+      // The legacy key is destructured off LOCALLY — NOT added to
+      // `stripRendererOnlyProps` — because that helper feeds EVERY branch
+      // (`checkbox`, `switch`, `select` and this fallback all share
+      // `domFieldProps`), so extending it would change what reaches the DOM
+      // for widgets this card neither fixes nor tests. Both landed siblings
+      // strip it the same local way.
+      const { max_length: _maxLengthLegacy, ...fallbackProps } = domFieldProps as any;
+      const maxLength = (fieldProps as any).maxLength ?? (fieldProps as any).max_length;
       return (
         <Input
-          type={inputType || 'text'}
+          // ── Half 2: RESPECT the declared input type ───────────────────
+          // An authored `inputType` first, then the native type this field's
+          // own declared `type` names (objectui#5254 — `email` / `password`
+          // reach this branch since the cross-namespace fallback was removed,
+          // and must keep rendering the native input they always rendered:
+          // without this a `type: 'password'` field would show the secret as
+          // clear text). `'text'` for everything else, exactly as before.
+          //
+          // Keyed on `declaredType`, not the raw `type` (objectui#5322): the
+          // table's two members are DECLARED FIELD TYPES
+          // (`EmailFieldMetadata` / `PasswordFieldMetadata` in
+          // `@object-ui/types`), and `field:email` declares `email` just as
+          // plainly as a bare `email` does. Before this the prefixed spelling
+          // missed the table and lost the native keyboard and validation.
+          // `field:password` / `field:secret` never reach here — half 1 above
+          // refuses them — so this line answers `field:email`, the bare
+          // spellings, and (objectui#5375) the two raw secret spellings
+          // `secret` and `ui:password`, which the table now carries.
+          type={inputType || NATIVE_INPUT_FIELD_TYPES[declaredType] || 'text'}
           placeholder={placeholder}
           className={cn(readonlyInputClass)}
-          {...domFieldProps}
+          {...fallbackProps}
+          // After the spread, so the resolved cap wins over the raw camelCase
+          // key `fallbackProps` still carries (the #3222 discipline).
+          // `undefined` when neither spelling was declared, which renders no
+          // attribute — an uncapped field is left exactly as it was.
+          maxLength={maxLength}
           onClick={(e) => {
             openNativePickerOnClick(inputType)?.(e);
-            domFieldProps.onClick?.(e);
+            fallbackProps.onClick?.(e);
           }}
           readOnly={readonly}
         />
       );
+    }
   }
 }

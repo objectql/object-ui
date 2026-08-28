@@ -12,6 +12,7 @@ import { Calendar, Button, Popover, PopoverTrigger, PopoverContent, Label } from
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('date-picker', 
   ({ schema, className, value, onChange, ...props }: { schema: DatePickerSchema; className?: string; value?: Date; onChange?: (date: Date | undefined) => void; [key: string]: any }) => {
@@ -47,7 +48,7 @@ ComponentRegistry.register('date-picker',
                 !value && 'text-muted-foreground',
                 className
               )}
-              {...triggerProps}
+              {...toFormControlDomProps(triggerProps)}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
               {value ? format(value, schema.format || 'PPP') : <span>{schema.placeholder || 'Pick a date'}</span>}

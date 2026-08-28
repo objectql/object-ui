@@ -15,19 +15,25 @@ The Email Field component provides a text input with built-in email validation a
 
 ## Field Schema
 
-```plaintext
-interface EmailFieldSchema {
-  type: 'email';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  placeholder?: string;          // Placeholder text
-  value?: string;                // Default value
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-}
+An email field is authored as `EmailFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with a single length
+bound. Address-shape validation is the widget's, not a metadata key.
+
+```ts
+import type { EmailFieldMetadata } from '@object-ui/types';
+
+const contactEmail: EmailFieldMetadata = {
+  type: 'email',
+  name: 'contact_email',
+  label: 'Email Address',
+  placeholder: 'name@example.com',
+  required: true,
+  max_length: 254,
+};
 ```
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Validation
 
@@ -41,7 +47,7 @@ The email field automatically validates:
 
 In tables/grids, email addresses are clickable links:
 
-```plaintext
+```ts
 import { EmailCellRenderer } from '@object-ui/fields';
 
 // Renders as: <a href="mailto:user@example.com">user@example.com</a>

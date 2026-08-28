@@ -18,8 +18,8 @@
  */
 
 import { useMemo } from 'react';
-import { useObjectTranslation } from './provider';
-import { I18N_PROBE_FLAG } from './i18n';
+import { useObjectTranslation } from './provider.js';
+import { I18N_PROBE_FLAG } from './i18n.js';
 
 /**
  * Built-in Object UI top-level locale keys — not app namespaces.
@@ -32,6 +32,49 @@ const BUILTIN_KEYS = new Set([
   'list', 'kanban', 'chart', 'dashboard', 'configPanel',
   'appDesigner', 'console', 'errors', 'detail',
 ]);
+
+/** The translation surface this module binds to, as `useObjectTranslation` hands it over. */
+type ObjectTranslation = ReturnType<typeof useObjectTranslation>;
+
+/**
+ * Whether `i18n` is a real i18next instance rather than react-i18next's
+ * no-instance placeholder.
+ *
+ * With nothing to bind to, `useTranslation` warns `NO_I18NEXT_INSTANCE` and
+ * builds its return value out of a fresh `{}` on every render (`const
+ * finalI18n = i18n || {}`, which then feeds that hook's own `useMemo` deps), so
+ * the `i18n` we receive has a new identity each render even though nothing
+ * about it can have changed.
+ *
+ * `getResourceBundle` is the probe because it is the only instance member the
+ * resolvers below ever touch — via `getAppNamespaces`, the single gate every
+ * `t()` call in this module sits behind.
+ */
+function hasUsableI18nInstance(i18n: ObjectTranslation['i18n'] | undefined): boolean {
+  return Boolean(i18n) && typeof i18n?.getResourceBundle === 'function';
+}
+
+/**
+ * Stand-ins pinned into the memo dependency list while no i18next instance is
+ * bound, so the memo in {@link useObjectLabel} actually holds on the
+ * no-provider path (objectui#5564). Module-level, so they carry one identity
+ * for the lifetime of the process instead of one per render.
+ *
+ * Substituting them is unobservable rather than merely convenient: every `t()`
+ * call in this module sits inside a `for (… of getAppNamespaces())` loop, and
+ * `getAppNamespaces()` returns `[]` under exactly {@link hasUsableI18nInstance}
+ * — so for as long as the substitution is in effect, the closures cannot read
+ * either value at all. `NO_INSTANCE_T` still mirrors react-i18next's own
+ * not-ready `t` (honour a string `defaultValue`, otherwise echo the key) so
+ * that if that reachability argument ever stops holding, behaviour does not
+ * change silently.
+ */
+const NO_INSTANCE_T = ((key: unknown, options?: { defaultValue?: unknown }) =>
+  typeof options?.defaultValue === 'string' ? options.defaultValue : key
+) as unknown as ObjectTranslation['t'];
+
+/** @see NO_INSTANCE_T */
+const NO_INSTANCE_I18N = Object.freeze({}) as unknown as ObjectTranslation['i18n'];
 
 /**
  * Hook for convention-based auto-resolution of object and field labels.
@@ -49,7 +92,22 @@ const BUILTIN_KEYS = new Set([
  * ```
  */
 export function useObjectLabel() {
-  const { t, i18n } = useObjectTranslation();
+  const { t: boundT, i18n: boundI18n } = useObjectTranslation();
+
+  // Pin both memo dependencies to module constants while there is no i18next
+  // instance to bind to. Without this the memo below never held on exactly the
+  // no-provider path `useSafeFieldLabel` advertises: react-i18next rebuilds its
+  // return value from a fresh `{}` each render, so `i18n` arrived with a new
+  // identity every time and re-keyed every consumer memo this hook feeds
+  // (objectui#5564 measured 4 distinct identities across 4 renders). See
+  // `hasUsableI18nInstance` for why the substitution cannot be observed.
+  //
+  // When an instance does appear these become the live values again, so a
+  // provider mounting after first render recomputes the object exactly once and
+  // resolves real translations from then on.
+  const bound = hasUsableI18nInstance(boundI18n);
+  const t = bound ? boundT : NO_INSTANCE_T;
+  const i18n = bound ? boundI18n : NO_INSTANCE_I18N;
 
   // Memoize the entire returned object — all closures below reference `t`/`i18n`
   // and stay valid until the language changes. Returning a fresh object on every
@@ -69,7 +127,7 @@ export function useObjectLabel() {
    * (objectui#3372).
    */
   const getAppNamespaces = (): string[] => {
-    if (!i18n || typeof i18n.getResourceBundle !== 'function') return [];
+    if (!hasUsableI18nInstance(i18n)) return [];
     const lang = i18n.language || 'en';
     const bundle = i18n.getResourceBundle(lang, 'translation') as Record<string, any> | undefined;
     if (!bundle) return [];
@@ -300,13 +358,27 @@ export function useObjectLabel() {
     },
 
     /**
-     * Resolve translated label for a navigation group within an app.
-     * Convention: `{ns}.apps.{appName}.navigation.{groupId}.label`.
+     * Read `{ns}.apps.{appName}.navigation.{groupId}.label` out of the loaded
+     * CLIENT translation resources, falling back to `fallback`.
      *
-     * Mirrors `objectLabel`/`dashboardLabel` so app metadata can keep
-     * English fallbacks while translation packs supply localised
-     * sidebar group labels (e.g. "Sales" → "销售") without explicit
-     * I18nLabel `{ key, defaultValue }` annotations.
+     * ⚠️ This does NOT localize the sidebar, and adding a translation pack
+     * keyed this way will not change a single rendered nav label.
+     * **App-navigation localization is owned solely by the server-side
+     * `/meta` boundary**: `translateApp` in `@objectstack/spec`
+     * (`src/system/i18n-resolver.ts`) rewrites every navigation node's
+     * `label` by id, and `@objectstack/rest` applies it before the metadata
+     * reaches this client — so nav labels arrive already localized. One
+     * owner, not two. To translate a sidebar group, translate it there.
+     *
+     * History (objectui#5197): until then this docstring promised
+     * `"Sales" → "销售"` for sidebar groups, and `NavigationRenderer`
+     * accepted `resolveGroupLabel`/`resolveItemLabel` to wire it up. Those
+     * props could never fire — the renderer's `isCustomized` guard compared a
+     * node's authored label against its own `id` (`Workspace` vs
+     * `grp_workspace`), which never match, so the guard was true for every
+     * real entry. The props are gone; the promise was false, not merely
+     * unused. This helper is kept as a plain key reader for a consumer that
+     * renders navigation itself — it has no first-party caller.
      */
     navGroupLabel: (appName: string, groupId: string, fallback: string) =>
       resolve(`apps.${appName}.navigation.${groupId}.label`, fallback),
@@ -354,6 +426,34 @@ export function useObjectLabel() {
     widgetDescription: (dashboardName: string, widgetId: string, fallback?: string) => {
       const fb = fallback ?? '';
       const resolved = resolve(dashboardSuffixes(dashboardName, `widgets.${widgetId}.description`), fb);
+      return resolved || undefined;
+    },
+
+    /**
+     * Resolve a translated metric-widget SUB-CAPTION within a dashboard.
+     * Convention: `{ns}.dashboards.{dashboardName}.widgets.{widgetId}.subCaption`.
+     * Returns undefined when neither metadata nor translation provides one.
+     *
+     * Deliberately its OWN key, not a second reader of `widgets.{id}.description`.
+     * The KPI card renders two authored strings from two different fields — the
+     * shared card header's `widget.description`, and the sub-caption under the
+     * value, which is authored as `widget.options.description` — and the
+     * objectstack#5428 item-4 ruling (2026-08-06) settled that they get two
+     * keys, not one: 「两个作者字段两个 key」. Collapsing them would make one
+     * translation entry silently retarget the other field on any widget type
+     * that renders both at once (`kpi`, `gauge`, `bullet` — every metric-family
+     * type except the self-contained `metric`).
+     *
+     * `subCaption` is the member objectstack#8056 added to the widget
+     * translation node for exactly this, shipped in `@objectstack/spec@17.0.0`.
+     * The server-side resolver reads the SAME key and overlays it onto
+     * `options.description` (`translateDashboard`), so a document served
+     * through `/meta` and a document translated here land on the same string —
+     * this is the client half of one convention, not a second dialect.
+     */
+    widgetSubCaption: (dashboardName: string, widgetId: string, fallback?: string) => {
+      const fb = fallback ?? '';
+      const resolved = resolve(dashboardSuffixes(dashboardName, `widgets.${widgetId}.subCaption`), fb);
       return resolved || undefined;
     },
 
@@ -601,8 +701,11 @@ const SAFE_FIELD_LABEL_FALLBACK = {
 export function useSafeFieldLabel() {
   // useObjectLabel delegates to the provider-safe useObjectTranslation (react-
   // i18next falls back to the global instance and never throws), so it needs no
-  // try/catch — wrapping the hook call would violate rules-of-hooks. It already
-  // returns a stable memoized object; the module-level fallback stays as a
-  // defensive default, reached only if it ever returns nullish.
+  // try/catch — wrapping the hook call would violate rules-of-hooks. Its memo
+  // now holds with or without an i18next instance, so the object below is
+  // stable on both paths — it was NOT before objectui#5564, which measured a
+  // fresh object every render outside a provider, i.e. the opposite of what
+  // this wrapper advertises. The module-level fallback stays as a defensive
+  // default, reached only if it ever returns nullish.
   return useObjectLabel() ?? SAFE_FIELD_LABEL_FALLBACK;
 }

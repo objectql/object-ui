@@ -20,7 +20,12 @@
  *   skipping the POST;
  * - the **`redirectUrl` convention**: a handler returning `{ redirectUrl }`
  *   asks the UI to open it — into the pre-opened tab when there is one, else a
- *   lazily opened one with a popup-blocked toast fallback.
+ *   lazily opened one with a popup-blocked toast fallback. A handler may add
+ *   `openIn: 'self'` to ask for the same-tab jump instead (objectui#5221);
+ *   WITHOUT it the shipped new-tab behavior stands, so nothing flips silently.
+ * - **deferring to a declared `ActionSchema.onSuccess` block**: when the action
+ *   itself declares the post-success hop, the runner performs it and this
+ *   wrapper only tidies the pre-opened tab — one navigation, not two.
  *
  * This file exists because `useConsoleActionRuntime` and `RecordDetailView`
  * each carried a near-verbatim copy of all of the above around their
@@ -40,6 +45,7 @@ import { toast } from 'sonner';
 import {
   createServerActionHandler,
   readActionPayload,
+  readOnSuccessNavigation,
   resolveServerActionRecordId,
   type ActionContext,
   type ActionDef,
@@ -82,6 +88,16 @@ export interface ConsoleServerActionOptions {
    * (objectui#3321).
    */
   t?: ConsoleServerActionTranslate;
+  /**
+   * SPA route hop, for a handler that returned `openIn: 'self'` alongside its
+   * `redirectUrl`. The console passes react-router's `navigate` — the router
+   * this app already uses; nothing new is introduced here.
+   *
+   * Optional: without it an explicit `'self'` still lands, via the full-page
+   * navigation this file already falls back to. That is a slower same-tab
+   * arrival, never a new tab, so the handler's stated intent is never inverted.
+   */
+  navigate?: (url: string) => void;
 }
 
 /** Minimal HTML escape for locale strings interpolated into the spinner document. */
@@ -208,8 +224,43 @@ export function createConsoleServerActionHandler(opts: ConsoleServerActionOption
       const redirectUrl = (payload && typeof payload === 'object' && typeof (payload as { redirectUrl?: unknown }).redirectUrl === 'string')
         ? (payload as { redirectUrl: string }).redirectUrl
         : null;
+      // ── Precedence: a DECLARED `onSuccess` block beats the handler-return
+      //    convention ─────────────────────────────────────────────────────
+      // Both can be present on one `type: 'script'` action, and they mean the
+      // same thing — "go here afterwards". Performing both would fire two
+      // navigations, the second racing a page that is already unloading. The
+      // author's declaration is the surface `@objectstack/spec` validates and
+      // the only one visible in metadata, so it wins; the runner performs that
+      // hop after this handler returns (`ActionRunner.navigateOnSuccess`), and
+      // all this branch owes is the pre-opened tab.
+      //
+      // ⚠️ The spec rules each surface's own default but does NOT rule this
+      // precedence — objectui#5221 escalates it. If the maintainer rules the
+      // other way, this is the line that changes.
+      if (readOnSuccessNavigation(action.onSuccess)) {
+        closeTab(preOpenedTab);
+        return result;
+      }
       if (redirectUrl) {
-        openInTab(preOpenedTab, redirectUrl, t);
+        // `{ redirectUrl }` WITHOUT `openIn` keeps its shipped new-tab
+        // behavior — no silent flip. A handler may opt into the same-tab jump
+        // by returning `openIn: 'self'` explicitly, spelled as the ruled enum
+        // member (never the `type:'url'` key's `'new-tab'` kebab).
+        const opensInSelf = payload && typeof payload === 'object'
+          && (payload as { openIn?: unknown }).openIn === 'self';
+        if (opensInSelf) {
+          // The tab we optimistically pre-opened is now unwanted: the handler
+          // asked to stay put.
+          closeTab(preOpenedTab);
+          if (opts.navigate && redirectUrl.startsWith('/')) {
+            opts.navigate(redirectUrl);
+          } else {
+            // Absolute/external destination — no SPA route can express it.
+            window.location.href = redirectUrl;
+          }
+        } else {
+          openInTab(preOpenedTab, redirectUrl, t);
+        }
       } else {
         // Handler didn't return a redirectUrl — close the empty tab we
         // optimistically pre-opened so the user isn't left with about:blank.

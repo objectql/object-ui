@@ -33,7 +33,7 @@ import {
   scopedKey,
   useStorageSync,
   useUserStateAdapter,
-} from './UserStateAdapters';
+} from './UserStateAdapters.js';
 
 // ---------------------------------------------------------------------------
 // Types

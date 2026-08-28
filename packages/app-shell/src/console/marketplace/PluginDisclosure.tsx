@@ -12,7 +12,7 @@
 import { Badge } from '@object-ui/components';
 import { Boxes, CheckCircle2, Code2, FolderTree, Network, ShieldAlert, ShieldCheck, Webhook } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { MarketplacePackageVersion, PluginRuntime } from './marketplaceApi';
+import type { MarketplacePackageVersion, PluginRuntime } from './marketplaceApi.js';
 
 /**
  * English label per trust tier — the map i18next's `defaultValue` reads.

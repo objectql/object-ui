@@ -77,7 +77,6 @@ ComponentRegistry.register('my-widget', MyWidgetRenderer, {
 | `skipFallback` | `boolean` | Don't register non-namespaced fallback (prevents overwrites) |
 | `inputs` | `ComponentInput[]` | Schema inputs for designer |
 | `defaultProps` | `Record<string, any>` | Default properties |
-| `defaultChildren` | `SchemaNode[]` | Default child schema |
 | `isContainer` | `boolean` | Accepts child components |
 | `resizable` | `boolean` | Designer allows resizing |
 | `resizeConstraints` | `object` | Min/max width/height |
@@ -326,7 +325,7 @@ double-displays it.
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "lucide-react": "^0.400.0"
+    "lucide-react": "^1.31.0"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

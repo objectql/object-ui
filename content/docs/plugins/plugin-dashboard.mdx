@@ -38,11 +38,31 @@ npm install @object-ui/plugin-dashboard
 {
   type: 'dashboard',
   widgets: Widget[],
-  columns?: number,               // Grid columns (default: 3)
-  gap?: number,                   // Gap between widgets
+  label?: string | LocaleMap,       // Header title — spec-canonical spelling; a string or { en, "zh-CN", ... }
+  description?: string | LocaleMap, // Header description, under the title
+  header?: {                        // Header block — strict: exactly these keys
+    showTitle?: boolean,
+    showDescription?: boolean,
+    actions?: { label, actionUrl?, actionType?, icon? }[]
+  },
+  globalFilters?: GlobalFilter[],   // Dashboard-level filter bar — see "Dashboard-level filters"
+  dateRange?: {                     // Built-in date-range filter — see "Dashboard-level filters"
+    field?: string,
+    defaultRange?: string,          // a spec date preset, or 'custom'
+    allowCustomRange?: boolean
+  },
+  refreshInterval?: number,         // Auto-refresh period in seconds; runs only when the host wires onRefresh
+  columns?: number,                 // Grid columns (default: 3)
+  gap?: number,                     // Gap between widgets
   className?: string
 }
 ```
+
+The header renders only when `header` is declared, and costs zero pixels when
+everything it would show is suppressed. The legacy `title` spelling of `label`
+is still *read* (documents in the wild carry it) but is not authoring surface —
+the spec rejects it by name, so new documents author `label`. The retired
+`aria` key is neither read nor authorable.
 
 ### Metric Card
 
@@ -67,16 +87,64 @@ npm install @object-ui/plugin-dashboard
 import '@object-ui/plugin-dashboard';
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the eight `ComponentRegistry.register(...)`
+calls in `packages/plugin-dashboard/src/index.tsx`, which claim exactly these
+schema types. The keys below are read off those calls.
+
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `view:dashboard` | `dashboard` | `DashboardRenderer` — the widget container |
+| `plugin-dashboard:metric` | `metric` | `MetricWidget` — one KPI value |
+| `plugin-dashboard:metric-card` | `metric-card` | `MetricCard` — KPI with trend and icon |
+| `plugin-dashboard:object-metric` | `object-metric` | internal wrapper around `ObjectMetricWidget` — a metric aggregated over an object |
+| `plugin-dashboard:pivot` | `pivot` | `PivotTable` — pivot over rows you pass in |
+| `plugin-dashboard:object-pivot` | `object-pivot` | internal wrapper around `ObjectPivotTable` — pivot queried from an object |
+| `plugin-dashboard:dashboard-grid` | `dashboard-grid` | `DashboardGridLayout` — the drag/resize editable grid |
+| `plugin-dashboard:object-data-table` | `object-data-table` | `ObjectDataTable` — table queried from an object |
+
+`ComponentRegistry.register` publishes `namespace:type`, and — unless the call
+passes `skipFallback: true` — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback branch at `:226`). No
+call in this package passes `skipFallback`, so each type above resolves under
+both spellings; the schema snippets on this page use the bare one.
+
+The two `object-*` rows name a wrapper rather than an export on purpose.
+`ObjectMetricBlock` and `ObjectPivotBlock` are internal to `src/index.tsx`: each
+first resolves the element's `dataSource` binding through `ElementDataSourceGate`
+(from `@object-ui/react`) and only then renders the exported
+`ObjectMetricWidget` / `ObjectPivotTable`.
+
+### Registering a component under your own key
+
+The import above needs no follow-up call. What a manual registration is for here
+is serving one of this package's exported components under a key of your own —
+you register the component, not a map:
 
 ```plaintext
-import { dashboardComponents } from '@object-ui/plugin-dashboard';
 import { ComponentRegistry } from '@object-ui/core';
+import { MetricCard } from '@object-ui/plugin-dashboard';
 
-Object.entries(dashboardComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+ComponentRegistry.register('my-metric', MetricCard, {
+  namespace: 'my-app',
+  label: 'My Metric',
+  category: 'Dashboard',
 });
 ```
+
+The package also exports a `dashboardComponents` object: the manual-integration
+map, keyed by the **same eight schema types** as the table above (objectui#5064
+re-keyed it from component class names). Each key maps to the exact component
+the import registers for that type — for the two `object-*` types that is the
+internal data-source-gate wrapper, not the exported widget. Iterating it with
+`ComponentRegistry.register(type, component)` therefore re-registers the eight
+types the import has already claimed, which is still not the registration above:
+each such call passes no `meta`, so it trips the no-namespace deprecation
+warning in `register` (`packages/core/src/registry/Registry.ts:198`) and
+rewrites each bare-name registry entry without its `label`/`category` metadata
+(the `namespace:type` entries are untouched).
 
 ## Examples
 
@@ -216,15 +284,65 @@ catalog ships runnable variants under `plugin-dashboard/filtered-dashboard*`
 (dynamic options, filter types, dataset widgets, `targetWidgets`, date
 presets).
 
+## Widget `options` — what is actually read
+
+`@objectstack/spec`'s `DashboardWidgetOptionsSchema` declares five keys and
+then rides `.passthrough()` ("declared query keys + open renderer extras"), so
+**any** other key parses and validates cleanly — whether or not anything reads
+it. On a dataset-bound widget (the only spec-legal form: `dataset` is
+required), the renderers read exactly:
+
+| Key | Effect |
+| --- | --- |
+| `dateGranularity` | groups a date dimension by `day` / `week` / `month` / … |
+| `sortBy` / `sortOrder` | orders by a projected dimension or measure |
+| `limit` | caps the row count |
+| `stageOrder` | explicit stage order for `funnel` / `pyramid` |
+| `description` | metric-card sub-caption; the `widgets.{id}.subCaption` translation channel writes this key |
+
+Every other `options` key on a dataset-bound widget **reaches no renderer**.
+The authoring validator (`validateTree` in `@object-ui/sdui-parser`) reports
+each one as a `unconsumed-widget-option` **warning** naming the set above —
+the document still parses, saves and renders; open extras stay open, they just
+stop being silent. A widget with a genuine out-of-band consumer can opt out in
+metadata with the spec's own escape hatch:
+`"suppressWarnings": ["unconsumed-widget-option"]`.
+
+### Gauge / solid-gauge / kpi / bullet render as a metric card
+
+There is no dial/arc/target renderer: the single-value families are routed by
+construction to the metric-card path (objectui#4295) and render as one
+formatted number. The number's format — including percent handling and
+currency — comes from the **dataset measure's own metadata** (the measure's
+`format` / `currency` / `percentScale` returned by the dataset query), not
+from widget `options`. In particular, on a dataset-bound gauge:
+
+- `options.format` is **not read** — declare the format on the dataset
+  measure instead;
+- `options.thresholds` is **not read** — the census header in
+  `packages/sdui-parser/src/dashboard-widget-options.ts` is the canonical
+  statement of that closure claim, and a gate re-derives it on every test run;
+- `options.invert` is **not read** — if a measure needs to be displayed as its
+  complement (e.g. a compliance rate stored as a violation rate), add a
+  derived measure to the dataset (`derived: { op: 'ratio', … }`) and bind the
+  widget to it.
+
 ## TypeScript Support
 
 ```plaintext
-import type { DashboardSchema, MetricCardSchema } from '@object-ui/plugin-dashboard';
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
 
-const dashboard: DashboardSchema = {
+const widget: DashboardWidgetSchema = {
+  id: 'revenue',
+  title: 'Revenue',
+  type: 'metric-card',
+  layout: { x: 0, y: 0, w: 1, h: 1 },
+};
+
+const dashboard: DashboardComponentSchema = {
   type: 'dashboard',
   columns: 3,
-  widgets: [...]
+  widgets: [widget],
 };
 ```
 

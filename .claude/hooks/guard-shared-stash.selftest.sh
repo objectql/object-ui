@@ -81,6 +81,24 @@ expect allow 'grep -rn "cd x && git stash pop" .claude/'
 expect allow 'echo "never run git stash pop in a shared checkout"'
 expect allow 'git grep -n "git stash"'
 
+echo "== an UNQUOTED \\\" opens no quote, so the stash behind it is still seen (objectstack#11131) =="
+# The measured hole: segmentation read the escaped `"` as OPENING a quoted region that never
+# closed. Every separator behind it went inert, the command collapsed into one `echo`
+# segment, and the real `git stash` was just another argument.
+expect block 'echo \" ; git stash'
+expect block 'echo \" ; git stash pop'
+expect block 'printf \" ; git stash drop'
+expect block "$(printf 'echo \\"\ngit stash pop\n')"
+# Precision twins: the escape must not manufacture a stash where none is run, and the forms
+# this guard deliberately allows stay allowed when reached through the same escape. (Upstream's
+# twin aims the command at a linked worktree; this hook reads no cwd, so the SHA-pinned and
+# read-only allow-list is the analogous precision surface.)
+expect allow 'echo \" ; echo hello'
+expect allow 'echo \" ; cat README.md'
+expect allow 'echo a\ b'
+expect allow 'echo \\ ; grep -n worktree README.md'
+expect allow 'echo \" ; git stash list'
+
 echo "== escape hatch =="
 expect allow 'git stash pop' OS_ALLOW_STASH=1
 

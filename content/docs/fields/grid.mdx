@@ -19,31 +19,36 @@ The Grid Field component provides an inline table for managing related records o
 
 ## Field Schema
 
-```plaintext
-interface GridFieldSchema {
-  type: 'grid';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: any[];                 // Array of row objects
-  required?: boolean;            // Is field required
-  readonly?: boolean;            // Read-only mode
-  disabled?: boolean;            // Disabled state
-  className?: string;            // Additional CSS classes
-  
-  // Grid Options
-  columns?: ColumnDefinition[];  // Column definitions
-}
+A grid field is authored as `GridFieldMetadata` (`@object-ui/types`), which is the
+source of truth for the key set: it extends `BaseFieldMetadata` with the column list
+and the row-count and row-action limits. Each column is a `GridColumnDefinition`, so
+the columns are checked by the same compiler that checks the field.
 
-interface ColumnDefinition {
-  name: string;                  // Column field name
-  label: string;                 // Column header label
-  type: string;                  // Field type (text, number, etc.)
-  width?: string;                // Column width
-  editable?: boolean;            // Is column editable
-  required?: boolean;            // Is column required
-  [key: string]: any;            // Additional field-specific props
-}
+```ts
+import type { GridFieldMetadata } from '@object-ui/types';
+
+const lineItems: GridFieldMetadata = {
+  type: 'grid',
+  name: 'line_items',
+  label: 'Line Items',
+  columns: [
+    { name: 'product', label: 'Product', type: 'lookup', required: true, width: 240 },
+    { name: 'quantity', label: 'Qty', type: 'number', defaultValue: 1, width: 80 },
+    { name: 'unit_price', label: 'Unit Price', type: 'currency', width: 120 },
+  ],
+  min_rows: 1,
+  max_rows: 50,
+  allow_add: true,
+  allow_delete: true,
+  allow_reorder: false,
+};
 ```
+
+A column's `width` is a **number** of pixels, and there is no per-column `editable`
+key: whether cells can be edited follows the field's own read-only state.
+
+The value being edited, and the `className` / `disabled` a host supplies, are **not**
+metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Column Types
 
@@ -158,12 +163,16 @@ const gridValue = [
 
 ## Cell Renderer
 
-In tables/grids, displays row count:
+In tables/grids, a `grid` value is shown as a compact placeholder, not as a
+nested table. It has no named renderer export of its own — the component is
+resolved by field type, which is the supported path for every type:
 
-```plaintext
-import { GridCellRenderer } from '@object-ui/fields';
+```ts
+import { getCellRenderer } from '@object-ui/fields';
 
-// Renders: "5 rows"
+const GridCell = getCellRenderer('grid');
+
+// <GridCell value={rows} field={field} /> renders: [Grid]
 ```
 
 ## Full Grid Functionality

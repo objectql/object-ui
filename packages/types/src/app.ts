@@ -51,7 +51,7 @@ import type {
   ActionNavItem as SpecActionNavItem,
   ComponentNavItem as SpecComponentNavItem,
 } from '@objectstack/spec/ui';
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 // ============================================================================
 // Unified Navigation Model (aligned with @objectstack/spec)
@@ -145,6 +145,33 @@ export interface NavigationItem {
    * Shape derived from the spec's object-nav variant (#3177).
    */
   filters?: SpecObjectNavItem['filters'];
+
+  /**
+   * Auto-run deep link (for type: 'object') — the name of an action on the
+   * target object that the list surface runs ONCE on arrival, through the same
+   * execute path as a click (so param dialogs, confirms and entitlement gates
+   * all still apply). Use for "take me straight into create" entries: a
+   * welcome-page CTA that should land the user IN the create dialog rather than
+   * on the list, hunting for a second button.
+   *
+   * Landing surface only: `runAction` describes the LIST surface, so it is
+   * ignored when `recordId` wins the precedence chain and the entry resolves to
+   * a record detail page instead. `NavigationRenderer.resolveHref` encodes it
+   * as the reserved `?runAction=` search param — {@link NAV_RUN_ACTION_PARAM}
+   * in `@object-ui/layout` is that param name's ONE definition, and the list
+   * toolbar reads it back through the same constant.
+   *
+   * The reference is validated at AUTHORING time, not here: `defineStack`'s
+   * cross-reference walk rejects a name no action declares ("deep-link
+   * references action '…' (via runAction)"). A client that arrives holding a
+   * name no action on the toolbar answers to runs nothing and — deliberately —
+   * does not consume the param, so a reload with fresher metadata can still
+   * honour it (the #4123 "arming is destructive" rule).
+   *
+   * Shape derived from the spec's object-nav variant (#3177); declared by
+   * `ObjectNavItemSchema.runAction` since objectstack#7253.
+   */
+  runAction?: SpecObjectNavItem['runAction'];
 
   /** Target dashboard name (for type: 'dashboard') */
   dashboardName?: string;

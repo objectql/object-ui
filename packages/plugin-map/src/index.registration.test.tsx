@@ -19,6 +19,20 @@ vi.mock('react-map-gl/maplibre', () => ({
   Popup: () => null,
 }));
 
+// AGENTS.md §9 测试纪律 — the assertion below re-imports this module after
+// `vi.resetModules()`, and that import drags in the whole component graph
+// (`@object-ui/components`, `@object-ui/react`, the map bindings). Loading it
+// for the FIRST time inside the test put an unbounded transform inside the 5s
+// test budget: this file timed out when run on its own and stayed green only
+// while a sibling file happened to warm the transform cache first — an order
+// dependency that broke as soon as the package gained another test file
+// (objectui#4941). Importing the same specifiers at module scope moves the cost
+// into the import phase, which no test/hook timeout bounds, and leaves the
+// in-test import to re-EXECUTE an already-transformed graph. The specifiers
+// must match the in-test ones exactly for the cache to serve them.
+import './index';
+import '@object-ui/core';
+
 /**
  * Regression pin for objectstack#7139: a leftover
  * `console.log('Registering object-map...')` sat at this module's top level, so

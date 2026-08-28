@@ -17,6 +17,7 @@ import {
 } from '@object-ui/components';
 import { ConfigRow } from '@object-ui/components';
 import { X } from 'lucide-react';
+import { pickLocalized, setLocalized } from '@object-ui/i18n';
 import type { ConfigPanelSchema, ConfigField } from '@object-ui/components';
 import type { WidgetDatasetCatalogEntry } from './dataset-catalog';
 import {
@@ -491,15 +492,91 @@ export interface WidgetConfigPanelProps {
 // Component
 // ---------------------------------------------------------------------------
 
-/** Resolve an I18nLabel (string or {key, defaultValue}) to a plain string. */
-function resolveLabel(v: unknown): string {
-  if (v === undefined || v === null) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'object') {
-    const obj = v as Record<string, any>;
-    return obj.defaultValue || obj.key || '';
+// ---------------------------------------------------------------------------
+// `I18nLabel` display and write-back (objectui#5301)
+//
+// A private `resolveLabel(v)` used to sit here, documented as resolving an
+// `I18nLabel` while reading `obj.defaultValue || obj.key` — the key-reference
+// form `@objectstack/spec` RETIRED at 17.0.0-rc.6 (objectstack#5055). The
+// inline per-locale map `I18nLabelSchema` actually admits has neither limb, so
+// it resolved `{ en: 'Revenue', 'zh-CN': '收入' }` to `''`. That was not a
+// display bug: the resolved value seeds the editable draft below, so a widget
+// whose stored title is a map opened with an EMPTY Title field and the next
+// save wrote `''` over the author's map. It was the fourth private copy of that
+// resolver; objectui#4032 swept the other three out of `DashboardRenderer`,
+// `MetricWidget` and `MetricCard`.
+//
+// Both halves now come from `@object-ui/i18n`, which is where the read rule and
+// the write rule are stated once (they have to agree — see `setLocalized`):
+//
+//   READ  `pickLocalized(value, language)` — show the active locale, like every
+//         sibling surface post-#4032.
+//   WRITE `setLocalized(stored, language, edited)` — replace ONLY the active
+//         locale's entry and carry every other locale across untouched.
+//
+// A full multi-locale editor — authoring every locale from this panel — is NOT
+// what this panel offers; it edits the active locale only. That remains an OPEN
+// product question and is deliberately not deferred to a tracker here: the
+// deferral this replaced named objectui#4163, which closed as completed on
+// 2026-08-15 with the question still unanswered.
+// ---------------------------------------------------------------------------
+
+/**
+ * The config keys this panel edits as plain single-line text while the spec
+ * types them `I18nLabel` — i.e. the keys whose stored value may be an inline
+ * locale map that one `<input >` cannot represent.
+ */
+const I18N_LABEL_KEYS = ['title', 'description'] as const;
+
+/** Is this stored value an inline locale map (rather than a plain string)? */
+function isLocaleMap(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Put the `I18nLabel` keys of a draft back into the shape they were stored in.
+ *
+ * The draft carries ONE string per label key — the active locale's, which is
+ * what the text input can hold. Persisting that string as the whole value is
+ * the data loss this card is about, so before a save each label key is mapped
+ * back against the value the panel was handed:
+ *
+ * - stored value is a plain string (or absent): nothing was ever collapsed, so
+ *   the draft's string is already the correct whole value — passed through.
+ * - stored value is a map and the draft's string still equals what the panel
+ *   DISPLAYED: the author never touched this field, so the **original object is
+ *   returned by reference**. An untouched title survives an unrelated config
+ *   edit byte-identically — the round trip the ruling requires, and the reason
+ *   this is an identity restore rather than a rebuild that would happen to
+ *   produce an equal object (a rebuild would add an entry for the active locale
+ *   to a map that never had one).
+ * - stored value is a map and the string differs: the edit lands in the active
+ *   locale's entry via `setLocalized`, every other locale preserved.
+ *
+ * Exported for direct unit testing — the panel path reaches it only through
+ * `useConfigDraft`, so a component test alone would be asserting that hook's
+ * behaviour as much as this rule.
+ */
+export function restoreI18nLabels(
+  draft: Record<string, any>,
+  source: Record<string, any>,
+  language: string | undefined,
+): Record<string, any> {
+  let out = draft;
+  for (const key of I18N_LABEL_KEYS) {
+    const stored = source?.[key];
+    if (!isLocaleMap(stored)) continue;
+    const edited = draft[key];
+    // Not a string ⇒ the draft still holds the stored value itself; there is
+    // nothing to merge back and nothing to lose.
+    if (typeof edited !== 'string') continue;
+    if (out === draft) out = { ...draft };
+    out[key] =
+      edited === pickLocalized(stored, language)
+        ? stored
+        : setLocalized(stored, language, edited);
   }
-  return String(v);
+  return out;
 }
 
 /**
@@ -547,17 +624,48 @@ export function WidgetConfigPanel({
   datasets,
   datasetsLoading: _datasetsLoading,
 }: WidgetConfigPanelProps) {
-  const { t } = useConfigPanelTranslation();
+  const { t, language } = useConfigPanelTranslation();
 
   // Pre-process config to resolve any I18nLabel values for title/description
+  // down to the ONE string a single-line text input can hold. `language` is a
+  // dependency and has to be: it is the locale the draft was seeded from, and
+  // `restoreI18nLabels` compares the draft against `pickLocalized(stored,
+  // language)` to tell "untouched" from "edited". Leaving it out would let a
+  // language switch mid-session leave a draft seeded from the OLD locale being
+  // compared against the NEW one — every untouched label would read as edited
+  // and get merged into the wrong entry. Re-seeding costs an in-progress edit
+  // on a language switch, which is the cheap half of that trade.
   const normalizedConfig: Record<string, any> = React.useMemo(() => ({
     ...config,
-    title: typeof config.title === 'object' ? resolveLabel(config.title) : config.title,
-    description: typeof config.description === 'object' ? resolveLabel(config.description) : config.description,
-  }), [config]);
+    title: typeof config.title === 'object' ? pickLocalized(config.title, language) : config.title,
+    description:
+      typeof config.description === 'object'
+        ? pickLocalized(config.description, language)
+        : config.description,
+  }), [config, language]);
+
+  // The live-update callback is the panel's OTHER way out, and it is a
+  // data-loss path of its own: hosts feed it straight back into the widget they
+  // re-open the panel from (`DashboardWithConfig` writes it into `liveSchema`,
+  // which is exactly where the next `config` prop comes from), and some persist
+  // it. Forwarding the bare editor string would put a plain string where the
+  // map was — the map then gone before a save ever ran. Same rule as the save
+  // path, applied per field.
+  const handleFieldChange = React.useCallback(
+    (field: string, value: any) => {
+      if (!onFieldChange) return;
+      const stored = config?.[field];
+      const localized =
+        (I18N_LABEL_KEYS as readonly string[]).includes(field) &&
+        isLocaleMap(stored) &&
+        typeof value === 'string';
+      onFieldChange(field, localized ? setLocalized(stored, language, value) : value);
+    },
+    [onFieldChange, config, language],
+  );
 
   const { draft, isDirty, updateField, discard } = useConfigDraft(normalizedConfig, {
-    onUpdate: onFieldChange,
+    onUpdate: handleFieldChange,
   });
 
   const schema = React.useMemo(
@@ -573,7 +681,9 @@ export function WidgetConfigPanel({
       draft={draft}
       isDirty={isDirty}
       onFieldChange={updateField}
-      onSave={() => onSave(sanitizeDraftForType(draft))}
+      onSave={() =>
+        onSave(sanitizeDraftForType(restoreI18nLabels(draft, config, language)))
+      }
       onDiscard={discard}
       headerExtra={headerExtra}
     />

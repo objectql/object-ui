@@ -89,7 +89,7 @@ import '@object-ui/plugin-calendar';
 // Now you can use calendar types in your schemas
 const schema = {
   type: 'calendar-view',
-  events: [
+  data: [
     {
       id: '1',
       title: 'Team Meeting',
@@ -100,48 +100,111 @@ const schema = {
 };
 ```
 
-### Manual Registration
+### What the side-effect import registers
+
+Registration is *only* a side effect of importing the package — the single
+`import '@object-ui/plugin-calendar'` above is the whole of it. There is no
+components map to iterate over: importing the entry point runs the
+`ComponentRegistry.register(...)` calls in `src/index.tsx` and
+`src/calendar-view-renderer.tsx`, which claim these schema types:
+
+| Schema `type` | Namespaced key | Renderer |
+| --- | --- | --- |
+| `object-calendar` | `plugin-calendar:object-calendar` | `ObjectCalendarRenderer` |
+| `calendar` | `view:calendar` | `ObjectCalendarRenderer` |
+| `calendar-view` | `plugin-calendar:calendar-view` | internal wrapper around `CalendarView` (not exported) |
+
+Both spellings work — the namespaced key and the bare `type` fallback.
+
+### Public exports
+
+The package exports components and their types, not a registry map:
 
 ```typescript
-import { calendarComponents } from '@object-ui/plugin-calendar';
-import { ComponentRegistry } from '@object-ui/core';
+import {
+  ObjectCalendar, // ObjectQL-integrated calendar component
+  CalendarView, // standalone calendar component
+  ObjectCalendarRenderer, // the registered renderer for `object-calendar` / `calendar`
+} from '@object-ui/plugin-calendar';
 
-// Register calendar components
-Object.entries(calendarComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
-});
+import type {
+  ObjectCalendarComponentProps,
+  CalendarViewProps,
+  CalendarViewEvent,
+} from '@object-ui/plugin-calendar';
+```
+
+To serve the calendar under a registry key of your own, register the exported
+renderer under that key:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import { ObjectCalendarRenderer } from '@object-ui/plugin-calendar';
+
+ComponentRegistry.register('my-calendar', ObjectCalendarRenderer);
 ```
 
 ## Schema API
 
 ### CalendarView
 
-Display a monthly calendar with events:
+Display a calendar computed from the node's `data` records. This is the full
+authored surface: `CalendarViewSchema` in `@object-ui/types` declares 13 keys of
+its own, converged on what the registered `calendar-view` renderer actually
+reads (objectui#5667). Two of them — `data` and `className` — refine common
+`BaseSchema` keys; the rest of `BaseSchema` (`id`, `visible`, ...) applies as on
+any node.
 
 ```typescript
 {
   type: 'calendar-view',
-  events?: CalendarEvent[],
-  defaultDate?: string,           // ISO date string
-  onEventClick?: (event) => void,
-  onDateClick?: (date) => void,
-  className?: string
+  data?: any,                       // records rendered as events (array, or a binding expression)
+  titleField?: string,              // default 'title'
+  startDateField?: string,          // default 'start'
+  endDateField?: string,            // default 'end'
+  allDayField?: string,             // default 'allDay'
+  colorField?: string,              // default 'color'
+  view?: CalendarViewMode,          // 'month' | 'week' | 'day' (default 'month')
+  currentDate?: string | Date,      // ISO string authored; Date from a React host
+  allowCreate?: boolean,            // default false — shows the "New event" button
+  className?: string,               // Tailwind classes for the container
+  onEventClick?: (event: CalendarEvent) => void,   // HOST-ONLY (see below)
+  onViewChange?: (view: CalendarViewMode) => void  // HOST-ONLY (see below)
 }
 ```
+
+There is deliberately **no authorable `events` key**: the renderer computes its
+events from `data` plus the field-name keys, and drops an authored `events`
+(objectui#4433). Nine formerly declared keys — `events`, `defaultView`,
+`defaultDate`, `date`, `views`, `editable`, `onEventCreate`, `onEventUpdate`,
+`onDateChange` — were retired in objectui#5667 because nothing read them on the
+authored-node path and no measured app authors them. `onDateClick` is **not**
+on this schema — it is a `CalendarViewProps` component prop (see
+[Drag-and-Drop](#drag-and-drop) and [Click-to-Create](#click-to-create)).
+
+> **The handlers are host-only.** `onEventClick` and `onViewChange` are
+> forwarded to the component only when the value really is a function, which
+> authored JSON can never produce — supply them from a React host
+> (`<SchemaRenderer ... onEventClick={fn} />`). Authored as JSON strings they
+> are dropped, same as absent.
 
 ### Calendar Event Structure
 
-```typescript
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;                  // ISO datetime string
-  end: string;                    // ISO datetime string
-  description?: string;
-  color?: string;                 // Tailwind color class
-  allDay?: boolean;
-}
+Events are not authored directly — the renderer computes one event per record
+in the node's `data` array, reading the fields the field-name keys point at:
+
+```text
+id:     record.id                 // falls back to record._id, then the array index
+title:  record[titleField]        // default field 'title'
+start:  record[startDateField]    // default field 'start' (ISO datetime string)
+end:    record[endDateField]      // default field 'end' (optional)
+allDay: record[allDayField]       // default field 'allDay'
+color:  record[colorField]        // default field 'color'
+data:   record                    // the whole record rides along
 ```
+
+`@object-ui/types` still exports the `CalendarEvent` interface — it is the
+declared payload type of the host-only `onEventClick` callback.
 
 ## Examples
 
@@ -150,7 +213,7 @@ interface CalendarEvent {
 ```typescript
 const schema = {
   type: 'calendar-view',
-  events: [
+  data: [
     {
       id: '1',
       title: 'Product Launch',
@@ -169,6 +232,11 @@ const schema = {
 };
 ```
 
+The records above already use the default field names (`title`, `start`, `end`,
+`color`), so no field-name keys are needed; point `titleField` /
+`startDateField` / `endDateField` / `allDayField` / `colorField` at your own
+fields when they differ.
+
 ### With ObjectQL Integration
 
 ```typescript
@@ -184,20 +252,27 @@ const schema = {
 
 ### Interactive Calendar
 
+The handlers are host-only — a function can only come from a React host
+building the node in code, never from authored JSON:
+
 ```typescript
 const schema = {
   type: 'calendar-view',
-  events: [],
+  data: [],
   onEventClick: (event) => {
     console.log('Event clicked:', event);
     // Open event details modal
   },
-  onDateClick: (date) => {
-    console.log('Date clicked:', date);
-    // Create new event
+  onViewChange: (view) => {
+    console.log('View changed:', view);
+    // React to the calendar switching between month/week/day
   }
 };
 ```
+
+Authored JSON reacts to clicks through the node's action channel instead
+(`allowCreate: true` dispatches `{ type: 'create' }`; event clicks dispatch
+`{ type: 'event-click' }`).
 
 ## ObjectQL Integration
 
@@ -232,27 +307,48 @@ Style the calendar with Tailwind classes:
 const schema = {
   type: 'calendar-view',
   className: 'border rounded-lg shadow-lg',
-  events: [...]
+  data: [...]
 };
 ```
 
 ## TypeScript Support
 
-```typescript
-import type { CalendarViewSchema, CalendarEvent } from '@object-ui/plugin-calendar';
+The **authored** (JSON metadata) types live in `@object-ui/types`, not in this
+package — this package imports them too, and does not re-export them:
 
-const event: CalendarEvent = {
-  id: '1',
-  title: 'Meeting',
-  start: '2024-01-15T10:00:00',
-  end: '2024-01-15T11:00:00'
-};
+```typescript
+import type { CalendarViewSchema } from '@object-ui/types';
 
 const schema: CalendarViewSchema = {
   type: 'calendar-view',
-  events: [event]
+  data: [
+    { id: '1', name: 'Meeting', begins: '2024-01-15T10:00:00', ends: '2024-01-15T11:00:00' }
+  ],
+  titleField: 'name',
+  startDateField: 'begins',
+  endDateField: 'ends',
+  view: 'week',
+  allowCreate: true
 };
 ```
+
+> **Two calendar event types — pick by which side you are on.**
+> `@object-ui/types` exports **`CalendarEvent`**, the AUTHORING event
+> (`id: string`, `start` / `end` accept ISO strings with `end` required, plus
+> `description`) — since objectui#5667 it is no longer part of the authored
+> surface (a `calendar-view` node carries `data` records, not events; see
+> [Calendar Event Structure](#calendar-event-structure)), but it remains the
+> declared payload type of the host-only `onEventClick` callback. This package
+> exports **`CalendarViewEvent`** (`CalendarViewProps['events']`), the
+> `CalendarView` **component's runtime** type: `id: string | number` and
+> `start: Date` / `end?: Date`. They are not interchangeable — neither is
+> assignable to the other.
+>
+> Both were spelled `CalendarEvent` until objectui#5044, where IDE auto-import
+> chose between them at random and the wrong pick failed as a remote `TS2322`
+> about `Date`. This package still exports `CalendarEvent` as a **`@deprecated`
+> alias of `CalendarViewEvent`**, so existing importers keep compiling; write
+> `CalendarViewEvent` in new code.
 
 ## Links
 

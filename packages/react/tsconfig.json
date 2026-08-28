@@ -6,7 +6,27 @@
     "jsx": "react-jsx",
     "noEmit": false,
     "declaration": true,
-    "composite": true
+    "composite": true,
+
+    // Node's ESM resolver does NOT extension-search relative specifiers, so an
+    // extensionless `./SchemaRenderer` in the emitted dist is unloadable under
+    // plain Node (`ERR_MODULE_NOT_FOUND`) — objectui#4538. `tsc` never rewrites
+    // specifiers, so what the source writes is what dist ships; the only way to
+    // keep the extensions is to have the compiler REJECT a missing one.
+    //
+    // These two override the root's `"module": "ESNext"` /
+    // `"moduleResolution": "bundler"` for THIS package only (the root is shared
+    // by 38 packages — flipping it there is a different change). Under
+    // `nodenext` a missing extension is TS2835 and a bare directory import is
+    // TS2834, so the property is enforced at compile time rather than by
+    // review. Emit is unchanged: package.json is `"type": "module"`, so
+    // `nodenext` emits the same ESM `ESNext` did.
+    //
+    // Runtime loadability is pinned separately by `pnpm check:node-esm-load`
+    // (scripts/check-node-esm-load.mjs), which actually imports the built entry
+    // under plain Node — resolution alone would not have caught this.
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],

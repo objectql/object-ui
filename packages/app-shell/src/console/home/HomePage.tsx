@@ -17,23 +17,32 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMetadata } from '../../providers/MetadataProvider';
-import { useRecentItems } from '../../hooks/useRecentItems';
-import { useFavorites } from '../../hooks/useFavorites';
+import { useMetadata } from '../../providers/MetadataProvider.js';
+import { useRecentItems } from '../../hooks/useRecentItems.js';
+import { useFavorites } from '../../hooks/useFavorites.js';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { usePermissions } from '@object-ui/permissions';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
-import { HomeAppsStrip } from './HomeAppsStrip';
-import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
-import { useHomeInbox } from '../../hooks/useHomeInbox';
-import { useNavigationContext } from '../../context/NavigationContext';
-import { appRouteSegment, filterActiveApps, resolveHostAppSegment } from '../../utils';
+// May this session author metadata? Shared with the chat surfaces since the
+// maker convergence (cloud#1674) — the doctrine (objectstack#8270 posture,
+// unknown→fail-open) lives with the hook.
+import { useCanAuthorMetadata } from '../../hooks/useCanAuthorMetadata.js';
+import { HomeAppsStrip } from './HomeAppsStrip.js';
+import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail.js';
+import { useHomeInbox } from '../../hooks/useHomeInbox.js';
+import { useNavigationContext } from '../../context/NavigationContext.js';
+import {
+  appRouteSegment,
+  filterActiveApps,
+  resolveHostAppSegment,
+  resolveNotificationTarget,
+} from '../../utils/index.js';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
-import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
-import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
-import { resolveAiApiBase } from '../../hooks/useAiSurface';
+import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
+import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts.js';
+import { resolveAiApiBase } from '../../hooks/useAiSurface.js';
+import { isAiStudioEnabled, isMarketplaceEnabled } from '../../runtime-config.js';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -59,44 +68,6 @@ function useHomeAiAvailability(): {
     // cloud#816 — authoring availability by DECLARED capability (name-check fallback inside).
     buildAvailable: agents.some((a) => agentHasCapability(agents, a.name, 'authoring')),
   };
-}
-
-/**
- * [ADR-0066] The system capability every metadata-authoring surface behind the
- * home CTAs ultimately requires. The server is the authority (it refuses the
- * write either way); what follows is only the presentational half.
- */
-const AUTHORING_CAPABILITY = 'manage_metadata';
-
-/**
- * May this session author metadata?
- *
- * objectstack#8270 — on the EE single-database multi-tenant deployment a
- * workspace owner holds `org_owner` + `organization_admin` but NOT
- * `manage_metadata`; that absence is the intended hosted posture (maintainer
- * ruling 2026-08-13), not a missing grant. `useIsWorkspaceAdmin` reads ROLES,
- * so it says `true` for that owner and the builder CTAs rendered — the owner
- * followed "Build an app", filled in the new-package dialog, and hit a raw
- * capability refusal at submit. This consumes the answer the server already
- * gives (`GET /api/v1/auth/me/permissions` → `systemPermissions`, surfaced by
- * `MePermissionsProvider`); it does NOT re-derive permission logic client-side.
- *
- * **Unknown → fail OPEN**, the same doctrine `useCapabilityGate` states for
- * ADR-0066 gates (framework#3923): the server enforces regardless, and hiding a
- * permitted user's primary CTA on missing client data is the worse failure.
- * `MePermissionsProvider` now preserves the absent-vs-empty distinction
- * natively (objectui#4656) — `hasCapabilities` itself returns `true` when the
- * backend never reported `systemPermissions` at all (a deployment predating
- * ADR-0066), and gates normally on a real answer, including a genuinely
- * EMPTY one. This hook no longer re-derives that heuristic locally; it just
- * asks the centralized signal. The ruled case is unaffected: the EE owner's
- * set is non-empty (`manage_org_users`, `setup.access`, `setup.write`), so it
- * gates closed. Hosts with no permission provider at all already fail open
- * inside `usePermissions`.
- */
-function useCanAuthorMetadata(): boolean {
-  const { hasCapabilities } = usePermissions();
-  return hasCapabilities([AUTHORING_CAPABILITY]);
 }
 
 /**
@@ -190,9 +161,12 @@ function HomeAiActions({
           {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
         </Button>
       )}
-      {askAvailable && (
+      {/* cloud#1674 maker convergence: with the build CTA shown, "Ask AI" is
+          not a second door — the build composer answers data questions too
+          (data superset since cloud#1673), and `/ai/ask` would bounce a maker
+          straight back to `/ai/build`. Non-authoring sessions keep it. */}
+      {askAvailable && !showBuild && (
         <Button
-          variant={showBuild ? 'outline' : 'default'}
           onClick={() => navigate('/ai/ask')}
           data-testid="home-ask-ai"
         >
@@ -222,38 +196,22 @@ function pickGreetingKey(hour: number): string {
  * (listDrafts → 0).
  */
 function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) {
-  const client = useMetadataClient();
-  const [drafts, setDrafts] = useState<Array<{ type: string; name: string }>>([]);
   // Shared one-click publish (also used by the ADR-0037 draft-preview bar):
   // packages via the probed publish-drafts path, orphans by reference, health
   // surfaced in toasts. See usePublishAllDrafts for the full story.
   const { publishAll, publishing } = usePublishAllDrafts(t);
-  const count = drafts.length;
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.resolve(client.listDrafts?.({}))
-      .then((rows) => {
-        if (cancelled || !Array.isArray(rows)) return;
-        setDrafts(
-          rows
-            .filter((d: any) => d && typeof d.type === 'string' && typeof d.name === 'string')
-            .map((d: any) => ({ type: d.type, name: d.name })),
-        );
-      })
-      .catch(() => { /* drafts unsupported / error → don't show */ });
-    return () => { cancelled = true; };
-  }, [client]);
+  // objectui#5801 — env-wide scope, from the shared pending-drafts source.
+  // The bus subscription inside the hook replaces both the mount-only fetch
+  // (which never saw later edits) and the post-publish window.location.reload
+  // (publishAll now emits the metadata-refresh pulse; the launcher/nav refresh
+  // through MetadataProvider's subscription to the same pulse).
+  const { count } = usePendingDrafts({});
 
   const publish = async () => {
-    const result = await publishAll();
-    if (!result.ok) return;
-    setDrafts([]);
-    // Surface the now-live app — reload so the populated home shows it.
-    setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 700);
+    await publishAll();
   };
 
-  if (count <= 0) return null;
+  if ((count ?? 0) <= 0) return null;
   return (
     <div className="px-4 sm:px-6 lg:px-8 pt-4">
       <div className="max-w-7xl mx-auto">
@@ -348,7 +306,7 @@ export function HomePage() {
   const { recentItems } = useRecentItems();
   const { favorites } = useFavorites();
   const { user } = useAuth();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin, isResolved: isAdminResolved } = useWorkspaceAdminStatus();
   const { pendingApprovalsCount, notifications, unreadTopicCount, notificationsStatus, activities } =
     useHomeInbox();
   // Home renders OUTSIDE the `/apps/:appName/*` router, so there is no
@@ -365,12 +323,33 @@ export function HomePage() {
   // `org_owner` is an admin (`isAdmin === true`) yet deliberately holds no
   // `manage_metadata`, so role alone offered a front door the backend refuses.
   const canAuthorMetadata = useCanAuthorMetadata();
+  // objectui#5504 — a runtime deployed with `OS_CLOUD_URL=off` (the EE
+  // deploy template's shipped default) mounts no marketplace at all. Home
+  // used to recommend it first and error afterwards; that ORDERING was the
+  // injury, so the recommendation goes when the capability does.
+  const marketplaceEnabled = isMarketplaceEnabled();
+  // objectui#5521 — the DEPLOYMENT's own answer to "is metadata authoring
+  // offered here at all", distinct from the per-principal `canAuthorMetadata`
+  // above. `features.aiStudio` is derived server-side from the same resolution
+  // that decides whether the authoring agent is mounted, so on the composed
+  // hosted-SaaS shape it arrives `false` while the ToolRegistry holds zero
+  // authoring handlers and `/api/v1/meta/*` answers 403.
+  //
+  // objectui#5577 — read through the accessor, not inline. `features?.` and
+  // `!== false` are both load-bearing, and the reasoning for each now lives in
+  // exactly one place (`isAiStudioEnabled()`'s docblock) instead of being
+  // retyped per call site: that is what the accessor buys. `ChatDock`'s read
+  // was the same doctrine spelled a second, un-chained way.
+  const aiStudioEnabled = isAiStudioEnabled();
   // Shown wherever an authoring entry point is withheld, so the posture is
   // explained on screen instead of surfacing as a refusal after a filled-in
   // dialog. Localized in all ten packs.
   const authoringGateReason = t('home.build.noCapability', {
     defaultValue:
       "Building apps isn't available in this workspace — it requires the “Manage Metadata” permission, which your account doesn't have.",
+  });
+  const marketplaceGateReason = t('home.template.marketplaceDisabled', {
+    defaultValue: 'This runtime has no app marketplace configured, so there are no templates to install here.',
   });
 
   const activeApps = filterActiveApps(apps);
@@ -401,7 +380,14 @@ export function HomePage() {
   const greeting = useMemo(() => t(pickGreetingKey(new Date().getHours()), { defaultValue: 'Welcome' }), [t]);
   const displayName = (user?.name?.trim() || user?.email?.split('@')[0] || '').trim();
 
-  if (loading) {
+  // objectui#5619 — `isAdminResolved` joins the metadata wait for the same
+  // reason it joins `AppContent`'s: Home is the OTHER route that renders admin-
+  // gated affordances, and it is outside `AppContent`'s gate. Landing here with
+  // the verdict still in flight drops the admin entries and adds them back a
+  // moment later. `isResolved` is true the instant `isAdmin` is, so an admin the
+  // session already identifies waits nothing; this only holds the frame that
+  // would otherwise be built on a guess.
+  if (loading || !isAdminResolved) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
         <div className="text-muted-foreground">{t('home.loading', { defaultValue: 'Loading workspace…' })}</div>
@@ -535,17 +521,42 @@ export function HomePage() {
           {isAdmin && (
             <div className="mb-6">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <BuilderCoverCard
-                  icon={Hammer}
-                  title={t('home.build.title', { defaultValue: 'Build an app' })}
-                  subtitle={t('home.build.subtitle', {
-                    defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
-                  })}
-                  onClick={() => navigate('/studio')}
-                  disabled={!canAuthorMetadata}
-                  disabledReason={authoringGateReason}
-                  testId="home-build-app"
-                />
+                {/* objectui#5521 — HIDDEN, not dimmed, when the runtime reports
+                  * `features.aiStudio: false`. The distinction is the flag's own
+                  * declared meaning, not a presentation preference: `RuntimeFeatures`
+                  * documents it as "when false, the SPA HIDES the AI authoring
+                  * affordances", and the serving plugin as "set false to force-hide
+                  * the authoring UI". Honouring a producer's declared semantics is
+                  * the whole point of reading its flag.
+                  *
+                  * It is also the honest answer here. `!canAuthorMetadata` is a fact
+                  * about THIS PRINCIPAL — a dimmed card plus a reason line tells an
+                  * admin something actionable about their own account, which is why
+                  * that case stays disabled-with-reason. `aiStudio: false` is a fact
+                  * about the DEPLOYMENT: authoring exists for nobody here, there is no
+                  * permission to acquire and no admin to ask, so a permanently greyed
+                  * front door would advertise a room that was never built. That is the
+                  * misdirection class objectui#5557 names — reporting the wrong KIND
+                  * of answer — applied to a card instead of a page.
+                  *
+                  * Deliberately NOT extended to "Start with a template": installing a
+                  * marketplace package is not AI metadata authoring, it has its own
+                  * flags (`features.marketplace` / `installLocal`), and objectui#5504
+                  * already ruled disable-and-explain for it. Its flag means
+                  * reachability; this one means force-hide. */}
+                {aiStudioEnabled && (
+                  <BuilderCoverCard
+                    icon={Hammer}
+                    title={t('home.build.title', { defaultValue: 'Build an app' })}
+                    subtitle={t('home.build.subtitle', {
+                      defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
+                    })}
+                    onClick={() => navigate('/studio')}
+                    disabled={!canAuthorMetadata}
+                    disabledReason={authoringGateReason}
+                    testId="home-build-app"
+                  />
+                )}
                 <BuilderCoverCard
                   icon={LayoutTemplate}
                   title={t('home.template.title', { defaultValue: 'Start with a template' })}
@@ -553,8 +564,8 @@ export function HomePage() {
                     defaultValue: 'Install a template app from the marketplace and customize it.',
                   })}
                   onClick={() => navigate('/apps/setup/system/marketplace')}
-                  disabled={!canAuthorMetadata}
-                  disabledReason={authoringGateReason}
+                  disabled={!canAuthorMetadata || !marketplaceEnabled}
+                  disabledReason={canAuthorMetadata ? marketplaceGateReason : authoringGateReason}
                   testId="home-start-template"
                 />
               </div>
@@ -567,6 +578,19 @@ export function HomePage() {
                   data-testid="home-authoring-gate-reason"
                 >
                   {authoringGateReason}
+                </p>
+              )}
+              {/* Same shape, different cause: the capability is present but
+                  this runtime has no marketplace to spend it on. Rendered only
+                  when the authoring reason is NOT already on screen, so a
+                  deployment missing both never stacks two explanations for one
+                  greyed-out card. */}
+              {canAuthorMetadata && !marketplaceEnabled && (
+                <p
+                  className="mt-2 text-xs text-muted-foreground"
+                  data-testid="home-marketplace-disabled-reason"
+                >
+                  {marketplaceGateReason}
                 </p>
               )}
             </div>
@@ -590,6 +614,11 @@ export function HomePage() {
                strip-header link, with the cover's reason line already on
                screen). */
             canAuthorMetadata={canAuthorMetadata}
+            /* objectui#5504 — same reason as the gate above: this button
+               targets the very route that 404s on a marketplace-less runtime,
+               so it goes with the capability rather than leading into the
+               error card. */
+            marketplaceEnabled={marketplaceEnabled}
           />
 
           {/* Action center — what needs the user; leads the dashboard */}
@@ -602,12 +631,29 @@ export function HomePage() {
               unreadTopicCount={unreadTopicCount}
               notificationsStatus={notificationsStatus}
               onOpenApprovals={() => navigate(`/apps/${hostAppSegment}/system/approvals`)}
-              /* The fallback arm runs whenever a notification carries no
-                 `action_url`; `?view=mine` selects the user-scoped view, so the
-                 full page matches what the card showed (objectui#4074). */
-              onOpenNotification={(n) =>
-                navigate(n.actionUrl || `/apps/${hostAppSegment}/sys_inbox_message?view=mine`)
-              }
+              /* `action_url` is APP-RELATIVE (`/{object}/{id}`, ADR-0030 L5),
+                 so it has to be hosted under an app before it is a route —
+                 navigating it verbatim is objectui#5179, where the console
+                 catch-all forwarded the unmatched path to `/` and the landing
+                 resolver dropped the user on the default app's home with the
+                 notification already marked read. `resolveNotificationTarget`
+                 is shared with the top-bar bell so the two cannot answer this
+                 differently. The fallback arm runs whenever a notification
+                 carries no link at all; `?view=mine` selects the user-scoped
+                 view, so the full page matches what the card showed
+                 (objectui#4074). */
+              onOpenNotification={(n) => {
+                const target = resolveNotificationTarget(n.actionUrl, hostAppSegment);
+                if (!target) {
+                  navigate(`/apps/${hostAppSegment}/sys_inbox_message?view=mine`);
+                  return;
+                }
+                if (target.kind === 'external') {
+                  window.open(target.url, '_blank', 'noopener,noreferrer');
+                  return;
+                }
+                navigate(target.path);
+              }}
               t={t}
             />
           </div>

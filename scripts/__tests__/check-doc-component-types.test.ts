@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,13 +9,14 @@ import { fileURLToPath } from 'node:url';
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
 import { analyze, deriveRegistryKeys, scanDocs } from '../check-doc-component-types.mjs';
+import { blank, scanSource } from '../js-comment-mask.mjs';
 
 /**
  * objectui#4823 — the test for `scripts/check-doc-component-types.mjs`.
  *
  * The gate answers one question: does every `type` string literal in a
- * `content/docs/**.mdx` code block name a component this repository actually
- * registers. Nothing rendered or parsed those snippets before it, so the same
+ * `content/docs/**` code block — `.mdx` and `.md` alike — name a component this
+ * repository actually registers. Nothing rendered or parsed those snippets before it, so the same
  * defect landed three times (objectui#4786 `stats-card`, objectui#4796
  * `plugin:grid` and `plugin:map`) and CI was green through all three.
  *
@@ -253,6 +255,31 @@ describe('the docs scan reads code blocks, in both spellings, and only code bloc
     expect(sites).toEqual([]);
   });
 
+  it('collects `.md` pages as well as `.mdx` — the extension is not a coverage decision', () => {
+    // objectui#5342. The collector used to walk `.mdx` only, so 40 `.md` guides
+    // under the SAME tree were neither judged nor declared. This asserts the
+    // walk, not the verdict: revert `DOC_EXTENSIONS` to `['.mdx']` and the
+    // `from-md` site disappears while every other test in this file stays green.
+    const { sites, counters } = withTree((write) => {
+      write('content/docs/a.mdx', ['```json', '{ "type": "from-mdx" }', '```'].join('\n'));
+      write('content/docs/guide/b.md', ['```json', '{ "type": "from-md" }', '```'].join('\n'));
+      // Not a page: the `meta.json` sidecars fumadocs keeps beside the prose.
+      write('content/docs/meta.json', '{ "pages": ["a"] }');
+    }, (dir) => scanDocs(dir));
+    expect(sites.map((s) => s.value).sort()).toEqual(['from-md', 'from-mdx']);
+    expect(counters.files).toBe(2);
+  });
+
+  it('judges a `.md` page by the same rule, so an unregistered type there is a finding', () => {
+    const { findings } = withTree((write) => {
+      write('packages/demo/src/index.tsx', "ComponentRegistry.register('div', C, { namespace: 'ui' });\n");
+      write('content/docs/guide/b.md', ['```json', '{ "type": "not-a-component" }', '```'].join('\n'));
+    }, (dir) => analyze(dir, BARE));
+    const f = findings as Finding[];
+    expect(f.map((x) => x.reason)).toContain('unregistered-doc-type');
+    expect(f.find((x) => x.reason === 'unregistered-doc-type')?.site).toBe('content/docs/guide/b.md:2');
+  });
+
   it('reports an unterminated fence rather than guessing where code stops', () => {
     const { findings } = withTree((write) => {
       write('content/docs/x.mdx', ['```json', '{ "type": "div" }'].join('\n'));
@@ -367,9 +394,246 @@ describe('the scan cannot collapse quietly', () => {
     expect(counters.registered).toBeGreaterThan(400);
   });
 
+  it('really walks the `.md` half of this tree — the objectui#5342 widening, pinned', () => {
+    // A repo-level assertion because the fixture above proves only the
+    // mechanism. `content/docs` holds 143 `.mdx` and 40 `.md`; a revert to
+    // `.mdx`-only drops ~323 `type` literals out of the scan and this repository
+    // stays green while judging none of them.
+    const { sites, counters } = scanDocs(repoRoot);
+    const mdFiles = new Set(sites.filter((s: { file: string }) => s.file.endsWith('.md')).map((s: { file: string }) => s.file));
+    expect(mdFiles.size, 'no `.md` page carries a scanned `type` literal — the collector narrowed').toBeGreaterThan(15);
+    expect(mdFiles.has('content/docs/api/schema-reference.md')).toBe(true);
+    expect(counters.files).toBeGreaterThan(170);
+  });
+
   it('this repository is green', () => {
     const findings = analyze(repoRoot).findings as Finding[];
     expect(findings.map((f) => `${f.reason} :: ${f.site} :: ${f.value ?? ''}`)).toEqual([]);
+  });
+});
+
+// ── objectui#5106: the key-table surface ─────────────────────────────────────
+
+/**
+ * objectui#5106 — the gate's second scan surface.
+ *
+ * Two measured facts on the card, both reproduced below as fixtures:
+ *
+ *  1. The objectui#5002 family replaced eight plugin pages' fictional
+ *     registration loops with a markdown KEY TABLE. The new form is right, and
+ *     it landed entirely outside a scan surface that reads fenced code only — so
+ *     a fake key in a table was GREEN while the same fake key in a fence was RED.
+ *  2. The gate never judged a NAMESPACE at all. It compared bare keys against a
+ *     universe that merely happens to contain namespaced ones, so flipping a
+ *     registration's `namespace` left every doc that teaches the old namespace
+ *     green.
+ *
+ * The false-positive corpus in `does not read a table that is not a key table`
+ * is the reason the anchor is the table HEADER rather than the row shape, and it
+ * is taken from this repository rather than invented — see the gate's header for
+ * the measurement (33 rows matched by the row heuristic, only 22 of them keys).
+ */
+describe('objectui#5106 — plugin key tables are judged, on both halves', () => {
+  /** A tree with one registration and one key table over it. */
+  const tableTree = (rows: string[], registration: string) =>
+    withTree((write) => {
+      write('packages/demo/src/index.tsx', registration);
+      write(
+        'content/docs/plugins/demo.mdx',
+        ['# Demo', '', '| Namespaced key | Bare-name fallback | Renderer behind it |', '| --- | --- | --- |', ...rows, ''].join(
+          '\n',
+        ),
+      );
+    }, (dir) => analyze(dir, BARE));
+
+  const REG = "ComponentRegistry.register('widget', W, { namespace: 'view' });\n";
+
+  it('passes a row whose halves both name registered keys', () => {
+    const { findings, counters } = tableTree(['| `view:widget` | `widget` | `W` |'], REG);
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTables).toBe(1);
+    expect(counters.keyTableRows).toBe(1);
+    expect(counters.keyTableKeys).toBe(2);
+  });
+
+  it('reds a table row that names a key nothing registers — the surface that was green', () => {
+    // The card's own reproduction: a fake key in the TABLE, which produced
+    // `rc=0, Every documented component type is registered.` before this landed.
+    const findings = tableTree(
+      ['| `view:widget` | `widget` | `W` |', '| `view:phantom-widget` | `phantom-widget` | nothing registers this |'],
+      REG,
+    ).findings as Finding[];
+    expect(findings.map((f) => `${f.reason} :: ${f.value}`)).toEqual([
+      'unregistered-key-table-key :: view:phantom-widget',
+      'unregistered-key-table-key :: phantom-widget',
+    ]);
+  });
+
+  it('⭐ judges the NAMESPACED half — a namespace move reds the doc that teaches the old one', () => {
+    // The half objectui#5106 was filed for. Same table, same bare name, only the
+    // registration's `namespace` differs: `deriveRegistryKeys` follows it live,
+    // so the row's namespaced cell is the ONLY thing that can notice.
+    const rows = ['| `view:widget` | `widget` | `W` |'];
+    expect(tableTree(rows, REG).findings as Finding[]).toEqual([]);
+
+    const moved = tableTree(rows, "ComponentRegistry.register('widget', W, { namespace: 'dash' });\n");
+    const findings = moved.findings as Finding[];
+    expect(
+      findings.map((f) => `${f.reason} :: ${f.value}`),
+      'the bare half still matches, so a gate that judges only bare keys stays green here',
+    ).toEqual(['unregistered-key-table-key :: view:widget']);
+  });
+
+  it('accepts the declared "none — `skipFallback: true`" fallback, and does not assert the negative', () => {
+    // The universe is a UNION across the repo, so a call skipping its own bare
+    // fallback says nothing about whether another package registers that bare
+    // name — and in this tree one does. Asserting the negative would red a
+    // correct row (`plugins/plugin-grid.mdx:185` is the live specimen).
+    const { findings, counters } = tableTree(
+      ['| `view:widget` | none — `skipFallback: true` | `W` |'],
+      "ComponentRegistry.register('widget', W, { namespace: 'view', skipFallback: true });\n" +
+        "OtherRegistry.register('widget', Other);\n",
+    );
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTableRows).toBe(1);
+    expect(counters.keyTableKeys, 'only the namespaced half is a judgeable key here').toBe(1);
+  });
+
+  it('does not read a table that is not a key table — the false-positive corpus', () => {
+    // Every row here matches the rejected row heuristic ("backticked cell with a
+    // colon, then a backticked cell") and none of them is a component key. They
+    // are the real shapes this repository writes: React route patterns, URLs,
+    // HTTP routes and JSON literals. A gate that reds on these is worse than no
+    // gate, because false RED on correct docs is the expensive direction.
+    const findings = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/guide/routes.md',
+        [
+          '| Route Pattern | Component | Purpose |',
+          '| --- | --- | --- |',
+          '| `/apps/:appName/:objectName` | `ObjectView` | Object list |',
+          '| `http://localhost:5173/` | `LocalBundleLoader` | bundled JSON |',
+          '| `GET /api/v1/meta/items/:type` | `effective._diagnostics` | per item |',
+          '| `{ "type": "object", "objectName": "project" }` | `/apps/my_app/project` | default view |',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) => analyze(dir, BARE).findings as Finding[]);
+    expect(findings).toEqual([]);
+  });
+
+  it('does not read a key table drawn INSIDE a code fence', () => {
+    // A table inside a fence is an example OF a table, not a claim about this
+    // repository — the mirror of the rule that a fenced `type` IS a claim.
+    const { findings, counters } = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/plugins/demo.mdx',
+        [
+          '# Demo',
+          '',
+          '```markdown',
+          '| Namespaced key | Bare-name fallback | Renderer behind it |',
+          '| --- | --- | --- |',
+          '| `view:phantom-widget` | `phantom-widget` | nothing registers this |',
+          '```',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) => analyze(dir, BARE));
+    expect(findings as Finding[]).toEqual([]);
+    expect(counters.keyTables).toBe(0);
+  });
+
+  it('reports a row it cannot read rather than skipping it', () => {
+    // A row this gate cannot parse is a row it silently stops guarding, which is
+    // how a scan narrows itself into vacuity one page at a time.
+    const findings = tableTree(['| ObjectGrid | `widget` | prose, not a key |'], REG).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toEqual(['unreadable-key-table-row']);
+  });
+
+  it('does not let DOC_TYPE_EXEMPTIONS silence a table row', () => {
+    // Exemptions declare "this value belongs to another vocabulary". A row under
+    // a header that says "Namespaced key" has already declared its vocabulary, so
+    // an exemption there would be a lie rather than a fact — the escape hatch is
+    // deliberately absent.
+    const findings = withTree((write) => {
+      write('packages/demo/src/index.tsx', REG);
+      write(
+        'content/docs/plugins/demo.mdx',
+        [
+          '| Namespaced key | Bare-name fallback | Renderer behind it |',
+          '| --- | --- | --- |',
+          '| `view:phantom-widget` | `phantom-widget` | nothing registers this |',
+          '',
+        ].join('\n'),
+      );
+    }, (dir) =>
+      analyze(dir, {
+        ...BARE,
+        exemptions: { 'content/docs/plugins/demo.mdx': { 'view:phantom-widget': 'a written reason', 'phantom-widget': 'ditto' } },
+      }).findings as Finding[],
+    );
+    expect(findings.map((f) => f.reason)).toEqual([
+      'unregistered-key-table-key',
+      'unregistered-key-table-key',
+      // The exemptions went unhit, which is itself reported — an exemption that
+      // matches nothing widens the hole for the next snippet that lands there.
+      'stale-exemption',
+      'stale-exemption',
+    ]);
+  });
+
+  it('this repository has key tables, and every key in them is registered', () => {
+    // The repo-level half. The fixtures above prove the mechanism; this proves
+    // the mechanism is pointed at something. `content/docs` carries the
+    // objectui#5002 family's four plugin key tables.
+    const { counters, findings } = analyze(repoRoot);
+    expect(counters.keyTables, 'the family form vanished, or the header was renamed').toBeGreaterThanOrEqual(4);
+    expect(counters.keyTableRows).toBeGreaterThanOrEqual(24);
+    expect(counters.keyTableKeys).toBeGreaterThanOrEqual(45);
+    expect(counters.keyTableKeys).toBe(counters.keyTableRegistered);
+    expect((findings as Finding[]).filter((f) => f.reason.includes('key-table'))).toEqual([]);
+  });
+
+  it('really reads the four plugin pages, not just some table somewhere', () => {
+    const { tableRows } = scanDocs(repoRoot) as { tableRows: { file: string; namespaced: string }[] };
+    expect([...new Set(tableRows.map((r) => r.file))].sort()).toEqual([
+      'content/docs/plugins/plugin-dashboard.mdx',
+      'content/docs/plugins/plugin-form.mdx',
+      'content/docs/plugins/plugin-grid.mdx',
+      'content/docs/plugins/plugin-view.mdx',
+    ]);
+    expect(tableRows.map((r) => r.namespaced)).toContain('`view:dashboard`');
+  });
+});
+
+describe('objectui#5106 — a floor that names no counter is not a floor', () => {
+  // `FLOORS.docFiles` named a counter that never existed (`scanDocs` publishes
+  // `files`), so it compared `undefined`, which is never below anything. The one
+  // floor whose job is to catch the walk finding NOTHING was inert for its whole
+  // life. Fixed by spelling, and the CLASS closed by the guard this pins.
+  const script = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+
+  it('every FLOORS key names a counter `analyze` really publishes', () => {
+    const block = /const FLOORS = \{([\s\S]*?)\n\};/.exec(script);
+    expect(block, 'FLOORS moved or changed shape').not.toBeNull();
+    const keys = [...block![1].matchAll(/^\s*([A-Za-z]\w*):\s*\d+,/gm)].map((m) => m[1]);
+    expect(keys.length, 'no floors parsed — the assertion below would be vacuous').toBeGreaterThan(4);
+    const counters = analyze(repoRoot).counters as Record<string, number>;
+    for (const key of keys) {
+      expect(Object.hasOwn(counters, key), `FLOORS.${key} names no counter, so it can never fail`).toBe(true);
+    }
+  });
+
+  it('does not reintroduce the `docFiles` spelling', () => {
+    expect(script, 'the counter is `files`; `docFiles` compares undefined').not.toMatch(/\bdocFiles\b\s*:/);
+  });
+
+  it('the guard rejects a mis-keyed floor at runtime, not just in review', () => {
+    expect(script).toMatch(/Object\.hasOwn\(counters, key\)/);
+    expect(script).toContain('A floor over a missing counter compares');
   });
 });
 
@@ -408,6 +672,49 @@ describe('the three snippets this gate found on its first run stay fixed', () =>
 
 // ── 6. the wiring ────────────────────────────────────────────────────────────
 
+describe('objectui#5342 — the key errors the widened collector found stay fixed', () => {
+  // Named rather than left to the repo-wide green assertion, for the same reason
+  // the block above names its three: these are the live specimens the extension
+  // widening produced, and a revert would otherwise read as an unrelated
+  // regression somewhere in a 183-file scan. Each one rendered the OBJUI-001
+  // "Unknown component type" panel for a reader who copied it.
+  const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+
+  it('the CRUD guide spells the registered keys, not the PascalCase component names', () => {
+    const body = read('content/docs/guide/building-crud-app.md');
+    for (const wrong of ['ObjectGrid', 'ObjectForm', 'ObjectDetail']) {
+      expect(body, `${wrong} is a component NAME; the registry key is lower-kebab`).not.toContain(
+        `type: '${wrong}'`,
+      );
+    }
+    expect(body).toContain("type: 'object-grid'");
+    expect(body).toContain("type: 'object-form'");
+    expect(body).toContain("type: 'detail-view'");
+  });
+
+  it('the two empty-state snippets spell `empty`, the key EmptySchema declares', () => {
+    // packages/types/src/feedback.ts declares `type: 'empty'` and
+    // packages/components/src/renderers/feedback/empty.tsx registers it.
+    for (const rel of ['content/docs/guide/expressions.md', 'content/docs/guide/schema-rendering.md']) {
+      expect(read(rel), `${rel} still teaches empty-state`).not.toContain('"type": "empty-state"');
+      expect(read(rel)).toContain('"type": "empty"');
+    }
+  });
+
+  it('the playground teaches `grid`, in the fenced snippet AND in the prose beside it', () => {
+    const body = read('content/docs/guide/schema-playground.md');
+    expect(body, 'nothing registers grid-layout').not.toContain('grid-layout');
+    expect(body).toContain('"type": "grid"');
+  });
+
+  it('the schema reference gives its Email field a field type that exists', () => {
+    // `link` is not in fieldWidgetMap; `email` and `url` are.
+    const body = read('content/docs/api/schema-reference.md');
+    expect(body).not.toContain('"label": "Email", "type": "link"');
+    expect(body).toContain('"label": "Email", "type": "email"');
+  });
+});
+
 describe('wiring — the gate is reachable and a docs-only PR starts it', () => {
   const workflowDir = path.join(repoRoot, '.github/workflows');
   const workflowPath = path.join(workflowDir, 'doc-component-types.yml');
@@ -444,7 +751,7 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
   it('runs it in NO path-filtered workflow — the change that breaks it is docs-only', () => {
     // The whole reason this is its own workflow. `ci.yml`'s type-check job
     // excludes `content/**` from the diff that decides whether its gates run, so
-    // a PR editing only `content/docs/**.mdx` would start this gate nowhere.
+    // a PR editing only `content/docs/**` would start this gate nowhere.
     expect(workflowFiles.length, 'the workflow directory scan returned implausibly few files').toBeGreaterThan(5);
     for (const file of workflowFiles) {
       const yaml = yamlOf(file);
@@ -466,8 +773,240 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     const yaml = yamlOf('doc-component-types.yml');
     expect(yaml).not.toContain('pnpm install');
     expect(yaml).not.toContain('corepack');
-    const gate = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
-    const imports = [...gate.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1]);
-    expect(imports.every((spec) => spec.startsWith('node:')), `non-builtin import in the gate: ${imports}`).toBe(true);
+
+    // Walk the WHOLE static import graph, not just the gate's own first line.
+    // objectui#6092 converted this gate's entry guard to `./invoked-as.mjs`, a
+    // relative import — install-free, but not spelled `node:`. Asserting on the
+    // gate's own imports alone would have had to be loosened to let that
+    // through, and a loosened one-file assertion is how a relative import that
+    // DOES pull a package in later lands unnoticed. Following the graph keeps
+    // the original claim ("this needs no node_modules") literally true, and
+    // makes it true of every module the gate reaches.
+    const seen = new Set<string>();
+    const external: string[] = [];
+    const walk = (abs: string) => {
+      if (seen.has(abs)) return;
+      seen.add(abs);
+      const source = fs.readFileSync(abs, 'utf8');
+      for (const m of source.matchAll(/^import .* from '([^']+)';$/gm)) {
+        const spec = m[1];
+        if (spec.startsWith('node:')) continue;
+        if (!spec.startsWith('.')) {
+          external.push(`${path.relative(repoRoot, abs)} -> ${spec}`);
+          continue;
+        }
+        walk(path.resolve(path.dirname(abs), spec));
+      }
+    };
+    walk(path.join(repoRoot, SCRIPT));
+
+    expect(seen.size, 'the import walk read only the gate itself — it followed nothing').toBeGreaterThan(1);
+    expect(external, `the gate's import graph reaches a package, so it needs an install: ${external}`).toEqual([]);
+  });
+});
+
+/**
+ * Comments AND string / template / regex literal CONTENT blanked, offsets kept.
+ *
+ * Both halves are load-bearing, and the second one is what lets the scan below
+ * read THIS file without reding on it: the fixture table writes the very
+ * declaration it is looking for, as a string. `maskComments` alone leaves those
+ * strings live. Measured over the 3,603 TypeScript files git tracks, blanking
+ * literal content as well loses 16 of 2,324 top-level exported declarations, in
+ * exactly two files — `packages/sdui-parser/src/codegen.ts`, which EMITS a
+ * declaration from a template, and `check-spec-symbol-derivation.test.ts`, whose
+ * fixtures are template literals. Both are the direction to lose them in: source
+ * that declares nothing must not be read as declaring something.
+ */
+function codeOnly(source: string): string {
+  const { comment, literal } = scanSource(source);
+  const flags = new Uint8Array(source.length);
+  for (let i = 0; i < source.length; i++) flags[i] = comment[i] || literal[i];
+  return blank(source, flags);
+}
+
+/**
+ * Every site in `source` that puts the BARE name `ValidationRule` into this
+ * repository's types, reported as `line: what`. Empty means the sentence on
+ * `content/docs/plugins/plugin-form.mdx` holds for this file.
+ *
+ * ⛔ Why this is written the long way (objectui#6186). A substring match on
+ * `ValidationRule` matched 106 lines when this was written, every one of them a
+ * real and DIFFERENT type: `AdvancedValidationRule`, `ValidationRuleType`,
+ * `ObjectValidationRule`, `DesignerValidationRule` and `FieldValidationRules`,
+ * plus `ValidationRuleSchema`, `ValidationRuleDraft`, `BaseValidationRuleShape`
+ * and `buildValidationRules`. A naive match therefore reds on a TRUE claim, and
+ * the next person to hit that deletes the assertion — which puts the claim back
+ * where it started, unguarded. So every spelling above is fixtured as a NEGATIVE
+ * in the test below rather than remembered here.
+ */
+function bareValidationRuleSites(source: string): string[] {
+  const code = codeOnly(source);
+  const lineOf = (index: number) => code.slice(0, index).split('\n').length;
+  const sites: string[] = [];
+
+  // A declaration of the exact name. The trailing `\b` is what keeps
+  // `ValidationRuleType` and `ValidationRuleDraft` out; requiring the keyword and
+  // the whitespace immediately before the name is what keeps
+  // `AdvancedValidationRule`, `ObjectValidationRule`, `DesignerValidationRule`
+  // and `FieldValidationRules` out.
+  for (const m of code.matchAll(/\b(?:interface|class|enum)\s+ValidationRule\b|\btype\s+ValidationRule\s*[=<]/g)) {
+    sites.push(`${lineOf(m.index ?? 0)}: declares \`${m[0].replace(/\s+/g, ' ').trim()}\``);
+  }
+
+  // A re-export publishes the name without declaring it here, so a check that
+  // read declarations alone would call the page true while
+  // `import { ValidationRule } from '@object-ui/types'` compiled for the reader.
+  // Specifiers are SPLIT rather than matched inside the braces, which is what
+  // keeps `export { ValidationRuleSchema }` out — and `export { ValidationRule as
+  // SpecRule }` too, because that publishes a different name.
+  for (const m of code.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}/g)) {
+    for (const specifier of m[1].split(',')) {
+      const published = specifier.trim().split(/\s+as\s+/).pop()?.trim().replace(/^type\s+/, '');
+      if (published === 'ValidationRule') sites.push(`${lineOf(m.index ?? 0)}: re-exports \`ValidationRule\``);
+    }
+  }
+
+  return sites;
+}
+
+describe('objectui#5118 — the plugin-form page teaches the real `validation` shape', () => {
+  // The `type` literals this gate judges were only half the drift on that page.
+  // `### Form Field` redeclared a local `interface FormField` whose `validation`
+  // was `ValidationRule[]` — a type name that exists nowhere in this repository
+  // — and `### Form with Validation` authored the array to match. Neither half
+  // was visible to any check: a hand-written `interface` in a ```plaintext block
+  // compiles nowhere, and the array's `type: 'minLength'` / `'maxLength'` were
+  // EXEMPTED here, with a reason ("ValidationRule discriminant under a field's
+  // `validation[]`") that restated the fiction. Deleting those entries is what
+  // gives this gate teeth over the example half; this block pins the rest.
+  const page = path.join(repoRoot, 'content/docs/plugins/plugin-form.mdx');
+  const body = fs.readFileSync(page, 'utf8');
+
+  it('no longer authors `ValidationRule`, and says outright that it does not exist', () => {
+    // Same shape as the `multi-step-form` pin above: the page still NAMES the
+    // fiction in prose, to tell the reader it is one. What must not come back is
+    // the declaration a reader copies.
+    expect(body).not.toMatch(/validation\??\s*:\s*ValidationRule/);
+    expect(body).toContain('There is no `ValidationRule` type in this repository');
+  });
+
+  // ── The OTHER half of that pin (objectui#6186) ─────────────────────────────
+  // `toContain` above asserts the sentence is PRESENT. It cannot assert the
+  // sentence is TRUE. Land a bare declaration of the name tomorrow and the page
+  // turns false while that assertion stays green — worse than no pin at all,
+  // because a green test reads as coverage of the claim it quotes. The two tests
+  // below re-derive the claim from source instead of pinning the prose that
+  // states it. Presence and truth are different assertions; there is now one of
+  // each and neither pretends to do the other's job.
+  //
+  // ⛔ The pin above stays exactly as it is. Its job — keeping the fiction from
+  // being authored back into a snippet a reader copies — is not this one's.
+
+  it('the bare-`ValidationRule` match discriminates every near-spelling that really exists', () => {
+    // Fixtures rather than the tree, so the negative control stays decidable
+    // when the types move. Every negative is a spelling this repository really
+    // writes, cited where it lives — an assertion that red on `FieldValidationRules`
+    // would be deleted by the first person who hit it, and the claim would be
+    // back to unguarded.
+    for (const source of [
+      'export interface ValidationRule {\n  type: string;\n}',
+      'export type ValidationRule = { type: string };',
+      'export type ValidationRule<T> = T[];',
+      'interface ValidationRule {}',
+      'export declare class ValidationRule {}',
+      'export enum ValidationRule {}',
+      "export { ValidationRule } from './rules';",
+      "export type { SpecRule as ValidationRule } from '@objectstack/spec';",
+    ]) {
+      expect(bareValidationRuleSites(source), source).not.toEqual([]);
+    }
+
+    for (const source of [
+      'export interface AdvancedValidationRule {}', //          packages/types/src/data-protocol.ts:708
+      "export type ValidationRuleType = 'required';", //        packages/types/src/data-protocol.ts:748
+      'export type ObjectValidationRule = { name: string };', // packages/types/src/data-protocol.ts:1129
+      'export interface DesignerValidationRule {}', //           packages/types/src/designer.ts:762
+      'export interface FieldValidationRules {}', //             packages/types/src/form.ts:744
+      'interface ValidationRuleDraft {}', //                     app-shell ObjectValidationsPanel.tsx:46
+      'interface BaseValidationRuleShape {}', //                 quoted at types/src/data-protocol.ts:980
+      "import { ValidationRuleSchema } from '@objectstack/spec/data';",
+      "export { ValidationRuleSchema } from '@objectstack/spec/data';",
+      'export function buildValidationRules(field: unknown) {\n  return field;\n}',
+      'const rules: ObjectValidationRule[] = [];',
+      "export { ValidationRule as SpecRule } from '@objectstack/spec';", // publishes another name
+      '// nothing here declares interface ValidationRule', //             prose is masked
+      "const fixture = 'export interface ValidationRule {}';", //         a fixture is masked
+    ]) {
+      expect(bareValidationRuleSites(source), source).toEqual([]);
+    }
+  });
+
+  it('re-derives the claim: nothing this repository declares is a bare `ValidationRule`', () => {
+    // SCANNED POPULATION, stated because the sentence says "in this repository":
+    // every TypeScript file git tracks — `git ls-files` filtered to the `.ts`
+    // family, `.d.ts` included. 3,603 files on the tree this was written against.
+    // It is DERIVED, not listed: `node_modules`, `dist` and every other build
+    // output are untracked and so are out by construction, and a TypeScript type
+    // cannot be declared in a file outside that family.
+    // `scripts/check-control-bytes.mjs` reads this repository the same way, for
+    // the same reason.
+    //
+    // ⚠️ The population and the sentence have to stay co-extensive. If this scan
+    // ever has to be narrowed, narrow the sentence on the page with it — a gate
+    // that asserts less than the prose while looking like it covers it is the
+    // exact defect objectui#6186 filed.
+    const tracked = execFileSync('git', ['ls-files', '-z'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .split('\0')
+      .filter((rel) => /\.(?:[cm]?ts|tsx)$/.test(rel));
+
+    // The walk cannot collapse quietly: an empty population makes the assertion
+    // below vacuous and green forever, which is the shape this whole block exists
+    // to stop.
+    expect(tracked.length, 'the source walk found no TypeScript files at all').toBeGreaterThan(1000);
+
+    const sites: string[] = [];
+    for (const rel of tracked) {
+      const source = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+      // Prefilter on the raw bytes. Masking only ever REMOVES text, so a site in
+      // the masked code implies the raw file carries the name.
+      if (!source.includes('ValidationRule')) continue;
+      for (const site of bareValidationRuleSites(source)) sites.push(`${rel}:${site}`);
+    }
+
+    expect(
+      sites,
+      'content/docs/plugins/plugin-form.mdx tells the reader there is no `ValidationRule` type here. ' +
+        `These declare or publish one, so either the page or the type has to go:\n${sites.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('authors `validation` as an object keyed by rule name, never an array', () => {
+    // Prose may still SHOW the array spelling (it is the counterexample); an
+    // authored one — JSON or TS, in a snippet or a table — may not come back.
+    const authoredArrays = [...body.matchAll(/^\s*"?validation"?\s*:\s*\[/gm)];
+    expect(authoredArrays.map((m) => m[0].trim())).toEqual([]);
+    expect(body).toContain('"minLength": { "value": 3, "message": "Min 3 characters" }');
+    expect(body).toContain('| `validation` | `FieldValidationRules` |');
+  });
+
+  it('names types that are really declared, so the pin fails if one moves', () => {
+    const types = fs.readFileSync(path.join(repoRoot, 'packages/types/src/form.ts'), 'utf8');
+    expect(types).toContain('export interface FieldValidationRules {');
+    expect(types).toContain('validation?: FieldValidationRules;');
+    // The keys the page's rule table teaches, as the interface declares them.
+    for (const rule of ['required?:', 'minLength?:', 'maxLength?:', 'min?:', 'max?:', 'pattern?:', 'validate?:']) {
+      expect(types.slice(types.indexOf('export interface FieldValidationRules {'))).toContain(rule);
+    }
+    // `defaultValue` / `className` are named as NON-members; that is only true
+    // while the interface really omits them.
+    const formField = types.slice(types.indexOf('export interface FormField {'));
+    const declaredKeys = formField.slice(0, formField.indexOf('\n}'));
+    expect(declaredKeys).not.toMatch(/^\s{2}defaultValue\??:/m);
+    expect(declaredKeys).not.toMatch(/^\s{2}className\??:/m);
   });
 });

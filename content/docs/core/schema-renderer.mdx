@@ -9,7 +9,7 @@ The SchemaRenderer is the heart of ObjectUI. It takes a JSON schema and dynamica
 
 The SchemaRenderer uses the Component Registry to look up the appropriate component for each schema type and renders it with the provided props.
 
-```plaintext
+```tsx
 import { SchemaRenderer } from '@object-ui/react';
 
 <SchemaRenderer schema={{
@@ -33,7 +33,7 @@ The SchemaRenderer automatically handles nested schemas:
 
 ## Schema Structure
 
-```plaintext
+```ts
 interface SchemaNode {
   type: string;                  // Component type (e.g., 'card', 'button', 'text')
   id?: string;                   // Unique identifier
@@ -54,8 +54,13 @@ When an unknown component type is encountered, SchemaRenderer displays a helpful
 
 The SchemaRenderer uses the Component Registry to resolve component types:
 
-```plaintext
+```tsx
 import { ComponentRegistry } from '@object-ui/core';
+import { SchemaRenderer } from '@object-ui/react';
+
+function MyWidgetComponent() {
+  return <div>My widget</div>;
+}
 
 // Register a custom component
 ComponentRegistry.register('my-widget', MyWidgetComponent);
@@ -71,7 +76,7 @@ ComponentRegistry.register('my-widget', MyWidgetComponent);
 
 ### Simple Rendering
 
-```plaintext
+```tsx
 import { SchemaRenderer } from '@object-ui/react';
 
 function App() {
@@ -89,7 +94,7 @@ function App() {
 
 ### Dynamic Schemas
 
-```plaintext
+```tsx
 import { SchemaRenderer } from '@object-ui/react';
 import { useState, useEffect } from 'react';
 

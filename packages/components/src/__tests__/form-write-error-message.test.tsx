@@ -84,3 +84,79 @@ describe('form write errors are user-facing copy', () => {
     expect(await screen.findByText(/could not save/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * objectui#5210 — the consumer half of objectstack#9934, ruled 2026-08-19.
+ *
+ * #3821 (above) is preserved: the generic substitution still governs every
+ * refusal the author did not opt in. What changes is that an author CAN opt in
+ * — `userMessage` marks a refusal message as addressed to the end user, and a
+ * marked message is rendered verbatim. The external report behind this card
+ * (@baozhoutao, 11 hook guards) is the marked case; the unmarked case below is
+ * the control that keeps this from becoming the leak #3821 removed.
+ */
+describe('a producer-marked refusal reaches the user', () => {
+  const MARKED = '该记录需要财务审批,请联系你的主管。';
+
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  function markedForbidden() {
+    // The wire shape `@objectstack/client` hands the form: the diagnostic stays
+    // on `message`, the author's text arrives on its own declared field.
+    const err = forbiddenError();
+    err.userMessage = MARKED;
+    return err;
+  }
+
+  it('renders the marked message verbatim instead of the generic 403 string', async () => {
+    renderForm(async () => { throw markedForbidden(); });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(await screen.findByText(MARKED)).toBeInTheDocument();
+    expect(screen.queryByText(/permission to save/i)).not.toBeInTheDocument();
+  });
+
+  it('still withholds the diagnostic channel when a marking is present', async () => {
+    // The marking is ADDITIVE — it does not turn the 403 branch chatty. The
+    // machine name, the record id and the FORBIDDEN prefix stay out of the UI.
+    const { container } = renderForm(async () => { throw markedForbidden(); });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    await screen.findByText(MARKED);
+    expect(container.textContent).not.toMatch(/showcase_private_note/);
+    expect(container.textContent).not.toMatch(/pi-TgoJ4_DM55Fqz/);
+    expect(container.textContent).not.toMatch(/FORBIDDEN/);
+  });
+
+  it('CONTROL: an unmarked 403 keeps the generic substitution (#3821 not reverted)', async () => {
+    renderForm(async () => { throw forbiddenError(); });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(await screen.findByText(/permission to save/i)).toBeInTheDocument();
+  });
+
+  it('renders a marked message on a NON-403 status — the marking is status-agnostic', async () => {
+    // 403 is where this was reported, not a fence the contract draws. A guard
+    // that refuses with 409/400/500 and marks its text is answered the same way.
+    renderForm(async () => {
+      throw Object.assign(new Error('CONFLICT: version mismatch on sys_record 42'), {
+        code: 'CONFLICT',
+        status: 409,
+        userMessage: 'Someone edited this record while you were working — reload before saving.',
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(await screen.findByText(/reload before saving/i)).toBeInTheDocument();
+    expect(screen.queryByText(/CONFLICT/)).not.toBeInTheDocument();
+  });
+
+  it('CONTROL: an unmarked non-403 still shows the server message (unchanged path)', async () => {
+    renderForm(async () => { throw new Error('Title must be unique'); });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(await screen.findByText(/title must be unique/i)).toBeInTheDocument();
+  });
+});

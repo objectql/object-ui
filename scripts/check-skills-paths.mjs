@@ -99,6 +99,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 /** The scan surface, relative to the repo root: markdown under this directory. */
 export const SCAN_ROOT = 'skills';
@@ -351,7 +352,7 @@ exemption nobody removes is how a baseline turns into a permanent skip-list.`);
 // Run only when invoked directly — the test suite imports `scan()` and the
 // extractor from here and must not trigger a repo scan (or a `process.exit`) on
 // import. Same guard shape as `scripts/check-control-bytes.mjs`.
-const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   if (process.argv.includes('--list')) {

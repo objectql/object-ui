@@ -22,6 +22,19 @@
  */
 
 import { isApiAccessDeniedError } from '@object-ui/data-objectstack';
+import type { ApiError } from '@objectstack/spec/api';
+
+/**
+ * The producer-side user-facing marking, taken from the SPEC's own declaration
+ * rather than a key name typed out here.
+ *
+ * `ApiError` is `z.input<typeof ApiErrorSchema>` in `@objectstack/spec/api`, so
+ * this `Pick` stops compiling the moment the contract renames the field or
+ * changes its type — the pin test below it (`error-message.test.ts`) makes the
+ * same assertion at RUNTIME against `ApiErrorSchema.shape`, because a type-only
+ * check passes against a stale `.d.ts`.
+ */
+type MarkedRefusal = Pick<ApiError, 'userMessage'>;
 
 function firstString(...vals: unknown[]): string | null {
   for (const v of vals) {
@@ -74,6 +87,53 @@ export function extractWriteErrorMessage(err: unknown): string | null {
     .replace(/^[A-Z][A-Z0-9_]+:\s*/, '')
     .trim();
   return clean || null;
+}
+
+/**
+ * The refusal text the PRODUCER explicitly marked as addressed to the end user,
+ * or `null` when the refusal carries no marking.
+ *
+ * `userMessage` is the opt-in channel added by objectstack#9934 (maintainer
+ * ruling 2026-08-19 on objectui#5210), declared on `ApiErrorSchema` /
+ * `EnhancedApiErrorSchema` in the pinned `@objectstack/spec`.
+ * Three properties of the contract decide this reader's whole shape:
+ *
+ *   - **Presence IS the marking.** The mark and the marked text are ONE value —
+ *     a field carrying the text, not a boolean beside `message` — so no boundary
+ *     that rewraps or substitutes `message` can promote platform prose into the
+ *     marked channel. Platform and driver code never set it.
+ *   - **Status-agnostic.** Not a 403 special case; any refusal status may carry
+ *     it. Callers must not gate this read on a status.
+ *   - **Verbatim.** The author wrote it for their user, already localized. It is
+ *     returned untouched — none of {@link extractWriteErrorMessage}'s prefix
+ *     stripping applies, because there is no machine prefix to strip.
+ *
+ * Read from the two places the adapter boundary parks the envelope, both under
+ * the SAME declared key: the error itself (`@objectstack/client` lifts a marked
+ * body onto `err.userMessage`, from either wire dialect) and `details`, which
+ * the client falls back to the whole response body — the identical pair
+ * {@link isPermissionError} reads `code` from. Deliberately NOT read: the raw
+ * JSON tail `ApiDataSource` bakes into its message string. Scraping a marking
+ * out of a transport's prose is the consumer-side guessing objectstack#3821
+ * exists to prevent; a transport that flattens the envelope should carry the
+ * field instead.
+ *
+ * Everything unmarked answers `null`, so callers keep their generic localized
+ * substitution and objectstack#3821's protection holds BY CONSTRUCTION: this
+ * function can never return text the producer did not opt in.
+ */
+export function declaredUserMessage(err: unknown): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const e = err as Partial<MarkedRefusal> & { details?: unknown };
+  // Non-empty after trimming, returned untrimmed — the same predicate
+  // `@objectstack/client` applies when it lifts the field off the wire.
+  if (typeof e.userMessage === 'string' && e.userMessage.trim()) return e.userMessage;
+  const details = e.details as Partial<MarkedRefusal> | null | undefined;
+  if (details && typeof details === 'object'
+      && typeof details.userMessage === 'string' && details.userMessage.trim()) {
+    return details.userMessage;
+  }
+  return null;
 }
 
 /** One field the server rejected, normalised for `form.setError`. */

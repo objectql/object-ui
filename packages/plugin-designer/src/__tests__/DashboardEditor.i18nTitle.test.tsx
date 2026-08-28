@@ -15,17 +15,28 @@
  * `[object Object]`.
  *
  * The third is an AUTHORING WRITE — the property panel's single-line title
- * `<input>` — and it is the one where following rc.6's widening mechanically
- * would have destroyed data rather than merely looked wrong. Resolving a map
- * into the input and writing `e.target.value` back collapses every other locale
- * on the first keystroke. This file's round-trip pin is the acceptance test for
- * the conservative branch PR #4169 established on `DashboardWidgetInspector`
- * and objectui#4163's dispatch ruling extends here: an inline map survives an
- * unrelated edit-and-save untouched.
+ * `<input>` — and it is the one where following the `I18nLabel` widening
+ * mechanically would destroy data rather than merely look wrong. Resolving a
+ * map into the input and writing `e.target.value` back collapses every other
+ * locale on the first keystroke.
  *
- * Part 2 of #4163 (what Studio SHOULD offer for authoring a per-locale label)
- * is unclaimed and pending design; these pins describe the placeholder, and
- * they are written so that the real answer replaces them deliberately.
+ * PR #4169 met that by making a map-valued title READ-ONLY, on the premise that
+ * "no persisted widget title can be a map" — a premise `@objectstack/spec`
+ * 17.0.0 invalidates, so from rc.6 onward the branch denied authors an edit
+ * rather than protecting anything reachable (objectui#5428).
+ *
+ * objectui#5301's maintainer ruling (2026-08-20) supplies the replacement: a
+ * save writes back ONLY the active locale's entry and preserves the others,
+ * shipped as `@object-ui/i18n`'s `setLocalized`. The pins below are that rule's
+ * acceptance test at this surface, and the one that carries the weight is the
+ * PRESERVATION pin — "the input is no longer read-only" is equally green
+ * against a fix that flattens the map, which is the exact data loss the
+ * read-only branch existed to prevent.
+ *
+ * ⚠️ These pins describe a SINGLE-locale editor: an author reaches only the
+ * entry for the locale they are in. Authoring every locale from one panel is a
+ * separate open question, deliberately not deferred to a tracker here — the
+ * deferral this replaced pointed at #4163, closed as completed 2026-08-15.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -97,20 +108,61 @@ describe('DashboardEditor — the title INPUT is a write path, not a display (#4
     return onChange;
   }
 
-  it('shows a map-valued title resolved, and READ-ONLY', () => {
+  it('shows a map-valued title resolved, and EDITABLE', () => {
+    // The read-only branch is gone: its premise ("no persisted title can be a
+    // map") expired at @objectstack/spec 17.0.0. Editable is NECESSARY but not
+    // sufficient — the preservation pin below is what makes it correct.
     openPanelFor(schemaWith(MAP_TITLE), 'dashboard-widget-w1');
     const input = screen.getByTestId('widget-prop-title') as HTMLInputElement;
     expect(input.value).toBe('Pipeline');
-    expect(input.readOnly).toBe(true);
+    expect(input.readOnly).toBe(false);
   });
 
-  it('⛔ a keystroke on a map-valued title writes NOTHING — the other locales survive', () => {
-    // The data-loss pin. Without the guard this emits
-    // `{ title: 'Pipelinex' }`, and `zh-CN` is gone forever on the next save.
+  it('⛔ a keystroke on a map-valued title writes ONLY the displayed locale — every other entry survives byte-identical', () => {
+    // THE data-loss pin. The flattening write (`onChange({ title:
+    // e.target.value })`) emits a plain string and `zh-CN` is gone forever on
+    // the next save. Asserting the map SHAPE is what catches that; an "is no
+    // longer read-only" assertion is green against it.
     const onChange = openPanelFor(schemaWith(MAP_TITLE), 'dashboard-widget-w1');
-    const input = screen.getByTestId('widget-prop-title');
-    fireEvent.change(input, { target: { value: 'Pipelinex' } });
-    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByTestId('widget-prop-title'), {
+      target: { value: 'Pipelinex' },
+    });
+
+    expect(onChange).toHaveBeenCalled();
+    const title = lastSchema(onChange).widgets!.find((w) => w.id === 'w1')!.title;
+    // Still a map — not flattened to the edited string.
+    expect(typeof title).toBe('object');
+    const map = title as Record<string, string>;
+    // The displayed locale carries the new string...
+    expect(map.en).toBe('Pipelinex');
+    // ...and the locale the author never saw is untouched, character for
+    // character. This is the assertion a flattening fix cannot satisfy.
+    expect(map['zh-CN']).toBe('销售漏斗');
+    expect(map['zh-CN']).toBe(MAP_TITLE['zh-CN']);
+    // No entry invented, none dropped: exactly the stored key set.
+    expect(Object.keys(map).sort()).toEqual(['en', 'zh-CN']);
+    // The stored object is not mutated in place — the editor's undo history
+    // holds the previous schema by reference.
+    expect(MAP_TITLE).toEqual({ en: 'Pipeline', 'zh-CN': '销售漏斗' });
+  });
+
+  it('what the panel SHOWS after a save is what was typed — this surface\'s read and write agree', () => {
+    // `pickLocalized ∘ setLocalized` as this panel wires it: an edit that landed
+    // in an entry the panel does not display would "save" and then vanish. The
+    // pair is pinned in @object-ui/i18n; this pins that THIS panel reads and
+    // writes through the pair rather than around it.
+    const onChange = openPanelFor(schemaWith(MAP_TITLE), 'dashboard-widget-w1');
+    fireEvent.change(screen.getByTestId('widget-prop-title'), {
+      target: { value: 'Pipelinex' },
+    });
+    const saved = lastSchema(onChange);
+
+    // Re-open the saved schema in a fresh editor and read the field back.
+    render(<DashboardEditor schema={saved} onChange={() => {}} />);
+    const reopenedCard = screen.getAllByTestId('dashboard-widget-w1')[1];
+    fireEvent.click(reopenedCard);
+    const reopened = screen.getAllByTestId('widget-prop-title')[1] as HTMLInputElement;
+    expect(reopened.value).toBe('Pipelinex');
   });
 
   it('an inline map survives an UNRELATED edit-and-save round trip untouched', () => {

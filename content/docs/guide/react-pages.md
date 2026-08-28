@@ -11,7 +11,7 @@ that are awkward to express as nested JSON:
 
 | `kind` | Source is | Executed? | Author trust |
 |---|---|---|---|
-| `"html"` | Constrained JSX/HTML + Tailwind | **No** — parsed into a schema tree | Untrusted OK |
+| `"html"` | Constrained JSX/HTML | **No** — parsed into a schema tree | Untrusted OK |
 | `"react"` | Real React (hooks, handlers, arbitrary JS) | **Yes** — in the main React tree | Trusted only |
 
 Both set `source` and leave `regions` unused. `"jsx"` is a deprecated alias for
@@ -24,7 +24,9 @@ Both set `source` and leave `regions` unused. `"jsx"` is a deprecated alias for
 
 Reach for **`kind:'html'`** by default. It is parsed, whitelisted against the
 public block manifest, and never executed, so it is safe for AI-generated and
-customer-authored pages. It covers layout, blocks, and Tailwind styling.
+customer-authored pages. It covers layout, blocks, and styling — styling through
+the blocks' own structured props plus a JSON `style` object, **not** Tailwind
+(see *Styling*, below; the rule holds on both tiers).
 
 Reach for **`kind:'react'`** only when you need real behaviour the schema tree
 cannot express — local state, computed lists, event handlers wiring one block to
@@ -37,7 +39,7 @@ another, custom data fetching. It runs **without a sandbox**.
   "type": "home",
   "name": "project_console",
   "kind": "react",
-  "source": "function Page() {\n  const [selected, setSelected] = React.useState(null);\n  return (\n    <div className=\"grid grid-cols-2 gap-4\">\n      <ListView objectName=\"showcase_project\" fields={['name', 'status']} onRowClick={(r) => setSelected(r._id)} />\n      {selected && <ObjectForm objectName=\"showcase_project\" mode=\"edit\" recordId={selected} />}\n    </div>\n  );\n}"
+  "source": "function Page() {\n  const [selected, setSelected] = React.useState(null);\n  return (\n    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>\n      <ListView objectName=\"showcase_project\" fields={['name', 'status']} onRowClick={(r) => setSelected(r._id)} />\n      {selected && <ObjectForm objectName=\"showcase_project\" mode=\"edit\" recordId={selected} />}\n    </div>\n  );\n}"
 }
 ```
 
@@ -47,7 +49,7 @@ Written out, that `source` is:
 function Page() {
   const [selected, setSelected] = React.useState(null);
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
       <ListView
         objectName="showcase_project"
         fields={['name', 'status']}
@@ -78,20 +80,113 @@ Nothing is imported. These identifiers are injected as closure variables:
 | In scope | What it is |
 |---|---|
 | `React` | The host's React — call hooks with it (`React.useState`). |
-| The public data blocks | `<ObjectGrid>`, `<ListView>`, `<ObjectForm>`, `<ObjectKanban>`, `<ObjectChart>`, `<ObjectMetric>`, `<Markdown>`, … |
+| The public data blocks | Every public non-container block, as a PascalCase tag — but *what resolves* and *what you author against* are two different sets, below. |
 | `Block` | Escape hatch for anything not injected. |
 | `useAdapter` | The live data source — query/create/update. |
 | `data`, `variables`, `page` | The page's own data, local variables, and schema. |
 
-The block tags come from the curated **public contract**
-(`PUBLIC_BLOCKS`), converted from kebab-case to PascalCase: `object-grid` →
+#### Two tiers: what resolves, and what you author against
+
+**The runtime scope** is every block in the curated public contract
+(`PUBLIC_BLOCKS`) that is not a layout container. Tags are derived by splitting
+the registry type on `-`, `_` and `:` and PascalCasing each part: `object-grid` →
 `<ObjectGrid>`, `record:details` → `<RecordDetails>`. Blocks registered lazily
 are in scope too — you never wait on a plugin chunk to reference one.
 
-**Layout containers are deliberately not injected.** In react mode you compose
-layout with real HTML and Tailwind, which React is better at than a schema-children
-renderer. `<flex>`, `<grid>`, `<card>` and friends have no injected wrapper — use
-`<div className="flex gap-4">`.
+**The authored contract** is the much smaller set that has *published props* —
+checked by `os validate` and generated into the reference an author, human or AI,
+writes against: **`<ObjectForm>`, `<ListView>`, `<ObjectChart>`, `<Block>`**.
+That set is `REACT_BLOCKS` in `@objectstack/spec`, and the generated per-prop
+table is `skills/objectstack-ui/references/react-blocks.md` in the framework
+repo. **Treat that table as the prop authority, not this page.**
+
+Everything in the runtime scope but outside the contract still resolves and
+renders — its props simply are not part of the react-tier contract. Reach those
+through the contract instead: a kanban / calendar / gantt / timeline / map of an
+object is `<ListView viewType="kanban" …>`, or `<Block type="object-kanban" …>`.
+
+#### The `record:*` family is excluded from this tier
+
+The tag derivation above is real — `<RecordDetails>` and `<RecordHighlights>`
+*are* defined in the scope — but every `record:*` block reads its record from the
+record context a **record page** mounts, and a `kind:'react'` page never mounts
+one. The block renders empty however you bind it: its `objectName`/`recordId` are
+not read by the renderer. `os validate` rejects them at publish time:
+
+```
+  ✗ Author-time rules failed (1 issue)
+  • page "showcase_renewals_pipeline" › RecordHighlights: RecordHighlights renders
+    "record:highlights", which reads its record from the record context a record page
+    mounts — a kind:'react' page never mounts one, so the block renders empty no matter
+    how it is bound (its objectName/recordId are not read by the renderer).
+      rule: react-block-needs-record-context
+```
+
+The rule matches by **type**, so `<Block type="record:details" />` is rejected
+the same way. On a react page, bind the record yourself:
+
+| Instead of | Write |
+|---|---|
+| `<RecordDetails>` | `<ObjectForm objectName="…" mode="view" recordId={…} fields={[…]} />` — it binds by its own props. |
+| `<RecordHighlights>` | `<ObjectForm … mode="view" />`, or read the record with `useAdapter().findOne` and lay the strip out in JSX. |
+| `<RecordRelatedList>` | `<ListView objectName="child_object" filters={['lookup_field', '=', parentId]} />` — the parent binding is an ordinary filter here. |
+| `<RecordPath>` | Read the record with `useAdapter().findOne` and render the stage bar in JSX. |
+
+If you want the whole record-page composition, author the page as `type:'record'`
+instead — that is the page kind that mounts the context these blocks render from.
+
+**Layout containers are deliberately not injected.** The scope builder skips
+every container (`if (!tag || cfg.isContainer) continue;`), so `<flex>`, `<grid>`,
+`<card>` and friends have no injected wrapper. In react mode you compose layout
+with real HTML, which React is better at than a schema-children renderer — styled
+inline, not with Tailwind: `<div style={{ display: 'flex', gap: 16 }}>`.
+
+### Styling — page source is metadata, not build input
+
+**Do not author Tailwind utility classes in page source** — on either tier. A
+page's `source` is *runtime metadata*. The console's Tailwind is compiled at
+**build** time by scanning the console's own `src`, and there is no safelist, so
+it never sees your page. A utility class in page source produces CSS only if that
+exact class happens to already appear in objectui's own source, and otherwise
+produces **nothing, with no error anywhere**.
+
+This is the most expensive mistake on this tier: the page still renders — correct
+structure, correct data, no styling — and nothing reports it. It is recorded as a
+2026-06-30 amendment to ADR-0080 under ADR-0065, after a modal's `bg-black/50`
+backdrop rendered fully transparent in production. `os validate` reports it as
+`page-source-className-tailwind` (a warning, on both tiers).
+
+Each tier has its own styling primitive:
+
+| `kind` | Style with |
+|---|---|
+| `"react"` | Inline `style={{ … }}`, with `hsl(var(--token))` for colour. |
+| `"html"` | The blocks' own structured props (`<flex direction gap>`, `<grid columns>`) plus a JSON `style` object. |
+
+Colours come from the active theme, so the page follows light/dark and whatever
+theme the deployment installs:
+
+```jsx
+<div
+  style={{
+    background: 'hsl(var(--card))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 'var(--radius)',
+    padding: 12,
+    color: 'hsl(var(--foreground))',
+  }}
+>
+  …
+</div>
+```
+
+Common tokens: `--background`, `--foreground`, `--card`, `--muted`,
+`--muted-foreground`, `--border`, `--primary`, `--destructive`, plus the
+spacing/radius tokens `--space-*` and `--radius`.
+
+For overlays, do not hand-roll a `position: fixed; inset: 0` backdrop — render
+the form in its built-in Sheet or Dialog, which arrives already styled:
+`<ObjectForm … formType="drawer" drawerSide="right" />`.
 
 ### Blocks take flat props
 
@@ -99,8 +194,14 @@ An injected block folds its JSX props into the block's schema, so you write
 flat props rather than a nested `schema` object:
 
 ```jsx
-<ObjectGrid objectName="showcase_project" fields={['name', 'status']} pageSize={25} />
+<ListView objectName="showcase_project" fields={['name', 'status']} pagination={{ pageSize: 25 }} />
 ```
+
+Use the **canonical** spelling of each prop — the one the contract publishes.
+Several blocks still read older flat spellings as back-compat fallbacks but do
+not declare them, so they are not authoring surface: on `<ObjectGrid>`, for
+instance, `pageSize` and `fields` are deprecated aliases of `pagination` and
+`columns`.
 
 Function props (`onRowClick`, `onSelect`) are passed through as real callbacks —
 that is how you wire one block to another.
@@ -126,12 +227,28 @@ function Page() {
   const [rows, setRows] = React.useState([]);
 
   React.useEffect(() => {
-    adapter.find('showcase_project', { filters: [['status', '=', 'open']] }).then(setRows);
+    adapter
+      .find('showcase_project', { $filter: ['status', '=', 'open'] })
+      .then((res) => setRows(res.data ?? []));
   }, [adapter]);
 
   return <ul>{rows.map((r) => <li key={r._id}>{r.name}</li>)}</ul>;
 }
 ```
+
+Two things in that call are easy to get wrong, and neither one errors:
+
+**The `$` prefixes are load-bearing.** Every query key starts with `$` —
+`$select`, `$filter`, `$orderby`, `$skip`, `$top`, `$expand`, `$search`,
+`$searchFields`, `$count`. An unprefixed `filters:` or `top:` is not a query option — the adapter
+reads only the `$`-prefixed keys, so anything else is dropped and the call comes
+back **unfiltered**, or with the default page size, with no error. `$filter`
+takes an ObjectQL filter array — `['field', 'op', value]`, with `and`/`or`
+compounds spelled `['and', [...], [...]]`.
+
+**`find` resolves to a `QueryResult`, not an array.** It is
+`{ data, total, page, pageSize, hasMore }`; the rows are `res.data`. Passing the
+result straight to `setRows` and then calling `.map` on it throws.
 
 ### Source shapes
 
@@ -177,6 +294,7 @@ only way the new adapter reaches the blocks inside the page. So a host that
 constructs a new adapter on every render resets every react page on every
 render. Provide it from state or a module constant:
 
+<!-- doc-snippet: fragment — a bad/good contrast of two bare JSX opening tags: neither half is a closed element, and showing them closed would hide the difference the section is about -->
 ```tsx
 // ❌ new adapter object every render — every react page below loses its state
 <AdapterCtx.Provider value={new ObjectStackAdapter(config)}>
@@ -199,6 +317,11 @@ each block's declared inputs, and unknown tags are a hard error at save time.
 Use it for anything author- or AI-generated. Expressions are limited to what the
 schema supports (`${data.x}`), and there is no local state or event handling
 beyond the action system.
+
+Styling works the same way as on the react tier — *page source is never scanned
+by the build* — but with this tier's own primitive: lay out with the blocks'
+structured props (`<flex direction gap>`, `<grid columns>`) and add CSS as a JSON
+`style` object. See *Styling*, above.
 
 ## Related
 

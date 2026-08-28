@@ -123,6 +123,7 @@ import {
   moduleSpecifiers,
   packageNameOf,
 } from './check-phantom-dependencies.mjs';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -204,17 +205,18 @@ export function discoverPackages(root) {
 // ── the judgement ────────────────────────────────────────────────────────────
 
 /**
- * One package's self-imports.
+ * One package's self-imports, WITHOUT judging them.
  *
- * `sites` lists EVERY self-import found, exempted or not; the exemption audit
- * reads it so a stale entry is caught in the same single parse.
+ * `sites` lists EVERY self-import found, carrying the full detail a finding
+ * needs. Nothing here consults the exemption table, and that is the point: the
+ * parse is what costs, and it does not depend on which entries are exempt. See
+ * `scanRepository` for why the split exists (objectui#5402).
  *
  * @param {{ name: string, dir: string, srcDir: string, manifest: any }} pkg
- * @param {{ root: string, exemptions?: Record<string, SelfImportExemption> }} options
- * @returns {{ findings: any[], sites: { file: string, specifier: string }[], counters: Record<string, number> }}
+ * @param {{ root: string }} options
+ * @returns {{ sites: any[], counters: Record<string, number> }}
  */
-export function auditPackage(pkg, { root, exemptions = SELF_IMPORT_EXEMPTIONS } = {}) {
-  const findings = [];
+export function auditPackage(pkg, { root } = {}) {
   const sites = [];
   const counters = {
     files: 0,
@@ -224,7 +226,6 @@ export function auditPackage(pkg, { root, exemptions = SELF_IMPORT_EXEMPTIONS } 
     builtin: 0,
     external: 0,
     selfImport: 0,
-    exempted: 0,
   };
 
   for (const file of listSourceFiles(pkg.srcDir)) {
@@ -260,13 +261,7 @@ export function auditPackage(pkg, { root, exemptions = SELF_IMPORT_EXEMPTIONS } 
       }
 
       counters.selfImport += 1;
-      sites.push({ file: relPath, specifier: use.specifier });
-
-      if (exemptions[relPath]?.specifiers?.includes(use.specifier)) {
-        counters.exempted += 1;
-        continue;
-      }
-      findings.push({
+      sites.push({
         reason: 'package-self-import',
         pkg: pkg.name,
         file: relPath,
@@ -279,7 +274,7 @@ export function auditPackage(pkg, { root, exemptions = SELF_IMPORT_EXEMPTIONS } 
     }
   }
 
-  return { findings, sites, counters };
+  return { sites, counters };
 }
 
 /**
@@ -328,17 +323,43 @@ export function auditExemptions(exemptions, sites) {
 }
 
 /**
- * The whole judgement for one repository root.
+ * Every self-import in a repository, WITHOUT judging any of them.
  *
- * `exemptions` is injectable because the default table describes THIS
- * repository: a test about the mechanism supplies its own rather than editing
- * the repository's.
+ * This is the expensive half and the whole reason the API is split in two: it
+ * full-parses every source file of every workspace package with TypeScript
+ * (~3,100 files / ~30 MB in this repository today), and NONE of that work
+ * depends on the exemption table. Judging is a filter over the result and costs
+ * microseconds.
+ *
+ * ## Why the split exists (objectui#5402)
+ *
+ * `scripts/__tests__/check-package-self-import.test.ts` asserts two different
+ * things about this repository — that it is green under the repository's own
+ * exemption table, and that it is green under NO exemptions at all. Before the
+ * split those were two calls to `analyze(repoRoot)`, i.e. the same 30 MB parse
+ * performed twice, and the second one sat inside a 15-second `it()`.
+ *
+ * That is affordable uninstrumented and not affordable under coverage. V8's
+ * precise coverage (`Profiler.startPreciseCoverage({ callCount, detailed })`,
+ * which `@vitest/coverage-v8` arms in the worker BEFORE test modules and their
+ * dependencies are compiled) emits block counters at compile time and is
+ * isolate-wide — `coverage.exclude` filters the REPORT, never the
+ * instrumentation, so `node_modules/typescript` is instrumented too. Measured
+ * on this repository: the identical parse takes 4.1-4.9 s uninstrumented and
+ * 32-35 s when coverage was armed first — a 7x constant factor landing squarely
+ * on the parser. Two scans, one of them inside a bounded window, is what made
+ * `ci.yml`'s `Test (coverage)` job fail 100% of the time for four days.
+ *
+ * So: scan once, judge as often as you like.
+ *
+ * Deliberately NOT memoised. A cache keyed by root would return stale verdicts
+ * for a tree that changed under it, and the callers that need one scan can hold
+ * one scan.
  *
  * @param {string} root
- * @param {{ exemptions?: Record<string, SelfImportExemption> }} [options]
- * @returns {{ findings: any[], counters: Record<string, number>, packages: any[] }}
+ * @returns {{ packages: any[], sites: any[], counters: Record<string, number> }}
  */
-export function analyze(root, { exemptions = SELF_IMPORT_EXEMPTIONS } = {}) {
+export function scanRepository(root) {
   const packages = discoverPackages(root);
   const counters = {
     packages: packages.length,
@@ -349,20 +370,60 @@ export function analyze(root, { exemptions = SELF_IMPORT_EXEMPTIONS } = {}) {
     builtin: 0,
     external: 0,
     selfImport: 0,
-    exempted: 0,
   };
 
-  const findings = [];
   const sites = [];
   for (const pkg of packages) {
-    const result = auditPackage(pkg, { root, exemptions });
-    findings.push(...result.findings);
+    const result = auditPackage(pkg, { root });
     sites.push(...result.sites);
     for (const key of Object.keys(result.counters)) counters[key] += result.counters[key];
   }
-  findings.push(...auditExemptions(exemptions, sites));
 
-  return { findings, counters, packages };
+  return { packages, sites, counters };
+}
+
+/**
+ * The verdict a given exemption table reaches about an already-completed scan.
+ *
+ * Pure: it reads `scan` and never re-reads the repository, never mutates what it
+ * was handed. Everything expensive already happened in `scanRepository`.
+ *
+ * @param {{ packages: any[], sites: any[], counters: Record<string, number> }} scan
+ * @param {Record<string, SelfImportExemption>} [exemptions]
+ * @returns {{ findings: any[], counters: Record<string, number>, packages: any[] }}
+ */
+export function judgeScan(scan, exemptions = SELF_IMPORT_EXEMPTIONS) {
+  const findings = [];
+  let exempted = 0;
+  for (const site of scan.sites) {
+    if (exemptions[site.file]?.specifiers?.includes(site.specifier)) {
+      exempted += 1;
+      continue;
+    }
+    findings.push({ ...site });
+  }
+  findings.push(...auditExemptions(exemptions, scan.sites));
+
+  return { findings, counters: { ...scan.counters, exempted }, packages: scan.packages };
+}
+
+/**
+ * The whole judgement for one repository root: scan, then judge.
+ *
+ * `exemptions` is injectable because the default table describes THIS
+ * repository: a test about the mechanism supplies its own rather than editing
+ * the repository's.
+ *
+ * Every call re-scans. A caller that judges the SAME root under more than one
+ * exemption table should call `scanRepository` once and `judgeScan` per table
+ * instead — see the note on `scanRepository`.
+ *
+ * @param {string} root
+ * @param {{ exemptions?: Record<string, SelfImportExemption> }} [options]
+ * @returns {{ findings: any[], counters: Record<string, number>, packages: any[] }}
+ */
+export function analyze(root, { exemptions = SELF_IMPORT_EXEMPTIONS } = {}) {
+  return judgeScan(scanRepository(root), exemptions);
 }
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
@@ -383,7 +444,7 @@ const HINTS = {
     'site has gone silently widens the hole for the next file that lands there.',
 };
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const argOf = (name) => {

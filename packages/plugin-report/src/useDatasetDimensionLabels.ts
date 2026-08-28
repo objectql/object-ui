@@ -69,6 +69,22 @@
  *
  * They are pinned once, at the shared hook, in
  * `packages/react/src/hooks/__tests__/useDatasetDimensionLabels.test.tsx`.
+ *
+ * ## `useDatasetDimensionMeta` (objectui#4906)
+ *
+ * The locale-free half alone, re-exported for the ONE report surface that
+ * derives more from the resolved field metadata than label maps: the embedded
+ * chart's per-category option COLOURS (`buildOptionColorMap`) and its declared
+ * picklist ORDER (`buildCategoryOrder`, framework#3588) — the same two
+ * derivations `DatasetWidget` already runs off this exact hook for its own
+ * chart-only needs (see that hook's own doc comment). `DatasetReportChart` is
+ * the one call site; every other report surface still wants the label-only
+ * {@link useDatasetDimensionLabels} above.
  */
 
-export { useDatasetDimensionLabels, type DimensionLabelMaps } from '@object-ui/react';
+export {
+  useDatasetDimensionLabels,
+  useDatasetDimensionMeta,
+  type DimensionLabelMaps,
+  type DatasetDimensionMeta,
+} from '@object-ui/react';

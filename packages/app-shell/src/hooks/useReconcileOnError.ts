@@ -7,8 +7,8 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { fetchConversation, toUIMessages } from './useChatConversation';
-import { isReconcilableCompletedTurn } from '../console/ai/reconcileTurn';
+import { fetchConversation, toUIMessages } from './useChatConversation.js';
+import { isReconcilableCompletedTurn } from '../console/ai/reconcileTurn.js';
 
 /**
  * ADR-0013 D2 — shared "reconcile a stream-transport failure instead of

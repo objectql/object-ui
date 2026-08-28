@@ -17,29 +17,31 @@
  * - Interactive map with markers
  * - Location-based data visualization
  * - Popup/tooltip on marker click
- * - Works with object/api/value data providers
+ * - Works with object/value data providers
  */
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import type { ObjectGridSchema, DataSource, ViewData } from '@object-ui/types';
+import type { ObjectMapSchema, ObjectMapConfig, DataSource, ViewData } from '@object-ui/types';
+import { ObjectMapConfigSchema } from '@object-ui/types/zod';
 import { useNavigationOverlay } from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
-import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
-import { z } from 'zod';
+import {
+  extractRecords,
+  buildExpandFields,
+  convertSortToQueryParams,
+  getRecordDisplayName,
+} from '@object-ui/core';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-
-const MapConfigSchema = z.object({
-  latitudeField: z.string().optional(),
-  longitudeField: z.string().optional(),
-  locationField: z.string().optional(),
-  titleField: z.string().optional(),
-  descriptionField: z.string().optional(),
-  zoom: z.number().optional(),
-  center: z.tuple([z.number(), z.number()]).optional(),
-  style: z.string().optional(),
-});
+import {
+  computeMarkerBounds,
+  boundsCenter,
+  EMPTY_VIEW_ZOOM,
+  FIT_MAX_ZOOM,
+  FIT_PADDING_PX,
+  UNFITTED_CENTER_ZOOM,
+} from './camera';
 
 /**
  * Public MapLibre demo style — free, unauthenticated, but not intended for
@@ -50,43 +52,101 @@ const MapConfigSchema = z.object({
 const DEFAULT_MAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 export interface ObjectMapProps {
-  schema: ObjectGridSchema;
+  schema: ObjectMapSchema;
   dataSource?: DataSource;
   className?: string;
+  /**
+   * Records to render directly, bypassing this component's own fetch — the
+   * shape `ListView` passes when it already holds the rows. Declared as its
+   * own prop (not read off the `rest` spread) so the fetch effect can depend
+   * on this one value: naming the whole `rest` object in that effect's deps
+   * instead would refetch on every render, since `rest` is a fresh object
+   * each render (objectui#5003).
+   */
+  data?: any[];
   onMarkerClick?: (record: any) => void;
   onRowClick?: (record: any) => void;
   onEdit?: (record: any) => void;
   onDelete?: (record: any) => void;
   /** Enable marker clustering for dense data */
   enableClustering?: boolean;
-  /** Cluster radius in pixels (default: 50) */
+  /**
+   * Clustering grid granularity (default: 50). NOT screen pixels — the grid
+   * cell edge is `clusterRadius / 2 ** zoom`, in coordinate DEGREES (the
+   * marker's `[lng, lat]`), so a larger value groups more aggressively and
+   * the effective granularity shrinks exponentially as zoom increases. See
+   * `clusterMarkers` below.
+   */
   clusterRadius?: number;
 }
 
-interface MapConfig {
-  /** Field containing latitude value */
-  latitudeField?: string;
-  /** Field containing longitude value */
-  longitudeField?: string;
-  /** Field containing combined location (e.g., "lat,lng" or location object) */
-  locationField?: string;
-  /** Field to use for marker title/label */
-  titleField?: string;
-  /** Field to use for marker description */
-  descriptionField?: string;
-  /** Default zoom level (1-20) */
-  zoom?: number;
-  /** Center coordinates [lat, lng] */
-  center?: [number, number];
-  /** MapLibre style URL/spec (overrides the public demo default) */
-  style?: string;
-}
+/**
+ * The FLAT spelling of `ObjectMapConfig`'s keys, as ObjectView / ListView emit it.
+ *
+ * Both flatteners build an `object-map` schema by spreading `options.map`'s
+ * CONTENTS at the top level (`plugin-view/src/ObjectView.tsx` `case 'map'`,
+ * `plugin-list/src/ListView.tsx` `case 'map'`) — the product carries these keys
+ * and NO `map` key at all. That is an internal transport form, not an authoring
+ * surface, so it is declared here in the consumer rather than in
+ * `ObjectMapSchema` (maintainer ruling on objectui#5018, 2026-08-17).
+ *
+ * `locationField` / `titleField` are the two that `ObjectMapSchema` still
+ * publishes as well, from before the ruling; the rest exist only here.
+ */
+type FlatMapConfigKeys = Omit< ObjectMapConfig, 'style' >;
+
+/** What `getMapConfig` may read: the declared schema plus the internal flat form. */
+type MapConfigSource = ObjectMapSchema & FlatMapConfigKeys;
+
+/**
+ * The flat keys, DERIVED from `ObjectMapConfigSchema` — the same zod object
+ * `getMapConfig` validates the `map` block against — rather than hand-listed,
+ * so a key added to (or removed from) the declaration reaches the shadow
+ * diagnostic below without a second edit (objectui#5177). `style` is excluded
+ * because the FLAT form is where its namespace collides with `BaseSchema.style`
+ * (see `FlatMapConfigKeys` above and `warnOnTopLevelStyleUrl`) — not because
+ * the declaration omits it; `ObjectMapConfigSchema` carries `style` too.
+ *
+ * `ObjectView` / `ListView` derive their own flatten whitelist from this exact
+ * schema (imported from `@object-ui/types/zod`, already a dependency of both —
+ * no new coupling to this package's heavier `react-map-gl` / `maplibre-gl`
+ * dependencies), so all three sites read one canonical set of keys.
+ */
+const FLAT_MAP_CONFIG_KEYS = (Object.keys(ObjectMapConfigSchema.shape) as (keyof ObjectMapConfig)[]).filter(
+  (key): key is keyof FlatMapConfigKeys => key !== 'style',
+);
 
 /**
  * Helper to get data configuration from schema
  */
-function getDataConfig(schema: ObjectGridSchema): ViewData | null {
+function getDataConfig(schema: ObjectMapSchema): ViewData | null {
   if (schema.data) {
+    // Array shorthand -> the declared `value` provider.
+    //
+    // `ObjectMapSchema.data` is declared `ViewData`, and `ViewData` resolves to
+    // @objectstack/spec's `ViewDataSchema` — a `z.discriminatedUnion('provider',
+    // [...])` over OBJECT variants, whose `value` member additionally declares
+    // `aliases: { data: 'items', rows: 'items', records: 'items' }`. So a bare
+    // array under `data` is off-contract twice over, and `staticData` is this
+    // schema's declared door for inline rows.
+    //
+    // It is normalized rather than rejected because the array shorthand is a
+    // deliberate, commented convention across this block family — ObjectGrid's
+    // own `getDataConfig` ("Check if data is an array (shorthand format)"),
+    // ListView ("Also support schema.data as a plain array (shorthand for value
+    // provider)"), ObjectTree, ObjectChart, ObjectDataTable and
+    // calendar-view-renderer all accept it. An author (or a generator) that
+    // learned the shorthand from `object-grid` writes it for `object-map` next;
+    // dropping it HERE alone would leave the one block in the family that
+    // answers the shorthand with a silently empty map.
+    //
+    // Normalizing at this single boundary — instead of a second short-circuit
+    // inside the fetch effect below — is what lets that effect read `dataConfig`
+    // only, which is already one of its dependencies (objectui#5305).
+    const authored: unknown = schema.data;
+    if (Array.isArray(authored)) {
+      return { provider: 'value', items: authored };
+    }
     return schema.data;
   }
   
@@ -140,22 +200,25 @@ const warnedLegacyFilterMapConfigs = new Set<string>();
  * - object-valued only. `filter: { map: 'x' }` reads as a filter on a field
  *   named `map`, not as a stashed MapConfig.
  */
-function warnOnLegacyFilterMapConfig(schema: ObjectGridSchema | any): void {
+function warnOnLegacyFilterMapConfig(schema: MapConfigSource): void {
   if (!isDev()) return;
 
-  const filter = (schema as any)?.filter;
+  // `filter` is declared as a JSON-Rules array; the legacy stash this probe
+  // exists for is an OBJECT, which is why the shape is re-tested at runtime
+  // rather than trusted from the declaration.
+  const filter: unknown = schema.filter;
   if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return;
   if (!Object.prototype.hasOwnProperty.call(filter, 'map')) return;
 
-  const legacy = (filter as any).map;
+  const legacy = (filter as Record<string, unknown>).map;
   if (!legacy || typeof legacy !== 'object') return;
 
   let memo: string;
   try {
-    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::${JSON.stringify(legacy)}`;
+    memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${JSON.stringify(legacy)}`;
   } catch {
     // Circular author data — still worth one warning, just not a keyed one.
-    memo = `${(schema as any).type ?? 'map'}::${(schema as any).objectName ?? ''}::<unserializable>`;
+    memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::<unserializable>`;
   }
   if (warnedLegacyFilterMapConfigs.has(memo)) return;
   warnedLegacyFilterMapConfigs.add(memo);
@@ -173,53 +236,181 @@ function warnOnLegacyFilterMapConfig(schema: ObjectGridSchema | any): void {
 }
 
 /**
- * Helper to get map configuration from schema
+ * Warn once per distinct dropped URL, for the same reason the diagnostics
+ * around it warn once: this runs on every render of the map.
  */
-function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
+const warnedTopLevelStyleUrls = new Set<string>();
+
+/**
+ * Top-level `style` is `BaseSchema.style` — inline CSS — and is NOT a map style
+ * (objectui#5017).
+ *
+ * `getMapConfig` used to read it FIRST, ahead of both declared spellings, so a
+ * map node carrying the base face's own `style: { height: '400px' }` handed that
+ * object to MapGL's `mapStyle` prop: no validation, no diagnostic, and a
+ * collision `@object-ui/types` had already gone out of its way to avoid — it
+ * named the key `mapStyle` (not `style`) for exactly this reason
+ * (`objectql.ts`, `ObjectMapSchema.mapStyle`). The consumer contradicted the
+ * declaration it was named after; that read is gone.
+ *
+ * The OBJECT form needs no diagnostic: it is legal base-face authoring, and
+ * dropping it is the fix. The STRING form does, because it is the one shape
+ * that used to work:
+ * - `ObjectView` / `ListView` build an `object-map` schema by spreading the
+ *   CONTENTS of `options.map` at the top level (see `FlatMapConfigKeys`), so a
+ *   view authored with `map: { style: '<url>' }` arrives here as a top-level
+ *   STRING `style` — the flatten crosses the two keys' namespaces. That shape
+ *   is not spec-authorable (`@objectstack/spec`'s list-view schemas are strict
+ *   and declare no `map` block at all), but it is runtime-reachable, so say
+ *   what happened instead of silently painting the demo tiles.
+ * - A string is not valid `BaseSchema.style` either (that is a record), so a
+ *   string here is unambiguously "the author meant a map style" — there is no
+ *   legitimate CSS reading to mistake it for.
+ */
+function warnOnTopLevelStyleUrl(schema: MapConfigSource): void {
+  if (!isDev()) return;
+
+  // Re-tested at runtime rather than trusted from the declaration: the
+  // declaration says this key is a CSS record, and the shape this probe exists
+  // for is precisely the one that violates it.
+  const raw: unknown = schema.style;
+  if (typeof raw !== 'string' || raw === '') return;
+
+  const memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${raw}`;
+  if (warnedTopLevelStyleUrls.has(memo)) return;
+  warnedTopLevelStyleUrls.add(memo);
+
+  console.warn(
+    '[ObjectMap] A top-level `style` is NOT read as a map style, so this map is rendering with ' +
+      `the DEFAULT public demo tiles and \`${raw}\` was dropped. \`style\` is the base schema's ` +
+      'INLINE CSS key (a record of CSS properties), which every node may carry; the map style is ' +
+      '`mapStyle` — named that way precisely to avoid this collision. Write `mapStyle: ' +
+      `'${raw}'\` at the top level, or \`map: { style: '${raw}' }\` in the declared config block. ` +
+      'On a view, note that `options.map` is FLATTENED into the top level, so its `style` lands ' +
+      'here as this same top-level key — spell it `map: { mapStyle }` there. objectui#5017.',
+  );
+}
+
+/**
+ * Warn once per distinct shadowing, for the same reason `getMapConfig` warns
+ * once per legacy stash: this runs on every render of the map.
+ */
+const warnedShadowedFlatKeys = new Set<string>();
+
+/**
+ * The `map` block won and the internal flat keys alongside it were ignored —
+ * say which ones, in dev.
+ *
+ * Silence here is what the precedence rule costs if it is not diagnosed: two
+ * spellings of the same configuration in one schema, one of them inert. The
+ * ruling picks the author's block over the flatten product deliberately
+ * (maintainer, objectui#5018, 2026-08-17), so the diagnostic names what was
+ * dropped rather than leaving the author to discover it from the markers.
+ *
+ * It cannot fire on the ordinary ObjectView / ListView path: both flatteners
+ * emit the flat keys and NO `map` key, so this branch is not even reached for
+ * their output. Reaching it means one schema carries both spellings.
+ */
+function warnOnShadowedFlatMapKeys(schema: MapConfigSource): void {
+  if (!isDev()) return;
+
+  const shadowed = FLAT_MAP_CONFIG_KEYS.filter(
+    (key) => (schema as Record<string, unknown>)[key] !== undefined,
+  );
+  if (shadowed.length === 0) return;
+
+  const memo = `${schema.type ?? 'map'}::${schema.objectName ?? ''}::${shadowed.join(',')}`;
+  if (warnedShadowedFlatKeys.has(memo)) return;
+  warnedShadowedFlatKeys.add(memo);
+
+  console.warn(
+    `[ObjectMap] The \`map\` block configures this map, so these top-level keys are ` +
+      `IGNORED: ${shadowed.map((k) => `\`${k}\``).join(', ')}. The \`map\` block is the ` +
+      'authoring shape; the flat top-level spelling is the internal form ObjectView/ListView ' +
+      'produce when they flatten `options.map`, and what the author wrote outranks it. Move ' +
+      'anything you still need into `map`, or drop the `map` block. objectui#5018.',
+  );
+}
+
+/**
+ * Helper to get map configuration from schema
+ *
+ * PRECEDENCE (maintainer ruling on objectui#5018, 2026-08-17): the declared
+ * `map` block is checked FIRST and wins outright; the flat top-level spelling
+ * is consulted only when no `map` block is present. This is the reverse of the
+ * pre-#5018 order, which let the internal flatten product silently shadow an
+ * authored block. Safe for the producer path because neither flattener emits a
+ * `map` key at all — see `FlatMapConfigKeys`.
+ */
+function getMapConfig(schema: MapConfigSource): ObjectMapConfig {
   warnOnLegacyFilterMapConfig(schema);
+  warnOnTopLevelStyleUrl(schema);
 
   // A custom style may be set alongside any of the shapes below — read it
   // once so every return path can carry it through.
-  const style: string | undefined =
-    (schema as any).style || (schema as any).mapStyle || (schema as any).map?.style;
+  //
+  // The two DECLARED spellings, and only those: `mapStyle` on the schema
+  // (`ObjectMapSchema.mapStyle`) and `style` inside the declared config block
+  // (`ObjectMapConfig.style`). The top-level `style` this used to read first is
+  // `BaseSchema.style` — inline CSS, a different key with a different meaning —
+  // and is no longer consumed here at all (objectui#5017; see
+  // `warnOnTopLevelStyleUrl`).
+  const style: string | undefined = schema.mapStyle || schema.map?.style;
 
-  // 1. Check top-level properties (ObjectMapSchema style)
-  if (schema.locationField || schema.latitudeField) {
-      return {
-          locationField: schema.locationField,
-          latitudeField: schema.latitudeField,
-          longitudeField: schema.longitudeField,
-          titleField: schema.titleField || 'name',
-          descriptionField: schema.descriptionField,
-          zoom: schema.zoom,
-          center: schema.center,
-          style,
-      };
-  }
-
-  // 2. The declared configuration input: `{ name: 'map', type: 'object' }` at
-  // the `object-map` / `map` registrations. The only shape consumed here.
-  const config: MapConfig | null = (schema as any).map
-    ? ((schema as any).map as MapConfig)
-    : null;
+  // 1. The declared configuration input: `{ name: 'map', type: 'object' }` at
+  // the `object-map` / `map` registrations. The author face, and the winner
+  // whenever it is present.
+  const config: ObjectMapConfig | null = schema.map ?? null;
 
   if (config) {
-     const result = MapConfigSchema.safeParse(config);
-     if (!result.success) {
-       console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
-     }
-     return { ...config, style: config.style || style };
+    const result = ObjectMapConfigSchema.safeParse(config);
+    if (!result.success) {
+      console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
+    }
+    warnOnShadowedFlatMapKeys(schema);
+    return { ...config, style: config.style || style };
   }
 
-  // Default configuration
+  // 2. The internal flat form — the ObjectView / ListView flatten product.
+  if (schema.locationField || schema.latitudeField) {
+    return {
+      locationField: schema.locationField,
+      latitudeField: schema.latitudeField,
+      longitudeField: schema.longitudeField,
+      // No `|| 'name'` (objectui#5953). An ABSENT binding must stay absent so
+      // the read site can hand the decision to `getRecordDisplayName`; the
+      // literal used to forge a binding the author never wrote, and a forged
+      // `'name'` outranks the object's own declared `nameField` at step 0 of
+      // that resolver. A binding the flatten product really carries survives
+      // here and still wins.
+      titleField: schema.titleField,
+      descriptionField: schema.descriptionField,
+      zoom: schema.zoom,
+      center: schema.center,
+      style,
+    };
+  }
+
+  // Default configuration — field names only. No camera is synthesized here
+  // (objectui#4941): this branch is reached precisely when the author declared
+  // nothing, and a fabricated `zoom` / `center` is indistinguishable from a
+  // declared one at the read site. The old defaults (zoom 10 at the origin)
+  // therefore SUPPRESSED the fit for exactly the views that need it most — an
+  // unconfigured object list view of continent-wide records first-painted a
+  // city-block viewport centred on the set's midpoint, showing no markers at
+  // all. With no camera declared, the camera comes from the data.
   return {
     latitudeField: 'latitude',
     longitudeField: 'longitude',
     locationField: 'location',
-    titleField: 'name',
+    // Deliberately NO `titleField` (objectui#5953). The coordinate keys above
+    // are conventional guesses this component must make — nothing else can
+    // read a location out of an unconfigured record. A marker TITLE is not in
+    // that position: `getRecordDisplayName` resolves it from the object
+    // definition, and it does so better than any literal here could (declared
+    // `nameField`, `titleFormat`, type-aware derivation, then a name-ish probe
+    // over the record's own keys, of which `name` is only the first).
     descriptionField: 'description',
-    zoom: 10,
-    center: [0, 0],
     style,
   };
 }
@@ -227,7 +418,7 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
 /**
  * Extract coordinates from a record based on configuration
  */
-function extractCoordinates(record: any, config: MapConfig): [number, number] | null {
+function extractCoordinates(record: any, config: ObjectMapConfig): [number, number] | null {
   // Try latitude/longitude fields
   if (config.latitudeField && config.longitudeField) {
     const lat = record[config.latitudeField];
@@ -341,13 +532,13 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   schema,
   dataSource,
   className,
+  data: dataProp,
   onMarkerClick,
   onRowClick,
   onEdit,
   onDelete,
   enableClustering,
   clusterRadius = 50,
-  ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -394,13 +585,73 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     );
   }, []);
 
-  const rawDataConfig = getDataConfig(schema);
-  // Memoize dataConfig using deep comparison to prevent infinite loops
-  const dataConfig = useMemo(() => {
-    return rawDataConfig;
-  }, [JSON.stringify(rawDataConfig)]);
+  /**
+   * Memoized on the ONE value `getDataConfig` reads, and nothing else
+   * (objectui#6018) — the same shape `mapConfig` below landed for
+   * objectui#5976, now that the two lines agree.
+   *
+   * `dataConfig` is a dependency of the fetch effect, and that effect calls
+   * `setData`, so a fresh identity here is a refetch loop rather than mere
+   * waste. That hazard is real and is what the previous form's "prevent
+   * infinite loops" comment recorded. What has changed is the PRICE of the
+   * guard, not the guard: identity was bought by calling `getDataConfig` bare
+   * in the render body and re-serializing the result with `JSON.stringify` on
+   * EVERY render, only to hand back the object the memo already held.
+   *
+   * `[schema]` is the whole dependency, not a shorthand for one: `getDataConfig`
+   * is a pure function of `schema` and reads exactly three keys off it
+   * (`data`, `staticData`, `objectName`), nothing ambient. So no deep-compare
+   * key is needed to make the identity hold — the identity that reaches this
+   * component is already stable across the renders that matter. Every
+   * re-render `ObjectMap` causes ITSELF (data landing, the object definition
+   * landing, search typing, zoom, selection, geolocation) leaves the prop
+   * untouched by construction, which is precisely the loop path; and the three
+   * callers upstream each hand over a memoized node: `SchemaRenderer`'s
+   * `evaluatedSchema`, the gate's `mapped` in `useElementDataSourceSchema`,
+   * and `ListView`'s `viewComponentSchema`.
+   *
+   * Dropping the serialize is also a correctness move, not only a cost one.
+   * `JSON.stringify` is not a total function — it THROWS on a value it cannot
+   * serialize — and the passthrough branch of `getDataConfig` returns the
+   * author's own `schema.data` object verbatim, inline `value` rows included.
+   * So a record graph carrying a back-reference (an `$expand`-ed lookup handed
+   * to the block as inline data) or a `BigInt` id took the whole map subtree
+   * down from the render body. Comparing identities never serializes, so the
+   * config no longer has to be serializable at all.
+   * `ObjectMap.dataConfigMemo.test.tsx` pins both halves.
+   */
+  const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
   
-  const mapConfig = getMapConfig(schema);
+  /**
+   * Memoized on the ONE value `getMapConfig` reads, and nothing else
+   * (objectui#5976). This call used to sit bare in the render body, so
+   * `mapConfig` carried a fresh object identity on every render — and the
+   * marker transform below names it in its dependency array, so that `useMemo`
+   * recomputed on every single render while declaring that it does not. The
+   * invalidation cascaded from there: `filteredMarkers` → `clusteredData` /
+   * `markerBounds` → `initialViewState` all key on the array it produces.
+   *
+   * `[schema]` is the whole dependency, not a shorthand for one: `getMapConfig`
+   * is a pure function of `schema` and reads nothing else. No deep-compare key
+   * is needed to make that identity hold, because the identity that reaches
+   * this component is ALREADY stable across the renders that matter — every
+   * re-render `ObjectMap` causes itself (data landing, the object definition
+   * landing, search typing, zoom, selection, geolocation) leaves the prop
+   * untouched by construction, and the three callers upstream each hand over a
+   * memoized node: `SchemaRenderer`'s `evaluatedSchema`, the gate's `mapped`
+   * in `useElementDataSourceSchema`, and `ListView`'s `viewComponentSchema`.
+   *
+   * This deliberately did NOT copy the `JSON.stringify` dep key the
+   * `dataConfig` line above used to carry, and as of objectui#6018 that line
+   * no longer carries it either — both are keyed on `[schema]` now. The
+   * serialize idiom bought stability by paying a full serialize on every
+   * render; it is also key-order sensitive and drops `undefined` values — an
+   * equality THIS config in particular cannot afford, since an ABSENT
+   * `titleField` is load-bearing here (objectui#5953) and must never compare
+   * equal to a present one. Identity is enough; nothing here needs value
+   * equality.
+   */
+  const mapConfig = useMemo(() => getMapConfig(schema), [schema]);
   const hasInlineData = dataConfig?.provider === 'value';
 
   // Fetch data based on provider
@@ -409,26 +660,16 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       try {
         setLoading(true);
         
-        // Prioritize data passed via props (from ListView)
-        if ((rest as any).data) { // Check props.data directly first
-             const passed = (rest as any).data;
-             if (Array.isArray(passed)) {
-                 setData(passed);
-                 setLoading(false);
-                 return;
-             }
+        // Prioritize data passed via props (from ListView). `dataProp` is a
+        // declared prop (not the `rest` spread), so it can sit in this
+        // effect's dependency array below without turning into a
+        // refetch-every-render trap (objectui#5003).
+        if (Array.isArray(dataProp)) {
+          setData(dataProp);
+          setLoading(false);
+          return;
         }
 
-        // Check schema.data next
-        if ((schema as any).data) {
-             const passed = (schema as any).data;
-             if (Array.isArray(passed)) {
-                 setData(passed);
-                 setLoading(false);
-                 return;
-             }
-        }
-        
         if (hasInlineData && dataConfig?.provider === 'value') {
           setData(dataConfig.items as any[]);
           setLoading(false);
@@ -464,7 +705,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     };
 
     fetchData();
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [dataProp, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
@@ -501,7 +742,34 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           return null;
         }
 
-        const title = mapConfig.titleField ? record[mapConfig.titleField] : 'Marker';
+        // ADR-0079's unified record display-name resolver — the same one
+        // `ObjectKanban` (:301), `ObjectCalendar` (:356) and `ObjectGantt`
+        // (:600) already title their items through. `ObjectMap` was the fourth
+        // renderer and the only one still doing a bare property read against a
+        // hard-coded `'name'` key, so every object whose display field is not
+        // literally `name` titled EVERY marker popup `undefined` (objectui#5953).
+        //
+        // The declared binding is passed through as the explicit option rather
+        // than dropped: `getRecordDisplayName` checks `options.titleField`
+        // first, so an authored `map.titleField` still wins outright. What it
+        // adds underneath are the steps a static field-name binding
+        // structurally cannot carry — the object's `nameField`, its deprecated
+        // `displayNameField` alias, the legacy `titleFormat` TEMPLATE, and the
+        // record-key probe that runs when no object definition reached us
+        // (inline `value` data never fetches one; see the schema effect above).
+        //
+        // `fallback: 'Marker'` keeps this component's own placeholder, but only
+        // in the one position where the resolver has nothing left: an id-LESS
+        // record. A record WITH an id now reads `Record #<id>`, which beats
+        // `'Marker'` for the reason `'Marker'` was always weak on a map — every
+        // marker is a marker, so the word separates none of them, while the id
+        // names exactly one record. `fallback` is a declared option of the
+        // resolver, so choosing between the two placeholders needs no change to
+        // `@object-ui/core`.
+        const title = getRecordDisplayName(objectSchema, record, {
+          titleField: mapConfig.titleField,
+          fallback: 'Marker',
+        });
         const description = mapConfig.descriptionField ? record[mapConfig.descriptionField] : undefined;
 
         // Ensure lat/lng are within valid ranges
@@ -522,7 +790,11 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       .filter((marker): marker is NonNullable<typeof marker> => marker !== null);
 
     return { markers: validMarkers, invalidCount: invalid };
-  }, [data, mapConfig]);
+    // `objectSchema` is a dependency now, not incidentally: it lands from an
+    // async fetch AFTER the first paint, and the titles above are resolved
+    // from it. Omitting it would leave the first-painted markers titled from
+    // a null object definition for the rest of the component's life.
+  }, [data, mapConfig, objectSchema]);
 
   const selectedMarker = useMemo(() => 
     markers.find(m => m.id === selectedMarkerId),
@@ -530,8 +802,30 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
   const [currentZoom, setCurrentZoom] = useState(mapConfig.zoom || 3);
 
+  /**
+   * Seed `currentZoom` from the camera MapLibre actually applies at mount,
+   * instead of leaving it at the nominal `mapConfig.zoom || 3` above until
+   * the user's first zoom. `initialViewState` (computed below) — including a
+   * `bounds` fit — is resolved by the constructor before react-map-gl attaches
+   * its React event handlers, so no `onZoom` fires for that first camera.
+   * `onLoad` fires once the style has loaded and the initial camera has
+   * settled (fit-bounds included), so reading the zoom off that event
+   * captures the real applied value without waiting on user interaction
+   * (objectui#5003).
+   */
+  const handleMapLoad = useCallback((e: { target?: { getZoom?: () => number } }) => {
+    try {
+      const zoom = e?.target?.getZoom?.();
+      if (typeof zoom === 'number' && Number.isFinite(zoom)) {
+        setCurrentZoom(Math.round(zoom));
+      }
+    } catch {
+      /* ignore — falls back to the nominal seed / next onZoom */
+    }
+  }, []);
+
   const navigation = useNavigationOverlay({
-    navigation: (schema as any).navigation,
+    navigation: schema.navigation,
     objectName: schema.objectName,
     onRowClick,
   });
@@ -547,7 +841,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
 
   // Cluster markers when clustering is enabled
   const clusteredData = useMemo(() => {
-    const shouldCluster = enableClustering ?? ((schema as any).enableClustering || filteredMarkers.length > 100);
+    const shouldCluster = enableClustering ?? (schema.enableClustering || filteredMarkers.length > 100);
     if (!shouldCluster) {
       return filteredMarkers.map(m => ({
         id: m.id,
@@ -559,31 +853,55 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     return clusterMarkers(filteredMarkers, currentZoom, clusterRadius);
   }, [filteredMarkers, currentZoom, enableClustering, clusterRadius, schema]);
 
-  // Calculate map bounds
+  /**
+   * The box the records occupy, along the shortest arc containing them
+   * (see `./camera`). `null` when there is nothing to fit.
+   */
+  const markerBounds = useMemo(
+    () => computeMarkerBounds(filteredMarkers.map(m => m.coordinates)),
+    [filteredMarkers],
+  );
+
+  /**
+   * A camera the author declared, read from the documented `map` block. Only a
+   * READABLE declaration counts: `MapConfigSchema` already warns about a
+   * malformed one, and a shape whose numbers cannot be read is not a camera —
+   * letting it suppress the fit would first-paint an empty viewport, which is
+   * the defect this whole path exists to prevent (objectui#4941). Nothing is
+   * coerced: an unreadable declaration is diagnosed and ignored, never adapted.
+   */
+  const declaredLatitude = typeof mapConfig.center?.[0] === 'number' ? mapConfig.center[0] : undefined;
+  const declaredLongitude = typeof mapConfig.center?.[1] === 'number' ? mapConfig.center[1] : undefined;
+  const declaredZoom = typeof mapConfig.zoom === 'number' ? mapConfig.zoom : undefined;
+  const hasDeclaredCamera =
+    declaredLatitude !== undefined || declaredLongitude !== undefined || declaredZoom !== undefined;
+
+  /**
+   * Initial camera. Read once, when `MapGL` mounts — which is also every time
+   * the record set changes, because the `loading` gate below unmounts the map
+   * for the duration of each fetch. So the one-shot camera always reflects the
+   * records currently in hand, and nothing here ever yanks a camera the user
+   * has since panned.
+   */
   const initialViewState = useMemo(() => {
-    if (!filteredMarkers.length) {
+    // Records, no declared camera: hand MapLibre the box and let it fit at the
+    // real container size. `bounds` overrides center/zoom on the constructor.
+    if (markerBounds && !hasDeclaredCamera) {
       return {
-        longitude: mapConfig.center?.[1] || 0,
-        latitude: mapConfig.center?.[0] || 0,
-        zoom: mapConfig.zoom || 2
+        bounds: markerBounds,
+        fitBoundsOptions: { padding: FIT_PADDING_PX, maxZoom: FIT_MAX_ZOOM },
       };
     }
 
-    // Simple bounds calculation
-    const lngs = filteredMarkers.map(m => m.coordinates[0]);
-    const lats = filteredMarkers.map(m => m.coordinates[1]);
-    
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-
+    // Otherwise the declared halves win and the rest falls back: to the box's
+    // centre when there are records, to the world when there are none.
+    const fallback = markerBounds ? boundsCenter(markerBounds) : { longitude: 0, latitude: 0 };
     return {
-      longitude: (minLng + maxLng) / 2,
-      latitude: (minLat + maxLat) / 2,
-      zoom: mapConfig.zoom || 3, // Auto-zoom logic could be improved here
+      longitude: declaredLongitude ?? fallback.longitude,
+      latitude: declaredLatitude ?? fallback.latitude,
+      zoom: declaredZoom ?? (markerBounds ? UNFITTED_CENTER_ZOOM : EMPTY_VIEW_ZOOM),
     };
-  }, [filteredMarkers, mapConfig]);
+  }, [markerBounds, hasDeclaredCamera, declaredLongitude, declaredLatitude, declaredZoom]);
 
   if (loading) {
     return (
@@ -632,6 +950,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             touchZoomRotate={true}
             dragRotate={true}
             touchPitch={true}
+            onLoad={handleMapLoad}
             onZoom={(e) => setCurrentZoom(Math.round(e.viewState.zoom))}
             onError={handleMapError}
          >

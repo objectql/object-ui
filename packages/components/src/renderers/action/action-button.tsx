@@ -25,6 +25,7 @@ import { useAction } from '@object-ui/react';
 import { useCondition, toPredicateInput, usePredicateRecordContext } from '@object-ui/react';
 import { Button } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
@@ -189,6 +190,17 @@ const ActionButtonRenderer = forwardRef<
           // backup codes). Without this forward the ActionRunner falls
           // back to the success toast and the user loses the value.
           resultDialog: (schema as any).resultDialog,
+          // Declared post-success navigation — spec's closed strict
+          // `{ navigate, openIn }` block, authorable on `ActionSchema` since
+          // @objectstack/spec 17.1.0 (objectui#5328). The runner reads it off
+          // the FORWARDED def at execute time (`handlePostExecution` →
+          // `readOnSuccessNavigation` → `navigateOnSuccess`, which hops through
+          // the app's own `navigationHandler`). Dropped here, the action
+          // succeeded and the declared hop silently never happened —
+          // objectui#5493, the same shape as `bodyShape` / `resultDialog`
+          // above. Cast because the key is spec-owned and not spelled on
+          // `@object-ui/types`' renderer view, exactly as `resultDialog` is.
+          onSuccess: (schema as any).onSuccess,
         };
 
         await execute({ ...forwarded, ...localContext });
@@ -249,7 +261,7 @@ const ActionButtonRenderer = forwardRef<
               : false
         ) || loading}
         onClick={handleClick}
-        {...rest}
+        {...toFormControlDomProps(rest)}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >
         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

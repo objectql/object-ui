@@ -13,7 +13,7 @@
 import * as React from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button, Input, Label } from '@object-ui/components';
-import { uniqueId } from './_shared';
+import { uniqueId } from './_shared.js';
 
 interface Row {
   id: string;

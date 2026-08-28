@@ -54,36 +54,37 @@ import {
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
-import { ModeToggle } from './ModeToggle';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { LocaleSwitcher } from './LocaleSwitcher';
-import { ConnectionStatus } from './ConnectionStatus';
-import type { ActivityItem } from './ActivityFeed';
-import { InboxPopover } from './InboxPopover';
-import { AppSwitcher } from './AppSwitcher';
+import { ModeToggle } from './ModeToggle.js';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher.js';
+import { CurrentOrganizationIndicator } from './CurrentOrganizationIndicator.js';
+import { LocaleSwitcher } from './LocaleSwitcher.js';
+import { ConnectionStatus } from './ConnectionStatus.js';
+import type { ActivityItem } from './ActivityFeed.js';
+import { InboxPopover } from './InboxPopover.js';
+import { AppSwitcher } from './AppSwitcher.js';
 import type { ConnectionState } from '@object-ui/data-objectstack';
-import { useAdapter } from '../providers/AdapterProvider';
+import { useAdapter } from '../providers/AdapterProvider.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
-import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useMetadata } from '../providers/MetadataProvider';
-import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils';
-import { getIcon } from '../utils/getIcon';
-import { bearerAuthHeaders } from '../utils/authToken';
-import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
-import { useNavigationContext } from '../context/NavigationContext';
-import { useCommandPalette } from '../context/CommandPaletteProvider';
-import { useUrlOverlay } from '../hooks/useUrlOverlay';
-import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
-import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
+import { useAuth, getUserInitials, useWorkspaceAdminStatus } from '@object-ui/auth';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils/index.js';
+import { getIcon } from '../utils/getIcon.js';
+import { bearerAuthHeaders } from '../utils/authToken.js';
+import { useMobileViewSwitcher } from './MobileViewSwitcherContext.js';
+import { useNavigationContext } from '../context/NavigationContext.js';
+import { useCommandPalette } from '../context/CommandPaletteProvider.js';
+import { useUrlOverlay } from '../hooks/useUrlOverlay.js';
+import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams.js';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
 import {
   useSharedActivityFeed,
   useSharedInboxFeed,
   useSharedPendingApprovalsCount,
-} from '../hooks/sharedUserFeeds';
-import { getProductName, getLogoUrl } from '../runtime-config';
-import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
-import { PreviewBadge } from './PreviewBadge';
+} from '../hooks/sharedUserFeeds.js';
+import { getProductName, getLogoUrl } from '../runtime-config.js';
+import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger.js';
+import { PreviewBadge } from './PreviewBadge.js';
 
 function humanizeSlug(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -159,7 +160,7 @@ export function AppHeader({
   const { enabled: aiEnabled } = useAiSurfaceEnabled();
   // Design entry points mutate shared package metadata, so the app → Studio
   // bridge below is admin-only (mirrors the runtime view/page editors).
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   const { t } = useObjectTranslation();
   const { objectLabel, dashboardLabel, pageLabel, reportLabel, viewLabel, appLabel } = useObjectLabel();
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();
@@ -497,6 +498,9 @@ export function AppHeader({
           // humanized slug ("Kanban By Status") so the breadcrumb matches the
           // tab label users clicked.
           const viewName = pathParts[4];
+          // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+          // `list_views` leg is a compatibility READ for stored pre-settlement documents
+          // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
           const definedViews = (currentObject as any).listViews || (currentObject as any).list_views || {};
           const viewDef = (definedViews as Record<string, any>)[viewName];
           const fallbackLabel = (viewDef && (viewDef.label || viewDef.title)) || humanizeSlug(viewName);
@@ -544,11 +548,14 @@ export function AppHeader({
             renders nothing once runtime-config reports GA. */}
         <PreviewBadge className="ml-2 hidden sm:inline-flex" />
 
-        {/* Workspace (organization) switcher — the global "which org am I in /
-            switch org" affordance. Renders just the org name for single-org
-            users, a switch dropdown for multi-org. Sits right after the brand,
-            before the app/section breadcrumb. */}
+        {/* Organization context — "which org am I in", right after the brand and
+            before the app/section breadcrumb. Two mutually exclusive renderers:
+            the switcher for multi-membership users (name + switch dropdown),
+            and the read-only indicator for the single-membership case the
+            switcher declines to render, on walled deployments only
+            (objectui#5287 — the switcher's own visibility rule is unchanged). */}
         <WorkspaceSwitcher />
+        <CurrentOrganizationIndicator />
 
         {resolvedVariant === 'orgs' && (
           <>

@@ -10,8 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card, CardContent, cn } from '@object-ui/components';
 import { Clock, ArrowUpRight, Database, FileText, LayoutDashboard, File } from 'lucide-react';
-import { capitalizeFirst } from '../../utils';
-import type { RecentItem } from '../../hooks/useRecentItems';
+import { recentItemTypeLabel } from './recentItemTypeLabel.js';
+import type { RecentItem } from '../../hooks/useRecentItems.js';
 
 interface RecentAppsProps {
   items: RecentItem[];
@@ -52,9 +52,7 @@ export function RecentApps({ items }: RecentAppsProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {items.map((item) => {
           const Icon = TYPE_ICONS[item.type] || Database;
-          const typeLabel = t(`home.recentApps.itemType.${item.type}`, {
-            defaultValue: capitalizeFirst(item.type),
-          });
+          const typeLabel = recentItemTypeLabel(t, item.type);
           const tone = TYPE_TONES[item.type] || TYPE_TONES.object;
           return (
             <Card

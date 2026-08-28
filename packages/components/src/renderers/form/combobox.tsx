@@ -9,6 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { ComboboxSchema } from '@object-ui/types';
 import { Combobox } from '../../custom';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('combobox', 
   ({ schema, ...props }: { schema: ComboboxSchema; [key: string]: any }) => {
@@ -26,7 +27,7 @@ ComponentRegistry.register('combobox',
         value={schema.value}
         disabled={schema.disabled}
         className={schema.className} 
-        {...comboboxProps}
+        {...toFormControlDomProps(comboboxProps)}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     />
   );

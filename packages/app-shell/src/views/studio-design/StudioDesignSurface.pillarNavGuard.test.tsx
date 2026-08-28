@@ -180,6 +180,14 @@ async function renderSurfaceOnAccess() {
   await screen.findByText('a_account');
 }
 
+
+/** objectui#5813 — Access lives in the 「更多」 overflow now; open it, then
+ *  click the real router Link inside (same dirty-guard as primary pillars). */
+async function clickAccessInOverflow() {
+  fireEvent.click(screen.getByTestId('studio-nav-more'));
+  fireEvent.click(await screen.findByRole('link', { name: 'Access' }));
+}
+
 /** Flip a cell in the open matrix so the editor reports dirty. */
 function dirtyTheMatrix() {
   const row = screen.getByText('a_account').closest('tr')!;
@@ -213,7 +221,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
 
     // The discarded pillar reset the guard on unmount — walking back to
     // Access must NOT prompt again.
-    fireEvent.click(screen.getByRole('link', { name: 'Access' }));
+    await clickAccessInOverflow();
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     await screen.findByText('set_a');
   });
@@ -239,7 +247,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     await screen.findByText('This package has no app yet');
 
-    fireEvent.click(screen.getByRole('link', { name: 'Access' }));
+    await clickAccessInOverflow();
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     await screen.findByText('set_a');
   });
@@ -257,7 +265,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     await renderSurfaceOnAccess();
     dirtyTheMatrix();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Access' }));
+    await clickAccessInOverflow();
 
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(screen.getByText('set_a')).toBeInTheDocument();

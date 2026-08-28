@@ -14,11 +14,24 @@
  * The runtime-config shape lives in app-shell because the Console SPA in
  * `apps/console` consumes app-shell code.
  *
- * Server-side: see
- *   cloud/packages/service-cloud/src/multi-environment-plugins.ts
- *   cloud/packages/service-cloud/src/single-environment-plugin.ts
- *   framework/packages/runtime/src/cloud/runtime-config-plugin.ts
+ * Server-side producers of this payload — anchored by exported symbol +
+ * package rather than by file path, because the previous path list went stale
+ * (the framework implementation moved packages; the cloud repo deleted its
+ * dead forked per-environment stack). Nothing imports across the repo
+ * boundary, so this list is the only link between the two sides of the shape:
+ *
+ *   - `RuntimeConfigPlugin` from `@objectstack/cloud-connection` (framework)
+ *     — the open implementation. Serves `GET /api/v1/runtime/config` and the
+ *     legacy `GET /api/v1/studio/runtime-config` alias, and owns the
+ *     `branding` / `features` shape mirrored below.
+ *   - `RuntimeConfigPlugin` from `@objectstack/objectos-runtime` (cloud) —
+ *     subclasses the open plugin to inject cloud plan policy, i.e. which plan
+ *     unlocks `aiStudio` / `customDomain` / `sso`.
+ *   - `createStudioRuntimeConfigPlugin` from `@objectstack/service-cloud`
+ *     (cloud) — the multi-environment control-plane handshake.
  */
+
+import { sharedGetJson } from '@object-ui/types';
 
 export interface RuntimeFeatures {
   /** "Install to this runtime" button is meaningful on this runtime. */
@@ -85,6 +98,150 @@ export interface RuntimeBranding {
 }
 
 /**
+ * The Console's client error-reporting sink, served by the runtime
+ * (objectui#5522 / objectstack#12681, upstream half of cloud#1508).
+ *
+ * A CLOSED enumeration, delivered as one object. Everything here used to be a
+ * build-time `VITE_SENTRY_*` variable, which meant a platform user consuming
+ * the PREBUILT Console could set none of it — including `sendDefaultPii`, the
+ * knob that decides whether IP and User-Agent leave their network. The
+ * maintainer named that on 2026-08-27, verbatim and untranslated:
+ *
+ * > 「我是一个开发平台呀，我的用户并不会去构建我的前端，我理解这种应该在服务端传进去。」
+ *
+ * One knob deliberately did NOT move and is still read from `import.meta.env`:
+ * `VITE_SENTRY_RELEASE`. A release identifies WHICH BUNDLE produced a stack
+ * trace and must match the source maps that bundle's pipeline uploaded, so it
+ * is a property of the build; a server cannot know which Console build it is
+ * serving.
+ */
+export interface RuntimeClientErrorReporting {
+  /**
+   * The sink. Non-empty by construction — this object exists only when a DSN
+   * arrived, so holding one IS the grant. There is no companion permission
+   * boolean, and the one that briefly existed (objectstack#10805's
+   * `allowClientErrorReporting`) was removed by the same change that added
+   * this, not paralleled.
+   */
+  dsn: string;
+  /** May IP address + User-Agent be attached to events? Opt-in. */
+  sendDefaultPii: boolean;
+  /** The `environment` tag. Absent ⇒ the SPA falls back to its own build mode. */
+  environment?: string;
+  /** Transaction sampling, `0`..`1`. */
+  tracesSampleRate: number;
+  /** Error-session replay sampling, `0`..`1`. */
+  replaysOnErrorSampleRate: number;
+}
+
+/**
+ * The runtime's client-telemetry namespace.
+ *
+ * Its OWN namespace on the payload, deliberately NOT a member of
+ * {@link RuntimeFeatures}. That map is open-ended — a host's `resolveFeatures`
+ * hook merges arbitrary keys into it verbatim — so putting the sink there
+ * would let a distribution hand out a telemetry endpoint from code whose
+ * subject is billing tiers. A security-bearing configuration has exactly one
+ * author. The producer (`RuntimeConfigPlugin` in
+ * `@objectstack/cloud-connection`) pins the same separation from its side.
+ */
+export interface RuntimeTelemetry {
+  /** The sink and its knobs. Absent means no client error reporting. */
+  errorReporting?: RuntimeClientErrorReporting;
+}
+
+/**
+ * The canonical fail-closed reading of a `/api/v1/runtime/config` payload's
+ * error-reporting sink.
+ *
+ * ⚠️ **A MIRROR, and the mirror is the whole risk.** This repo has no
+ * dependency on `@objectstack/cloud-connection` (the package that serves the
+ * payload and owns the shape) — measured, not assumed: no `package.json` here
+ * names it, and neither `@objectstack/spec` nor `@objectstack/client`, which we
+ * do pin, re-export it. So no version bump can deliver this key to us and no
+ * pin lag can withhold it; the shape reaches us only by being retyped here, the
+ * way `branding` and `features` above already are. What CAN go wrong is drift,
+ * so this function is a deliberate line-for-line mirror of
+ * `readClientErrorReporting` exported from
+ * `@objectstack/cloud-connection/telemetry-posture`, and
+ * `runtime-config.test.ts` pins it in both directions.
+ *
+ * Every "cannot determine the answer" state — a non-object body, an absent
+ * `telemetry` block, an absent `errorReporting` block, an empty DSN, a payload
+ * from an older ObjectStack or a third-party host — carries no DSN and
+ * therefore reads as OFF. That is stronger than the permission boolean this
+ * replaced, which needed `=== true` plus a written argument about why a
+ * negative `disabled` key would have been vacuous: absence of a SOURCE is not
+ * a value that can be misread.
+ *
+ * The knobs are re-derived defensively — only a real `true` opts into PII, only
+ * a finite `0`..`1` moves a sample rate — because `'true'`, `1` and `'yes'` are
+ * payloads a consumer should not teach itself to accept.
+ *
+ * The DSN itself is accepted as any non-empty string, NOT re-run through the
+ * producer's shape check: a server serving a working DSN that this quietly
+ * discarded would rebuild the two-places-disagreeing failure objectstack#12681
+ * deleted. `Sentry.init` is the authority on its own format. The one exception
+ * is a DSN carrying a PASSWORD, refused here as well as at the producer —
+ * that failure mode is a secret published to every browser that loads the page,
+ * and against a third-party host this reader is the last thing standing.
+ */
+function readClientErrorReporting(payload: unknown): RuntimeClientErrorReporting | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const telemetry = (payload as { telemetry?: unknown }).telemetry;
+  if (typeof telemetry !== 'object' || telemetry === null) return null;
+  const block = (telemetry as { errorReporting?: unknown }).errorReporting;
+  if (typeof block !== 'object' || block === null) return null;
+
+  const raw = block as Record<string, unknown>;
+  if (typeof raw.dsn !== 'string') return null;
+  const dsn = raw.dsn.trim();
+  if (dsn === '') return null;
+  if (carriesSecret(dsn)) return null;
+
+  return {
+    dsn,
+    sendDefaultPii: raw.sendDefaultPii === true,
+    ...(typeof raw.environment === 'string' && raw.environment.trim()
+      ? { environment: raw.environment.trim() }
+      : {}),
+    tracesSampleRate: sampleRateOr(raw.tracesSampleRate, DEFAULT_TRACES_SAMPLE_RATE),
+    replaysOnErrorSampleRate: sampleRateOr(
+      raw.replaysOnErrorSampleRate,
+      DEFAULT_REPLAYS_ON_ERROR_SAMPLE_RATE,
+    ),
+  };
+}
+
+/** Does this DSN carry a secret after the public key? See the reader's note. */
+function carriesSecret(dsn: string): boolean {
+  try {
+    return new URL(dsn).password !== '';
+  } catch {
+    // Unparseable here means `Sentry.init` will reject it too. Not this
+    // function's question, and answering `true` would discard it for the
+    // wrong stated reason.
+    return false;
+  }
+}
+
+/** A finite `0`..`1` rate, or the default. Never a coerced string. */
+function sampleRateOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : fallback;
+}
+
+/** Mirrors the producer's default transaction sampling. */
+const DEFAULT_TRACES_SAMPLE_RATE = 0.1;
+
+/**
+ * Mirrors the producer's default replay sampling: OFF. Replay records what the
+ * user did, so it is the deliberate choice of the deployment that wants it.
+ */
+const DEFAULT_REPLAYS_ON_ERROR_SAMPLE_RATE = 0;
+
+/**
  * The SPA's server-pushed runtime configuration — which cloud to talk to, which
  * features are on, and how the product is branded.
  *
@@ -108,6 +265,12 @@ export interface AppShellRuntimeConfig {
   defaultEnvironmentId?: string | null;
   features: RuntimeFeatures;
   branding: RuntimeBranding;
+  /**
+   * The runtime's client-telemetry namespace. Always present on the singleton
+   * (defaulting to empty, i.e. no sink) so consumers never have to spell the
+   * absent case themselves.
+   */
+  telemetry: RuntimeTelemetry;
 }
 
 const defaults: AppShellRuntimeConfig = {
@@ -119,6 +282,11 @@ const defaults: AppShellRuntimeConfig = {
   // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
   // out of the box on any runtime that hasn't sent an explicit stage yet.
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview', brandColor: '#4F46E5', pwaThemeColor: '#4f46e5' },
+  // ⛔ No sink until a runtime serves one — including before
+  // `initRuntimeConfig()` has ever run. This default IS the fail-closed
+  // guarantee for the two states no payload can speak for: "the config has
+  // not arrived yet" and "the fetch failed".
+  telemetry: {},
 };
 
 /** Valid {@link PlatformStage} values, for validating server-pushed config. */
@@ -144,6 +312,11 @@ function applyUpdate(patch: Partial<AppShellRuntimeConfig>): void {
       ...current.branding,
       ...(patch.branding ?? {}),
     },
+    // NOT merged like `features`/`branding`: the sink is re-derived from each
+    // payload in full, so it can never outlive the response that carried it (a
+    // later re-fetch against a runtime that withdrew the DSN must withdraw it
+    // here too).
+    telemetry: patch.telemetry ? { ...patch.telemetry } : current.telemetry,
   };
 }
 
@@ -156,16 +329,25 @@ function applyUpdate(patch: Partial<AppShellRuntimeConfig>): void {
  * `baseUrl` lets callers in dev (Vite proxy) override the fetch origin.
  * In production both Console SPA and tenant runtime share an origin so
  * the default (relative `/api/v1/...`) works.
+ *
+ * Goes through {@link sharedGetJson} because this is NOT the page's first ask
+ * for this URL (objectui#5544): the inline branding script in
+ * `apps/console/index.html` starts the identical request during HTML parse, well
+ * before this module chunk is even fetched. Both were measured on prod and
+ * staging, and this one is on the critical path — the console awaits it before
+ * `createRoot().render()`. Joining the earlier request removes a whole
+ * control-plane round trip AND lets this await settle sooner, since it inherits
+ * a request that started first. In-flight only: with nothing in flight this
+ * fetches normally, and the repeat-call contract above is unchanged, because the
+ * registry entry is gone by the time any later call arrives.
  */
 export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
   const base = (baseUrl || '').replace(/\/+$/, '');
   try {
-    const res = await fetch(`${base}/api/v1/runtime/config`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return;
-    const body = (await res.json()) as Partial<AppShellRuntimeConfig> | null;
+    const body = await sharedGetJson<Partial<AppShellRuntimeConfig> | null>(
+      `${base}/api/v1/runtime/config`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    );
     if (!body || typeof body !== 'object') return;
     applyUpdate({
       cloudUrl: typeof body.cloudUrl === 'string' ? body.cloudUrl.replace(/\/+$/, '') : current.cloudUrl,
@@ -184,6 +366,14 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           sso: body.features.sso === true,
         }
         : current.features,
+      // Read off the RAW body, not off `body.telemetry`: the mirrored reader
+      // owns every malformed/absent shape in one place, and handing it the
+      // whole payload is what keeps this call site from growing its own
+      // `?.` dialect.
+      telemetry: (() => {
+        const errorReporting = readClientErrorReporting(body);
+        return errorReporting ? { errorReporting } : {};
+      })(),
       branding: body.branding
         ? {
           productName:
@@ -287,12 +477,117 @@ export function getCloudBase(): string {
   return current.cloudUrl ?? '';
 }
 
+/**
+ * Is a marketplace catalog reachable from this runtime? (objectui#5504)
+ *
+ * Reads the server's OWN answer — `features.marketplace`, which
+ * `RuntimeConfigPlugin` derives per request from the serving app's route
+ * table (objectstack#8356), i.e. "is a `/api/v1/marketplace/*` browse surface
+ * actually mounted here". On a runtime deployed with `OS_CLOUD_URL=off`
+ * (`none` / `local` / `disabled` alike) the host mounts no marketplace proxy,
+ * so the flag arrives `false` while `/api/v1/runtime/config` itself is still
+ * served — the EE image wires runtime-config unconditionally and the
+ * cloud-dependent surfaces only when `resolveCloudUrl()` is truthy.
+ *
+ * ⛔ Never infer this from the SHAPE OF A FAILURE. A 404/503 from the
+ * marketplace route is equally what a control plane that is merely DOWN
+ * produces, and a page that concludes "disabled by configuration" from it
+ * tells an operator their config is the problem while their control plane
+ * burns. The flag is a property of the runtime's own routing table; a broken
+ * upstream leaves it `true` and the load failure stays a load failure.
+ *
+ * Fails OPEN (`!== false`): a runtime predating `/api/v1/runtime/config`, or
+ * one whose config fetch failed, keeps the default `true` and the marketplace
+ * stays exactly as visible as it was before this gate existed. Withholding a
+ * working capability on an unanswered question is the worse direction.
+ */
+export function isMarketplaceEnabled(): boolean {
+  return current.features?.marketplace !== false;
+}
+
+/**
+ * Is AI-driven metadata authoring ("online development") offered by this
+ * runtime? (objectui#5521 / objectui#5577)
+ *
+ * Reads the server's OWN answer — `features.aiStudio`, which the runtime
+ * derives per request from the same resolution that decides whether the
+ * metadata-authoring agent is mounted at all. On the composed hosted-SaaS shape
+ * it arrives `false` while the ToolRegistry holds zero authoring handlers and
+ * `/api/v1/meta/*` answers 403, so the SPA withholds the authoring entry points
+ * instead of offering a front door the backend refuses.
+ *
+ * Distinct from the PER-PRINCIPAL authoring capability (`useCanAuthorMetadata`):
+ * this is the DEPLOYMENT's answer ("is authoring offered here at all"), that one
+ * is the caller's ("may THIS principal author"). Both gates are real and neither
+ * substitutes for the other.
+ *
+ * ⛔ Never infer this from the SHAPE OF A FAILURE. A 403/404 from `/api/v1/meta/*`
+ * is equally what a permission denial — or a control plane that is merely DOWN —
+ * produces, and a page that concludes "authoring is disabled on this runtime"
+ * from it tells an operator their deployment is the problem while the real one is
+ * their credentials or their upstream. The flag is a property of the runtime's
+ * own capability set; a broken upstream leaves it `true` and the failure stays a
+ * failure.
+ *
+ * Fails OPEN (`!== false`): a runtime predating `/api/v1/runtime/config`, or one
+ * whose config fetch failed, keeps the default `true` and the AI authoring
+ * affordances stay exactly as visible as they were before this gate existed.
+ * Withholding a working capability on an unanswered question is the worse
+ * direction — the server refuses the write regardless.
+ *
+ * `features?.` is load-bearing, not decoration. It is why this doctrine belongs
+ * in ONE place instead of being retyped per call site: a caller reached through a
+ * PARTIAL runtime-config snapshot (a host, or a sibling suite standing the module
+ * in as `getRuntimeConfig: () => ({ branding })`) sees `features` genuinely
+ * absent, and reading `.aiStudio` off `undefined` is a TypeError — a crash, not a
+ * fail-open. PR #5575 measured that exact un-chained shape crashing 29 tests
+ * across 4 suites before it was corrected.
+ */
+export function isAiStudioEnabled(): boolean {
+  return current.features?.aiStudio !== false;
+}
+
+/**
+ * The error-reporting sink this deployment's runtime served, or `null` for
+ * "send nothing" (objectui#5522 / objectstack#12681).
+ *
+ * The whole telemetry configuration cloud#1508 asked for, from the one place a
+ * platform user can reach. An air-gapped on-premises EE Console was measured
+ * sending 14 Sentry envelopes per session to `sentry.io` carrying IP +
+ * User-Agent PII, and could not be silenced because every knob in
+ * `observability/sentry.ts` was a Vite build-time variable that Vite inlines as
+ * a frozen literal. `@object-ui/console` publishes ONE pre-built SPA that the
+ * hosted SaaS console and the on-prem/air-gapped EE images both embed, so the
+ * artifact cannot tell those postures apart and editing env vars on the
+ * deployed host does nothing. These values come from the server on every boot,
+ * so they CAN — and ObjectStack's users, who never build this frontend, can
+ * finally turn reporting ON as well as off.
+ *
+ * ⛔ Fails CLOSED, the opposite direction from {@link isMarketplaceEnabled} and
+ * {@link isAiStudioEnabled} above — do not "make it consistent" with them.
+ * Those withhold a working capability on an unanswered question, which is the
+ * worse direction for a feature; here an unreported error is recoverable and
+ * PII leaving an air-gapped deployment is not, so every unanswered question
+ * must land on silence. Concretely: a runtime predating the key, a third-party
+ * host, a 404 and a network failure all serve no DSN and read as OFF — which
+ * is exactly the set of runtimes leaking today.
+ *
+ * The DSN's presence IS the grant, so this returns the configuration rather
+ * than a boolean: there is no second question to ask, and a caller holding a
+ * non-null result is holding everything it needs. See `observability/sentry.ts`
+ * for the one place that consumes it.
+ */
+export function getClientErrorReporting(): RuntimeClientErrorReporting | null {
+  return current.telemetry?.errorReporting ?? null;
+}
+
 /** Test/dev helper. */
 export function resetRuntimeConfigForTesting(): void {
   current = {
     ...defaults,
     features: { ...defaults.features },
     branding: { ...defaults.branding },
+    telemetry: { ...defaults.telemetry },
   };
   initialised = false;
 }

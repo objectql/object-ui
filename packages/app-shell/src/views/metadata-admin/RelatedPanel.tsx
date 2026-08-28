@@ -35,8 +35,8 @@ import {
   EmptyDescription,
   cn,
 } from '@object-ui/components';
-import { useMetadataClient } from './useMetadata';
-import { listAnchorsFor, type MetadataAnchor } from './registry';
+import { useMetadataClient } from './useMetadata.js';
+import { listAnchorsFor, type MetadataAnchor } from './registry.js';
 
 export interface RelatedPanelProps {
   /** Parent metadata type, e.g. `object`. */

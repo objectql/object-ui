@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/types",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "description": "Pure TypeScript type definitions for Object UI - The Protocol Layer",
   "type": "module",
   "sideEffects": false,
@@ -10,8 +10,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./base": {
       "types": "./dist/base.d.ts",

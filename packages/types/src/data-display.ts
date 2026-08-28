@@ -16,7 +16,7 @@
  */
 
 import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Alert component
@@ -213,6 +213,81 @@ export interface TableSortItem {
 }
 
 /**
+ * Every `type` spelling a `TableColumn` may carry — the canonical value set for
+ * this key (objectui#5853, maintainer ruling 2026-08-25, Option B: the 8-literal
+ * interface union is canonical).
+ *
+ * This tuple is the SINGLE declaration of that vocabulary. `TableColumnSchema`
+ * in `zod/data-display.zod.ts` builds its `z.enum` from this array rather than
+ * restating the members, so the interface and the validator cannot drift apart
+ * the way they had (the interface declared these 8; the mirror was a bare
+ * `z.string()` that blessed `type: 'money'` and any other typo).
+ */
+export const TABLE_COLUMN_TYPES = [
+  'text', 'number', 'date', 'datetime', 'currency', 'percent', 'boolean', 'action',
+] as const;
+
+/** Data type a table column is formatted/edited as. */
+export type TableColumnType = (typeof TABLE_COLUMN_TYPES)[number];
+
+/**
+ * Undeclared `type` spellings the data-table renderer used to read, folded onto
+ * the canonical spelling they mean (objectui#5853).
+ *
+ * These are NOT part of the published vocabulary and deliberately do not appear
+ * in {@link TABLE_COLUMN_TYPES}: the ruling rejected alias proliferation, so the
+ * renderer's extra dialect DISAPPEARS at the producer seam instead of getting
+ * declared. `int` / `integer` / `float` / `double` were members of the
+ * data-table's `NUMERIC_EDIT_TYPES`; `datetime-local` had its own editor branch.
+ * Same treatment, and the same wording, as the param-type dialect documented at
+ * {@link ObjectUiLocalParamFieldType} in `ui-action.ts` (`datetime-local` →
+ * `datetime` there too).
+ *
+ * Authoring one of these is refused by `TableColumnSchema` — the fold exists for
+ * VALUES IN FLIGHT from a column-inference producer, not for authored metadata.
+ */
+const TABLE_COLUMN_TYPE_ALIASES: Readonly<Record<string, TableColumnType>> = {
+  int: 'number',
+  integer: 'number',
+  float: 'number',
+  double: 'number',
+  'datetime-local': 'datetime',
+};
+
+/**
+ * Fold an inferred column type onto the canonical {@link TableColumnType}
+ * vocabulary, for use at a producer's emit seam (objectui#5853).
+ *
+ * Column inference reads an OBJECT SCHEMA's field type, whose vocabulary is
+ * `@objectstack/spec`'s `FieldType` — 49 values, only 7 of which are members of
+ * this union. Forwarding that verbatim into `TableColumn.type` is what made the
+ * declaration a lie and forced an `as any` cast in the renderer. Producers call
+ * this at the point they hand columns to `data-table`, so the slot only ever
+ * holds a value it declares.
+ *
+ * Three outcomes, and the third is the load-bearing one:
+ *
+ * - a canonical spelling passes through unchanged;
+ * - a known alias folds onto its canonical spelling (`int` → `number`);
+ * - ⭐ ANYTHING ELSE yields `undefined` — the `type` ANNOTATION is dropped, and
+ *   the COLUMN IS NEVER DROPPED. This is the general case, and it is where the
+ *   42 out-of-union spec field types (`select`, `lookup`, `user`, `file`,
+ *   `formula`, …) land. Dropping the annotation is behaviour-preserving at the
+ *   only consumer that reads this key: `data-table`'s inline editor branches on
+ *   `date` / `datetime` / the numeric set and otherwise falls through to a text
+ *   input — which is exactly the `undefined` path. The dedicated widget those
+ *   fields DO get is chosen by the host's `renderCellEditor`, which resolves the
+ *   field through `column.accessorKey` and never reads `type`. Mapping them to
+ *   `'text'` instead would assert something false about a `lookup` column;
+ *   absence says only what is true — this column's type is not one of the 8.
+ */
+export function normalizeTableColumnType(value: unknown): TableColumnType | undefined {
+  if (typeof value !== 'string') return undefined;
+  if ((TABLE_COLUMN_TYPES as readonly string[]).includes(value)) return value as TableColumnType;
+  return TABLE_COLUMN_TYPE_ALIASES[value];
+}
+
+/**
  * Table column definition
  */
 export interface TableColumn {
@@ -252,7 +327,7 @@ export interface TableColumn {
   /**
    * Data type for formatting
    */
-  type?: 'text' | 'number' | 'date' | 'datetime' | 'currency' | 'percent' | 'boolean' | 'action';
+  type?: TableColumnType;
   /**
    * Whether column is sortable
    * @default true
@@ -277,10 +352,203 @@ export interface TableColumn {
    * Custom cell renderer function
    */
   cell?: (value: any, row: any) => any;
+  /**
+   * Icon node rendered into the header cell, before the header text (e.g. the
+   * column-type icons `ObjectGrid` writes under `showColumnTypeIcons`). A
+   * rendered React node — a runtime slot like {@link TableColumn.cell}, not
+   * serializable metadata.
+   *
+   * Declared by objectui#6424 (maintainer ruling 2026-08-27): `data-table`
+   * rendered this key while the declaration refused it, so a typed author got
+   * a compile error — and a silent strip from the zod mirror — for a key the
+   * renderer honours. The declaration, the parse road, and the renderer's
+   * behaviour now agree; the renderer's internal column reads remain
+   * any-mediated (the `col: any` normalization in `data-table.tsx`) — a
+   * standing instrument gap, not closed here.
+   */
+  headerIcon?: React.ReactNode;
+  /**
+   * Field-meta override: display format pattern for the cell value (e.g.
+   * `"$0,0"`, `"0%"`, `"YYYY-MM-DD"`), honoured by `object-data-table`'s cell
+   * pipeline — `renderFieldValue`'s currency / percent / date branches — and
+   * by the numeric right-alignment inference. Documented as an author
+   * override by `@object-ui/plugin-dashboard`'s README and exercised by its
+   * cells suite. The plain `data-table` renderer does not read it; its
+   * type-driven rendering is {@link TableColumn.type} / `cell`.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key): the
+   * widget honoured this key while the declaration refused it, so a typed
+   * author got a compile error — and a silent strip from the zod mirror —
+   * for documented, tested behaviour. Declaring is truth-maintenance.
+   */
+  format?: string;
+  /**
+   * Field-meta override: option list for select-flavoured columns — `value`
+   * matched against the cell value, `label` rendered, `color` driving the
+   * badge/dot appearance. Honoured by `object-data-table`'s cell pipeline
+   * (`SelectCellRenderer`, after the per-option translation pass) ahead of
+   * the object schema's own options; documented as an author override by
+   * `@object-ui/plugin-dashboard`'s README. The plain `data-table` renderer
+   * does not read it.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key), same
+   * stroke as {@link TableColumn.format}.
+   */
+  options?: Array<{ value: any; label: string; color?: string }>;
+  /**
+   * Field-meta override: ISO 4217 currency code (e.g. `"EUR"`) for
+   * currency-formatted cells, honoured by `object-data-table`'s cell
+   * pipeline (`renderFieldValue` and `CurrencyCellRenderer`) ahead of both
+   * the symbol inferred from {@link TableColumn.format} and the tenant
+   * default currency (ADR-0053). The plain `data-table` renderer does not
+   * read it.
+   *
+   * Declared by objectui#6425 (maintainer ruling 2026-08-27, per-key): kept
+   * in production but never promised before — declaring makes the existing
+   * behaviour honest.
+   */
+  currency?: string;
 }
 
 /**
- * Simple table component
+ * Column definition for the STATIC `table` renderer (`type: 'table'`) — the
+ * narrow declared subset that renderer actually reads, so declared = enforced
+ * holds per renderer (objectui#5474, maintainer ruling 2026-08-22, Option C:
+ * split the types).
+ *
+ * {@link TableColumn} above remains the rich shared shape that `data-table`
+ * honours (`DataTableSchema`, detail-view relations) — it is
+ * deliberately NOT narrowed. The static renderer
+ * (`packages/components/src/renderers/complex/table.tsx`) reads exactly five
+ * column keys: `header`, `accessorKey`, `className`, `cellClassName`, `width`
+ * (measured on objectui#5474; every other key was accepted, type-checked, and
+ * did nothing, with no diagnostic).
+ *
+ * The `?: never` members are ADR-0049 retirement tombstones — this package's
+ * convention (see `crud.ts` `confirm` and `complex.ts` `DashboardWidgetSchema`):
+ * authoring one is a tsc error here and a loud parse rejection in the Zod twin
+ * (`zod/data-display.zod.ts` `StaticTableColumnSchema`). Implementing the keys
+ * on this renderer instead (Option A) was considered and NOT chosen — it would
+ * duplicate `data-table`'s capabilities and leave two interactive tables to
+ * maintain. Authors who need the interactive set migrate the node to
+ * `type: 'data-table'`, whose columns keep the rich {@link TableColumn}.
+ */
+export interface StaticTableColumn {
+  /**
+   * Column header text
+   */
+  header: string;
+  /**
+   * Key to access data in row object
+   */
+  accessorKey: string;
+  /**
+   * Header CSS class
+   */
+  className?: string;
+  /**
+   * Cell CSS class
+   */
+  cellClassName?: string;
+  /**
+   * Column width
+   */
+  width?: string | number;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  minWidth?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it; a right-aligned column authored here was
+   * silently inert. Use `data-table`, or a Tailwind `cellClassName` such as
+   * `text-right`, which this renderer does honour.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  align?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  fixed?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  type?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Sorting is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  sortable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Filtering is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  filterable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Resizing is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  resizable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Inline editing is `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  editable?: never;
+  /**
+   * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
+   * static renderer never read it. Custom cells are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  cell?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6424, under #5474's lockstep
+   * rule: every rich key needs a deliberate static-side decision). Declared on
+   * the rich {@link TableColumn} only — the static renderer never read it.
+   * Header icons are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  headerIcon?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule: every rich key needs a deliberate static-side decision). Declared
+   * on the rich {@link TableColumn} only — the static renderer reads no
+   * field-meta overrides (its measured read set is the five live keys above).
+   * Formatted cells are `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  format?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule). Declared on the rich {@link TableColumn} only — the static
+   * renderer reads no field-meta overrides. Select badges are `data-table`'s
+   * capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  options?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6425, under #5474's lockstep
+   * rule). Declared on the rich {@link TableColumn} only — the static
+   * renderer reads no field-meta overrides. Currency cells are
+   * `data-table`'s capability.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  currency?: never;
+}
+
+/**
+ * Simple STATIC table component — renders inline `data` against `columns`,
+ * nothing more. For hover/stripe styling, sorting, filtering, selection or
+ * inline editing use `data-table` ({@link DataTableSchema}).
  */
 export interface TableSchema extends BaseSchema {
   type: 'table';
@@ -289,9 +557,11 @@ export interface TableSchema extends BaseSchema {
    */
   caption?: string;
   /**
-   * Table columns
+   * Table columns — the narrow static subset ({@link StaticTableColumn}),
+   * split from the rich shared {@link TableColumn} by objectui#5474 so
+   * declared = enforced holds per renderer.
    */
-  columns: TableColumn[];
+  columns: StaticTableColumn[];
   /**
    * Table data rows
    */
@@ -301,15 +571,27 @@ export interface TableSchema extends BaseSchema {
    */
   footer?: SchemaNode | SchemaNode[] | string;
   /**
-   * Whether table has hover effect
-   * @default true
+   * RETIRED (objectui#5474, maintainer ruling 2026-08-22, ADR-0049
+   * enforce-or-remove): the static renderer never implemented row hover
+   * highlighting — the key carried a `@default true` annotation describing
+   * behaviour that did not exist, and the reference page taught it as working.
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`): authoring the key is a tsc error here and a loud parse
+   * rejection in the Zod twin. Row hover styling is `data-table` behaviour —
+   * migrate the node to `type: 'data-table'`.
+   * @deprecated Retired — use `data-table` for interactive row affordances.
    */
-  hoverable?: boolean;
+  hoverable?: never;
   /**
-   * Whether table has striped rows
-   * @default false
+   * RETIRED (objectui#5474, maintainer ruling 2026-08-22, ADR-0049
+   * enforce-or-remove): the static renderer never implemented striped rows —
+   * same tombstone as `hoverable` above. Alternate-row styling can be
+   * expressed today with Tailwind on `className`
+   * (e.g. `[&_tbody_tr:nth-child(even)]:bg-muted/50`), which this renderer
+   * does honour.
+   * @deprecated Retired — style rows via `className`, or use `data-table`.
    */
-  striped?: boolean;
+  striped?: never;
 }
 
 /**
@@ -1081,21 +1363,151 @@ export interface TimelineEvent {
 }
 
 /**
- * Timeline component
+ * The axis-bucket vocabulary for the `gantt` variant.
+ *
+ * One spelling, one source: these are exactly the six values of
+ * `@objectstack/spec` `ui/TimelineConfig.json#scale`, and exactly the six
+ * `TIMELINE_SCALES` that `packages/plugin-timeline/src/renderer.tsx`
+ * (`resolveTimelineScale`) accepts. Declared here so the two agree by
+ * construction rather than by coincidence.
+ */
+export type TimelineScale = 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+/**
+ * Timeline component (`type: 'timeline'`).
+ *
+ * ## The members below are the set `TimelineRenderer` actually reads
+ *
+ * objectui#6170, maintainer ruling 2026-08-25 (「同意」), the same family rule
+ * adopted on objectui#6172: **the exported type aligns to the measured
+ * authored + read set.** Before that ruling this interface declared `events` /
+ * `orientation` / `position` and nothing else, and the divergence was
+ * invisible to `tsc` because {@link BaseSchema} carries `[key: string]: any` —
+ * every key the renderer reads resolved as `any`, so `schema: TimelineSchema`
+ * constrained nothing. (The index signature itself is objectui#5155 /
+ * objectui#6269, deliberately not touched here.)
+ *
+ * Measured on `origin/main` @ `79ebf30d1`: `TimelineRenderer`
+ * (`plugin-timeline/src/renderer.tsx:250`) reads NINE keys off this node —
+ * `variant`, `items`, `dateFormat`, `onItemClick`, `minDate`, `maxDate`,
+ * `rowLabel`, `scale`, `timeScale` — and NONE of `events` / `orientation` /
+ * `position`. EIGHT of those nine are declared below; `onItemClick` is not, on
+ * purpose — it is a runtime slot `ObjectTimeline` installs when it composes
+ * this schema, not authorable metadata, and this package's convention keeps
+ * callback-shaped keys off the authored surface (see `RuntimeOnlyDeclared` in
+ * `__tests__/zod-mirror-parity.test.ts`). The registration's own `inputs` metadata and
+ * `content/docs/plugins/plugin-timeline.mdx`'s property table agreed with the
+ * renderer all along; only this type disagreed — including with the docs
+ * page's own TypeScript example, which did not compile, because `events` was
+ * required and nothing writes it.
+ *
+ * ## Two timelines, and this is the presentational one
+ *
+ * `TimelineSchema` describes HOW TO DRAW a rail from items already in hand.
+ * The OBJECT-BOUND config — WHICH RECORD FIELDS to project — is
+ * `@objectstack/spec`'s `TimelineConfig`, surfaced here as
+ * {@link ListViewTimelineConfig} (`startDateField` / `titleField` / …) and
+ * consumed by `ObjectTimeline`, which resolves those field names against
+ * fetched records and composes the presentational shape below before handing
+ * it to `TimelineRenderer`. The two vocabularies are disjoint by design; only
+ * `scale` is common to both, deliberately spelled the same in each.
  */
 export interface TimelineSchema extends BaseSchema {
   type: 'timeline';
   /**
-   * Timeline events
+   * Layout variant. The renderer implements exactly these three and returns
+   * `null` for anything else.
+   * @default 'vertical'
    */
-  events: TimelineEvent[];
+  variant?: 'vertical' | 'horizontal' | 'gantt';
   /**
-   * Timeline orientation
+   * The rows to draw.
+   *
+   * TWO element shapes, discriminated by `variant`, both read dynamically by
+   * the renderer (`items.map((item: any) => …)`), so the element type is left
+   * open rather than narrowed to either one:
+   *
+   * - `vertical` / `horizontal` — a feed item:
+   *   `{ time, title, description?, variant?, icon?, color?, content?, className?, meta?, group? }`
+   * - `gantt` — a row:
+   *   `{ label, items: [{ title, startDate, endDate, variant? }] }`
+   *
+   * `content/docs/plugins/plugin-timeline.mdx` carries both in full.
+   */
+  items?: any[];
+  /**
+   * How item dates are rendered.
+   * @default 'short'
+   */
+  dateFormat?: 'short' | 'long' | 'iso';
+  /**
+   * Gantt axis bucket size. **Canonical spelling** — it is `@objectstack/spec`
+   * `ui/TimelineConfig.json`'s axis key AND the renderer's preferred read
+   * (`resolveTimelineScale` resolves `scale ?? timeScale`).
+   * @default 'month'
+   */
+  scale?: TimelineScale;
+  /**
+   * Gantt axis bucket size — this renderer's pre-spec dialect, still read as a
+   * fallback so stored JSON keeps working.
+   *
+   * @deprecated Use {@link TimelineSchema.scale}, which `@objectstack/spec`
+   * owns and this renderer prefers. Retiring the alias is routed separately
+   * (objectui#6170 maintainer ruling 2026-08-25: "`timeScale` goes the
+   * alias-retirement route, not a silent second spelling").
+   */
+  timeScale?: TimelineScale;
+  /**
+   * Header label above the Gantt row-label gutter.
+   * @default 'Items'
+   */
+  rowLabel?: string;
+  /**
+   * Override the auto-calculated Gantt axis start (`YYYY-MM-DD`).
+   */
+  minDate?: string;
+  /**
+   * Override the auto-calculated Gantt axis end (`YYYY-MM-DD`).
+   */
+  maxDate?: string;
+  /**
+   * Timeline events.
+   *
+   * ⚠️ ZERO read points — `packages/plugin-timeline` never reads this key, so a
+   * timeline authored with `events` renders an EMPTY rail. It was `required`
+   * until objectui#6170, which is why the docs page's own TypeScript example
+   * did not compile; it is OPTIONAL now so that documented authoring form
+   * type-checks, and that widening is the whole of the change made here.
+   *
+   * Its RETIREMENT is routed, not done: objectui#6170's maintainer ruling
+   * (2026-08-25) sends this key, {@link TimelineSchema.orientation} and
+   * {@link TimelineSchema.position} down the ADR-0049 enforce-or-remove route.
+   * That is a breaking removal from a published type and therefore its own
+   * change; the house form for it is the `?: never` tombstone convention on
+   * {@link StaticTableColumn} above (objectui#5474).
+   *
+   * @deprecated Never read by any renderer. Use `items` — see
+   * `content/docs/plugins/plugin-timeline.mdx`.
+   */
+  events?: TimelineEvent[];
+  /**
+   * Timeline orientation.
+   *
+   * ⚠️ ZERO read points — the renderer discriminates on
+   * {@link TimelineSchema.variant}, not on this key. Retirement routed via
+   * ADR-0049; see {@link TimelineSchema.events}.
+   *
+   * @deprecated Never read by any renderer. Use `variant`.
    * @default 'vertical'
    */
   orientation?: 'vertical' | 'horizontal';
   /**
-   * Timeline position (for vertical)
+   * Timeline position (for vertical).
+   *
+   * ⚠️ ZERO read points. Retirement routed via ADR-0049; see
+   * {@link TimelineSchema.events}.
+   *
+   * @deprecated Never read by any renderer.
    * @default 'left'
    */
   position?: 'left' | 'right' | 'alternate';

@@ -11,20 +11,9 @@ import type { ButtonSchema } from '@object-ui/types';
 import { Button } from '../../ui';
 import { renderChildren } from '../../lib/utils';
 import { forwardRef } from 'react';
-import { Loader2, icons, type LucideIcon } from 'lucide-react';
-
-// Helper to convert icon names to PascalCase (e.g., "arrow-right" -> "ArrowRight")
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-// Map of renamed icons in lucide-react
-const iconNameMap: Record<string, string> = {
-  'Home': 'House',
-};
+import { Loader2 } from 'lucide-react';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
+import { resolveIcon } from '../action/resolve-icon';
 
 // Index signature on the parameter annotation, not on the `forwardRef` type
 // argument — mechanism note on `action:bar` (objectui#4422), pinned by
@@ -39,13 +28,12 @@ const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
         ...buttonProps 
     } = props;
 
-    // Resolve icon
-    let Icon: LucideIcon | null = null;
-    if (schema.icon) {
-      const iconName = toPascalCase(schema.icon);
-      const mappedIconName = iconNameMap[iconName] || iconName;
-      Icon = (icons as any)[mappedIconName] as LucideIcon;
-    }
+    // Resolve the icon through the SHARED resolver (objectui#5993). This file
+    // used to carry its own `toPascalCase` + `iconNameMap` + `icons` index — the
+    // same algorithm, but not the same function, so an alias added to
+    // `resolve-icon.ts` to absorb a lucide retirement (objectui#5586, #5622)
+    // reached every `action:*` site and silently missed `ui:button`.
+    const Icon = resolveIcon(schema.icon);
     
     // Determine loading state
     const isLoading = schema.loading || props.loading;
@@ -61,7 +49,7 @@ const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
         size={schema.size} 
         className={schema.className} 
         disabled={isDisabled}
-        {...buttonProps}
+        {...toFormControlDomProps(buttonProps)}
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
     >

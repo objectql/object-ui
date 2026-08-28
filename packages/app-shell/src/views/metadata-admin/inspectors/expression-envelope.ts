@@ -51,7 +51,7 @@
  */
 
 import type { ExpressionInput } from '@objectstack/spec/shared';
-import { conditionText } from '../previews/flow-canvas-layout';
+import { conditionText } from '../previews/flow-canvas-layout.js';
 
 /** The object arm of `ExpressionInput` — the envelope itself. */
 type ExpressionEnvelope = Exclude<ExpressionInput, string>;

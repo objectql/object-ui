@@ -24,10 +24,10 @@ import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
 import type { ListViewSchema } from '@object-ui/types';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
-import { RecordDetailView } from './RecordDetailView';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
+import { RecordDetailView } from './RecordDetailView.js';
 
 interface InterfaceListPageProps {
   page: any;
@@ -53,6 +53,9 @@ function hasColumns(v: any): boolean {
 }
 
 function resolveSourceView(objectDef: any, sourceView?: string): any | undefined {
+  // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+  // `list_views` leg is a compatibility READ for stored pre-settlement documents
+  // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
   const views: Record<string, any> = objectDef?.listViews || objectDef?.list_views || {};
   // ADR-0017 expansion can serve a default-view item with an empty config
   // while the full body lives on `objectDef.list` — prefer candidates that
@@ -178,13 +181,56 @@ export function defaultGanttFromObject(objectDef: any): { startDateField: string
   return { startDateField: start, endDateField: end, ...(progress ? { progressField: progress } : {}) };
 }
 
-// Map needs a location/geo field (or address). Auto-derive from a location-typed
-// field, else a field whose name looks geographic.
+/**
+ * Map needs a location/geo field (or address). Auto-derive from a location-typed
+ * field, else a field whose name looks geographic.
+ *
+ * Like every sibling deriver above, this binds its viz's own REQUIRED field and
+ * nothing else — `kanban → groupByField`, `calendar → startDateField`,
+ * `gallery → coverField`, `gantt → start/end`, `map → locationField`. A marker
+ * TITLE is not this seam's to bind.
+ *
+ * ## Why the derived title binding was removed (objectui#6343)
+ *
+ * It existed (objectui#5909) to route around a forge in `ObjectMap` that no
+ * longer exists: `getMapConfig` used to fill an absent `titleField` with the
+ * literal `'name'`, and the marker title was then a plain `record[titleField]`
+ * read — so an object whose display field was not literally `name` titled every
+ * marker popup `undefined`. objectui#5953 deleted that forge. `ObjectMap` now
+ * resolves marker titles through `@object-ui/core#getRecordDisplayName`, the
+ * same ADR-0079 resolver `ObjectKanban`, `ObjectCalendar` and `ObjectGantt`
+ * already used, which is exactly why none of them needs a derived binding
+ * either.
+ *
+ * What the binding left behind once the forge was gone was not redundancy but
+ * an INVERSION. It reaches the resolver as `options.titleField`, which is
+ * precedence **step 0** — ahead of `objectDef.titleField`, ahead of the
+ * declared `nameField` pointer (step 1/2), and ahead of the legacy
+ * `titleFormat` template (step 3). Measured against that ladder, a field name
+ * derived HERE can only ever change the answer by out-ranking something the
+ * object itself declared; in every other case it reproduces, at step 0, the
+ * string the resolver already computes further down. So the binding's entire
+ * live effect was to let a per-view guess outrank declared metadata — the
+ * governed-authority default says the declared side wins, and it now does.
+ *
+ * The async window `ObjectMap` has before its `getObjectSchema` fetch lands is
+ * NOT an argument for keeping a static binding here: `ObjectKanban` fetches its
+ * object definition exactly the same way and carries no derived title. Closing
+ * that window is a renderer-side change (hand the definition down from
+ * `ListView`, which already holds it), and it would cover the paths this seam
+ * never sees — a hand-declared `map` block that omits `titleField`, and every
+ * non-interface-page map.
+ *
+ * An author's own `map.titleField` is unaffected: it is declared, it travels as
+ * the view-level `map` block that `ListView` merges per key over this bag, and
+ * `getRecordDisplayName` honours it at step 0 by design.
+ */
 export function defaultMapFromObject(objectDef: any): { locationField: string } | undefined {
   const field =
     firstFieldMatching(objectDef, (_n, f) => LOCATION_TYPES.has(f.type)) ??
     firstFieldMatching(objectDef, (n) => /location|address|geo|coords?|place|venue/i.test(n));
-  return field ? { locationField: field } : undefined;
+  if (!field) return undefined;
+  return { locationField: field };
 }
 
 export function InterfaceListPage({ page, className, onConfigChange, reserveEditAffordance }: InterfaceListPageProps) {
@@ -347,6 +393,13 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       view.gantt ?? (allowedSet.has('gantt') ? defaultGanttFromObject(objectDef) : undefined);
     // Map binding lives under options.map (locationField); auto-derive when
     // whitelisted so a map interface page renders without hand-wiring.
+    //
+    // The referenced view's own spec-level `map` block is NOT folded in here —
+    // it is forwarded as `map` on the schema below, so `ListView` merges it
+    // per key over this bag (objectui#5042). Collapsing the two with `??`, the
+    // way the sibling bindings above do, would make a partial authored block
+    // REPLACE the derivation: `map: { titleField: 'title' }` alone would drop
+    // the auto-derived `locationField` and the page would render no markers.
     const mapCfg =
       (view.options as any)?.map ?? (allowedSet.has('map') ? defaultMapFromObject(objectDef) : undefined);
 
@@ -393,6 +446,9 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       gallery,
       timeline,
       gantt,
+      // The spec's view-level `map` block (`ListMapConfigSchema`), forwarded
+      // verbatim so `ListView` can merge it over the `options.map` bag below.
+      ...((view as any).map ? { map: (view as any).map } : {}),
       ...((mapCfg || (view.options as any)) ? { options: { ...((view.options as any) ?? {}), ...(mapCfg ? { map: mapCfg } : {}) } } : {}),
 
       // Presentation policy — the page layer (ADR-0047).

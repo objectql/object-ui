@@ -1,8 +1,21 @@
 name: Auto Changelog
 
+# Dispatch-only, deliberately (objectui#5409).
+#
+# This lane also declared `release: types: [published]` until 2026-08-23. That
+# trigger was dead configuration, not a fallback: every release in this
+# repository is authored by `github-actions[bot]`, created by the Changesets
+# action in `changeset-release.yml` using `secrets.GITHUB_TOKEN`, and GitHub
+# does not start workflow runs from events raised with that token (the
+# recursive-trigger guard). Measured before removal: this workflow had 0 runs
+# across the repository's whole life, against `changeset-release.yml`'s 4049
+# through the identical API call — so the zero was the trigger, not the query.
+#
+# When to run it: at release time, as part of cutting the release. Nothing else
+# invokes this workflow. The root CHANGELOG.md is a periodically hand-curated
+# summary; the per-package CHANGELOG.md files that Changesets writes on the
+# release commit are the source of truth for granular and current history.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -19,12 +32,29 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Configure Git merge driver for pnpm-lock.yaml
-        run: |
-          # Configure custom merge driver for pnpm-lock.yaml
-          # This allows Git to automatically resolve lockfile conflicts by regenerating it
-          git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
-          git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+      # No lockfile merge driver here, deliberately (objectui#6358).
+      #
+      # This job configured one until 2026-08-25. A merge driver is invoked by
+      # git only when git actually has to MERGE the attributed path, and this
+      # job never merges: it checks out, runs git-cliff, stages exactly
+      # CHANGELOG.md, commits, and pushes. There is no merge, rebase, pull,
+      # cherry-pick or revert in it, and it never touches `pnpm-lock.yaml` at
+      # all. The stated reason for the step -- that it "commits back to a branch
+      # that may have moved" -- does not reach a driver: a push to a branch that
+      # moved is REJECTED, not merged, and nothing here resolves that rejection.
+      #
+      # So the step was dead configuration rather than a missing-toolchain bug.
+      # Note the disposition did NOT turn on the workflow being unreachable: it
+      # is `workflow_dispatch`, a maintainer can start it any time, and it is
+      # meant to be run at release time. It had 0 runs when this was measured,
+      # but "never dispatched" is not "cannot run" -- the driver would not fire
+      # even on a successful manual dispatch, which is the reason acted on.
+      #
+      # Restoring it needs a real merge in this job first, not the instinct that
+      # every workflow touching git wants the driver. If one is ever added, add
+      # `corepack enable` + `actions/setup-node` ahead of it the way
+      # `changeset-release.yml` and `dependabot-auto-merge.yml` do -- the driver
+      # shells out to pnpm, and this workflow pins no toolchain.
 
       - name: Generate changelog
         uses: orhun/git-cliff-action@v4
@@ -40,5 +70,5 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add CHANGELOG.md
-          git commit -m "docs: update CHANGELOG.md for ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git commit -m "docs: update CHANGELOG.md" || echo "No changes to commit"
           git push

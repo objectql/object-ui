@@ -13,7 +13,7 @@
  *   framework/packages/runtime/src/cloud/marketplace-proxy-plugin.ts
  */
 
-import { getCloudBase } from '../../runtime-config';
+import { getCloudBase } from '../../runtime-config.js';
 import { TokenStorage } from '@object-ui/auth';
 
 const SERVER_URL = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');

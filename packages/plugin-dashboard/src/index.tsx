@@ -40,6 +40,42 @@ export type {
 } from './dataset-catalog';
 
 // Register dashboard component
+//
+// objectui#5742 — `inputs` is the published authoring surface (serialized into
+// `sdui.manifest.json` and `sdui-intrinsics.d.ts`; `dashboard` is in
+// `PUBLIC_BLOCKS`), and it used to publish only `columns`/`gap`/`className`
+// while `DashboardRenderer` honoured far more, so `validateTree` warned
+// authors off keys that work — `widgets` included, the very key the
+// objectui#5709 unconsumed-options warning descends into. The keys below are
+// the per-key triage (#4668 / #5091 class), each declared because BOTH hold:
+// the renderer reads it AND `@objectstack/spec`'s strict `DashboardSchema`
+// accepts it, so the manifest never offers a key the save gate refuses.
+//
+// Deliberately NOT declared, pinned in
+// `__tests__/dashboardAuthoredInputs.test.tsx`:
+//   - `title`  — legacy spelling of `label`; the spec rejects it by name.
+//     The `schema.title || schema.label` read STAYS (documents in the wild).
+//   - `aria`   — spec tombstone (#3896 audit close-out): no dashboard
+//     renderer ever applied it, and this package has no read site either.
+//
+// `name` is honoured too (the `schema.name` read keys the
+// `dashboards.{name}.*` translation lookups) and is likewise NOT declared —
+// objectui#5742 ruled it non-author for the INLINE node. Its reason is NOT
+// the one above, and the difference is load-bearing: the spec ACCEPTS
+// `name` — but on the DOCUMENT form, where it is required, not on this
+// inline node. So the "spec accepts + renderer reads" line never fires here
+// at all; its premise is about a different shape. Do not carry `title`'s
+// "the spec rejects it" over to this key — the spec does not reject `name`.
+// The `schema.name` read STAYS untouched.
+// The evidence is the PRODUCER alone — `DashboardView` / the document loader
+// hands the loaded document to the renderer, so an inline author is not the
+// one who writes this key. That makes it a WEAKER exclusion than `title` /
+// `aria`, each of which asserts a spec verdict a reader can re-check, and is
+// why `name` carries no row in the pin test's table: there is no verdict for
+// it to assert. Supporting reason: publishing `name` inline would teach
+// authors — AI authors especially — to fabricate a dashboard identity that
+// resolves NO translations and fails silently, minting a fresh
+// silently-inert key, the exact defect class this card removes.
 ComponentRegistry.register(
   'dashboard',
   DashboardRenderer,
@@ -49,6 +85,13 @@ ComponentRegistry.register(
     category: 'Complex',
     icon: 'layout-dashboard',
     inputs: [
+      { name: 'widgets', type: 'array', label: 'Widgets', description: 'The widget tree — the spec’s DashboardWidget[]. Each widget binds a dataset (ADR-0021) and may carry a layout ({ x, y, w, h }) and filterBindings. When omitted the dashboard renders an empty grid.' },
+      { name: 'label', type: ['string', 'object'], label: 'Label', description: 'Display name, shown as the header title when `header` is declared — a string or an inline per-locale map such as { en, "zh-CN" }. Spec-canonical spelling; the legacy `title` spelling is not authoring surface.' },
+      { name: 'description', type: ['string', 'object'], label: 'Description', description: 'Header description shown under the title — a string or an inline per-locale map. Rendered only when `header` is declared and `header.showDescription` is not false.' },
+      { name: 'header', type: 'object', label: 'Header', description: 'Header block: { showTitle?, showDescription?, actions? }. Strict — the contract rejects any other key. Renders nothing (zero pixels) when everything it would show is suppressed.' },
+      { name: 'globalFilters', type: 'array', label: 'Global Filters', description: 'Dashboard-level filter bar — the spec’s GlobalFilter[]. Filter values live as dashboard variables (readable in widget expressions as page.<name>) and are AND-merged into each bound widget’s query per its filterBindings.' },
+      { name: 'dateRange', type: 'object', label: 'Date Range', description: 'Built-in date-range filter: { field?, defaultRange?, allowCustomRange? }. `defaultRange` takes the spec’s date presets plus "custom"; the bound field defaults to created_at.' },
+      { name: 'refreshInterval', type: 'number', label: 'Refresh Interval', description: 'Auto-refresh period in seconds. Zero or a negative value disables the timer, and it only runs when the host wires an onRefresh handler.' },
       { name: 'columns', type: 'number', label: 'Columns', defaultValue: 3 },
       { name: 'gap', type: 'number', label: 'Gap', defaultValue: 4 },
       { name: 'className', type: 'string', label: 'CSS Class' }
@@ -334,17 +377,18 @@ ComponentRegistry.register(
   }
 );
 
-// Standard Export Protocol - for manual integration
+// Standard Export Protocol - for manual integration. Keyed by the schema
+// `type` each entry serves (objectui#5064 — aligned with the four sibling
+// `*Components` maps); every value is the exact component the side-effect
+// import registers for that type, including the two internal
+// data-source-gate wrappers for the `object-*` types.
 export const dashboardComponents = {
-  DashboardRenderer,
-  DashboardGridLayout,
-  MetricWidget,
-  MetricCard,
-  ObjectMetricWidget,
-  PivotTable,
-  ObjectPivotTable,
-  ObjectDataTable,
-  DashboardConfigPanel,
-  WidgetConfigPanel,
-  DashboardWithConfig,
+  'dashboard': DashboardRenderer,
+  'metric': MetricWidget,
+  'metric-card': MetricCard,
+  'object-metric': ObjectMetricBlock,
+  'pivot': PivotTable,
+  'object-pivot': ObjectPivotBlock,
+  'dashboard-grid': DashboardGridLayout,
+  'object-data-table': ObjectDataTable,
 };

@@ -24,8 +24,8 @@
 
 import React from 'react';
 import { Copy, Check } from 'lucide-react';
-import { readFields } from '../metadata-admin/previews/object-fields-io';
-import { t, useMetadataLocale } from '../metadata-admin/i18n';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
+import { t, useMetadataLocale } from '../metadata-admin/i18n.js';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 

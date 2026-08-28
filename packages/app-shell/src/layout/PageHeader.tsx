@@ -16,7 +16,7 @@
  * Layout:
  *   [accent hairline]
  *   [icon]  Title             [actions...]
- *           description
+ *           subtitle
  */
 
 import * as React from 'react';
@@ -37,14 +37,31 @@ import { cn } from '@object-ui/components';
  * objectstack#4115 defect. `__tests__/spec-symbol-parity.test.ts` pins that the spec
  * does not own this name.
  *
- * `@object-ui/layout` carries the same collision (objectui#3161, batch 7); it
- * should adopt this same name so the two packages do not invent two dialects.
+ * `@object-ui/layout` carries the same collision (objectui#3161, batch 7) and
+ * adopted this same name, so the two packages do not invent two dialects.
  */
 export interface PageHeaderComponentProps {
   /** Page title (required, becomes <h1>). */
   title: React.ReactNode;
-  /** Optional secondary description shown beneath the title. */
-  description?: React.ReactNode;
+  /**
+   * Optional secondary line shown beneath the title. `subtitle` is the only
+   * spelling this component accepts.
+   *
+   * It used to be `description`, which made one concept carry two key names
+   * one package apart: `@objectstack/spec/ui`'s `PageHeaderProps` declares
+   * `subtitle` for the authored `page:header` node, and `@object-ui/layout`'s
+   * `<PageHeader>` converged on `subtitle` in objectui#3789. This component is
+   * the console's rendered layer of that same element, so it now spells the
+   * secondary line the way the contract does (objectui#4761).
+   *
+   * The old spelling was NOT kept as an alias. It was never reachable outside
+   * this package — `src/index.ts` does not re-export `PageHeader`, and the
+   * `exports` map declares no subpath that could reach it — so nothing had to
+   * be tolerated, and a renderer-side alias is exactly the second dialect
+   * AGENTS.md #0.1 exists to prevent. `__tests__/PageHeader.subtitle.test.tsx`
+   * pins both halves.
+   */
+  subtitle?: React.ReactNode;
   /**
    * Optional leading icon (already-instantiated React element).
    * The icon is auto-sized via CSS — pass it with whatever default sizing,
@@ -90,7 +107,7 @@ export interface PageHeaderComponentProps {
  */
 export function PageHeader({
   title,
-  description,
+  subtitle,
   icon,
   actions,
   accentColor,
@@ -152,9 +169,9 @@ export function PageHeader({
             <h1 className="text-base sm:text-lg lg:text-xl font-semibold tracking-tight text-foreground truncate leading-tight">
               {title}
             </h1>
-            {description && (
+            {subtitle && (
               <p className="text-xs sm:text-sm text-muted-foreground truncate hidden sm:block max-w-xl mt-0.5">
-                {description}
+                {subtitle}
               </p>
             )}
           </div>

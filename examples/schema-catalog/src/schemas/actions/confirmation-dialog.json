@@ -4,7 +4,7 @@
   "header": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "children": [
         {
           "type": "text",
@@ -22,7 +22,9 @@
   "children": [
     {
       "type": "flex",
-      "className": "justify-end gap-2 pt-4",
+      "justify": "end",
+      "gap": 2,
+      "className": "pt-4",
       "children": [
         {
           "type": "button",

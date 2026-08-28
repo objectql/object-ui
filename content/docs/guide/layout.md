@@ -40,6 +40,7 @@ your JSON pages *inside* it. `app-shell` is not a component key either — what 
 
 ### Basic Usage
 
+<!-- doc-snippet: fragment — `lucide-react` supplies the `NavItem.icon` COMPONENTS this example is about. It is a dependency of ten workspace packages (`@object-ui/layout` among them) but not a root one, so the specifier does not resolve in this gate's program (measured: TS2307 x1), and `pageSchema` is the reader's own page JSON (TS2304 x1). Probed with the icon import shimmed and `pageSchema` typed `BaseSchema`: the `NavItem[]` literal and the `AppShell` / `SidebarNav` props underneath are clean — 0 diagnostics -->
 ```tsx
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
 import { SchemaRenderer } from '@object-ui/react';
@@ -171,6 +172,7 @@ The `Page` component provides a consistent wrapper for individual pages with opt
 
 ### Schema API
 
+<!-- doc-snippet: fragment — a SHAPE excerpt, not an expression — the keys carry `?` optional markers and trailing prose comments, so the object literal cannot parse as TypeScript (measured: TS1109 / TS1005 / TS1011) -->
 ```typescript
 {
   type: 'page',
@@ -228,6 +230,18 @@ Available values:
 The `PageHeader` provides consistent page headers with a title, an optional subtitle,
 an icon chip, and an action row.
 
+> **The canonical author key is `page:header`; `page-header` is a legacy alias.** The
+> snippets in this section are the `@object-ui/layout` component, which `registerLayout()`
+> registers as `page-header` (plus its namespaced form `layout:page-header`) — that node
+> still renders, so metadata already written this way is not stranded. The contract knows
+> only `page:header`, though: that is the `PageComponentType` value and the
+> `ComponentPropsMap` row binding `PageHeaderProps`, and it resolves to a different,
+> record-aware renderer in `@object-ui/components`. Props written under the alias have no
+> `ComponentPropsMap` row to dispatch, so nothing validates them — a misspelling there is
+> neither rejected nor reported. Author metadata pages against `page:header`
+> ([Slotted pages](/docs/guide/slotted-pages)); its props are not the ones below — see the
+> [PageHeader reference](/docs/layout/page-header).
+
 ### Usage
 
 ```json
@@ -246,6 +260,7 @@ Unresolvable tokens collapse to an empty string rather than leaking the raw temp
 
 ### Schema API
 
+<!-- doc-snippet: fragment — a SHAPE excerpt, not an expression — the keys carry `?` optional markers and trailing prose comments, so the object literal cannot parse as TypeScript (measured: TS1109 / TS1005 / TS1011) -->
 ```typescript
 {
   type: 'page-header',
@@ -304,6 +319,7 @@ React, or use `navigation-renderer` when the tree has to come from metadata.
 `SidebarNav` renders a Shadcn `Sidebar`, so it must be inside a `SidebarProvider` —
 `AppShell` supplies one. Its rows are `NavLink`s, so it also needs a router above it.
 
+<!-- doc-snippet: fragment — `lucide-react` supplies the `NavItem.icon` COMPONENTS this example is about. It is a dependency of ten workspace packages (`@object-ui/layout` among them) but not a root one, so the specifier does not resolve in this gate's program (measured: TS2307 x1), and `pageSchema` is the reader's own page JSON (TS2304 x1). Probed with the icon import shimmed and `pageSchema` typed `BaseSchema`: the `NavItem[]` literal and the `AppShell` / `SidebarNav` props underneath are clean — 0 diagnostics -->
 ```tsx
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
 import { SchemaRenderer } from '@object-ui/react';
@@ -406,6 +422,7 @@ branding for a whole-shell-from-metadata setup.
 
 The shell is React; the page inside it is your JSON.
 
+<!-- doc-snippet: fragment — `lucide-react` supplies the `NavItem.icon` COMPONENTS this example is about. It is a dependency of ten workspace packages (`@object-ui/layout` among them) but not a root one, so the specifier does not resolve in this gate's program (measured: TS2307 x1), and `pageSchema` is the reader's own page JSON (TS2304 x1). Probed with the icon import shimmed and `pageSchema` typed `BaseSchema`: the `NavItem[]` literal and the `AppShell` / `SidebarNav` props underneath are clean — 0 diagnostics -->
 ```tsx
 import { AppShell, SidebarNav, type NavItem } from '@object-ui/layout';
 import { SchemaRenderer } from '@object-ui/react';
@@ -441,6 +458,7 @@ and `defaultOpen` is the shell's own initial-state prop.
 
 Omit `sidebar` and the content fills the width under the top bar.
 
+<!-- doc-snippet: fragment — a JSX excerpt showing one prop — `AppShell`, `SchemaRenderer` and `landingSchema` all come from the Basic Usage block above, and restating its five setup lines here would bury the one line the section is about (measured: TS2304 x3) -->
 ```tsx
 <AppShell navbar={<span className="font-semibold">Welcome</span>}>
   <SchemaRenderer schema={landingSchema} />
@@ -550,6 +568,7 @@ them reads `lg` (1024px), so 800px and 1400px get the same layout.
 
 Add Tailwind classes to layout components:
 
+<!-- doc-snippet: fragment — a JSX excerpt showing the `className` / `navbar` / `sidebar` slots — `AppShell`, `SidebarNav`, `SchemaRenderer`, `navItems` and `pageSchema` all come from the blocks above (measured: TS2304 x6) -->
 ```tsx
 <AppShell
   className="bg-background"
@@ -591,6 +610,7 @@ Control page content padding:
 
 Compose the shell once and let the page JSON change per route:
 
+<!-- doc-snippet: fragment — a JSX excerpt showing one shell reused across routes — `AppShell`, `SidebarNav`, `SchemaRenderer`, `navbar`, `navItems` and `pageSchema` all come from the blocks above (measured: TS2304 x6) -->
 ```tsx
 // One shell for the whole app; `pageSchema` is whatever the route resolves to.
 <AppShell navbar={navbar} sidebar={<SidebarNav items={navItems} />}>
@@ -648,6 +668,7 @@ Group related items with `NavGroup`. Pass groups instead of a flat list and `Sid
 labels each section and draws the separator between them itself — there is no `divider`
 item, and a row is either a link or a group, never both:
 
+<!-- doc-snippet: fragment — `lucide-react` supplies the `NavItem.icon` COMPONENTS this example is about. It is a dependency of ten workspace packages (`@object-ui/layout` among them) but not a root one, so the specifier does not resolve in this gate's program (measured: TS2307 x1). Probed with the icon import shimmed: the `NavGroup[]` literal and the `SidebarNav` props underneath are clean — 0 diagnostics -->
 ```tsx
 import { SidebarNav, type NavGroup } from '@object-ui/layout';
 import { DollarSign, Home, Settings } from 'lucide-react';

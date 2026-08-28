@@ -12,7 +12,7 @@
  *   • Overlay   — pretty-printed JSON of just the deltas they've saved.
  *   • Effective — the merged value the runtime serves.
  *
- * Backed by `client.layered(type, name)` (Phase 3a `?layers=true`).
+ * Backed by `client.layered(type, name)`, i.e. `GET /meta/:type/:name/layers`.
  *
  * Diff scope: top-level keys only. Nested objects/arrays are compared by
  * JSON-stringify equality. Drilling into nested diffs is a future
@@ -29,7 +29,7 @@ import {
 import { Badge, Switch } from '@object-ui/components';
 import { cn } from '@object-ui/components';
 import type { MetadataLayered } from '@object-ui/data-objectstack';
-import { t, tFormat, translateConsoleValue, type SupportedLocale } from './i18n';
+import { t, tFormat, translateConsoleValue, type SupportedLocale } from './i18n.js';
 
 export interface LayeredDiffProps {
   layered: MetadataLayered<Record<string, unknown>> | null;
@@ -193,7 +193,18 @@ export function LayeredDiff({ layered, loading, locale }: LayeredDiffProps) {
           {t('engine.layers.overlay', locale)}
           {hasOverlay ? (
             <Badge className="ml-1.5 text-[10px] bg-emerald-600 text-emerald-50">
-              {layered.overlayScope ?? translateConsoleValue('layer', 'set', locale)}
+              {/*
+                objectui#4982 — the scope goes through `translateConsoleValue`
+                like the other three layer labels in this list. It used to be
+                rendered raw, so this one badge's language depended on whether
+                the item HAD an overlay: with one, a zh-CN admin read `org` /
+                `env`; without one, the `set` fallback below rendered 「已设」.
+              */}
+              {translateConsoleValue(
+                'layer',
+                layered.overlayScope ?? 'set',
+                locale,
+              )}
             </Badge>
           ) : (
             <Badge variant="outline" className="ml-1.5 text-[10px] text-muted-foreground">

@@ -4,11 +4,13 @@
   "children": [
     {
       "type": "container",
-      "className": "p-6",
+      "padding": 6,
       "children": [
         {
           "type": "flex",
-          "className": "items-center justify-between mb-4",
+          "align": "center",
+          "justify": "between",
+          "className": "mb-4",
           "children": [
             {
               "type": "text",
@@ -25,15 +27,18 @@
         },
         {
           "type": "stack",
-          "spacing": 4,
+          "gap": 4,
           "children": [
             {
               "type": "flex",
-              "className": "items-center justify-between pb-4 border-b",
+              "align": "center",
+              "justify": "between",
+              "className": "pb-4 border-b",
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center space-x-4",
+                  "align": "center",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -42,7 +47,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -67,11 +72,14 @@
             },
             {
               "type": "flex",
-              "className": "items-center justify-between pb-4 border-b",
+              "align": "center",
+              "justify": "between",
+              "className": "pb-4 border-b",
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center space-x-4",
+                  "align": "center",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -80,7 +88,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -105,11 +113,14 @@
             },
             {
               "type": "flex",
-              "className": "items-center justify-between pb-4 border-b",
+              "align": "center",
+              "justify": "between",
+              "className": "pb-4 border-b",
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center space-x-4",
+                  "align": "center",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -118,7 +129,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -143,11 +154,14 @@
             },
             {
               "type": "flex",
-              "className": "items-center justify-between pb-4 border-b",
+              "align": "center",
+              "justify": "between",
+              "className": "pb-4 border-b",
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center space-x-4",
+                  "align": "center",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -156,7 +170,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",
@@ -181,11 +195,13 @@
             },
             {
               "type": "flex",
-              "className": "items-center justify-between",
+              "align": "center",
+              "justify": "between",
               "children": [
                 {
                   "type": "flex",
-                  "className": "items-center space-x-4",
+                  "align": "center",
+                  "gap": 4,
                   "children": [
                     {
                       "type": "avatar",
@@ -194,7 +210,7 @@
                     },
                     {
                       "type": "stack",
-                      "spacing": 2,
+                      "gap": 2,
                       "children": [
                         {
                           "type": "text",

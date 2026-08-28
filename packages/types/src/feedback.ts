@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 /**
  * Loading/Spinner component
@@ -148,6 +148,31 @@ export interface ToastSchema extends BaseSchema {
    * Dismiss handler
    */
   onDismiss?: () => void;
+  /**
+   * Label for the trigger button this component renders in place.
+   *
+   * The `toast` node renders a `<Button>`; clicking it raises the toast. The
+   * renderer has always read this key (`renderers/feedback/toast.tsx`) and the
+   * registration has always offered it as an authoring input — this
+   * declaration is the third surface catching up (objectui#6496).
+   * @default 'Show Toast'
+   */
+  buttonLabel?: string;
+  /**
+   * Variant for the trigger button this component renders in place.
+   *
+   * The renderer passes this value STRAIGHT THROUGH to `<Button variant={…}>`,
+   * so the vocabulary is `ButtonProps['variant']` — the six keys of
+   * `buttonVariants`' `variant` group (`components/src/ui/button.tsx`) — and
+   * not an open string. A value outside the six is not merely unusual: `cva`
+   * contributes NO variant class for an unrecognised key and falls back to
+   * `defaultVariants` only when the value is absent OR falsy, so
+   * `buttonVariant: 'primary'` renders a button with no background and no text
+   * colour while `buttonVariant: ''` silently renders the default look. Pinned against the
+   * Button itself in
+   * `components/src/__tests__/toast-button-variant-parity.test.ts`.
+   */
+  buttonVariant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
 }
 
 /**

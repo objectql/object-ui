@@ -28,7 +28,7 @@ import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useRecordContext } from '@object-ui/react';
 import { useAuth } from '@object-ui/auth';
-import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
+import { RecordAttachmentsPanel } from './RecordAttachmentsPanel.js';
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};

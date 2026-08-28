@@ -18,15 +18,8 @@
  * Cookie-authenticated like every other console call; tolerant of both
  * response shapes (`[...]` and `{ drafts: [...] }`).
  */
+import { fetchPendingDrafts } from './usePendingDrafts.js';
+
 export async function fetchPendingDraftCount(packageId: string): Promise<number> {
-  const res = await fetch(
-    `/api/v1/meta/_drafts?packageId=${encodeURIComponent(packageId)}`,
-    { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' },
-  );
-  if (!res.ok) throw new Error(`_drafts HTTP ${res.status}`);
-  const data = (await res.json()) as
-    | unknown[]
-    | { drafts?: unknown[]; data?: { drafts?: unknown[] } };
-  const list = Array.isArray(data) ? data : data?.drafts ?? data?.data?.drafts ?? [];
-  return Array.isArray(list) ? list.length : 0;
+  return (await fetchPendingDrafts(packageId)).length;
 }

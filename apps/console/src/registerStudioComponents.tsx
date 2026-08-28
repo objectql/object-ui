@@ -13,22 +13,51 @@
  *   studio:builder → /apps/<app>/component/studio/builder
  *
  * The standalone `/studio` route renders the same landing full-screen.
+ *
+ * ## Why `BuilderLanding` is imported directly, and must stay that way
+ *
+ * This registration used to read `lazy(() => import('@object-ui/app-shell')
+ * .then((m) => ({ default: m.BuilderLanding })))` behind a `Suspense`
+ * fallback. That laziness never existed (objectui#5486). Two independent
+ * reasons, either one sufficient:
+ *
+ *   1. the `import()` named the very specifier the line above it imports
+ *      statically for `registerAppComponent`, so it could not move a module
+ *      into another chunk; and
+ *   2. `App.tsx` imports `BuilderLanding` from that same barrel anyway, to
+ *      render the standalone `/studio` landing full-screen — the component is
+ *      in the eager graph regardless of what this file does.
+ *
+ * So the code claimed a code split it did not have. The visible cost was an
+ * `INEFFECTIVE_DYNAMIC_IMPORT` warning on every console build and a loading
+ * fallback no user could ever see; the more expensive cost was that the next
+ * reader believed the builder was deferred, and that one more permanent build
+ * warning trains everyone to skim past build warnings.
+ *
+ * This is a TRUTHFULNESS fix, not a bundle fix. Measured before/after on
+ * `apps/console/dist/eager-closure.json` with both builds exiting 0: the eager
+ * closure holds the same 52 chunks under the same names, so NO module moved.
+ * The only delta is 130 B gzipped off the entry chunk — the deleted `lazy()`,
+ * `Suspense` and fallback text themselves, 0.003% of a 3,875 KB closure. Do
+ * not describe it as a bundle win.
+ *
+ * The `lazy()` SHAPE is not the mistake — naming a barrel you already import
+ * statically is. Contrast the sibling `registerAccountComponents.tsx`, whose
+ * `lazy()` names `./pages/system/ProfilePage`, a specifier nothing else pulls
+ * in statically; that one is real and rolldown says nothing about it.
+ *
+ * Making the builder GENUINELY lazy is a different change with a different
+ * risk: it means taking `App.tsx` off the static import too, which changes how
+ * `/studio` mounts, and it only pays if app-shell's own graph cleaves usefully
+ * behind the barrel — measurable, not assumable. That was ruled a separate
+ * measured card, not a rider here.
  */
 
-import { lazy, Suspense } from 'react';
-import { registerAppComponent } from '@object-ui/app-shell';
-
-const BuilderLandingLazy = lazy(() =>
-  import('@object-ui/app-shell').then((m) => ({ default: m.BuilderLanding })),
-);
+import { registerAppComponent, BuilderLanding } from '@object-ui/app-shell';
 
 registerAppComponent({
   ref: 'studio:builder',
   label: '应用构建',
   source: '@object-ui/console',
-  component: (props: any) => (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">加载应用构建器…</div>}>
-      <BuilderLandingLazy {...props} />
-    </Suspense>
-  ),
+  component: BuilderLanding,
 });

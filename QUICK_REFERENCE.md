@@ -36,8 +36,11 @@ Not `pnpm --filter <pkg> test`, not `turbo run test`, not `cd packages/x && pnpm
 vitest`, and never a path behind `--`. Each of those moved vitest's root into a package,
 where the root `unit`/`dom`/`dom-heavy` projects match nothing and only `apps/console`
 resolves: 22 foreign files passed, your package never ran, output green
-(objectui#3378/#3288). A guard in `vitest.config.mts` now **exits non-zero** on all of
-them and prints the correct invocation:
+(objectui#3378/#3288). A guard now **exits non-zero** on all of them and prints the
+correct invocation. It is wired into `vitest.config.mts` *and* into each of the 11
+standalone per-package configs (`packages/plugin-grid/vitest.config.ts` and its ten
+siblings), because Vitest loads the config in the directory it was launched from — the
+root call alone left those 11 uncovered (objectui#5406):
 
 ```
 vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)
@@ -100,7 +103,8 @@ pnpm changeset publish         # Publish to npm (CI only)
 ## Key Documents
 
 - [README.md](./README.md) — project overview & quick start
-- [CHANGELOG.md](./CHANGELOG.md) — release notes
+- [CHANGELOG.md](./CHANGELOG.md) — hand-curated release summary; each package's own
+  `CHANGELOG.md` (written by Changesets on every release) is the granular, current history
 - [ROADMAP.md](./ROADMAP.md) — development plan
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution workflow
 - [`content/docs/`](./content/docs/) — full documentation source
@@ -111,14 +115,20 @@ Every value below is pinned to the manifest that owns it by
 `scripts/__tests__/quick-reference-current-release-4143.test.ts` — edit the anchor and
 that test tells you to edit this block. The one exception is called out on its row.
 
-- **Version:** 17.5.0 (the version every `@object-ui/*` manifest carries — they are one
+You rarely have to edit it by hand. `pnpm quick-reference:sync` rewrites these rows from
+the manifests, and `pnpm quick-reference:check` reports drift without writing. The
+release path runs the sync itself: `changeset:version` bumps every manifest and updates
+this block in the same commit, so a release can no longer leave the block a version
+behind (objectui#5394 — that had happened once per release, three times).
+
+- **Version:** 17.6.0 (the version every `@object-ui/*` manifest carries — they are one
   `fixed` group in `.changeset/config.json`, so a release moves all of them together)
-- **Spec:** `@objectstack/spec` ^17.0.0-rc.6 (declared by the root `package.json` and by
+- **Spec:** `@objectstack/spec` ^17.0.0 (declared by the root `package.json` and by
   `apps/console/package.json`)
-- **Client:** `@objectstack/client` ^17.0.0-rc.6 (declared by `apps/console/package.json`
+- **Client:** `@objectstack/client` ^17.0.0 (declared by `apps/console/package.json`
   and `packages/data-objectstack/package.json`)
-- **Node.js:** ≥ 22 (see root `engines.node`)
-- **pnpm:** ≥ 9 (the workspace pins `pnpm@10.31.0` via `packageManager`)
+- **Node.js:** ≥ 22.11 (see root `engines.node`)
+- **pnpm:** ≥ 10 (the workspace pins `pnpm@10.31.0` via `packageManager`)
 - **React:** 18.x or 19.x (the `peerDependencies.react` range the packages declare)
 - **TypeScript:** ≥ 5.0 (strict mode) — the stack floor stated in AGENTS.md §2, not a
   manifest fact: nothing in this tree declares a `typescript` range to check it against,

@@ -159,6 +159,48 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: node scripts/check-lint-coverage.mjs
 
+      # ── One entry guard, one predicate (objectui#6092) ───────────────────
+      # A `scripts/**` CLI has to answer "did node run me, or did something
+      # import me?" before it does anything, and the hand-typed answers in this
+      # tree had drifted into NINE spellings across 28 `.mjs` files. Every one
+      # of them fails the same way: node resolves symlinks for the module graph
+      # but leaves `process.argv[1]` as the caller typed it, so a script reached
+      # through a symlink compares two different paths, answers false, and does
+      # NOTHING — exit 0, no output. The wrappers that spawn these tools hold
+      # `result.status` only, so an inert child is a green gate. Measured on a
+      # real blocking gate in this repository (objectui#6078):
+      # `check-skills-paths.mjs` run directly on a deliberately broken tree
+      # exits 1 with 696 bytes naming the dead path; run through a symlink
+      # against the SAME tree it exits 0 with no output.
+      #
+      # `scripts/invoked-as.mjs` landed here in #5984 with a header stating that
+      # a gate enforced the single-spelling rule. It did not exist, and the
+      # sweep it described had not happened either (objectui#6078). This is that
+      # gate. It lands BEFORE the conversion on purpose: the worklist grew while
+      # the card sat open, so a sweep with nothing under it can be undone
+      # silently by the next pull request. The 29 existing guards are baselined,
+      # SHRINK-ONLY, and the script's own header says why that is safe.
+      #
+      # Runs before install, next to `check-lint-coverage.mjs` above and for the
+      # same reason: it reads sources with no dependency beyond node builtins
+      # and two local modules, so nothing it needs is in `node_modules`. Placed
+      # before `pnpm install` it also cannot be made green by an install
+      # failure. `--self-test` runs FIRST and is the half that stops the gate
+      # rotting into decoration — it drives the scanner over fixture sources,
+      # including the nine spellings measured in this tree, and pins the
+      # baseline in every direction it can move.
+      #
+      # Invoked as `node` rather than through the `pnpm check:entry-guard` alias
+      # for the pre-install placement, matching `check-lint-coverage.mjs` above
+      # and `check-cross-repo-closer-outcome.mjs` below. The alias exists in
+      # `package.json` for local use and `scripts/__tests__/entry-guard-wiring.test.ts`
+      # holds the two spellings to the same script.
+      - name: Verify every scripts/ entry guard goes through one predicate
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-entry-guard.mjs --self-test
+          node scripts/check-entry-guard.mjs
+
       - name: Turbo Cache
         if: steps.relevant.outputs.should_run == 'true'
         uses: actions/cache@v6
@@ -175,3 +217,102 @@ jobs:
       - name: Run linter
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm lint
+
+      # ── The cross-repo closer's outcome contract (#5261) ──────────────────
+      # `cross-repo-issue-closer.yml` carries ~250 lines of inline
+      # github-script, and until this step existed it was code nobody had ever
+      # seen run: it fires only on a merge, its conclusion is required by
+      # nothing, and every one of its runs so far has been green. That last part
+      # is the problem rather than the reassurance — measured over every merged
+      # pull request in this repository, its close loop has had a live target
+      # roughly one and a half times a day since it landed, took the same
+      # `already closed -- skipping` exit every time, and left no backlink on
+      # any of them. Greenly. The header of the workflow carries the figures.
+      #
+      # This step is the exercise: the shipped script is extracted from the YAML
+      # with a real parser (never retyped) and run under doubles the way
+      # actions/github-script runs it, as one AsyncFunction body. The scenarios
+      # pin the target parse, the target KIND, and the outcome of every exit —
+      # which of setFailed / warning / job summary fires, and which API calls
+      # were made.
+      #
+      # Assertion 0 is the compile, and it is not theoretical: the framework's
+      # copy of this workflow was taken down twice in one day by a `SyntaxError`
+      # in the inline block, i.e. a script that never ran at all, on a
+      # post-merge workflow whose red nothing else in CI can see.
+      #
+      # `--self-test` runs FIRST and is the half that stops the battery rotting
+      # into decoration: it mutates the shipped script — downgrade the verdict
+      # to a warning, break out of the loop instead of isolating, drop the
+      # same-repo skip, collapse the already-closed branch, strip the backlink
+      # marker, drop the pull-request guard, and the rest — and requires the
+      # battery to go RED for each, naming the scenario that catches it. Neither
+      # the mutations nor the scenarios are counted here: a hand-copied
+      # enumeration drifts by construction, which is the lesson this workflow's
+      # own header records. A mutation whose anchor no longer exists is a
+      # failure too, so rewriting the workflow cannot leave them silently
+      # matching nothing.
+      #
+      # Invoked as `node` rather than through a `pnpm check:*` alias, matching
+      # `check-lint-coverage.mjs` above. No network, no build; well under a
+      # second.
+      - name: Cross-repo closer outcome contract
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-cross-repo-closer-outcome.mjs --self-test
+          node scripts/check-cross-repo-closer-outcome.mjs
+
+      # ── The product's own check command, on the product's own tree ────────
+      # `objectui check` is what a consumer runs against their schema tree, and
+      # the root `check` script points that same command at this repository.
+      # Nothing ran it. It exited 1 with 64 errors on `main` — and had done
+      # since the first `tsconfig.json` grew a comment — until someone ran it by
+      # hand while measuring something unrelated (objectui#5237, fixed by
+      # #5245). A shipped command sitting red on its own repository is the
+      # dogfood invariant failing, and the reason it could sit there is that no
+      # gate ever asked. This is that gate (objectui#5246).
+      #
+      # The build step below is not a convenience. The root script is
+      # `node packages/cli/dist/cli.js check`, and this job installs without
+      # building, so without it the step dies on a missing file. That failure
+      # mode is worse than no gate at all: it is red for a reason that has
+      # nothing to do with the tree being checked, and the obvious repair from
+      # outside is to delete the step — leaving the hole exactly as it was, now
+      # with a commit saying it was considered.
+      #
+      # `...` is pnpm's dependency closure: the CLI plus every workspace
+      # package it depends on, in topological order, derived from the graph
+      # rather than listed here. The closure is the requirement and not just
+      # tidiness — `dist/cli.js` imports `@object-ui/types`' built output at
+      # startup, so building the CLI package alone produces a binary that
+      # cannot load (objectui#5237 records the same import as the reproduce
+      # recipe's first step).
+      #
+      # Deliberately NOT `turbo run build`, although the Turbo cache above is
+      # restored by this point and would usually make it free. A turbo cache
+      # HIT restores a task's recorded outputs, and an entry recorded with an
+      # empty output set replays as "cache hit, replaying logs" plus FULL
+      # TURBO while writing no `dist/` at all — measured on this repo, where
+      # the CLI then died with ERR_MODULE_NOT_FOUND on the types import above.
+      # A blocking gate must not be able to fail for a reason that lives in a
+      # cache rather than in the tree it is judging, which is the same argument
+      # as the paragraph above one level down. Building through pnpm has no
+      # cache layer to replay, and it costs well under a minute.
+      - name: Build the CLI the self-check runs
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm --filter '@object-ui/cli...' build
+
+      # Errors only, which is the command's existing behaviour rather than a
+      # setting chosen here: a parse failure increments the error count, a
+      # non-zero count is the only thing that exits 1, and the unknown-schema-
+      # type arm prints and moves on. So this step blocks on the same arm
+      # `pnpm lint` above does, and for the same reason — errors are a signal,
+      # the warning stream is known debt. Nothing here promotes those warnings
+      # to failures, and no output-suppressing flag hides them either: they stay
+      # visible in the log and non-blocking. That arm belongs to objectui#5127,
+      # which is open; whatever it settles changes what this step PRINTS, never
+      # what it fails on. No count is quoted, for the reason the `--max-warnings`
+      # paragraph in the header gives.
+      - name: Verify the CLI's own check command passes on this repository
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check

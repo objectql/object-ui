@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+import type { DashboardComponentSchema, DashboardWidgetSchema, DashboardWidgetTypeName } from '@object-ui/types';
 import {
   Trash2,
   GripVertical,
@@ -35,7 +35,6 @@ import {
   PieChart,
   TrendingUp,
   Table2,
-  LayoutGrid,
   X,
   Undo2,
   Redo2,
@@ -46,7 +45,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { pickLocalized } from '@object-ui/i18n';
+import { pickLocalized, setLocalized } from '@object-ui/i18n';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useDesignerTranslation } from './hooks/useDesignerTranslation';
 
@@ -81,13 +80,36 @@ export interface DashboardEditorProps {
 // Constants
 // ============================================================================
 
-const WIDGET_TYPES = [
+/**
+ * The widget families this editor offers.
+ *
+ * TYPED to `DashboardWidgetTypeName` (objectui#4600): the palette must never
+ * offer a type validation refuses, which is the "designer saves what the server
+ * rejects" failure AGENTS.md #0.1 names. Before that card closed the widget
+ * `type` vocabulary this array was inferred as `string[]`, and it had drifted —
+ * it offered `grid`, which is neither a spec visualization family
+ * (`ChartTypeSchema`) nor a member of objectui's own `DASHBOARD_WIDGET_TYPES`
+ * (`@object-ui/types`' exported list for exactly this purpose, which
+ * `WidgetConfigPanel` already derives its options from). A widget saved as
+ * `type: 'grid'` resolved through `ComponentRegistry` to the VIEW grid — an
+ * empty tile — and was refused at publish. Nothing pinned it: no test in this
+ * package referenced it, and `PageDesigner`'s own `grid` palette entry is a
+ * different surface and is untouched.
+ *
+ * This is a hand-written subset, not the full vocabulary — a designer may offer
+ * fewer families than validation accepts. The direction that must hold is
+ * SUBSET, and `@object-ui/types`' parity suite pins it.
+ */
+const WIDGET_TYPES: ReadonlyArray<{
+  type: DashboardWidgetTypeName;
+  label: string;
+  Icon: typeof TrendingUp;
+}> = [
   { type: 'metric', label: 'KPI Metric', Icon: TrendingUp },
   { type: 'bar', label: 'Bar Chart', Icon: BarChart3 },
   { type: 'line', label: 'Line Chart', Icon: LineChart },
   { type: 'pie', label: 'Pie Chart', Icon: PieChart },
   { type: 'table', label: 'Table', Icon: Table2 },
-  { type: 'grid', label: 'Grid', Icon: LayoutGrid },
 ];
 
 let widgetCounter = 0;
@@ -118,8 +140,10 @@ function createWidgetId(): string {
  * of a dashboard and the runtime dashboard itself cannot start disagreeing
  * about which locale entry wins.
  *
- * ⛔ This is for DISPLAY only. The title INPUT must not resolve through here —
- * see `isAuthorableTitle`.
+ * This is the DISPLAY half of the title rule. The authoring INPUT resolves
+ * through here too — it can only show one locale — but it must never write
+ * back what it shows as the whole value; see `writeWidgetTitle` for the WRITE
+ * half, and note that the two have to stay paired.
  */
 function resolveWidgetTitle(
   title: DashboardWidgetSchema['title'],
@@ -129,30 +153,57 @@ function resolveWidgetTitle(
 }
 
 /**
- * Is this widget title editable in a single-line text input?
+ * Write an edited title string back into `DashboardWidget.title` — the WRITE
+ * half of the rule whose DISPLAY half is `resolveWidgetTitle`.
  *
- * The conservative branch PR #4169 took on `DashboardWidgetInspector`, applied
- * to the other authoring surface, and the reason is data loss rather than
- * types: resolving a per-locale map into one `<input value>` and writing
- * `e.target.value` straight back would collapse **every other locale** on the
- * first keystroke. An author who opened a dashboard to move a widget and
- * happened to focus the title field would silently destroy the translations.
+ * A single-line input holds one locale's string, so writing `e.target.value`
+ * back as the whole value collapses **every other locale** on the first
+ * keystroke: an author who opened a dashboard to move a widget and happened to
+ * focus the title field would silently destroy the translations. PR #4169 met
+ * that on `DashboardWidgetInspector` by showing a map-valued title resolved and
+ * **read-only**, and this file copied the branch.
  *
- * So a map-valued title is shown resolved and **read-only**, and the stored map
- * passes through an edit-and-save round trip untouched. Nothing can reach this
- * path from stored metadata yet — `I18nLabel` was plain `string` through
- * rc.5, so no persisted widget title can be a map — which is why the branch is
- * safe to take without a ruling on the authoring UX.
+ * That branch could not lose data, but its stated justification has expired.
+ * It read "nothing can reach this path from stored metadata yet — `I18nLabel`
+ * was plain `string` through rc.5" while `resolveWidgetTitle` sixty lines above
+ * documented the widening that makes a stored map reachable; `@objectstack/spec`
+ * is pinned at 17.0.0, whose `I18nLabelSchema` is
+ * `string | Record<string, string>`. Both could not hold. What the read-only
+ * branch actually did from rc.6 onward was deny an author the ability to edit a
+ * title in their own locale.
  *
- * The real answer (a per-locale editor, a "translate this label" affordance, or
- * a deliberate decision that Studio only ever authors the string form) is
- * objectui#4163 **part 2**, which is unclaimed and pending design. This is a
- * placeholder that cannot lose data, not that answer.
+ * objectui#5301's maintainer ruling (2026-08-20) settled the write rule for the
+ * sibling surface — a save replaces only the active locale's entry and
+ * preserves the others — and `@object-ui/i18n` ships it as `setLocalized`,
+ * co-located with `pickLocalized` because the two must agree. Their pairing
+ * (`pickLocalized(setLocalized(map, lang, s), lang) === s`) is pinned in
+ * `@object-ui/i18n`'s `src/__tests__/setLocalized.test.ts`: an edit always
+ * lands in the entry this panel displays, never in one it does not. The write
+ * key follows only the first three resolution limbs (exact tag, base language,
+ * region-qualified sibling) and stops — `default` / `en` / first-value are
+ * DISPLAY fallbacks that hand back another locale's string, so an author
+ * editing in `fr` against an English-only map ADDS `fr` instead of overwriting
+ * `en`.
+ *
+ * ⚠️ Scope: this is the minimal non-destructive write for a single-locale
+ * editor, not a multi-locale authoring UI — an author reaches only the entry
+ * for the locale they are in. Authoring every locale from one panel remains an
+ * open product question and is deliberately NOT filed against a tracker here:
+ * the deferral this replaced named objectui#4163 part 2, #4163 closed as
+ * completed on 2026-08-15 with the placeholder still in the tree, and a comment
+ * pointing at a closed card is how the stale premise above survived a year.
  */
-function isAuthorableTitle(
+function writeWidgetTitle(
   title: DashboardWidgetSchema['title'],
-): title is string | undefined {
-  return title == null || typeof title === 'string';
+  language: string | undefined,
+  next: string,
+): DashboardWidgetSchema['title'] {
+  // `setLocalized` types its map result `Record<string, unknown>` because it
+  // carries non-string entries across untouched rather than dropping them. A
+  // stored title that parses as `I18nLabel` has string entries only, and the
+  // one entry written here is `next` — so the cast states that contract at the
+  // boundary rather than widening what this function returns.
+  return setLocalized(title, language, next) as DashboardWidgetSchema['title'];
 }
 
 // ============================================================================
@@ -266,8 +317,8 @@ function WidgetPropertyPanel({
   onClose,
 }: WidgetPropertyPanelProps) {
   const { t, language } = useDesignerTranslation();
-  // Shown in the title input when the stored title is a map the input cannot
-  // safely author — resolved for reading, never written back.
+  // What the title input SHOWS: the active locale's entry. What a keystroke
+  // WRITES is `writeWidgetTitle` — never this resolved string as a whole value.
   const titleDisplay = resolveWidgetTitle(widget.title, language);
   return (
     <div
@@ -287,26 +338,33 @@ function WidgetPropertyPanel({
       </div>
 
       {/* Title — the ONE authoring (not display) read of `widget.title`, and the
-          only place where following rc.6's widening mechanically would destroy
-          data. A map-valued title is shown resolved and READ-ONLY so the other
-          locales survive; see `isAuthorableTitle` for why, and objectui#4163
-          part 2 for the authoring design this is standing in for. */}
+          only place where following the `I18nLabel` widening mechanically would
+          destroy data. A stored title may be an inline per-locale map and this
+          is a single-line input, so the read and the write are two different
+          rules and both come from `@object-ui/i18n`:
+
+            READ  `pickLocalized` (via `resolveWidgetTitle`) — show the active
+                  locale's entry.
+            WRITE `setLocalized` (via `writeWidgetTitle`) — replace ONLY that
+                  entry; every other locale is carried across untouched.
+
+          The input is no longer read-only for a map-valued title (objectui#5301's
+          ruling made the write rule available); authoring every locale from this
+          panel is a separate, still-open question — see `writeWidgetTitle`. */}
       <div className="space-y-1">
         <label htmlFor="widget-title" className="text-xs font-medium text-gray-600">Title</label>
         <input
           id="widget-title"
           data-testid="widget-prop-title"
           type="text"
-          value={isAuthorableTitle(widget.title) ? widget.title ?? '' : titleDisplay}
+          value={titleDisplay}
           onChange={(e) => {
-            // Guarded, not cast: without this the keystroke would replace an
-            // inline locale map with one locale's string.
-            if (!isAuthorableTitle(widget.title)) return;
-            onChange({ title: e.target.value });
+            // Never `{ title: e.target.value }`: that is the flattening write
+            // that replaces an inline locale map with one locale's string.
+            onChange({ title: writeWidgetTitle(widget.title, language, e.target.value) });
           }}
-          readOnly={!isAuthorableTitle(widget.title)}
           disabled={readOnly}
-          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 read-only:bg-gray-50 read-only:text-gray-500"
+          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
         />
       </div>
 
@@ -317,7 +375,14 @@ function WidgetPropertyPanel({
           id="widget-type"
           data-testid="widget-prop-type"
           value={widget.type ?? 'metric'}
-          onChange={(e) => onChange({ type: e.target.value })}
+          onChange={(e) => {
+            // Resolve the DOM string against the very list that rendered the
+            // options, rather than casting it onto the closed type. No cast, no
+            // tolerance: a value not in the palette writes nothing at all,
+            // instead of storing a `type` the platform refuses at publish.
+            const picked = WIDGET_TYPES.find((t) => t.type === e.target.value);
+            if (picked) onChange({ type: picked.type });
+          }}
           disabled={readOnly}
           className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
         >
@@ -475,7 +540,7 @@ export function DashboardEditor({
   const selectedWidget = widgets.find((w) => w.id === selectedWidgetId);
 
   const addWidget = useCallback(
-    (type: string) => {
+    (type: DashboardWidgetTypeName) => {
       const id = createWidgetId();
       const newWidget: DashboardWidgetSchema = {
         id,

@@ -40,7 +40,7 @@ import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAction } from '@object-ui/react';
 import type { NavigationItem } from '@object-ui/types';
-import { useMetadata } from '../providers/MetadataProvider';
+import { useMetadata } from '../providers/MetadataProvider.js';
 
 type ActionDefLike = Record<string, unknown> & { name?: string; params?: unknown };
 

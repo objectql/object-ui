@@ -17,9 +17,28 @@ npm install @object-ui/plugin-form
 
 ## Interactive Examples
 
-<SchemaExample id="plugin-form/basic-form" />
+Each preview below **is** an `object-form` node drawn by this plugin — the JSON
+in the Code tab is the whole example, and the fields on screen were built from
+the `users` object's own metadata rather than written into that JSON. Both the
+metadata and the record come from the docs site's demo data source, because
+`dataSource` is not a schema key: it is the prop the registered renderer pulls
+off `SchemaRendererProvider` context (see
+[Registration is a side effect of the import](#registration-is-a-side-effect-of-the-import)
+below), so in your own app these same nodes read whatever object your data
+source serves.
 
-<SchemaExample id="plugin-form/contact-form" />
+A plain `form` node with its fields written out inline is the
+`@object-ui/components` renderer, not this plugin — that is what these two
+examples used to be, and they now live in the catalog under
+`components-form-form`.
+
+### One record, fields from the object
+
+<SchemaExample id="plugin-form/object-form-record" />
+
+### Sections as tabs
+
+<SchemaExample id="plugin-form/object-form-tabbed-sections" />
 
 ## Features
 
@@ -48,19 +67,81 @@ npm install @object-ui/plugin-form
 
 ### Form Field
 
-```plaintext
-interface FormField {
-  name: string;
-  type: string;                   // 'input', 'select', 'checkbox', etc.
-  label: string;
-  placeholder?: string;
-  required?: boolean;
-  validation?: ValidationRule[];
-  defaultValue?: any;
-  disabled?: boolean;
-  className?: string;
-}
-```
+`FormField` here means the one declared by `@object-ui/types`
+(`packages/types/src/form.ts`) — `@objectstack/spec` ships its own copy of this
+name (`json-schema/ui/FormField.json`) with a different key set, so read this
+table against the `@object-ui/types` copy rather than the same-named schema in
+the spec. This page does not redeclare it, because a locally written
+`interface` compiles no matter how far it has drifted from the real one. It
+has **23 declared keys**, and `name` is the only **required** one: `type` and
+`label` are both optional.
+
+| Key | Type | What it does |
+| --- | --- | --- |
+| `name` | `string` | **required** — the key the value is submitted under |
+| `id` | `string` | stable render key; falls back to `name` |
+| `label` | `string` | optional. With none, no label element is rendered at all, and validation messages fall back to `name` |
+| `description` | `string` | help text rendered under the control |
+| `type` | `string` | optional, defaults to `'input'`. Built-ins: `input`, `textarea`, `checkbox`, `switch`, `select`; any other value resolves through the registry (`field:<type>` first, then the bare name) |
+| `inputType` | `string` | HTML input type for `type: 'input'` — `'email'`, `'password'`, `'tel'`, … |
+| `widget` | `string` | widget override; wins over `type` (spec `FormField.widget`) |
+| `placeholder` | `string` | placeholder text |
+| `required` | `boolean` | the presence rule. `validation.required` does **not** make a field required — it only supplies the message |
+| `disabled` | `boolean` | not interactive, muted |
+| `readonly` | `boolean` | shown plainly, not editable — deliberately distinct from `disabled` |
+| `hidden` | `boolean` | the field is not rendered at all |
+| `options` | `SelectOption[] \| RadioOption[]` | choices for `select` / radio fields |
+| `validation` | `FieldValidationRules` | **an object keyed by rule name** — see below |
+| `condition` | `FieldCondition` | legacy `{ field, equals, notEquals, in, custom }` matcher |
+| `visibleWhen` / `readonlyWhen` / `requiredWhen` | `string \| { dialect?, source }` | CEL predicates over the live record, evaluated by `@objectstack/formula` — the same engine and dialect the server enforces. They fail open |
+| `visibleOn` | `string \| { dialect?, source }` | view-level visibility predicate (spec `FormField.visibleOn`) |
+| `dependsOn` | `DependsOnInput` | cascading parent(s): a bare name, a list of names, or `{ field, param }` entries |
+| `span` | `'auto' \| 'full'` | relative field width, independent of the column count (preferred) |
+| `colSpan` | `number` | legacy column span (1–4), clamped to the current column count |
+| `field` | `Record<string, any>` | the resolved object-field **metadata object**, stashed by the object-bound paths so widgets can read `precision`, `currency`, `reference_to`, … |
+
+`FormField` also declares `[key: string]: any`, so a misspelled or invented key
+is **not** a compile error — it is simply outside the contract. Two that a
+reader might expect here, and that are **not** declared members:
+
+| Not a `FormField` key | Write this instead |
+| --- | --- |
+| `defaultValue` | `FormSchema.defaultValues`, at form level. An object-bound form seeds from the object field's own declared `defaultValue` instead |
+| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the field grid |
+
+An undeclared key still rides the props spread down to whichever component the
+field resolves to, so a field-level `className` can visibly land on a built-in
+control — but nothing in the contract promises that, and a registered widget
+honours it only if it happens to spread its leftover props. A field-level
+`defaultValue` reaches the widget the same way and changes nothing: the control
+is bound to react-hook-form, whose initial values come from the form.
+
+#### `validation` is an object keyed by rule name
+
+There is no `ValidationRule` type in this repository. Near-spellings do exist —
+`AdvancedValidationRule`, `ValidationRuleType`, `ObjectValidationRule` and
+`DesignerValidationRule` — and none of them types this key. The type of the key
+is `FieldValidationRules` (`packages/types/src/form.ts`), and it is **not** an
+array of `{ type, value, message }` entries:
+
+| Rule | Type | Notes |
+| --- | --- | --- |
+| `required` | `string \| boolean` | supplies the required **message** only. Whether the field is required is decided by `required` / `requiredWhen` **on the field** |
+| `minLength` / `maxLength` | `{ value: number; message: string }` | text length |
+| `min` / `max` | `{ value: number; message: string }` | numeric range |
+| `pattern` | `{ value: RegExp; message: string }` | hand-authored schemas must pass a **RegExp**: react-hook-form applies a pattern only when its value is `instanceof RegExp`. It is the object-metadata path (`buildValidationRules` in `@object-ui/fields`) that compiles a declared string into one, so a `pattern` string written straight into a plain `form` schema never runs |
+| `validate` | `(value) => boolean \| string \| Promise<boolean \| string>` | custom check; TypeScript-authored schemas only |
+
+There is no `email` rule name — an email check is a `pattern`, which is exactly
+what `buildValidationRules` emits for an object field of type `email`.
+
+**Why the array spelling fails silently.** The only reader of this key is the
+basic form renderer, which spreads it into the rule object it hands to
+react-hook-form — `const rules: any = { ...validation }`
+(`packages/components/src/renderers/form/form.tsx:1652`). Spreading an **array**
+into an object literal produces numeric keys (`{ '0': …, '1': … }`), and
+react-hook-form recognises none of them: every rule is dropped, nothing throws,
+and the form looks validated while validating nothing.
 
 ### Column width of a sectioned form
 
@@ -89,6 +170,7 @@ inactive tab unmount along with its values).
   fieldTabs: [
     { key: 'basics', label: 'Basics', fields: ['subject', 'status'] },
     { key: 'detail', label: 'Detail', description: 'Anything else', fields: ['description'] },
+    { key: 'billing', label: 'Billing', fields: ['vat_id'], visibleWhen: 'status == "won"' },
   ],
   defaultFieldTab?: 'basics',       // defaults to the first tab
   fieldTabsPosition?: 'top',        // 'top' | 'bottom' | 'left' | 'right'
@@ -102,7 +184,72 @@ inactive tab unmount along with its values).
 - Fields no tab claims render above the tab strip rather than disappearing.
 - Needs at least two tabs; ignored when the form uses `children`.
 
-`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` build on this.
+`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` build on this. Of the
+two, only `ModalForm` forwards a section's `visibleWhen` onto its tab — see the
+support table at the end of the next section.
+
+#### Conditional tabs (`FormFieldTab.visibleWhen`)
+
+A tab may carry a `visibleWhen` predicate — the same slot, vocabulary and
+engine as the field-level rule (`string | { dialect?, source }`, a CEL
+predicate over the live record, evaluated by `@objectstack/formula` with the
+host predicate scope bound, so it can read `current_user` / `app` / `data` /
+`features` exactly as a field rule can). Like every conditional rule in this
+system it **fails open**: a predicate that cannot be evaluated leaves the tab
+visible rather than hiding data behind a broken expression.
+
+When the predicate resolves FALSE the renderer draws **neither the tab's
+trigger nor its panel** — a hidden tab disappears from the tab strip entirely,
+it is not merely an empty panel.
+
+**Submit semantics are deliberately counter-intuitive — visibility gates
+drawing, and nothing else:**
+
+- **A hidden tab's values still submit.** Hiding a tab does not remove its
+  fields' values from the record: whatever they hold (loaded from the record,
+  seeded by defaults, or typed before the tab hid) is carried in the payload.
+  A visibility rule is not a data filter — dropping the values would turn a
+  cosmetic predicate into a silent data-loss door.
+- **A hidden tab's fields skip client-side validation.** A user is never
+  blocked by an error pointing at a control they cannot see. The flip side:
+  a *required* field on a hidden tab sails past the client — **the
+  server-side contract is the loud floor** for genuinely-required data, and a
+  submit missing it fails there, visibly.
+- **Stale errors clear.** A tab hiding mid-session (its predicate flipping on
+  a keystroke or a scope change) clears its fields' leftover validation
+  errors, the same hygiene a field's own `visibleWhen` applies.
+
+These are not tab-specific rules: they are the ruled hidden-group semantics
+every section `visibleWhen` follows, inherited through the same mechanism a
+field's own FALSE predicate uses (the fields simply stop being drawn; the form
+keeps their values and skips unmounted controls at validation).
+
+Two mechanics worth knowing:
+
+- **Selection is derived over the visible tabs.** If the predicate hides the
+  ACTIVE tab, the renderer re-selects deterministically — the user's own pick
+  if still visible, else `defaultFieldTab`, else the first visible tab — so
+  the form never shows an empty panel. The pick itself is kept: the tab the
+  user chose becomes active again the moment its predicate re-admits it.
+- **Whether the tabbed layout engages at all is judged on the DECLARED tabs**
+  (the "needs at least two tabs" rule above counts declarations, not
+  verdicts). A predicate hiding all but one tab filters what is drawn; it
+  never collapses the strip into the flat layout mid-interaction.
+
+**Where `visibleWhen` on a tab works today** — this key landed renderer-first,
+and only where the renderer actually evaluates it:
+
+| Authoring surface | Carries the predicate? |
+| --- | --- |
+| `type: 'form'` with `fieldTabs[].visibleWhen` (as above) | **Yes** — evaluated by the form renderer |
+| `ModalForm` / `formType: 'modal'` with `contentLayout: 'tabbed'` | **Yes** — the section's `visibleWhen` is copied onto its tab |
+| `TabbedForm` / `formType: 'tabbed'` sections | **No** — a section `visibleWhen` is dropped before the renderer sees it; the tab always renders |
+| `WizardForm` / `formType: 'wizard'` steps | **No** — steps are not tabs; nothing evaluates a step-level predicate |
+
+The two **No** rows are deliberate, not oversights: declaring the key on a
+surface whose renderer ignores it would make the metadata lie (objectui#6111),
+so the key stops at the boundary until each surface enforces it. Track
+objectui#6237 for both.
 
 ### Wizard steps and `allowSkip`
 
@@ -113,6 +260,10 @@ something is outstanding it returns the user to the first step that has one, mar
 that step's indicator (`data-error="true"`), and names the fields in a toast —
 nothing is sent. Conditional rules are respected (`visibleWhen` / `requiredWhen`
 are evaluated on the same canonical engine as the renderer and the server).
+
+Those conditional rules are the **fields'** rules. A wizard *step* carries no
+`visibleWhen` of its own today — see the support table under
+[Conditional tabs](#conditional-tabs-formfieldtabvisiblewhen).
 
 This matters because react-hook-form only validates the fields currently mounted,
 and a wizard mounts one step at a time — so a required field on a step nobody
@@ -153,26 +304,123 @@ spec rejects `pane` on non-split form types at parse.)
 
 ## Usage
 
-### Auto-registration (Side-effect Import)
+### Registration is a side effect of the import
 
-```plaintext
+```ts
 import '@object-ui/plugin-form';
 ```
 
-### Manual Registration
+That single import is the whole of registration — there is no components map to
+iterate over. Importing the entry runs the six `ComponentRegistry.register(...)`
+calls in `packages/plugin-form/src/index.tsx`, which claim exactly these schema
+types:
 
-```plaintext
-import { formComponents } from '@object-ui/plugin-form';
+| Namespaced key | Bare-name fallback | Renderer behind it |
+| --- | --- | --- |
+| `plugin-form:object-form` | `object-form` | `ObjectForm` — metadata-driven form over one record |
+| `view:form` | none — `skipFallback: true` | the same renderer, under the view protocol |
+| `plugin-form:embeddable-form` | `embeddable-form` | `EmbeddableForm` — standalone public form |
+| `plugin-form:form-analytics` | `form-analytics` | `FormAnalytics` — submission dashboard |
+| `plugin-form:object-master-detail-form` | `object-master-detail-form` | `MasterDetailForm` — parent plus child line items in one submit |
+| `record:line_items` | none — `skipFallback: true` | `LineItemsPanel` — child grid bound to the record on the page |
+
+`ComponentRegistry.register` publishes `namespace:type`, and — unless the call
+passes `skipFallback: true` — the bare `type` as a back-compat fallback
+(`packages/core/src/registry/Registry.ts:194`, fallback at `:226`). The two
+`skipFallback` calls here are deliberate: bare `form` stays the basic
+`@object-ui/components` form, and bare `line_items` is left to whoever else
+claims it.
+
+### Registering a component under your own key
+
+To serve one of this package's components under a key of your own, register the
+exported component — that is what a manual registration is here:
+
+```ts
 import { ComponentRegistry } from '@object-ui/core';
+import { ObjectForm } from '@object-ui/plugin-form';
 
-Object.entries(formComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
-});
+ComponentRegistry.register('my-form', ObjectForm, { namespace: 'my-app' });
 ```
+
+The renderers this package registers for *itself* are internal wrappers rather
+than these exported components. `SchemaRenderer` hands a registered component
+its `schema`, but never a `dataSource` — that travels on
+`SchemaRendererContext` — so each wrapper resolves it from the context first.
+`ObjectForm` takes `dataSource` as a prop (optional, because inline
+`customFields` need no adapter), so a custom-key registration either supplies
+one or wraps the component the same way.
+
+The components are on the package's export surface — `ObjectForm`,
+`TabbedForm`, `WizardForm`, `SplitForm`, `DrawerForm`, `ModalForm`,
+`EmbeddableForm`, `MasterDetailForm`, `LineItemsPanel`, `FormAnalytics`,
+`FormSectionContainer` — alongside the layout helpers (`applyAutoLayout`,
+`inferColumns`, `filterCreateModeFields`, …) and the per-container schema types
+(`TabbedFormSchema`, `WizardFormSchema`, `ModalFormSchema`, …). There is no
+aggregate map among them.
 
 ## Examples
 
 ### Form with Validation
+
+One `validation` object per field, keyed by rule name. The annotation is part of
+the example: `FormField` and `FormSchema` both carry an index signature, so an
+un-annotated `const schema = { … }` type-checks whatever is written in it, while
+`const signUpForm: FormSchema` makes a wrong `validation` shape a compile error.
+
+```typescript
+import type { FormSchema } from '@object-ui/types';
+
+const signUpForm: FormSchema = {
+  type: 'form',
+  fields: [
+    {
+      name: 'username',
+      type: 'input',
+      label: 'Username',
+      required: true,                    // the presence rule lives here, not in `validation`
+      validation: {
+        minLength: { value: 3, message: 'Min 3 characters' },
+        maxLength: { value: 20, message: 'Max 20 characters' },
+      },
+    },
+    {
+      name: 'email',
+      type: 'input',
+      inputType: 'email',
+      label: 'Email',
+      required: true,
+      validation: {
+        // No `email` rule name exists — an email check is a `pattern`, and its
+        // value has to be a RegExp for react-hook-form to apply it at all.
+        pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Enter a valid email address' },
+      },
+    },
+    {
+      name: 'password',
+      type: 'input',
+      inputType: 'password',
+      label: 'Password',
+      required: true,
+      validation: {
+        minLength: { value: 8, message: 'Min 8 characters' },
+        required: 'Choose a password',   // message only — `required: true` above is the rule
+      },
+    },
+  ],
+  submitLabel: 'Sign Up',
+};
+```
+
+Spelled as an array instead — `validation: [{ type: 'minLength', value: 3, … }]`
+— every rule is dropped in silence: the field above accepts `ab` and the form
+submits it with no message shown. Under the annotation that spelling is a
+compile error (TS2559, "no properties in common with type
+`FieldValidationRules`") rather than a runtime surprise; a JSON metadata
+document, which cannot be annotated, has only this page to go by.
+
+The same shape as JSON metadata — the length and range rules carry over
+unchanged:
 
 ```json
 {
@@ -183,25 +431,21 @@ Object.entries(formComponents).forEach(([type, component]) => {
       "type": "input",
       "label": "Username",
       "required": true,
-      "validation": [
-        { "type": "minLength", "value": 3, "message": "Min 3 characters" },
-        { "type": "maxLength", "value": 20, "message": "Max 20 characters" }
-      ]
-    },
-    {
-      "name": "password",
-      "type": "input",
-      "inputType": "password",
-      "label": "Password",
-      "required": true,
-      "validation": [
-        { "type": "minLength", "value": 8, "message": "Min 8 characters" }
-      ]
+      "validation": {
+        "minLength": { "value": 3, "message": "Min 3 characters" },
+        "maxLength": { "value": 20, "message": "Max 20 characters" }
+      }
     }
   ],
   "submitLabel": "Sign Up"
 }
 ```
+
+`pattern` and `validate` are the two rules a JSON document cannot express on
+this path: JSON has no RegExp literal and no function, and a `pattern` string
+reaches react-hook-form as a string, which it ignores. An object-bound form
+(`object-form`) does not have that limitation — it compiles the object field's
+own declared `pattern` into a RegExp before the form ever sees it.
 
 ### Multi-Step Form
 
@@ -247,12 +491,26 @@ The plugin supports these field types:
 
 ## TypeScript Support
 
-```plaintext
-import type { FormSchema, FormField } from '@object-ui/plugin-form';
+`FormSchema` and `FormField` are protocol types, so they live in
+`@object-ui/types` alongside the rest of the JSON contract. This package imports
+them and does not re-export them — the form types on its own entry are the
+per-container ones (`TabbedFormSchema`, `WizardFormSchema`, `ModalFormSchema`,
+`SplitFormSchema`, `DrawerFormSchema`, `MasterDetailFormSchema`).
+
+```typescript
+import type { FormSchema, FormField } from '@object-ui/types';
+
+const emailField: FormField = {
+  name: 'email',
+  type: 'input',
+  inputType: 'email',
+  label: 'Email',
+  required: true
+};
 
 const loginForm: FormSchema = {
   type: 'form',
-  fields: [...],
+  fields: [emailField],
   submitLabel: 'Sign In'
 };
 ```

@@ -224,9 +224,10 @@ export function registerLayout() {
   // expected an object` on the ONLY value this renderer can render — and stay
   // silent on the object that would crash it.
   //
-  // This is not objectui#3832 (`ComponentInput.type` cannot spell a spec union):
-  // `ManifestInputType` has `'array'`, so the declaration was simply wrong about
-  // a type it could express exactly.
+  // This is not objectui#3832 (a key whose contract is a UNION, which the
+  // declaration could not spell before that card and now spells as an array of
+  // arms): `items` has ONE contract type, `ManifestInputType` has `'array'`, so
+  // the declaration was simply wrong about a type it could express exactly.
   //
   // `required: true` is the fourth face of the same agreement (objectui#3987).
   // #3972 aligned the key's EXISTENCE and TYPE; optionality was still declared

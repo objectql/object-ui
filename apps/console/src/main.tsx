@@ -19,10 +19,6 @@ import { preflightAuth } from './lib/auth-preflight';
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
-// Kick off Sentry init in the background (no-op if VITE_SENTRY_DSN is unset).
-// Not awaited — observability must never block first paint.
-void initSentry();
-
 // ────────────────────────────────────────────────────────────────────────────
 // Plugin registration
 // ────────────────────────────────────────────────────────────────────────────
@@ -62,6 +58,11 @@ registerPlaceholders();
 // it the SPA would fall back to defaults on first paint and hit 404s.
 // Both kicks are awaited so first paint sees definitive values, but each
 // one absorbs its own failures so a missing endpoint never blocks boot.
+// `index.html`'s pre-boot branding script resolves this SAME variable through
+// Vite's HTML env substitution, so both callers build one `/api/v1/runtime/config`
+// URL and share one request instead of asking two servers (objectui#5660).
+// Change the spelling here and that script has to change with it;
+// `src/__tests__/runtimeConfigBootDedup.test.ts` fails when the two stop agreeing.
 const SERVER_BASE = (import.meta.env.VITE_SERVER_URL || '').replace(/\/+$/, '');
 // The third entry seeds the UI language from the tenant's server-side locale
 // (objectui#4035). It joins this existing gate rather than adding one of its
@@ -74,6 +75,22 @@ Promise.all([
   preflightAuth(AUTH_URL),
   seedTenantLanguage(SERVER_BASE),
 ]).finally(() => {
+  // Kick off Sentry init (no-op unless this runtime served a DSN on
+  // `telemetry.errorReporting`). Still not awaited — observability must never
+  // block first paint.
+  //
+  // ⛔ Ordering is load-bearing, not stylistic, and objectstack#12681 made it
+  // MORE so: the DSN itself now arrives from the server, so before
+  // `initRuntimeConfig()` settles there is no sink at all. This call used to
+  // run at module-eval time, BEFORE `initRuntimeConfig()` was even started;
+  // from there it reads "no sink" on every boot and memoizes that verdict —
+  // turning the operator's only switch into a permanent removal, silently,
+  // including for the hosted console. Reading a server value requires waiting
+  // for the server. `.finally()` (not `.then()`) keeps the pre-existing
+  // guarantee that a failed config fetch never blocks boot — and on that path
+  // no sink arrived, so the failure direction is silence.
+  void initSentry();
+
   // Apply runtime branding before React mounts — avoids a flash of the
   // static defaults for operators who configure OS_PRODUCT_NAME etc.
   document.title = getProductName();

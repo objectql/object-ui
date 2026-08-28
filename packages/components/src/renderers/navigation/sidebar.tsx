@@ -21,6 +21,7 @@ import { useDisplayLocale } from '@object-ui/i18n';
 // see `BaseSchema.label` (objectui#4580).
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { renderChildren } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import {
   SidebarProvider,
   Sidebar,
@@ -49,11 +50,7 @@ ComponentRegistry.register('sidebar-provider',
     ],
     defaultProps: {
       defaultOpen: true
-    },
-    defaultChildren: [
-      { type: 'sidebar' },
-      { type: 'sidebar-inset' }
-    ]
+    }
   }
 );
 
@@ -73,12 +70,7 @@ ComponentRegistry.register('sidebar',
       collapsible: 'icon',
       side: 'left',
       variant: 'sidebar'
-    },
-    defaultChildren: [
-      { type: 'sidebar-header' },
-      { type: 'sidebar-content' },
-      { type: 'sidebar-footer' }
-    ]
+    }
   }
 );
 
@@ -88,10 +80,7 @@ ComponentRegistry.register('sidebar-header',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Header',
-    defaultChildren: [
-      { type: 'text', content: 'Sidebar Header' }
-    ]
+    label: 'Sidebar Header'
   }
 );
 
@@ -101,10 +90,7 @@ ComponentRegistry.register('sidebar-content',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Content',
-    defaultChildren: [
-      { type: 'sidebar-group' }
-    ]
+    label: 'Sidebar Content'
   }
 );
 
@@ -136,10 +122,7 @@ ComponentRegistry.register('sidebar-group',
     ],
     defaultProps: {
       label: 'Menu'
-    },
-    defaultChildren: [
-      { type: 'sidebar-menu' }
-    ]
+    }
   }
 );
 
@@ -149,11 +132,7 @@ ComponentRegistry.register('sidebar-menu',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Menu',
-    defaultChildren: [
-      { type: 'sidebar-menu-item' },
-      { type: 'sidebar-menu-item' }
-    ]
+    label: 'Sidebar Menu'
   }
 );
 
@@ -163,19 +142,29 @@ ComponentRegistry.register('sidebar-menu-item',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Menu Item',
-    defaultChildren: [
-      { type: 'sidebar-menu-button' }
-    ]
+    label: 'Sidebar Menu Item'
   }
 );
 
 ComponentRegistry.register('sidebar-menu-button',
-  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => (
-    <SidebarMenuButton isActive={schema.active} {...props}>
-      {renderChildren(schema.body)}
-    </SidebarMenuButton>
-  ),
+  ({ schema, ...props }: { schema: BaseSchema; [key: string]: any }) => {
+    // `style` forwarded by name (the objectui#4435 route); everything else goes
+    // through the form-control DOM declaration. This is the only `sidebar-*`
+    // registration in this file that objectui#5632's group covers — the
+    // container ones render `<div>`s and belong to `BARE_SPREAD`, which is a
+    // different mechanism group and a different card.
+    const { style, ...buttonProps } = props;
+
+    return (
+      <SidebarMenuButton
+        isActive={schema.active}
+        {...toFormControlDomProps(buttonProps)}
+        style={style}
+      >
+        {renderChildren(schema.body)}
+      </SidebarMenuButton>
+    );
+  },
   {
     namespace: 'ui',
     label: 'Sidebar Menu Button',
@@ -186,10 +175,7 @@ ComponentRegistry.register('sidebar-menu-button',
     ],
     defaultProps: {
       size: 'default'
-    },
-    defaultChildren: [
-      { type: 'text', content: 'Menu Item' }
-    ]
+    }
   }
 );
 
@@ -199,10 +185,7 @@ ComponentRegistry.register('sidebar-footer',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Footer',
-    defaultChildren: [
-      { type: 'text', content: 'Footer' }
-    ]
+    label: 'Sidebar Footer'
   }
 );
 
@@ -212,10 +195,7 @@ ComponentRegistry.register('sidebar-inset',
   ),
   { 
     namespace: 'ui',
-    label: 'Sidebar Inset',
-    defaultChildren: [
-      { type: 'div', className: 'p-4', body: [{ type: 'text', content: 'Main content area' }] }
-    ]
+    label: 'Sidebar Inset'
   }
 );
 

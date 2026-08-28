@@ -552,16 +552,31 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
         );
       }
     }
-    // Recorded because it looks like an omission and is not: two other rows also
-    // say `Done`/`Pending` in `en` and already disagree with the chosen neighbour
-    // in one pack each — `grid.bulk.done` is es "Hecho" against "Listo", and
-    // `approvalsInbox.statusPending` is zh 待审批 ("awaiting approval"), which is
-    // wrong for an invitation. So the repo ALREADY renders these English strings
-    // more than one way, on purpose, and picking a neighbour is a choice that has
-    // to be made rather than derived.
+    // Recorded because it looks like an omission and is not: another row also
+    // says `Pending` in `en` and still disagrees with the chosen neighbour in one
+    // pack — `approvalsInbox.statusPending` is zh 待审批 ("awaiting approval"),
+    // which is wrong for an invitation. So the repo DOES render some English
+    // strings more than one way, on purpose, and picking a neighbour is a choice
+    // that has to be made rather than derived.
+    //
+    // `Done` stood beside it as the second example until objectui#3880, which
+    // adjudicated that one a typo rather than a choice: `grid.bulk.done` was es
+    // "Hecho" against "Listo" at the other three sites, and all four are the same
+    // dialog-footer button that finishes the surface — `grid.bulk.done` closes the
+    // bulk result dialog, `view.done` closes ManageViewsDialog, `form.fullscreen.done`
+    // commits and leaves the fullscreen editor, `common.done` closes the invitation
+    // footer — with no grammatical divergence to carry. The nine other packs each
+    // render all four identically, so no pack had found a contextual reason to
+    // split them. It converged on the 3:1 majority `Listo`, which is also the value
+    // this slice had already chosen for `common.done`. The four are pinned together
+    // below so the outlier cannot regrow, and the `Done` family is no longer an
+    // example of deliberate divergence — only `Pending` is.
     expect(at(builtInLocales.en, 'grid.bulk.done')).toBe('Done');
-    expect(at(builtInLocales.es, 'grid.bulk.done')).toBe('Hecho');
-    expect(at(builtInLocales.es, 'view.done')).toBe('Listo');
+    for (const key of ['common.done', 'view.done', 'form.fullscreen.done', 'grid.bulk.done']) {
+      expect(at(builtInLocales.es, key), `es ${key} (objectui#3880 converged these on one value)`).toBe(
+        'Listo',
+      );
+    }
     expect(at(builtInLocales.zh, 'approvalsInbox.statusPending')).toBe('待审批');
     expect(at(builtInLocales.zh, 'organization.invitations.status.pending')).toBe('等待中');
   });

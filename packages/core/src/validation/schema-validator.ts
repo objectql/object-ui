@@ -17,6 +17,7 @@
  */
 
 import type { BaseSchema } from '@object-ui/types';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
 
 /**
  * One issue found while walking an ObjectUI schema TREE — `path` locates the
@@ -54,6 +55,69 @@ export interface SchemaNodeValidationResult {
 }
 
 /**
+ * The rule for a PREDICATE GATE key (`visible` / `disabled`) — objectui#6505.
+ *
+ * ## What this rule used to say, and what it cost
+ *
+ * Both keys read `typeof value === 'boolean'`, message `"<key> must be a
+ * boolean"`. Both keys are EXPRESSIONS everywhere else in the system: AGENTS.md
+ * §4 declares the protocol as `hidden?: string; // expression` /
+ * `disabled?: string; // expression`, `SchemaRenderer` evaluates them through
+ * `hasDeclaredPredicate` + `evaluateCondition`, `@objectstack/spec` normalizes
+ * every authored predicate into a `{ dialect, source }` envelope, and the
+ * objectui#3862 / objectui#3955 rulings are entirely about which EXPRESSION
+ * spellings count as declared. So the node the docs teach —
+ * `{ type: 'button', disabled: "${record.stage == 'closed'}" }` — was reported
+ * `disabled must be a boolean` by the dev-mode validator and its host element
+ * got `data-obj-schema-invalid`, the cue apps hang a red outline off.
+ *
+ * `BASE_SCHEMA_RULES` was the ONE place in the repo that disagreed with the
+ * protocol, so this restores declared = enforced rather than widening a
+ * contract: the accept set moves to exactly what the runtime already accepts.
+ *
+ * ## Why `hasDeclaredPredicate` and not a check written here
+ *
+ * `evaluator/declaredPredicate.ts` is the repo's single definition of "is a
+ * predicate gate DECLARED on this value?" (objectui#3850's ruling; nothing in
+ * the repo asks that question anywhere else). A second, hand-rolled answer in
+ * this table is how the validator and the renderer come to disagree about the
+ * same value — which is the defect class this rule was already an instance of.
+ * The delegation is behavioural, so it is pinned behaviourally: the drift pin in
+ * `__tests__/predicate-valued-gate-rules.test.ts` asserts this rule's verdict
+ * equals `boolean || hasDeclaredPredicate(value)` across every probe.
+ *
+ * ## Why the boolean arm survives even though it is subsumed
+ *
+ * `hasDeclaredPredicate(true)` and `hasDeclaredPredicate(false)` are both
+ * `true` today (`toPredicateInput` returns a boolean unchanged), so the first
+ * arm changes no verdict. It is kept because it makes this rule's accept set a
+ * provable SUPERSET of the one it replaces, locally: a future narrowing on the
+ * declaredness side cannot silently start reporting `disabled: false` — the
+ * most explicit gate an author can write — as an invalid schema.
+ *
+ * ## What it still REFUSES (the half that is not negotiable)
+ *
+ * Everything `hasDeclaredPredicate` calls junk: a number, `null`, `{}`, an
+ * array, `''`, whitespace-only predicate text, and the empty / blank-`source`
+ * envelope (objectui#3960). Every one of those was refused before this change
+ * too — the accept set widens and nothing refused becomes accepted. Dropping
+ * the two keys from this table was the option this fix was explicitly forbidden
+ * to take: an absent rule reports nothing at all, which is gate weakening
+ * wearing the same green.
+ */
+function predicateGateRule(key: 'visible' | 'disabled') {
+  return {
+    required: false,
+    validate: (value: unknown): boolean =>
+      typeof value === 'boolean' || hasDeclaredPredicate(value),
+    message:
+      `${key} must be a boolean or a declared predicate: an expression string ` +
+      `(bare, e.g. "record.stage == 'closed'", or the "\${...}" template ` +
+      `spelling), or a { dialect, source } expression envelope`,
+  };
+}
+
+/**
  * Validation rules for base schema
  */
 const BASE_SCHEMA_RULES = {
@@ -72,16 +136,10 @@ const BASE_SCHEMA_RULES = {
     validate: (value: any) => typeof value === 'string',
     message: 'className must be a string'
   },
-  visible: {
-    required: false,
-    validate: (value: any) => typeof value === 'boolean',
-    message: 'visible must be a boolean'
-  },
-  disabled: {
-    required: false,
-    validate: (value: any) => typeof value === 'boolean',
-    message: 'disabled must be a boolean'
-  }
+  // objectui#6505 — both keys are EXPRESSIONS in the protocol, not booleans.
+  // See `predicateGateRule` above for the accept set and what it still refuses.
+  visible: predicateGateRule('visible'),
+  disabled: predicateGateRule('disabled')
 };
 
 /**
@@ -127,61 +185,184 @@ function validateBaseSchema(schema: any, path: string = 'schema'): SchemaNodeVal
 }
 
 /**
- * Validate CRUD schema specific properties
+ * TOMBSTONE table — node `type` spellings this renderer has RETIRED, mapped to
+ * the prescription an author must follow instead (ADR-0049 enforce-or-remove).
+ *
+ * A retired spelling is not merely absent from this file. Absence here means
+ * {@link validateSchema} runs `validateBaseSchema` — which only asks that
+ * `type` be a non-empty string — finds nothing type-specific to say, and
+ * returns `valid: true`. That silence is the failure mode this table exists to
+ * prevent: the author is told their schema is fine and then gets the OBJUI-001
+ * "Unknown component type" panel at render time, one layer too late to act on.
+ * So a retired spelling is refused BY NAME, with the migration in the message.
+ *
+ * `crud` (objectui#5373, maintainer ruling of 2026-08-20): `CRUDSchema` carried
+ * FOUR declaration faces — the TS interface, the zod mirror, a dedicated branch
+ * in this very function, and `CRUDBuilder` — and never once had a registered
+ * renderer, for the whole life of the key. Every face taught an author (and an
+ * AI author reading the published reference page) that the type existed. The
+ * branch that used to sit here is what made this validator the loudest of the
+ * four lies: it read `schema.type === 'crud'`, checked that `columns` was an
+ * array, and returned no error — an affirmative "your CRUD schema is valid"
+ * for a node that renders nothing.
+ *
+ * Keyed by the authored spelling, and quantified over the table rather than
+ * written per spelling, so the next retirement closes this face the day it
+ * lands here.
  */
-function validateCRUDSchema(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
-  const errors: SchemaNodeValidationError[] = [];
+const RETIRED_NODE_TYPES: Readonly<Record<string, string>> = Object.freeze({
+  crud:
+    "Node type `crud` was RETIRED (objectui#5373, ADR-0049 enforce-or-remove). " +
+    "`CRUDSchema` declared it in four places and no renderer ever registered it, " +
+    "so a node spelling it painted the OBJUI-001 \"Unknown component type\" panel. " +
+    "Compose the shapes that DO render instead: `object-grid` for the record " +
+    "table with its toolbar, filters, pagination and row/batch actions, " +
+    "`object-form` for the create/edit form, and `detail` for the record view.",
+});
 
-  if (schema.type === 'crud') {
-    // Check required properties for CRUD
-    if (!schema.columns || !Array.isArray(schema.columns)) {
-      errors.push({
-        path: `${path}.columns`,
-        message: 'CRUD schema requires columns array',
-        type: 'error',
-        code: 'MISSING_COLUMNS'
-      });
-    }
+/**
+ * Refuse a retired node-type spelling by name.
+ *
+ * Severity is `error`, not `warning`, and that is the whole point of the
+ * retirement: a warning leaves `result.valid === true`, so `assertValidSchema`
+ * would still not throw and `isValidSchema` would still answer `true` — the
+ * same silence, one console line louder.
+ *
+ * `hasOwnProperty` rather than a plain index read: a `type` of `'constructor'`
+ * or `'toString'` reaches `Object.prototype` and would answer truthy.
+ *
+ * Reached for every node in the tree, not just the root — {@link validateSchema}
+ * is what `validateChildren` recurses with, so a retired spelling nested inside
+ * a `children` array is refused with its own path.
+ */
+function validateRetiredNodeType(schema: any, path: string = 'schema'): SchemaNodeValidationError[] {
+  const type = schema?.type;
+  if (typeof type !== 'string') return [];
+  if (!Object.prototype.hasOwnProperty.call(RETIRED_NODE_TYPES, type)) return [];
+  return [{
+    path: `${path}.type`,
+    message: RETIRED_NODE_TYPES[type],
+    type: 'error',
+    code: 'RETIRED_TYPE'
+  }];
+}
 
-    if (!schema.api && !schema.dataSource) {
-      errors.push({
-        path: `${path}.api`,
-        message: 'CRUD schema requires api or dataSource',
-        type: 'warning',
-        code: 'MISSING_DATA_SOURCE'
-      });
-    }
+/**
+ * The ONE namespace a form field's widget id may name — objectui#5254,
+ * maintainer ruling of 2026-08-19.
+ *
+ * A form field's `type` either names a `field:`-namespaced widget or takes the
+ * renderer's declared `default` input branch. It never resolves a plain SDUI
+ * node renderer: `renderFieldComponent` (`@object-ui/components`) resolves a
+ * colon-qualified id ONLY under this prefix, and `resolveFieldLabelling` /
+ * `resolvesToRegisteredFieldWidget` there mirror it exactly.
+ */
+const FIELD_WIDGET_NAMESPACE = 'field:';
 
-    // Validate columns
-    if (schema.columns && Array.isArray(schema.columns)) {
-      schema.columns.forEach((column: any, index: number) => {
-        if (!column.name) {
-          errors.push({
-            path: `${path}.columns[${index}]`,
-            message: 'Column requires name property',
-            type: 'error',
-            code: 'MISSING_COLUMN_NAME'
-          });
-        }
-      });
-    }
+/**
+ * The two keys of an AUTHORED form field that can carry a widget id.
+ *
+ * Both are `unknown` rather than `string`: this validator's whole job is to be
+ * handed metadata that may be any shape at all, so the narrowing has to happen
+ * here and not be assumed by the type. (The rest of this file predates that
+ * discipline and reads its input as `any`; new code does not add to it.)
+ */
+interface AuthoredFormField {
+  type?: unknown;
+  widget?: unknown;
+}
 
-    // Validate fields if present
-    if (schema.fields && Array.isArray(schema.fields)) {
-      schema.fields.forEach((field: any, index: number) => {
-        if (!field.name) {
-          errors.push({
-            path: `${path}.fields[${index}]`,
-            message: 'Field requires name property',
-            type: 'error',
-            code: 'MISSING_FIELD_NAME'
-          });
-        }
-      });
-    }
-  }
+/**
+ * The widget id a form field will actually be RENDERED as.
+ *
+ * Mirrors the renderer's own precedence (`resolvedType` in
+ * `packages/components/src/renderers/form/form.tsx`: explicit form-config
+ * `widget`, then the resolved field metadata's widget hint, then the bare
+ * `type`). Only the two keys an AUTHORED schema carries are read here —
+ * `field.field?.widget` is a resolved metadata OBJECT that a hand-authored
+ * standalone `FormSchema` does not have.
+ *
+ * The mirroring is the point, not a convenience: validator and renderer must
+ * not be able to disagree about which component will actually render, which is
+ * the same discipline `resolveFieldLabelling` states on the renderer side.
+ */
+function resolveAuthoredFieldWidgetId(field: AuthoredFormField): string | undefined {
+  const id = field.widget ?? field.type;
+  return typeof id === 'string' ? id : undefined;
+}
 
-  return errors;
+/**
+ * A form field's widget id names a namespace that resolves NO field widget —
+ * objectui#5375, maintainer ruling of 2026-08-20 (option C, the primary).
+ *
+ * ## What this refuses, and why it is an error rather than a warning
+ *
+ * Measured on `main` at f2e11ae6f, the real `form` renderer on the built-in
+ * path (no `registerAllFields()`):
+ *
+ *   type            registry hit   rendered type
+ *   ui:password     TRUE           text
+ *   secret          false          text
+ *   field:secret    false          text
+ *
+ * `ui:password` **is** registered — as an SDUI node renderer for a top-level
+ * `{ type: 'email' }`-style node — so an author who checks whether it resolves
+ * gets a YES, and still gets a clear-text box on the field path. That is the
+ * shape where verifying does not protect you, and it is why the class, not
+ * another entry in a renderer-side table, is what gets closed here: the table
+ * fix answers today's spellings and leaves the next invented id to find the
+ * same silent degrade. AI-authored metadata invents plausible-looking widget
+ * ids constantly; this makes inventing one an ERROR at authoring time instead
+ * of a text box that looks like it worked.
+ *
+ * A warning was explicitly ruled out — a warning IS the silent degrade this
+ * check exists to kill, in a new spelling.
+ *
+ * ## Why only the NAMESPACED spelling
+ *
+ * `field:` is allowed whether or not the widget is registered: registration is
+ * a RUNTIME fact (`registerAllFields()`, a lazily loaded plugin) that an
+ * authoring-time validator cannot see, and the renderer already answers an
+ * unregistered `field:` secret with a visible refusal (objectui#5322). A BARE
+ * name is likewise allowed: it is an open set — every registered `field:<name>`
+ * widget, third-party ones included, is reachable by its short name.
+ *
+ * What is decidable statically is the namespace, and it is a CLOSED set of one.
+ * Any other `<ns>:<name>` resolves nothing on the field path by the #5254
+ * ruling and falls to the renderer's plain-text `default` arm.
+ *
+ * ## Census (the ruling made arming this conditional on one)
+ *
+ * 4,397 authored files in this repo, 649 form-field `type`/`widget` literals,
+ * 98 structurally parsed form-field entries in `examples/schema-catalog`:
+ * SEVEN colon-qualified ids on the form-field path, five of them `field:*`.
+ * The two remaining occurrences are one source line naming `ref:component`,
+ * which is a metadata-admin designer `SchemaForm` widget resolved by its own
+ * `WIDGETS` table — a different shape (`{ field, widget }` under
+ * `sections[].fields[]`, node type `simple`) that this function, gated on
+ * `type === 'form'`, never reaches. Zero occurrences of `ui:password`,
+ * `secret` or `field:secret` anywhere on the field path.
+ */
+function validateFieldWidgetNamespace(
+  field: AuthoredFormField,
+  path: string,
+): SchemaNodeValidationError | undefined {
+  const id = resolveAuthoredFieldWidgetId(field);
+  if (!id || !id.includes(':') || id.startsWith(FIELD_WIDGET_NAMESPACE)) return undefined;
+  const key = typeof field.widget === 'string' ? 'widget' : 'type';
+  return {
+    path: `${path}.${key}`,
+    message:
+      `'${id}' is not a form field widget: a namespaced field widget id must name the ` +
+      `\`field:\` namespace (objectui#5254), so this id resolves NOTHING on the field path ` +
+      `and the renderer would fall through to a plain text box — putting a secret on screen ` +
+      `in clear text when the field holds one (objectui#5375). Write the built-in spelling ` +
+      `(e.g. \`password\`), or the field widget id \`field:${id.slice(id.indexOf(':') + 1)}\`. ` +
+      `Resolving in the registry is not proof it resolves HERE — \`ui:password\` is a ` +
+      `registered SDUI node renderer and still renders clear text as a field.`,
+    type: 'error',
+    code: 'UNRESOLVABLE_FIELD_WIDGET_NAMESPACE',
+  };
 }
 
 /**
@@ -200,6 +381,16 @@ function validateFormSchema(schema: any, path: string = 'schema'): SchemaNodeVal
             type: 'error',
             code: 'MISSING_FIELD_NAME'
           });
+        }
+
+        // objectui#5375 — an invented namespaced widget id is an ERROR here,
+        // not a silent clear-text box at render time. See the helper's doc.
+        const namespaceError = validateFieldWidgetNamespace(
+          field,
+          `${path}.fields[${index}]`,
+        );
+        if (namespaceError) {
+          errors.push(namespaceError);
         }
 
         // Check for duplicate field names
@@ -274,7 +465,7 @@ export function validateSchema(
   allErrors.push(...validateBaseSchema(schema, path));
 
   // Validate type-specific schemas
-  allErrors.push(...validateCRUDSchema(schema, path));
+  allErrors.push(...validateRetiredNodeType(schema, path));
   allErrors.push(...validateFormSchema(schema, path));
 
   // Validate children recursively

@@ -154,6 +154,17 @@ export interface ApprovalActionRow {
   created_at?: string;
   /** Display name of the actor, resolved server-side. */
   actor_name?: string;
+  /**
+   * Whether the actor was admitted to this action ONLY by the privileged
+   * admin-override path (framework#3424) — they held no slot in the request's
+   * pending-approver slate (framework#4466). Declared here so the Approval
+   * Center's timeline can SAY so; before objectui#5178 the column was written
+   * by the server, sent on the wire, and read by nothing.
+   *
+   * Tri-state, mirroring the column: `true` = override, `false` = checked and
+   * NOT an override, `undefined` = a row written before the column existed.
+   */
+  via_override?: boolean;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -346,12 +357,31 @@ export const approvalsApi = {
 export function buildApproverIdentities(user: {
   id?: string;
   email?: string;
-  /** Multi-role shape (some auth providers). */
-  roles?: string[];
+  /**
+   * The session's assigned positions — the one published spelling for the
+   * multi-value shape (spec `AuthUser.positions`).
+   *
+   * This was `roles?: string[]` until objectui#5424, described as the
+   * "multi-role shape (some auth providers)", which is no longer the
+   * distinction that matters: framework ADR-0090 D3 renamed `roles` →
+   * `positions` with no deprecation window and the protocol-17 session face
+   * emits no `roles` key at all. The old read therefore contributed nothing
+   * and only the scalar below survived — so this builder still yielded
+   * `role:user` while losing every business position name (`manager`,
+   * `finance_approver`, …), which is what a role-addressed approval is
+   * actually addressed to.
+   *
+   * Deliberately NOT paired with a `roles` fallback: reviving the retired
+   * spelling as an alias is what ADR-0090 D3 forbids, and
+   * `packages/auth/src/types.ts` says so on the declaration itself.
+   */
+  positions?: string[];
   /**
    * Single-role shape — better-auth sessions carry `role` as one string
-   * (possibly comma-separated for multiple roles), never a `roles` array.
-   * Both shapes must resolve, or role-addressed approvals (`role:<r>` in
+   * (possibly comma-separated for multiple roles). Still emitted at protocol
+   * 17 alongside `positions` (the measured payload carries both), so it stays
+   * as a second identity source; it is not what objectui#5424 is about.
+   * Both must resolve, or role-addressed approvals (`role:<r>` in
    * `pending_approvers`) silently vanish from "My Pending".
    */
   role?: string;
@@ -361,7 +391,7 @@ export function buildApproverIdentities(user: {
   if (user.id) ids.add(user.id);
   if (user.email) ids.add(user.email);
   const roleList = [
-    ...(user.roles || []),
+    ...(user.positions || []),
     ...(typeof user.role === 'string' ? user.role.split(',') : []),
   ];
   for (const role of roleList) {

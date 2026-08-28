@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-kanban",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "license": "MIT",
   "description": "Kanban board plugin for Object UI, powered by dnd-kit",
@@ -21,10 +21,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.umd.cjs"
-    }
+    },
+    "./style.css": "./dist/index.css"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/build-css.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
@@ -50,9 +51,12 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.0.3"

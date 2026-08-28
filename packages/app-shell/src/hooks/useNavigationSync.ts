@@ -13,10 +13,10 @@ import { useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import type { NavigationItem, AppComponentSchema } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useAdapter } from '../providers/AdapterProvider';
-import { useMetadata } from '../providers/MetadataProvider';
-import { matchAppBySegment } from '../utils/appRoute';
-import { usePreviewDrafts } from '../preview/PreviewModeContext';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { matchAppBySegment } from '../utils/appRoute.js';
+import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
 
 // ============================================================================
 // Pure utility helpers (exported for testing)

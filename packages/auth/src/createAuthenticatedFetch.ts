@@ -6,8 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { TokenStorage } from './createAuthClient';
-import { authGateEvents, detectAuthGate } from './auth-gate-events';
+import { TokenStorage } from './createAuthClient.js';
+import { authGateEvents, detectAuthGate } from './auth-gate-events.js';
+import { ActiveOrganizationStorage } from './ActiveOrganizationStorage.js';
 
 /**
  * Options for creating an authenticated adapter.
@@ -19,42 +20,14 @@ export interface AuthenticatedAdapterOptions {
   [key: string]: unknown;
 }
 
-const ACTIVE_ORG_STORAGE_KEY = 'auth-active-organization-id';
-
 /**
- * Get/set the active organization ID for tenant-scoped API requests.
- * Used by createAuthenticatedFetch to inject X-Tenant-ID header.
+ * Re-exported from its own module so this file stays the WIRE lane and the
+ * storage lane has one home. `ActiveOrganizationStorage` moved out when it
+ * gained per-user scoping (objectui#5664); the export identity is unchanged,
+ * so `@object-ui/auth`'s barrel, this package's tests and every consumer
+ * import the same symbol from the same place they did before.
  */
-export const ActiveOrganizationStorage = {
-  _memoryValue: null as string | null,
-
-  get(): string | null {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        return localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
-      }
-    } catch { /* SSR / test */ }
-    return this._memoryValue;
-  },
-
-  set(orgId: string): void {
-    this._memoryValue = orgId;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, orgId);
-      }
-    } catch { /* SSR / test */ }
-  },
-
-  clear(): void {
-    this._memoryValue = null;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
-      }
-    } catch { /* SSR / test */ }
-  },
-};
+export { ActiveOrganizationStorage, SessionUserScope, purgePreviousUserClientState } from './ActiveOrganizationStorage.js';
 
 export interface CreateAuthenticatedFetchOptions {
   /**
@@ -82,7 +55,9 @@ function isCrossOrigin(url: string): boolean {
 /**
  * Creates an authenticated fetch wrapper that injects the Bearer token
  * from localStorage into every request to the ObjectStack API.
- * Also injects X-Tenant-ID header when an active organization is set.
+ * Also injects X-Tenant-ID header when an active organization is set — see the
+ * "The `X-Tenant-ID` edge contract" section of this package's README for what
+ * that header means, who reads it, and the window in which it is not sent.
  *
  * @example
  * ```ts
@@ -111,7 +86,43 @@ export function createAuthenticatedFetch(
     if (token && isApiCall) {
       headers.set('Authorization', `Bearer ${token}`);
     }
-    // Inject tenant header for multi-tenant routing
+    // ── `X-Tenant-ID` — the edge routing contract (objectui#5279) ────────
+    //
+    // WHAT IT MEANS. A routing hint for the hosting edge: "this request belongs
+    // to tenant <id>". The value is the better-auth `activeOrganizationId` the
+    // session already carries. It is NOT an identity claim, NOT an
+    // authorization input, and NOT what scopes rows.
+    //
+    // DO NOT DELETE THIS ON THE STRENGTH OF A GREP. The framework
+    // (`objectstack`) does not read it: `resolveAuthzContext` takes `tenantId`
+    // from the API-key principal or `session.activeOrganizationId` and never
+    // from a header, and environment routing reads the hostname and
+    // `X-Environment-Id`. So a search confined to this repo plus the framework
+    // finds zero consumers and reads as "dead stamp" — which is the false
+    // premise objectui#5279 was filed on. The consumer is in the CLOUD repo,
+    // which neither checkout contains: `service-tenant`'s `tenant-context.ts`
+    // resolves the header, and `tenant-router`'s `turso-multi-tenant.zod.ts`
+    // configures that resolution. The configuration contract IS readable from
+    // here — `TenantRoutingConfigSchema` in `@objectstack/spec/cloud` defaults
+    // `tenantHeaderName` to `X-Tenant-ID` and ranks `header` SECOND of six
+    // identification sources, behind `subdomain`.
+    //
+    // THE UNSTAMPED-FIRST-REQUEST GAP. `ActiveOrganizationStorage` is filled
+    // only after AuthProvider's async organization chain resolves, so early
+    // requests go out with the header ABSENT — never present-and-empty. A
+    // reader must fall through to its next identification source rather than
+    // fail closed. Nothing about row visibility rides on this: the framework
+    // scopes from the session, so a response computed inside the window is
+    // still computed for the right tenant.
+    //
+    // Not gated on `isApiCall`, unlike `Authorization` and `Accept-Language`
+    // above — recorded as the behaviour that ships, not endorsed; the
+    // asymmetry is reported on objectui#5279 for triage to route. A wrapper
+    // built with `sameOriginOnly` short-circuits every cross-origin request
+    // before this line.
+    //
+    // Full contract, including what a reader may and may not assume: this
+    // package's README, "The `X-Tenant-ID` edge contract".
     const activeOrgId = ActiveOrganizationStorage.get();
     if (activeOrgId) {
       headers.set('X-Tenant-ID', activeOrgId);

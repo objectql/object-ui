@@ -7,7 +7,7 @@ The SidebarNav component provides a responsive sidebar navigation menu with supp
 
 ## Basic Usage
 
-```plaintext
+```tsx
 import { SidebarNav } from '@object-ui/layout';
 import { Home, Users, Settings } from 'lucide-react';
 
@@ -35,7 +35,7 @@ import { Home, Users, Settings } from 'lucide-react';
 
 ## Component Props
 
-```plaintext
+```ts
 interface SidebarNavProps {
   items: NavItem[] | NavGroup[];  // Navigation items or grouped items
   title?: string;                 // Sidebar title (default: "Application")
@@ -75,7 +75,8 @@ The SidebarNav automatically highlights the active route based on the current UR
 
 Add Lucide icons to navigation items:
 
-```plaintext
+```tsx
+import { SidebarNav } from '@object-ui/layout';
 import { 
   LayoutDashboard, 
   Users, 
@@ -188,8 +189,8 @@ Set a custom title for the sidebar:
 
 ## Complete Example
 
-```plaintext
-import { SidebarNav } from '@object-ui/layout';
+```tsx
+import { SidebarNav, type NavGroup } from '@object-ui/layout';
 import { 
   Home,
   Users,
@@ -200,7 +201,7 @@ import {
   Mail
 } from 'lucide-react';
 
-const navigationItems = [
+const navigationItems: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
@@ -244,8 +245,9 @@ function App() {
 
 The SidebarNav is designed to work with AppShell:
 
-```plaintext
+```tsx
 import { AppShell, SidebarNav } from '@object-ui/layout';
+import { Home, Info } from 'lucide-react';
 
 <AppShell
   sidebar={
@@ -258,7 +260,7 @@ import { AppShell, SidebarNav } from '@object-ui/layout';
     />
   }
 >
-  {/* Your content */}
+  <div>Your content</div>
 </AppShell>
 ```
 

@@ -63,6 +63,13 @@ import {
   // (objectui#4877). Re-exported below under their original names.
   chartConfigPresentation,
   mergeAuthoredPresentation,
+  // The console's ONE client-side sort primitive (objectui#3096). The flat
+  // dataset table below sorts through it rather than inlining `a < b`, so a
+  // dashboard table and a list view order the same values identically — and
+  // so the relational/blank/numeric cases it already settles are not decided a
+  // second time here.
+  getSortValue,
+  compareSortValues,
   type ChartSegmentClickEvent,
   type CompareToConfig,
   type DatasetResultField,
@@ -70,7 +77,7 @@ import {
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
-import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon } from 'lucide-react';
+import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { useFilterScope } from '@object-ui/react';
 import { resolveFilterPlaceholders, computeMetricDelta } from './utils';
 import { metricAccentTextClass } from './colorVariants';
@@ -418,9 +425,6 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const isMatrix = widgetType === 'pivot' && dimensions.length >= 2;
   const rowDims = isMatrix ? dimensions.slice(0, -1) : [];
   const colDim = isMatrix ? dimensions[dimensions.length - 1] : '';
-  // Row subtotals, column subtotals, and the grand total ([]) — the server
-  // computes each with the measure's TRUE aggregate (never re-derived here).
-  const totalsGroupings = isMatrix ? [rowDims, [colDim], []] : undefined;
 
   // ── Query-affecting widget options (framework#3588) ──────────────────────
   // `options` is the renderer-extras bag, but four of its keys are NOT
@@ -445,6 +449,35 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const limit = typeof options.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
     ? Math.floor(options.limit)
     : undefined;
+
+  // ── Server-computed marginal totals ──────────────────────────────────────
+  // The cross-tab asks for three groupings: row subtotals, column subtotals,
+  // and the grand total (`[]`). The FLAT table asks for the grand total alone
+  // and renders it as a `tfoot` (objectui#5846). Both are computed by the
+  // server with the measure's TRUE aggregate over the underlying rows and are
+  // never re-derived here — an avg/min/max cannot be recombined from the
+  // bucketed values on screen, which is why this is a query-shape change and
+  // not a rendering one.
+  //
+  // Measured cost of the flat table's one extra grouping (100k-row opportunity
+  // table, real pipeline: compileDataset → AnalyticsService NativeSQL → SQLite):
+  // ONE extra statement, `SELECT SUM(…), AVG(…) FROM t` — the same WHERE, no
+  // GROUP BY — at 9.6ms beside the primary's 48.8ms, i.e. +20% on the widget's
+  // query, holding at +19%/1M rows and +28%/10k. The cross-tab has shipped
+  // THREE such groupings, ungated, since #1753; one is strictly less.
+  //
+  // NOT requested when `options.limit` truncates the table. The executor drops
+  // `limit` for a totals query by design (a total covers the whole selection),
+  // so a top-N table would print a grand total the reader cannot reconcile
+  // against the rows in front of them — and "don't make the reader add it up"
+  // is the whole point of the row. No request is issued in that case, so the
+  // cost is not paid either.
+  const wantsFlatTotals = isTable && !isMatrix && dimensions.length > 0 && limit == null;
+  const totalsGroupings = isMatrix
+    ? [rowDims, [colDim], []]
+    : wantsFlatTotals
+      ? [[] as string[]]
+      : undefined;
 
   const tt = useSafeTranslate();
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
@@ -501,6 +534,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
+  // ── The flat table's client-side sort (objectui#5827) ────────────────────
+  // `null` = the dataset's own order. Declared up here with the other hooks
+  // because the table branch sits AFTER this component's early returns, where a
+  // `useState` would be conditional.
+  //
+  // Client-side is the design, not a shortcut: this widget issues ONE
+  // `queryDataset` call and paginates nothing, so the rows on screen ARE the
+  // whole result set and reordering them needs no round trip. `options.limit`
+  // does truncate that set server-side — a sort then orders exactly the set the
+  // unsorted table was already showing, never a different slice of the data.
+  const [tableSort, setTableSort] = useState<{ column: string; dir: 'asc' | 'desc' } | null>(null);
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop. The
   // query-affecting options join it so editing a widget's granularity/sort in
@@ -834,7 +878,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // number a spreadsheet can compute on — serializing the stacked cell would
     // emit strings like "$120 $100 20%", which is a screenshot in CSV clothing.
     const exportColumns = [...dimensions, ...measureColumns];
-    const exportCsv = () => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
+    // `rows` is a parameter because the flat table now renders its rows in an
+    // order of its own (objectui#5827 — blank bucket last, plus whatever the
+    // user sorted by), and "the CSV follows the table" has to mean the order
+    // too, not just the cell text. The cross-tab passes `displayRows`, which is
+    // what this always exported.
+    const exportCsv = (rows: Row[]) => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
       exportColumns.map((c) => columnLabel(c)),
       // The CSV follows the table's own cells (objectui#4263): a dotted
       // dimension exports the label the table now shows, and a local one is
@@ -843,15 +892,15 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       // reason: the CSV is the table's data, so it exports the cell. Measures
       // stay numeric (the raw values that must round-trip into a spreadsheet);
       // the drill filter — the identity key — reads `drillRawRows`, untouched.
-      ...displayRows.map((r) => exportColumns.map((c) => {
+      ...rows.map((r) => exportColumns.map((c) => {
         const v = r[c];
         return v == null ? '' : (typeof v === 'number' ? v : String(v));
       })),
     ]);
-    const exportBtn = (
+    const exportBtnFor = (rows: Row[]) => (
       <button
         type="button"
-        onClick={exportCsv}
+        onClick={() => exportCsv(rows)}
         data-testid="dataset-export"
         title={tt('dashboard.exportCsv', 'Export CSV')}
         aria-label={tt('dashboard.exportCsv', 'Export CSV')}
@@ -860,6 +909,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
         <Download className="h-3.5 w-3.5" />
       </button>
     );
+    const exportBtn = exportBtnFor(displayRows);
 
     // pivot → a true cross-tab when there are ≥2 dimensions: the LAST dimension
     // spreads ACROSS as columns, the rest go DOWN as rows, measures fill the
@@ -1050,35 +1100,206 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
 
     // table (and a 1-dimension pivot) → a flat grouped table.
     const columns = [...dimensions, ...measureColumns];
+
+    // ── Which columns are NUMBERS (objectui#5827) ─────────────────────────
+    // Right-alignment is a claim about the values, so it is decided from them.
+    //
+    // The column DESCRIPTOR cannot decide it, contrary to what the card
+    // assumed: the executor stamps `type: 'number'` on every measure column it
+    // appends (`service-analytics/src/dataset-executor.ts`) without looking at
+    // the aggregate, so across measures the declared type is a constant and
+    // discriminates nothing. Nor is `tabular-nums` evidence — this table
+    // applies it to every cell, dimension cells included.
+    //
+    // What IS structural is which columns are MEASURES, and only a measure is a
+    // candidate: a dimension is a grouping axis even when its bucket keys are
+    // digits (a year, a quarter), and right-aligning those would render the
+    // axis as if it were a quantity.
+    //
+    // Within the candidates the test is defensive — EVERY non-null value must
+    // be a number. `formatMeasure` falls back to `String(v)` for a non-number,
+    // which is exactly what a `min()`/`max()` over a text field yields; that
+    // column renders words and stays left-aligned. An all-null column passes
+    // vacuously and right-aligns its `—`s: that is the same column with no
+    // rows, not a different kind of column.
+    //
+    // Resolved ONCE per column into a set, not per cell: the predicate scans
+    // every row, so calling it from inside the row loop would make rendering
+    // quadratic in the row count.
+    const numericColumns = new Set(
+      columns.filter(
+        (c) =>
+          (values.includes(c) || compareOf(c) !== undefined) &&
+          displayRows.every((r) => r[c] == null || typeof r[c] === 'number'),
+      ),
+    );
+
+    // ── Row order (objectui#5827) ─────────────────────────────────────────
+    // Rows are DECORATED with their incoming index and reordered as decorated
+    // pairs, never as bare rows. `openDrill(i)` indexes `drillRawRows` — the
+    // server's parallel array of RAW bucket values — so the index has to keep
+    // pointing at the row it arrived with. Sorting `displayRows` in place would
+    // leave every drill filtering by some other row's bucket, silently: both
+    // arrays keep the same length and every click still opens a drawer.
+    const entries = displayRows.map((row, index) => ({ row, index }));
+    // A sort survives only while its column does. After a re-query on edited
+    // metadata the stored column may be gone; falling back to the default order
+    // beats sorting every row by `undefined`.
+    const activeSort = tableSort && columns.includes(tableSort.column) ? tableSort : null;
+    const orderedEntries = activeSort
+      ? entries
+          // Resolve the key ONCE per row (decorate → sort → undecorate) — the
+          // convention `sort-values.ts` documents, because `getSortValue` walks
+          // the value and a comparator would repeat that walk O(n log n) times.
+          .map((e) => ({ ...e, key: getSortValue(e.row[activeSort.column]) }))
+          .sort((a, b) => {
+            // Blanks last in BOTH directions. `compareSortValues` places them
+            // last ascending and documents that callers negate for descending —
+            // negation would float them to the top, so the blank arm is settled
+            // BEFORE the direction is applied and never inside it. Since
+            // objectui#5845 the descending arm is what a measure column's
+            // FIRST click runs, so this is now the very first thing a user
+            // exercises rather than the second.
+            if (a.key === null && b.key === null) return 0;
+            if (a.key === null) return 1;
+            if (b.key === null) return -1;
+            const cmp = compareSortValues(a.key, b.key);
+            return activeSort.dir === 'asc' ? cmp : -cmp;
+          })
+      : // Default order = the order the dataset returned, with one exception:
+        // the EMPTY-dimension bucket sinks below the named ones. It keeps its
+        // `—` label — only its position moves. A bucket with no value sorting
+        // FIRST reads to the viewer as a data bug. `Array#sort` is stable, so
+        // every other pair compares 0 and the server's ordering survives whole.
+        [...entries].sort((a, b) => {
+          for (const d of dimensions) {
+            const aBlank = getSortValue(a.row[d]) === null ? 1 : 0;
+            const bBlank = getSortValue(b.row[d]) === null ? 1 : 0;
+            if (aBlank !== bBlank) return aBlank - bBlank;
+          }
+          return 0;
+        });
+
+    // ── First-click direction (objectui#5845) ───────────────────────────
+    // A numeric MEASURE starts DESCENDING; everything else starts ascending.
+    // The question a click asks of a measure is "who is biggest" — the very
+    // complaint objectui#5827 opened on (Technology, the largest industry,
+    // rendering last) — and one click answering it is what every analytics
+    // table does. A dimension is a grouping axis, where A→Z is the idiom the
+    // console's DataTable uses and this table keeps.
+    //
+    // The predicate is `numericColumns`, the SAME set that decides
+    // right-alignment: first-click direction is a property of the column's
+    // ROLE (a measure whose values really are numbers), not of "it looks like
+    // digits". So a digit-keyed dimension (a year, a quarter) still starts
+    // ascending, and so does a `min()`/`max()` over a text field.
+    const firstDir = (c: string): 'asc' | 'desc' => (numericColumns.has(c) ? 'desc' : 'asc');
+    // <first> → <the other one> → back to the default order. Three states, not
+    // the two a server-paged grid offers: here the default IS a meaningful
+    // order (the dataset's own, which an author can set via `options.sortBy`),
+    // so a header has to be able to hand it back. The middle step is written
+    // as "whatever `firstDir` is not" rather than as the literal `'desc'`,
+    // because hard-coding it would send a measure column desc → desc and cost
+    // it the ascending state entirely.
+    const cycleSort = (c: string) =>
+      setTableSort((prev) => {
+        const first = firstDir(c);
+        if (prev?.column !== c) return { column: c, dir: first };
+        return prev.dir === first
+          ? { column: c, dir: first === 'asc' ? 'desc' : 'asc' }
+          : null;
+      });
+    // The console's own indicator (`components/…/data-table.tsx`): an idle
+    // column shows nothing until the header is hovered, the sorted one shows a
+    // primary-tinted arrow. `aria-hidden` because the `th`'s `aria-sort` is
+    // what carries the state to assistive tech.
+    // ── The totals row (objectui#5846) ──────────────────────────────────
+    // The server's `[]` marginal grouping — requested above — rendered as a
+    // `tfoot`. Per aggregate: a `sum` column shows the sum over every row, an
+    // `avg`/`min`/`max` column shows that aggregate over the WHOLE set (the
+    // average of all records, never an average of the bucket averages). The
+    // executor computes it by re-running this selection with no grouping, so
+    // nothing here recombines anything.
+    //
+    // Absent — an older server, or an executor that could not answer `[]` for
+    // this dataset shape — the row is simply omitted. Approximating it from the
+    // rows on screen is the one thing this file does not do.
+    //
+    // `wantsFlatTotals` gates the RENDER as well as the request, so the two can
+    // never disagree: a server that volunteers a `[]` grouping this widget did
+    // not ask for (a truncated `options.limit` table) still shows no footer,
+    // rather than a whole-set total sitting under a top-N list.
+    const totalsRow = wantsFlatTotals
+      ? state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.length === 0)?.rows?.[0]
+      : undefined;
+    // The console's existing footer vocabulary — the SAME `dashboard.total`
+    // key the cross-tab's total row and `PivotTable` already use (en `Total`,
+    // zh `总计`). No new string is minted here; the untranslated dataset
+    // MEASURE headers beside it are objectstack#10292 and stay untouched.
+    const totalRowLabel = tt('dashboard.total', 'Total');
+    const sortIcon = (c: string) => {
+      if (activeSort?.column !== c) {
+        return <ChevronsUpDown className="ml-0.5 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-50" aria-hidden="true" />;
+      }
+      const Arrow = activeSort.dir === 'asc' ? ChevronUp : ChevronDown;
+      return <Arrow className="ml-0.5 h-3 w-3 shrink-0 text-primary" aria-hidden="true" />;
+    };
+
     return (
-      <div className="relative h-full w-full overflow-auto p-1">{exportBtn}
+      <div className="relative h-full w-full overflow-auto p-1">{exportBtnFor(orderedEntries.map((e) => e.row))}
         <table className="w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
-              {columns.map((c) => (
-                <th
-                  key={c}
-                  className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
-                  data-testid={compareOf(c) ? 'dataset-compare-column' : undefined}
-                >
-                  {columnLabel(c)}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const numeric = numericColumns.has(c);
+                return (
+                  <th
+                    key={c}
+                    scope="col"
+                    aria-sort={activeSort?.column === c ? (activeSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    className={cn('group px-2 py-1.5 font-medium whitespace-nowrap', numeric ? 'text-right' : 'text-left')}
+                    data-testid={compareOf(c) ? 'dataset-compare-column' : undefined}
+                  >
+                    {/* A real button, not a click handler on the `th`: the sort
+                        has to be reachable from the keyboard and needs an
+                        accessible name. It is visually the header text, so the
+                        console's header layout is unchanged. */}
+                    <button
+                      type="button"
+                      onClick={() => cycleSort(c)}
+                      data-testid="dataset-table-sort"
+                      className={cn(
+                        'inline-flex w-full select-none items-center font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                        numeric ? 'justify-end' : 'justify-between',
+                      )}
+                    >
+                      <span className="truncate">{columnLabel(c)}</span>
+                      {sortIcon(c)}
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {displayRows.map((row, i) => (
+            {orderedEntries.map(({ row, index }) => (
               <tr
-                key={i}
-                className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
+                key={index}
+                // Hover feedback on EVERY row, not only a drillable one — the
+                // cue that says "this row is a unit" is what the card is about,
+                // and a table nobody can drill needs it just as much. A
+                // drillable row keeps its stronger accent fill: `cn` runs
+                // tailwind-merge, so the later `hover:bg-accent/40` replaces
+                // `hover:bg-muted/40` rather than stacking with it.
+                className={cn('border-t transition-colors hover:bg-muted/40', canDrill && 'cursor-pointer hover:bg-accent/40')}
                 data-testid={canDrill ? 'dataset-drill-row' : undefined}
-                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatDimensionValue(row[d], displayLocale)).filter(Boolean).join(' / ')) : undefined}
+                onClick={canDrill ? () => openDrill(index, drillDims.map((d) => formatDimensionValue(row[d], displayLocale)).filter(Boolean).join(' / ')) : undefined}
               >
                 {columns.map((c) => {
                   // A comparison column formats as the measure it compares.
                   const measure = compareOf(c) ?? (values.includes(c) ? c : undefined);
                   return (
-                    <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
+                    <td key={c} className={cn('px-2 py-1 whitespace-nowrap tabular-nums', numericColumns.has(c) && 'text-right')}>
                       {measure
                         ? formatMeasure(row[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)
                         : formatDimensionValue(row[c], displayLocale)}
@@ -1088,6 +1309,40 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
               </tr>
             ))}
           </tbody>
+          {/* The totals row lives in `tfoot`, OUTSIDE `orderedEntries`
+              entirely — not as a special case inside the sort. Three
+              consequences fall out of that placement rather than out of any
+              guard: it is exempt from every sort (it was never an entry), it
+              renders after the last body row including the `—` null bucket
+              (`tfoot` follows `tbody`), and it cannot disturb the (row, index)
+              pairing `openDrill` depends on. It carries no click handler and
+              no `dataset-drill-row` id, so it drills nowhere. */}
+          {totalsRow && (
+            <tfoot className="bg-muted/30">
+              <tr className="border-t font-medium" data-testid="dataset-table-total-row">
+                {/* One label cell spanning the dimension columns. This branch
+                    always has at least one (a zero-dimension widget renders as
+                    a KPI and returns above), so the span is never 0. */}
+                <td colSpan={dimensions.length} className="px-2 py-1 whitespace-nowrap">{totalRowLabel}</td>
+                {measureColumns.map((c) => {
+                  // The SAME per-column formatter the body cells use —
+                  // `measureField` is keyed by MEASURE, not by row, so the
+                  // footer cell and the column above it cannot drift on
+                  // currency, decimals or percent scaling. Alignment reads the
+                  // same `numericColumns` set for the same reason.
+                  const measure = compareOf(c) ?? c;
+                  return (
+                    <td
+                      key={c}
+                      className={cn('px-2 py-1 whitespace-nowrap tabular-nums', numericColumns.has(c) && 'text-right')}
+                    >
+                      {formatMeasure(totalsRow[c], measureField(measure)?.format, measureField(measure)?.currency, measureField(measure)?.percentScale, displayLocale)}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
         {drillDrawer}
       </div>

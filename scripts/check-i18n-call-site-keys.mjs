@@ -5,7 +5,9 @@
  * must say the same thing the pack does (objectui#3810) — and the interpolation
  * arguments the call site passes must be exactly the holes the `en` value has
  * to receive them (objectui#3845) — and the OTHER spelling of a fallback,
- * `t(key) || 'English'`, must not exist at all (objectui#4117).
+ * `t(key) || 'English'`, must not exist at all (objectui#4117) — and whatever
+ * text that inline default carries must spell its placeholders the one way the
+ * provider-less fallback can resolve them (objectui#4905).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
  * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
@@ -265,13 +267,95 @@
  *    for a ratchet to hold. And a fallback written on a key `en` does NOT define
  *    stays legal — that is class 1's business, not this one's.
  *
+ * 6. `missing-member` (objectui#4964) — the template family's HEAD resolves, so
+ *    class 2 is satisfied, and a specific MEMBER of the vocabulary the call site
+ *    iterates has no leaf in `en`. This is the sixth blind spot and it was blind
+ *    to all five, plus to both other i18n gates, by construction: class 2 says in
+ *    its own words that the prefix is "the only claim about a dynamic key that is
+ *    true without knowing the value", parity compares ten packs that are missing
+ *    it identically (full parity, green), and en-drift fires on a value CHANGING,
+ *    which a key that was never added never does. `filterBuilder.operators` was
+ *    the measured instance: six of its twenty-two operators were missing from all
+ *    ten packs while the head resolved sixteen members deep, and users read
+ *    `filterBuilder.operators.isNull` in the operator dropdown (fixed in
+ *    objectui#4962, which pinned that ONE family; this class is the generalisation).
+ *
+ *    Knowing the members is a DECISION, not a measurement, so it is declared
+ *    rather than inferred — see DYNAMIC_KEY_FAMILIES below for the registry, the
+ *    six vocabulary shapes it can read, and the four reasons a family may declare
+ *    that it has no static member set. Three ratchet rules keep the registry
+ *    honest in both directions (`undeclared-dynamic-family`,
+ *    `stale-dynamic-family`) and stop it going vacuous
+ *    (`empty-vocabulary`/`unreadable-vocabulary` — a vocabulary that resolves to
+ *    nothing reads exactly like one that passes).
+ *
+ *    Baselined like classes 1 and 2, in `missingMembers`, and for the same
+ *    reason: the first full run found real debt (2 members over 25 families and
+ *    112 checked member keys), and a missing translation is a gap to surface, not
+ *    something to invent pack entries for.
+ *
+ * 7. `unresolvable-default-spelling` (objectui#4905) — an inline `defaultValue`
+ *    spells a placeholder in one of the four dialects i18next accepts and
+ *    `createSafeTranslation`'s `fallbackT` does not (`{{ name }}`,
+ *    `{{count, number}}`, `{{- name}}`, `$t(key)`). WITH a provider the pack
+ *    value wins and nothing is visible; WITHOUT one the braces reach the user.
+ *
+ *    This is objectui#3512's rule, and the reason it is HERE rather than there
+ *    is the whole of objectui#4905. That card gated the three copy TABLE
+ *    surfaces and left inline defaults out in writing, because a `defaultValue`
+ *    is a call-site OPTION rather than a table: finding one means resolving
+ *    which `t` is in scope at that position and reading the call's arguments —
+ *    the classifier this file already is, and a second independently-rotting
+ *    copy of it anywhere else. The residue #3512 recorded was 3 "not
+ *    comparable" plus 62 computed inline defaults with no transitive pin.
+ *
+ *    Closing that residue at the SOURCE — rewriting a computed default as the
+ *    `en` value so class 3 pins it — turns out to reach only 5 of the 66 sites
+ *    measured on this tree, and the reason is worth stating because it is the
+ *    opposite of what the card assumed. THREE things can render an inline
+ *    default, and only two of them interpolate it:
+ *
+ *      1. i18next, with a provider. It interpolates — but the pack value wins,
+ *         so the default never renders at all. Moot.
+ *      2. `createSafeTranslation`'s `fallbackT`. It interpolates, with the exact
+ *         literal needle this class is named for. SAFE to rewrite.
+ *      3. react-i18next's not-ready `t`, which is what a bare
+ *         `useObjectTranslation()` yields when no i18next instance is
+ *         initialised. Measured in `react-i18next/dist/es/useTranslation.js`:
+ *         `notReadyT` returns `options.defaultValue` VERBATIM — it does not
+ *         interpolate at all.
+ *
+ *    So at a `useObjectTranslation` call site, a default written as
+ *    `` `Signed in as ${user.email}` `` is not an unpinned near-miss to be
+ *    tidied into `'Signed in as {{email}}'` — the template literal is the only
+ *    one of the two that renders correctly there, and "fixing" it would put
+ *    literal braces in front of a user on exactly the provider-less host this
+ *    whole family of cards is about. `objectBulkActionDispatch.test.tsx` fails
+ *    on precisely that substitution, which is how it was found.
+ *
+ *    Hence only 5 rewrites: four whose default carries no hole (nothing to
+ *    interpolate, so all three renderers agree) and one behind a
+ *    `createSafeTranslation` hook. The rest stay computed, and this class is
+ *    what covers them.
+ *
+ *    Judged over EVERY inline default, not just the residue. A pinned default is
+ *    byte-equal to an `en` value #3512 already holds to this rule, so those
+ *    verdicts are green twice over — which is the point: it makes the judged
+ *    count a live control (hundreds, guarded), instead of a rule whose whole
+ *    subject is three strings that could silently become zero. HARD from day
+ *    one, like classes 3-5: the first full run found 0 violations, so there is
+ *    no debt for a ratchet to hold, and 0 stops being luck.
+ *
  * ## Dynamic keys: the explicit policy
  *
  * A key that is not a string literal cannot be resolved statically. Those call
  * sites are **not checked and not failed** — they are COUNTED, and the count is
  * printed on every run, so the unanalyzable surface is visible rather than
  * silently absorbed. The `missing-prefix` class above recovers the part of it
- * that can be decided. Same treatment, same reason, for the deliberate
+ * that can be decided, and class 6 recovers the part of THAT which a declared
+ * vocabulary can settle; what neither reaches is a dynamic key with no static
+ * head at all (`t(key)` on a variable — 35 sites), which nothing but a type
+ * checker could resolve. Same treatment, same reason, for the deliberate
  * `I18N_PROBE_FLAG` misses (see below) and for the skipped binding classes.
  *
  * ## The probe exclusion
@@ -288,8 +372,8 @@
  * ## The baseline
  *
  * `scripts/i18n-call-site-key-baseline.json` lists the keys already missing on
- * `main` when this gate landed, each with the issue tracking its fix — classes 1
- * and 2 only; classes 3 and 4 have no baseline and never needed one. It is a
+ * `main` when this gate landed, each with the issue tracking its fix — classes 1,
+ * 2 and 6 only; classes 3, 4 and 5 have no baseline and never needed one. It is a
  * ratchet, not an allowlist: a key that is NOT in it fails, and an entry that no
  * longer fires (key added to `en`, or its last call site deleted) ALSO fails, so
  * the file can only shrink. Fixing the debt means adding the key to
@@ -302,6 +386,7 @@ import ts from 'typescript';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -427,6 +512,95 @@ export function holesOf(value) {
 }
 
 /**
+ * A `{{…}}` pair and its contents. `[^{}]*` deliberately: a placeholder never
+ * nests braces, and refusing to cross one keeps an unterminated `{{` from
+ * swallowing the rest of the sentence into a bogus "placeholder".
+ */
+const DOUBLE_BRACE = /\{\{([^{}]*)\}\}/g;
+
+/** Every `{{` occurrence, matched or not — the balance check's other half. */
+const DOUBLE_BRACE_OPEN = /\{\{/g;
+
+/**
+ * The one placeholder spelling `createSafeTranslation`'s `fallbackT` resolves.
+ * The option name comes from `Object.entries(options)` and is spliced into the
+ * needle raw (``value.split(`{{${k}}}`)``), so the accepted name is exactly a
+ * bare identifier: no whitespace, no format spec, no `-` prefix, no keypath.
+ */
+const CANONICAL_HOLE_NAME = /^[A-Za-z0-9_]+$/;
+
+/** i18next's nesting syntax. The fallback has no notion of it at all. */
+const NESTING_MARKER = '$t(';
+
+/** Why one placeholder is not something `fallbackT` can resolve. */
+function unresolvableReason(inner) {
+  if (inner !== inner.trim()) return 'whitespace inside the braces';
+  if (inner.startsWith('-')) return 'the {{- x}} unescape prefix';
+  if (inner.includes(',')) return 'an i18next format spec';
+  if (inner.includes('.')) return 'a dotted/keyed placeholder path';
+  return 'a non-identifier placeholder name';
+}
+
+/**
+ * Placeholder spellings the provider-less fallback cannot resolve
+ * (objectui#4905, class 7 — the rule is objectui#3512's, applied to the one
+ * copy surface that card left out).
+ *
+ * `fallbackT` interpolates with an EXACT literal needle, so it recognises
+ * `{{name}}` and nothing else. i18next — which serves the SAME string whenever
+ * an `I18nProvider` is mounted — additionally recognises `{{ name }}`,
+ * `{{count, number}}`, `{{- name}}` and `$t(otherKey)`. Those four render
+ * correctly through the provider and leak literal braces without one, which is
+ * a divergence only a provider-less host ever sees.
+ *
+ * Returns one human-readable violation per offending placeholder, and `[]` for
+ * text both paths render identically.
+ *
+ * ## What is structurally out of range, and why that matters
+ *
+ *   - **Single braces.** `{shown}` / `{seconds}` is objectui#4135's spelling for
+ *     a hole filled DOWNSTREAM of `t()`. Only the inside of a `{{…}}` pair is
+ *     ever inspected, so a single-brace hole cannot reach a verdict here —
+ *     excluded by where the rule looks, not by an allow-list that could rot.
+ *   - **JSX object literals.** `style={{ opacity: 0 }}` is `{{` that is syntax,
+ *     not copy. This rule never greps source text: it is handed the TEXT of a
+ *     string literal or the literal segments of a template, and a JSX brace is
+ *     not inside either.
+ *
+ * ## The sibling copy, named rather than hidden
+ *
+ * `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
+ * carries the same rule as `placeholderViolations`, over the ten locale packs
+ * and the 31+3 defaults TABLES. This copy exists because that gate is a vitest
+ * suite reading copy tables and this one is a node script reading call-site
+ * ARGUMENTS — the walk that finds a `defaultValue` is the classifier this file
+ * already owns, and rebuilding it there was rejected on objectui#4905. The
+ * self-test pins this copy against all four i18next-only spellings and both
+ * out-of-range classes, so the two can only drift by someone editing one and
+ * not the other with both self-tests in front of them.
+ */
+export function unresolvableSpellings(value) {
+  const out = [];
+  const regions = [...value.matchAll(DOUBLE_BRACE)];
+  for (const region of regions) {
+    const inner = region[1];
+    if (CANONICAL_HOLE_NAME.test(inner)) continue;
+    out.push(`${JSON.stringify(region[0])} — ${unresolvableReason(inner)}; the fallback resolves only {{name}}`);
+  }
+  // An unterminated `{{` renders as literal braces on BOTH paths, so it is not
+  // an i18next divergence — but it is never intentional copy, and the regions
+  // above cannot report what they did not match. A hole straddling a template
+  // substitution (`` `{{ ${name} }}` ``) lands here, which is the one shape
+  // neither interpolator can resolve.
+  const opens = (value.match(DOUBLE_BRACE_OPEN) ?? []).length;
+  if (opens > regions.length) out.push('an unterminated `{{` with no closing `}}`');
+  if (value.includes(NESTING_MARKER)) {
+    out.push('`$t(` — i18next nesting, which the fallback emits verbatim');
+  }
+  return out;
+}
+
+/**
  * `t` bindings that do NOT resolve against the locale packs. Every entry is a
  * decision with a reason; an imported `t` from anywhere else is a hard error
  * (`unregistered-translator`) rather than a silent skip.
@@ -447,6 +621,367 @@ export const EXCLUDED_TRANSLATORS = [
       'its keys are not in any locale pack by design — see that file\'s header',
   },
 ];
+
+// ── dynamic key families: the vocabulary registry (objectui#4964) ─────────────
+
+/**
+ * Every pack-backed dynamic key family in the repo, each declaring how its
+ * member set is known — or declaring, with a reason, that it cannot be known.
+ *
+ * ## Why a registry rather than inference
+ *
+ * `missing-prefix` (class 2) is the only claim about a template key that is
+ * true without knowing the substitution: if the static HEAD matches nothing,
+ * every expansion misses. Its own header says so. The cost is that the
+ * complement — a head that resolves and a MEMBER that does not — is invisible
+ * to the whole gate farm, because the other two i18n gates are pack-vs-pack:
+ * ten packs identically missing `filterBuilder.operators.isNull` is full
+ * parity, and full parity is green. Users read the raw key
+ * (objectui#4964; the measured instance was fixed in objectui#4962).
+ *
+ * Closing that needs the member set, and a member set is a decision, not a
+ * measurement: `t(`grid.import.jobStatus.${job.status}`)` is exactly checkable
+ * only because `ImportJobStatus` is a union of five string literals somewhere,
+ * while `t(`approvalsInbox.${key}`)` forwards a `key: string` parameter and has
+ * no member set at all. This file parses source without a type checker (see
+ * `collectEnKeys`'s header — no build step, no TS loader), so it cannot follow
+ * `job.status` to its declaration. What it CAN do is read a declaration a human
+ * NAMES, from the module that holds it.
+ *
+ * So each family below is one of two things, and the split is the point:
+ *
+ *   - `vocabulary` — the member set is a named declaration this file reads from
+ *     source. Every `head + member + tail` is then checked as an ordinary key,
+ *     and a member missing from `en` is a `missing-member` finding.
+ *   - `enumerable: false` — there is no static member set. The family keeps its
+ *     prefix check and NOTHING ELSE, and the `reason` says why. Pretending
+ *     otherwise would produce either false reds (guessing a vocabulary) or a
+ *     check that silently skips the family (the failure mode this card names).
+ *
+ * ## Both ratchet directions
+ *
+ * A head observed in the scan with no entry here is `undeclared-dynamic-family`
+ * and fails: a new template family cannot land unguarded, which is what let the
+ * twenty-odd families below accumulate unmeasured. An entry whose head no
+ * longer appears is `stale-dynamic-family` and fails too, so this list can only
+ * describe families that exist. And a `vocabulary` that resolves to ZERO
+ * members is `empty-vocabulary` — a vacuous exact check reads identical to a
+ * passing one, and that is the one way this class could quietly cover less than
+ * the prefix check it sits on top of. The prefix check itself is untouched: it
+ * still runs for every dynamic head, declared or not.
+ *
+ * `kind` tells the reader what shape the declaration is:
+ *
+ *   `union`          `type X = 'a' | 'b'`                    -> the literals
+ *   `array`          `const X = ['a', 'b'] as const`         -> the elements
+ *   `arrayField`     `const X = [{ value: 'a' }, …]` + field -> that field's values
+ *   `objectKeys`     `const X = { a: …, b: … }`              -> the property names
+ *   `objectField`    `const X = { a: { k: 'x' } }` + field   -> that field's values
+ *   `set`            `const X = new Set(['a', 'b'])`         -> the elements
+ *   `interfaceField` `interface X { f: 'a' | 'b' }` + field  -> that property's literals
+ *
+ * And `enumerable: false` carries a `why`, because the four reasons are not the
+ * same finding and only one of them is permanent:
+ *
+ *   `runtime-data`        the substitution is server- or user-supplied. There is
+ *                         no member set to know, at any point, by anyone.
+ *   `external-vocabulary` the member set exists and is authoritative, but it
+ *                         lives in a dependency (`@objectstack/spec`), not in
+ *                         this repo's source. Bridgeable — by a repo-local
+ *                         exhaustive `Record<Union, …>` this reader can read.
+ *   `unnamed-union`       the member set is written inline (a parameter
+ *                         annotation, an anonymous state type) rather than as a
+ *                         declaration that can be named. Bridgeable by naming it.
+ *   `open-forwarder`      the call site takes `key: string` and forwards it, so
+ *                         the family is the whole namespace and the template is
+ *                         a namespace prefix, not a member position.
+ */
+/**
+ * @typedef {{ module: string, name: string,
+ *   kind: 'union' | 'array' | 'arrayField' | 'objectKeys' | 'objectField' | 'set' | 'interfaceField',
+ *   field?: string }} VocabularySpec
+ * @typedef {{ head: string, vocabulary?: VocabularySpec, enumerable?: boolean,
+ *   why?: 'runtime-data' | 'external-vocabulary' | 'unnamed-union' | 'open-forwarder',
+ *   reason?: string }} DynamicKeyFamily
+ *
+ * @type {DynamicKeyFamily[]}
+ */
+export const DYNAMIC_KEY_FAMILIES = [
+  {
+    head: 'appDesigner.fieldDesigner.typeCategory.',
+    vocabulary: { module: 'packages/plugin-designer/src/FieldDesigner.tsx', name: 'FieldTypeCategory', kind: 'union' },
+  },
+  {
+    head: 'approvalsInbox.',
+    enumerable: false,
+    why: 'open-forwarder',
+    reason:
+      'ApprovalsInboxPage and RecordApprovalsPanel both wrap the pack in ' +
+      '`tr(key: string, defaultValue: string)`, so the template head is the whole ' +
+      '`approvalsInbox` namespace (169 keys) and the substitution is every leaf under it. ' +
+      'There is no member position to check; the literal keys are at the `tr()` call sites, ' +
+      'which pass strings this file cannot follow through the helper.',
+  },
+  {
+    head: 'capability.group.',
+    vocabulary: { module: 'packages/fields/src/widgets/CapabilityMultiSelectField.tsx', name: 'SCOPE_ORDER', kind: 'array' },
+  },
+  {
+    head: 'capability.label.',
+    vocabulary: { module: 'packages/fields/src/widgets/CapabilityMultiSelectField.tsx', name: 'CURATED_CAPABILITY_LABELS', kind: 'set' },
+  },
+  {
+    head: 'common.',
+    enumerable: false,
+    why: 'unnamed-union',
+    reason:
+      "`useChatbotLabel` annotates its parameter `key: 'openChat' | 'closeChat'` inline. The " +
+      'member set is real and closed, but it is not a declaration this reader can be pointed ' +
+      'at. Naming that union would make the family exactly checkable — a one-line change in ' +
+      'packages/plugin-chatbot/src/FloatingChatbotTrigger.tsx, deliberately left to the owner ' +
+      'rather than folded into the gate card.',
+  },
+  {
+    head: 'console.ai.group.',
+    vocabulary: { module: 'packages/app-shell/src/console/ai/ConversationsSidebar.tsx', name: 'ConversationGroupKey', kind: 'union' },
+  },
+  {
+    head: 'console.identityImport.policy.',
+    vocabulary: { module: 'packages/app-shell/src/views/identityImport.ts', name: 'IdentityPasswordPolicy', kind: 'union' },
+  },
+  {
+    head: 'console.identityImport.policyHint.',
+    vocabulary: { module: 'packages/app-shell/src/views/identityImport.ts', name: 'IdentityPasswordPolicy', kind: 'union' },
+  },
+  {
+    head: 'console.settingsHub.categories.',
+    enumerable: false,
+    why: 'runtime-data',
+    reason:
+      'The category is a free string off each settings manifest, grouped at render time. ' +
+      'Any plugin can ship a new one, so the set is not knowable from this repo at all — ' +
+      "the call site's `defaultValue: category` is the correct treatment, not a gate entry.",
+  },
+  {
+    head: 'dashboard.filters.range.',
+    enumerable: false,
+    why: 'external-vocabulary',
+    reason:
+      'The presets the bar renders are `DATE_RANGE_PRESETS` from `@objectstack/spec/ui`, a ' +
+      'dependency. This reader reads repo source only (see readVocabulary), and the repo has ' +
+      'no exhaustive `Record<DateRangePreset, …>` to read instead. ' +
+      '`packages/types/src/data-protocol.ts`\'s `FilterBuilderDateRangePreset` is a DIFFERENT ' +
+      'vocabulary (the filter builder\'s) and using it here would be a guess, which is worse ' +
+      'than this declaration.',
+  },
+  {
+    head: 'dashboard.trend.',
+    vocabulary: { module: 'packages/plugin-dashboard/src/DatasetWidget.tsx', name: 'TREND_LABEL_DEFAULTS', kind: 'objectKeys' },
+  },
+  {
+    head: 'filterBuilder.operators.',
+    vocabulary: { module: 'packages/components/src/custom/filter-builder.tsx', name: 'defaultOperators', kind: 'arrayField', field: 'value' },
+  },
+  {
+    head: 'gantt.link.rejected.',
+    vocabulary: { module: 'packages/plugin-gantt/src/GanttView.tsx', name: 'GanttLinkRejection', kind: 'union' },
+  },
+  {
+    head: 'gantt.linkEnd.',
+    enumerable: false,
+    why: 'unnamed-union',
+    reason:
+      "`endLabel(e: 'start' | 'end')` and the `linkDrag` state's `sourceEnd`/`targetEnd` both " +
+      'spell the union inline; GanttView exports `GanttLinkType` and `GanttLinkRejection` but ' +
+      'no endpoint type. Naming it would make this family exactly checkable.',
+  },
+  {
+    head: 'gantt.linkType.',
+    vocabulary: { module: 'packages/plugin-gantt/src/GanttView.tsx', name: 'GanttLinkType', kind: 'union' },
+  },
+  {
+    head: 'gantt.viewMode.',
+    vocabulary: { module: 'packages/plugin-gantt/src/GanttView.tsx', name: 'GanttViewMode', kind: 'union' },
+  },
+  {
+    head: 'grid.import.confidence.',
+    vocabulary: { module: 'packages/plugin-grid/src/importParsers.ts', name: 'MappingConfidence', kind: 'union' },
+  },
+  {
+    head: 'grid.import.jobStatus.',
+    // `ImportJobStatus` itself is a Zod enum in `@objectstack/spec/api`, out of
+    // this reader's reach — but `IMPORT_JOB_STATUS_VARIANT` is declared
+    // `Record<ImportJobStatus, …>`, so tsc already requires its keys to be
+    // exactly that union. Reading the Record is reading the union, with the
+    // exhaustiveness enforced by the type checker this file does not run.
+    vocabulary: { module: 'packages/plugin-grid/src/ImportWizard.tsx', name: 'IMPORT_JOB_STATUS_VARIANT', kind: 'objectKeys' },
+  },
+  {
+    head: 'grid.import.type.',
+    vocabulary: { module: 'packages/plugin-grid/src/importParsers.ts', name: 'InferredType', kind: 'union' },
+  },
+  {
+    head: 'home.recentApps.itemType.',
+    vocabulary: { module: 'packages/app-shell/src/context/RecentItemsProvider.tsx', name: 'RecentItem', kind: 'interfaceField', field: 'type' },
+  },
+  {
+    head: 'managedByBadge.',
+    // The member is `variant.i18nKey`, NOT the `VARIANTS` key — the two agree
+    // today and the gate must not assume they will, so the field is read.
+    vocabulary: { module: 'packages/app-shell/src/components/ManagedByBadge.tsx', name: 'VARIANTS', kind: 'objectField', field: 'i18nKey' },
+  },
+  {
+    head: 'marketplace.category.',
+    enumerable: false,
+    why: 'runtime-data',
+    reason:
+      '`MarketplacePackage.category` is `string | null` off the registry API — a marketplace ' +
+      'the platform does not own decides the set. The 15 members `en` carries are a curated ' +
+      'subset, not the vocabulary.',
+  },
+  {
+    head: 'marketplace.disclosure.runtime.',
+    vocabulary: { module: 'packages/app-shell/src/console/marketplace/PluginDisclosure.tsx', name: 'RUNTIME_FALLBACK', kind: 'objectKeys' },
+  },
+  {
+    head: 'organization.invitations.status.',
+    vocabulary: { module: 'packages/app-shell/src/console/organizations/manage/InvitationsPage.tsx', name: 'StatusFilter', kind: 'union' },
+  },
+  {
+    head: 'report.aggregate.',
+    enumerable: false,
+    why: 'external-vocabulary',
+    reason:
+      "The aggregate name comes from a chart series' `aggregate`, whose vocabulary is the " +
+      "spec's chart-aggregate enum in `@objectstack/spec/ui`. No repo-local exhaustive Record " +
+      'mirrors it, so there is nothing here to read.',
+  },
+];
+
+/**
+ * Read the literal members of a named declaration, from source.
+ *
+ * Returns `null` when the declaration is not found or is not the declared
+ * shape — which the caller reports rather than absorbs, because a registry
+ * entry pointing at a moved or rewritten declaration must not silently degrade
+ * into "no members to check".
+ *
+ * @param {string} root
+ * @param {VocabularySpec} spec
+ * @returns {string[] | null}
+ */
+export function readVocabulary(root, spec) {
+  const file = join(root, spec.module);
+  if (!existsSync(file)) return null;
+  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+
+  const unwrap = (node) => {
+    let n = node;
+    while (n && (ts.isAsExpression(n) || ts.isParenthesizedExpression(n) || (ts.isSatisfiesExpression?.(n) ?? false))) {
+      n = n.expression;
+    }
+    return n;
+  };
+  const literal = (node) => {
+    const inner = unwrap(node);
+    return inner && (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) ? inner.text : null;
+  };
+  const propertyName = (prop) =>
+    ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name)
+      ? prop.name.text
+      : null;
+
+  let found = null;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === spec.name) {
+      // A `type X = { … }` object literal type answers `interfaceField` too, so
+      // the registry never has to know which of the two spellings a shape uses.
+      found = ts.isTypeLiteralNode(node.type) ? { type: node.type, members: node.type.members } : { type: node.type };
+    } else if (ts.isInterfaceDeclaration(node) && node.name.text === spec.name) {
+      found = { members: node.members };
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === spec.name) {
+      found = { value: node.initializer ? unwrap(node.initializer) : null };
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(source);
+  if (!found) return null;
+
+  const members = [];
+  if (spec.kind === 'union' || spec.kind === 'interfaceField') {
+    let type = found.type;
+    if (spec.kind === 'interfaceField') {
+      const members = found.members;
+      if (!members) return null;
+      const property = members.find(
+        (m) => ts.isPropertySignature(m) && m.name && (ts.isIdentifier(m.name) || ts.isStringLiteral(m.name)) && m.name.text === spec.field,
+      );
+      if (!property || !property.type) return null;
+      type = property.type;
+    }
+    if (!type) return null;
+    // A single-member union is a bare LiteralType, not a UnionType.
+    const arms = ts.isUnionTypeNode(type) ? type.types : [type];
+    for (const arm of arms) {
+      if (!ts.isLiteralTypeNode(arm) || !ts.isStringLiteral(arm.literal)) return null;
+      members.push(arm.literal.text);
+    }
+    return members;
+  }
+
+  const value0 = found.value;
+  if (!value0) return null;
+  let value = value0;
+  if (spec.kind === 'set') {
+    if (!ts.isNewExpression(value) || !value.arguments || value.arguments.length !== 1) return null;
+    value = unwrap(value.arguments[0]);
+  }
+
+  if (spec.kind === 'array' || spec.kind === 'set') {
+    if (!value || !ts.isArrayLiteralExpression(value)) return null;
+    for (const element of value.elements) {
+      const text = literal(element);
+      if (text === null) return null;
+      members.push(text);
+    }
+    return members;
+  }
+  if (spec.kind === 'arrayField') {
+    if (!ts.isArrayLiteralExpression(value)) return null;
+    for (const element of value.elements) {
+      const object = unwrap(element);
+      if (!object || !ts.isObjectLiteralExpression(object)) return null;
+      const prop = object.properties.find((p) => ts.isPropertyAssignment(p) && propertyName(p) === spec.field);
+      if (!prop) return null;
+      const text = literal(prop.initializer);
+      if (text === null) return null;
+      members.push(text);
+    }
+    return members;
+  }
+  if (spec.kind === 'objectKeys' || spec.kind === 'objectField') {
+    if (!ts.isObjectLiteralExpression(value)) return null;
+    for (const prop of value.properties) {
+      if (!ts.isPropertyAssignment(prop)) return null;
+      const name = propertyName(prop);
+      if (name === null) return null;
+      if (spec.kind === 'objectKeys') {
+        members.push(name);
+        continue;
+      }
+      const nested = unwrap(prop.initializer);
+      if (!nested || !ts.isObjectLiteralExpression(nested)) return null;
+      const inner = nested.properties.find((p) => ts.isPropertyAssignment(p) && propertyName(p) === spec.field);
+      if (!inner) return null;
+      const text = literal(inner.initializer);
+      if (text === null) return null;
+      members.push(text);
+    }
+    return members;
+  }
+  return null;
+}
 
 /** Directories never scanned: build output, deps, and test/mock trees. */
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage', '.next', '.turbo', '__mocks__']);
@@ -474,6 +1009,40 @@ function staticString(node, source) {
     const left = staticString(inner.left, source);
     const right = staticString(inner.right, source);
     return left === null || right === null ? null : left + right;
+  }
+  return null;
+}
+
+/**
+ * Every piece of an expression that is STATIC TEXT, or `null` when none of it
+ * is (objectui#4905).
+ *
+ * `staticString` above answers "is this whole expression one readable string",
+ * which is what the drift rule needs — it compares a sentence. The spelling
+ * rule asks something weaker and therefore reaches further: a template literal
+ * is not a readable sentence, but its literal SEGMENTS are text a placeholder
+ * can be misspelled in, and that text renders verbatim on a provider-less host.
+ * `` `Uploading… ({{ pct }}%)` `` is `null` to `staticString` and two segments
+ * here, and the second is where the defect lives.
+ *
+ * The segments are judged one by one rather than joined, because joining them
+ * would invent adjacencies the runtime never produces: the substitution between
+ * two segments becomes arbitrary text at runtime, so a `{{` in one and a `}}`
+ * in the next is not a placeholder either interpolator can resolve, and reading
+ * it as one would be the false green.
+ */
+function staticTextSegments(node, source) {
+  const inner = unwrapExpression(node);
+  if (!inner) return null;
+  if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) return [inner.text];
+  if (ts.isTemplateExpression(inner)) {
+    return [inner.head.text, ...inner.templateSpans.map((span) => span.literal.text)];
+  }
+  if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = staticTextSegments(inner.left, source);
+    const right = staticTextSegments(inner.right, source);
+    if (left === null && right === null) return null;
+    return [...(left ?? []), ...(right ?? [])];
   }
   return null;
 }
@@ -600,13 +1169,32 @@ function enclosingScope(node) {
   return null;
 }
 
-/** Resolve a relative import specifier to a repo-relative file path. */
+/**
+ * Resolve a relative import specifier to a repo-relative file path.
+ *
+ * An ESM-correct specifier addresses the EMITTED file: `./i18n.js` is how a
+ * package whose build preserves specifiers has to spell `i18n.ts`, because
+ * Node's resolver does not extension-search relative specifiers (objectui#4538,
+ * enforced per pull request by `pnpm check:esm-specifiers`). So the emitted
+ * extension is stripped back to its source before the candidate walk.
+ *
+ * Not cosmetic: `@object-ui/app-shell` converted under objectui#5357 and its
+ * registered local translator started resolving to
+ * `…/metadata-admin/i18n.js` — a path with no file behind it — which turned
+ * every call site through that table into an `unregistered-translator` finding.
+ * The specifier was right and this resolver was wrong.
+ */
 function resolveImport(root, fromFile, specifier) {
   if (!specifier.startsWith('.')) return specifier;
   const base = resolve(dirname(fromFile), specifier);
-  for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
-    const candidate = base + suffix;
-    if (existsSync(candidate) && statSync(candidate).isFile()) return relative(root, candidate);
+  const asSource = base.replace(/\.(js|jsx|mjs|cjs)$/, '');
+  // Source spelling first, then the literal one, so a package that really does
+  // ship a `.js` file next to its TypeScript still resolves to that file.
+  for (const candidateBase of asSource === base ? [base] : [asSource, base]) {
+    for (const suffix of ['.ts', '.tsx', '/index.ts', '/index.tsx', '']) {
+      const candidate = candidateBase + suffix;
+      if (existsSync(candidate) && statSync(candidate).isFile()) return relative(root, candidate);
+    }
   }
   return relative(root, base);
 }
@@ -771,6 +1359,11 @@ function literalKeysOf(argument, source) {
  * `{ present: true, text: null }` — written, but computed (a template with a
  *                                   substitution, a variable, a ternary). Not
  *                                   comparable, so it is counted, never failed.
+ *
+ * `segments` is the same expression read for STATIC TEXT rather than for a
+ * whole sentence (objectui#4905): `null` when nothing in it is readable text,
+ * otherwise every literal piece. A computed default is `text: null` and can
+ * still carry segments — that is the surface class 7 judges and class 3 cannot.
  */
 function inlineDefaultValue(node, source) {
   for (const argument of node.arguments.slice(1)) {
@@ -781,10 +1374,14 @@ function inlineDefaultValue(node, source) {
       const name =
         ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
       if (name !== 'defaultValue') continue;
-      return { present: true, text: staticString(property.initializer, source) };
+      return {
+        present: true,
+        text: staticString(property.initializer, source),
+        segments: staticTextSegments(property.initializer, source),
+      };
     }
   }
-  return { present: false, text: null };
+  return { present: false, text: null, segments: null };
 }
 
 /**
@@ -908,13 +1505,41 @@ function staticHead(argument) {
   return inner.head.text;
 }
 
+/**
+ * The head/tail shape of a template key (objectui#4964).
+ *
+ * `` `managedByBadge.${v.i18nKey}.short` `` is head `managedByBadge.`, tail
+ * `.short`, one substitution — so a member `config` expands to the full key
+ * `managedByBadge.config.short`, and checking the head plus the member alone
+ * would ask for a BRANCH that is not the leaf the call site renders.
+ *
+ * `tail` is reported only for a SINGLE-substitution template. With two or more
+ * (`` `${ns}.${suffix}` ``) there is no one member position, so no expansion
+ * this file could build is the key — those sites are counted, never expanded.
+ *
+ * @returns {{ head: string, tail: string | null } | null}
+ */
+function templateShape(argument) {
+  const inner = unwrapExpression(argument);
+  if (!inner || !ts.isTemplateExpression(inner)) return null;
+  const head = inner.head.text;
+  if (inner.templateSpans.length !== 1) return { head, tail: null };
+  return { head, tail: inner.templateSpans[0].literal.text };
+}
+
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
+ * `families` is injectable so the synthetic-repo tests can pin the registry
+ * RULES against a registry they control. The real run always uses the module
+ * constant — nothing in this file reads a registry from disk, so there is no
+ * configuration path a call site could quietly narrow.
+ *
  * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number,
- *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string> }}
+ *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string>,
+ *   dynamicFamilies: Map<string, { tails: Set<string>, sites: Array, multiSubstitution: number }> }}
  */
-export function analyze(root) {
+export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ { families = DYNAMIC_KEY_FAMILIES } = {}) {
   const { leaves, branches, values } = collectEnKeys(root);
   const resolvesLeaf = (key) => leaves.has(key) || PLURAL_SUFFIXES.some((suffix) => leaves.has(key + suffix));
   // Materialised once, not inside the predicate: spreading a 2.6k-entry Set per
@@ -944,6 +1569,15 @@ export function analyze(root) {
   const referencedBranches = new Set();
   const dynamicHeads = new Set();
 
+  // objectui#4964 — per-head census of the PACK-backed template call sites, so
+  // the registry below is evaluated against what the scan actually saw rather
+  // than against itself. Keyed by static head; `tails` holds the literal text
+  // after the single substitution (`.short` for
+  // `` `managedByBadge.${v.i18nKey}.short` ``), `''` when the substitution ends
+  // the template.
+  /** @type {Map<string, { tails: Set<string>, sites: Array, multiSubstitution: number }>} */
+  const dynamicFamilies = new Map();
+
   const findings = [];
   const counters = {
     filesScanned: 0,
@@ -952,6 +1586,12 @@ export function analyze(root) {
     literalKeys: 0,
     resolvedKeys: 0,
     dynamicKeySites: 0,
+    headlessDynamicKeySites: 0,
+    declaredFamilies: 0,
+    enumerableFamilies: 0,
+    notEnumerableFamilies: 0,
+    checkedMembers: 0,
+    unexpandableFamilySites: 0,
     probeSites: 0,
     skippedLocalTable: 0,
     skippedNotATranslator: 0,
@@ -960,6 +1600,9 @@ export function analyze(root) {
     matchingDefaultValues: 0,
     computedDefaultValues: 0,
     unjudgedDefaultValues: 0,
+    spellingJudgedDefaults: 0,
+    spellingJudgedResidueDefaults: 0,
+    opaqueDefaultText: 0,
     judgedInterpolation: 0,
     unjudgedInterpolation: 0,
     opaqueOptions: 0,
@@ -1124,6 +1767,42 @@ export function analyze(root) {
             }
           }
 
+          // objectui#4905 — class 7. Whatever the drift rule decided above, the
+          // TEXT this default carries is text `fallbackT` may be asked to
+          // render, and `fallbackT` resolves exactly one placeholder spelling.
+          // Judged on every inline default, not only the ones drift leaves
+          // unpinned: a pinned default is byte-equal to its `en` value and
+          // objectui#3512 holds `en` to the same rule, so those come back green
+          // twice over — which is what makes the count a live control on this
+          // rule rather than a set of three strings nobody would notice
+          // emptying.
+          if (inlineDefault.present) {
+            // The folded sentence when there is one, else the literal pieces of
+            // a template — never both, so a `+`-concatenated default is judged
+            // whole rather than once per operand.
+            const subjects = inlineDefault.text !== null ? [inlineDefault.text] : (inlineDefault.segments ?? []);
+            const pinnedByDrift = inlineDefault.text !== null && enValue !== undefined;
+            if (subjects.length === 0) {
+              // A bare runtime value (`defaultValue: label`). There is no text
+              // to spell, and saying so is not the same as saying it is fine.
+              counters.opaqueDefaultText += 1;
+            } else {
+              counters.spellingJudgedDefaults += 1;
+              if (!pinnedByDrift) counters.spellingJudgedResidueDefaults += 1;
+              for (const subject of subjects) {
+                for (const violation of unresolvableSpellings(subject)) {
+                  findings.push({
+                    reason: 'unresolvable-default-spelling',
+                    ...at,
+                    detail: key ?? '(dynamic key)',
+                    expected: subject,
+                    actual: violation,
+                  });
+                }
+              }
+            }
+          }
+
           // objectui#3845 — what this call site passes must be what the `en`
           // value has holes for, in both directions. Judged on the same
           // preconditions as class 3, plus a readable option-name set.
@@ -1198,6 +1877,24 @@ export function analyze(root) {
             // recorded even when `head` matches nothing today, which is
             // harmless (nothing in `en` starts with it either).
             if (head) dynamicHeads.add(head);
+
+            // objectui#4964 — the family census the exact-member check runs on.
+            // Recorded for EVERY pack-backed template site, including the ones
+            // whose head matches nothing, so the registry describes the same
+            // set the prefix rule sees rather than a subset of it.
+            const shape = templateShape(argument);
+            if (shape && shape.head) {
+              const family = dynamicFamilies.get(shape.head) ?? { tails: new Set(), sites: [], multiSubstitution: 0 };
+              if (shape.tail === null) family.multiSubstitution += 1;
+              else family.tails.add(shape.tail);
+              family.sites.push(at);
+              dynamicFamilies.set(shape.head, family);
+            } else if (!head) {
+              // Not a template at all — `t(key)` on a variable. There is no
+              // static head, so neither the prefix rule nor this one can say
+              // anything; the counter is the only visible trace.
+              counters.headlessDynamicKeySites += 1;
+            }
           }
         }
       }
@@ -1206,16 +1903,96 @@ export function analyze(root) {
     visit(source);
   }
 
-  return { findings, counters, enKeyCount: leaves.size, referencedKeys, referencedBranches, dynamicHeads };
+  // ── the dynamic-family registry, evaluated (objectui#4964) ─────────────────
+  //
+  // Three rules, and the order matters: the two ratchet directions run over the
+  // census and the registry FIRST, so a family that is undeclared or stale is
+  // reported as itself rather than as an absence of member findings. Only then
+  // are the declared vocabularies expanded. The prefix rule above has already
+  // run for every one of these heads and is not consulted here — this class can
+  // only ADD findings to a family, never take the prefix check away from one.
+  const declaredHeads = new Set();
+  for (const family of families) {
+    if (declaredHeads.has(family.head)) {
+      findings.push({ reason: 'duplicate-family', file: 'scripts/check-i18n-call-site-keys.mjs', line: 0, detail: family.head });
+      continue;
+    }
+    declaredHeads.add(family.head);
+    counters.declaredFamilies += 1;
+
+    const observed = dynamicFamilies.get(family.head);
+    if (!observed) {
+      // Stale: the last call site with this head is gone. Deleting the entry is
+      // the fix, and failing on it is what keeps the list a description of the
+      // repo instead of an accumulating wishlist.
+      findings.push({ reason: 'stale-dynamic-family', file: 'scripts/check-i18n-call-site-keys.mjs', line: 0, detail: family.head });
+      continue;
+    }
+    if (family.enumerable === false) {
+      counters.notEnumerableFamilies += 1;
+      continue;
+    }
+    counters.enumerableFamilies += 1;
+
+    const members = readVocabulary(root, family.vocabulary);
+    if (members === null) {
+      // The declaration moved, was renamed, or is no longer the declared shape.
+      // Reported, never absorbed: silently reading it as "no members" is
+      // exactly the vacuous-green this class exists to make impossible.
+      findings.push({
+        reason: 'unreadable-vocabulary',
+        ...observed.sites[0],
+        detail: family.head,
+        expected: `${family.vocabulary.kind} ${family.vocabulary.name} in ${family.vocabulary.module}`,
+      });
+      continue;
+    }
+    if (members.length === 0) {
+      findings.push({
+        reason: 'empty-vocabulary',
+        ...observed.sites[0],
+        detail: family.head,
+        expected: `${family.vocabulary.kind} ${family.vocabulary.name} in ${family.vocabulary.module}`,
+      });
+      continue;
+    }
+
+    counters.unexpandableFamilySites += observed.multiSubstitution;
+    const missing = [];
+    for (const tail of [...observed.tails].sort()) {
+      for (const member of members) {
+        const key = `${family.head}${member}${tail}`;
+        counters.checkedMembers += 1;
+        if (!resolvesLeaf(key)) missing.push(key);
+      }
+    }
+    // One finding PER missing key, not one per family: the baseline is keyed by
+    // the exact key, the same as classes 1 and 2, so a family paying off three
+    // of five members shrinks the file by three lines instead of staying whole.
+    for (const key of missing.sort()) {
+      findings.push({ reason: 'missing-member', ...observed.sites[0], detail: key, expected: family.head });
+    }
+  }
+
+  for (const [head, observed] of dynamicFamilies) {
+    if (declaredHeads.has(head)) continue;
+    findings.push({ reason: 'undeclared-dynamic-family', ...observed.sites[0], detail: head });
+  }
+
+  return { findings, counters, enKeyCount: leaves.size, referencedKeys, referencedBranches, dynamicHeads, dynamicFamilies };
 }
 
 // ── baseline ─────────────────────────────────────────────────────────────────
 
 export function readBaseline(root) {
   const file = join(root, 'scripts/i18n-call-site-key-baseline.json');
-  if (!existsSync(file)) return { missingKeys: {}, missingPrefixes: {} };
+  if (!existsSync(file)) return { missingKeys: {}, missingPrefixes: {}, missingMembers: {} };
   const parsed = JSON.parse(readFileSync(file, 'utf8'));
-  return { missingKeys: parsed.missingKeys ?? {}, missingPrefixes: parsed.missingPrefixes ?? {} };
+  return {
+    missingKeys: parsed.missingKeys ?? {},
+    missingPrefixes: parsed.missingPrefixes ?? {},
+    missingMembers: parsed.missingMembers ?? {},
+  };
 }
 
 /**
@@ -1227,22 +2004,28 @@ export function applyBaseline(findings, baseline) {
   const unexpected = [];
   const seenKeys = new Set();
   const seenPrefixes = new Set();
+  const seenMembers = new Set();
 
   for (const finding of findings) {
-    if (finding.reason === 'missing-key' && Object.hasOwn(baseline.missingKeys, finding.detail)) {
+    if (finding.reason === 'missing-key' && Object.hasOwn(baseline.missingKeys ?? {}, finding.detail)) {
       seenKeys.add(finding.detail);
       continue;
     }
-    if (finding.reason === 'missing-prefix' && Object.hasOwn(baseline.missingPrefixes, finding.detail)) {
+    if (finding.reason === 'missing-prefix' && Object.hasOwn(baseline.missingPrefixes ?? {}, finding.detail)) {
       seenPrefixes.add(finding.detail);
+      continue;
+    }
+    if (finding.reason === 'missing-member' && Object.hasOwn(baseline.missingMembers ?? {}, finding.detail)) {
+      seenMembers.add(finding.detail);
       continue;
     }
     unexpected.push(finding);
   }
 
   const stale = [
-    ...Object.keys(baseline.missingKeys).filter((key) => !seenKeys.has(key)).map((key) => ({ kind: 'missingKeys', entry: key })),
-    ...Object.keys(baseline.missingPrefixes).filter((p) => !seenPrefixes.has(p)).map((entry) => ({ kind: 'missingPrefixes', entry })),
+    ...Object.keys(baseline.missingKeys ?? {}).filter((key) => !seenKeys.has(key)).map((key) => ({ kind: 'missingKeys', entry: key })),
+    ...Object.keys(baseline.missingPrefixes ?? {}).filter((p) => !seenPrefixes.has(p)).map((entry) => ({ kind: 'missingPrefixes', entry })),
+    ...Object.keys(baseline.missingMembers ?? {}).filter((m) => !seenMembers.has(m)).map((entry) => ({ kind: 'missingMembers', entry })),
   ];
 
   return { unexpected, stale };
@@ -1262,6 +2045,42 @@ const HINTS = {
     'No key in `en` begins with this template literal\'s static head, so every value the' +
     ' substitution can take is missing. Add the whole family to' +
     ' `packages/i18n/src/locales/en.ts`.',
+  'missing-member':
+    'The template family\'s head resolves, so `missing-prefix` is satisfied — but this' +
+    ' SPECIFIC member of the vocabulary the call site iterates has no leaf in `en`' +
+    ' (objectui#4964). Ten packs missing it identically is full parity, so neither pack' +
+    ' gate can see it and the user reads the raw key. Add the key to' +
+    ' `packages/i18n/src/locales/en.ts`, which makes `all-locales-key-parity.test.ts`' +
+    ' demand it in the other nine packs. If the member is genuinely unreachable at' +
+    ' runtime, the fix is in the VOCABULARY (delete the dead member), never in this' +
+    ' registry — narrowing a declared vocabulary to make a red go away is how an exact' +
+    ' check silently becomes a smaller one.',
+  'undeclared-dynamic-family':
+    'A pack-backed template key whose static head is not in DYNAMIC_KEY_FAMILIES' +
+    ' (objectui#4964). Prefix-checking alone cannot see a member missing from all ten' +
+    ' packs, so every family must say how its member set is known: add an entry with a' +
+    ' `vocabulary` naming the declaration the call site iterates (a union, a const array,' +
+    ' an object table), or — if the substitution genuinely has no static member set —' +
+    ' `enumerable: false` with the reason. `enumerable: false` is a real answer and is' +
+    ' preferred over a guessed vocabulary; what is not allowed is silence.',
+  'stale-dynamic-family':
+    'A DYNAMIC_KEY_FAMILIES entry whose head no longer appears at any pack-backed call' +
+    ' site. Delete the entry — the registry describes the repo, and an entry nothing' +
+    ' exercises is an exact check running against nothing.',
+  'duplicate-family':
+    'Two DYNAMIC_KEY_FAMILIES entries declare the same head. Only the first would be' +
+    ' evaluated, so the second is either dead or a contradiction. Merge them.',
+  'unreadable-vocabulary':
+    'The declaration this family names could not be read as the `kind` it declares — it' +
+    ' moved, was renamed, or was rewritten into a shape this reader does not parse' +
+    ' (a spread, a computed member, a derived expression). Reported rather than absorbed:' +
+    ' reading it as "no members" would turn the exact check vacuous while the run stayed' +
+    ' green. Repoint the entry, or change its `kind`.',
+  'empty-vocabulary':
+    'The declaration this family names resolved to ZERO members, so the exact check would' +
+    ' assert nothing while reading exactly like a passing one. Either the declaration is' +
+    ' genuinely empty (delete the family, or the call site) or the reader picked up the' +
+    ' wrong binding.',
   'unregistered-translator':
     'This file imports a `t` from a module this gate does not know. If that module is a' +
     ' pack-backed re-export, it should be called through a `use*Translation` hook so its' +
@@ -1297,6 +2116,19 @@ const HINTS = {
     ' EXTERNALLY_INTERPOLATED_HOLES with the file that does the substitution — and note that' +
     ' those keys must still NOT be passed the argument, or i18next consumes the hole before the' +
     ' consumer gets to see it.',
+  'unresolvable-default-spelling':
+    'This inline `defaultValue` spells a placeholder in a dialect only i18next understands' +
+    ' (objectui#4905). `createSafeTranslation`\'s `fallbackT` interpolates with an EXACT literal' +
+    ' needle — ``value.split(`{{${k}}}`)`` — so `{{name}}` is the only spelling it resolves,' +
+    ' while i18next also accepts `{{ name }}`, `{{count, number}}`, `{{- name}}` and `$t(key)`.' +
+    ' The consequence is invisible where we usually look: WITH an `I18nProvider` the pack value' +
+    ' wins and this string never renders at all; without one it renders and the braces reach the' +
+    ' user verbatim. Fix it at the CALL SITE by respelling the hole as `{{name}}` — the' +
+    ' maintainer\'s objectui#4135 ruling is that `{{x}}` is exclusively i18next-bound copy, so' +
+    ' teaching the fallback more dialects is not the fix. A hole this component fills ITSELF,' +
+    ' downstream of `t()`, is spelled with SINGLE braces (`{x}`) and is out of this rule\'s range' +
+    ' by construction. Same rule, same reasons, over the copy TABLES:' +
+    ' `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`.',
   'dead-sibling-fallback':
     'The key EXISTS in `en`, and this fallback is written as the call\'s SIBLING' +
     ' (`t(key) || \'English\'`) rather than as an argument — so it is dead on every path, not just' +
@@ -1315,7 +2147,7 @@ const HINTS = {
 const quote = (text) =>
   JSON.stringify(text).replace(/[^\x20-\x7e]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const invokedDirectly = isEntrypoint(import.meta.url);
 
 if (invokedDirectly) {
   const root = resolve(scriptDir, '..');
@@ -1329,6 +2161,21 @@ if (invokedDirectly) {
       `The scan collapsed: ${enKeyCount} en keys and ${counters.packCallSites} pack-backed call sites.` +
         ' Expected thousands of both — the extractor or the file walk is broken, and an' +
         ' empty comparison would pass while asserting nothing.',
+    );
+    process.exit(1);
+  }
+
+  // The same guard for class 7's own subject (objectui#4905). The rule above is
+  // silent on a tree with no inline defaults in it, and silent is exactly how a
+  // broken `inlineDefaultValue` or `staticTextSegments` would read — so the
+  // spelling verdict asserts it had something to judge, rather than inheriting
+  // the key-count guard's word for it.
+  if (counters.spellingJudgedDefaults < 500) {
+    console.error(
+      `The inline-default spelling scan collapsed: ${counters.spellingJudgedDefaults} default(s) with readable` +
+        ` text, ${counters.opaqueDefaultText} without. Expected hundreds — this repo carries` +
+        ' roughly a thousand inline defaults, so a number this small means the reader stopped' +
+        ' reading them and the spelling rule is passing on an empty set.',
     );
     process.exit(1);
   }
@@ -1348,9 +2195,21 @@ if (invokedDirectly) {
       `${counters.computedDefaultValues} computed (report-only).`,
   );
   console.log(
+    `Inline default spelling: ${counters.spellingJudgedDefaults} default(s) carry readable text and are held to ` +
+      `the one placeholder spelling the provider-less fallback resolves — ${counters.spellingJudgedResidueDefaults} ` +
+      `of them on call sites the drift rule cannot pin, ${counters.opaqueDefaultText} with no readable text at all.`,
+  );
+  console.log(
     `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
       `${counters.unjudgedInterpolation} with no single comparable en value, ${counters.opaqueOptions} with an ` +
       `unreadable option set, ${EXTERNALLY_INTERPOLATED_HOLES.length} key(s) whose holes are filled downstream.`,
+  );
+  console.log(
+    `Dynamic key families: ${counters.declaredFamilies} declared — ${counters.enumerableFamilies} with a ` +
+      `static vocabulary (${counters.checkedMembers} member key(s) checked exactly), ` +
+      `${counters.notEnumerableFamilies} with no enumerable member set (prefix-checked only), ` +
+      `${counters.unexpandableFamilySites} multi-substitution site(s) not expandable, ` +
+      `${counters.headlessDynamicKeySites} dynamic call site(s) with no static head at all.`,
   );
   console.log(
     `Sibling fallbacks: ${counters.siblingFallbacks} call site(s) sit left of a ||/?? — ` +
@@ -1366,15 +2225,37 @@ if (invokedDirectly) {
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
   const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
-  const VALUE_CLASSES = new Set(['default-value-drift', 'interpolation-parity', 'dead-sibling-fallback']);
-  const keyFindings = unexpected.filter((finding) => !VALUE_CLASSES.has(finding.reason));
+  const spelling = unexpected.filter((finding) => finding.reason === 'unresolvable-default-spelling');
+  // objectui#4964's classes read on their own too: they are all about a template
+  // family whose HEAD resolves, which is precisely the case the two key classes
+  // above declare out of scope.
+  const FAMILY_CLASSES = new Set([
+    'missing-member',
+    'undeclared-dynamic-family',
+    'stale-dynamic-family',
+    'duplicate-family',
+    'unreadable-vocabulary',
+    'empty-vocabulary',
+  ]);
+  const families = unexpected.filter((finding) => FAMILY_CLASSES.has(finding.reason));
+  const VALUE_CLASSES = new Set([
+    'default-value-drift',
+    'interpolation-parity',
+    'dead-sibling-fallback',
+    'unresolvable-default-spelling',
+  ]);
+  const keyFindings = unexpected.filter(
+    (finding) => !VALUE_CLASSES.has(finding.reason) && !FAMILY_CLASSES.has(finding.reason),
+  );
 
   if (unexpected.length === 0 && stale.length === 0) {
     console.log(
       `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
         ' literal inline defaultValue matches the value the pack serves, every call site passes' +
-        ' exactly the arguments that value has holes for, and no call site carries a literal' +
-        ' fallback beside itself.',
+        ' exactly the arguments that value has holes for, every inline defaultValue spells its' +
+        ' placeholders the one way the provider-less fallback resolves, no call site carries a' +
+        ' literal fallback beside itself, and every dynamic key family either checks its members' +
+        ' against a declared vocabulary or says in writing why it has none.',
     );
     process.exit(0);
   }
@@ -1432,6 +2313,32 @@ if (invokedDirectly) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
       console.error(`      en renders:  ${quote(finding.expected)}`);
       console.error(`      dead ${finding.operator} operand: ${quote(finding.actual)}`);
+    }
+  }
+
+  if (spelling.length > 0) {
+    const distinct = new Set(spelling.map((finding) => `${finding.file}:${finding.line}`));
+    console.error(
+      `\n${spelling.length} placeholder${spelling.length === 1 ? '' : 's'} in an inline defaultValue ` +
+        `cannot be resolved by the provider-less fallback (${distinct.size} call ` +
+        `site${distinct.size === 1 ? '' : 's'}) — with a provider i18next renders ` +
+        'them correctly, so the braces reach the user only where nobody is looking:',
+    );
+    for (const finding of spelling) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      console.error(`      default text: ${quote(finding.expected)}`);
+      console.error(`      ${finding.actual}`);
+    }
+  }
+
+  if (families.length > 0) {
+    console.error(
+      `\n${families.length} dynamic-family finding${families.length === 1 ? '' : 's'} — the head resolves, so the` +
+        ' prefix rule is satisfied; these are about the MEMBERS behind it:',
+    );
+    for (const finding of families) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
+      if (finding.expected) console.error(`      ${finding.expected}`);
     }
   }
 

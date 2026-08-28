@@ -15,7 +15,7 @@ import { useSyncExternalStore } from 'react';
 import {
   getPendingRequests,
   subscribeSettle,
-} from '../observability/settleSignal';
+} from '../observability/settleSignal.js';
 
 export interface SettleSignalState {
   /** Number of requests currently in flight. */

@@ -407,8 +407,7 @@ export class ValidationEngine {
         '  // Before (deprecated):\n' +
         '  { condition: (values) => values.age > 18 }\n\n' +
         '  // After:\n' +
-        '  { condition: { field: "age", operator: ">", value: 18 } }\n\n' +
-        '  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md'
+        '  { condition: { field: "age", operator: ">", value: 18 } }'
       );
       return false; // Security: reject function-based conditions
     }

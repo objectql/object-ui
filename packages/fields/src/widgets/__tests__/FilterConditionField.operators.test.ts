@@ -58,8 +58,37 @@ const noTypes = () => undefined;
  * it between @objectstack/spec 17.0.0-rc.2 and rc.5, and no builder operator
  * could author it. `containsCaseInsensitive` now does, so the entry is gone and
  * the parity assertion below is what holds that honest.
+ *
+ * `$like` and `$ilike` arrived with the `@objectstack/spec` 17.0.0 GA pin
+ * (objectui#4636), and their entry here is a DECISION, not an open question:
+ * objectui#4911, maintainer-ruled B on 2026-08-17 — this visual builder
+ * deliberately does not offer raw pattern-matching authoring. The constrained
+ * intents are the authorable surface and already reach the dropdown (`contains`
+ * / `containsCaseInsensitive` / `startsWith` / `endsWith`), so what a `$like`
+ * row would add on top of them is exactly the raw `%`/`_` wildcard form — the
+ * one operator where a mis-authored value silently returns the wrong rows
+ * instead of erroring, which is an error bed in an end-user filter UI, and for
+ * zero measured author pull.
+ *
+ * This is a BUILDER-surface refusal, not a capability removal: the API surface
+ * is unaffected and `FieldOperatorsSchema` goes on accepting both operators for
+ * hand-written ObjectQL, direct JSON authors and integrations. That is what
+ * makes the exclusion honest rather than a gap papered over — the tokens stay
+ * reachable, just not from this dropdown.
+ *
+ * Reopen condition, named by the ruling: a real user or deployment asks to
+ * author wildcard patterns in the UI. If that happens, reopen objectui#4911,
+ * delete these two members and add the builder operators that author them; the
+ * parity assertion below then holds that honest, exactly as it did when
+ * objectui#4023 retired `$icontains`.
+ *
+ * Nothing mechanical can hold that condition for you — the ratchet below checks
+ * only that a member is still a spec operator, never that its reason is still
+ * the true one. A refusal that outlives its rationale is the stale-exclusion rot
+ * this comment block warns about one level up, and a reader is what catches it,
+ * not a run.
  */
-const KNOWN_UNREACHABLE = new Set(['$eq', '$between']);
+const KNOWN_UNREACHABLE = new Set(['$eq', '$between', '$like', '$ilike']);
 
 /** Pull the operator keys out of a `{ field: { $op: v } }` fragment. */
 function operatorsOf(frag: Record<string, any> | null): string[] {

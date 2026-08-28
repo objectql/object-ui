@@ -13,7 +13,7 @@
  * recommendations, natural language queries, and data insights.
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 /**
  * AI Provider Type

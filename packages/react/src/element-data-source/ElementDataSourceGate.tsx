@@ -59,6 +59,17 @@
  * therefore leaves `limit` unmapped rather than parking it somewhere plausible,
  * and the gap is recorded at the call site instead of being papered over here.
  *
+ * ## A block with no ADAPTER fails loudly too (objectui#5378)
+ *
+ * The section below is about an unresolvable view NAME. The coarser failure —
+ * no runtime adapter reached the block at all — used to render an empty shell
+ * in exactly the same silence, and that is what `requiresDataSource` +
+ * {@link NoDataSourcePanel} now report. Measured on the published
+ * getting-started guide: all five of its blocks resolved no adapter, fetched
+ * nothing, and said nothing. The two panels are deliberately the same shape;
+ * they answer "which view?" and "which data source?", and an author who sees
+ * either one is being told where to look.
+ *
  * ## An unresolvable `view` fails loudly
  *
  * When the named view does not exist the gate renders a configuration error
@@ -77,7 +88,8 @@ import {
 import {
   useElementDataSource,
   type ElementDataSourceStatus,
-} from '../hooks/useElementDataSource';
+} from '../hooks/useElementDataSource.js';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 /**
  * Where a block's row cap lives. Three spellings are real in this repo and each
@@ -301,6 +313,83 @@ export function ElementDataSourceLoadingPanel({
   );
 }
 
+/**
+ * The adapter this block would use, resolved the one way every block in the
+ * family resolves it: an explicit value first, the `SchemaRendererProvider`
+ * context second.
+ *
+ * The `isElementDataSourceConfig` guard is the same one
+ * {@link useElementDataSourceSchema} applies — a host handing us the spec
+ * BINDING under this name is handing us metadata, not an adapter, and counting
+ * it as one is how "no data source" reads as "resolved".
+ *
+ * `T` is what the CALLER expects to have been injected, and the assertion is
+ * the caller's, not this hook's: an adapter arrives here as a `dataSource` prop
+ * or a context value that nothing in this package can narrow, so the type has
+ * to be declared by whoever knows which interface their block consumes. Leave
+ * it off and you get `unknown`, which is the honest default.
+ */
+export function useResolvedDataSource<T = unknown>(explicit?: unknown): T | undefined {
+  const context = React.useContext(SchemaRendererContext as React.Context<any>);
+  const named = isElementDataSourceConfig(explicit) ? undefined : explicit;
+  return (named ?? context?.dataSource ?? undefined) as T | undefined;
+}
+
+/**
+ * The author-facing sentence a block with no adapter says out loud.
+ *
+ * One wording for the whole object-bound family, because the reader's mistake
+ * is the same one every time and the fix is the same one every time: the
+ * adapter is injected by an ANCESTOR (`SchemaRendererProvider`), so nothing
+ * written on the block itself can supply it. Naming the block and the object
+ * it was about to read is what turns "nothing happened" into an address.
+ */
+export function noDataSourceMessage(blockKey: string, objectName?: unknown): string {
+  const target =
+    typeof objectName === 'string' && objectName.trim().length > 0
+      ? `“${objectName}”`
+      : 'its object';
+  return (
+    `“${blockKey}” has no data source, so it cannot read ${target}. ` +
+    `Inject one from an ancestor — <SchemaRendererProvider dataSource={…}> from ` +
+    `@object-ui/react — or hand this block a dataSource of its own.`
+  );
+}
+
+/**
+ * The "this block resolved no adapter" panel — objectui#5378 item 2, and the
+ * #5349 shape it belongs to.
+ *
+ * Until this existed, a block that resolved no adapter rendered an EMPTY SHELL:
+ * `object-grid` painted a header-only table, `object-form` a field-less card,
+ * `detail-view` nothing at all — no error, no warning, no empty state that
+ * explained itself. Measured on the published getting-started guide
+ * (`content/docs/guide/building-crud-app.md`), every one of its five blocks was
+ * in that state and the page reported success while fetching nothing.
+ *
+ * The empty shell is the defect, not a side effect of it: it is indistinguishable
+ * from "the query ran and matched no rows", which is the reading an author (very
+ * often an AI author) takes, and it points at the DATA when the fault is in the
+ * WIRING one level up. Same posture as {@link ElementDataSourceErrorPanel}: the
+ * metadata is answerable, so the answer is rendered where the author can see it.
+ */
+export function NoDataSourcePanel({
+  testId,
+  title = 'No data source resolved',
+  message,
+}: ElementDataSourceStatusPanelProps): React.ReactElement {
+  return (
+    <div
+      className="p-4 border border-red-500 rounded text-red-500 bg-red-50 my-2"
+      role="alert"
+      data-testid={`${testId}-no-data-source`}
+    >
+      <p className="font-medium">{title}</p>
+      {message ? <p className="text-sm mt-1">{message}</p> : null}
+    </div>
+  );
+}
+
 export interface ElementDataSourceGateProps<S> {
   /** The block's schema node. */
   schema: S;
@@ -312,6 +401,23 @@ export interface ElementDataSourceGateProps<S> {
   testId: string;
   /** Heading for the unresolvable-view panel. */
   errorTitle?: string;
+  /**
+   * Whether THIS placement cannot do its job without a runtime adapter — when
+   * true and none resolves, the gate renders {@link NoDataSourcePanel} instead
+   * of the block (objectui#5378 item 2).
+   *
+   * The gate cannot compute this and does not try. "Needs an adapter" is a
+   * statement about the block's own fallbacks, and every block in the family
+   * has different ones: an `object-grid` carrying inline `data` rows needs no
+   * adapter, an `object-form` with inline `customFields` needs none, a
+   * `detail-view` handed a `data` record needs none. A predicate guessed HERE
+   * would paint a configuration error over a block that is working, which is a
+   * worse failure than the silence this replaces — so the call site, which
+   * knows its own fallbacks, states it.
+   */
+  requiresDataSource?: boolean;
+  /** Explanation for the no-adapter panel; see {@link noDataSourceMessage}. */
+  noDataSourceMessage?: string;
   /**
    * Renders the block with the bound schema. Called during the gate's own
    * render, so it must RETURN AN ELEMENT and never call hooks itself — the
@@ -335,9 +441,21 @@ export function ElementDataSourceGate<S>({
   dataSource,
   testId,
   errorTitle,
+  requiresDataSource,
+  noDataSourceMessage: noDataSourceText,
   children,
 }: ElementDataSourceGateProps<S>): React.ReactElement | null {
   const bound = useElementDataSourceSchema(schema, mapping, dataSource);
+  const adapter = useResolvedDataSource(dataSource);
+
+  // Reported BEFORE the view state, because with no adapter every downstream
+  // answer is a symptom of this one: `useElementDataSource` cannot list the
+  // object's saved views either, so a block carrying a `view` would otherwise
+  // report "this data source cannot list the saved views" — true, and pointing
+  // at the view name instead of at the missing injection.
+  if (requiresDataSource && adapter == null) {
+    return <NoDataSourcePanel testId={testId} message={noDataSourceText} />;
+  }
 
   if (bound.status === 'missing') {
     return <ElementDataSourceErrorPanel testId={testId} title={errorTitle} message={bound.error} />;

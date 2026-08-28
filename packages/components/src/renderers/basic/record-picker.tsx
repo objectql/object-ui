@@ -40,7 +40,10 @@ import {
   useElementDataSource,
   usePageVariableBinding,
 } from '@object-ui/react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import type { I18nLabel } from '@objectstack/spec/ui';
 import {
+  Label,
   Select,
   SelectTrigger,
   SelectValue,
@@ -73,9 +76,16 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     object?: string;
     labelField?: string;
     valueField?: string;
-    label?: unknown;
-    placeholder?: string;
-    emptyText?: string;
+    // All three are `string | I18nLabel` because that is what the contract says:
+    // rc.6 widened the whole trio to the same inline-locale-map union, and the
+    // read sites below now RESOLVE the map arm on each, so the declarations and
+    // the renderer finally agree (objectui#5590 for `emptyText`, objectui#5637
+    // for these two). `label` was `unknown` for as long as it went through
+    // `toText`, which accepts anything; it is the contract's union now that it
+    // resolves like one.
+    label?: string | I18nLabel;
+    placeholder?: string | I18nLabel;
+    emptyText?: string | I18nLabel;
     filter?: unknown;
     sort?: any;
     limit?: number;
@@ -109,6 +119,9 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
   const valueField = props.valueField ?? 'id';
 
   const binding = usePageVariableBinding(schema?.id);
+  // Above every early return below, so hook order stays stable across
+  // resolution states — same rule as the block comment further down.
+  const { language } = useObjectTranslation();
 
   const [rows, setRows] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -160,8 +173,58 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     [binding],
   );
 
-  const label = toText(props.label);
-  const placeholder = props.placeholder ?? 'Select a record…';
+  // `label` and `placeholder` are `string | I18nLabel` and both land in a
+  // position React refuses to stringify, so both resolve HERE, at their own read
+  // site, through the same `pickLocalized` the settled `emptyText` shape below
+  // uses (objectui#5637). They failed in two different ways, and only pinning
+  // both explains why this is one change:
+  //
+  //   placeholder={ en, 'zh-CN' }  THREW `Objects are not valid as a React child`
+  //   label={ en, 'zh-CN' }        rendered "Owner" — ENGLISH, to a zh-CN viewer
+  //   label={ 'zh-CN', ja }        rendered NOTHING — the label element vanished
+  //
+  // The last two came from `toText`, whose object branch ends
+  // `String(o.label ?? o.name ?? o.title ?? o.en ?? '')`. Reaching `o.en`
+  // unconditionally is an ENGLISH PICK wearing locale resolution's clothes, and
+  // its `?? ''` miss meets the `{label && …}` render site below — so a map that
+  // simply omits English DELETED the label element, with nothing thrown and
+  // nothing logged.
+  //
+  // ⛔ `toText` is deliberately not the fix site and is UNCHANGED. It is SHARED
+  // with the row values (`toText(row?.[labelField])` below), which are record
+  // FIELD VALUES, not `I18nLabel` — teaching it locale resolution would change
+  // a second, unrelated call site whose contract is not this one.
+  //
+  // The placeholder default is applied BEFORE resolution, matching `emptyText`:
+  // an absent key still means "Select a record…", and an authored `''` still
+  // renders empty because `pickLocalized` passes either string through
+  // untouched. `label` takes no default — absent resolves to `''`, which the
+  // `{label && …}` site drops exactly as it always did.
+  //
+  // KNOWN GAP — the `translateLabel` half of this card's ruling is NOT applied
+  // here. The sibling `label` read sites compose
+  // `translateLabel(pickLocalized(…), language)`, but `translateLabel` and its
+  // `KNOWN_LABEL_DICT` are module-private to
+  // `renderers/layout/containers.tsx`, which this change's fence marks
+  // out-of-scope; reaching them needs either an export from that file or a hoist
+  // into a shared module, and `basic/ -> layout/` would be a new dependency
+  // between renderer families. Tracked separately (objectui#5637 report).
+  const label = pickLocalized(props.label, language);
+  const placeholder = pickLocalized(props.placeholder ?? 'Select a record…', language);
+  // `emptyText` is `string | I18nLabel`, and its destination is a TEXT NODE, so
+  // it resolves through `pickLocalized` — the objectui-side helper the sibling
+  // text-node sites read through (`element:text.content`,
+  // `element:button.label`, `page:card.title`), which spells a miss as `''`
+  // rather than the spec resolver's `undefined`. Before this the map arm was
+  // handed to React as a child object, which React REFUSES rather than
+  // stringifies: the whole picker subtree threw
+  // `Objects are not valid as a React child`, the same pre-fix harm measured
+  // for `schema.label` in `inline-locale-label-read-sites.test.tsx`.
+  //
+  // The default is applied BEFORE resolution so `?? 'No records'` keeps meaning
+  // exactly what it meant (absent → default) and an authored `''` still renders
+  // empty — `pickLocalized` passes either string through untouched.
+  const emptyText = pickLocalized(props.emptyText ?? 'No records', language);
 
   // Placed AFTER every hook above so the hook order stays stable across
   // resolution states. A `view` that names nothing renders a configuration
@@ -180,19 +243,40 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
     return <ElementDataSourceLoadingPanel testId="record-picker" />;
   }
 
+  // `label`'s association with the trigger is wired the same way
+  // `element:text_input` wires its own `label`/control pair (objectui#5735):
+  // `htmlFor` on the label names `schema?.id`, and that same id lands on the
+  // CONTROL — here `SelectTrigger`, a `button` with `role="combobox"` and
+  // therefore labelable, so a plain `htmlFor`/`id` pair is the correct
+  // association with no `aria-labelledby` needed (Radix sets none on the
+  // trigger; objectui#3341's landed reasoning transfers verbatim). Only the
+  // author can supply `schema.id`, so — exactly as on `text_input` — the
+  // wiring can only hold when they did; with no `schema.id` the label renders
+  // as unassociated caption text, same as before this change, rather than
+  // reaching for a `useId()` fallback that would always name the control
+  // (objectui#5771 — deliberately following #5735's answer to the same
+  // question on its complement block, not re-opening it).
   return (
     <div
       className={cn('space-y-1.5', schema?.className)}
       data-testid="record-picker"
       data-picker-id={schema?.id}
     >
-      {label && <label className="text-sm font-medium text-foreground">{label}</label>}
+      {label && (
+        <Label htmlFor={schema?.id} className="text-sm font-medium text-foreground">
+          {label}
+        </Label>
+      )}
       <Select
         value={value}
         onValueChange={handleChange}
         disabled={loading || !!error || !object}
       >
-        <SelectTrigger className="w-full max-w-xs" data-testid="record-picker-trigger">
+        <SelectTrigger
+          id={schema?.id}
+          className="w-full max-w-xs"
+          data-testid="record-picker-trigger"
+        >
           <SelectValue
             placeholder={loading ? 'Loading…' : error ? 'Failed to load' : placeholder}
           />
@@ -210,7 +294,7 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
         </SelectContent>
       </Select>
       {!loading && !error && rows.length === 0 && (
-        <p className="text-xs text-muted-foreground">{props.emptyText ?? 'No records'}</p>
+        <p className="text-xs text-muted-foreground">{emptyText}</p>
       )}
     </div>
   );
@@ -249,10 +333,13 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
       // here (a non-null non-array object) and rejects exactly what it rejects
       // (arrays, strings, numbers, booleans — all verified against
       // `ElementRecordPickerPropsSchema.safeParse` in the parity test next to
-      // this file). So this is the one case in the family where
-      // `ComponentInput`'s coarse typing costs nothing: no narrowing to name in
-      // the description, unlike `element:text_input.defaultValue`'s
-      // `string | number` (objectui#3832).
+      // this file). So this is the one case in the family where the coarse
+      // vocabulary lines up with the contract exactly as declared: one arm, no
+      // union to spell and nothing for the description to make up for. Contrast
+      // `element:text_input.defaultValue`, whose `string | number` needs two
+      // arms (objectui#3832), and `emptyText` below, which declares two for the
+      // same reason once its render site learned to resolve both
+      // (objectui#5590).
       type: 'object',
       label: 'Filter',
       // Taken from what the renderer DOES with the key, because the one thing
@@ -263,8 +350,37 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
     },
     { name: 'labelField', type: 'string', label: 'Label Field' },
     { name: 'valueField', type: 'string', label: 'Value Field' },
-    { name: 'placeholder', type: 'string', label: 'Placeholder' },
-    { name: 'label', type: 'string', label: 'Label' },
+    {
+      name: 'placeholder',
+      // TWO arms, declared in the change that makes the second one render — the
+      // order `emptyText` below established and `packages/types`'
+      // `ComponentInput.type` doc prescribes. The contract has been
+      // `string | Record< string, string >` since rc.6 widened this key to the
+      // same `I18nLabel` union it widened the rest of the trio to; this entry
+      // held one arm only because the renderer handed the map straight to
+      // `SelectValue`, where React REFUSED it rather than stringifying it. The
+      // read site resolves it now (`pickLocalized`, above), so withholding the
+      // object arm would be the opposite defect — `type-mismatch` reported on a
+      // legal write this input's own description teaches (objectui#5637).
+      type: ['string', 'object'],
+      label: 'Placeholder',
+      description:
+        'Prompt shown in the closed control while no record is selected (renderer default "Select a record…"). Display-only — it never reaches the query. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, falling back through base language, a region-qualified sibling, `default`, then `en`. It is REPLACED while the picker is busy: "Loading…" during the fetch and "Failed to load" after an error both win over this key. An authored empty string stays empty; the default applies only when the key is absent.',
+    },
+    {
+      name: 'label',
+      // TWO arms, same reason and same ordering rule as `placeholder` above.
+      // This key's pre-fix failure was the quieter one: it went through the
+      // file's local `toText`, whose `o.en` fallback rendered ENGLISH to every
+      // viewer and whose `?? ''` miss made a map without an `en` entry delete
+      // the label element outright. Declaring the object arm while that was true
+      // would have advertised a shape that reached the screen wrong or not at
+      // all; the read site resolves it now (objectui#5637).
+      type: ['string', 'object'],
+      label: 'Label',
+      description:
+        'Caption rendered above the picker, in a `<label>` element — tied to the control by `htmlFor` when the node carries an `id`, so clicking it focuses the picker and the text becomes the combobox’s accessible name (objectui#5771). Display-only — it never reaches the query, and it is OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, with the same fallback chain as `placeholder`. Distinct from `labelField`, which names the RECORD field each offered row is titled by.',
+    },
     // ── sort / limit / emptyText — declared on the rc.6 bump (objectui#4167) ──
     // `@objectstack/spec` 17.0.0-rc.6 lands objectstack#5775's other half: these
     // three arrive as newly DECLARED keys on `ElementRecordPickerProps`, and the
@@ -297,17 +413,25 @@ ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
     },
     {
       name: 'emptyText',
-      // A NARROWED type, named here for the objectui#3832 reason: the contract
-      // is `string | Record< string, string >` — rc.6 widened it to the same
-      // `I18nLabel` union it widened everywhere else — and `ComponentInput.type`
-      // is one coarse control kind with no way to spell a union. Publishing
-      // `'string'` therefore describes the form this renderer actually resolves,
-      // and the description carries the half the type cannot, which is the same
-      // treatment `element:text_input.defaultValue`'s `string | number` gets.
-      type: 'string',
+      // TWO arms, and the order in which they were earned is the point. The
+      // contract has been `string | Record< string, string >` since rc.6 widened
+      // it to the same `I18nLabel` union it widened everywhere else, and since
+      // objectui#3832 this entry could spell that union — but it deliberately
+      // did NOT, because THIS RENDERER passed the value straight into a text
+      // node with no locale resolution, and declaring an arm the renderer drops
+      // advertises a shape that never reaches the screen. That narrowing was
+      // correct for exactly as long as it was true. objectui#5590 made the
+      // render site resolve the map (`pickLocalized`, above), so the second arm
+      // is now a shape that DOES reach the screen and withholding it would be
+      // the opposite defect — the gate reporting `type-mismatch` on a legal
+      // write its own description teaches. Same resolution as
+      // `element:text_input.defaultValue`, `element:text.content` and
+      // `element:button.label`: declare the arm in the change that makes it
+      // render, never before and never after.
+      type: ['string', 'object'],
       label: 'Empty Text',
       description:
-        'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. KNOWN GAP: the contract also accepts an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — rc.6 widened this key to `I18nLabel` — and this renderer passes the value straight into a text node with no locale resolution, so only the plain-string form renders today. Tracked with the rest of the widened-`I18nLabel` render-site audit in objectui#4163; this input publishes the string form deliberately rather than advertising a shape the renderer drops.',
+        'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. Accepts either a plain string or an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — the `I18nLabel` union rc.6 widened this key to — and the renderer resolves the map against the active language at the read site, falling back through base language, `default`, then `en`. An authored empty string stays empty; the "No records" default applies only when the key is absent.',
     },
   ],
 });

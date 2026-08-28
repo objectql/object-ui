@@ -33,7 +33,8 @@
 //
 // - **Loud, never lenient.** Every way the override can be wrong — path absent,
 //   not the spec package, an exports entry naming a file the built package does
-//   not contain — throws with the offending value named. A tolerant fallback to
+//   not contain, one of its own declared dependencies unresolvable from where it
+//   sits — throws with the offending value named. A tolerant fallback to
 //   the installed spec would silently rebuild the exact skew the hook exists to
 //   kill, and the framework guard could not tell the difference.
 // - **Inert when unset.** `resolveSpecDistInjection(undefined, …)` returns
@@ -78,6 +79,25 @@ export interface SpecDistInjection {
   fsAllow: string[];
   /** `advancedChunks` test that keeps the injected spec in the vendor chunk. */
   vendorChunkTest: RegExp;
+  /**
+   * Module-id test that still RECOGNISES the injected spec as the spec.
+   *
+   * Distinct from `vendorChunkTest` on purpose. That one answers "which modules
+   * belong in the `vendor-objectstack` group" — the whole scope minus the
+   * linter — and an eager `@objectstack/client` satisfies it. This one answers
+   * "which modules ARE `@objectstack/spec`", which is what the console's
+   * build-time counter-probe (`assertLazyLinterStaysLazy`) has to be able to
+   * find before it trusts its own graph walk.
+   *
+   * Publishing it here rather than letting that consumer hardcode its own is the
+   * whole lesson of objectui#5388: the injection rewrites all 18 spec specifiers
+   * to absolute paths in the overriding tree — ids with no `@objectstack`
+   * segment anywhere — so a private `/@objectstack[\\/+]spec/` matched zero
+   * modules, the counter-probe correctly refused a verdict, and every build made
+   * with the override set died in `generateBundle` (measured from the consumer
+   * side in objectstack#10136). Both consumers now read one producer.
+   */
+  specModuleTest: RegExp;
 }
 
 /** Escapes a literal string for embedding in a `RegExp` source. */
@@ -166,7 +186,7 @@ function findSpecPackageDir(raw: string): string {
  * file a bundler resolves it to.
  *
  * Cross-checked in `scripts/__tests__/vite-objectstack-spec-dist.test.ts`
- * against Node's own resolver (`import.meta.resolve`) for all 18 entries, so
+ * against Node's own resolver (`import.meta.resolve`) for every entry, so
  * this is not a second opinion about the map — it agrees with the algorithm.
  */
 export function readSpecExportTargets(packageDir: string): Map<string, string> {
@@ -208,19 +228,99 @@ export function readSpecExportTargets(packageDir: string): Map<string, string> {
 }
 
 /**
+ * Whether an ancestor `node_modules` of `startDir` contains a directory named
+ * `name` — the same upward walk `findSpecPackageDir` does for `package.json`,
+ * aimed at `node_modules/<name>` instead.
+ *
+ * Deliberately NOT `require.resolve(name, { paths: [startDir] })`, though that
+ * reads as the obvious tool for the job. Measured against this monorepo's own
+ * `apps/console/node_modules/.bin/vite` shim: it exports `NODE_PATH` pointing
+ * at pnpm's flat `.pnpm/node_modules` hoist directory, and Node's `paths`
+ * option does not suppress `NODE_PATH` — `Module.globalPaths` is consulted
+ * REGARDLESS of an explicit `paths` list. Every workspace dependency pnpm has
+ * ever hoisted lives there, `zod` included, so `require.resolve` reported the
+ * override's own missing `zod` as resolved — checked from `packageDir`,
+ * skipped straight over the failure this function exists to catch, silently,
+ * every time this hook runs through the real `vite` CLI rather than a bare
+ * `node` invocation. A plain directory walk consults nothing global.
+ */
+function packageResolvesFrom(startDir: string, name: string): boolean {
+  let dir = startDir;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, 'node_modules', name))) return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
+/**
+ * Confirms the override's own `dependencies` resolve from `packageDir` —
+ * the check `readSpecExportTargets` does NOT do.
+ *
+ * That function validates the override's own files: every exports entry
+ * names something the built package contains. It says nothing about what
+ * those files `import`. A spec dist built without a reachable `node_modules`
+ * passes it cleanly and only fails once a consuming bundler tries to resolve
+ * a bare specifier deep inside the injected build — a build-length after the
+ * override was read, in an error that names the missing package (`zod`,
+ * observed) and never `OBJECTSTACK_SPEC_DIST`.
+ *
+ * Checked with `packageResolvesFrom`'s directory walk, not `require.resolve`
+ * — see that function's own comment for why the obvious choice is wrong here.
+ * Either way the cost is the same: directory-existence checks, no module
+ * evaluation, nowhere near the cost of a bundler resolve pass.
+ *
+ * Deliberately narrow: only the manifest's own `dependencies` are checked —
+ * not transitive dependencies (this is not a dependency-graph validator, and
+ * a broken transitive package fails the same way, just one frame further
+ * into that package's own resolution — still at build time, still before any
+ * bundling), and not `peerDependencies`. A peer dependency is BY DESIGN
+ * supplied by the consuming app rather than living inside the override's own
+ * tree, so requiring it to resolve from `packageDir` would fail a correctly
+ * built override and misreport a non-problem as one.
+ */
+function assertSpecDependenciesResolve(packageDir: string): void {
+  const manifestPath = path.join(packageDir, 'package.json');
+  // Already proven to be valid JSON at this exact path by `findSpecPackageDir`
+  // (the caller of this function), so — matching `readSpecExportTargets` next
+  // to it — this re-read does not repeat that try/catch.
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { dependencies?: unknown };
+  const dependencies = manifest.dependencies;
+  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) return;
+
+  const unresolved = Object.keys(dependencies as Record<string, unknown>).filter(
+    (name) => !packageResolvesFrom(packageDir, name)
+  );
+  if (unresolved.length > 0) {
+    const isSingular = unresolved.length === 1;
+    fail(
+      `\`${manifestPath}\` declares ${isSingular ? 'a dependency' : 'dependencies'} that ` +
+        `${isSingular ? 'does' : 'do'} not resolve from \`${packageDir}\`: ${unresolved.join(', ')} — ` +
+        `the override points at a spec dist with no reachable \`node_modules\` for ` +
+        `${isSingular ? 'it' : 'them'}. Install the override's own dependencies (or point at a build ` +
+        `where they are reachable) before setting \`OBJECTSTACK_SPEC_DIST\``
+    );
+  }
+}
+
+/**
  * Resolve the override, or `null` when it is unset.
  *
  * @param raw            the `OBJECTSTACK_SPEC_DIST` value, unset or empty for none
  * @param vendorChunkTest the config's baseline `vendor-objectstack` group test,
  *                        widened (never replaced) with the override's location
+ * @param specModuleTest  the config's baseline "this module id is the spec" test,
+ *                        widened the same way — see `SpecDistInjection`
  */
 export function resolveSpecDistInjection(
   raw: string | undefined,
-  { vendorChunkTest }: { vendorChunkTest: RegExp }
+  { vendorChunkTest, specModuleTest }: { vendorChunkTest: RegExp; specModuleTest: RegExp }
 ): SpecDistInjection | null {
   if (!raw || !raw.trim()) return null;
 
   const packageDir = findSpecPackageDir(raw.trim());
+  assertSpecDependenciesResolve(packageDir);
   const targets = readSpecExportTargets(packageDir);
 
   // Subpaths first (sorted for a stable, reviewable table), bare specifier last
@@ -231,10 +331,22 @@ export function resolveSpecDistInjection(
   aliases[SPEC_PACKAGE_NAME] = targets.get(SPEC_PACKAGE_NAME)!;
 
   const posixDir = packageDir.split(path.sep).join('/');
+
+  // One widening rule, applied to every module-id test the caller hands in: the
+  // baseline stays whole and the override's location joins it as an extra
+  // alternative. Widened, never replaced — an injected build still resolves
+  // plenty of installed `@objectstack/*` through node_modules, and a test that
+  // only knew the override would stop seeing those. Keeping it a single local
+  // function is deliberate too: two tests widened by two hand-written copies of
+  // this expression is how the consumers drift apart in the first place.
+  const widen = (baseline: RegExp): RegExp =>
+    new RegExp(`${baseline.source}|${escapeRegExp(posixDir)}${SEPARATOR_CLASS}`);
+
   return {
     packageDir,
     aliases,
     fsAllow: [packageDir],
-    vendorChunkTest: new RegExp(`${vendorChunkTest.source}|${escapeRegExp(posixDir)}${SEPARATOR_CLASS}`),
+    vendorChunkTest: widen(vendorChunkTest),
+    specModuleTest: widen(specModuleTest),
   };
 }

@@ -29,9 +29,9 @@
 import * as React from 'react';
 import { ShieldCheck, Save, Loader2, Lock, ArrowUpRight, AlertTriangle } from 'lucide-react';
 import type { MetadataClient } from '@object-ui/data-objectstack';
-import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n';
-import { formatMetadataError } from './metadataError';
-import { isExternalWider, deriveMasterObject } from './owd-sharing';
+import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n.js';
+import { formatMetadataError } from './metadataError.js';
+import { isExternalWider, deriveMasterObject } from './owd-sharing.js';
 import { toast } from 'sonner';
 
 /** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
@@ -85,7 +85,10 @@ export interface PackageOwdOverviewPanelProps {
   publishNonce?: number;
   /** Notify the surface so its pending-changes counter refreshes after a save. */
   onDraftSaved?: () => void;
-  /** Courtesy gate: read-only packages render badges only (ADR-0057 D10). */
+  /**
+   * Courtesy gate: read-only packages render badges only (the framework's
+   * ADR-0124 D1 — server enforces, client is courtesy).
+   */
   readOnly?: boolean;
   locale: SupportedLocale;
   /** Object to scroll to / highlight (deep-link from the permission matrix badge). */

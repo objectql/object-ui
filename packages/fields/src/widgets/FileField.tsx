@@ -3,11 +3,11 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
-import { useUploadingSignal } from './useUploadingSignal';
-import { maxSizeError, type TranslateFn } from './file-size-guard';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
+import { useUploadingSignal } from './useUploadingSignal.js';
+import { maxSizeError, type TranslateFn } from './file-size-guard.js';
 import {
   fileValueForSubmit,
   readFileValues,
@@ -15,7 +15,7 @@ import {
   withRecentUploads,
   isImageValue,
   type FileValueView,
-} from './file-value';
+} from './file-value.js';
 
 /**
  * Shared upload pipeline for the file widgets: validates size, uploads through
@@ -408,6 +408,7 @@ export function FileCell({
   multiple,
   accept,
   maxSize,
+  error,
   'aria-label': ariaLabel,
   'data-cell': dataCell,
 }: {
@@ -419,6 +420,22 @@ export function FileCell({
   accept?: string;
   /** Max file size in bytes (oversize picks are rejected with an inline error). */
   maxSize?: number;
+  /**
+   * The active validation message for this cell, named as
+   * `@objectstack/spec/ui`'s `FieldWidgetPropsSchema` names it — the same
+   * published slot `FieldWidgetComponentProps` declares and `LookupField` /
+   * `FileField` above already consume (objectui#5431, completing #3318's
+   * per-cell delivery). NOT the per-pick upload `errors` this component
+   * computes itself — this is the HOST's verdict on the cell's value.
+   *
+   * **Producer**: `GridField`, for a required-but-empty `file` cell.
+   * **Consumer**: drives `aria-invalid` on the picker button — the focusable
+   * control assistive tech reads a control state from (objectui#5223; a mark
+   * on the non-focusable wrapper is exactly what the registry sweep forbids).
+   * The message TEXT stays with the cell's `title` in `GridField`; rendering
+   * it here would double-display it.
+   */
+  error?: string;
   'aria-label'?: string;
   /** Focus-grid coordinate (see GridField keyboard navigation). */
   'data-cell'?: string;
@@ -499,6 +516,10 @@ export function FileCell({
           aria-label={ariaLabel}
           data-cell={dataCell}
           disabled={disabled}
+          // The published `error` slot lands here, on the focusable control a
+          // keyboard user edits — same computation as FileField's dropzone and
+          // LookupField's trigger (#3222 / #5431).
+          aria-invalid={!!error}
         >
           <Upload className="size-3.5" />
           {files.length === 0 && t('fields.file.upload', { defaultValue: 'Upload' })}

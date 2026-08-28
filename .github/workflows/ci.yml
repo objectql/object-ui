@@ -45,13 +45,66 @@ on:
   # on a queue build is the queue's own generation — measured on objectstack,
   # `gh-readonly-queue/main/pr-6594-251e888ac9ace8226f3a8450951e5b40a0a84c2c`.
   # It can collide with neither a pull-request group (a bare PR number) nor a
-  # push group (`refs/heads/main`), so a queue build and the PR build it came
-  # from never cancel each other.
+  # push group (a commit sha since objectui#5422), so a queue build and the PR
+  # build it came from never cancel each other.
   merge_group:
     types: [checks_requested]
 
+# ── Concurrency (objectui#5422) ───────────────────────────────────
+# On `pull_request` the group is the PR number and `cancel-in-progress` cancels
+# that PR's previous run. That is correct and is deliberately UNCHANGED here: a
+# superseded PR push has nothing left to deliver.
+#
+# On `push` the group now carries `github.sha`, so every merge to `main` gets a
+# group of its own and no merge can cancel another merge's run. Until #5422 the
+# push branch of this expression fell back to `github.ref` — `refs/heads/main`
+# for EVERY merge — so each merge cancelled the previous merge's still-running
+# CI.
+#
+# That matters because the push lane is the only lane that runs the coverage
+# gate (`test-coverage` + `coverage-report` below are push-only), and the merged
+# 4-shard report is what enforces `coverage.thresholds` for a commit. Measured
+# on this repository over the 64 completed push-lane runs on `main` between
+# 2026-08-23T06:34Z and 2026-08-24T13:56Z: the merged report was produced for
+# 20, five lost it to a red suite, and 39 — 61% — lost it to CANCELLATION.
+# Over the 30 strictly consecutive push runs of 2026-08-24 alone it is 15 of 28
+# completed (54%). The lane needs ~13.5 min end to end while the median
+# inter-merge interval is 8.8 min, so most merges are overtaken before the gate
+# can report at all.
+#
+# ⚠️ This has to live at WORKFLOW level, not on the coverage jobs. A job-level
+# `concurrency:` only decides whether a job waits for another job in the same
+# group; it grants no exemption from the workflow-level `cancel-in-progress`,
+# which cancels the whole run and every job in it. A per-sha group on
+# `test-coverage` alone would therefore NOT have protected it.
+#
+# ⛔ Not `cancel-in-progress: false` on a `github.ref` group: that does not
+# serialise. With `cancel-in-progress` unset GitHub holds ONE pending run per
+# group and DISCARDS the rest — measured on this repository's release lane at
+# 95 of 200 runs never executing at all (objectui#5395). It would trade
+# cancellation for silent dropping, which is strictly worse.
+#
+# The cost is the one option A named on #5422: a burst of merges no longer
+# collapses into a single surviving run, so the push lane's other jobs also run
+# to completion and runner minutes rise. Nothing is weakened by that — every
+# merged commit now gets its own verdict, which is the only post-merge signal
+# this repository has while the merge queue validates nothing (objectui#4986).
+#
+# Trigger by trigger:
+#   pull_request  `github.event.pull_request.number` is set, so the chain stops
+#                 there                                       => ci-CI-<number>
+#   push          the number is null and `github.event_name == 'push'` is true,
+#                 so `&&` yields the sha                       => ci-CI-<sha>
+#   merge_group   the number is null and the `push` test is false, so `&&`
+#                 yields false and the chain falls through to `github.ref`,
+#                 which on a queue build is the queue's own generation ref
+#                 (`gh-readonly-queue/main/pr-<n>-<sha>`) — colliding with
+#                 neither a PR group nor a push group, exactly as before.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    ci-${{ github.workflow }}-${{ github.event.pull_request.number
+    || (github.event_name == 'push' && github.sha)
+    || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -210,6 +263,24 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:self-import
 
+      # Node's ESM resolver does not extension-search relative specifiers, so an
+      # extensionless `./SchemaRenderer` in a published `dist/` is unloadable
+      # under plain Node — `@object-ui/react`'s entry died with
+      # ERR_MODULE_NOT_FOUND (objectui#4538). `tsc` never rewrites specifiers, so
+      # for a package whose build preserves them the SOURCE specifier is the
+      # emitted one, and the defect can be judged without building anything.
+      # That is why the cheap leg runs here: it reads sources, needs only the
+      # install, and catches a regression the moment it is written.
+      #
+      # The expensive leg — which BUILDS and actually imports each published
+      # entry — is `.github/workflows/node-esm-load-gate.yml`. It is not here on
+      # purpose: it needs a full-repo build, which this repository deliberately
+      # does not do per pull request (the same trade `published-dist-gate.yml`
+      # records at length).
+      - name: Verify published ESM packages emit resolvable relative specifiers
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:esm-specifiers
+
       # A local type/const declared under a `@objectstack/spec` export's NAME reads
       # to the next agent as the spec's own definition — four such symbols had
       # already drifted from the spec they claimed to be (objectstack#4115). Needs
@@ -232,6 +303,44 @@ jobs:
       - name: Verify action renderers forward every key the runtime reads
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:action-forward-parity
+
+      # A field designer offering a control that writes a key `FieldSchema`
+      # refuses BY NAME is a save-blocking 422 (`INVALID_METADATA`) that blocks
+      # EVERY later save of the object, and the author cannot tell from the UI
+      # which key did it. It had been filed three times — objectui#4644
+      # `indexed`, #4687 `distance_metric`, #4676 `placeholder` — each closed
+      # with a per-key tombstone written AFTER the instance was found in
+      # production, and nothing detected the next one (objectui#5761). This gate
+      # compares the designers' statically declared payload shapes against the
+      # installed `FieldSchema`'s own accept set. Reads sources with `typescript`
+      # and the installed spec, so it needs the install and nothing built — same
+      # placement rationale as the step above. It covers a documented SUBSET of
+      # the write path (keys reaching the payload only via a `patchDef` spread
+      # are outside its reach); the boundary is stated in the script's docblock,
+      # and its draft-I/O half runs in the test suite as
+      # `object-fields-io.spec-keys.test.ts`.
+      - name: Verify designer field payloads declare only keys FieldSchema accepts
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:designer-field-key-parity
+
+      # lucide retires a spelling by DROPPING IT FROM the runtime `icons` record
+      # while keeping it as a deprecated named export. A retired name therefore
+      # still imports, still type-checks and still renders wherever it is used as
+      # a COMPONENT (`Edit === SquarePen`, `Filter === Funnel`) — and resolves to
+      # nothing wherever it is used as a STRING, because the string lookups read
+      # that record. Nothing goes red in either direction, which is why it had to
+      # be repaired twice, in two packages, by two cards, each leaving a LOCAL pin
+      # behind (objectui#5586, objectui#5622). This gate replaces those pins with
+      # one predicate over the population, judged by the record itself and never
+      # by a list of retired spellings — a list would age the moment lucide
+      # retires the next name, and age silently. It also RE-DISCOVERS the
+      # resolvers on every run: its first pass found four record-reading resolvers
+      # objectui#5633's hand-built table did not know about. Reads sources with
+      # `typescript` and the installed lucide, so it needs the install and nothing
+      # built — same placement rationale as the step above.
+      - name: Verify authored icon names are live lucide `icons` keys
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:icon-record-names
 
       # A key a component asks `t()` for must exist in the `en` pack.
       # `all-locales-key-parity.test.ts` compares packs to EACH OTHER, so ten
@@ -334,14 +443,18 @@ jobs:
   test:
     name: Test (shard ${{ matrix.shard }}/4)
     # Coverage instrumentation (v8 adds 40-100% overhead) is skipped on PRs;
-    # the `test-coverage` job below keeps Codecov current on push.
+    # the `test-coverage` job below runs the coverage lane on push.
     #
     # Written as "not push" rather than "is pull_request" (objectui#3523): the
     # third event this workflow now sees is `merge_group`, and a queue build
     # that runs no tests is the hole this repository just paid for. `push` is
-    # still excluded because `test-coverage` below is the push lane, unsharded
-    # so Codecov receives one complete report. PR and push behaviour is
-    # unchanged — only the previously impossible third case moves.
+    # still excluded because the coverage lane below is the push lane: it is
+    # sharded the same 4 ways since objectui#5403, and its `coverage-report`
+    # job merges the four blob reports into ONE complete report, which is where
+    # the coverage thresholds are enforced (and, since objectui#5436, where the
+    # report is published as an artifact rather than uploaded to Codecov). PR
+    # and push behaviour is unchanged — only the previously impossible third
+    # case moves.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
@@ -422,14 +535,84 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test --shard=${{ matrix.shard }}/4
 
-  # Push to main/develop: one unsharded run so Codecov still receives a single
-  # complete report. Nothing blocks on this job, so it isn't worth the blob
-  # report merge that sharding a coverage run would require.
+  # Push to main/develop: the coverage lane, sharded 4 ways with a blob-report
+  # merge (objectui#5403). The comment that used to sit here declined to shard
+  # it — "nothing blocks on this job, so it isn't worth the blob report merge
+  # that sharding a coverage run would require". That trade was priced when the
+  # job was shorter. Re-measured on aa949ba2 — current `main`, and the FIRST
+  # commit where objectui#5402's fix is in — with both arms on the same commit
+  # and the same runner class (instrument: `proto-5403-shard-coverage.yml` on
+  # branch `claude/issue-5403-proto`, runs 32387182880 and 32387778786;
+  # elapsed from each job's own `started_at`/`completed_at`):
+  #
+  #   4 shards, slowest shard job   11 min 25 s / 10 min 52 s  (two rounds)
+  #   + the merge job                ~1 min 15 s  (13 s of it the merge itself)
+  #   = the sharded lane            ~12 min 40 s / ~12 min 07 s
+  #   the unsharded run             39 min 51 s of tests, 40 min 19 s of job
+  #
+  # ⚠️ The unblock comment on #5403 predicted that #5402 would have made the
+  # unsharded arm FASTER than the 39 min 05 s measured before it. It has not:
+  # 39 min 51 s on this commit, which is the old figure back within run-to-run
+  # noise. And measured at the level the cap acts on — the JOB — it is 40 min
+  # 19 s, i.e. `timeout-minutes: 40` would have killed this run about twenty
+  # seconds before the suite finished. That is the fifth occurrence of a
+  # timeout that has already fired four times, and a job killed at 40 minutes
+  # uploads nothing at all. Unsharded, this lane is not merely slow; it no
+  # longer reliably reaches its own upload step.
+  #
+  # Equivalence of the merged report is the acceptance test; it is measured
+  # rather than assumed, and the numbers are in the pull request that made this
+  # change — along with what happens on a red suite, which is the state `main`
+  # is in on this commit.
+  #
+  # `timeout-minutes: 40` is deliberately UNCHANGED. It had already fired four
+  # times on the unsharded job; at a quarter of the work per runner the margin
+  # stops being tight on its own, and raising or lowering a cap is a separate
+  # decision from this one.
+  #
+  # ## Why the shard legs override the coverage thresholds, and the merge does
+  # ## not
+  #
+  # `coverage.thresholds` in `vitest.config.mts` is checked by the v8 provider's
+  # `generateReports()` on EVERY coverage run — there is no shard-awareness
+  # anywhere in that path (`@vitest/coverage-v8/dist/provider.js`: `if (this
+  # .options.thresholds) await this.reportThresholds(...)`, reached from
+  # `reportCoverage()` and from `mergeReports()` alike). Sharding without the
+  # override would therefore evaluate the whole-suite thresholds FIVE times per
+  # push: once per shard over a quarter of the suite, plus once on the merged
+  # report. Those four extra evaluations are assertions this lane has never
+  # made, they judge partial data, and the only verdict they can add is a false
+  # red. The override keeps the check at exactly ONE evaluation over the
+  # complete report — the shape this lane had while it was unsharded.
+  #
+  # ⚠️ It is NOT here because the shards were seen to fail: that prediction was
+  # measured and refuted. A shard leg run WITHOUT the override passes today
+  # (proto run 32387182880, "PROTO shard 1/4 WITHOUT the threshold override",
+  # conclusion=success, reproduced in run 32387778786) — the v8 provider reports
+  # only the files a run actually loaded, so one shard's percentage lands near
+  # the whole suite's rather than at a quarter of it.
+  #
+  # That the gate still fires on the merged report is a code path, not a
+  # guess: `mergeReports()` calls `generateReports(coverageMap, true)`, the
+  # same function that ends in `if (this.options.thresholds) await this
+  # .reportThresholds(...)`. ⚠️ The CI ablation that was meant to demonstrate it
+  # end-to-end could not: on this commit the merged blobs carry a failing shard,
+  # so both the enforced leg and the 99%-threshold leg go red for that reason
+  # and neither separates the thresholds from the failures. Said here rather
+  # than left as a claim the run does not actually support.
   test-coverage:
-    name: Test (coverage)
+    name: Test (coverage shard ${{ matrix.shard }}/4)
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+
+    strategy:
+      # Report every shard's failures, not just the first one to break — and
+      # the merge below refuses to publish anything unless all four are green,
+      # so there is nothing to save by stopping early.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Checkout code
@@ -452,14 +635,281 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests with coverage
-        run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
+      # `--reporter=blob` makes the run write `.vitest-reports/blob-N-4.json`
+      # (the shard index is in the FILE NAME, which is what lets the four
+      # artifacts be downloaded into one directory below without colliding —
+      # measured, not assumed). The blob carries this shard's raw coverage as
+      # well as its test results; the coverage report proper is produced once,
+      # by the merge.
+      - name: Run tests with coverage (shard ${{ matrix.shard }}/4)
+        run: >-
+          pnpm test:coverage --reporter=blob --shard=${{ matrix.shard }}/4
+          --coverage.thresholds.lines=0 --coverage.thresholds.functions=0
+          --coverage.thresholds.branches=0 --coverage.thresholds.statements=0
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+      # `always()`: a shard that went red is exactly when someone wants its
+      # blob. It holds the failing results AND the coverage this runner
+      # collected, and it survives a red run — which is why the `coverage`
+      # directory being deleted on failure (vitest's `reportOnFailure: false`,
+      # objectui#5402) stops mattering for this lane. `if-no-files-found: error`
+      # because "the reporter wrote nothing" is a real finding, not a shrug.
+      #
+      # `retention-days: 7` is a deliberate, adjustable number rather than the
+      # 90-day default: a blob is ~6 MB, so four per push at roughly 18 merges a
+      # working day is ~3 GB of steady-state storage at a week. A week is what
+      # makes a Monday-morning question about a Friday-evening red run
+      # answerable; shorten it if the storage matters more than that.
+      - name: Upload this shard's blob report
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+          name: coverage-blob-${{ matrix.shard }}
+          path: .vitest-reports/*
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  # The other half of objectui#5403: merge the four blob reports into ONE
+  # complete coverage report, publish it, and — whatever happens — say out loud
+  # whether this lane actually delivered for the commit.
+  #
+  # ## The Codecov upload is gone (objectui#5436, maintainer ruling 2026-08-22)
+  #
+  # `CODECOV_TOKEN` was never set on this repository, Codecov no longer accepts
+  # tokenless uploads, and so `Upload coverage to Codecov` failed server-side
+  # (`Token length: 0`, "Token required - not valid tokenless upload") on every
+  # push after #5403 landed. Of the three ways out, the maintainer ruled Option
+  # B: retire the upload rather than set the secret, and keep the merged report
+  # as a build artifact plus the step summary below. What is given up is the
+  # Codecov trend dashboard and its PR comments. What is NOT given up is the
+  # GATE — the thresholds have always been enforced by the merge step, never by
+  # Codecov, and that is untouched here. Making the upload conditional on the
+  # secret being present was rejected: it restores exactly the quiet green that
+  # #5403 removed.
+  #
+  # ## Why this job exists rather than an `if:` on one step
+  #
+  # The upload step used to carry no `if:` at all, so it inherited the implicit
+  # `success()` and was SKIPPED whenever the suite failed: 311 of 373 coverage
+  # jobs, and 120 of the 121 most recent. From outside, a lane that delivered
+  # nothing and a lane that delivered an unchanged number look identical —
+  # which is how four dark days went unnoticed while the job failed 100% of the
+  # time (objectui#5402). Nothing blocks on this lane, so the fix cannot be
+  # "block on it"; the fix is that the lane STATES its own outcome. #5436
+  # carries that guarantee across to the claim that survives the upload's
+  # retirement:
+  #
+  #   this job is green ONLY when all four shards passed, all four blob reports
+  #   arrived, they merged into one report, the configured thresholds were
+  #   enforced over that whole merged map, and the report was published as a
+  #   retrievable artifact — and red, with an error annotation naming which of
+  #   those did not happen, every other time.
+  #
+  # That is a stronger claim than the one it replaces, not a weaker one. The
+  # old red said "the dashboard is stale"; the new red says "the coverage GATE
+  # did not run on this commit" — and since the shard legs override the
+  # thresholds to zero, this job is the only place it can run at all.
+  #
+  # ⛔ The merge is deliberately NOT unconditional. A merged report built from
+  # fewer than four shards would understate coverage on every file the missing
+  # shard exercised, and a wrong coverage number is worse than a missing one.
+  # So the merge and the publish run only when all four shards are green AND
+  # all four blobs actually arrived; everything else takes the loud path.
+  #
+  # The job keeps the name `Test (coverage)` the unsharded job had: it is the
+  # context that answers "did the coverage lane deliver for this commit", and
+  # `scripts/dependabot-merge-gate.mjs` classifies it by that name.
+  coverage-report:
+    name: Test (coverage)
+    needs: test-coverage
+    # `always()` so the verdict step below still runs when a shard failed —
+    # that is the entire point. The event guard keeps this lane push-only, as
+    # the unsharded job was.
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Every step up to the verdict is gated on the shards having passed:
+      # on a red run this job does a checkout-free ~10 seconds and reports.
+      - name: Checkout code
+        if: needs.test-coverage.result == 'success'
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        if: needs.test-coverage.result == 'success'
+        run: corepack enable
+
+      - name: Verify pnpm version
+        if: needs.test-coverage.result == 'success'
+        run: pnpm --version
+
+      - name: Setup Node.js
+        if: needs.test-coverage.result == 'success'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: needs.test-coverage.result == 'success'
+        run: pnpm install --frozen-lockfile
+
+      - name: Download every shard's blob report
+        if: needs.test-coverage.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-blob-*
+          path: .vitest-reports
+          merge-multiple: true
+
+      # A zero is not a reading: `--merge-reports` is perfectly happy to merge
+      # three blobs and print a confident, wrong total. Count them first.
+      - name: Refuse to merge a partial set of shard reports
+        id: blobs
+        if: needs.test-coverage.result == 'success'
+        run: |
+          # `mkdir -p` first, and no `2>/dev/null` anywhere: a missing directory
+          # must not abort this step before it can print the annotation below,
+          # and a swallowed stderr is the fail-CLOSED spelling objectui#3723
+          # removed from this file (pinned by merge-queue-reporting.test.ts).
+          mkdir -p .vitest-reports
+          ls -la .vitest-reports/
+          blobs=$(find .vitest-reports -maxdepth 1 -type f -name 'blob-*-4.json' | wc -l)
+          if [ "$blobs" -ne 4 ]; then
+            echo "::error title=Coverage merge::expected 4 shard blob reports, found $blobs — a merged report built from a partial set understates coverage, refusing to merge"
+            exit 1
+          fi
+          echo "all 4 shard blob reports present"
+
+      # No tests run here: `--merge-reports` reads the blobs and produces the
+      # one complete report. It is ALSO the gate. The configured
+      # `coverage.thresholds` (vitest.config.mts: lines 40, functions 33,
+      # branches 30, statements 40) are enforced HERE, over the whole merged
+      # map, and a breach exits this step non-zero — the shard legs override
+      # them to zero, so this step is the only place the gate runs at all.
+      #
+      # That the gate fires on a merged report is a code path, not a guess:
+      # `mergeReports()` calls `generateReports(coverageMap, true)`, which ends
+      # in `if (this.options.thresholds) await this.reportThresholds(...)`. It
+      # is also measured, not asserted (objectui#5436): against one real blob
+      # set reporting 38.4% lines, `--coverage.thresholds.lines=38` exits 0 and
+      # `=39` exits 1 with `ERROR: Coverage for lines (38.4%) does not meet
+      # global threshold (39%)`. Only the threshold moved between the two runs.
+      # #5403's CI ablation could not separate the two legs (its blobs carried
+      # a failing shard, so both went red for that reason), which is why the
+      # demonstration was owed here.
+      #
+      # `generateReports()` writes the json reporter BEFORE it evaluates the
+      # thresholds, which is what lets the publish step below still capture a
+      # report that breached.
+      - name: Merge the shard reports into one coverage report
+        id: merge
+        if: needs.test-coverage.result == 'success'
+        run: pnpm test:coverage --merge-reports --coverage.reporter=json --coverage.reporter=text
+
+      # What replaces the Codecov upload (objectui#5436): the merged report is
+      # kept here, on the run, instead of on a third-party dashboard.
+      #
+      # `!cancelled()` plus an explicit `outcome != 'skipped'`, rather than the
+      # implicit `success()` the steps above inherit: when the merge fails on
+      # the THRESHOLDS, the report exists and is precisely the artifact someone
+      # wants to open, so a red gate must still publish its evidence. The job
+      # stays red either way — the verdict step below requires `merge=success`.
+      #
+      # `retention-days: 7` matches the shard blobs deliberately: this report is
+      # derived from them, and outliving its own inputs would leave a number
+      # with nothing left to check it against. `if-no-files-found: error`
+      # because "the merge wrote no report" is a real finding, not a shrug.
+      - name: Publish the merged coverage report
+        id: report
+        if: ${{ !cancelled() && needs.test-coverage.result == 'success' && steps.merge.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: error
+
+      # The loud part, inherited from objectui#5403 and re-aimed at the claim
+      # that outlived the upload. Runs on every path — including the one where
+      # every step above was skipped, which without this step would leave this
+      # job GREEN while the coverage gate never ran.
+      - name: Say out loud whether the coverage gate ran on this commit
+        if: always()
+        env:
+          SHARDS: ${{ needs.test-coverage.result }}
+          BLOBS: ${{ steps.blobs.outcome }}
+          MERGE: ${{ steps.merge.outcome }}
+          REPORT: ${{ steps.report.outcome }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          if [ "$SHARDS" = 'success' ] && [ "$BLOBS" = 'success' ] && [ "$MERGE" = 'success' ] && [ "$REPORT" = 'success' ]; then
+            echo "::notice title=Coverage gate ran::the merged 4-shard report was produced for $GITHUB_SHA, the thresholds passed over the whole map, and the report is attached as the coverage-report artifact"
+            {
+              echo "### Coverage: the gate ran on the complete merged report"
+              echo
+              echo "- commit: \`$GITHUB_SHA\`"
+              echo "- shards: all 4 green, all 4 blob reports merged"
+              echo "- thresholds: enforced over the whole merged map, passed"
+              echo "- report: the \`coverage-report\` artifact on [this run]($run_url), kept 7 days"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # The gate RAN and said no. Distinguished from the case below
+          # because they call for opposite actions: this one is a real coverage
+          # regression to fix, that one is a broken lane to repair.
+          #
+          # `report=success` is what separates them, and it is load-bearing
+          # rather than decorative. `generateReports()` writes the configured
+          # reporters in a loop and only THEN evaluates the thresholds, so a
+          # breach leaves a complete `coverage/` behind and the publish step
+          # succeeds; a merge that dies earlier (an unreadable blob, a version
+          # mismatch) writes no report, `if-no-files-found: error` makes the
+          # publish step red too, and this run falls through to the "gate did
+          # not run" branch below — where it belongs. Measured on the pull
+          # request for #5436: same blob set, `--coverage.thresholds.lines`
+          # moved from 38 to 39 across the report's own 38.4%, exit 0 then
+          # exit 1 with `ERROR: Coverage for lines (38.4%) does not meet global
+          # threshold (39%)`, and a byte-identical `coverage-final.json` left
+          # behind on BOTH legs.
+          if [ "$MERGE" = 'failure' ] && [ "$REPORT" = 'success' ]; then
+            echo "::error title=Coverage thresholds breached::shards=$SHARDS blobs=$BLOBS merge=failure report=$REPORT — the merged report for $GITHUB_SHA was produced and the configured thresholds were enforced over it, and they FAILED"
+            {
+              echo "### Coverage: the thresholds were enforced and BREACHED"
+              echo
+              echo "- commit: \`$GITHUB_SHA\`"
+              echo "- shards: all 4 green, all 4 blob reports merged"
+              echo "- thresholds: enforced over the whole merged map, **failed**"
+              echo "- report published: \`$REPORT\`"
+              echo
+              echo "This is a coverage regression, not a broken lane. The merged"
+              echo "report is the \`coverage-report\` artifact on [this run]($run_url);"
+              echo "the merge step's log names the metric and the numbers."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "::error title=Coverage gate did NOT run::shards=$SHARDS blobs=$BLOBS merge=$MERGE report=$REPORT — no complete merged report was produced for $GITHUB_SHA, so the coverage thresholds were never evaluated on this commit"
+          {
+            echo "### Coverage: the gate did NOT run on this commit"
+            echo
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- shard jobs: \`$SHARDS\`"
+            echo "- all 4 blobs present: \`$BLOBS\`"
+            echo "- merge + thresholds: \`$MERGE\`"
+            echo "- report published: \`$REPORT\`"
+            echo
+            echo "The thresholds are enforced on the MERGED report and nowhere"
+            echo "else — the shard legs override them to zero. So this is not a"
+            echo "missing dashboard number: this commit reached the branch with"
+            echo "its coverage gate unevaluated."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
   # Build + E2E merged into one job: avoids artifact upload/download (~30s)
   # and a duplicate `pnpm install` (~60s). This job only needs the console SPA
@@ -557,7 +1007,27 @@ jobs:
       - name: Get Playwright version
         if: steps.relevant.outputs.should_run == 'true'
         id: playwright-version
-        run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+        run: |
+          # This pipeline's exit status is load-bearing: the value it produces
+          # becomes the Playwright browser cache key in the next step. Without
+          # `pipefail` a failing `pnpm list` is masked by `jq`, and `jq -r`
+          # prints the string `null` and exits 0 when the field is missing — so
+          # either failure used to yield a *successful* step and a key that had
+          # silently degraded to `playwright-Linux-` / `playwright-Linux-null`.
+          # That wrong bucket is stable, so two Playwright versions can share
+          # one cache entry and restore a stale browser (objectui#6231).
+          # The same block is duplicated verbatim in `ci.yml` and `live-e2e.yml`
+          # — keep them byte-identical so they stay greppable as a pair.
+          set -eo pipefail
+          if ! version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version'); then
+            echo "::error::Reading the @playwright/test version failed (pnpm list --json | jq). Refusing to write a Playwright browser cache key from it."
+            exit 1
+          fi
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::Could not resolve the @playwright/test version (got: '${version}'). Refusing to write an empty or null version into the Playwright browser cache key."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         if: steps.relevant.outputs.should_run == 'true'
@@ -567,13 +1037,46 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      # ── No `apt-get` on this path any more (objectui#5304) ────────────────
+      # `playwright install --with-deps` / `install-deps` shell out to
+      # `apt-get update` as root. On 2026-08-19 that hung this job three times,
+      # each for the full 30-minute ceiling, with a byte-identical last line —
+      # `Get:5 https://archive.ubuntu.com/ubuntu noble-security InRelease
+      # [126 kB]` — after the runner's Azure mirror answered `Ign:` for all four
+      # noble indexes and apt fell back to archive.ubuntu.com:
+      #   #5290 job 95986117935  07:05:48 -> cancelled 07:34:39 (30m14s)
+      #   #5290 job 95993643751  07:38:31 -> cancelled 08:07:32 (30m18s, re-run)
+      #   #5294 job 95988703670  07:17:27 -> cancelled 07:46:21 (30m17s)
+      # apt has no timeout covering a mirror that connects and then trickles, so
+      # the only backstop was `timeout-minutes: 30` — which converts a transient
+      # network fault into a CANCELLED check: a gate that reports nothing at all.
+      #
+      # A transient, not a property of the workflow: on #5290 the
+      # `Live E2E (informational)` job (95986118258) ran the same `install-deps`
+      # on the same commit in the same minute and went green in 3m26s. Which is
+      # why the call has to be bounded rather than trusted.
+      #
+      # Browser binaries come from the cache step above, never from apt
+      # (measured on the run that then hung: `Cache hit for:
+      # playwright-Linux-1.62.1`, 269 MB restored). `install` without
+      # `--with-deps` fetches them from Playwright's CDN and touches no mirror,
+      # so the cache-miss path is safe as spelled.
       - name: Install Playwright browsers
         if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install chromium
 
-      - name: Install Playwright system dependencies
-        if: steps.relevant.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+      # The system libraries are on the `ubuntu-latest` image already — it ships
+      # Chrome, Edge and Firefox, whose shared-library closure is the one
+      # `install-deps chromium` asks for. Rather than assume that, this step
+      # PROVES it on every run by launching the same bundled Chromium the suite
+      # launches, and reaches for apt only if the launch fails — bounded, so a
+      # stalled mirror costs seconds instead of the job. It is not a softener:
+      # if no browser can be made to launch the script exits non-zero and this
+      # job goes red. Rationale and the incident log: the script's header;
+      # behaviour pinned by `scripts/__tests__/ensure-chromium-ready.test.ts`.
+      - name: Ensure Chromium can launch
+        if: steps.relevant.outputs.should_run == 'true'
+        run: bash scripts/ensure-chromium-ready.sh
 
       - name: Run E2E tests
         if: steps.relevant.outputs.should_run == 'true'

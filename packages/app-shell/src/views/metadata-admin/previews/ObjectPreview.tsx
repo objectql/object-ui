@@ -14,10 +14,10 @@
  */
 
 import * as React from 'react';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
-import { ObjectFormCanvas } from './ObjectFormCanvas';
-import { t } from '../i18n';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
+import { ObjectFormCanvas } from './ObjectFormCanvas.js';
+import { t } from '../i18n.js';
 
 export function ObjectPreview({
   name,

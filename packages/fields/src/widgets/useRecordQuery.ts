@@ -111,8 +111,12 @@ export interface UseRecordQueryResult {
  * `Object.keys` on an array returns its INDICES — so the record-only test read
  * `['0','1','2']` for an AST node and was right only by accident. An empty array
  * is "no filter" for the same reason an empty object is.
+ *
+ * Narrows to the `$filter` slot's own type rather than a restatement of it
+ * (#3909), so the caller assigns with no cast and this predicate cannot drift
+ * from the declaration it is guarding.
  */
-function hasFilter(filter: unknown): boolean {
+function hasFilter(filter: unknown): filter is NonNullable<QueryParams['$filter']> {
   if (filter === null || filter === undefined) return false;
   if (Array.isArray(filter)) return filter.length > 0;
   if (typeof filter !== 'object') return false;
@@ -172,12 +176,14 @@ export function useRecordQuery(options: UseRecordQueryOptions): UseRecordQueryRe
         if (searchTerm && searchTerm.trim()) params.$search = searchTerm.trim();
         if (searchFields && searchFields.length > 0) params.$searchFields = searchFields;
         if (sortArg) params.$orderby = { [sortArg.field]: sortArg.direction };
-        // `QueryParams.$filter` is declared `Record< string, any >`, which the
-        // AST-array form does not describe — the cast is at this ONE assignment
-        // rather than widening a shared type that several other producers
-        // (plugin-list's `buildEffectiveFilter`, plugin-view's ObjectView)
-        // already feed arrays through.
-        if (hasFilter(filter)) params.$filter = filter as Record<string, any>;
+        // No cast: `QueryParams.$filter` now declares both shapes it accepts
+        // (#3909), so the AST-array form the picker's merge yields is describable
+        // here. The local cast this replaces was deliberate debt — taken at this
+        // ONE assignment rather than widening the shared type that several other
+        // producers (plugin-list's `buildEffectiveFilter`, plugin-view's
+        // ObjectView) already feed arrays through. The shared type is honest now,
+        // so the debt is paid rather than moved.
+        if (hasFilter(filter)) params.$filter = filter;
         if (expand && expand.length > 0) params.$expand = expand;
 
         const result = await dataSource.find(objectName, params);

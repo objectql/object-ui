@@ -19,8 +19,8 @@ import {
   listRemoteTables,
   ExternalServiceUnavailableError,
   type RemoteTable,
-} from './api';
-import { ImportObjectDialog } from './ImportObjectDialog';
+} from './api.js';
+import { ImportObjectDialog } from './ImportObjectDialog.js';
 
 export interface SchemaBrowserProps {
   datasource: string;

@@ -21,6 +21,7 @@ import { useCondition, toPredicateInput, usePredicateRecordContext } from '@obje
 import { Button } from '../../ui';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import { Loader2 } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 import { hasDeclaredVisibilityGate } from './visibility-gate';
@@ -31,10 +32,13 @@ import { hasDeclaredVisibilityGate } from './visibility-gate';
  * `locations`, `enabled` and `size` are all modern-only keys this renderer
  * forwards, and the legacy `crud.ts` `ActionSchema` is `@deprecated` and pins
  * `type: 'action'` where this renderer's own registry `inputs` declare
- * `'script' | 'url' | 'modal' | 'flow' | 'api'`.
+ * `'script' | 'url' | 'modal' | 'flow' | 'api'`. `actionType` stays on the
+ * intersection for the same reason it does on `action:button`: it is the
+ * host-composed override this renderer reads FIRST
+ * (`schema.actionType || schema.type`), and it is not a `UIActionSchema` key.
  */
 export interface ActionIconProps {
-  schema: UIActionSchema & { type: string; className?: string };
+  schema: UIActionSchema & { type: string; className?: string; actionType?: string };
   className?: string;
   context?: Record<string, any>;
   [key: string]: any;
@@ -95,7 +99,18 @@ const ActionIconRenderer = forwardRef<
         // (objectui#4281). `...localContext` is still merged last, so the object
         // reaching `execute` is unchanged.
         const forwarded: ActionDef = {
-          type: schema.type,
+          // The host path renames the declared type (objectui#6306). `action:bar`
+          // does not route members through `SchemaRenderer` — it spreads the
+          // member onto this renderer's schema as `type: componentType,
+          // actionType: action.type`, so on that path `schema.type` is the
+          // COMPONENT id and `schema.actionType` is the declaration. Reading
+          // `schema.type` alone handed the runner `type: 'action:icon'`, which
+          // `ActionRunner.execute` resolves to no handler and no builtin: the
+          // click did nothing, with no error and no toast. Same resolution
+          // `action:button` has always had; the `|| schema.type` leg is what
+          // keeps the STANDALONE surface (where `type` IS the action type, as
+          // this renderer's own registry `inputs` declare) working.
+          type: schema.actionType || schema.type,
           name: schema.name,
           // See action-button.tsx — the param-collection dialog reads its title
           // and description off these (objectui#4192, measured on `action:menu`
@@ -122,6 +137,10 @@ const ActionIconRenderer = forwardRef<
           // OAuth secret). Without it the runner falls back to the success
           // toast and the value the user was meant to copy is gone.
           resultDialog: (schema as any).resultDialog,
+          // See action-button.tsx — the declared post-success hop
+          // (objectui#5493). The runner reads it off the forwarded def; dropped
+          // here the action succeeds and the authored navigation never runs.
+          onSuccess: (schema as any).onSuccess,
         };
 
         await execute({ ...forwarded, ...localContext });
@@ -167,7 +186,7 @@ const ActionIconRenderer = forwardRef<
         ) || loading}
         onClick={handleClick}
         aria-label={schema.label || schema.name}
-        {...rest}
+        {...toFormControlDomProps(rest)}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
       >
         {loading ? (

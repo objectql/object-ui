@@ -3,13 +3,13 @@
   "trigger": {
     "type": "button",
     "label": "Actions",
-    "icon": "more-horizontal"
+    "icon": "ellipsis"
   },
   "items": [
     {
       "label": "Edit",
       "value": "edit",
-      "icon": "edit"
+      "icon": "square-pen"
     },
     {
       "label": "Copy",

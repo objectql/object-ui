@@ -1,6 +1,6 @@
 import { Moon, Sun, Monitor } from "lucide-react"
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@object-ui/components"
-import { useTheme } from "../chrome/ThemeProvider"
+import { useTheme } from "../chrome/ThemeProvider.js"
 import { useObjectTranslation } from '@object-ui/i18n'
 
 export function ModeToggle() {

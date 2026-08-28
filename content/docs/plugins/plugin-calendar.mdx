@@ -173,13 +173,9 @@ replaces the action dispatch rather than running alongside it.
 
 Calendar component designed for use with ObjectQL data sources.
 
-## ObjectCalendar Component
-
-Calendar component designed for use with ObjectQL data sources.
-
 ### Features
 
-- **ObjectQL Integration**: Works seamlessly with object/api/value data providers
+- **ObjectQL Integration**: Works seamlessly with object/value data providers
 - **Automatic Field Mapping**: Maps database fields to calendar events
 - **Multiple View Modes**: Month, week, and day calendar views
 - **Date Filtering**: Automatically filters records by date range
@@ -311,23 +307,17 @@ Map your database fields to calendar properties:
 }
 ```
 
-#### API Provider
+#### API Provider — not implemented
 
-```tsx
-{
-  type: 'object-calendar',
-  data: {
-    provider: 'api',
-    endpoint: '/api/events',
-    method: 'GET'
-  },
-  calendar: {
-    startDateField: 'startTime',
-    endDateField: 'endTime',
-    titleField: 'eventName'
-  }
-}
-```
+`data.provider: 'api'` has no fetch implementation in `ObjectCalendar`. A schema
+that reaches this branch logs `API provider not yet implemented for
+ObjectCalendar`, sets the record set to empty and renders a calendar with no
+events; `endpoint` and `method` have no read point anywhere in the package.
+Without a `DataSource` it fails one step earlier, with `DataSource required for
+object/api providers`.
+
+Read from the database with the **Object Provider** above, or pass events you
+already hold with the **Value Provider**.
 
 ## Comparison: CalendarView vs ObjectCalendar
 
@@ -499,13 +489,17 @@ function MyObjectCalendar({ dataSource }) {
 ```plaintext
 import type { 
   CalendarViewSchema, 
-  CalendarEvent,
   ObjectGridSchema,
   CalendarConfig 
 } from '@object-ui/types'
+import type { CalendarViewEvent } from '@object-ui/plugin-calendar'
 
-// CalendarView types
-const events: CalendarEvent[] = [
+// CalendarView component events — the RUNTIME shape: `id: string | number`,
+// `start` / `end` are real `Date` objects. `@object-ui/types` exports a
+// separate `CalendarEvent`, the AUTHORING event (`id: string`, ISO strings,
+// `end` required); the two are not interchangeable. Renamed in objectui#5044,
+// which left `CalendarEvent` on this package as a `@deprecated` alias.
+const events: CalendarViewEvent[] = [
   {
     id: 1,
     title: 'Meeting',

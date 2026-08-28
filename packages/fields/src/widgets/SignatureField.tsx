@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
 import { Button } from '@object-ui/components';
 import { Eraser } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toHostGroupProps } from './toHostGroupProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * Signature field widget - provides a signature pad for capturing signatures
@@ -22,7 +22,7 @@ import { toHostGroupProps } from './toHostGroupProps';
  * The name and the description arrive here, on the container, through
  * {@link toHostGroupProps} — the objectui#3961 route for a widget whose surface
  * no `<label for>` can reach (`<canvas>` is not a labelable element), and which
- * therefore declares `labelling: 'group'` in `FIELD_TYPES_GROUP_LABELLED`.
+ * therefore declares `labelling: 'group'` in `FIELD_WIDGET_LABELLING`.
  * `'instead-of-the-inputs'` because this field renders no input of its own for
  * the description to land on: the Clear button is auxiliary — it acts on the
  * value, it is not the value's control — the same reading that put

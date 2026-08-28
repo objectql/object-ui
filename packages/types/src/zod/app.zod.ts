@@ -55,6 +55,11 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
   recordId: z.string().optional().describe('Target record id (type: object) — opens a single record. Supports template variables {current_user_id}, {current_org_id}.'),
   recordMode: z.enum(['view', 'edit']).optional().describe('Record opening mode when recordId is set (default: view)'),
   filters: z.record(z.string(), z.string()).optional().describe('URL filter conditions (type: object) — targets the /:objectName/data bare surface via filter[<field>]=<value> params instead of a saved view. Values support {current_user_id}/{current_org_id}. Precedence: recordId → filters → viewName.'),
+  // Declared here for the same reason `requiresObject` / `actionDef` are: this
+  // schema STRIPS unknown keys, so an entry deep-linking into an action would
+  // have validated clean through `objectui validate` with the deep link thrown
+  // away (the objectstack#4115 failure class). Spec: `ObjectNavItemSchema.runAction`.
+  runAction: z.string().optional().describe('Auto-run deep link (type: object) — name of an action on the target object that the list surface runs once on arrival. Ignored when recordId wins precedence (that resolves to a record page, not the list). Encoded as the reserved ?runAction= search param.'),
   dashboardName: z.string().optional().describe('Target dashboard name (type: dashboard)'),
   pageName: z.string().optional().describe('Target page name (type: page)'),
   reportName: z.string().optional().describe('Target report name (type: report)'),

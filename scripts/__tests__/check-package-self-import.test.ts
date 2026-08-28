@@ -10,6 +10,8 @@ import {
   analyze,
   auditExemptions,
   discoverPackages,
+  judgeScan,
+  scanRepository,
 } from '../check-package-self-import.mjs';
 
 /**
@@ -48,6 +50,38 @@ import {
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const GATE = 'scripts/check-package-self-import.mjs';
+
+/**
+ * THE repository scan — computed exactly once, here, and judged many times below.
+ *
+ * Two assertions in this file are about this repository under DIFFERENT exemption
+ * tables (the repository's own, and none at all), and one of them used to call
+ * `analyze(repoRoot)` from inside an `it()`. That is a full TypeScript parse of
+ * every source file of every workspace package — ~3,100 files, ~30 MB, ~15,500
+ * module specifiers — and doing it twice is exactly the same work twice, because
+ * the parse does not depend on the exemption table at all.
+ *
+ * It fits in the 15-second `testTimeout` uninstrumented (measured 8.8 s) and does
+ * NOT fit under coverage (measured 41.3 s), which is why `ci.yml`'s
+ * `Test (coverage)` job failed 100% of the time for four days — 50 of 51 completed
+ * jobs, all on this file, all `Test timed out in 15000ms`. `@vitest/coverage-v8`
+ * arms V8 precise coverage in the worker BEFORE test modules and their
+ * dependencies compile; V8 emits those block counters at compile time and does so
+ * isolate-wide, so `node_modules/typescript` is instrumented too (`coverage.exclude`
+ * filters the report, never the instrumentation). Measured on this repository, the
+ * identical parse costs 4.1-4.9 s uninstrumented and 32-35 s when coverage was
+ * armed first: a 7x constant factor landing squarely on the parser.
+ *
+ * So the rule for anything added to this file: **judge `repoScan`, never rescan.**
+ * `judgeScan()` is pure and costs microseconds; `analyze(repoRoot)` and
+ * `scanRepository(repoRoot)` cost a full parse and must not appear inside an
+ * `it()`. Module scope is deliberate — collection is not bounded by
+ * `testTimeout`, and this scan is the file's one unavoidable cost.
+ *
+ * (objectui#5402. `analyze()` over a throwaway FIXTURE tree stays fine and is used
+ * throughout — those trees hold a handful of tiny files.)
+ */
+const repoScan = scanRepository(repoRoot);
 
 interface Finding {
   reason: string;
@@ -165,7 +199,7 @@ describe('a package name that is not a module edge is not a finding', () => {
       const body = fs.readFileSync(path.join(repoRoot, file), 'utf8');
       expect(body, `${file} no longer carries the literal this pin is about`).toContain(`'${owner}'`);
     }
-    expect((analyze(repoRoot, { exemptions: {} }).findings as Finding[]).map((f) => f.file)).toEqual([]);
+    expect((judgeScan(repoScan, {}).findings as Finding[]).map((f) => f.file)).toEqual([]);
   });
 });
 
@@ -393,7 +427,9 @@ describe('an empty scan is a failure, not a pass', () => {
 // ── 5. this repository ───────────────────────────────────────────────────────
 
 describe('objectui itself', () => {
-  const result = analyze(repoRoot);
+  // The repository's OWN exemption table, over the same single scan the
+  // no-exemptions assertion above judges.
+  const result = judgeScan(repoScan, SELF_IMPORT_EXEMPTIONS);
 
   it('scans a real surface (a guard that found nothing would pass everything)', () => {
     expect(result.counters.packages).toBeGreaterThan(30);
@@ -447,6 +483,93 @@ describe('objectui itself', () => {
     const config = fs.readFileSync(path.join(repoRoot, 'packages/components/tsconfig.test.json'), 'utf8');
     expect(config).toContain('"paths": {}');
     expect(config).not.toContain('"@object-ui/components": ["src/index.ts"]');
+  });
+});
+
+// ── 5b. scan once, judge many ────────────────────────────────────────────────
+
+describe('the judgement is separate from the scan, and pure', () => {
+  // This is the property that lets the whole file share ONE `repoScan`. If
+  // judging ever re-read the repository or consumed the scan, sharing it would
+  // be wrong and the cost this file was cut down from would come straight back
+  // (objectui#5402 — see the note on `repoScan`).
+
+  it('judges the same scan under two tables without re-reading anything', () => {
+    // A scan whose site names a file that does not exist: a judgement that went
+    // back to the filesystem could not produce this finding.
+    const scan = {
+      packages: [{ name: '@fixture/self' }],
+      sites: [
+        {
+          reason: 'package-self-import',
+          pkg: '@fixture/self',
+          file: 'packages/self/src/vanished.ts',
+          line: 1,
+          column: 1,
+          kind: 'import',
+          typeOnly: false,
+          specifier: '@fixture/self',
+        },
+      ],
+      counters: { packages: 1, files: 1, specifiers: 1, relative: 0, alias: 0, builtin: 0, external: 0, selfImport: 1 },
+    };
+    const frozen = structuredClone(scan);
+
+    const strict = judgeScan(scan, {});
+    expect((strict.findings as Finding[]).map((f) => `${f.file} :: ${f.specifier}`)).toEqual([
+      'packages/self/src/vanished.ts :: @fixture/self',
+    ]);
+    expect(strict.counters.exempted).toBe(0);
+
+    const lenient = judgeScan(scan, {
+      'packages/self/src/vanished.ts': { specifiers: ['@fixture/self'], reason: 'pins what a consumer resolves' },
+    });
+    expect(lenient.findings).toEqual([]);
+    expect(lenient.counters.exempted).toBe(1);
+
+    // …and neither call consumed or edited the scan it was handed, so the next
+    // judgement sees the same input.
+    expect(scan).toEqual(frozen);
+    expect((judgeScan(scan, {}).findings as Finding[]).map((f) => f.file)).toEqual([
+      'packages/self/src/vanished.ts',
+    ]);
+  });
+
+  it('hands out findings the caller cannot use to corrupt the scan', () => {
+    const scan = scanRepository(
+      fixtureRepo('purity', [
+        {
+          manifest: { name: '@fixture/self' },
+          files: { 'a.ts': "import { a } from '@fixture/self';\nexport { a };\n" },
+        },
+      ]),
+    );
+    const [finding] = judgeScan(scan, {}).findings as Finding[];
+    finding.file = 'rewritten-by-the-caller.ts';
+    expect((judgeScan(scan, {}).findings as Finding[]).map((f) => f.file)).toEqual(['packages/self/src/a.ts']);
+  });
+
+  it('analyze() is exactly scanRepository() followed by judgeScan()', () => {
+    const root = fixtureRepo('composition', [
+      {
+        manifest: { name: '@fixture/self' },
+        files: {
+          'a.ts': "import { a } from '@fixture/self';\nexport { a };\n",
+          'b.ts': "export { b } from '@fixture/self/deep';\n",
+        },
+      },
+    ]);
+    const exemptions: Exemptions = {
+      'packages/self/src/a.ts': { specifiers: ['@fixture/self'], reason: 'pins what a consumer resolves' },
+    };
+    expect(analyze(root, { exemptions })).toEqual(judgeScan(scanRepository(root), exemptions));
+  });
+
+  it('the scan carries no verdict of its own — counters.exempted belongs to the judgement', () => {
+    // A scan that already knew what was exempt would be a scan tied to one
+    // table, which is the thing this split exists to undo.
+    expect(Object.keys(repoScan.counters as Record<string, number>)).not.toContain('exempted');
+    expect(judgeScan(repoScan, {}).counters.exempted).toBe(0);
   });
 });
 

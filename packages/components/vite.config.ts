@@ -11,6 +11,9 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 
+import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
+import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
+
 export default defineConfig({
   plugins: [
     react(),
@@ -23,6 +26,19 @@ export default defineConfig({
       compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
       include: ['src'],
+      // Relative specifiers in the EMITTED typings get their explicit
+      // extension here — objectui#5365. `tsc` copies a module specifier into
+      // the declaration verbatim, so `export * from './ui'` shipped
+      // extensionless and no consumer on `moduleResolution: nodenext` could
+      // follow it; every named export of this package read as missing. The
+      // `.js` never had the defect because rolldown resolves the same
+      // specifier away, which is also why `pnpm check:esm-specifiers` — a
+      // verdict about specifier-preserving `.js` builds — correctly never
+      // scanned this package. See the module header for the full argument.
+      ...createDtsExplicitExtensions({ packageDir: __dirname }),
+      // A type error the declaration program already found and printed used to
+      // leave `vite build` exiting 0 — objectui#5370 / #5483. This makes it fatal.
+      ...createDtsFailOnTypeErrors({ packageDir: __dirname }),
     }),
   ],
   resolve: {

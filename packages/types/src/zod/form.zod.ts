@@ -95,15 +95,55 @@ export const CommandGroupSchema = z.object({
 });
 
 /**
- * Validation Rule Schema
+ * Bounded numeric rule — the `{ value, message }` object react-hook-form
+ * consumes for `minLength` / `maxLength` / `min` / `max`.
+ */
+const BoundedRuleSchema = (valueDescription: string) =>
+  z.object({
+    value: z.number().describe(valueDescription),
+    message: z.string().describe('Error message shown when the rule fails'),
+  });
+
+/**
+ * Validation Rule Schema — the zod mirror of `FieldValidationRules`
+ * (`../form.ts`), which is the shape `form.tsx`'s read point spreads into
+ * react-hook-form. Every rule except `required` is a `{ value, message }`
+ * object; `required` is `string | boolean` (a string IS the message —
+ * react-hook-form semantics).
+ *
+ * Until objectui#5186 this schema declared a flat scalar dialect
+ * (`minLength: z.number()`, `pattern: z.string()`) that NO read point
+ * consumed: `objectui validate` rejected metadata written to the public TS
+ * contract and passed a dialect react-hook-form silently drops — #5099's
+ * "looks validated, executes nothing", hidden on the zod face. The inner
+ * shape is pinned by `__tests__/form-field-zod-coverage.test.ts`.
+ *
+ * `pattern.value` must be a compiled `RegExp` (#5099 ruling): react-hook-form
+ * applies `pattern` only when `value instanceof RegExp`, and JSON/YAML cannot
+ * express one — so on the JSON face a hand-written `pattern` is rejected BY
+ * NAME with guidance toward the metadata route (`FieldSchema.pattern`, a
+ * string the field pipeline compiles via `new RegExp(...)` in
+ * `buildValidationRules`, `@object-ui/fields`, before it reaches this shape).
+ * Deliberately NOT a string→RegExp coercion here — consumer-side tolerance
+ * would re-open exactly what #5099 closed (AGENTS.md #0.1).
  */
 export const FieldConstraintsSchema = z.object({
-  required: z.boolean().optional().describe('Whether field is required'),
-  minLength: z.number().optional().describe('Minimum length'),
-  maxLength: z.number().optional().describe('Maximum length'),
-  min: z.number().optional().describe('Minimum value'),
-  max: z.number().optional().describe('Maximum value'),
-  pattern: z.string().optional().describe('Validation pattern (regex)'),
+  required: z.union([z.boolean(), z.string()]).optional()
+    .describe('Required rule — boolean flag, or the error message itself (string implies required)'),
+  minLength: BoundedRuleSchema('Minimum length').optional().describe('Minimum length rule'),
+  maxLength: BoundedRuleSchema('Maximum length').optional().describe('Maximum length rule'),
+  min: BoundedRuleSchema('Minimum value').optional().describe('Minimum value rule (numbers)'),
+  max: BoundedRuleSchema('Maximum value').optional().describe('Maximum value rule (numbers)'),
+  pattern: z.object({
+    value: z.custom<RegExp>((v) => v instanceof RegExp, {
+      message:
+        'pattern.value must be a compiled RegExp — react-hook-form runs `pattern` only when ' +
+        'value instanceof RegExp, and JSON/YAML metadata cannot express one (objectui#5099). ' +
+        'Declare the pattern on the field metadata route instead: `FieldSchema.pattern` (a ' +
+        'string), which is compiled before it reaches this shape.',
+    }).describe('Compiled RegExp — never a string; JSON authors use FieldSchema.pattern'),
+    message: z.string().describe('Error message shown when the pattern fails'),
+  }).optional().describe('Pattern rule (RegExp value + message)'),
   validate: z.function().optional().describe('Custom validation function'),
 });
 
@@ -204,8 +244,8 @@ export const SelectSchema = BaseSchema.extend({
   name: z.string().optional().describe('Field name for form submission'),
   label: z.string().optional().describe('Select label'),
   placeholder: z.string().optional().describe('Placeholder text'),
-  defaultValue: z.union([z.string(), z.number()]).optional().describe('Default value'),
-  value: z.union([z.string(), z.number()]).optional().describe('Controlled value'),
+  defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional().describe('Default value'),
+  value: z.union([z.string(), z.number(), z.boolean()]).optional().describe('Controlled value'),
   options: z.array(SelectOptionSchema).describe('Select options'),
   required: z.boolean().optional().describe('Whether field is required'),
   disabled: z.boolean().optional().describe('Whether field is disabled'),
@@ -411,6 +451,115 @@ export const CommandSchema = BaseSchema.extend({
  * rejected metadata the renderer accepts. The pinned key list lives in
  * `__tests__/form-field-zod-coverage.test.ts`.
  */
+/**
+ * The ONE namespace a form field's widget id may name — objectui#5254,
+ * maintainer ruling of 2026-08-19, made an authoring-time ERROR by
+ * objectui#5375.
+ *
+ * ## What this refuses, and why it is an error rather than a warning
+ *
+ * A colon-qualified form-field widget id that does not name `field:`. Measured
+ * on the real `form` renderer on the built-in path (no `registerAllFields()`):
+ *
+ *   type            registry hit   rendered type
+ *   ui:password     TRUE           text
+ *   secret          false          text
+ *   field:secret    false          text
+ *
+ * `ui:password` **is** registered — as an SDUI node renderer for a top-level
+ * `{ type: 'email' }`-style node — so an author who checks whether it resolves
+ * gets a YES, and still gets a clear-text box on the field path. Refusing the
+ * NAMESPACE closes that class instead of today's spellings, and it is an error
+ * rather than a warning because a warning IS the silent degrade the rule
+ * exists to kill, in a new spelling.
+ *
+ * `field:` passes whether or not the widget is registered: registration is a
+ * RUNTIME fact (`registerAllFields()`, a lazily loaded plugin) that no
+ * authoring-time validator can see, and the renderer already answers an
+ * unregistered `field:` id with a visible refusal (objectui#5322). A BARE name
+ * passes too — it is an open set, every registered `field:<name>` widget being
+ * reachable by its short name. What is decidable statically is the namespace,
+ * and it is a CLOSED set of one.
+ *
+ * ## Why the rule is stated twice, and what pins the copies together
+ *
+ * `validateFieldWidgetNamespace` in `@object-ui/core`
+ * (`packages/core/src/validation/schema-validator.ts`) enforces the same rule
+ * for `validateSchema`/`assertValidSchema`. This module cannot delegate to it:
+ * `@object-ui/core` depends on `@object-ui/types`, so importing back would be
+ * a cycle, and this package is declared "Zero deps. No React." The rule is
+ * pure string logic, so the second statement costs nothing but drift — and
+ * `__tests__/form-field-widget-namespace.test.ts` pins it case-for-case
+ * against the table above, in the same rows core's own test uses.
+ *
+ * Until objectui#5449 only core enforced it, so `objectui validate` — the
+ * surface an author actually runs before shipping, reaching this schema
+ * through `safeValidateSchema` — returned a green tick on a document the
+ * runtime rejects. Having done exactly the diligence objectui#5375 asks for,
+ * the author shipped the bad metadata anyway.
+ *
+ * This is deliberately NOT an answer to "which validator is canonical"
+ * (objectui#5449, objectui#4631): a third hand-rolled implementation lives in
+ * `packages/vscode-extension/src/providers/SchemaValidator.ts`, and whether
+ * the end state is one canonical validator or a contract the others defer to
+ * is a maintainer architecture call. Closing the authoring-time gap is not,
+ * and is all that happens here.
+ */
+const FIELD_WIDGET_NAMESPACE = 'field:';
+
+/**
+ * The two keys of an AUTHORED form field that can carry a widget id.
+ *
+ * Both are `unknown` rather than `string` because this narrowing has to be
+ * done by the check itself: the refinement below also runs against values that
+ * only reached it because the surrounding parse has not failed yet.
+ */
+interface AuthoredFieldWidgetKeys {
+  type?: unknown;
+  widget?: unknown;
+}
+
+/**
+ * The widget id a form field will actually be RENDERED as.
+ *
+ * Mirrors the renderer's own precedence (`resolvedType` in
+ * `packages/components/src/renderers/form/form.tsx`: explicit form-config
+ * `widget`, then the resolved field metadata's widget hint, then the bare
+ * `type`) and core's `resolveAuthoredFieldWidgetId`. Only the two keys an
+ * AUTHORED schema carries are read here — the metadata widget hint is a
+ * RESOLVED object that a hand-authored standalone form does not have.
+ *
+ * The mirroring is the point, not a convenience: a validator that disagrees
+ * with the renderer about which component will actually render is how the
+ * clear-text box got shipped in the first place.
+ */
+function resolveAuthoredFieldWidgetId(
+  field: AuthoredFieldWidgetKeys,
+): string | undefined {
+  const id = field.widget ?? field.type;
+  return typeof id === 'string' ? id : undefined;
+}
+
+/**
+ * The refusal message for an unresolvable namespaced field widget id.
+ *
+ * Held identical to `@object-ui/core`'s wording on purpose: the two entry
+ * points must not be able to describe the same defect differently, or an
+ * author who saw one and then the other has to work out whether they are the
+ * same finding.
+ */
+function unresolvableFieldWidgetNamespaceMessage(id: string): string {
+  return (
+    `'${id}' is not a form field widget: a namespaced field widget id must name the ` +
+    `\`field:\` namespace (objectui#5254), so this id resolves NOTHING on the field path ` +
+    `and the renderer would fall through to a plain text box — putting a secret on screen ` +
+    `in clear text when the field holds one (objectui#5375). Write the built-in spelling ` +
+    `(e.g. \`password\`), or the field widget id \`field:${id.slice(id.indexOf(':') + 1)}\`. ` +
+    `Resolving in the registry is not proof it resolves HERE — \`ui:password\` is a ` +
+    `registered SDUI node renderer and still renders clear text as a field.`
+  );
+}
+
 export const FormFieldSchema = z.object({
   id: z.string().optional().describe('Field ID'),
   name: z.string().describe('Field name (form data path)'),
@@ -444,6 +593,26 @@ export const FormFieldSchema = z.object({
     .describe('Field-level required rule (CEL)'),
   colSpan: z.number().optional().describe('Column span in grid layout (legacy — prefer span)'),
   span: z.enum(['auto', 'full']).optional().describe('Relative field width'),
+  fields: z.array(z.string()).optional()
+    .describe('Section grouping claim (objectui#6236) — section-divider rows only: names of the fields the section claims (the FormFieldTab.fields membership shape); the divider predicate then gates the whole group'),
+}).superRefine((field, ctx) => {
+  // objectui#5449 — the namespace rule `@object-ui/core` has enforced since
+  // objectui#5375, stated here so `objectui validate` (which reaches this
+  // schema via `safeValidateSchema`) stops green-lighting a document the
+  // runtime rejects. Rule, census and the drift pin: FIELD_WIDGET_NAMESPACE.
+  const id = resolveAuthoredFieldWidgetId(field);
+  if (!id || !id.includes(':') || id.startsWith(FIELD_WIDGET_NAMESPACE)) return;
+  ctx.addIssue({
+    code: 'custom',
+    // Same key core blames, chosen the same way: `widget` wins the precedence
+    // above, so it is the key to fix when it is the one carrying the id.
+    path: [typeof field.widget === 'string' ? 'widget' : 'type'],
+    // Carries core's error code so a consumer can key off the finding rather
+    // than string-matching the message. Zod's own `code` is `custom` for every
+    // refinement, which cannot tell two of them apart.
+    params: { code: 'UNRESOLVABLE_FIELD_WIDGET_NAMESPACE' },
+    message: unresolvableFieldWidgetNamespaceMessage(id),
+  });
 });
 
 /**
@@ -463,7 +632,7 @@ export const FormSchema = BaseSchema.extend({
   showCancel: z.boolean().optional().describe('Show cancel button'),
   layout: z.enum(['vertical', 'horizontal', 'grid']).optional().describe('Form layout'),
   columns: z.number().optional().describe('Number of columns (for grid layout)'),
-  validationMode: z.enum(['onSubmit', 'onChange', 'onBlur']).optional().describe('Validation mode'),
+  validationMode: z.enum(['onSubmit', 'onChange', 'onBlur', 'onTouched', 'all']).optional().describe('Validation mode'),
   resetOnSubmit: z.boolean().optional().describe('Reset form on successful submit'),
   disabled: z.boolean().optional().describe('Disable entire form'),
   mode: z.enum(['create', 'edit', 'view']).optional().describe('Form mode'),

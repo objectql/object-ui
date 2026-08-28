@@ -20,12 +20,12 @@
  */
 
 import * as React from 'react';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { InspectorShell, InspectorTextField } from './_shared';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { InspectorShell, InspectorTextField } from './_shared.js';
 import { Label } from '@object-ui/components';
-import { toFieldNameLoose } from '../previews/object-fields-io';
-import { slugify } from '../createDerive';
-import { t } from '../i18n';
+import { toFieldNameLoose } from '../previews/object-fields-io.js';
+import { slugify } from '../createDerive.js';
+import { t } from '../i18n.js';
 
 export function ObjectDefaultInspector({
   name,

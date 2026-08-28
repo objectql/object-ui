@@ -137,6 +137,79 @@
  *     and this rule stays out of the way entirely. A verdict fabricated from
  *     ignorance of the spec would flag every citation in the repo at once.
  *
+ * ── The boundary BOTH rules share: exported declarations only (objectui#5899) ─
+ * Everything above is scoped by one filter that neither rule's account of its
+ * own failure class mentions: each scanner skips any statement without an
+ * `export` modifier (`hasExportModifier`, once per scanner). The class is
+ * therefore NOT fully covered by rule 1 plus rule 2. A module-local declaration
+ * is outside the jurisdiction of both, whatever it is named and whatever its
+ * doc comment claims.
+ *
+ * The filter is defensible on this script's own terms: an unexported type
+ * cannot be imported by another package under the spec's name, so it cannot
+ * become a planted premise through the package's public surface. objectui#5652
+ * measured the other half. Three hand-written mirrors of the `FormViewSchema`
+ * contract in `packages/react/src/spec-bridge/bridges/form-view.ts` had drifted
+ * on three keys and had INVERTED one arm — it admitted only the value the
+ * contract rejects — and two of the three were declared under the spec's own
+ * export names (`FormField`, `FormSection`), which is precisely rule 1's
+ * trigger. The gate was green throughout, because all three were module-local
+ * `interface`s; they were found by a human reading the file. An unexported
+ * mirror is not imported, but it is still READ by the next agent editing that
+ * file, and it still drifts.
+ *
+ * What the filter costs, MEASURED (objectui#5899) on `a76b18cf2` against
+ * `@objectstack/spec@17.2.0` — same instrumented-copy method objectui#4592
+ * used, both scanners re-run with `hasExportModifier` forced true:
+ *
+ *   rule 1   18 findings → 47   (+29 module-local declarations)
+ *   rule 2   20 findings → 22   (+2  module-local declarations)
+ *   distinct additional declarations: 30 (one is flagged by both rules)
+ *
+ * Classified by READING every site; the per-entry census is in objectui#5899's
+ * PR body:
+ *
+ *   22 of 30 are REAL MIRRORS of the spec symbol they are named after, and 12
+ *   of those carry a divergence measurable TODAY rather than merely possible.
+ *   `FlowNode` (metadata-admin/inspectors/FlowNodeInspector.tsx) declares a
+ *   `description` key the spec's `.strict()` `FlowNodeSchema` REJECTS, and
+ *   makes `label` optional where the spec requires it. `AppLike`, `ObjectLike`,
+ *   `RemoteTable` and `FlowRuntimeState` each relax a spec-REQUIRED key to
+ *   optional. `CURATED_CAPABILITY_LABELS` says it mirrors `PLATFORM_CAPABILITIES`
+ *   and is missing the member the spec has since added (`manage_sharing`), so
+ *   that capability silently loses its localized label.
+ *   `EXPLAIN_BATCH_MAX_RECORD_IDS` states in its own comment that it exists
+ *   only until the spec pin exports it — and the pin now does. `ActionParam`
+ *   and `FlowEdge` each exist TWICE inside one package, and each pair already
+ *   disagrees with itself.
+ *
+ *   8 of 30 are legitimate module-local shapes, in two kinds. Four are
+ *   different concepts sharing a name — `SearchResult` (the spec's is the
+ *   search RESPONSE `{hits,totalHits,…}`; this is one result ROW), `Dimension`,
+ *   `ModelConfig`, and two local React `Field` components. Four are ALREADY
+ *   derived, one hop outside where this scan looks: `type FlowNode =
+ *   FlowDesignerNode` and its edge twin alias the canvas's own types, and
+ *   `DashboardWidget` aliases an `@object-ui/types` schema that is itself
+ *   spec-derived.
+ *
+ * So the hole is real rather than theoretical, and it is not a one-line change
+ * for RULE 1: dropping the filter there turns the gate red on 29 sites at once,
+ * against this header's own standard that an ALLOW map with dozens of entries
+ * is not a guard. It IS a clean one-liner for RULE 2, whose entire additional
+ * population is two declarations, both real mirrors, one with measured drift.
+ * Which of those lands — and whether rule 1 instead gets the two structural
+ * narrowings that would retire half the false positives (apply `isRendererLike`
+ * to rule 1 too; count a pure alias to one identifier as derivation) — is
+ * objectui#5899's decision to make, not this script's. What is corrected here
+ * is only the account above, which read as though rule 1 plus rule 2 covered
+ * the class.
+ *
+ * These figures are a SNAPSHOT. When they move, re-take them and re-name the
+ * commit and the spec version — never edit the numbers in place under the old
+ * ones. That is the same discipline `scripts/invoked-as.mjs` records for its
+ * own measured section (objectui#6260/#6274), and for the same reason: a
+ * refreshed count under a stale commit is a measurement nobody can reproduce.
+ *
  * `SpecAuthoredInput` (@object-ui/react) counts as derivation evidence by name:
  * its entire purpose is to bind a local type to a spec schema's authoring input.
  *
@@ -152,6 +225,7 @@ import { createRequire } from "module";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { resolve, dirname, join, relative } from "path";
 import { fileURLToPath } from "url";
+import { isEntrypoint } from "./invoked-as.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -329,6 +403,16 @@ const ALLOW = {
       "authored `UserFilters`.",
     issue: 4115,
   },
+  // The three theme document types (`Theme`, `ThemeMode`, `ColorPalette`,
+  // objectui#5716 ruling, option A — localize) carried ALLOW entries here from
+  // the localization until the `@objectstack/spec` 17.2.0 refresh
+  // (objectui#5668). 17.2.0 shipped the theme-module retirement
+  // (objectstack#10485 / PR objectstack#10695), the names stopped colliding,
+  // the entries went stale exactly as their own comment predicted, and the
+  // refresh PR deleted them. The vacancy is pinned where it can execute:
+  // page-nav-misc-spec-parity.test.ts asserts all three names ABSENT from the
+  // spec export set, so an upstream re-publish is a loud collision, not an
+  // inherited exemption.
 };
 
 // ── Untriaged collisions (the ledger) ────────────────────────────────────────
@@ -1166,5 +1250,5 @@ process.exit(1);
 // `scanFileForClaims` / `normalizeDoc` from here and must not trigger a repo
 // scan (or a process.exit) on import. Same guard shape as
 // scripts/check-control-bytes.mjs.
-const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = isEntrypoint(import.meta.url);
 if (invokedDirectly) main();

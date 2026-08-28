@@ -50,8 +50,8 @@ import {
 } from '@object-ui/components';
 import { SchemaRenderer, useMetadata } from '@object-ui/react';
 import { ModalForm } from '@object-ui/plugin-form';
-import { resolveFormViewLayout } from '../utils/recordFormNavigation';
-import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
+import { resolveFormViewLayout } from '../utils/recordFormNavigation.js';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
 
 type Placement = 'center' | 'side' | 'bottom' | 'fullscreen';
 type ModalSize = 'sm' | 'default' | 'lg' | 'xl' | 'full';

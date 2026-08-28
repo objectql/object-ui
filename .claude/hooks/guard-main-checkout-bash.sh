@@ -41,12 +41,42 @@
 # for anyone who means to write there, and the target of this guard is the reflexive
 # `sed -i` an agent reaches for mid-task, not a determined evader.
 #
-# Writing ABOUT the ban must never trip the ban (objectstack#4890's lesson). Two layers:
+# Writing ABOUT the ban must never trip the ban (objectstack#4890's lesson). Four layers:
 #   1. quote-aware segmentation + tokenisation — a `>` or a `sed -i` inside '…' or "…" is
 #      literal text, so `grep -n "sed -i" .claude/` and `echo "never sed -i in main"` pass;
 #   2. heredoc bodies are stripped before analysis — the LINES of a `cat > /tmp/notes <<EOF`
 #      body are documentation, not commands, and segmentation alone (which splits on
-#      newlines) would happily read them as such.
+#      newlines) would happily read them as such;
+#   3. a backslash-escaped `\"` inside a double-quoted word does NOT end the quote — POSIX
+#      says `\` keeps its meaning before `"`, `\`, `$` and a backtick there, and nowhere else.
+#      Layer 1 used to end the string at the `\"`, and everything after it — the rest of a
+#      `node -e "…"` program — was then read as bare shell. A JS arrow function `st=>st.x`
+#      in that tail put a REAL ASCII `>` in operator position, so the guard named the
+#      following JS fragment as a write "target" and blocked a pure-read command (objectstack#10247).
+#      Single quotes take no escapes: inside '…' a backslash is literal, as in a real shell.
+#      OUTSIDE quotes the same escape holds and both passes must agree that it does: a `\"`
+#      there opens no quoted region at all. Only tokenise() knew that, so segmentation read
+#      the `"` as opening a region that never closed, went inert for every separator behind
+#      it, and let a real `sed -i` through as a mere argument — the fail-OPEN mirror of the
+#      false block above (objectstack#11131). The two passes now share the rule in both directions.
+#   4. shell COMMENTS are text, not commands — both quote-aware passes stop at an unquoted
+#      `#` that starts a WORD and resume at the next newline (objectstack#10570). A comment cannot
+#      write anything, so reading one as a command is a false BLOCK: prose arrows (`->`,
+#      `=>`) put a real `>` in operator position and the word after it was named as a write
+#      target, while a `;` in the same comment first split it into its own "segment".
+#      The word-start condition is the whole rule — `foo#bar`, `${x#y}`, `curl 'url/#frag'`,
+#      `sed 's/#//'` and `grep '#'` are NOT comments and are left exactly as they were. A
+#      comment never begins inside '…' or "…" (layer 1 owns those) nor inside a heredoc body
+#      (layer 2 has already dropped those lines before this pass runs).
+#
+# Redirection is recognised on ASCII operators ONLY — `>` `>>` `<` `<<` and their fd-prefixed
+# forms. No non-ASCII codepoint is ever an operator or an operator boundary, and this is
+# structural rather than a list to maintain: every byte of a non-ASCII UTF-8 codepoint is
+# >= 0x80, while `>` is 0x3e and `<` is 0x3c, so `→` (e2 86 92), `⇒` (e2 87 92) and `➜`
+# (e2 9e 9c) cannot collide with an operator byte-wise or character-wise. That matters
+# because `→` runs all through this repo's own AGENTS.md — one per Prime Directive clause,
+# and again in the state-classification rules — so echoing or grepping that prose must stay
+# allowed. The self-test pins both directions.
 #
 # Exit-code contract, mirroring both sibling hooks: 0 = allow, 2 = block with the reason on
 # stderr.
@@ -88,6 +118,47 @@ fi
 # on newlines, so without this pass a documented example inside the body ("sed -i … main
 # checkout") would be analysed as if the agent had run it. Drop body lines (and their
 # terminator); the introducing line — which is where the real redirection lives — stays.
+#
+# A `<<WORD` that is merely NAMED inside a COMMENT introduces nothing — bash removes the
+# comment before it ever looks for a heredoc. Reading one as a real introducer was fail-OPEN
+# and badly so: the delimiter never appeared on a line of its own, so the pending heredoc
+# was never satisfied and EVERY remaining line — including real commands — was dropped
+# before either quote-aware pass could see it (objectstack#11133).
+#
+# Only the DELIMITER SCAN consults the comment rule; the line itself is passed through
+# untouched, because both quote-aware passes already own that rule (objectstack#10570) and a second
+# implementation of it here is exactly how the two would drift.
+#
+# This is why the fix is a narrow scan-side truncation rather than a comment-stripping pass
+# run BEFORE this one: a heredoc BODY may contain an unbalanced apostrophe, and a quote-aware
+# comment scanner run over the raw text would desynchronise on it for every following line.
+# Body lines never reach this scan — they are consumed by the `pending` branch below and
+# `continue` before it — so that hazard is structurally out of reach here.
+#
+# Word-start rule, identical to split_segments()/tokenize(): a `#` opens a comment only where
+# a WORD could start — at line start, after a blank, or after one of `; | & ( ) > <`.
+strip_line_comment() {
+  local s="$1" n=${#1} i ch q="" word=0
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [ -n "$q" ]; then
+      if [ "$q" = '"' ] && [ "$ch" = '\' ] && [ $((i + 1)) -lt "$n" ]; then i=$((i + 1)); continue; fi
+      [ "$ch" = "$q" ] && q=""
+      continue
+    fi
+    case "$ch" in
+      '#')
+        if [ "$word" = 0 ]; then printf '%s' "${s:0:i}" ; return ; fi
+        ;;                                        # foo#bar, ${x#y}, url/#frag
+      '\') i=$((i + 1)) ; word=1 ;;
+      "'" | '"') q="$ch" ; word=1 ;;
+      ';' | '|' | '&' | '(' | ')' | ' ' | $'\t' | '>' | '<') word=0 ;;
+      *) word=1 ;;
+    esac
+  done
+  printf '%s' "$s"
+}
+
 strip_heredocs() {
   local s="$1" out="" line scan d t
   local -a pending=()
@@ -100,8 +171,10 @@ strip_heredocs() {
       continue
     fi
     out+="$line"$'\n'
+    # A `<<WORD` behind an unquoted word-start `#` is prose, not an introducer (objectstack#11133).
+    scan="$(strip_line_comment "$line")"
     # `<<<` is a herestring, not a heredoc — mask it before hunting for delimiters.
-    scan="${line//<<</__OS_HERESTRING__}"
+    scan="${scan//<<</__OS_HERESTRING__}"
     case "$scan" in
       *'<<'*)
         while IFS= read -r d; do
@@ -117,21 +190,59 @@ strip_heredocs() {
 
 # --- split the command into shell segments, honouring quotes ---------------------------
 # Verbatim from guard-shared-stash.sh. A separator inside '…' or "…" does NOT split, so
-# writing *about* the ban is never caught by the ban.
+# writing *about* the ban is never caught by the ban. The same goes for a separator inside
+# a COMMENT: `word` tracks whether the next character would open a new WORD, which is the
+# only position where an unquoted `#` begins a comment — the comment then runs to the next
+# newline and never splits, tokenises or contributes a target (objectstack#10570).
+#
+# What resets `word` is exactly what delimits a word in the shell: start of input, blank,
+# and the metacharacters `; | & ( ) newline > <`. `{` and `}` do NOT — they are reserved
+# words rather than metacharacters, so `#` right after one continues the word. That is not
+# cosmetic: this pass splits on `{`/`}` anyway, and treating the `#` of `${#arr[@]}` as a
+# comment would swallow the rest of the line — including a real redirect behind it.
 segments=()
 split_segments() {
-  local s="$1" seg="" q="" ch i n=${#1}
+  local s="$1" seg="" q="" ch i n=${#1} word=0
   for ((i = 0; i < n; i++)); do
     ch="${s:i:1}"
     if [ -n "$q" ]; then
+      if [ "$q" = '"' ] && [ "$ch" = '\' ] && [ $((i + 1)) -lt "$n" ]; then
+        case "${s:i+1:1}" in
+          '"' | '\' | '$' | '`')
+            seg+="$ch" ; i=$((i + 1)) ; seg+="${s:i:1}" ; continue ;;
+        esac
+      fi
       seg+="$ch"
       [ "$ch" = "$q" ] && q=""
       continue
     fi
     case "$ch" in
-      "'" | '"') q="$ch" ; seg+="$ch" ;;
-      ';' | '|' | '&' | '(' | ')' | '{' | '}' | $'\n') segments+=("$seg") ; seg="" ;;
-      *) seg+="$ch" ;;
+      '#')
+        if [ "$word" = 0 ]; then
+          # comment: skip to (not past) the newline, which still separates as usual
+          while [ $((i + 1)) -lt "$n" ] && [ "${s:i+1:1}" != $'\n' ]; do i=$((i + 1)); done
+          continue
+        fi
+        seg+="$ch"                                   # foo#bar, ${x#y}, url/#frag
+        ;;
+      '\')
+        # Outside quotes a backslash escapes the NEXT character, so an escaped `\"` does NOT
+        # open a quoted region. tokenize() has always had this branch; this pass did not, and
+        # the disagreement was a fail-OPEN hole: the `"` after the backslash opened a quote
+        # here that never closed, every later separator went inert, the whole command
+        # collapsed into one `echo` segment, and a real `sed -i` behind it was just another
+        # argument (objectstack#11131). Both characters are kept verbatim — this pass only SPLITS, and
+        # tokenize() re-reads the escape when it strips quoting.
+        seg+="$ch"
+        if [ $((i + 1)) -lt "$n" ]; then i=$((i + 1)) ; seg+="${s:i:1}" ; fi
+        word=1
+        ;;
+      "'" | '"') q="$ch" ; seg+="$ch" ; word=1 ;;
+      ';' | '|' | '&' | '(' | ')' | $'\n') segments+=("$seg") ; seg="" ; word=0 ;;
+      '{' | '}') segments+=("$seg") ; seg="" ; word=1 ;;
+      ' ' | $'\t') seg+="$ch" ; word=0 ;;
+      '>' | '<') seg+="$ch" ; word=0 ;;
+      *) seg+="$ch" ; word=1 ;;
     esac
   done
   segments+=("$seg")
@@ -142,6 +253,9 @@ split_segments() {
 # enough there. Here the whole argument list matters, and `read -r -a` would promote a
 # QUOTED ">" or "sed -i" to a real operator/command — exactly the false positive that makes
 # a guard get disabled. So: quotes are stripped and their contents are inert.
+# A comment is inert here too: `have` is already the "a word is open" flag, so an unquoted
+# `#` with have=0 is at word start and begins a comment (objectstack#10570). `foo#bar` and
+# `${x#y}` reach this point with have=1 and stay part of the token.
 # TOK[] = token values (unquoted); TOP[] = "op" for an unquoted redirection operator.
 TOK=(); TOP=()
 tokenize() {
@@ -150,11 +264,25 @@ tokenize() {
   for ((i = 0; i < n; i++)); do
     ch="${s:i:1}"
     if [ -n "$q" ]; then
+      if [ "$q" = '"' ] && [ "$ch" = '\' ] && [ $((i + 1)) -lt "$n" ]; then
+        case "${s:i+1:1}" in
+          '"' | '\' | '$' | '`')
+            i=$((i + 1)) ; tok+="${s:i:1}" ; have=1 ; continue ;;
+        esac
+      fi
       if [ "$ch" = "$q" ]; then q=""; else tok+="$ch"; fi
       have=1
       continue
     fi
     case "$ch" in
+      '#')
+        if [ "$have" = 0 ]; then
+          # word-start `#`: comment, inert to the next newline
+          while [ $((i + 1)) -lt "$n" ] && [ "${s:i+1:1}" != $'\n' ]; do i=$((i + 1)); done
+          continue
+        fi
+        tok+="$ch"
+        ;;
       "'" | '"') q="$ch" ; have=1 ;;
       '\')
         i=$((i + 1))

@@ -5,8 +5,9 @@ name: Doc Component Types
 # precisely the shape both of those workflows skip. `ci.yml`'s `type-check` job
 # decides whether to run its expensive steps with a `git diff` that excludes
 # `content/**`, `'**/*.md'`, `docs/**` and `apps/site/**` — so a PR that edits
-# only `content/docs/**.mdx` reports the context and runs none of the gates
-# inside it. A gate against a wrong `type` in a teaching snippet, wired there,
+# only `content/docs/**` reports the context and runs none of the gates inside
+# it. Note the `'**/*.md'` term especially: since objectui#5342 this gate reads
+# the `.md` guides too, which is exactly the extension that diff excludes. A gate against a wrong `type` in a teaching snippet, wired there,
 # would be blind to every change that can introduce one.
 #
 # This is the fifth instance of the shape in this repo and the reasoning is
@@ -23,10 +24,12 @@ name: Doc Component Types
 # gate, one home.
 #
 # It needs no install and no build. The script reads the checkout with `node:fs`
-# only: 143 mdx files for the snippets, and the `packages/` + `apps/` sources for
-# the registered-key universe it compares them against. A few seconds. Keep it
-# that way if you add checks to it — the moment this needs `pnpm install` it
-# stops being cheap enough to run unfiltered, and the filter is the hole.
+# only: 184 pages (144 `.mdx` + 40 `.md`, objectui#5342) for the fenced snippets
+# AND for the plugin key tables (objectui#5106), and the `packages/` + `apps/`
+# sources for the registered-key universe it compares them against. A few
+# seconds. Keep it that way if you add checks to it — the moment this needs
+# `pnpm install` it stops being cheap enough to run unfiltered, and the filter is
+# the hole.
 
 on:
   pull_request:
@@ -65,7 +68,7 @@ jobs:
         with:
           node-version: '22.x'
 
-      # A `type` string in a `content/docs/**.mdx` code block is not rendered,
+      # A `type` string in a `content/docs/**` code block is not rendered,
       # not parsed and not compared against anything, so a snippet can name a
       # component that does not exist and every check in the repo stays green —
       # while a reader who copies it gets the renderer's red "Unknown component

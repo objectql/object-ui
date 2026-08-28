@@ -243,12 +243,24 @@ export function formatMeasure(
   //
   // `style: 'percentPoints'` is what closes it, and the choice of route is
   // measured, not incidental. `display` is already in percentage POINTS, while
-  // `Intl`'s `style: 'percent'` wants a fraction — so routing through that (the
-  // way `formatPercent` does) would mean dividing by 100 for `Intl` to multiply
-  // straight back, and that round trip is lossy at rounding TIES: 27,581 of
-  // 1,200,013 ordinary-magnitude en-US forms move (`0.175` at 2 decimals goes
-  // from `0.18%` to `0.17%`), plus `MAX_SAFE_INTEGER` and everything from 1e23
-  // up. Formatting the points directly with the percent UNIT was measured to
+  // `Intl`'s `style: 'percent'` wants a fraction — so routing through that
+  // would mean dividing by 100 for `Intl` to multiply straight back, and that
+  // round trip is lossy at rounding TIES: 27,581 of 1,200,013
+  // ordinary-magnitude en-US forms move (`0.175` at 2 decimals goes from
+  // `0.18%` to `0.17%`), plus `MAX_SAFE_INTEGER` and everything from 1e23 up.
+  // That count is #4576's tie-dense grid — 0.005 steps to 2,000, precisions
+  // 0/1/2 — measured on THIS formatter's call shape. #4590 re-measured the same
+  // route through `formatPercent` and reports 27,577 of 1,200,003: a different
+  // form set, not a correction of this one.
+  //
+  // No caller in this repo takes the divide-by-100 route today. `formatPercent`
+  // was the last one and moved to `style: 'percentPoints'` in #4590; the two
+  // `style: 'percent'` sites left (`element:number`'s format options and the
+  // report exporter's Excel options) hand `Intl` a FRACTION, which is that
+  // style's own contract and not this trap. The route now survives only where a
+  // test constructs it in order to show it disagreeing.
+  //
+  // Formatting the points directly with the percent UNIT was measured to
   // produce a byte-identical percent affix to `style: 'percent'` across all 171
   // locale tags tested, while moving ZERO of those 1,200,013 en forms — the
   // same convention by a route that does not touch the value.

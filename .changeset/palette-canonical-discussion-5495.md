@@ -1,0 +1,11 @@
+---
+'@object-ui/app-shell': minor
+---
+
+**The page-editor palette now offers the canonical `record:discussion` instead of the `record:chatter` alias.**
+
+The two spellings are one renderer under two names — `@object-ui/plugin-detail` registers both against `RecordChatterRenderer` — and the palette deliberately carries one entry per renderer. It carried the wrong one. `record:discussion` is the canonical spelling: `@object-ui/core`'s `public-blocks.ts` records `record:chatter` as that same block "under a Salesforce-familiar name, kept for schemas", app-shell's own page synthesiser (`buildDefaultPageSchema`) has emitted the canonical name all along, and the console's AI block vocabulary already leaves the alias uncurated for exactly this reason. The palette was the last surface still pointing at the alias, and it did so only because the `@objectstack/spec` build pinned when the entry was written had no canonical member to offer; the currently pinned build declares both. The author-facing label moves **"Chatter feed" → "Discussion"**. Maintainer ruling 2026-08-22 on objectui#5495.
+
+**The alias keeps rendering — this changes what Studio advertises, not what works.** `record:chatter` moves from `BLOCK_TYPE_META` into `PALETTE_EXCLUSIONS`, which is the palette's ledger of "renders, but is not offered". Every page schema in the wild that spells the block the Salesforce way renders exactly as before, and both halves are now pinned by a test (`palette-discussion-alias.test.tsx`) that asserts the registry resolves the alias to the *same renderer function* as the canonical name and that an alias schema still produces the discussion panel — so "no longer offered" cannot quietly drift into "no longer rendered".
+
+One knock-on worth knowing when you open an existing page: the block-editor canvas draws a node's icon and colour tone from the palette entry, so an existing `record:chatter` node now shows the generic unknown-block icon in the outline instead of the message icon. This is the pre-existing behaviour for any renderable-but-unoffered type — until this change it was the *canonical* `record:discussion` that read this way, including in every page the platform generates itself, so the affected spelling is now the rarer one.

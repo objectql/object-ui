@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { FlexSchema } from '@object-ui/types';
 import { renderChildren } from '../../lib/utils';
 import { cn } from '../../lib/utils';
@@ -58,21 +58,36 @@ ComponentRegistry.register('flex',
       className
     );
 
-    // Extract designer-related props
-    const { 
-        'data-obj-id': dataObjId, 
-        'data-obj-type': dataObjType,
-        style, 
-        ...flexProps 
-    } = props;
+    // DOM pass-through is a WHITELIST, never a list of keys to strip — the
+    // objectui#3291 discipline, executed by {@link toDomProps} and already landed
+    // on the sibling `grid.tsx` (objectui#4787 / PR #5573), whose docblock carries
+    // the full argument. This replaces the bare `{...flexProps}` spread, which
+    // forwarded everything `SchemaRenderer` hands a renderer — the authored node's
+    // own keys, the flattened `props` container, the injected adapter and any
+    // extra key the author wrote — onto the div as invalid HTML attributes.
+    //
+    // MEASURED, not assumed (objectui#5574): every `flex` node in
+    // `examples/schema-catalog` rendered through the real `SchemaRenderer`, then
+    // read off the DOM — 494 illegitimate attributes across 248 nodes, led by
+    // `align` (198), `gap` (193), `justify` (98) and `direction` (5). Each of
+    // those four is a key CONSUMED off `schema` above and turned into a class;
+    // forwarding it as well is pure leakage. All four are all-lowercase, so React
+    // reports none of them — which is why the pin is the DOM-reading sweep in
+    // `packages/app-shell/src/__tests__/widget-dom-leak-sweep.test.tsx` rather
+    // than a warning-as-error rule. `grid`'s 26 nodes read ZERO under the same
+    // probe, which is the control saying the reading is real.
+    //
+    // `style` is forwarded BY NAME rather than reopened in the shared whitelist
+    // (the objectui#4435 route): it is this container's designer sizing channel,
+    // and the shared set is deliberately element-agnostic. `data-obj-id` /
+    // `data-obj-type` need no special handling — they arrive through the open
+    // `data-*` family {@link toDomProps} already forwards.
+    const { style, ...hostProps } = props;
 
     return (
       <div 
+        {...toDomProps(hostProps)}
         className={flexClass} 
-        {...flexProps}
-        // Apply designer props
-        data-obj-id={dataObjId}
-        data-obj-type={dataObjType}
         style={style}
       >
         {schema.children && renderChildren(schema.children)}

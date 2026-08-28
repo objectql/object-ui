@@ -69,7 +69,7 @@ const HELP = 'How firmly do you agree';
 
 beforeAll(() => {
   // Registered exactly as `registerField` does for a member of
-  // FIELD_TYPES_GROUP_LABELLED — the declaration is half of what is under test.
+  // FIELD_WIDGET_LABELLING — the declaration is half of what is under test.
   // Registered one by one rather than over a tuple: the two widgets implement
   // `FieldWidgetComponentProps` at different value types, and a shared loop
   // variable would only unify them through `any`.

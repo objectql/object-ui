@@ -18,8 +18,13 @@
  *     `sharingModel` (private | public_read | public_read_write |
  *     controlled_by_parent). This is the baseline record-level visibility the
  *     runtime applies BEFORE positions and sharing rules. Since ADR-0090 D1
- *     an unset value defaults to `private` (secure default) — the old
- *     fully-public cliff is gone, so leaving it unset is safe.
+ *     an unset value RESOLVES to `private` at runtime (secure default) — the
+ *     old fully-public cliff is gone — but leaving it unset is NOT safe to
+ *     ship: the publish door refuses an object that declares no OWD
+ *     (`security-owd-unset`), because the baseline must be an authored
+ *     decision rather than an accident. Runtime fallback and publishability
+ *     are two different questions, and this comment used to answer only the
+ *     first (objectui#5418).
  *  3. Semantic roles (ADR-0085) — the cross-surface presentation roles:
  *     `nameField`, `stageField` (string | false | unset), `highlightFields`.
  *     These are the ONLY presentation knobs the protocol carries, so the
@@ -36,9 +41,10 @@
 
 import React from 'react';
 import { Settings2, ShieldCheck, Sparkles, ToggleRight, X } from 'lucide-react';
-import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { readFields } from '../metadata-admin/previews/object-fields-io';
-import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
+import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n.js';
+import { isExternalWider } from './owd-sharing.js';
 
 export function ObjectSettingsPanel({
   name,
@@ -116,13 +122,18 @@ export function ObjectSettingsPanel({
   // Defaults to private when unset; must never be WIDER than the internal
   // model (ordering: private < public_read < public_read_write — the D7
   // security-posture linter rejects the wider shape at publish).
+  //
+  // The width comparison itself comes from `owd-sharing.ts`, which exists to be
+  // the SINGLE home for the pieces this tab and the package-level OWD overview
+  // (`PackageOwdOverviewPanel`) must agree on. This used to re-declare
+  // `OWD_WIDTH` and the comparison inline; the two were equivalent but nothing
+  // held them together, so a D11 refinement landing in the module would have
+  // left this tab — the surface an author actually sets the dial on — silently
+  // enforcing the old rule (objectui#5477). Note the argument order: the module
+  // takes (internal, external), the reverse of how the violation reads.
   const externalSharingModel =
     typeof draft.externalSharingModel === 'string' ? draft.externalSharingModel : '';
-  const OWD_WIDTH: Record<string, number> = { private: 0, public_read: 1, public_read_write: 2 };
-  const externalWider =
-    externalSharingModel in OWD_WIDTH &&
-    sharingModel in OWD_WIDTH &&
-    OWD_WIDTH[externalSharingModel] > OWD_WIDTH[sharingModel];
+  const externalWider = isExternalWider(sharingModel, externalSharingModel);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
@@ -180,7 +191,20 @@ export function ObjectSettingsPanel({
               </option>
             </select>
           </label>
-          <p className="text-[11px] text-muted-foreground">
+          {/* An UNSET internal OWD is not a neutral state — the publish door
+              refuses it (`security-owd-unset`). Styled as the problem it is,
+              exactly the way the D11 external-wider violation next to it is
+              (objectui#5418); the two are the same class of "this authoring
+              choice will be rejected at publish" and reading them differently
+              is what let the unset case pass for a safe default. */}
+          <p
+            data-testid="owd-internal-desc"
+            className={
+              sharingModel === ''
+                ? 'text-[11px] text-amber-600 dark:text-amber-500'
+                : 'text-[11px] text-muted-foreground'
+            }
+          >
             {t(sharingDescKey, locale)}
           </p>
           <label className="block">

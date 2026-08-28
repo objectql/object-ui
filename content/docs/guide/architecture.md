@@ -140,10 +140,21 @@ The `SchemaRenderer` component:
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react'
+import type { BaseSchema } from '@object-ui/types'
+
+// The schema from step 1, as the object the renderer receives.
+const schema: BaseSchema = {
+  type: 'card',
+  title: 'Welcome',
+  body: {
+    type: 'text',
+    value: 'Hello, ${user.name}!',
+  },
+}
 
 function App() {
-  const data = { user: { name: "Alice" } }
-  
+  const data = { user: { name: 'Alice' } }
+
   return <SchemaRenderer schema={schema} data={data} />
 }
 ```
@@ -152,6 +163,7 @@ function App() {
 
 The registry maps type strings to React components:
 
+<!-- doc-snippet: fragment — registry excerpt — CardComponent and TextComponent are placeholder names for the reader's own components, and ComponentRegistry is imported where it is used further down the page -->
 ```typescript
 // During app initialization
 ComponentRegistry.register('card', CardComponent)
@@ -165,6 +177,7 @@ const Component = ComponentRegistry.get('card') // → CardComponent
 
 The registered component renders with evaluated props:
 
+<!-- doc-snippet: fragment — the JSX the registry produces for step 1's schema; CardComponent and TextComponent are the placeholder components registered in the block above -->
 ```tsx
 <CardComponent title="Welcome">
   <TextComponent value="Hello, Alice!" />
@@ -179,6 +192,7 @@ ObjectUI uses two registry systems for extensibility:
 
 Maps schema types to React components:
 
+<!-- doc-snippet: fragment — MyWidgetComponent is a placeholder for the reader's own component; the block shows the register() call's metadata argument, not a runnable module -->
 ```tsx
 import { ComponentRegistry } from '@object-ui/core'
 
@@ -197,6 +211,7 @@ ComponentRegistry.register('my-widget', MyWidgetComponent, {
 
 Maps field types to input components:
 
+<!-- doc-snippet: fragment — RatingFieldComponent is a placeholder for the reader's own field renderer -->
 ```tsx
 import { registerFieldRenderer } from '@object-ui/fields'
 
@@ -274,6 +289,7 @@ ObjectUI uses **Tailwind CSS** exclusively for styling:
 
 All component variants use `cva` for type-safe variants:
 
+<!-- doc-snippet: fragment — quotes how @object-ui/components declares its variants internally; class-variance-authority is that package's own dependency, not a module resolvable from the docs root -->
 ```tsx
 import { cva } from 'class-variance-authority'
 
@@ -299,6 +315,7 @@ const buttonVariants = cva(
 
 Use `cn()` helper (tailwind-merge + clsx) for class overrides:
 
+<!-- doc-snippet: fragment — a one-line usage excerpt; '@/lib/utils' is the reader's app path alias and Button and props come from the surrounding component -->
 ```tsx
 import { cn } from '@/lib/utils'
 
@@ -319,11 +336,15 @@ ObjectUI is built with **TypeScript** in strict mode:
 ```typescript
 import type { ComponentSchema, ButtonSchema } from '@object-ui/types'
 
+function handleClick() {
+  // ...
+}
+
 const schema: ButtonSchema = {
   type: 'button',
   text: 'Click me',
   variant: 'default', // ✅ Type-checked
-  onClick: 'handleClick'
+  onClick: handleClick, // ✅ a handler, not its name — onClick is () => void | Promise<void>
 }
 ```
 
@@ -345,6 +366,7 @@ Heavy dependencies only go in plugins:
 
 Don't import components directly - use registries:
 
+<!-- doc-snippet: fragment — a good/bad contrast pair mixing an import, bare JSX and a bare schema literal — three separate excerpts in one block, none a module -->
 ```tsx
 // ❌ Bad
 import { MyGrid } from './MyGrid'
@@ -359,6 +381,7 @@ ComponentRegistry.register('my-grid', MyGrid)
 
 Never use inline styles or CSS-in-JS:
 
+<!-- doc-snippet: fragment — a good/bad contrast pair of two unclosed div openings, quoted to compare the style attribute with a Tailwind class -->
 ```tsx
 // ❌ Bad
 <div style={{ backgroundColor: 'red' }}>
@@ -371,6 +394,7 @@ Never use inline styles or CSS-in-JS:
 
 Use expressions for dynamic content:
 
+<!-- doc-snippet: fragment — a good/bad contrast pair of two bare schema object literals -->
 ```tsx
 // ❌ Bad - hardcoded
 { type: 'text', value: 'Hello, John!' }
@@ -389,6 +413,7 @@ When creating a plugin:
 4. Add documentation in `content/docs/plugins/`
 5. Add to plugins meta.json
 
+<!-- doc-snippet: fragment — the reader's new plugin package index.tsx; './MyWidget' is the sibling source file in that package -->
 ```typescript
 // packages/plugin-mywidget/src/index.tsx
 import { ComponentRegistry } from '@object-ui/core'

@@ -19,8 +19,8 @@
 import * as React from 'react';
 import { cn, Button, Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useAiUsage, type AiMeterUsage } from '../hooks/useAiUsage';
-import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
+import { useAiUsage, type AiMeterUsage } from '../hooks/useAiUsage.js';
+import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi.js';
 
 /** Fraction at/above which a meter is "running low" (amber + CTA). */
 export const NEAR_FULL = 0.8;

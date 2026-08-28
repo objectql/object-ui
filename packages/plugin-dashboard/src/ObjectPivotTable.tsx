@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useDataScope, SchemaRendererContext, useFilterScope } from '@object-ui/react';
 import { useSafeFieldLabel } from '@object-ui/i18n';
 import { extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, type DrillEvent } from '@object-ui/core';
@@ -15,6 +15,28 @@ import { PivotTable } from './PivotTable';
 import { DrillDownDrawer } from './DrillDownDrawer';
 import { resolveFilterPlaceholders } from './utils';
 import type { PivotTableSchema } from '@object-ui/types';
+
+/**
+ * Shared empty fallback for the resolved row list (objectui#4629).
+ *
+ * `Array.isArray(rawData) ? rawData : []` evaluates a FRESH array on every
+ * render, and this component hands the result straight to `PivotTable` as
+ * `finalSchema.data`, where it is the identity key of the cross-tabulation
+ * memo (`PivotTable.tsx`, `[data, rowField, columnField, valueField,
+ * aggregation]`). So while `rawData` is a non-array — a provider-config
+ * `data`, or a `bind` path that resolves to an object — that memo rebuilds its
+ * row/column sets, bucket map and totals on every render over nothing at all.
+ * A module-scope empty makes "no rows yet" a stable value, and the
+ * `Array.isArray` arm downstream passes it through unchanged, so the memo
+ * holds.
+ *
+ * The same move `data-table.tsx` made for its own `EMPTY_ROWS` (objectui#4618,
+ * PR #4623) and `ObjectDataTable.tsx` makes for the identical expression.
+ *
+ * Frozen so a consumer that mutates the array it was handed cannot corrupt the
+ * shared instance for every other pivot on the page.
+ */
+const EMPTY_ROWS = Object.freeze([]) as unknown as any[];
 
 export interface ObjectPivotTableProps {
   schema: PivotTableSchema & {
@@ -59,16 +81,8 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
   const [drillEvent, setDrillEvent] = useState<DrillEvent | null>(null);
 
   // i18n: translate field display labels and select option labels via the
-  // standard object/field translation conventions. Held behind refs so the
-  // metadata-derivation effect doesn't need them in its dep array (the i18n
-  // hook returns fresh function identities each render).
+  // standard object/field translation conventions.
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
-  const fieldLabelRef = useRef(fieldLabel);
-  const fieldOptionLabelRef = useRef(fieldOptionLabel);
-  useEffect(() => {
-    fieldLabelRef.current = fieldLabel;
-    fieldOptionLabelRef.current = fieldOptionLabel;
-  }, [fieldLabel, fieldOptionLabel]);
 
   useEffect(() => {
     if (!dataSource || !schema.objectName) return;
@@ -83,7 +97,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
         const nameLabels: Record<string, string> = {};
         for (const [fieldName, fieldDef] of Object.entries<any>(s.fields)) {
           const rawLabel = fieldDef?.label ? String(fieldDef.label) : fieldName;
-          nameLabels[fieldName] = fieldLabelRef.current(objectName, fieldName, rawLabel);
+          nameLabels[fieldName] = fieldLabel(objectName, fieldName, rawLabel);
           const opts = fieldDef?.options;
           if (Array.isArray(opts) && opts.length > 0) {
             const m: Record<string, string> = {};
@@ -91,7 +105,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
               if (opt && opt.value !== undefined && opt.label !== undefined) {
                 const value = String(opt.value);
                 const fallback = String(opt.label);
-                m[value] = fieldOptionLabelRef.current(objectName, fieldName, value, fallback);
+                m[value] = fieldOptionLabel(objectName, fieldName, value, fallback);
               }
             }
             if (Object.keys(m).length > 0) maps[fieldName] = m;
@@ -102,7 +116,20 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
       })
       .catch(() => { /* silently fall back to raw values */ });
     return () => { alive = false; };
-  }, [dataSource, schema.objectName]);
+    // `fieldLabel` / `fieldOptionLabel` are REAL dependencies: the derivation
+    // above calls both, so a run with a stale resolver stores stale labels in
+    // `fieldLabelMaps` / `fieldNameLabels` and the pivot's headers and cells
+    // render in the wrong language until some unrelated dependency happens to
+    // move. They used to be hidden behind refs because `useSafeFieldLabel()`
+    // returned a fresh object on every render outside an i18next provider,
+    // which would have made this effect re-run on every render — and, because
+    // it ends in two `setState` calls with freshly built objects, each run
+    // scheduled the next one: an unbounded derive loop. `useObjectLabel`'s memo
+    // now holds on both paths (objectui#5564), so these identities change only
+    // when the resolver genuinely changes — a provider mounting, or a language
+    // switch — and the effect settles after one run per such change.
+    // Pinned by `ObjectPivotTable.i18nResolverDeps.test.tsx` (objectui#5625).
+  }, [dataSource, schema.objectName, fieldLabel, fieldOptionLabel]);
 
   // Session scope for `{current_user_id}` / `{current_org_id}` in the schema
   // filter. Read at component level — the fetch below is async.
@@ -151,7 +178,7 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
 
   // Resolve data: bound data > static schema data > fetched data
   const rawData = boundData || schema.data || fetchedData;
-  const finalData = Array.isArray(rawData) ? rawData : [];
+  const finalData = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
   // Loading skeleton
   if (loading && finalData.length === 0) {

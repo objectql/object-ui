@@ -1,6 +1,6 @@
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
 
 /**
  * AutoNumberField - Read-only auto-generated field

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useGesture } from './useGesture';
+import { useGesture } from './useGesture.js';
 import type { GestureType, SpecGestureConfig } from '@object-ui/types';
 
 export interface UseSpecGestureOptions {

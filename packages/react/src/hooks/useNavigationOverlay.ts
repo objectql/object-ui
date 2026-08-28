@@ -20,7 +20,7 @@
 import { useState, useCallback, useMemo } from 'react';
 
 import type { NavigationConfigSchema, NavigationMode as SpecNavigationMode } from '@objectstack/spec/ui';
-import type { SpecAuthoredInput } from '../spec-input';
+import type { SpecAuthoredInput } from '../spec-input.js';
 
 /**
  * The spec's `NavigationConfigSchema`, authoring side — by reference, with no

@@ -6,7 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import * as React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
+import {
+  ElementDataSourceGate,
+  noDataSourceMessage,
+  useResolvedDataSource,
+} from '@object-ui/react';
 import { withFieldCarrier } from '@object-ui/fields';
 import { DetailView } from './DetailView';
 import { DetailSection } from './DetailSection';
@@ -23,7 +29,7 @@ import { RecordHistoryRenderer } from './renderers/record-history';
 import { RecordReferenceRailRenderer } from './renderers/record-reference-rail';
 import { RecordAlertRenderer } from './renderers/record-alert';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
-import type { DetailViewSchema } from '@object-ui/types';
+import type { DataSource, DetailViewSchema } from '@object-ui/types';
 import { ACTION_LOCATIONS } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
@@ -39,6 +45,29 @@ export {
   RecordReferenceRailRenderer,
   RecordAlertRenderer,
 };
+/**
+ * The `sys_activity.type` -> `FeedItem.type` reading, made importable
+ * (objectui#5878).
+ *
+ * It was already exported from `renderers/recordActivityFeed`, but not from
+ * this barrel — so `app-shell`'s `RecordDetailView`, which merges the SAME
+ * `sys_activity` rows into the console record page's feed, carried a
+ * hand-written copy of the table instead. Nothing failed when the two
+ * disagreed, and objectui#5840 made them disagree: `scheduled` -> `event`
+ * landed here and not there, so one row rendered on a hand-authored record
+ * page and vanished on the console one.
+ *
+ * Publishing it is what lets there be ONE reading. Adding a member is now a
+ * single edit at `ACTIVITY_TYPE_TO_FEED_TYPE`; re-forking it is caught by
+ * `RecordDetailView.activityMapIdentity-5878.test.tsx`, which spies on THIS
+ * object rather than comparing values (a member-identical private copy passes
+ * a value check, which is the whole failure mode being closed).
+ *
+ * No new module enters the eager closure: `renderers/record-activity`, already
+ * imported above, pulls `recordActivityFeed` in.
+ */
+export { ACTIVITY_TYPE_TO_FEED_TYPE } from './renderers/recordActivityFeed';
+
 export { RecordDetailDrawer, deriveRecordPageHref } from './RecordDetailDrawer';
 export type { RecordDetailDrawerProps } from './RecordDetailDrawer';
 export {
@@ -129,8 +158,103 @@ export type {
   BuildPageOptions,
 } from './synth/buildDefaultPageSchema';
 
-// Register DetailView component
-ComponentRegistry.register('detail-view', DetailView, {
+/**
+ * The registry face of `detail-view` — objectui#5378 item 1.
+ *
+ * ## What was wrong
+ *
+ * `detail-view` was registered as the RAW `DetailView` component, which reads
+ * its adapter from its own React `dataSource` PROP. Its two siblings in the
+ * family are registered through wrappers that read the adapter from
+ * `SchemaRendererContext` (`ObjectGridRenderer`, `ObjectFormRenderer`), and
+ * `SchemaRenderer` itself reads only context — an explicit `dataSource` PROP
+ * arrives through `...props` and never becomes context for anything below.
+ *
+ * So the two wirings were mutually exclusive, and a page could satisfy only one
+ * of them. Measured on the published getting-started guide's own snippets,
+ * keys held correct in every cell:
+ *
+ * | wiring                                    | `object-grid` | `detail-view` |
+ * |-------------------------------------------|---------------|---------------|
+ * | `SchemaRendererProvider dataSource={…}`    | `find` 1      | `findOne` 0   |
+ * | `SchemaRenderer dataSource={…}` (prop)     | `find` 0      | `findOne` 1   |
+ *
+ * Neither cell reported anything: one half of the page fetched, the other half
+ * rendered an empty shell in silence. The registry gave the author no signal
+ * about which wiring they were holding.
+ *
+ * ## What this is
+ *
+ * The same context-reading wrapper the siblings have, so every block in the
+ * family resolves the adapter the same way — maintainer ruling of 2026-08-20 on
+ * objectui#5378, item 1 (「其他接受你的建议。」), which also settled the
+ * compatibility question: this is ADDITIVE. The `dataSource`-PROP form stays
+ * accepted, and no prop is removed this pass.
+ *
+ * ## Precedence, when both are present
+ *
+ * The explicit prop WINS. It is the more specific signal — written on this one
+ * placement, by someone who can see it — while the context adapter is ambient
+ * and applies to every descendant of the provider. That is also the only
+ * precedence under which the ruling's \"stays accepted\" is true of the case that
+ * matters: a prop-form caller mounted somewhere inside an app that has a
+ * provider would otherwise have had its explicit choice silently overruled by
+ * an ancestor it never wrote.
+ *
+ * Measured caller population behind that judgement (objectui#5378's stated
+ * confidence gap): in this repo, every `dataSource`-prop consumer of
+ * `DetailView` — `renderers/record-details.tsx`, `RecordDetailDrawer.tsx`, and
+ * the published README's documented usage — renders the COMPONENT directly and
+ * never passes through the registry, so this wrapper does not sit between any
+ * of them and `DetailView`. Registry-routed `detail-view` nodes carrying a
+ * `dataSource` prop: zero, the getting-started guide being the one that tried.
+ * The additive shape therefore changes no measured caller's behaviour, and the
+ * precedence above is pinned by test rather than left to be discovered.
+ */
+export const DetailViewRenderer: React.FC<{
+  schema: any;
+  dataSource?: unknown;
+  [key: string]: any;
+}> = ({ schema, dataSource: dataSourceProp, ...props }) => {
+  // The family's ONE resolution rule (`@object-ui/react`): explicit adapter
+  // first, `SchemaRendererProvider` context second, and the spec BINDING never
+  // mistaken for an adapter. Sharing the hook is what keeps the three blocks
+  // from drifting back apart — the drift IS the defect this card closes.
+  const dataSource = useResolvedDataSource<DataSource>(dataSourceProp);
+  return (
+    <ElementDataSourceGate
+      schema={schema}
+      // `object` → `objectName` is the whole mapping: a detail view shows ONE
+      // record, so it has no collection query for the binding's `filter` /
+      // `sort` / `limit` to narrow and no field projection for its `columns`.
+      // Mapping them anywhere would write keys this block does not read, which
+      // is the defect the gate exists to remove.
+      dataSource={dataSource}
+      testId="detail-view"
+      errorTitle="This detail view’s data source could not be resolved"
+      // `DetailView` returns early on inline `schema.data` and fetches over
+      // `schema.api` without an adapter; either one is a legitimate placement
+      // with nothing to resolve. Everything else reaches the branch that needs
+      // `dataSource && objectName && resourceId` and, without it, renders
+      // nothing at all — the silence objectui#5378 item 2 ends.
+      requiresDataSource={
+        schema?.data == null
+        && schema?.api == null
+        && typeof schema?.objectName === 'string'
+        && schema.objectName.length > 0
+      }
+      noDataSourceMessage={noDataSourceMessage('detail-view', schema?.objectName)}
+    >
+      {(bound) => <DetailView schema={bound as DetailViewSchema} dataSource={dataSource} {...props} />}
+    </ElementDataSourceGate>
+  );
+};
+
+// Register detail-view through the wrapper above, NOT the raw component: the
+// registry entry is what a `SchemaRenderer` reaches, and the wrapper is what
+// makes context wiring work there. `DetailView` stays exported unchanged for
+// the direct React callers (`record-details`, `RecordDetailDrawer`, the README).
+ComponentRegistry.register('detail-view', DetailViewRenderer, {
   namespace: 'plugin-detail',
   label: 'Detail View',
   category: 'Views',
@@ -302,6 +426,31 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
     // emptyCount === section.fields.length` returns null), not assumed.
     { name: 'hideFields', type: 'array', label: 'Hide Fields', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
+    // `inlineEdit` and `showHeader` are DECLARED, not merely honoured
+    // (objectui#4668) — the same reverse-direction defect `hideFields` above
+    // records, on the two keys @objectstack/spec 17.0.0 GA added to this block.
+    // `RecordDetailsRenderer` has read both all along (`renderers/
+    // record-details.tsx`: `(schema.inlineEdit ?? true) && objectInlineEditable`,
+    // and `showHeader: schema.showHeader ?? false` on the synthesized
+    // `detail-view`), while `inputs` omitted them — so `sdui.manifest.json` and
+    // `sdui-intrinsics.d.ts` never mentioned them, `sdui-parser`'s prop walk
+    // raised `unknown-prop` on an author who wrote one, and the renderer
+    // honoured it regardless.
+    //
+    // Both are plain booleans on the installed pin — measured against
+    // `ComponentPropsMap['record:details']`, `z.boolean().optional()` each, so a
+    // single arm and no union (objectui#3832): `1` / `'true'` / `null` are
+    // rejected by value.
+    //
+    // `inlineEdit` is documented as an opt-OUT because that is the only
+    // direction it can decide. The value is AND-ed with the object's own
+    // resolved editability (`isObjectInlineEditable`, ADR-0103) and with the
+    // server's effective API operation set (objectui#3546), so `true` cannot
+    // open editing the platform refuses; only `false` is unconditional. Saying
+    // "enables inline editing" would advertise an authority this key does not
+    // have.
+    { name: 'inlineEdit', type: 'boolean', label: 'Inline Edit', defaultValue: true, description: 'Offer the per-field double-click / pencil inline-edit affordances in the detail body. On by default, and an OPT-OUT only: the value is combined with the object\'s own editability (system, engine-owned, append-only and better-auth objects are not user-editable unless they opened userActions.edit) and with the server\'s effective API operation set for the object, so `false` always wins while `true` cannot open editing the platform refuses. The edit session and the atomic Save bar are hosted by the page, so one draft spans the highlights strip and this body.' },
+    { name: 'showHeader', type: 'boolean', label: 'Show Body Header', defaultValue: false, description: 'Render the detail body\'s own title / follow-star / copy-id chip above the fields. Off by default because this block is normally composed under a `page:header` that already draws that chrome, and turning it on there shows the record title twice. Set it true only when this block is the whole page.' },
   ],
 });
 
@@ -512,7 +661,17 @@ ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
   label: 'Quick Actions',
   icon: 'Zap',
   inputs: [
-    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order (else every action declared for the object at this location)' },
+    // Describes what the renderer does, not what it might do (objectui#4663).
+    // This sentence used to end "(else every action declared for the object at
+    // this location)" — a fallback that exists on no path: with no names and no
+    // host-supplied `actions`, `needsLookup` is false, the object metadata is
+    // never queried, and the bar renders its placeholder. The registry `inputs`
+    // are the published surface (`gen-manifest.ts` serializes them into
+    // `sdui.manifest.json` and the JSX authoring types), so the promise was
+    // taught to authors and to tooling — objectstack#8744 quoted it verbatim.
+    // Implementing the fallback would be a behaviour expansion and needs its own
+    // card; pinned by `recordQuickActionsInputs.actionNamesFallback.test.tsx`.
+    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
     { name: 'requiredPermissions', type: 'array', label: 'Required Permissions', description: 'Hide the whole bar unless the user holds these permissions' },
     // Derived from the spec's own vocabulary rather than restated — #3019.
     { name: 'location', type: 'enum', label: 'Location', enum: [...ACTION_LOCATIONS], defaultValue: 'record_header', description: 'Which declared action location this bar renders' },
@@ -555,8 +714,15 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   icon: 'AlertTriangle',
   inputs: [
     { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
-    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'body', type: 'string', label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms each (objectui#3832). Unlike the `page:*` specimens these two
+    // have no props schema to measure against — `ComponentPropsMap` carries no
+    // `record:alert` entry at rc.6 — so the second arm is justified by the
+    // RENDERER: `renderers/record-alert.tsx` resolves both through
+    // `pickLocalized`, which is exactly what these descriptions teach. Declaring
+    // the map arm therefore adds no shape the block does not already honour; it
+    // stops the manifest gate warning `type-mismatch` on the recommended write.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'body', type: ['string', 'object'], label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'visible', type: 'string', label: 'Visible When', description: 'Expression gating the banner against the current record' },
     { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name; defaults to the severity icon' },
     { name: 'action', type: 'object', label: 'Call to Action', description: '{ actionName, label?, variant? } — the action the banner offers' },

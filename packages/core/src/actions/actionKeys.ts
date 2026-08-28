@@ -108,9 +108,10 @@
 /**
  * Every property `ActionDef` declares, in declaration order.
  *
- * Kept as data because TypeScript types do not survive to runtime — and
- * `keyof ActionDef` cannot substitute for this list: the index signature widens
- * it to `string | number`, which is precisely the problem being worked around.
+ * Kept as data because TypeScript types do not survive to runtime — `keyof
+ * ActionDef` is erased along with the interface, so it cannot hand a runtime
+ * classifier a list of anything. `actionKeys.pin.test.ts` re-derives this one
+ * from the interface's AST, which is what keeps the data true.
  */
 export const ACTION_DEF_KEYS = [
   'type',
@@ -238,6 +239,14 @@ export const SPEC_ACTION_KEYS = [
   'name',
   'newTabUrl',
   'objectName',
+  // Declared by `ActionSchema` as of @objectstack/spec 17.1.0 (objectui#5328).
+  // Listing it here is a DIAGNOSTIC statement only — `KNOWN_ACTION_KEYS` feeds
+  // `warnOnUnknownActionKeys`, so without this row an author writing the key the
+  // spec now accepts would be warned it is unknown. It says nothing about the
+  // key being forwarded: the four declared action surfaces still drop it before
+  // the runner, tracked as KNOWN_GAPS in check-action-forward-parity.mjs and
+  // filed as objectui#5493.
+  'onSuccess',
   'openIn',
   'opensInNewTab',
   'order',
@@ -270,6 +279,55 @@ export const SPEC_ACTION_KEYS = [
 export const NAVIGATION_ALIAS_KEYS = ['to', 'external', 'newTab', 'replace'] as const;
 
 /**
+ * Keys a HOST composes on the DISPATCH OBJECT at dispatch time — chrome the
+ * runtime reads once on its way to the dialog, that no author ever writes and
+ * no store ever holds.
+ *
+ * Distinct from every other list in this module, and the distinction is the
+ * whole point: each of the three lists above restates one AUTHORED surface —
+ * what `ActionDef` itself declares, what the spec's `ActionSchema` declares,
+ * and the `navigation` alias's objectui dialect — so a key joining one of them
+ * is a key an author may legally write. This list claims no such derivation and
+ * must not acquire one: a key here is the opposite, and writing it in metadata
+ * is still a compile error that must stay one. Maintainer ruling
+ * 2026-08-22 fixes both halves of that: ⛔ the key is NOT declared on
+ * `ActionDef` and ⛔ NOT added to {@link ACTION_DEF_KEYS}; it is declared at the
+ * seam, on `packages/app-shell/src/consoleActionDispatch.ts`'s
+ * `ConsoleActionDispatch`, and appears HERE only so the dev-mode warning below
+ * stops calling it unknown.
+ *
+ * Why the warning has to know: `classifyActionKeys` sees the object the runner
+ * was handed, which is the DISPATCH, not the stored metadata row. With the key
+ * absent from the inventory, `warnOnUnknownActionKeys` told the author that a
+ * key TWO files read is one "no reader recognizes", and prescribed promoting it
+ * to `ActionDef` — the one shape the ruling forbids for it. A diagnostic that
+ * fires on the product's own privileged path is how a console gets muted.
+ *
+ * {@link HOST_STASHED_PARAM_KEYS} below is the same category one level down —
+ * host-composed keys inside `params` rather than on the action itself — and
+ * cites `DeclaredActionsBar` by name for the same reason this does. Two lists
+ * because the two warnings ask different questions of different objects, not
+ * because the categories differ.
+ *
+ * `overrideNotice` — the privileged-override safety copy (objectui#5178),
+ * naming the approvers about to be bypassed.
+ * - producer: `packages/app-shell/src/views/DeclaredActionsBar.tsx`, on the
+ *   `can_act:false && can_override:true` branch.
+ * - readers: `packages/app-shell/src/hooks/useConsoleActionRuntime.tsx` and
+ *   `packages/app-shell/src/views/RecordDetailView.tsx`, the console's two
+ *   param-collection handlers, which render it ahead of the declared
+ *   description in the dialog's subtitle.
+ *
+ * Anything added here must satisfy all three of: composed by a host in code,
+ * never read back out of stored metadata, and read by the runtime. A key an
+ * AUTHOR is meant to write belongs on `ActionDef` — or, when the spec owns it,
+ * in `@objectstack/spec` first — and not in this list. `actionKeys.pin.test.ts`
+ * pins the contents exactly, so growing the set is a deliberate, reviewed edit
+ * rather than a quiet one.
+ */
+export const HOST_DISPATCH_ACTION_KEYS = ['overrideNotice'] as const;
+
+/**
  * Keys the spec has TOMBSTONED: still present in `ActionSchema` so the parser can
  * reject them BY NAME with a rename prescription, rather than fail with a bare
  * "unrecognized key".
@@ -293,11 +351,21 @@ export const RETIRED_ACTION_KEYS: Readonly<Record<string, string>> = {
     'Run `os migrate meta --from 16` to rewrite it automatically.',
 };
 
-/** Every key an action may legitimately carry today. */
+/**
+ * Every key an action may legitimately carry today — authored or host-composed.
+ *
+ * Four inputs, three of them mirrors of an authored surface and the fourth
+ * ({@link HOST_DISPATCH_ACTION_KEYS}) the host-composed dispatch chrome. The
+ * union is what `classifyActionKeys` consults, and it is deliberately wider
+ * than the authored surface: the runner classifies the object it was HANDED,
+ * and a host hands it a dispatch. Membership here grants nothing to an author —
+ * `ActionDef` is what decides that, and it is closed.
+ */
 export const KNOWN_ACTION_KEYS: ReadonlySet<string> = new Set<string>([
   ...ACTION_DEF_KEYS,
   ...SPEC_ACTION_KEYS,
   ...NAVIGATION_ALIAS_KEYS,
+  ...HOST_DISPATCH_ACTION_KEYS,
 ].filter((key) => !(key in RETIRED_ACTION_KEYS)));
 
 /** Split an action's own keys into the two things worth saying out loud. */
@@ -338,9 +406,11 @@ const isDev = (): boolean =>
  * Dev-mode only: name the keys an action carries that no reader will ever look
  * at. Non-breaking by construction — it changes no types and rejects nothing.
  *
- * Silently binding no handler is the #2169 "Mark Done does nothing" shape, and
- * the compiler cannot help while the index signature stands. Until it comes
- * down, this is the audible half.
+ * Silently binding no handler is the #2169 "Mark Done does nothing" shape. The
+ * compiler now catches it in action literals AUTHORED IN CODE — objectstack#4075
+ * step 3 closed `ActionDef` — but not in the actions that arrive as DATA, which
+ * reach the runner unparsed and which no compiler ever looked at. This is the
+ * audible half for that population; see this module's header.
  */
 export function warnOnUnknownActionKeys(action: object | null | undefined, where = 'ActionRunner'): void {
   if (!isDev()) return;
@@ -362,8 +432,11 @@ export function warnOnUnknownActionKeys(action: object | null | undefined, where
     `[${where}] action "${String(name)}" carries ${unknown.length === 1 ? 'a key' : 'keys'} no reader ` +
       `recognizes: \`${unknown.join('`, `')}\`. Nothing will read ${unknown.length === 1 ? 'it' : 'them'} — ` +
       'check for a typo, or promote the key to an explicit field on `ActionDef` ' +
-      '(packages/core/src/actions/actionKeys.ts). Warned rather than rejected because `ActionDef` ' +
-      'still carries `[key: string]: any`, so the compiler cannot see this (objectstack#4075).',
+      '(packages/core/src/actions/ActionRunner.ts), adding it to `ACTION_DEF_KEYS` ' +
+      '(packages/core/src/actions/actionKeys.ts) in the SAME commit — the pin test derives one ' +
+      'from the other, so either edit alone goes red. Warned rather than rejected because `tsc` ' +
+      'only sees actions authored in code: this one may have arrived as DATA, and stored ' +
+      '`sys_metadata` rows reach the runner unparsed (objectstack#3903).',
   );
 }
 

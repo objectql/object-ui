@@ -23,9 +23,9 @@ import {
   InspectorTextField,
   InspectorSelectField,
   InspectorEmptyState,
-} from '../metadata-admin/inspectors/_shared';
-import { readGroups, updateGroup } from '../metadata-admin/previews/object-fields-io';
-import { t } from '../metadata-admin/i18n';
+} from '../metadata-admin/inspectors/_shared.js';
+import { readGroups, updateGroup } from '../metadata-admin/previews/object-fields-io.js';
+import { t } from '../metadata-admin/i18n.js';
 
 export interface ObjectGroupInspectorProps {
   /** Object metadata draft (reads `fieldGroups`). */

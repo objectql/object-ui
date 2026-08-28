@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Input } from '@object-ui/components';
 import { Button } from '@object-ui/components';
 import { Eye, EyeOff } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * PasswordField - Secure password input with visibility toggle

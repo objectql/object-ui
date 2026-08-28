@@ -143,6 +143,226 @@ describe('ObjectStackAdapter.queryDataset', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* objectui#5663 — one branch per SERVER CONDITION, keyed on the ADR-0112       */
+/* `code`, never on "the endpoint errored".                                     */
+/*                                                                             */
+/* Every body below is the wire answer its producer actually writes, copied     */
+/* from the framework rather than imagined here — that is the whole point of    */
+/* the fixtures, since the defect was a client that decided what the server had */
+/* said without reading the field the server said it in:                        */
+/*                                                                             */
+/*   route absent      404 wrapped `ROUTE_NOT_FOUND`  @objectstack/runtime,     */
+/*                                                    dispatcher-plugin.ts      */
+/*   service absent    501 flat    `NOT_IMPLEMENTED`  @objectstack/rest,        */
+/*                                                    registerAnalyticsEndpoints*/
+/*   dataset unknown   404 flat    `NOT_FOUND`        same route, the           */
+/*                                                    `datasetName` lookup miss */
+/*   not signed in     401 flat    `UNAUTHENTICATED`  ANONYMOUS_DENY_BODY,      */
+/*                                                    @objectstack/core         */
+/*                                                                             */
+/* The first two and the third SHARE HTTP 404. That collision is the defect,    */
+/* so the pins below are written to fail if anyone reintroduces a status test.  */
+/* -------------------------------------------------------------------------- */
+describe('ObjectStackAdapter.queryDataset — error branch mapping (objectui#5663)', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  const adapterFor = (fetchImpl: any) =>
+    new ObjectStackAdapter({ baseUrl: 'http://localhost:3000', autoReconnect: false, fetch: fetchImpl as any });
+
+  /** The dispatcher's 404 for a url no route is registered for. */
+  const ROUTE_NOT_FOUND_BODY = {
+    success: false,
+    error: {
+      code: 'ROUTE_NOT_FOUND',
+      message: 'Not Found',
+      httpStatus: 404,
+      hint: 'No handler matched this request. Check the API discovery endpoint for available routes.',
+    },
+  };
+  /** The REST route's 404 when `body.datasetName` matches no saved dataset. */
+  const DATASET_NOT_FOUND_BODY = {
+    code: 'NOT_FOUND',
+    message: 'Dataset "opportunity_metrics" not found.',
+  };
+  /** `ANONYMOUS_DENY_BODY` — note `error` carries the CODE, not the message. */
+  const UNAUTHENTICATED_BODY = {
+    error: 'UNAUTHENTICATED',
+    code: 'UNAUTHENTICATED',
+    message: 'Authentication is required to access this endpoint.',
+  };
+
+  it('route absent (404 ROUTE_NOT_FOUND, wrapped envelope) → capability not installed', async () => {
+    const { fetchImpl } = makeFetch({ ok: false, status: 404, body: ROUTE_NOT_FOUND_BODY });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    expect(err.code).toBe('ANALYTICS_NOT_INSTALLED');
+    // Read out of the WRAPPED envelope — a reader that only knew the flat shape
+    // would see no code here and reach the branch by luck of the status.
+    expect(err.serverCode).toBe('ROUTE_NOT_FOUND');
+    expect(err.message).toContain('@objectstack/service-analytics');
+  });
+
+  it('service absent (501 NOT_IMPLEMENTED) → capability not installed', async () => {
+    const { fetchImpl } = makeFetch({
+      ok: false,
+      status: 501,
+      body: {
+        code: 'NOT_IMPLEMENTED',
+        message: 'Analytics dataset query is not available on this deployment (no analytics service with queryDataset).',
+      },
+    });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    expect(err.code).toBe('ANALYTICS_NOT_INSTALLED');
+    expect(err.serverCode).toBe('NOT_IMPLEMENTED');
+  });
+
+  it('dataset unknown (404 NOT_FOUND) → dataset-not-defined, NOT capability-missing', async () => {
+    const { fetchImpl } = makeFetch({ ok: false, status: 404, body: DATASET_NOT_FOUND_BODY });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    expect(err.code).toBe('ANALYTICS_DATASET_NOT_FOUND');
+    expect(err.serverCode).toBe('NOT_FOUND');
+    expect(err.datasetName).toBe('opportunity_metrics');
+    // The regression itself: SAME status as the branch above, different answer.
+    expect(isAnalyticsNotInstalledError(err)).toBe(false);
+  });
+
+  it('not signed in (401 UNAUTHENTICATED) → its own branch, neither of the other two', async () => {
+    const { fetchImpl } = makeFetch({ ok: false, status: 401, body: UNAUTHENTICATED_BODY });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    expect(err.code).toBe('ANALYTICS_UNAUTHENTICATED');
+    expect(err.serverCode).toBe('UNAUTHENTICATED');
+    expect(isAnalyticsNotInstalledError(err)).toBe(false);
+    expect(err.message).toMatch(/not authenticated/i);
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* The reported incident, replayed byte-for-byte.                            */
+  /* ------------------------------------------------------------------------ */
+  it('replays the reported prod banner: no install-a-plugin advice, and the app upgrade is named', async () => {
+    const { fetchImpl } = makeFetch({ ok: false, status: 404, body: DATASET_NOT_FOUND_BODY });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    // What the operator on `os-2gv9x5.objectos.ai` was told to do, and must not
+    // be told again: install a server plugin, for an installed-app version skew.
+    expect(err.message).not.toContain('capability is not installed');
+    expect(err.message).not.toContain('AnalyticsServicePlugin');
+    expect(err.message).not.toContain('@objectstack/service-analytics');
+    // What they should have been told.
+    expect(err.message).toContain('Dataset "opportunity_metrics"');
+    expect(err.message).toContain('not defined in this environment');
+    expect(err.message).toContain('upgrade the installed app');
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* The headline and the parenthetical cannot disagree.                       */
+  /*                                                                           */
+  /* The original banner quoted `Dataset "opportunity_metrics" not found.` in   */
+  /* its own parenthetical while its headline said the capability was missing.  */
+  /* A diagnostic that quotes its subject and then overrides its meaning is     */
+  /* worse than one that says nothing, because it reads as authoritative. The   */
+  /* structural fix is that the headline is now a pure function of `code` and   */
+  /* the parenthetical a verbatim quote of `message` from the SAME response, so */
+  /* the pins below walk every branch and assert both halves at once.          */
+  /* ------------------------------------------------------------------------ */
+  describe('headline and parenthetical are read off the same answer', () => {
+    const branches = [
+      { name: 'route absent', status: 404, body: ROUTE_NOT_FOUND_BODY, quoted: 'Not Found', headline: /capability is not installed/ },
+      { name: 'dataset unknown', status: 404, body: DATASET_NOT_FOUND_BODY, quoted: 'Dataset "opportunity_metrics" not found.', headline: /is not defined in this environment/ },
+      { name: 'not signed in', status: 401, body: UNAUTHENTICATED_BODY, quoted: 'Authentication is required to access this endpoint.', headline: /not authenticated/ },
+    ] as const;
+
+    for (const branch of branches) {
+      it(`${branch.name}: quotes the server verbatim and says the same thing in the headline`, async () => {
+        const { fetchImpl } = makeFetch({ ok: false, status: branch.status, body: branch.body });
+
+        const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+        expect(err.message).toContain(`(server said: ${branch.quoted})`);
+        expect(err.message).toMatch(branch.headline);
+        // …and none of the OTHER branches' headlines. This is the assertion the
+        // old mapping failed: it quoted this branch's message under a different
+        // branch's headline.
+        for (const other of branches) {
+          if (other.name === branch.name) continue;
+          expect(err.message).not.toMatch(other.headline);
+        }
+      });
+    }
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* The status is consulted ONLY when there is no code to read.               */
+  /* ------------------------------------------------------------------------ */
+  describe('no ADR-0112 code in the answer', () => {
+    it('a bare 404 is still the capability-missing branch — no ObjectStack route wrote it', async () => {
+      const { fetchImpl } = makeFetch({ ok: false, status: 404, body: { error: 'Not found' } });
+
+      const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+      expect(err.code).toBe('ANALYTICS_NOT_INSTALLED');
+      // Nothing named a code, so nothing is claimed about which producer spoke.
+      expect(err.serverCode).toBeUndefined();
+    });
+
+    it('a bare 401 is the unauthenticated branch', async () => {
+      const { fetchImpl } = makeFetch({ ok: false, status: 401, body: {} });
+
+      const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+      expect(err.code).toBe('ANALYTICS_UNAUTHENTICATED');
+      expect(err.serverCode).toBeUndefined();
+    });
+
+    it('a non-JSON error body does not throw the mapping itself', async () => {
+      const fetchImpl = vi.fn(async (url: any) => {
+        const u = String(url);
+        if (u.includes('/api/v1/discovery')) {
+          return { ok: true, status: 200, statusText: 'OK', json: async () => ({ success: true, data: { version: 'v1', routes: {} } }) } as any;
+        }
+        return {
+          ok: false, status: 502, statusText: 'Bad Gateway',
+          json: async () => { throw new SyntaxError('Unexpected token < in JSON'); },
+        } as any;
+      });
+
+      const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+      expect(err.code).toBeUndefined();
+      expect(String(err.message)).toContain('Dataset query failed: 502');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* A 404 this client does not recognise is NOT quietly relabelled.           */
+  /* ------------------------------------------------------------------------ */
+  it('a 404 with an unrecognised code keeps its server detail instead of claiming a capability is missing', async () => {
+    // `CUBE_NOT_FOUND` (404) is a real analytics gate that reaches this route
+    // through the ADR-0112 envelope passthrough. Under the old status test it
+    // was ALSO reported as "install @objectstack/service-analytics"; the point
+    // of branching on `code` is that an unknown condition now reads as unknown
+    // rather than as the one condition the status happened to be tested for.
+    const { fetchImpl } = makeFetch({
+      ok: false, status: 404,
+      body: { code: 'CUBE_NOT_FOUND', message: 'Cube "revenue" is not defined.' },
+    });
+
+    const err = await adapterFor(fetchImpl).queryDataset('opportunity_metrics', selection).catch((e) => e);
+
+    expect(isAnalyticsNotInstalledError(err)).toBe(false);
+    expect(err.code).toBeUndefined();
+    expect(String(err.message)).toContain('Cube "revenue" is not defined.');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /* objectui#3613 — the `selection` parameter IS the spec type, not a copy.      */
 /*                                                                             */
 /* Compile-time pins. A violation is a `tsc --noEmit` error, not a runtime      */

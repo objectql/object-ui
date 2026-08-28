@@ -23,7 +23,7 @@ const FORM_WIDGET_TYPES = [
   'date', 'datetime', 'time',
   'boolean', 'toggle',
   'select', 'multiselect', 'radio', 'checkboxes', 'tags',
-  'lookup', 'master_detail', 'tree',
+  'lookup', 'master_detail', 'tree', 'user',
   'file', 'image', 'avatar', 'video', 'audio', 'signature',
   'location', 'geolocation', 'address', 'color', 'code', 'json', 'qrcode', 'vector',
   'object', 'composite', 'record', 'repeater',

@@ -25,7 +25,7 @@ import { Button } from '@object-ui/components';
 import { RecordPickerDialog } from '@object-ui/fields';
 import { useAdapter } from '@object-ui/react';
 import { Plus, X, Users, Loader2, AlertCircle } from 'lucide-react';
-import { useMetadataLocale } from './i18n';
+import { useMetadataLocale } from './i18n.js';
 
 export interface AssignedUsersSectionProps {
   /** The permission set's machine name (e.g. `ai_seat`, `admin_full_access`). */
@@ -106,7 +106,7 @@ export function AssignedUsersSection({ permissionSetName }: AssignedUsersSection
     setLoading(true);
     try {
       const sets = asArray(
-        await adapter.find('sys_permission_set', { $filter: { name: permissionSetName }, limit: 1 }),
+        await adapter.find('sys_permission_set', { $filter: { name: permissionSetName }, $top: 1 }),
       );
       const id = sets[0]?.id ? String(sets[0].id) : null;
       setSetId(id);

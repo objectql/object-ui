@@ -21,21 +21,27 @@
  * @packageDocumentation
  */
 
-export { AuthProvider, type AuthProviderProps } from './AuthProvider';
-export { useAuth } from './useAuth';
-export { useIsWorkspaceAdmin } from './useIsWorkspaceAdmin';
-export { AuthGuard, type AuthGuardProps } from './AuthGuard';
-export { AuthShell, type AuthShellProps, type AuthShellBrandPanel } from './AuthShell';
-export { LoginForm, type LoginFormProps, type LoginFormLabels } from './LoginForm';
-export { RegisterForm, type RegisterFormProps, type RegisterFormLabels } from './RegisterForm';
-export { ForgotPasswordForm, type ForgotPasswordFormProps, type ForgotPasswordFormLabels } from './ForgotPasswordForm';
-export { SocialSignInButtons, type SocialSignInButtonsProps } from './SocialSignInButtons';
-export { UserMenu, type UserMenuProps } from './UserMenu';
-export { PreviewBanner, type PreviewBannerProps } from './PreviewBanner';
-export { createAuthClient, TokenStorage } from './createAuthClient';
-export { normalizePhoneIdentifier, looksLikePhoneIdentifier } from './phone-identifier';
-export { createAuthenticatedFetch, ActiveOrganizationStorage, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch';
-export { getUserInitials } from './types';
+export { AuthProvider, type AuthProviderProps } from './AuthProvider.js';
+export { useAuth } from './useAuth.js';
+// objectui#5619 — replaces `useIsWorkspaceAdmin(): boolean`, which had no way
+// to say "not resolved yet" and so answered "not an admin" about an
+// administrator whose adminship lives only in the active member row. The old
+// name is REMOVED rather than kept alongside: a caller that misses the third
+// state is the whole defect, and a deleted export makes that a compile error
+// instead of a silent access-denied screen.
+export { useWorkspaceAdminStatus, type WorkspaceAdminStatus } from './useWorkspaceAdminStatus.js';
+export { AuthGuard, type AuthGuardProps } from './AuthGuard.js';
+export { AuthShell, type AuthShellProps, type AuthShellBrandPanel } from './AuthShell.js';
+export { LoginForm, type LoginFormProps, type LoginFormLabels } from './LoginForm.js';
+export { RegisterForm, type RegisterFormProps, type RegisterFormLabels } from './RegisterForm.js';
+export { ForgotPasswordForm, type ForgotPasswordFormProps, type ForgotPasswordFormLabels } from './ForgotPasswordForm.js';
+export { SocialSignInButtons, type SocialSignInButtonsProps } from './SocialSignInButtons.js';
+export { UserMenu, type UserMenuProps } from './UserMenu.js';
+export { PreviewBanner, type PreviewBannerProps } from './PreviewBanner.js';
+export { createAuthClient, TokenStorage } from './createAuthClient.js';
+export { normalizePhoneIdentifier, looksLikePhoneIdentifier } from './phone-identifier.js';
+export { createAuthenticatedFetch, ActiveOrganizationStorage, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch.js';
+export { getUserInitials } from './types.js';
 
 // Organization membership-role vocabulary — a CLOSED, framework-owned list of
 // four (framework ADR-0108), re-exported from `@objectstack/spec`'s
@@ -53,7 +59,7 @@ export {
   invitableOrgRoles,
   assignableOrgRoles,
   type OrgRole,
-} from './org-roles';
+} from './org-roles.js';
 
 // Invitation lifecycle vocabulary — a CLOSED set of four, bound to better-auth's
 // own `InvitationStatus` so it cannot drift, plus the narrowing guard the wire
@@ -63,7 +69,7 @@ export {
   AUTH_INVITATION_STATUSES,
   isAuthInvitationStatus,
   type AuthInvitationStatus,
-} from './invitation-status';
+} from './invitation-status.js';
 
 // Shared auth form primitives — exposed so consumers can build custom forms
 // that match the look of LoginForm / RegisterForm / ForgotPasswordForm.
@@ -79,7 +85,7 @@ export {
   AuthFormHeader,
   AuthMailIcon,
   AuthSpinner,
-} from './authStyles';
+} from './authStyles.js';
 
 // Re-export types for convenience
 export type {
@@ -101,6 +107,6 @@ export type {
   SignInWithProviderOptions,
   TenancyPosture,
   DelegableScope,
-} from './types';
+} from './types.js';
 
-export type { AuthContextValue } from './AuthContext';
+export type { AuthContextValue } from './AuthContext.js';

@@ -21,10 +21,10 @@ import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@object-ui/components';
 import { Plus, X, Code2, ListFilter } from 'lucide-react';
-import { useObjectFields } from '../previews/useObjectFields';
-import { CelPredicateField } from '../CelPredicateField';
-import type { CelLintIssue } from '../celAuthoring';
-import { t, useMetadataLocale } from '../i18n';
+import { useObjectFields } from '../previews/useObjectFields.js';
+import { CelPredicateField } from '../CelPredicateField.js';
+import type { CelLintIssue } from '../celAuthoring.js';
+import { t, useMetadataLocale } from '../i18n.js';
 
 type Op = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'truthy' | 'falsy';
 
@@ -52,15 +52,72 @@ const CONTEXT_SUBJECTS = [
 
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 
-/** Quote a raw value for CEL unless it is a number / boolean / null. */
+/**
+ * Scope roots a value typed into the value box may plainly REFERENCE, rather
+ * than name as literal text (objectui#6293).
+ *
+ * Deliberately the roots this builder's own vocabulary already commits to —
+ * not every root the CEL engine advertises:
+ *
+ *  - `record` / `user` / `org` — this component's own subject vocabulary
+ *    (`record.<field>` from the field catalog, plus {@link CONTEXT_SUBJECTS}).
+ *    A value under one of these is the same identifier the subject dropdown
+ *    emits one control to its left.
+ *  - `previous` — the prior persisted record, bound by `evalFieldPredicate`
+ *    (`@object-ui/core`) and by the server-side hook / validation evaluators.
+ *    This is the change-detection idiom the defect was measured on.
+ *  - `current_user` — the canonical spelling of `user` (ADR-0068); the shell
+ *    binds one identity object under both names, so which alias the author
+ *    happened to type must not decide whether it reads as a reference.
+ *  - `parent` — the header row an inline line-item cell compares against,
+ *    bound through `evalFieldPredicate`'s `scope` extra.
+ *
+ * NOT included, on purpose: `data`, `os`, `app`, `features`, `input`, `vars`,
+ * `page`. Those are real roots at some surfaces, but this builder never offers
+ * them, and over-capturing there fails in the WRONG direction — `data.csv` is
+ * a plausible literal, and `data` IS bound, so reading it as a reference would
+ * produce another silently-false predicate instead of a loud one. Which roots
+ * a mounting surface actually binds is caller-supplied vocabulary
+ * (objectui#6296) and is that card's to declare, not this one's to guess.
+ */
+const REFERENCE_ROOTS = ['record', 'previous', 'parent', 'user', 'current_user', 'org'] as const;
+
+/**
+ * A dotted path under a declared root — i.e. plainly a reference.
+ *
+ * Anchored, and dotted identifiers only. "Contains a dot" is NOT the test: a
+ * version string (`1.2.3`), a filename, and a path under a root nothing binds
+ * all stay literal text.
+ */
+const REFERENCE_RE = new RegExp(
+  `^(?:${REFERENCE_ROOTS.join('|')})(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$`,
+);
+
+/**
+ * Quote a raw value for CEL unless it is a number / boolean / null — or a
+ * reference (objectui#6293).
+ *
+ * Quoting a reference was silent in both directions: `previous ==
+ * 'previous.status'` is valid CEL, `previous` is a declared root, and a string
+ * literal's contents are deliberately not scanned for references by
+ * `flow-ref-check` or by the server-side validator — so the predicate parsed,
+ * registered, evaluated, and was always false, with no author-time signal at
+ * any layer. Emitting the reference is also what makes it CHECKABLE: it is now
+ * an identifier those existing checkers can see.
+ */
 function fmtValue(v: string): string {
   const t = v.trim();
   if (t === 'true' || t === 'false' || t === 'null') return t;
   if (t !== '' && !Number.isNaN(Number(t))) return t;
+  if (REFERENCE_RE.test(t)) return t;
   return `'${t.replace(/'/g, "\\'")}'`;
 }
 
-/** Inverse of fmtValue for display in the value input. */
+/**
+ * Inverse of fmtValue for display in the value input. A bare reference has no
+ * quotes to strip and passes through unchanged, which is what keeps an emitted
+ * `previous == previous.status` round-tripping back into the row builder.
+ */
 function unfmtValue(raw: string): string {
   const t = raw.trim();
   const m = /^'(.*)'$/.exec(t);

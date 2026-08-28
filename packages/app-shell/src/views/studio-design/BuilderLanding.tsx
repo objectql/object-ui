@@ -18,10 +18,10 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Hammer, Lock, Plus, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { PackageFormDialog } from '../metadata-admin/PackageFormDialog';
-import { fetchPackages, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
-import { PackageIdInput } from './PackageIdInput';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { PackageFormDialog } from '../metadata-admin/PackageFormDialog.js';
+import { fetchPackages, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io.js';
+import { PackageIdInput } from './PackageIdInput.js';
 
 export function BuilderLanding(): React.ReactElement {
   const navigate = useNavigate();

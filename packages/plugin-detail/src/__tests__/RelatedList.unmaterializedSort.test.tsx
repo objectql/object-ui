@@ -1,0 +1,162 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * objectui#3950 — a related list must not offer a sort the platform refuses.
+ *
+ * A `formula` value is computed on read and no driver materialises a column for
+ * it, so a windowed sort — which leaves as a server `$orderby` on the flat field
+ * name — has nothing to order by. Silently unordered rows under a `200` before
+ * objectstack#6994; `400 INVALID_SORT` after it.
+ *
+ * The rule is applied at BOTH of this card's sort entry points, because they do
+ * not share a derivation: the embedded table's column headers (`table` / `grid`)
+ * and the sort-button row that survives for `data-list`. Missing either one
+ * leaves the same refused sort reachable through the other control.
+ *
+ * Client mode is deliberately left alone: the rows are all in memory and the
+ * formula value is the one the server hydrated on read, so ordering by what the
+ * cell shows is honest — the same split #3096 made for relational columns.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, waitFor, screen } from '@testing-library/react';
+import * as React from 'react';
+import { RelatedList } from '../RelatedList';
+
+// Capture the schema RelatedList hands to SchemaRenderer (the data-table), so
+// the column's own `sortable` flag can be read without the table in the way.
+const h = vi.hoisted(() => ({ schema: null as any }));
+vi.mock('@object-ui/react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    SchemaRenderer: (props: any) => {
+      h.schema = props.schema;
+      return null;
+    },
+  };
+});
+
+/**
+ * Shaped after `crm_opportunity_line_item`: `quantity` and `unit_price` are
+ * stored, `total` is their product computed on read. `sequence` is an
+ * `autonumber` — same "computed" reputation as a formula field, a real stored
+ * column, so it belongs with the controls.
+ */
+const objectSchema = {
+  name: 'line_item',
+  fields: {
+    name: { type: 'text', label: 'Name' },
+    quantity: { type: 'number', label: 'Quantity' },
+    unit_price: { type: 'currency', label: 'Unit Price' },
+    total: { type: 'formula', label: 'Total' },
+    sequence: { type: 'autonumber', label: 'Sequence' },
+  },
+};
+
+const columns = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'quantity', header: 'Quantity' },
+  { accessorKey: 'unit_price', header: 'Unit Price' },
+  { accessorKey: 'total', header: 'Total' },
+  { accessorKey: 'sequence', header: 'Sequence' },
+];
+
+const items = Array.from({ length: 9 }, (_, i) => ({
+  id: `li${i}`,
+  name: `Item ${i}`,
+  quantity: i + 1,
+  unit_price: 100,
+  total: (i + 1) * 100,
+  sequence: i,
+}));
+
+const makeDataSource = () => ({
+  getObjectSchema: vi.fn(async () => objectSchema),
+  find: vi.fn(async (_api: string, params: any) => {
+    const skip = params?.$skip ?? 0;
+    const top = params?.$top ?? items.length;
+    return { data: items.slice(skip, skip + top), total: items.length };
+  }),
+});
+
+/** Whether the embedded table offers a sort on this column. */
+const columnSortable = (accessorKey: string) => {
+  const col = h.schema?.columns?.find((c: any) => c.accessorKey === accessorKey);
+  return col ? col.sortable !== false : undefined;
+};
+
+function renderList(props?: Record<string, unknown>) {
+  const dataSource = makeDataSource();
+  render(
+    <RelatedList
+      title="Line Items"
+      type="table"
+      api="line_item"
+      objectName="line_item"
+      referenceField="opportunity"
+      parentId="OPP-1"
+      pageSize={4}
+      columns={columns}
+      sortable
+      dataSource={dataSource as any}
+      {...props}
+    />,
+  );
+  return dataSource;
+}
+
+beforeEach(() => {
+  h.schema = null;
+});
+
+describe('RelatedList — column headers (#3950)', () => {
+  it('withholds the header from a formula column while windowed', async () => {
+    renderList();
+    // A stored column stays sortable — which also proves the table rendered.
+    await waitFor(() => expect(columnSortable('name')).toBe(true));
+    expect(columnSortable('total')).toBe(false);
+  });
+
+  it('leaves every stored column sortable — including the autonumber (collateral control)', async () => {
+    renderList();
+    await waitFor(() => expect(h.schema?.type).toBe('data-table'));
+
+    expect(columnSortable('quantity')).toBe(true);
+    expect(columnSortable('unit_price')).toBe(true);
+    expect(columnSortable('sequence')).toBe(true);
+  });
+
+  it('keeps the formula header live in client mode, where the key is the hydrated value', async () => {
+    renderList({ data: items });
+    await waitFor(() => expect(h.schema?.type).toBe('data-table'));
+
+    expect(columnSortable('total')).toBe(true);
+  });
+});
+
+describe('RelatedList — the sort-button row for a `list` card (#3950)', () => {
+  it('offers no button for a formula field while windowed', async () => {
+    renderList({ type: 'list' });
+    await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+
+    // Controls first: the row exists and carries the stored columns.
+    expect(screen.getByRole('button', { name: /Quantity/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Unit Price/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Sequence/ })).toBeTruthy();
+
+    expect(screen.queryByRole('button', { name: /Total/ })).toBeNull();
+  });
+
+  it('keeps that button in client mode', async () => {
+    renderList({ type: 'list', data: items });
+    await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+
+    expect(screen.getByRole('button', { name: /Total/ })).toBeTruthy();
+  });
+});

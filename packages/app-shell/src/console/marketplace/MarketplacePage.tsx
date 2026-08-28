@@ -20,11 +20,13 @@ import {
   Skeleton,
 } from '@object-ui/components';
 import { Package, Search, RefreshCcw, Store, AlertCircle, CheckCircle2, Settings } from 'lucide-react';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { PackageIcon } from './PackageIcon';
-import { MarketplaceAccessDenied } from './MarketplaceAccessDenied';
-import { localizePackage } from './usePackageL10n';
+import { PackageIcon } from './PackageIcon.js';
+import { MarketplaceAccessDenied } from './MarketplaceAccessDenied.js';
+import { MarketplaceResolving } from './MarketplaceResolving.js';
+import { MarketplaceDisabled } from './MarketplaceDisabled.js';
+import { localizePackage } from './usePackageL10n.js';
 import {
   listMarketplacePackages,
   listLocalInstalls,
@@ -35,9 +37,9 @@ import {
   type MarketplacePackageSummary,
   type LocalInstallEntry,
   type OrgPackageSummary,
-} from './marketplaceApi';
-import { getRuntimeConfig } from '../../runtime-config';
-import { emitMetadataRefresh } from '../../assistant/assistantBus';
+} from './marketplaceApi.js';
+import { getCloudBase, getRuntimeConfig, isMarketplaceEnabled } from '../../runtime-config.js';
+import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 
 /**
  * Format a published-at timestamp as a localized relative string.
@@ -70,12 +72,22 @@ function useRelativeFormatter() {
 export function MarketplacePage() {
   const navigate = useNavigate();
   const { appName } = useParams();
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin, isResolved } = useWorkspaceAdminStatus();
   const { t, language } = useObjectTranslation();
   const formatRelative = useRelativeFormatter();
   const basePath = appName ? `/apps/${appName}` : '';
+  // The runtime's own answer, read once per render. `false` means this
+  // runtime mounts no marketplace browse surface at all — there is nothing
+  // to fetch, so nothing here fetches (objectui#5504).
+  const marketplaceEnabled = isMarketplaceEnabled();
+  // Empty string means "this runtime IS the catalog host" (same origin),
+  // not "unknown" — see `AppShellRuntimeConfig.cloudUrl`.
+  const cloudBase = getCloudBase();
   const [items, setItems] = useState<MarketplacePackageSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the flag rather than settled by the effect: a runtime with
+  // no catalog is not "loading", it is done. Writing that from inside the
+  // effect would be a second `react-hooks/set-state-in-effect` site.
+  const [loading, setLoading] = useState(marketplaceEnabled);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string>('');
@@ -118,7 +130,13 @@ export function MarketplacePage() {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    // No catalog on this runtime → no request. Firing it anyway would put
+    // a guaranteed 404 in the network log and leave the page spinning
+    // before it settled on the disabled state.
+    if (!marketplaceEnabled) return;
+    void load();
+  }, [marketplaceEnabled]);
 
   // Install an org package into the current environment (ADR-0007 step ②).
   //
@@ -179,6 +197,34 @@ export function MarketplacePage() {
       return hay.includes(q);
     });
   }, [items, query, category, language]);
+
+  // Ahead of the `!isAdmin` guard below deliberately (objectui#5557): on a
+  // runtime that mounts no marketplace, "there is no marketplace here" is true
+  // of every viewer, and `features.marketplace` is public runtime config every
+  // client already reads -- so the retired ordering withheld nothing, it only
+  // misdirected. Telling an unprivileged member they lack PERMISSION for a
+  // surface that exists for nobody sends them to ask an administrator for a
+  // grant that would not help them. This is the ordering
+  // `MarketplacePackagePage` landed under objectui#5533; the sibling pages now
+  // answer one runtime the same way.
+  if (!marketplaceEnabled) return <MarketplaceDisabled />;
+
+  // On a runtime that DOES have a marketplace, admin-first stays correct: the
+  // catalog is an install surface, and a member who cannot install has nothing
+  // to do with it. objectui#5557 did not claim otherwise.
+  // objectui#5619 — a refusal is not a repaint: `MarketplaceAccessDenied` tells
+  // a real administrator they lack a grant they hold, and it is the frame they
+  // read. The verdict has a third state ("not resolved yet") and this guard is
+  // the reason it exists. Ordered AFTER `!marketplaceEnabled` deliberately —
+  // that answer is true of every viewer on this runtime and needs no verdict,
+  // so the ordering objectui#5557/#5533 established is untouched — and BEFORE
+  // `!isAdmin`, which is the branch that must not fire on a guess.
+  //
+  // This is NOT the incidental skeleton objectui#5621 removed: that one hid the
+  // window behind an unrelated package fetch, for as long as the network
+  // happened to take. This waits on the verdict itself and on nothing else, and
+  // `isResolved` is already true for any admin the session identifies.
+  if (!isResolved) return <MarketplaceResolving />;
 
   if (!isAdmin) return <MarketplaceAccessDenied />;
 
@@ -252,11 +298,16 @@ export function MarketplacePage() {
           <div>
             <div className="font-medium text-destructive">{t('marketplace.load.failed')}</div>
             <div className="text-muted-foreground mt-1">{error}</div>
-            <div
-              className="text-xs text-muted-foreground mt-2"
-              // Hint message contains an inline <code> tag — render translated HTML safely from our own bundle.
-              dangerouslySetInnerHTML={{ __html: t('marketplace.load.failedHint') }}
-            />
+            {/* The hint names the control plane the SERVER said it uses, so it
+                can never claim a default the operator overrode (objectui#5504).
+                Plain text, not `dangerouslySetInnerHTML`: `cloudBase` is
+                server-supplied data and interpolating it into innerHTML would
+                be an injection sink for no gain. */}
+            <div className="text-xs text-muted-foreground mt-2" data-testid="marketplace-load-hint">
+              {cloudBase
+                ? t('marketplace.load.failedHintConfigured', { url: cloudBase })
+                : t('marketplace.load.failedHintSameOrigin')}
+            </div>
           </div>
         </div>
       )}

@@ -23,8 +23,8 @@ import { useAuth } from '@object-ui/auth';
 import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
-import { provisionProductionEnvironment } from './provisionEnvironment';
-import { resolveOrgErrorMessage } from './orgErrorMessage';
+import { provisionProductionEnvironment } from './provisionEnvironment.js';
+import { resolveOrgErrorMessage } from './orgErrorMessage.js';
 
 /**
  * Convert a display name to a URL-friendly slug.

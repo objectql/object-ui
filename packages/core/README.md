@@ -4,7 +4,8 @@ Core logic, types, and validation for Object UI. Zero React dependencies.
 
 ## Features
 
-- 🎯 **Type Definitions** - Complete TypeScript schemas for all components
+- 🎯 **Type Definitions** - Re-exported runtime types; the component schema
+  vocabulary itself is `@object-ui/types`
 - 🔍 **Component Registry** - Framework-agnostic component registration system
 - 📊 **Data Scope** - Data scope management and expression evaluation
 - ✅ **Validation** - Zod-based schema validation
@@ -20,15 +21,20 @@ npm install @object-ui/core
 
 ### Type Definitions
 
-```typescript
-import type { 
-  PageSchema, 
-  FormSchema, 
-  InputSchema,
-  BaseSchema 
-} from '@object-ui/core'
+The component schema vocabulary lives in `@object-ui/types`. Core depends on
+that package and does not re-export it, so import the types from there. The
+page node type is `PageNodeSchema` — the SDUI node, as distinct from the
+authored page document.
 
-const mySchema: PageSchema = {
+```typescript
+import type {
+  PageNodeSchema,
+  FormSchema,
+  InputSchema,
+  BaseSchema
+} from '@object-ui/types'
+
+const mySchema: PageNodeSchema = {
   type: 'page',
   title: 'My Page',
   body: []
@@ -40,22 +46,30 @@ const mySchema: PageSchema = {
 ```typescript
 import { ComponentRegistry } from '@object-ui/core'
 
-const registry = new ComponentRegistry()
-registry.register('button', buttonMetadata)
-const metadata = registry.get('button')
+ComponentRegistry.register('button', buttonMetadata)
+const metadata = ComponentRegistry.get('button')
 ```
+
+`ComponentRegistry` is a process-level singleton exported by `@object-ui/core`;
+`SchemaRenderer` resolves every `type` against it, so a component registered
+here is renderable from schema anywhere in the app.
 
 ### Data Scope
 
+`DataScopeManager` owns the named scopes a component tree reads from, and
+`evaluateExpression` evaluates a `${...}` expression against a context. They
+are separate exports: a scope holds data, it does not evaluate.
+
 ```typescript
-import { DataScope } from '@object-ui/core'
+import { DataScopeManager, evaluateExpression } from '@object-ui/core'
 
-const scope = new DataScope({ 
-  user: { name: 'John', role: 'admin' } 
-})
+const manager = new DataScopeManager()
+manager.registerScope('user', { data: { name: 'John', role: 'admin' } })
 
-const userName = scope.get('user.name') // 'John'
-const isAdmin = scope.evaluate('${user.role === "admin"}') // true
+const userName = manager.getScope('user')?.data.name // 'John'
+const isAdmin = evaluateExpression('${user.role === "admin"}', {
+  user: { name: 'John', role: 'admin' },
+}) // true
 ```
 
 ### Server Action Dispatch (`createServerActionHandler`)
@@ -87,16 +101,16 @@ action identity (ADR-0110), the record-id resolution dance (`_rowRecord`,
 guard, and the `/actions` response-envelope rule (`interpretActionResponse` /
 `readActionPayload`, also exported).
 
-### System Views (`defineView`)
+### System Views (`defineSystemView`)
 
 Schemas authored in source code are part of the product contract and must
-not be mutated at runtime. Wrap them with `defineView()` to deep-freeze the
-graph and tag it as a *System View*.
+not be mutated at runtime. Wrap them with `defineSystemView()` to deep-freeze
+the graph and tag it as a *System View*.
 
 ```typescript
-import { defineView, cloneAsOverride, isSystemView } from '@object-ui/core'
+import { defineSystemView, cloneAsOverride, isSystemView } from '@object-ui/core'
 
-export const userListView = defineView({
+export const userListView = defineSystemView({
   type: 'list',
   data: { object: 'User' },
   columns: [{ name: 'email' }],
@@ -115,7 +129,7 @@ isSystemView(draft)                          // false — clone is no longer Sys
 
 | Tier        | Source                | Mutable? | API                         |
 | ----------- | --------------------- | -------- | --------------------------- |
-| System View | code (`import` / `as const`) | ❌ frozen | `defineView()`              |
+| System View | code (`import` / `as const`) | ❌ frozen | `defineSystemView()`        |
 | Tenant View | backend / DB          | ⚠️ admin only | `cloneAsOverride()` + persist |
 | User View   | localStorage / API    | ✅ user-editable | `cloneAsOverride()` + persist |
 

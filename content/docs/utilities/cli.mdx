@@ -59,12 +59,13 @@ Start the development server with hot reload. Opens the browser automatically.
 ```bash
 objectui dev app.json
 objectui dev pages/                    # file-system routing
+objectui dev my-app/pages              # ...from anywhere, not just inside my-app
 objectui dev --port 8080 --no-open
 ```
 
 | Argument / Flag | Default | Description |
 |---|---|---|
-| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file or `pages/` directory |
+| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file, or a project / `pages/` directory |
 | `-p, --port <port>` | `3000` | Port to bind |
 | `-h, --host <host>` | `localhost` | Host to bind |
 | `--no-open` | — | Do not open the browser |
@@ -85,7 +86,7 @@ objectui build --out-dir build --clean
 
 | Argument / Flag | Default | Description |
 |---|---|---|
-| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file |
+| `[schema]` (positional) | `app.json` | Path to JSON/YAML schema file, or a project / `pages/` directory |
 | `-o, --out-dir <dir>` | `dist` | Output directory |
 | `--clean` | `false` | Clean output directory before build |
 
@@ -159,7 +160,27 @@ objectui validate ./schemas/dashboard.yaml
 
 ### `objectui check`
 
-Validate every schema file detected in the project. No flags.
+Scan the project for ObjectUI schema files and report on the ones it
+recognises. No flags.
+
+A JSON file with a root `type` is recognised when its root carries an ObjectUI
+structural key (`children`, `body`, `className`, …) **or** when the whole
+document validates as an ObjectUI component schema. Recognised files have their
+`type` checked against the component types this build registers.
+
+Files that are recognised by neither arm fall into one of two reports, and the
+distinction matters:
+
+- **Reported by name** when the root `type` *does* name a registered component.
+  That is ObjectUI content the validator could not accept — either the document
+  is off-spec, or its component type is not modelled by `@object-ui/types`. Run
+  `objectui validate <file>` for the reason.
+- **Counted as skipped** otherwise. A root `type` heads several unrelated JSON
+  vocabularies — `package.json`'s `"type": "module"` most of all — and those are
+  not ObjectUI files.
+
+Only unreadable JSON makes `objectui check` exit non-zero; everything above is a
+report. Use `objectui validate` when you want a failing exit code.
 
 ### `objectui doctor`
 
@@ -228,18 +249,35 @@ body:
 
 ### File-system routing
 
-If the project contains a `pages/` directory, `dev` and `build` automatically
-switch to file-system routing — every `.json`/`.yaml` file under `pages/` becomes
-a route based on its path.
+If the project contains a `pages/` directory, `dev`, `serve` and `build`
+automatically switch to file-system routing — every `.json`/`.yaml` file under
+`pages/` becomes a route based on its path.
 
 ```
 my-app/
+├── app.json                → app config (title, layout)
 ├── pages/
 │   ├── index.json          → /
 │   ├── about.json          → /about
 │   └── users/
 │       └── [id].json       → /users/:id
 ```
+
+**Which directory is "the project"** is decided by the schema argument, so the
+three commands answer one invocation the same way from anywhere:
+
+1. The directory the schema argument points into — `objectui build my-app/app.json`
+   run from above `my-app/` routes from `my-app/pages/`, with `my-app/app.json`
+   as the app config. A **directory** argument counts here too: it may be the
+   `pages/` directory itself (`objectui dev my-app/pages`) or the project
+   directory holding it (`objectui dev my-app`), and both answer exactly as
+   naming the app config beside them does — from any working directory.
+2. Otherwise the current working directory — `cd my-app && objectui dev` routes
+   from `./pages/`, with `./app.json` as the app config when present.
+3. Otherwise the named file is rendered on its own (single-schema mode), which
+   is what a lone `.json`/`.yaml` schema with no `pages/` beside it does. A
+   directory that reaches this step is no project, and is refused by name — it
+   is neither a `pages/` directory nor does it contain one.
 
 ## Programmatic API
 

@@ -16,9 +16,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema, SchemaNode } from './base';
-import type { FormField } from './form';
-import type { TableColumn } from './data-display';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Action execution mode for chaining
@@ -57,25 +55,6 @@ export interface ActionCallback {
    * Custom callback handler expression
    */
   handler?: string;
-}
-
-/**
- * Conditional action configuration
- */
-export interface ActionCondition {
-  /**
-   * Condition expression
-   * @example "${data.status === 'active'}"
-   */
-  expression: string;
-  /**
-   * Action to execute if condition is true
-   */
-  then?: ActionSchema | ActionSchema[];
-  /**
-   * Action to execute if condition is false
-   */
-  else?: ActionSchema | ActionSchema[];
 }
 
 /**
@@ -131,33 +110,26 @@ export interface ActionSchema extends BaseSchema {
    */
   headers?: Record<string, string>;
   /**
-   * Confirmation dialog configuration (for confirm actions)
+   * RETIRED (objectui#4314, maintainer ruling 2026-08-17, ADR-0049
+   * enforce-or-remove): the structured confirm object
+   * (`{ title, message, confirmText, cancelText, confirmVariant }`) had zero
+   * producers, and in `ActionRunner` its `message` OUTRANKED `confirmText` —
+   * the only spelling the translation bundle knows
+   * (`{ns}.objects.{obj}._actions.{name}.confirmText`) — so a dialog authored
+   * this way silently lost localization. `?: never` is this package's
+   * tombstone convention (see `complex.ts` `DashboardWidgetSchema`): authoring
+   * the key is a tsc error here and a parse rejection in the Zod twin
+   * (`zod/crud.zod.ts`); reading it still type-checks (`never | undefined`)
+   * during migration. Reopen condition, recorded on objectui#4314: real demand
+   * for structured confirm dialogs — the arm returns WITH its bundle keys
+   * (`_actions.{name}.confirm.*`) designed in, never before.
+   * @deprecated Retired — author `confirmText` instead.
    */
-  confirm?: {
-    /**
-     * Confirmation title
-     */
-    title?: string;
-    /**
-     * Confirmation message
-     */
-    message?: string;
-    /**
-     * Confirm button text
-     */
-    confirmText?: string;
-    /**
-     * Cancel button text
-     */
-    cancelText?: string;
-    /**
-     * Confirm button variant
-     */
-    confirmVariant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost';
-  };
+  confirm?: never;
   /**
-   * Legacy confirmation message (deprecated - use confirm object instead)
-   * @deprecated Use confirm.message instead
+   * Confirmation message — shows a confirm dialog before executing.
+   * The ONE confirm spelling: `@objectstack/spec`'s action surface and the
+   * TranslationBundle both stand on `confirmText`.
    */
   confirmText?: string;
   /**
@@ -207,9 +179,25 @@ export interface ActionSchema extends BaseSchema {
    */
   chainMode?: ActionExecutionMode;
   /**
-   * Conditional execution (Phase 2)
+   * Execution gate — the action runs only while this predicate holds.
+   *
+   * A boolean, a bare CEL string, a `${…}` template, or the normalized
+   * `{ dialect, source }` envelope `objectstack build` emits. Declared and
+   * FALSE skips the action; not declared at all executes it. Same three arms
+   * `ActionRunner`'s own `ActionDef.condition` carries (`@object-ui/core`),
+   * because this is the authoring twin of that gate.
+   *
+   * RETIRED (objectui#3917): this key used to be typed `ActionCondition`, an
+   * `{ expression, then, else }` branch DSL. NOTHING in the repo ever read
+   * `expression` / `then` / `else` — `ActionRunner` reads this key as the
+   * predicate above, and an object with no `source` normalizes to "no gate
+   * declared", so an author who followed the docs ("amounts over 1000 go to
+   * manager approval") got UNCONDITIONAL execution with zero diagnostics.
+   * Retired under enforce-or-remove rather than honoured, so one key has one
+   * reading. Conditional BRANCHING is expressed as separate actions, each
+   * carrying its own `condition`.
    */
-  condition?: ActionCondition;
+  condition?: boolean | string | { dialect?: string; source: string };
   /**
    * Whether to reload data after action
    * @default true
@@ -262,272 +250,6 @@ export interface ActionSchema extends BaseSchema {
      */
     delay?: number;
   };
-}
-
-/**
- * CRUD operation configuration
- */
-export interface CRUDOperation {
-  /**
-   * Operation type
-   */
-  type: 'create' | 'read' | 'update' | 'delete' | 'export' | 'import' | 'custom';
-  /**
-   * Operation label
-   */
-  label?: string;
-  /**
-   * Operation icon
-   */
-  icon?: string;
-  /**
-   * Whether operation is enabled
-   * @default true
-   */
-  enabled?: boolean;
-  /**
-   * API endpoint for this operation
-   */
-  api?: string;
-  /**
-   * HTTP method
-   */
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  /**
-   * Confirmation message
-   */
-  confirmText?: string;
-  /**
-   * Success message
-   */
-  successMessage?: string;
-  /**
-   * Visibility condition
-   */
-  visibleOn?: string;
-  /**
-   * Disabled condition
-   */
-  disabledOn?: string;
-}
-
-/**
- * Filter configuration for CRUD components
- */
-export interface CRUDFilter {
-  /**
-   * Filter name (field name)
-   */
-  name: string;
-  /**
-   * Filter label
-   */
-  label?: string;
-  /**
-   * Filter type
-   */
-  type?: 'input' | 'select' | 'date-picker' | 'date-range' | 'number-range';
-  /**
-   * Filter operator
-   * @default 'equals'
-   */
-  operator?: 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' | 'in';
-  /**
-   * Options for select filter
-   */
-  options?: Array<{ label: string; value: string | number }>;
-  /**
-   * Placeholder text
-   */
-  placeholder?: string;
-  /**
-   * Default value
-   */
-  defaultValue?: any;
-}
-
-/**
- * Toolbar configuration for CRUD components
- */
-export interface CRUDToolbar {
-  /**
-   * Show create button
-   * @default true
-   */
-  showCreate?: boolean;
-  /**
-   * Show refresh button
-   * @default true
-   */
-  showRefresh?: boolean;
-  /**
-   * Show export button
-   * @default false
-   */
-  showExport?: boolean;
-  /**
-   * Show import button
-   * @default false
-   */
-  showImport?: boolean;
-  /**
-   * Show filter toggle
-   * @default true
-   */
-  showFilter?: boolean;
-  /**
-   * Show search box
-   * @default true
-   */
-  showSearch?: boolean;
-  /**
-   * Custom actions
-   */
-  actions?: ActionSchema[];
-}
-
-/**
- * CRUD pagination configuration
- */
-export interface CRUDPagination {
-  /**
-   * Whether pagination is enabled
-   * @default true
-   */
-  enabled?: boolean;
-  /**
-   * Default page size
-   * @default 10
-   */
-  pageSize?: number;
-  /**
-   * Page size options
-   * @default [10, 20, 50, 100]
-   */
-  pageSizeOptions?: number[];
-  /**
-   * Show total count
-   * @default true
-   */
-  showTotal?: boolean;
-  /**
-   * Show page size selector
-   * @default true
-   */
-  showSizeChanger?: boolean;
-}
-
-/**
- * Complete CRUD component
- * Provides full Create, Read, Update, Delete functionality
- */
-export interface CRUDSchema extends BaseSchema {
-  type: 'crud';
-  /**
-   * CRUD title
-   */
-  title?: string;
-  /**
-   * Resource name (singular)
-   * @example 'user', 'product', 'order'
-   */
-  resource?: string;
-  /**
-   * API endpoint for list/search
-   */
-  api?: string;
-  /**
-   * Table columns configuration
-   */
-  columns: TableColumn[];
-  /**
-   * Form fields for create/edit
-   */
-  fields?: FormField[];
-  /**
-   * Enabled operations
-   */
-  operations?: {
-    create?: boolean | CRUDOperation;
-    read?: boolean | CRUDOperation;
-    update?: boolean | CRUDOperation;
-    delete?: boolean | CRUDOperation;
-    export?: boolean | CRUDOperation;
-    import?: boolean | CRUDOperation;
-    [key: string]: boolean | CRUDOperation | undefined;
-  };
-  /**
-   * Toolbar configuration
-   */
-  toolbar?: CRUDToolbar;
-  /**
-   * Filter configuration
-   */
-  filters?: CRUDFilter[];
-  /**
-   * Pagination configuration
-   */
-  pagination?: CRUDPagination;
-  /**
-   * Default sort field
-   */
-  defaultSort?: string;
-  /**
-   * Default sort order
-   * @default 'asc'
-   */
-  defaultSortOrder?: 'asc' | 'desc';
-  /**
-   * Row selection mode
-   */
-  selectable?: boolean | 'single' | 'multiple';
-  /**
-   * Batch actions for selected rows
-   */
-  batchActions?: ActionSchema[];
-  /**
-   * Row actions (displayed in each row)
-   */
-  rowActions?: ActionSchema[];
-  /**
-   * Custom empty state
-   */
-  emptyState?: SchemaNode;
-  /**
-   * Whether to show loading state
-   * @default true
-   */
-  loading?: boolean;
-  /**
-   * Custom loading component
-   */
-  loadingComponent?: SchemaNode;
-  /**
-   * Table layout mode
-   * @default 'table'
-   */
-  mode?: 'table' | 'grid' | 'list' | 'kanban';
-  /**
-   * Grid columns (for grid mode)
-   * @default 3
-   */
-  gridColumns?: number;
-  /**
-   * Card template (for grid/list mode)
-   */
-  cardTemplate?: SchemaNode;
-  /**
-   * Kanban columns (for kanban mode)
-   */
-  kanbanColumns?: Array<{
-    id: string;
-    title: string;
-    color?: string;
-  }>;
-  /**
-   * Kanban group field
-   */
-  kanbanGroupField?: string;
 }
 
 /**
@@ -647,6 +369,5 @@ export interface CRUDDialogSchema extends BaseSchema {
  */
 export type CRUDComponentSchema =
   | ActionSchema
-  | CRUDSchema
   | DetailSchema
   | CRUDDialogSchema;

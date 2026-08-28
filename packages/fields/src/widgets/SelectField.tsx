@@ -9,12 +9,12 @@ import {
 } from '@object-ui/components';
 import { isValueStillOffered } from '@object-ui/core';
 import { SelectFieldMetadata } from '@object-ui/types';
-import { useFieldTranslation } from './useFieldTranslation';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { MultiSelectField } from './MultiSelectField';
-import { OptionsEmptyState } from './OptionsEmptyState';
-import { useCascadingOptions } from './useCascadingOptions';
+import { useFieldTranslation } from './useFieldTranslation.js';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { MultiSelectField } from './MultiSelectField.js';
+import { OptionsEmptyState } from './OptionsEmptyState.js';
+import { useCascadingOptions } from './useCascadingOptions.js';
 
 /**
  * SelectField - dropdown selection widget.

@@ -87,11 +87,10 @@ to locked, and `stripReadonlyWhenFields` — with its bulk twin
 incoming change is dropped exactly as a TRUE predicate's would be, and reported
 on the write response as a `droppedFields` entry with `reason: 'readonly_when'`.
 Enforcement belongs on the server — *server enforces, client is courtesy*, the
-rule the framework cites throughout its rule-validator, its lint diagnostics and
-its QA runner as **ADR-0057 D10** (that is the **framework's** ADR numbering;
-this repo's own ADR-0057, `0057-console-ai-chat-one-conversation-docked.md`, is
-an unrelated document) — and a declared lock that failed open would leave
-enforcement in the courtesy layer instead.
+rule the framework decides in **ADR-0124 D1** (framework ADR numbering) and
+practises throughout its rule-validator, its lint diagnostics and its QA runner
+— and a declared lock that failed open would leave enforcement in the courtesy
+layer instead.
 
 Everything else keeps the fail-open policy, deliberately:
 

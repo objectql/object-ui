@@ -147,6 +147,7 @@ same rules as `action:bar`:
   regardless of how few actions exist (the synthesized Share / Delete
   use this).
 
+<!-- doc-snippet: fragment — a metadata excerpt: the bare slots: key is one fragment of a page schema, shown without the document that would contain it -->
 ```ts
 slots: {
   header: {

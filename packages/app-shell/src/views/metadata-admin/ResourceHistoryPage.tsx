@@ -21,13 +21,13 @@ import { ArrowLeft, RefreshCw, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { Badge } from '@object-ui/components';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { t, translateConsoleValue, useMetadataLocale } from './i18n';
-import { PageShell } from './PageShell';
+import { t, translateConsoleValue, useMetadataLocale } from './i18n.js';
+import { PageShell } from './PageShell.js';
 import {
   useMetadataClient,
   useMetadataTypes,
   type RichMetadataTypeEntry,
-} from './useMetadata';
+} from './useMetadata.js';
 
 export interface MetadataResourceHistoryPageProps {
   type?: string;

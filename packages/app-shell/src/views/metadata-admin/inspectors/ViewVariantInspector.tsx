@@ -31,12 +31,14 @@ import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
-} from './_shared';
-import { InspectorComboField } from './InspectorComboField';
-import { useObjectOptions } from './useDatasetFields';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
+} from './_shared.js';
+import { InspectorComboField } from './InspectorComboField.js';
+import { useObjectOptions } from './useDatasetFields.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields.js';
+import { failed, loaded, type LoadState } from '../loadState.js';
+import type { ObjectFieldOption, WidgetContext } from '../widgets.js';
 
 /**
  * Object picker for the view's binding — a searchable dropdown over the live
@@ -72,16 +74,16 @@ function ViewObjectPicker({
     />
   );
 }
-import { FieldsListEditor } from '../previews/FieldsListEditor';
-import { ConditionalFormattingEditor } from '../ConditionalFormattingEditor';
+import { FieldsListEditor } from '../previews/FieldsListEditor.js';
+import { ConditionalFormattingEditor } from '../ConditionalFormattingEditor.js';
 import {
   getViewForm,
   getListVariantSchema,
   getFormVariantSchema,
-} from '../view-schema';
-import { isFormFamilyKey } from '../view-variant-model';
-import { mergeServerFields } from '../mergeServerFields';
-import { t } from '../i18n';
+} from '../view-schema.js';
+import { isFormFamilyKey } from '../view-variant-model.js';
+import { mergeServerFields } from '../mergeServerFields.js';
+import { t } from '../i18n.js';
 
 /**
  * Variant-body fields this inspector renders with its own controls, pruned
@@ -233,10 +235,11 @@ export function ViewVariantInspector({
   // Load the bound object's field catalog so field-reference config props
   // (groupByField, startDateField, xAxisField, visibleFields, …) render as
   // object-field pickers rather than free-text inputs.
-  const { fields: objectFields } = useObjectFields(
-    binding.value || undefined,
-    objectFieldsOverride,
-  );
+  const {
+    fields: objectFields,
+    loading: objectFieldsLoading,
+    error: objectFieldsError,
+  } = useObjectFields(binding.value || undefined, objectFieldsOverride);
   // Locale-bound `t` for child components that take a bare `(key) => string`
   // (e.g. CelPredicateField / ConditionalFormattingEditor).
   const tLocal = React.useCallback((k: string) => t(k, locale), [locale]);
@@ -278,16 +281,41 @@ export function ViewVariantInspector({
   React.useEffect(() => {
     onBlockingIssuesChangeRef.current?.(blockingIssues);
   }, [blockingIssues]);
-  const widgetContext = React.useMemo(
-    () => ({
-      objectFields: objectFields.map((f) => ({
-        name: f.name,
-        label: f.label,
-        type: f.type,
-      })),
-    }),
-    [objectFields],
-  );
+  /**
+   * objectui#5228 — the inspector is the SECOND host of `WidgetContext`, and it
+   * used to drop two thirds of what its loader knows.
+   *
+   * `useObjectFields` reports a triple (`fields` / `loading` / `error`), and
+   * this memo forwarded only `fields`. So a field catalog that FAILED to load
+   * arrived at the `field-ref` / `field-multi` pickers as `[]` — the same value
+   * a bound object with no fields sends — and the picker said "No object bound"
+   * about an object that is bound and whose catalog simply could not be
+   * fetched. That is the objectui#5170 defect class, still open on this host
+   * after the `ResourceEditPage` one was closed, and it is here because nothing
+   * in the old `WidgetContext` type required a producer to carry the fault at
+   * all: the array WAS the contract.
+   *
+   * It cannot be dropped any more — the catalog is a `LoadState`, so the three
+   * arms have to be spelled out. `loading` and `error` come straight off the
+   * hook; everything else is a load that completed, including "no object bound
+   * yet", which the hook already reports as an empty, error-free result and the
+   * pickers already render as their empty state. No `idle` arm is synthesized
+   * here: introducing one would change what an unbound inspector renders, which
+   * is a separate question from the fault this closes.
+   */
+  const widgetContext = React.useMemo<WidgetContext>(() => {
+    let fieldCatalog: LoadState<ObjectFieldOption[]>;
+    if (objectFieldsError) {
+      fieldCatalog = failed(objectFieldsError);
+    } else if (objectFieldsLoading) {
+      fieldCatalog = { status: 'loading' };
+    } else {
+      fieldCatalog = loaded(
+        objectFields.map((f) => ({ name: f.name, label: f.label, type: f.type })),
+      );
+    }
+    return { objectFields: fieldCatalog };
+  }, [objectFields, objectFieldsLoading, objectFieldsError]);
 
   // Graft server-only fields onto the bundled variant form so new server
   // fields are editable even when the bundled spec lags (skew root-cure). A

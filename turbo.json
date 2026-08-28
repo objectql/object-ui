@@ -16,7 +16,9 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tsconfig.json",
         "$TURBO_ROOT$/tsconfig.base.json",
-        "$TURBO_ROOT$/scripts/vite-*.ts"
+        "$TURBO_ROOT$/scripts/vite-*.ts",
+        "$TURBO_ROOT$/scripts/build-plugin-stylesheet.mjs",
+        "$TURBO_ROOT$/scripts/invoked-as.mjs"
       ]
     },
     "test": {

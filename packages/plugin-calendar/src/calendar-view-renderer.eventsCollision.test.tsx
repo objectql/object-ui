@@ -10,7 +10,7 @@
  * `plugin-calendar:calendar-view` — the authored `events` collision
  * (objectui#4433, measured by the objectui#4425 phase-1 sweep).
  *
- * The renderer computes a `CalendarEvent[]` from `schema.data` and passes it as
+ * The renderer computes a `CalendarViewEvent[]` from `schema.data` and passes it as
  * `events={…}`, then spreads the remaining props AFTER it. `SchemaRenderer`
  * forwards a node's `events` key as a prop — it is not on the renderer's strip
  * list — so a node authoring `events`, the ordinary SDUI action metadata of

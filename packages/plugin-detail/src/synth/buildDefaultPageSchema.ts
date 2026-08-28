@@ -26,6 +26,11 @@
 import { deriveFieldGroupLayout } from '@objectstack/spec/data';
 import type { ServiceObject } from '@objectstack/spec/data';
 import { detectStatusField } from '@object-ui/types';
+// The retirement gate (objectui#4914, ruling B). `@object-ui/fields`
+// re-exports the same function; this module reads it from `@object-ui/core`
+// because that is the dependency this package's synth layer already carries
+// at this depth, and both spellings resolve to one table and one dedupe set.
+import { isRetiredFieldType, reportRetiredFieldType } from '@object-ui/core';
 import { inferDetailColumns } from '../autoLayout';
 
 /** Minimal shape of an object definition we read here. We deliberately
@@ -164,7 +169,7 @@ export interface BuildPageOptions {
    *
    * - `objectName` and `relationshipField` are required.
    * - `title` overrides the default child-object label.
-   * - `columns` / `limit` / `icon` are forwarded to the renderer.
+   * - `columns` / `limit` / `icon` / `sort` are forwarded to the renderer.
    */
   related?: Array<{
     title?: string;
@@ -173,6 +178,19 @@ export interface BuildPageOptions {
     columns?: any[];
     limit?: number;
     icon?: string;
+    /**
+     * Row order for this list — the spec `record:related_list.sort` union,
+     * forwarded verbatim onto the synthesized node.
+     *
+     * The host supplies it; this synthesizer neither derives nor overrides it.
+     * `RecordDetailView` fills it from the child object's DEFAULT LIST VIEW
+     * sort (objectui#5795 — ruled direction 1 on objectstack#11345,
+     * maintainer 2026-08-23: inherit the child list view's sort, NO new spec
+     * key), already lowered to the array arm. Omitted → the node carries no
+     * `sort` and the related list falls back to the server's PK order, exactly
+     * as before this key had a producer.
+     */
+    sort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
     /**
      * `relatedList: 'primary'` — a CORE relationship. Under the default
      * layout this list is promoted to its OWN tab; non-primary lists collapse
@@ -427,22 +445,50 @@ export function deriveHighlightFields(
   // Long-form / structural types (textarea, markdown, json, grid) and
   // booleans don't carry enough at-a-glance information here — they're
   // either too wide or visually noisy.
+  //
+  // `owner` left this set with objectui#4914 — a RETIRED spelling, refused by
+  // the gate below before this membership test runs. The deletion is lockstep
+  // hygiene; the gate is the behavioural half. Note the `preferred` list above
+  // still names `owner`: that is a field NAME, and the surviving idiom is
+  // exactly `{ type: 'user', name: 'owner' }`, so it must stay.
   const HIGHLIGHT_FRIENDLY_TYPES = new Set<string>([
     'currency', 'number', 'integer', 'decimal', 'percent',
     'date', 'datetime', 'time',
-    'reference', 'lookup', 'user', 'owner',
+    'reference', 'lookup', 'user',
     'select', 'enum', 'multiselect', 'status',
     'email', 'phone', 'url',
     'text', 'string',
   ]);
   const out: string[] = [];
   const fields = def.fields || {};
+  /**
+   * THE GATE (objectui#4914, ruling B), ahead of BOTH selection loops.
+   *
+   * A retired spelling is refused a highlight slot and the author is told once.
+   * Before the ruling `owner` was highlight-friendly, so the synthesized page
+   * put a pill on the strip for a field whose own editor answers with a
+   * tombstone — one page, two verdicts on one field.
+   *
+   * It has to run on the `preferred` pass too, and that pass is why: it selects
+   * by NAME and never looks at the type, and the FIRST name it prefers is
+   * `owner`. Gating only the type-driven loop below would have left the one
+   * shape this whole card is about — a field named `owner` still TYPED `owner`
+   * — sailing into the strip through the other door, with the fix reading as
+   * complete.
+   */
+  const refusedAsRetired = (name: string): boolean => {
+    const ftype = (fields as any)[name]?.type;
+    if (typeof ftype !== 'string' || !isRetiredFieldType(ftype)) return false;
+    reportRetiredFieldType(ftype);
+    return true;
+  };
   for (const name of preferred) {
-    if (name in fields && !skip.has(name)) out.push(name);
+    if (name in fields && !skip.has(name) && !refusedAsRetired(name)) out.push(name);
     if (out.length >= max) return out;
   }
   for (const name of Object.keys(fields)) {
     if (out.includes(name) || skip.has(name)) continue;
+    if (refusedAsRetired(name)) continue;
     const fieldDef = (fields as any)[name];
     const ftype = fieldDef?.type;
     // When a type is declared, require it to be highlight-friendly.
@@ -654,6 +700,11 @@ export function buildDefaultTabs(
         ...(rel.columns ? { columns: rel.columns } : {}),
         ...(rel.limit ? { limit: rel.limit } : {}),
         ...(rel.icon ? { icon: rel.icon } : {}),
+        // objectui#5795. Emitted only when the host actually supplied one, for
+        // the reason every sibling key here is: a `sort: undefined` written
+        // onto the node is a different fact from "the author said nothing",
+        // and it is the one a later liveness audit would read.
+        ...(rel.sort ? { sort: rel.sort } : {}),
       });
     const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
       label: rel.title || rel.objectName,
@@ -898,12 +949,14 @@ export function buildDefaultPageSchema(
   if (willEmitAside) {
     const asideComponents: any[] = [];
     if (willEmitRail) {
+      // No `icon` on rail entries: `ReferenceRailEntrySchema` is `$strict`
+      // without it, so emitting `rel.icon` here wrote a key the spec refuses
+      // at save — and no render path ever read it (objectui#5494).
       asideComponents.push(componentNode('record:reference_rail', {
         entries: (options.related as any[]).map((rel) => ({
           objectName: rel.objectName,
           relationshipField: rel.relationshipField,
           title: rel.title,
-          icon: rel.icon,
           displayField: rel.displayField,
           limit: 3,
         })),

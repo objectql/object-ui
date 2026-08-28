@@ -128,7 +128,13 @@ export type FlowResponseOutcome<S = unknown> =
          * a retry of the same run is meaningful. False for a flow failure:
          * the engine consumed the suspension before running downstream nodes
          * (resume-once), so retrying only reaches "No suspended run", and a
-         * runner should close rather than leave a dead form open.
+         * runner must not offer one.
+         *
+         * What a runner DOES with that is the runner's own decision, and it is
+         * not "close" (objectui#5417): `FlowRunner` keeps the dialog up so the
+         * refusal stays beside the input that caused it, and withdraws the
+         * submit affordance instead. This flag says the run is gone, nothing
+         * more.
          */
         retryable: boolean;
     }

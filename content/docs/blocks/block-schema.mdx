@@ -1,25 +1,56 @@
 ---
 title: "Block Schema (BlockSchema)"
-description: "Reusable component blocks with variables, slots, and marketplace support"
+description: "Type-level declarations for reusable component blocks: variables, slots, templates and marketplace metadata. No renderer consumes this family."
 ---
 
 import { SchemaExample } from '@/app/components/ComponentDemo';
 
 # Block Schema
 
-The `BlockSchema` defines reusable component blocks that can be configured with variables, support content injection through slots, and shared via a marketplace.
+`BlockSchema` is a **definition**, not a rendered node. It declares the shape of a
+reusable component block: the variables it accepts, the slots it advertises, the
+template it would expand to, and the metadata a marketplace listing would carry.
+
+<Callout type="warn" title="Status: type-level only, nothing renders this family">
+Every schema on this page is a **declaration** in `@object-ui/types`, mirrored by a Zod
+validator in `@object-ui/types/zod`. Those declarations and their validators are the
+whole implementation:
+
+- **No component is registered** for `block`, `block-library`, `block-editor` or
+  `block-instance`, and none of them appears in `AnySchema`, the runtime node union in
+  `packages/types/src/index.ts`. They are discriminants of the interfaces below, **not
+  renderable node types**. Putting one into a `children` array gives you the renderer's
+  `OBJUI-001` "Unknown component type" panel.
+- **Nothing expands a block: `BlockSchema.slots`, `BlockInstanceSchema.slotContent` and
+  `BlockSchema.template` have no reader.** The population that would hold one is named and
+  empty — there is no block expander, no block library UI and no block editor. These
+  interfaces and their Zod validators are the whole implementation. Bounded to the block
+  family's **own** keys deliberately: the bare words `slots` and `template` are live
+  vocabulary elsewhere in this repository and *are* read at runtime there —
+  `PageSchema.slots` drives slotted record pages (`buildDefaultPageSchema` in
+  `@object-ui/plugin-detail`), and `PageNodeSchema.template` selects a page layout from
+  `TEMPLATE_REGISTRY` in `@object-ui/components`. Neither goes near `BlockSchema`.
+
+So use these types to **describe** a block (author tooling, a marketplace payload, a
+validation step) and do not expect one to render. Looking for slots that work today?
+That is an unrelated vocabulary: record pages support `kind: "slotted"` with a `slots`
+map, wired end to end. See [Slotted Pages](/docs/guide/slotted-pages).
+</Callout>
 
 ## Overview
 
-BlockSchema enables:
-- **Reusable components** - Create once, use everywhere
-- **Variable system** - Typed props for customization
-- **Slot system** - Content injection points
-- **Block templates** - Predefined component trees
-- **Marketplace support** - Share and discover blocks
-- **Version control** - Track block versions
+`BlockSchema` declares:
+- **Variables** - typed, defaultable parameters a block accepts
+- **Slots** - named content-injection points a block advertises
+- **Template** - the component tree a block would expand to
+- **Marketplace metadata** - author, version, license, preview and rating fields
+- **Version** - a `version` string carried on the block's metadata
 
 ## Interactive Examples
+
+These demos are ordinary **registered** components (`card`, `flex`, `stack`, `text`,
+`icon`, `button`, `badge`) hand-assembled to show what a block *would* look like once
+expanded. None of them goes through `BlockSchema`: there is nothing that expands one.
 
 ### Feature Card Block
 
@@ -37,7 +68,7 @@ BlockSchema enables:
 
 ## Basic Usage
 
-```plaintext
+```ts
 import type { BlockSchema } from '@object-ui/types';
 
 const heroBlock: BlockSchema = {
@@ -83,7 +114,7 @@ const heroBlock: BlockSchema = {
 
 ### Block Metadata
 
-```plaintext
+```ts
 interface BlockMetadata {
   name: string;              // Block identifier
   label?: string;            // Display name
@@ -104,7 +135,7 @@ interface BlockMetadata {
 
 Variables define configurable properties:
 
-```plaintext
+```ts
 interface BlockVariable {
   name: string;                    // Variable name
   label?: string;                  // Display label
@@ -121,7 +152,9 @@ interface BlockVariable {
 
 Slots define content injection points:
 
-```plaintext
+```ts
+import type { SchemaNode } from '@object-ui/types';
+
 interface BlockSlot {
   name: string;                    // Slot name
   label?: string;                  // Display label
@@ -133,9 +166,37 @@ interface BlockSlot {
 }
 ```
 
-## Complete Example
+#### Filling a slot: `slotContent`
+
+A block **declares** its slots in `slots[]`; a caller **fills** them through
+`slotContent`, a map keyed by slot name whose values are `SchemaNode | SchemaNode[]`.
+The key is declared on both `BlockSchema` and `BlockInstanceSchema`
+(`packages/types/src/blocks.ts`):
 
 ```plaintext
+// The block declares a slot named 'content'...
+slots: [
+  { name: 'content', label: 'Content Area' }
+],
+
+// ...and a caller fills it by name.
+slotContent: {
+  content: [
+    { type: 'text', value: 'Injected into the "content" slot' }
+  ]
+}
+```
+
+**There is no `slot` node type.** Slot content is never addressed by placing a
+`{ type: 'slot' }` placeholder inside `template`: nothing registers `slot`, so such a
+node renders as `OBJUI-001`. `slotContent` is the declared path, and like the rest of
+this family it is **declared but not yet consumed** - no renderer reads it today.
+
+## Complete Example
+
+```ts
+import type { BlockSchema } from '@object-ui/types';
+
 const cardBlock: BlockSchema = {
   type: 'block',
   
@@ -229,7 +290,7 @@ const cardBlock: BlockSchema = {
         children: [
           {
             type: 'icon',
-            name: '${icon}',
+            icon: '${icon}',
             size: 48,
             className: 'text-primary'
           }
@@ -251,10 +312,6 @@ const cardBlock: BlockSchema = {
             className: 'card-description'
           },
           {
-            type: 'slot',
-            name: 'content'
-          },
-          {
             type: 'button',
             label: '${buttonText}',
             variant: 'outline',
@@ -274,9 +331,11 @@ const cardBlock: BlockSchema = {
 
 ### Block Instance
 
-Use `BlockInstanceSchema` to instantiate a block:
+`BlockInstanceSchema` declares the shape of a **reference to a block**: which block, what
+variable values, what slot content. It is a definition, not a component - nothing
+resolves `blockId` or expands the block it names.
 
-```plaintext
+```ts
 import type { BlockInstanceSchema } from '@object-ui/types';
 
 const instance: BlockInstanceSchema = {
@@ -311,10 +370,16 @@ const instance: BlockInstanceSchema = {
 
 ## Block Library
 
-Use `BlockLibrarySchema` to browse available blocks:
+`BlockLibrarySchema` declares the shape of a **block-library payload**: the query that
+selected it and the listings it returned. It is a data shape, not a browser component -
+nothing renders a library, and `onInstall` / `onPreview` name handlers that no dispatcher
+looks up.
 
-```plaintext
-import type { BlockLibrarySchema } from '@object-ui/types';
+```ts
+import type { BlockLibrarySchema, BlockSchema } from '@object-ui/types';
+
+// The block defined under "Basic Usage" above.
+declare const heroBlock: BlockSchema;
 
 const library: BlockLibrarySchema = {
   type: 'block-library',
@@ -347,10 +412,15 @@ const library: BlockLibrarySchema = {
 
 ## Block Editor
 
-Use `BlockEditorSchema` to create/edit blocks:
+`BlockEditorSchema` declares the shape of a **block-editor configuration**: which block is
+open and which panels a host would show. It is a configuration shape, not an editor
+component - no block editor exists to consume it.
 
-```plaintext
-import type { BlockEditorSchema } from '@object-ui/types';
+```ts
+import type { BlockEditorSchema, BlockSchema } from '@object-ui/types';
+
+// The block defined under "Complete Example" above.
+declare const cardBlock: BlockSchema;
 
 const editor: BlockEditorSchema = {
   type: 'block-editor',
@@ -369,7 +439,9 @@ const editor: BlockEditorSchema = {
 
 ## Marketplace Example
 
-```plaintext
+```ts
+import type { BlockLibrarySchema } from '@object-ui/types';
+
 const marketplace: BlockLibrarySchema = {
   type: 'block-library',
   apiEndpoint: 'https://blocks.objectui.com/api',
@@ -390,7 +462,7 @@ const marketplace: BlockLibrarySchema = {
         premium: false,
         preview: 'https://blocks.objectui.com/previews/pricing-table.png'
       },
-      schema: { /* block schema */ },
+      schema: { type: 'block', meta: { name: 'pricing-table-pro' } },
       installs: 5420,
       rating: 4.9,
       ratingCount: 234,
@@ -409,7 +481,7 @@ const marketplace: BlockLibrarySchema = {
         version: '1.3.0',
         premium: true
       },
-      schema: { /* block schema */ },
+      schema: { type: 'block', meta: { name: 'testimonial-slider' } },
       installs: 2150,
       rating: 4.7,
       ratingCount: 89
@@ -420,8 +492,11 @@ const marketplace: BlockLibrarySchema = {
 
 ## Runtime Validation
 
-```plaintext
+```ts
 import { BlockSchema } from '@object-ui/types/zod';
+
+// The block configuration to validate.
+declare const myBlock: unknown;
 
 const result = BlockSchema.safeParse(myBlock);
 
@@ -472,6 +547,7 @@ if (result.success) {
 
 ## Related
 
-- [Component Registry](/docs/guide/component-registry) - Registering components
-- [Schema Rendering](/docs/guide/schema-rendering) - Rendering blocks
+- [Slotted Pages](/docs/guide/slotted-pages) - the slot system that **is** wired end to end
+- [Component Registry](/docs/guide/component-registry) - what registering a renderable type takes
+- [Schema Rendering](/docs/guide/schema-rendering) - how registered node types are rendered
 - [Plugins](/docs/guide/plugins) - Extending ObjectUI

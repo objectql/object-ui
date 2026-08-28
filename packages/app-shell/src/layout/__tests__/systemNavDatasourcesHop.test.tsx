@@ -71,13 +71,12 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
     objectLabel: ({ label }: { label?: string }) => label,
     viewLabel: (_o: string, _v: string, fallback?: string) => fallback,
     dashboardLabel: ({ label }: { label?: string }) => label,
-    navGroupLabel: (_a: string, _g: string, fallback?: string) => fallback,
   }),
 }));
 
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: null, signOut: vi.fn(), isAuthEnabled: false, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
   getUserInitials: () => 'U',
 }));
 

@@ -24,10 +24,10 @@
 
 import * as React from 'react';
 import { SchemaRenderer, PreviewModeProvider } from '@object-ui/react';
-import { toInlineFormType } from './form-preview';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
-import { primaryVariantBinding } from '../view-variant-model';
+import { toInlineFormType } from './form-preview.js';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell.js';
+import { primaryVariantBinding } from '../view-variant-model.js';
 
 function resolveObjectName(
   draft: Record<string, unknown>,
@@ -133,7 +133,6 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
       showSearch: true,
       showFilters: true,
       showCreate: false,
-      showRefresh: true,
       showViewSwitcher: true,
     }),
     [objectName, defaultViewType, defaultViewId, listViews],

@@ -16,6 +16,13 @@ import {
   normalizeFilterOperator,
 } from "@objectstack/spec/ui"
 import { SchemaRendererContext } from "@object-ui/react"
+// The retirement gate (objectui#4914, ruling B). Read from
+// `@object-ui/core` rather than from `@object-ui/fields` — which is where
+// the maintainer's ruling names it — for the one reason that cannot be
+// argued with: `@object-ui/fields` DEPENDS on this package, so importing it
+// here is a cycle. `core` re-homes the table and `fields` re-exports it, so
+// both spellings resolve to the SAME function and the SAME dedupe set.
+import { isRetiredFieldType, reportRetiredFieldType } from "@object-ui/core"
 import { createSafeTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
@@ -61,7 +68,7 @@ export interface FilterBuilderProps {
     label: string
     type?: string
     options?: Array<{ value: string; label: string }> // For select fields
-    /** For lookup/master_detail/user/owner fields — referenced object name */
+    /** For lookup/master_detail/user fields — referenced object name */
     referenceTo?: string
     /** Display field on the referenced object (defaults to "name") */
     displayField?: string
@@ -404,8 +411,13 @@ function valueFamilyForFieldType(fieldType: string | undefined): FilterValueFami
   if (type === "date") return "date"
   if (type === "datetime") return "datetime"
   if (type === "time") return "time"
-  // select / status / lookup / master_detail / user / owner / text / unknown:
-  // all edited as free text or as a list of option ids, all string-shaped.
+  // select / status / lookup / master_detail / user / text / unknown — and a
+  // RETIRED spelling, which the gate has already refused upstream but whose
+  // VALUE must still survive a field switch (objectui#4914): all edited as free
+  // text or as a list of option ids, all string-shaped. Deliberately NOT gated:
+  // this function answers "what shape can this column hold", and answering
+  // "none" for a retired column would EAT a stored filter value on the way to
+  // showing the author their prescription.
   return "text"
 }
 
@@ -634,6 +646,224 @@ export function retypeFilterValue(
   }
 }
 
+/** The shape of a `fields` entry that the option-domain helpers below read. */
+type OptionBearingField = {
+  type?: string
+  options?: ReadonlyArray<{ value: string; label: string }>
+}
+
+/**
+ * How a value control compares a row's value against an option — `String()` on
+ * both sides, which is what the rendered controls themselves do (the checkbox
+ * list's `selectedValues.map(String).includes(String(opt.value))`, and Radix's
+ * match of `SelectValue` against each mounted `SelectItem value`).
+ *
+ * Membership has to be decided the same way the control decides VISIBILITY, or
+ * the two answers drift and we are back to a value the row keeps and the
+ * control cannot show — the defect itself (objectui#4874).
+ */
+function optionKeysOf(field: OptionBearingField | undefined): string[] {
+  return (field?.options ?? []).map((opt) => String(opt.value))
+}
+
+/**
+ * Does this column carry a static option set that is actually IN PLACE — the
+ * ONE mechanical criterion that splits the two halves of objectui#4874's ruling
+ * (2026-08-17, A + C combined).
+ *
+ * `true` (a **static** column): the option set is the column's whole value
+ * domain — nothing else can ever be picked in it and nothing else will arrive
+ * later — so a value outside it is locally decidable as unholdable, and a field
+ * switch clears it exactly as objectui#4781 clears a value the new column's
+ * TYPE cannot hold.
+ *
+ * `false` (a **remote/async** column): the domain lives on the server. Three
+ * ways to land here, all meaning "the local option set cannot vouch for this
+ * value":
+ *
+ *   - `options` **absent** — the shape a lookup with `referenceTo` arrives in;
+ *   - `options: []` — **present but not yet loaded**. Not hypothetical:
+ *     `deriveFilterFields` in `@object-ui/fields` maps `Array.isArray(f.options)`
+ *     through as-is, so an object whose picklist values have not arrived yields
+ *     exactly this. A membership test against it would clear every value on
+ *     earth;
+ *   - not an array at all — a malformed `fields` entry decides nothing.
+ *
+ * This is also the criterion `renderValueInput`'s remote-picker branch reads
+ * (objectui#5031), so the two questions a column raises — "which control is
+ * drawn for it" and "may a value be cleared against it" — are answered from one
+ * place. They used to disagree: that branch spelled the test `!field?.options`,
+ * which is `false` for `options: []`, so a lookup whose options had not arrived
+ * was handed the static Select (empty, no search box) by one answer while this
+ * one called it remote and kept its value.
+ *
+ * For those, the ruling is the other half: never clear on a local non-membership
+ * guess (a valid lookup id is not the local page's to delete), and never leave
+ * the value invisible — which the render path answers unconditionally by
+ * mounting the value as a temporary option.
+ */
+function hasStaticOptionDomain(field: OptionBearingField | undefined): boolean {
+  const options = field?.options
+  return Array.isArray(options) && options.length > 0
+}
+
+/**
+ * Is this row's value control DRIVEN by the column's option set — i.e. can it
+ * only ever display a value that is one of the options?
+ *
+ * Mirrors `renderValueInput`'s branch order, because "which control is drawn"
+ * and "which values that control can show" are one question:
+ *
+ *   - `list` — the checkbox list over `field.options`; an entry matching no
+ *     option is checked nowhere.
+ *   - `pair` — `between` draws two plain range inputs and never consults the
+ *     options, so any value is visible and none is out of domain. (`between`
+ *     is not in the select/lookup buckets today; answered structurally rather
+ *     than by that coincidence.)
+ *   - `scalar` — the Radix Select, drawn only for the select/lookup-like types.
+ *     A `text` column that happens to carry `options` keeps its plain input,
+ *     which shows anything, so it is NOT option-driven.
+ */
+function isOptionDrivenValueControl(
+  field: OptionBearingField | undefined,
+  operator: string,
+): boolean {
+  if (!field?.options) return false
+  const type = field.type || ""
+  switch (filterValueArity(operator)) {
+    case "list":
+      return true
+    case "pair":
+      return false
+    default:
+      return selectLikeTypes.includes(type) || lookupLikeTypes.includes(type)
+  }
+}
+
+/**
+ * Narrow a row's `value` to the option DOMAIN of the field it is being changed
+ * TO — the value-domain question, standing beside {@link retypeFilterValue}'s
+ * type question and {@link reshapeFilterValue}'s shape question
+ * (objectui#4874).
+ *
+ * objectui#4781 settled the TYPE half and deliberately stopped there: `select`
+ * and `lookup` are text-family, so `"acme"` is a value those columns can
+ * perfectly well HOLD. What it cannot be is one of the column's options — and
+ * the control drawn for those columns is a Radix Select, whose trigger renders
+ * only what one of its mounted `SelectItem`s carries. So a text row filtered
+ * `equals "acme"`, pointed at a picklist column of `won`/`lost`, showed a BLANK
+ * trigger while the row went on carrying `"acme"`:
+ * `foldFilterGroupToSpecRules` persisted it and the live grid queried
+ * `stage equals "acme"`. The third face of the same invisible value —
+ * objectui#4768 on the operator, objectui#4781 on the value's type, this one on
+ * its domain.
+ *
+ * Ruled 2026-08-17 as **A + C combined**, and the A half is this function:
+ * clear on non-membership, but ONLY where the option set is the column's whole
+ * domain ({@link hasStaticOptionDomain}). A remote/async column's value is
+ * returned untouched — clearing it would delete a perfectly valid lookup id on
+ * the strength of a local page that never claimed to be complete, and the C
+ * half (the render path's temporary option) is what keeps it visible instead.
+ * Option B — keep the value and tolerate it being invisible — stays rejected,
+ * as it was on objectui#4781.
+ *
+ * The empty shape a cleared value falls to is objectui#4781's, unchanged and
+ * read from the same `filterValueArity` fold:
+ *
+ *   - `scalar` — `""`.
+ *   - `list` — filtered ENTRY BY ENTRY, keeping the members: `["acme", "won"]`
+ *     → `["won"]`, and `[]` when none survive. Per-entry rather than
+ *     all-or-nothing because each entry is its own filter term, and one bad
+ *     term is no reason to throw away the user's good ones.
+ *   - `pair` — untouched; `between` is not option-driven.
+ *
+ * @internal exported for tests
+ */
+export function narrowFilterValueToOptions(
+  value: FilterBuilderCondition["value"],
+  field: OptionBearingField | undefined,
+  operator: string,
+): FilterBuilderCondition["value"] {
+  if (!hasStaticOptionDomain(field)) return value
+  if (!isOptionDrivenValueControl(field, operator)) return value
+
+  const allowed = new Set(optionKeysOf(field))
+
+  if (filterValueArity(operator) === "list") {
+    return normalizeToArray(value).filter((entry) => allowed.has(String(entry)))
+  }
+
+  const scalar = Array.isArray(value) ? (value[0] ?? "") : value
+  if (isValueUnset(scalar)) return ""
+  return allowed.has(String(scalar)) ? scalar : ""
+}
+
+/**
+ * Is this row's value FINISHED for the operator it carries — the arity-aware
+ * reading of "the user has filled this in" (objectstack#8815).
+ *
+ * Both write paths used to ask this with one shape-blind predicate:
+ *
+ * ```ts
+ * value == null || value === '' || (Array.isArray(value) && value.length === 0)
+ * ```
+ *
+ * which is right for `scalar` and `list` and WRONG for `pair`. A `between` row
+ * with one bound typed is `["2024-01-01", ""]` — an array of length 2, so it
+ * read as complete, and both consumers carried it through. The live grid then
+ * queried a range with an empty upper bound and the server refused the whole
+ * view (`400 INVALID_FILTER`), which is the "该视图的查询被拒绝" the reporter
+ * hit; the saved-view path persisted the same half-range, so the refusal came
+ * back on every later read of that view.
+ *
+ * The spec cannot catch this on the way past — measured against
+ * `ViewFilterRuleSchema` on `@objectstack/spec` 17.0.0: `["2024-01-01", ""]` is
+ * ACCEPTED (it counts the two slots, not what is in them), while a scalar or a
+ * one-element array is refused. So the empty bound sails through authoring
+ * validation and only dies at query time, one layer too late to be actionable.
+ * That makes it the PRODUCER's job to not emit it — this component is what
+ * decides when a row is finished, exactly as it already decides which operators
+ * finish with no value at all ({@link VALUELESS_FILTER_BUILDER_OPERATORS}), and
+ * for the same reason: each consumer keeping its own copy is how the two came to
+ * disagree in the first place.
+ *
+ * The arity is read through the same `filterValueArity` fold the rest of this
+ * file uses, so a stored rule spelled canonically gets the same answer as the
+ * dropdown's own id.
+ *
+ * What each shape needs:
+ *
+ *   - `pair` — BOTH bounds present. A range missing an end is not a narrower
+ *     range, it is a query the server refuses.
+ *   - `list` — at least one entry; `[]` is the "nothing chosen yet" shape.
+ *   - `scalar` — anything that is not the unfilled shape.
+ *
+ * "Present" is {@link isValueUnset}, never `!bound` (objectui#4873): `0` is a
+ * real bound on a number column and `false` is a real value, and reading either
+ * as unfilled would drop a filter the user can see on screen.
+ *
+ * This answers the VALUE question only. Whether an operator wants a value at all
+ * stays with each caller, because the two layers see different vocabularies:
+ * `app-shell` also has to recognise the canonical spellings (`is_null`) that
+ * never reach this dropdown.
+ *
+ * @internal exported for tests
+ */
+export function isFilterValueComplete(
+  operator: string,
+  value: FilterBuilderCondition["value"] | undefined | null,
+): boolean {
+  if (filterValueArity(operator) === "pair") {
+    const bounds = normalizeToArray(value ?? "")
+    return bounds.length === 2 && !isValueUnset(bounds[0]) && !isValueUnset(bounds[1])
+  }
+  return !(
+    value == null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  )
+}
+
 /** The two bounds a `pair` row edits, with the gaps filled in for rendering. */
 function toPairBounds(
   value: FilterBuilderCondition["value"],
@@ -703,8 +933,18 @@ const numberLikeTypes = ["number", "currency", "percent", "rating"]
 const dateLikeTypes = ["date", "datetime", "time"]
 /** Field types that use select operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
 const selectLikeTypes = ["select", "status"]
-/** Relational/reference field types that use lookup operators (equals/in/notIn) and render dropdown or checkbox list when options provided */
-const lookupLikeTypes = ["lookup", "master_detail", "user", "owner"]
+/**
+ * Relational/reference field types that use lookup operators (equals/in/notIn)
+ * and render dropdown or checkbox list when options provided.
+ *
+ * `owner` left this list with objectui#4914: it is a RETIRED spelling, and
+ * the gate below answers for it before this membership test is ever reached.
+ * The deletion is lockstep hygiene rather than the behavioural half — a list
+ * that still named a retired spelling would be a second, contradicting
+ * authority on what is live — and it is exactly the shape PR #4932 used when
+ * it retired the same word from `INLINE_ROUTED_FIELD_TYPES`.
+ */
+const lookupLikeTypes = ["lookup", "master_detail", "user"]
 
 /**
  * The operators the dropdown offers for a field of `fieldType`, given the
@@ -722,17 +962,35 @@ export function operatorsForFieldType(
   extraOperators: readonly string[] = [],
 ): ReadonlyArray<{ value: string; label: string }> {
   const type = fieldType || "text"
-  const bucket = numberLikeTypes.includes(type)
-    ? numberOperators
-    : type === "boolean"
-      ? booleanOperators
-      : dateLikeTypes.includes(type)
-        ? dateOperators
-        : selectLikeTypes.includes(type)
-          ? selectOperators
-          : lookupLikeTypes.includes(type)
-            ? lookupOperators
-            : textOperators
+  // THE GATE (objectui#4914, ruling B), ahead of every bucket test.
+  //
+  // Measured before the ruling (comment 5324769751): `operatorsForFieldType`
+  // answered a retired `owner` column with the LOOKUP bucket, item for item
+  // identical to `user` — a first-class relational offering for a spelling this
+  // renderer refuses to render. The gate refuses it here instead, LOUDLY: the
+  // author gets the migration prescription on the console, once per spelling,
+  // and the column falls to the bucket an unrecognised spelling gets.
+  //
+  // Falling to `textOperators` rather than to an EMPTY list is deliberate. An
+  // empty bucket draws a blank operator trigger — objectui#4768's defect
+  // verbatim — which is a broken control, not a refusal anyone can read, and it
+  // would leave a stored filter row unremovable. The refusal is the console
+  // prescription plus the loss of the relational offering.
+  const retired = isRetiredFieldType(type)
+  if (retired) reportRetiredFieldType(type)
+  const bucket = retired
+    ? textOperators
+    : numberLikeTypes.includes(type)
+      ? numberOperators
+      : type === "boolean"
+        ? booleanOperators
+        : dateLikeTypes.includes(type)
+          ? dateOperators
+          : selectLikeTypes.includes(type)
+            ? selectOperators
+            : lookupLikeTypes.includes(type)
+              ? lookupOperators
+              : textOperators
 
   const granted = new Set(extraOperators)
   return defaultOperators.filter(
@@ -921,8 +1179,8 @@ function FilterBuilder({
    * throw away a choice that is still valid (switching `contains` from one text
    * column to another must not silently become `equals`).
    *
-   * The value is settled in the same edit, in two steps that answer two
-   * different questions and are both needed (objectui#4781):
+   * The value is settled in the same edit, in three steps that answer three
+   * different questions and are all needed (objectui#4781, objectui#4874):
    *
    *   1. `reshapeFilterValue` — the SHAPE the new OPERATOR takes, and only when
    *      the operator actually changed;
@@ -931,10 +1189,17 @@ function FilterBuilder({
    *      that type cannot hold is a value the user can no longer see or edit
    *      while the row keeps filtering by it. Convertible values are carried
    *      (`"42"` → `42`); the rest clear.
+   *   3. `narrowFilterValueToOptions` — the DOMAIN the new field offers, for the
+   *      columns whose whole domain is local. Step 2 stops at the type, and
+   *      `select`/`lookup` are text-family: `"acme"` is a string a picklist
+   *      column can HOLD but not one of its options, and its Select shows only
+   *      what an option carries. Remote/async columns are left alone here on
+   *      purpose — see `hasStaticOptionDomain`.
    */
   const changeField = (conditionId: string, nextField: string) => {
     const offered = getOperatorsForField(nextField)
-    const nextType = fields.find((f) => f.value === nextField)?.type
+    const nextFieldDef = fields.find((f) => f.value === nextField)
+    const nextType = nextFieldDef?.type
     handleChange({
       ...filterGroup,
       conditions: filterGroup.conditions.map((c) => {
@@ -942,11 +1207,12 @@ function FilterBuilder({
         const nextOperator = reconcileOperatorForField(c.operator, offered)
         const reshaped =
           nextOperator === c.operator ? c.value : reshapeFilterValue(c.value, nextOperator)
+        const retyped = retypeFilterValue(reshaped, nextType, nextOperator)
         return {
           ...c,
           field: nextField,
           operator: nextOperator,
-          value: retypeFilterValue(reshaped, nextType, nextOperator),
+          value: narrowFilterValueToOptions(retyped, nextFieldDef, nextOperator),
         }
       }),
     })
@@ -976,10 +1242,39 @@ function FilterBuilder({
     // form gets the multi-value input its alias `notIn` already got.
     const arity = filterValueArity(condition.operator)
     const isMultiOperator = arity === "list"
-    const isLookupLike = lookupLikeTypes.includes(field?.type || "")
+    // THE GATE (objectui#4914, ruling B), ahead of the control choice.
+    //
+    // A RETIRED spelling never reaches the remote person picker, and is told so
+    // out loud. Before the ruling an `owner` column rode this branch through
+    // its own `type === "owner"` conjunct — the picker even defaulted its
+    // `referenceTo` to "users" for it (see {@link LookupValuePicker}) — so the
+    // one word this renderer refuses to render still got the richest control
+    // the filter row has.
+    //
+    // The column then draws whatever an unrecognised spelling draws (an
+    // option-driven Select when it carries `options`, a plain input otherwise)
+    // — the same degradation `mapFieldTypeToFormType`'s `field:text` tail would
+    // have given, EXCEPT that it is no longer silent. That distinction is the
+    // whole ruling: the measurement that killed the "just delete the members"
+    // plan (comment 5324769751) objected to the SILENCE, not to the fallback.
+    const retiredColumn = isRetiredFieldType(field?.type)
+    if (retiredColumn) reportRetiredFieldType(field!.type as string)
+    const isLookupLike = !retiredColumn && lookupLikeTypes.includes(field?.type || "")
 
-    // Lookup-like fields without static options → use remote search picker
-    if (isLookupLike && !field?.options && (field?.referenceTo || field?.type === "user" || field?.type === "owner")) {
+    // Lookup-like fields without a static option domain → remote search picker.
+    //
+    // `hasStaticOptionDomain`, never `!field?.options` (objectui#5031): `[]` is
+    // truthy, so the old spelling answered "is the static domain in place?" with
+    // YES for a column whose picklist values have not arrived — and drew the
+    // option-driven Select over an option set of zero. The user got a control
+    // with no search box and no candidates, on a column that would have had full
+    // remote search had the `options` key simply been absent. The value-domain
+    // side (`narrowFilterValueToOptions`) already reads `options: []` as
+    // remote/not-yet-in-place; this branch now reads the SAME criterion, so
+    // "which control is drawn" and "may this value be cleared" cannot give
+    // opposite answers about one column. A column with NON-EMPTY `options` is
+    // unaffected — it owns its domain and keeps the static Select.
+    if (isLookupLike && !hasStaticOptionDomain(field) && (field?.referenceTo || field?.type === "user")) {
       return (
         <LookupValuePicker
           field={field!}
@@ -993,8 +1288,39 @@ function FilterBuilder({
     // For select/lookup fields with options and multi-select operator (in/notIn)
     if (field?.options && isMultiOperator) {
       const selectedValues = normalizeToArray(condition.value)
+      // The list face of the same invisible value (objectui#4874). A selected
+      // entry matching no option is checked NOWHERE — the checkbox list can only
+      // ever show the options it draws — so the row went on filtering by a term
+      // the panel never displayed. Each such entry gets its own row, already
+      // checked, so it is both visible and removable; they lead the list because
+      // they are the ones the user cannot otherwise find.
+      const allowed = optionKeysOf(field)
+      // De-duplicated: an externally supplied `["acme", "acme"]` would otherwise
+      // draw two rows under one React key, and unchecking either removes both
+      // (the handler filters by value, not by position) — so one row is also the
+      // honest count of what unchecking does.
+      const outsideOptions = [
+        ...new Set(selectedValues.map(String).filter((entry) => !allowed.includes(entry))),
+      ]
       return (
         <div className="max-h-40 overflow-y-auto space-y-0.5 border rounded-md p-2">
+          {outsideOptions.map((entry) => (
+            <label
+              key={`outside-${entry}`}
+              className="flex items-center gap-2 text-sm py-1 px-1.5 rounded cursor-pointer bg-primary/5 text-primary"
+              data-testid={`filter-value-outside-options-${condition.field}`}
+            >
+              <Checkbox
+                checked
+                onCheckedChange={() =>
+                  updateCondition(condition.id, {
+                    value: selectedValues.filter((v) => String(v) !== entry),
+                  })
+                }
+              />
+              <span className="truncate">{entry}</span>
+            </label>
+          ))}
           {field.options.map((opt) => {
             const isChecked = selectedValues.map(String).includes(String(opt.value))
             return (
@@ -1089,14 +1415,25 @@ function FilterBuilder({
 
     // For select/lookup fields with options (single select)
     if (field?.options && (selectLikeTypes.includes(field.type || "") || lookupLikeTypes.includes(field.type || ""))) {
+      // `displayScalarValue`, never `value || ""` (objectui#4873): an option
+      // whose id is `0` — a status code, a level — is a real selection, and
+      // `0 || ""` handed the trigger the same `""` an unfilled row gives it, so
+      // the row filtered by an option the placeholder said was not picked.
+      const shown = displayScalarValue(condition.value)
+      // The C half of objectui#4874's ruling. Radix matches `SelectValue`
+      // against the `SelectItem`s actually MOUNTED, so a value no option
+      // carries leaves the trigger blank while the row keeps filtering by it —
+      // the same mechanism objectui#4768 hit on the operator trigger. Mounting
+      // the value as its own option is what makes it visible, and it is done
+      // UNCONDITIONALLY rather than only for remote columns: the invariant this
+      // control owes is "the trigger shows whatever the row holds", and that
+      // holds no matter HOW the value got here (a switch, a persisted view, an
+      // option set that loaded late). Which values may be CLEARED is the other
+      // half and lives in one place, `narrowFilterValueToOptions`.
+      const isOutsideOptions = shown !== "" && !optionKeysOf(field).includes(shown)
       return (
         <Select
-          // `displayScalarValue`, never `value || ""` (objectui#4873): an
-          // option whose id is `0` — a status code, a level — is a real
-          // selection, and `0 || ""` handed the trigger the same `""` an
-          // unfilled row gives it, so the row filtered by an option the
-          // placeholder said was not picked.
-          value={displayScalarValue(condition.value)}
+          value={shown}
           onValueChange={(value) =>
             updateCondition(condition.id, { value })
           }
@@ -1105,6 +1442,14 @@ function FilterBuilder({
             <SelectValue placeholder={t('filterBuilder.selectValue')} />
           </SelectTrigger>
           <SelectContent>
+            {isOutsideOptions && (
+              // Labelled with the value itself — the same answer
+              // `LookupValuePicker`'s trigger gives an id it has no label for
+              // (`resolved[id] || id`), because that IS what is known about it.
+              <SelectItem value={shown} data-testid={`filter-value-outside-options-${condition.field}`}>
+                {shown}
+              </SelectItem>
+            )}
             {field.options.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
@@ -1409,7 +1754,7 @@ function MultiValueInput({ values, inputType, numeric, testId, onChange }: Multi
 MultiValueInput.displayName = "MultiValueInput"
 
 // ============================================================================
-// LookupValuePicker — remote-search picker for lookup/master_detail/user/owner
+// LookupValuePicker — remote-search picker for lookup/master_detail/user
 // ============================================================================
 
 interface LookupOption {
@@ -1436,10 +1781,14 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
   const ctx = React.useContext(SchemaRendererContext)
   const dataSource: any = ctx?.dataSource ?? null
 
-  // Default `referenceTo` for user/owner field types when not explicitly set
+  // Default `referenceTo` for the `user` field type when not explicitly set.
+  //
+  // `owner` was a second spelling here until objectui#4914. It is unreachable
+  // now — the gate in `renderValueInput` refuses a retired spelling before this
+  // component is ever chosen — so the member is removed rather than left as a
+  // list that disagrees with the gate about what is live.
   const referenceTo =
-    field.referenceTo ||
-    (field.type === "user" || field.type === "owner" ? "users" : undefined)
+    field.referenceTo || (field.type === "user" ? "users" : undefined)
   const displayField = field.displayField || "name"
   const idField = field.idField || "id"
 

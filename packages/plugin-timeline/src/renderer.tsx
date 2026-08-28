@@ -495,11 +495,30 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
     return null;
   };
 
+// `skipFallback` — the bare `timeline` key belongs to the OBJECT-BOUND renderer
+// (`view:timeline`, registered in `./index`), not to this presentational one
+// (objectui#6353).
+//
+// Both registrations name the same short key. Until this flag existed, both also
+// claimed the bare fallback (`Registry.register`, the `meta?.namespace &&
+// !meta?.skipFallback` branch), so which renderer answered `type: 'timeline'` was
+// decided by which module evaluated LAST — `./index` re-exports this module at its
+// line 300, before its own `import` at 307, so this file registered first and was
+// then overwritten. The outcome was right and the mechanism was not: swapping those
+// two lines would have silently handed `type: 'timeline'` to this renderer, which
+// reads none of the object-bound keys, so an authored timeline would stop fetching
+// with no error. The registry's own collision guard names this remedy in its warning.
+//
+// Now the answer is DECLARED: only `view:timeline` claims the bare key, in any
+// evaluation order. `plugin-timeline:timeline` stays reachable by its explicit
+// namespaced key, which is the lookup a presentational host uses.
+// Pinned by `./__tests__/timeline-bare-key-ownership.test.ts`.
 ComponentRegistry.register(
-  'timeline', 
+  'timeline',
   TimelineRenderer,
   {
     namespace: 'plugin-timeline',
+    skipFallback: true,
     label: 'Timeline',
     category: 'data-display',
     inputs: [
@@ -524,12 +543,32 @@ ComponentRegistry.register(
         label: 'Date Format',
         defaultValue: 'short',
       },
+      // The designer's axis key is `scale` — the spec's spelling
+      // (`ui/TimelineConfig.json`) and the one `resolveTimelineScale` prefers.
+      // It offers all six buckets: `hour` / `quarter` / `year` have rendered
+      // correctly since #2942 but were offered by neither the designer nor the
+      // exported type, so they were authorable and undiscoverable (objectui#6170).
+      {
+        name: 'scale',
+        type: 'enum',
+        enum: [...TIMELINE_SCALES],
+        label: 'Time Scale (Gantt only)',
+        defaultValue: 'month',
+      },
+      // Kept so a stored `timeScale` still round-trips through the designer.
+      // Deprecated in favour of `scale`; retiring the alias is routed separately
+      // (objectui#6170 maintainer ruling 2026-08-25). `ComponentInput` has no
+      // `deprecated` slot and no index signature, so the notice lives in
+      // `description` — this package's stated ceiling for anything the coarse
+      // `type` cannot express.
       {
         name: 'timeScale',
         type: 'enum',
-        enum: ['day', 'week', 'month'],
+        enum: [...TIMELINE_SCALES],
         label: 'Time Scale (Gantt only)',
-        defaultValue: 'month',
+        description:
+          'DEPRECATED — use `scale`, which @objectstack/spec owns and this renderer reads first. Kept so stored JSON keeps working.',
+        advanced: true,
       },
       {
         name: 'rowLabel',

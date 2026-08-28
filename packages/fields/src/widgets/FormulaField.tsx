@@ -1,7 +1,7 @@
 import React from 'react';
 import { EmptyValue } from '@object-ui/components';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
 
 /**
  * FormulaField - Read-only computed field

@@ -28,10 +28,18 @@ import {
   formatCurrency,
   formatPercent,
   formatDate,
+  // THE GATE the maintainer ruled onto this package's surface (objectui#4914,
+  // ruling B). Read from `@object-ui/fields` here — the spelling the ruling
+  // names — which re-exports the single implementation homed in
+  // `@object-ui/core`.
+  isRetiredFieldType,
+  reportRetiredFieldType,
 } from '@object-ui/fields';
-
-/** Field types treated as relations (rendered as links to the related record). */
-const LOOKUP_TYPES = new Set(['lookup', 'reference', 'master_detail', 'user', 'owner']);
+// The reference-bearing field family, read as the object `@object-ui/core`
+// publishes rather than restated here (objectui#5692). Imported from its home
+// package, the way the other converged consumers do, so the identity pin has a
+// single object to spy on.
+import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 
 /**
  * Framework / system audit fields hidden from auto-derived columns and the
@@ -187,8 +195,36 @@ export function renderFieldValue(
   }
   if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
     const decimals = (fmt.match(/0\.(0+)%/) || [undefined, ''] as any)[1].length;
-    const normalized = value > 1 ? value / 100 : value;
-    return formatPercent(normalized * 100, decimals, displayLocale);
+    // The RAW stored value goes to `formatPercent`, which applies
+    // `percentDisplayValue` — the single source of truth for percent display
+    // scaling (`@object-ui/core`), whose doc comment says so in those words.
+    // This is the same call the list-view percent cell makes for an ordinary
+    // percent column (`PercentCellRenderer` in `@object-ui/fields`), so a
+    // percent now reads identically as a record field, as a grid cell and as a
+    // dashboard measure.
+    //
+    // ⚠️ This call site used to make the fraction/points decision AGAIN, with a
+    // local copy that had drifted from the one it duplicated (objectui#5607):
+    //
+    //   const normalized = value > 1 ? value / 100 : value;
+    //   return formatPercent(normalized * 100, decimals, displayLocale);
+    //
+    // Three measured divergences, all of them the one defect — a caller
+    // re-deciding what core owns:
+    //  - `(value / 100) * 100` is NOT value-preserving in binary floating
+    //    point. It re-introduced, one call frame upstream, exactly the round
+    //    trip objectui#4590 removed from inside `formatPercent`: 19,978 of
+    //    199,000 values on the 0.001-step grid to 200 change bit pattern and
+    //    1,108 rendered strings move, every one a last-digit off-by-one —
+    //    a stored `1.605` rendered `1.60%` where half-up is `1.61%`.
+    //  - A stored fraction below 0.01 was scaled TWICE: the local `* 100` put
+    //    it below 1, so core's fraction arm scaled it again — `0.005` (0.5%)
+    //    rendered `50.00%`, a factor of 100.
+    //  - The local test was `value > 1`, not core's symmetric `|value| < 1`,
+    //    so a negative already in points was treated as a fraction: `-5`
+    //    rendered `-500.00%`.
+    // Deleting the branch fixes all three, because they were never three bugs.
+    return formatPercent(value, decimals, displayLocale);
   }
   if (typeof fmt === 'string' && /[YMDHms]/.test(fmt)) {
     return formatDate(value, fmt);
@@ -197,7 +233,50 @@ export function renderFieldValue(
   return <Renderer value={value} field={fieldMeta as any} />;
 }
 
-/** Whether a field is a relation/lookup (used to drive `$expand`). */
+/**
+ * Whether a field is a relation/lookup (used to drive `$expand`).
+ *
+ * THE GATE (objectui#4914, ruling B) runs ahead of the membership test.
+ * Measured before the ruling: `isLookupType('owner')` was `true` — a retired
+ * spelling holding first-class relation status. It answers `false` now, and
+ * says why once.
+ *
+ * The membership half is no longer a private table (objectui#5692). It used to
+ * be `new Set(['lookup', 'reference', 'master_detail', 'user'])`, one of TWO
+ * copies this package held — the other inline in `computeLookupExpand` — and
+ * neither derived from nor pinned against {@link EXPANDABLE_FIELD_TYPES}, the
+ * family `@object-ui/core` publishes for exactly this question. objectui#5312's
+ * claim to have converted "the LAST private copy" was false by these two: they
+ * predate that sweep and were outside its file surface.
+ *
+ * The convergence moved membership in two directions, each decided by
+ * measurement rather than by preference (objectui#5692):
+ *
+ *  - `tree` is GAINED. A self-referencing hierarchy field is reference-bearing,
+ *    it is a member of the spec's closed `FieldType`, and the form / grid road
+ *    already `$expand`s it. The dashboard road giving it the same treatment is
+ *    family behaviour restored, not a new decision.
+ *  - `reference` is DROPPED, and dropping it is a no-op on spec-compliant data.
+ *    The spelling is absent from `@objectstack/spec`'s closed `FieldType`
+ *    vocabulary and is refused by `FieldSchema.safeParse` — measured with
+ *    `lookup` / `master_detail` / `user` / `tree` as live controls and the
+ *    retired `owner` plus a nonsense spelling as dead ones — so no
+ *    spec-compliant object schema can declare a field whose stored type is
+ *    `reference`. Where the spelling IS live it is a legacy DIALECT alias on the
+ *    action-param surface, folded to `lookup` before any field-type data is read
+ *    (`PARAM_TYPE_ALIASES` in `app-shell/src/utils/paramToField.ts`). Keeping it
+ *    here would be a lenient renderer-side alias for off-spec metadata, which is
+ *    what AGENTS.md #0.1 bans.
+ *
+ * Extending this surface later: OR in a second, surface-local set, the way the
+ * object form's `needsDataSourceWiring` does. Never
+ * `new Set([...EXPANDABLE_FIELD_TYPES, …])` — a copy re-forks the table, which
+ * is the defect this change removed, and the identity pin fails on it by design.
+ */
 export function isLookupType(t: unknown): boolean {
-  return LOOKUP_TYPES.has(t as string);
+  if (typeof t === 'string' && isRetiredFieldType(t)) {
+    reportRetiredFieldType(t);
+    return false;
+  }
+  return EXPANDABLE_FIELD_TYPES.has(t as string);
 }

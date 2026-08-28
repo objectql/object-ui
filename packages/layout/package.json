@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/layout",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "sideEffects": [
     "./dist/index.js",
@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@object-ui/sdui-parser": "workspace:*",
+    "@object-ui/test-support": "workspace:*",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.1",

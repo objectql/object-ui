@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useContext } from 'react';
-import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { SchemaRendererContext } from '../context/SchemaRendererContext.js';
 
 /**
  * Discovery service information structure.

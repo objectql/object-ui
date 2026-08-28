@@ -22,7 +22,7 @@ import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
-import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -456,8 +456,35 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       page: pageVariables,
     });
     // evaluateCondition is fail-open (unparseable predicate → visible) — the
-    // same semantics SchemaRenderer applies to component-level `visibleWhen`.
-    return evaluator.evaluateCondition(it.visibleWhen);
+    // same semantics SchemaRenderer applies to component-level `visibleWhen`,
+    // and objectui#6038 gives it the same VOICE. The verdict is untouched: a
+    // faulting predicate still resolves to `true` and the tab still renders.
+    //
+    // This site is in the census for the reason the card's census clause names
+    // — it swallows the identical fault under a different helper. It is worse
+    // than the node gate was, in fact: `SchemaRenderer` at least reported in
+    // development, while an item-level `visibleWhen` that faulted here was
+    // silent in BOTH builds, on a gate whose false verdict removes an entire
+    // tab (header and panel) rather than one block. Reported through the SAME
+    // reporter and the SAME dedupe `Set` as the node gate, so one authored
+    // predicate is one line no matter which surface evaluates it.
+    return evaluator.evaluateCondition(it.visibleWhen, {
+      onFault: (reason) =>
+        // `'page-component'`, not a tier of its own (objectui#6487): the bag
+        // built above binds `record`, `current_user` and `page.<var>` — the
+        // three roots the node tier's advice paragraph names — so an author who
+        // faults here needs exactly that paragraph. The extra breadth this site
+        // adds (the row spread flat, `data` aliased to the row) is undeclared on
+        // both surfaces, so it is not advertised on either.
+        reportUnresolvableVisibilityPredicate(
+          'page:tabs',
+          schema?.id,
+          'visibleWhen',
+          it.visibleWhen,
+          reason,
+          'page-component',
+        ),
+    });
   };
   const visibleFlags = rawItems.map(isItemVisible);
   // Keep the filtered array's identity stable while visibility is unchanged
@@ -632,9 +659,30 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     >
       {/* Hide the tab strip entirely when there's only one tab — a single
           pill labelled "Details" is visual clutter rather than an
-          affordance. Authors who want the strip even at length 1 can pass
-          `properties.alwaysShowStrip: true`. */}
-      {(itemsWithValue.length > 1 || schema?.properties?.alwaysShowStrip === true) && (
+          affordance. Authors who want the strip even at length 1 pass
+          `alwaysShowStrip: true`.
+
+          BOTH spellings are read, canonical FIRST, and the top-level arm is
+          why: `alwaysShowStrip` is a PUBLISHED input since objectui#4668, and
+          `inputs` publishes top-level keys — `gen-manifest.ts`,
+          `sdui-intrinsics.d.ts` and `sdui-parser`'s prop walk all judge the
+          flat `{ type: 'page:tabs', alwaysShowStrip: true }`. This read was
+          `properties.*`-only, so that flat form passed every one of those
+          layers and was then dropped here. Measured on a one-tab schema before
+          the arm was added: the wrapped form showed the strip, the flat form
+          did not — publishing the key without this arm would have advertised a
+          write the renderer throws away, which is the exact defect the parity
+          gate exists to prevent, one layer further in.
+
+          `SchemaRenderer` hoists `properties.*` onto the schema (it keeps the
+          bag intact for the collision-prone `type` / `id`), so the canonical
+          arm already covers the wrapped form; the `properties` arm stays for
+          any path that reaches this renderer without that hoist. The same dual
+          read `maxVisible` / `mobileMaxVisible` carry below, for the same
+          reason. */}
+      {(itemsWithValue.length > 1 ||
+        schema?.alwaysShowStrip === true ||
+        schema?.properties?.alwaysShowStrip === true) && (
         <TabsList className={listClass}>
           {itemsWithValue.map((item) => (
             <TabsTrigger key={item.value} value={item.value} className={triggerClass()}>
@@ -689,10 +737,18 @@ ComponentRegistry.register('tabs', PageTabsRenderer, {
   label: 'Page Tabs',
   category: 'layout',
   isContainer: true,
+  // `alwaysShowStrip` is DECLARED, not merely honoured (objectui#4668).
+  // @objectstack/spec 17.0.0 GA declares it on `PageTabsProps` and this
+  // renderer has read it since the one-tab strip was first suppressed, while
+  // `inputs` omitted it — so the manifest, the generated `.d.ts` and the
+  // designer panel all said the key did not exist, `sdui-parser` reported
+  // `unknown-prop` on an author who wrote it anyway, and the renderer honoured
+  // it regardless. Same defect as `record:details.hideFields` in objectui#3808.
   inputs: [
     { name: 'items', type: 'array', label: 'Tabs', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
     { name: 'tabStyle', type: 'enum', label: 'Style', enum: ['line', 'card', 'pill'], defaultValue: 'line' },
     { name: 'position', type: 'enum', label: 'Position', enum: ['top', 'left'], defaultValue: 'top' },
+    { name: 'alwaysShowStrip', type: 'boolean', label: 'Always Show Tab Strip', defaultValue: false, description: 'Keep the tab strip visible when only one tab survives. Default false: a lone pill is clutter rather than an affordance, so a one-tab strip is hidden and its panel renders bare. Count the tabs AFTER each item visibleWhen predicate has been evaluated — a page authored with four tabs of which three are conditional reaches this rule whenever the other three are false.' },
   ],
 });
 
@@ -750,7 +806,13 @@ ComponentRegistry.register('card', PageCardRenderer, {
   category: 'layout',
   isContainer: true,
   inputs: [
-    { name: 'title', type: 'string', label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    // Two arms, because the contract has two (objectui#3832): the spec's
+    // `PageCardProps.title` accepts a plain string OR an inline translation map,
+    // and the renderer resolves both (`pickLocalized` at the read site above).
+    // While this said `type: 'string'` the manifest gate reported
+    // `type-mismatch` on the map form — the shape this input's own description
+    // teaches — so the block contradicted itself on a write it recommended.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
     { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
     // The card's content slot, respelled from `body` to `children`
     // (objectui#4027). One slot, one spelling: objectstack#5775 (PR #6281)
@@ -938,18 +1000,24 @@ export function cleanupTitleSeparators(s: string): string {
  * warn-once machinery reports a faulting predicate under the label this file
  * passes (`page:header action "…" visible`) — one report per broken predicate,
  * identical in wording to the row kebab and the selection bar. What stays local
- * is the missing-field diagnostic below, which explains a *cause* the engine
- * cannot see (fields stripped from the payload server-side).
+ * is the missing-field diagnostic below, which names a *fact* the engine cannot
+ * see (the payload this page bound does not carry the key at all).
  */
 const _warnedHeaderPredicates = new Set<string>();
 
 /**
  * Warn when a predicate references `record.<field>` keys that are absent from
- * the loaded record payload (#2358 trap 3): the server strips `hidden: true`
- * fields from detail payloads, so such a predicate silently resolves to
+ * the loaded record payload (#2358 trap 3): a projected or partial read binds a
+ * record without those keys, so such a predicate silently resolves to
  * `undefined` and fail-closed hides the action with no error to catch. A key
  * that is present-but-null does NOT trigger this (legitimately empty field).
  * Skipped while the record is empty/loading to avoid false positives.
+ *
+ * ⛔ Do NOT re-attribute this to `hidden: true` (objectui#5399). `hidden` is a
+ * UI concern ("Hidden from default UI"), not a projection rule: the framework's
+ * read path drops `internal: true` columns and the `__search` companion, and
+ * nothing else. This surface knows only WHICH keys the bound payload lacks; it
+ * does not own the read that produced it, so it must not name a cause.
  */
 function warnMissingRecordFields(name: unknown, source: string, record: unknown): void {
   if (!record || typeof record !== 'object' || Object.keys(record as object).length === 0) return;
@@ -965,8 +1033,10 @@ function warnMissingRecordFields(name: unknown, source: string, record: unknown)
   console.warn(
     `[page:header] action "${String(name)}" predicate references record field(s) ` +
     `not present in the record payload: ${missing.join(', ')}. Predicate: ${source}. ` +
-    `Hidden (hidden: true) fields are stripped from detail payloads server-side, ` +
-    `so a predicate gating on one may evaluate to a hide-by-default verdict.`,
+    `This page bound a record payload that does not carry those key(s) — a projected ` +
+    `or partial read ($select, an embedded card, a custom page passing a projected ` +
+    `record) will not include them — so the predicate fails closed and the action ` +
+    `stays hidden.`,
   );
 }
 
@@ -1365,12 +1435,34 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     //      (see the headerActions memo above), so the first `maxVisible`
     //      claim the inline slots.
     // `maxVisible` / `mobileMaxVisible` are overridable on the page:header
-    // schema and default to 3 / 1 — the same contract as action:bar. This
-    // still keeps the header from drowning in 4–5 buttons on every record
-    // page, while letting multi-action objects surface several primary
-    // buttons at once.
+    // schema and default to 3 / 1. This still keeps the header from drowning
+    // in 4–5 buttons on every record page, while letting multi-action objects
+    // surface several primary buttons at once.
+    //
+    // `readMax` enforces the SPEC's value domain rather than a laxer renderer
+    // tolerance (objectui#5006). Measured on `ComponentPropsMap['page:header']`
+    // at @objectstack/spec 17.0.0, both keys are a POSITIVE SAFE INTEGER
+    // (`{format:'safeint'}` + `{check:'greater_than',value:0,inclusive:false}`),
+    // so `0`, `-1`, `1.5` and anything past `Number.MAX_SAFE_INTEGER` are all
+    // rejected by the contract. This reader used to be the loosest of the three
+    // authorities — it accepted `0` and floored fractions — so a value that
+    // `os validate` / `os build` rejects outright still changed what rendered
+    // here, and the loosest layer decided behaviour. A contract-rejected value
+    // now falls back to the default instead of taking effect.
+    //
+    // `Number.isSafeInteger` is the exact translation of `safeint`, not an
+    // approximation: plain `Number.isInteger` would admit `2**53 + 2` and
+    // `1e21`, both of which spec rejects (`Too big: expected int to be
+    // <= 9007199254740991`). It also subsumes the old `Number.isFinite` guard,
+    // since Infinity and NaN are not safe integers.
+    //
+    // ⛔ Do NOT re-lax this into a tolerant read. objectui's authoring-time
+    // gates stay coarse by ruling (maintainer, 2026-08-17): `ComponentInput`
+    // keeps its single `number` arm and `checkType` is not bound to spec, so
+    // SPEC IS THE SOLE JUDGE OF VALUES — which makes agreeing with it this
+    // renderer's job. Rejections are pinned in `page-header-actions.test.tsx`.
     const readMax = (v: any): number | undefined =>
-      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+      typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : undefined;
     const maxVisible = isMobile
       ? (readMax(schema?.mobileMaxVisible ?? schema?.properties?.mobileMaxVisible) ?? 1)
       : (readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3);
@@ -1687,13 +1779,41 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
   // pass-through, and the host-injected `RecordContext.headerSystemActions`
   // is not authored here at all.
   inputs: [
-    { name: 'title', type: 'string', label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
-    { name: 'subtitle', type: 'string', label: 'Subtitle', description: 'Same interpolation as Title' },
+    // Both carry two arms (objectui#3832). The spec accepts a plain string or an
+    // inline translation map on each — measured against
+    // `ComponentPropsMap['page:header']` at rc.6, where the union is
+    // string-or-record — and the renderer resolves the map form through
+    // `pickLocalized` before interpolating. The single `'string'` arm they used
+    // to declare is what made the manifest gate warn `type-mismatch` on the very
+    // map form this description tells the author to write.
+    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
+    { name: 'subtitle', type: ['string', 'object'], label: 'Subtitle', description: 'Same interpolation as Title' },
     { name: 'actions', type: 'array', label: 'Actions', description: 'Action buttons rendered in the header, before any host-injected system actions' },
     { name: 'breadcrumb', type: 'boolean', label: 'Breadcrumb', defaultValue: true },
     { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },
     { name: 'showStar', type: 'boolean', label: 'Show Follow Star', defaultValue: true },
     { name: 'showCopyId', type: 'boolean', label: 'Show Copy-ID', defaultValue: true },
+    // The inline/overflow budget, DECLARED rather than merely honoured
+    // (objectui#4668). Both are @objectstack/spec 17.0.0 GA keys this renderer
+    // has read since objectui#2361 (`readMax(...)` at the split above, in both
+    // spellings — `page-header-actions.test.tsx` pins the schema-level and the
+    // `properties.*` variant), while `inputs` omitted them: the manifest and
+    // `sdui-intrinsics.d.ts` left them out and `sdui-parser` warned
+    // `unknown-prop` on the very key that then took effect.
+    //
+    // ONE arm each, not a union: measured against
+    // `ComponentPropsMap['page:header']` on the installed GA pin, both are
+    // `z.number()` constrained to a POSITIVE SAFE INTEGER — `0`, `-1` and `2.5`
+    // are all rejected by value, which is why the descriptions say so instead
+    // of leaving an author to discover it from a parse error. (`readMax` at the
+    // inline/overflow split above now enforces exactly that domain — objectui#5006
+    // closed the gap where this renderer accepted `0` and floored fractions while
+    // the contract rejected both. The coarse `number` arm here still cannot
+    // express the domain: `ComponentInput.type` has no integer/min/max slot, so
+    // `description` stays the only authoring-time expression of it, and spec
+    // stays the sole judge of values.)
+    { name: 'maxVisible', type: 'number', label: 'Max Inline Actions', defaultValue: 3, description: 'How many header actions render as inline buttons on desktop before the rest fold into the overflow menu. A positive integer — the contract rejects 0 and fractional values. Two kinds of action are routed to the overflow menu regardless of this budget and never occupy an inline slot: an action whose locations declare record_more without record_header, and any action with component action:menu.' },
+    { name: 'mobileMaxVisible', type: 'number', label: 'Max Inline Actions (Mobile)', defaultValue: 1, description: 'The same inline-button budget on mobile viewports, where horizontal room is scarce. A positive integer, defaulting to 1; the desktop half is Max Inline Actions, and the overflow routing rules stated there apply unchanged.' },
   ],
 });
 

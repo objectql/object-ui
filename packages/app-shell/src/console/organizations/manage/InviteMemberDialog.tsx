@@ -28,9 +28,9 @@ import type { AuthInvitation, DelegableScope, OrgRole } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { resolveConsoleUrl } from '../resolveHomeUrl';
-import { resolveOrgRoleLabel } from '../orgRoleLabel';
-import { resolveOrgErrorMessage } from '../orgErrorMessage';
+import { resolveConsoleUrl } from '../resolveHomeUrl.js';
+import { resolveOrgRoleLabel } from '../orgRoleLabel.js';
+import { resolveOrgErrorMessage } from '../orgErrorMessage.js';
 
 interface InviteMemberDialogProps {
   organizationId: string;

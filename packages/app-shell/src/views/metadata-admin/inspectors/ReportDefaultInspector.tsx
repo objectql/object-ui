@@ -37,20 +37,20 @@ import {
   appendArray,
   moveArray,
   spliceArray,
-} from './_shared';
-import { AddFieldPopover, FieldListRow } from '../previews/ViewColumnPanes';
-import { toFieldName } from '../previews/object-fields-io';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import type { ObjectFieldInfo } from '../previews/useObjectFields';
+} from './_shared.js';
+import { AddFieldPopover, FieldListRow } from '../previews/ViewColumnPanes.js';
+import { toFieldName } from '../previews/object-fields-io.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import type { ObjectFieldInfo } from '../previews/useObjectFields.js';
 import {
   useDatasetCatalog,
   useDatasetSemantics,
   type DatasetCatalogEntry,
-} from '../previews/useDatasetCatalog';
-import { getReportForm, getReportSchema } from '../report-schema';
-import { mergeServerFields } from '../mergeServerFields';
-import { t } from '../i18n';
+} from '../previews/useDatasetCatalog.js';
+import { getReportForm, getReportSchema } from '../report-schema.js';
+import { mergeServerFields } from '../mergeServerFields.js';
+import { t } from '../i18n.js';
 
 /**
  * Top-level report fields this inspector renders with its own dedicated

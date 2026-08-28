@@ -13,7 +13,7 @@ import type {
   DelegableAdminScope,
 } from '@objectstack/spec/contracts';
 import type { TenancyPosture } from '@objectstack/spec/security';
-import type { AuthInvitationStatus } from './invitation-status';
+import type { AuthInvitationStatus } from './invitation-status.js';
 
 /**
  * Authentication types for @object-ui/auth
@@ -65,8 +65,15 @@ export interface AuthUser extends SpecAuthUser {
   image?: string;
   /** Primary role */
   role?: string;
-  /** All assigned roles */
-  roles?: string[];
+  // The hand-copied `roles?: string[]` mirror key that used to sit here
+  // RETIRED with objectui#5424 (maintainer ruling 2026-08-22), once its last
+  // reader — `AuthGuard`'s `requiredRoles` check — moved to `positions`.
+  // Framework ADR-0090 D3 renamed `roles` → `positions` with no deprecation
+  // window, and the protocol-17 session face emits no `roles` key at all
+  // (measured live in objectui#5389). With the declaration gone, any future
+  // read of `user.roles` types as `unknown` via the index signature below and
+  // dies at compile time. Do not re-declare it, and do not re-emit it as a
+  // compatibility shadow of `positions` — both are what ADR-0090 D3 forbids.
   /** Email verification status */
   emailVerified?: boolean;
   /** Additional user metadata */

@@ -279,3 +279,142 @@ describe('failure paths close the pre-opened tab', () => {
     expect(tab.close).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("handler-returned openIn: 'self' (objectui#5221)", () => {
+  /** A handler response carrying `redirectUrl` (+ optional siblings). */
+  function redirecting(extra: Record<string, unknown> = {}) {
+    return okFetch({
+      success: true,
+      data: { success: true, data: { redirectUrl: '/app/crm/contacts/rec_42', ...extra } },
+    }) as any;
+  }
+
+  it("hops the SPA router in place, and does NOT open a tab", async () => {
+    const navigate = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(makeTab() as any);
+    const { handler } = makeHandler({ fetch: redirecting({ openIn: 'self' }), navigate });
+
+    await handler({ type: 'script', name: 'clone_and_jump' } as any);
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/app/crm/contacts/rec_42');
+    // Discriminating: the shipped behavior for this same response WITHOUT
+    // `openIn` is `window.open`. If the branch were ignored, this would fire.
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps the shipped new-tab behavior when the handler omits openIn', async () => {
+    // The positive control for the assertion above: same fetch body, same
+    // harness, one key removed — proving `window.open` is reachable here and
+    // the `not.toHaveBeenCalled()` above is a real measurement.
+    const navigate = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(makeTab() as any);
+    const { handler } = makeHandler({ fetch: redirecting(), navigate });
+
+    await handler({ type: 'script', name: 'clone_and_jump' } as any);
+
+    expect(openSpy).toHaveBeenCalledWith('/app/crm/contacts/rec_42', '_blank');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("closes the optimistically pre-opened tab when the handler asks to stay put", async () => {
+    const tab = makeTab();
+    vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const navigate = vi.fn();
+    const { handler } = makeHandler({ fetch: redirecting({ openIn: 'self' }), navigate });
+
+    await handler({
+      type: 'script', name: 'clone_and_jump', opensInNewTab: true, params: { recordId: 'e1' },
+    } as any);
+
+    expect(tab.close).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('/app/crm/contacts/rec_42');
+  });
+
+  it("does not accept the type:'url' kebab spelling as a same-tab request", async () => {
+    // `'new-tab'` is the TOP-LEVEL `openIn` key's spelling for `type:'url'`
+    // actions; spec refuses the crossover in each direction. `'new-tab'` here
+    // is simply not `'self'`, so the shipped new-tab path stands — the
+    // renderer never becomes looser than the contract authors are validated
+    // against.
+    const navigate = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(makeTab() as any);
+    const { handler } = makeHandler({ fetch: redirecting({ openIn: 'new-tab' }), navigate });
+
+    await handler({ type: 'script', name: 'clone_and_jump' } as any);
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(openSpy).toHaveBeenCalledWith('/app/crm/contacts/rec_42', '_blank');
+  });
+
+  it('falls back to a full-page navigation for an absolute destination', async () => {
+    // No SPA route can express an off-origin URL. Same tab either way, so the
+    // handler's stated intent is honoured, never inverted into a new tab.
+    const navigate = vi.fn();
+    const { handler } = makeHandler({
+      fetch: okFetch({
+        success: true,
+        data: { success: true, data: { redirectUrl: 'https://example.test/landing', openIn: 'self' } },
+      }) as any,
+      navigate,
+    });
+    const hrefs: string[] = [];
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { get href() { return ''; }, set href(v: string) { hrefs.push(v); } },
+    });
+
+    await handler({ type: 'script', name: 'clone_and_jump' } as any);
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(hrefs).toEqual(['https://example.test/landing']);
+  });
+});
+
+describe('a declared onSuccess block defers to the runner (objectui#5221)', () => {
+  it('performs no navigation of its own, and tidies the pre-opened tab', async () => {
+    const tab = makeTab();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(tab as any);
+    const navigate = vi.fn();
+    const { handler } = makeHandler({
+      fetch: okFetch({
+        success: true,
+        data: { success: true, data: { redirectUrl: '/app/crm/contacts/rec_42' } },
+      }) as any,
+      navigate,
+    });
+
+    const res = await handler({
+      type: 'script', name: 'clone_and_jump', opensInNewTab: true, params: { recordId: 'e1' },
+      // The DECLARED hop — `ActionRunner.navigateOnSuccess` performs this one.
+      onSuccess: { navigate: '/app/crm/contacts/${result.id}', openIn: 'self' },
+    } as any);
+
+    expect(res.success).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+    // The pre-open is the only `window.open` — no second navigation from here.
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledWith('about:blank', '_blank');
+    expect(tab.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('a legacy chained-callback onSuccess is NOT mistaken for a declared hop', async () => {
+    // `{ type: 'notify' }` is the runner's older `ActionDef` callback channel,
+    // not the spec block. The redirectUrl convention must still run.
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(makeTab() as any);
+    const navigate = vi.fn();
+    const { handler } = makeHandler({
+      fetch: okFetch({
+        success: true,
+        data: { success: true, data: { redirectUrl: '/app/crm/contacts/rec_42' } },
+      }) as any,
+      navigate,
+    });
+
+    await handler({
+      type: 'script', name: 'clone_and_jump', onSuccess: { type: 'notify' },
+    } as any);
+
+    expect(openSpy).toHaveBeenCalledWith('/app/crm/contacts/rec_42', '_blank');
+  });
+});

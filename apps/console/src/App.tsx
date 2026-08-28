@@ -12,8 +12,8 @@
  * with extra `<Route>` children.
  */
 
-import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
@@ -25,6 +25,7 @@ import {
   RequireAiSurface,
   SystemRedirect,
   ConsoleToaster,
+  LoadingScreen,
   DefaultHomeLayout,
   DefaultHomePage,
   DefaultOrganizationsLayout,
@@ -35,24 +36,20 @@ import {
   DefaultSettingsPage,
   DefaultAcceptInvitationPage,
   DefaultAiChatPage,
-  StudioDesignSurface,
-  BuilderLanding,
   getProductName,
   getFaviconUrl,
+  RedirectWithSplash,
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
 import { RootLandingRedirect } from './components/RootLandingRedirect';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { studioRoutes } from './components/StudioRoute';
 import { SetupRoute } from './components/SetupRoute';
 import { FormPage } from './components/FormPage';
 import { InternalFormRoute } from './components/InternalFormRoute';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
-import DocPage from './pages/DocPage';
-import DocsIndex from './pages/DocsIndex';
-import DocsSlug from './pages/DocsSlug';
-import DocsLayout from './pages/DocsLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -62,6 +59,32 @@ import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { VerifyEmailPromptPage } from './pages/auth/VerifyEmailPromptPage';
 import { OAuthConsentPage } from './pages/auth/OAuthConsentPage';
 import { DeviceAuthPage } from './pages/auth/DeviceAuthPage';
+
+/*
+ * Package documentation portal (ADR-0046 section 6), lazy on purpose.
+ *
+ * Nothing on a normal console page load visits /docs, and `DocPage` is the
+ * only console-owned module that reaches `@object-ui/plugin-markdown`. These
+ * four therefore belong behind a lazy boundary.
+ *
+ * `AppContent.tsx` already lazy-imports `DocsLayout` / `DocsSlug` / `DocPage`
+ * for the app-scoped `/apps/:packageId/docs` tree (ADR-0048). Importing the
+ * same three STATICALLY here put them in the eager graph anyway, so that
+ * `import()` moved nothing -- three `INEFFECTIVE_DYNAMIC_IMPORT` warnings on
+ * every build (objectui#5467). Both sides must stay lazy: a static import on
+ * either one silently re-defeats the split for BOTH, and the only signal is a
+ * build warning that fails nothing.
+ *
+ * `DocsIndex` is lazy here for the same reason even though it carried no
+ * warning (`AppContent` renders `AppDocsIndex` at that slot, so nothing
+ * imported it dynamically). Left static it would keep `DocShell`,
+ * `use-book-data` and `book-nav` eager on its own and the portal would only
+ * half-leave the closure.
+ */
+const DocsLayout = lazy(() => import('./pages/DocsLayout'));
+const DocsIndex = lazy(() => import('./pages/DocsIndex'));
+const DocsSlug = lazy(() => import('./pages/DocsSlug'));
+const DocPage = lazy(() => import('./pages/DocPage'));
 
 const AUTH_URL = `${import.meta.env.VITE_SERVER_URL || ''}/api/v1/auth`;
 
@@ -185,35 +208,20 @@ export function App() {
               * REST API and renders a read-only view.
               */}
             <Route path="/s/:token" element={<SharedRecordPage />} />
-            {/* Application builder (ADR-0080/0084). `/studio` is the front door
-              * (pick/create a writable package); a package lands on its Data
-              * pillar. Also reachable from the Studio app's 「应用构建」 nav. */}
-            <Route path="/studio" element={
-              <ProtectedRoute>
-                <div className="flex min-h-screen flex-col bg-background text-foreground">
-                  {/* Standalone frame — the landing must never be a navigation
-                    * dead end: the wordmark walks back to the platform Home. */}
-                  <header className="flex shrink-0 items-center border-b px-3 py-2">
-                    <Link
-                      to="/home"
-                      title="返回主页"
-                      className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] font-semibold hover:bg-muted"
-                    >
-                      {getProductName()}
-                    </Link>
-                  </header>
-                  <div className="min-h-0 flex-1 overflow-auto">
-                    <BuilderLanding />
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
-            <Route path="/studio/:packageId" element={<Navigate to="data" replace />} />
-            <Route path="/studio/:packageId/:tab" element={
-              <ProtectedRoute>
-                <StudioDesignSurface />
-              </ProtectedRoute>
-            } />
+            {/* Application builder (ADR-0080/0084) — the whole `/studio`
+              * subtree, declared in `components/StudioRoute` so its ENTRY gate
+              * and the routes it guards cannot be separated by an edit to
+              * either one.
+              *
+              * Before objectui#5519 these were three sibling routes here, two
+              * of them wrapped in `ProtectedRoute` (auth only) and one wrapped
+              * in nothing: `/_console/studio/` rendered the full pillar builder
+              * to any authenticated principal on deployments where the nav tile
+              * is deliberately absent and every metadata write is refused. The
+              * only gate in the path was the backend's write refusal — one
+              * layer too late for a capability whose declared meaning is
+              * "Enter the Studio metadata-design surfaces". */}
+            {studioRoutes}
             {/* Internal authed form — same renderer as `/f/:slug`, different
               * submit path, and (objectui#4109) rendered INSIDE the console
               * shell instead of as a bare page. The route stays exactly where
@@ -240,12 +248,12 @@ export function App() {
               *                  coordinate; the book segment is derived nav). */}
             <Route path="/docs" element={
               <ProtectedRoute>
-                <DocsLayout />
+                <Suspense fallback={<LoadingScreen />}><DocsLayout /></Suspense>
               </ProtectedRoute>
             }>
-              <Route index element={<DocsIndex />} />
-              <Route path=":slug" element={<DocsSlug />} />
-              <Route path=":slug/:name" element={<DocPage />} />
+              <Route index element={<Suspense fallback={<LoadingScreen />}><DocsIndex /></Suspense>} />
+              <Route path=":slug" element={<Suspense fallback={<LoadingScreen />}><DocsSlug /></Suspense>} />
+              <Route path=":slug/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
             </Route>
             <Route path="/home" element={
               <ProtectedRoute>
@@ -359,7 +367,17 @@ export function App() {
                 <RootLandingRedirect />
               </ProtectedRoute>
             } />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378).
+              * This is a BOOT redirect: a URL the router does not know is
+              * commonly the very first thing a session renders (a stale deep
+              * link, or a console served under a mount path with no
+              * `<base href>` for `resolveBasename` to read), so it fires with
+              * the splash freshly torn down and nothing else on screen.
+              * Measured on that entry: 35-95 ms of empty `#root`. The nested
+              * `index` redirect above is deliberately NOT changed — it fires
+              * under an already-painted organization layout, where covering the
+              * screen with a splash would be the regression. */}
+            <Route path="*" element={<RedirectWithSplash to="/" replace />} />
           </Routes>
         </ConsoleShell>
       </BrowserRouter>

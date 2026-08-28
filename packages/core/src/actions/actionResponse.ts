@@ -49,7 +49,7 @@
  *   failure directly.
  */
 
-import { actionErrorDetail } from './actionErrorDetail';
+import { actionErrorDetail } from './actionErrorDetail.js';
 
 export interface ActionResponseOutcome {
     ok: boolean;

@@ -17,9 +17,10 @@
 
 import type {
   DashboardWidget as SpecDashboardWidget,
+  DateRangeDefaultRange as SpecDateRangeDefaultRange,
   GlobalFilter as SpecGlobalFilter,
 } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Kanban column
@@ -126,9 +127,14 @@ export interface KanbanSchema extends BaseSchema {
 }
 
 /**
- * Calendar view mode
+ * Calendar view mode — the registered `calendar-view` renderer's rendered set.
+ *
+ * `'agenda'` was retired from this union (objectui#5740): no view ever
+ * rendered it — the renderer resolved it to the `'month'` default — and no
+ * measured app authors it (ADR-0049 enforce-or-remove, the value-level
+ * residue of objectui#5667's key-level convergence).
  */
-export type CalendarViewMode = 'month' | 'week' | 'day' | 'agenda';
+export type CalendarViewMode = 'month' | 'week' | 'day';
 
 /**
  * Calendar event
@@ -169,59 +175,91 @@ export interface CalendarEvent {
 }
 
 /**
- * Calendar view component
+ * Calendar view component.
+ *
+ * The authored surface of the registered `calendar-view` renderer, converged
+ * on the renderer's measured read set (objectui#5667): the calendar's events
+ * are COMPUTED from the node's `data` array plus the five field-name keys
+ * below — there is no authorable `events` key. An authored `events` is dropped
+ * by design (objectui#4433); this repo's action metadata rides
+ * `properties.action`, not a calendar prop.
+ *
+ * Nine formerly declared keys — `events` (the interface's only required key
+ * besides `type`, and the one the renderer refuses), `defaultView`,
+ * `defaultDate`, `date`, `views`, `editable`, `onEventCreate`,
+ * `onEventUpdate`, `onDateChange` — are RETIRED rather than implemented:
+ * none had a read site on the authored-node path, and no measured app authors
+ * any of them (ADR-0049 enforce-or-remove, objectui#5667).
  */
 export interface CalendarViewSchema extends BaseSchema {
   type: 'calendar-view';
   /**
-   * Calendar events
+   * Records to display as events — the renderer computes its events from this
+   * array plus the field-name keys below.
+   *
+   * Redeclared from `BaseSchema` (same `any` type) because a binding
+   * expression string is also legal here and resolves to the array before the
+   * renderer reads it. A non-array value renders an empty calendar.
    */
-  events: CalendarEvent[];
+  data?: any;
   /**
-   * Default view mode
+   * Record field to use for the event title.
+   * @default 'title'
+   */
+  titleField?: string;
+  /**
+   * Record field containing the event start date/time.
+   * @default 'start'
+   */
+  startDateField?: string;
+  /**
+   * Record field containing the event end date/time.
+   * @default 'end'
+   */
+  endDateField?: string;
+  /**
+   * Record field indicating an all-day event.
+   * @default 'allDay'
+   */
+  allDayField?: string;
+  /**
+   * Record field to use for the event color.
+   * @default 'color'
+   */
+  colorField?: string;
+  /**
+   * Calendar view mode.
+   *
+   * {@link CalendarViewMode} equals the renderer's rendered set since
+   * objectui#5740 retired `'agenda'`; at runtime the renderer still resolves
+   * any off-union value in raw metadata to the `'month'` default.
    * @default 'month'
-   */
-  defaultView?: CalendarViewMode;
-  /**
-   * Controlled view mode
    */
   view?: CalendarViewMode;
   /**
-   * Default date
+   * Initial calendar date — an ISO date string when authored as JSON; a
+   * `Date` instance is accepted from a React host.
    */
-  defaultDate?: string | Date;
+  currentDate?: string | Date;
   /**
-   * Controlled date
-   */
-  date?: string | Date;
-  /**
-   * Available views
-   * @default ['month', 'week', 'day']
-   */
-  views?: CalendarViewMode[];
-  /**
-   * Enable event creation
+   * Show the "New event" affordance; clicking it dispatches a
+   * `{ type: 'create' }` action on the node's action channel (objectui#4454).
    * @default false
    */
-  editable?: boolean;
+  allowCreate?: boolean;
   /**
-   * Event click handler
+   * Tailwind classes for the calendar container. Redeclared from `BaseSchema`
+   * as part of the converged authored surface.
+   */
+  className?: string;
+  /**
+   * Event click handler — HOST-ONLY. The renderer forwards it only when the
+   * value is a function, which authored JSON can never produce; supply it from
+   * a React host (`<SchemaRenderer ... onEventClick={fn} />`).
    */
   onEventClick?: (event: CalendarEvent) => void;
   /**
-   * Event create handler
-   */
-  onEventCreate?: (start: Date, end: Date) => void;
-  /**
-   * Event update handler
-   */
-  onEventUpdate?: (event: CalendarEvent) => void;
-  /**
-   * Date change handler
-   */
-  onDateChange?: (date: Date) => void;
-  /**
-   * View change handler
+   * View change handler — HOST-ONLY, same rule as {@link CalendarViewSchema.onEventClick}.
    */
   onViewChange?: (view: CalendarViewMode) => void;
 }
@@ -581,7 +619,21 @@ export interface ChatbotSchema extends BaseSchema {
   requestBody?: Record<string, unknown>;
   /**
    * Maximum number of tool-calling round-trips per user message.
-   * @default 5
+   *
+   * @deprecated objectui#5605 — INERT, and not fixable from here. The renderer
+   * really does thread this value into `useObjectChat`, which then drops it:
+   * the installed chat runtime (`@ai-sdk/react`'s `useChat`) exposes no
+   * client-side round-trip cap — the numeric knob was removed from `useChat`,
+   * and its successor step cap (`stopWhen` / `stepCountIs`) exists only on the
+   * server-side call functions. ObjectUI is backend-agnostic, so it does not
+   * own a server loop to cap either. Setting this has never limited anything.
+   *
+   * Cap tool-calling loops on the agent instead — `planning.maxIterations`,
+   * which the platform spec declares and enforces.
+   *
+   * Still declared and still accepted so documents that already author it keep
+   * parsing; authoring it now logs a one-time notice from the chatbot plugin.
+   * Slated for removal in a future major (ADR-0049 enforce-or-remove, staged).
    */
   maxToolRoundtrips?: number;
   /**
@@ -647,6 +699,77 @@ export interface FloatingChatbotConfig {
 }
 
 /**
+ * objectui COMPONENT types admitted into a dashboard **widget slot** — the
+ * CLOSED enum the maintainer ruling of 2026-08-14 (objectstack#8593) directs
+ * `metric-card` into, verbatim: *an SDUI dashboard COMPONENT node validates
+ * against objectui's own component schema; the spec's `DashboardSchema` governs
+ * stored dashboard metadata documents only and grows no component projection;
+ * `metric-card` joins objectui's own CLOSED component enum as an explicitly
+ * allowed objectui extension, NOT the spec widget enum.*
+ *
+ * A member here is not a visualization family at all. `classifyWidgetType`
+ * (`@object-ui/plugin-dashboard`'s `widgetDispatch.ts`) returns `passthrough`
+ * for it, and `DashboardRenderer` then hands `{ ...widget }` straight to
+ * `SchemaRenderer`, which resolves it through `ComponentRegistry` — so the
+ * widget slot is holding an ordinary objectui SDUI **component node** whose
+ * other keys are that component's own props (`value` / `icon` / `trend` /
+ * `trendValue` for `metric-card`, declared as registry `inputs` at
+ * `plugin-dashboard/src/index.tsx`). Those props are NOT widget keys and must
+ * not be added to {@link DashboardWidgetSchema}; a member of this list is
+ * validated as a component node against objectui's own passthrough
+ * `BaseSchema`, which is what keeps them.
+ *
+ * ⛔ CLOSED on purpose. The ruling's triage block named an open
+ * "extension allowed" hatch as the thing to avoid: an open hatch re-creates
+ * exactly the hole the catalog gate exists to close, because a typo'd or
+ * retired `type` would keep validating. Adding a member is a deliberate act
+ * with a registration behind it — `examples/schema-catalog/test/
+ * plugin-dashboard-component-schema.test.ts` is the standing gate, and
+ * `__tests__/report-chart-query-spec-parity.test.ts` pins the closure.
+ */
+export const DASHBOARD_COMPONENT_WIDGET_TYPES = ['metric-card'] as const;
+
+/** An objectui component type legal in a dashboard widget slot. */
+export type DashboardComponentWidgetType = (typeof DASHBOARD_COMPONENT_WIDGET_TYPES)[number];
+
+/**
+ * objectui-only widget FAMILIES — visualization families objectui renders that
+ * `@objectstack/spec`'s `ChartTypeSchema` does not model. Distinct from
+ * {@link DASHBOARD_COMPONENT_WIDGET_TYPES} above: these two really are widget
+ * types (`classifyWidgetType` routes `list` to the table family and `custom` to
+ * the author-supplied-`component` branch), they just have no spec counterpart.
+ *
+ * The pre-existing divergence, previously carried only as prose on the `type`
+ * key ("widened off the spec's enum") and enforced nowhere. If the spec adopts
+ * either family, drop it from here and let it flow in from the spec enum.
+ */
+export const DASHBOARD_WIDGET_TYPE_EXTENSIONS = ['list', 'custom'] as const;
+
+/** An objectui-only dashboard widget family. */
+export type DashboardWidgetTypeExtension = (typeof DASHBOARD_WIDGET_TYPE_EXTENSIONS)[number];
+
+/**
+ * The CLOSED vocabulary a dashboard widget's `type` may name.
+ *
+ * The spec half flows in BY REFERENCE (`SpecDashboardWidget['type']`, i.e. the
+ * spec's `ChartTypeSchema`) rather than being restated, so a family the spec
+ * adds or retires lands here with no edit — the same discipline
+ * {@link DashboardWidgetSchema} already uses for its key set. objectui's own
+ * two extension sets are spelled out above, each with its own reason.
+ *
+ * This used to be bare `string`. That was the open hatch: `type: 'metrci-card'`
+ * type-checked, validated, and rendered the registry's red OBJUI-001 panel —
+ * and `examples/schema-catalog` is an AI few-shot retrieval source, so what it
+ * shows is what gets copied.
+ *
+ * Zod twin: `zod/complex.zod.ts` `DashboardWidgetTypeSchema`.
+ */
+export type DashboardWidgetTypeName =
+  | NonNullable<SpecDashboardWidget['type']>
+  | DashboardWidgetTypeExtension
+  | DashboardComponentWidgetType;
+
+/**
  * Dashboard Widget Layout
  */
 export interface DashboardWidgetLayout {
@@ -705,11 +828,16 @@ export interface DashboardWidgetSchema
   component?: SchemaNode;
   layout?: DashboardWidgetLayout;
   /**
-   * Widget visualization type (spec shorthand format).
-   * Widened off the spec's 19-family enum: objectui's `DASHBOARD_WIDGET_TYPES`
-   * also carries `list` and `custom`, which the spec does not model.
+   * Widget visualization type (spec shorthand format), or an objectui component
+   * type the widget slot holds directly.
+   *
+   * CLOSED — see {@link DashboardWidgetTypeName}. The spec's families flow in by
+   * reference; objectui's additions are the two named, closed extension sets.
+   * It was `string` until objectui#4600, which is why a retired family, a typo,
+   * or a component type nothing registers all type-checked here and only
+   * surfaced as the renderer's red OBJUI-001 panel at runtime.
    */
-  type?: string;
+  type?: DashboardWidgetTypeName;
   /** Widget-specific configuration (spec shorthand format). Kept `unknown` — objectui
    *  renderers pass widget-family-specific bags the spec's `options` object does not model. */
   options?: unknown;
@@ -784,23 +912,39 @@ export interface DashboardComponentSchema extends BaseSchema {
   /**
    * Date range filter configuration.
    * Aligned with @objectstack/spec DashboardSchema.dateRange.
+   *
+   * `defaultRange` is BOUND to the spec's `DateRangeDefaultRange` rather than
+   * restated (objectui#4984). It used to be a hand-written 14-member union —
+   * byte-faithful to the spec, but faithful only until the next spec release:
+   * a preset the spec ADDS would be a legal document that objectui's own types
+   * say cannot exist, the same "narrower than the contract it implements" shape
+   * as objectui#4163's `label`, whose consequence was that the bad reads were
+   * invisible to `tsc`. No gate could report the drift either — `check:spec-symbols`
+   * rule 1 matches by NAME and an inline union on an interface member has no
+   * symbol to collide with, while rule 2's claim heuristic was waved through by
+   * the `SpecGlobalFilter` reference a few lines up. Binding makes the "Aligned
+   * with" line above structural instead of prose.
+   *
+   * `DATE_RANGE_DEFAULT_RANGES` is `[...DATE_RANGE_PRESETS, 'custom']`, so this
+   * tracks the same vocabulary `@object-ui/core` re-exports by reference
+   * (objectui#4167) — one list, reached two ways.
    */
   dateRange?: {
     field?: string;
-    defaultRange?: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month'
-      | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year'
-      | 'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom';
+    defaultRange?: SpecDateRangeDefaultRange;
     allowCustomRange?: boolean;
   };
-  /**
-   * ARIA accessibility attributes.
-   * Aligned with @objectstack/spec AriaPropsSchema.
-   */
-  aria?: {
-    ariaLabel?: string;
-    ariaDescribedBy?: string;
-    role?: string;
-  };
+  // `aria` was DECLARED here until objectui#5830, under a comment claiming
+  // alignment with @objectstack/spec AriaPropsSchema — by then the opposite of
+  // the contract: the spec removed `dashboard.aria` at the #3896 audit
+  // close-out (no dashboard renderer ever applied it), so
+  // `DashboardSchema.shape.aria` is a tombstone that refuses any value, the
+  // Zod twin (`zod/complex.zod.ts`) inherits that refusal through
+  // `SpecDashboardFields`, and `plugin-dashboard` has no `schema.aria` read
+  // site. Note `BaseSchema`'s index signature still types an authored `aria`
+  // as `any` — this deletion removes the type-level suggestion and the false
+  // parity claim, not a key that ever rendered. Pinned by
+  // `__tests__/dashboard-aria-retired-contract-twins.test.ts`.
 }
 
 /**

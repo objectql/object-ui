@@ -83,8 +83,17 @@ literal `${...}` on screen for nothing on screen. Put keys on the node.
 ] }
 ```
 
-The `element:*` namespace is the deliberate exception: those components read
-their config out of `properties` / `props`, so the envelope is required there.
+The `element:*` namespace is where `props` is read: those components take their
+config out of `properties` / `props`, so the envelope is required there.
+
+`properties` is not the same envelope as `props`. `SchemaRenderer` evaluates it
+and then **hoists its keys onto the node**, so it is read by every namespace —
+measured, `{ "type": "card", "properties": { "title": "${data.customer.name}" } }`
+does render the evaluated name. Whether that is an authoring channel for
+`ui:*` / `page:*` is an open contract question (objectui#4795); the measurement
+and the failing legs beside it are in
+[`rules/protocol.md`](../rules/protocol.md). Until it is ruled, the route this
+guide teaches is unchanged: `content`, or resolve the value in the host.
 
 ## Template expression syntax (`${}`)
 
@@ -136,8 +145,12 @@ When expressions are evaluated, these variables are in scope:
 |----------|--------|---------|
 | Top-level data fields | `SchemaRendererProvider dataSource` | `${users}`, `${metrics.total}` |
 | `data` | Alias for dataSource root | `${data.fieldName}` |
-| `item` | Current array element (in loops) | `${item.name}` |
-| `index` | Current array index (in loops) | `${index + 1}` |
+| `current_user` / `user` | Host predicate scope | `${current_user.email}` |
+| `page` | Page-local state (`PageSchema.variables`) | `${page.selectedId}` |
+
+That is the whole scope. There is **no `item` and no `index`** — the evaluator
+context is built once per node, not once per array element. See "No per-item
+template iteration" below.
 
 ### Safe globals (always available)
 - `Math` — `${Math.round(price)}`, `${Math.max(a, b)}`
@@ -366,12 +379,43 @@ in `dependsOn`.
 
 ## Data binding with `bind`
 
-The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:
+The `bind` field is NOT expression-evaluated. It's a path string resolved by
+`useDataScope()` — and **only a component that calls that hook reads it**.
+
+```json
+{
+  "type": "list",
+  "bind": "customerNames"
+}
+```
+
+When `SchemaRendererProvider` receives
+`dataSource = { customerNames: ["Ada Lovelace", "Grace Hopper"] }`, `list` calls
+`useDataScope("customerNames")` and renders one entry per array element.
+
+**Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+
+### Which components read `bind`
+
+`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
+and by the `object-*` widgets the plugin packages register (`object-grid`,
+`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
+completely — no error, no warning, nothing in the console.
+
+`data-table` is the one that catches authors out. It takes its rows from an
+inline `data` array on the node and never calls `useDataScope`, so a `bind` on
+it resolves nothing: the table renders its header over the "No results found"
+empty state. Nothing is thrown and nothing is logged — a table that looks built
+and is blank is the whole failure.
 
 ```json
 {
   "type": "data-table",
-  "bind": "customers",
+  "data": [
+    { "name": "Ada Lovelace", "email": "ada@example.com" },
+    { "name": "Grace Hopper", "email": "grace@example.com" }
+  ],
   "columns": [
     { "name": "name", "label": "Name" },
     { "name": "email", "label": "Email" }
@@ -379,31 +423,112 @@ The `bind` field is NOT expression-evaluated. It's a path string resolved by `us
 }
 ```
 
-When `SchemaRendererProvider` receives `dataSource = { customers: [...] }`, the table component calls `useDataScope("customers")` and gets the array.
+To show *provider* data in a `data-table`, resolve the array in the host and put
+it on the node — the same "expand in the host" route the next section describes
+for per-record nodes.
 
-**Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+## No per-item template iteration (`list` is data-as-nodes)
 
-## Iteration scopes (loops)
+**There is no loop construct in ObjectUI, and no `item` / `index` scope.** No
+component renders a per-item *template*: the evaluator context is built once per
+node (`data`, `page`, the host predicate scope), and nothing ever pushes a
+per-element frame onto it. A `${item.name}` resolves against nothing — an
+unknown root identifier is left alone, so the literal text `${item.name}` is
+what reaches the screen.
 
-Components like Grid, List, and Table inject scoped variables for each item:
+`list` is the component authors reach for first, and it is **data-as-nodes**:
+the array it renders *is* the node list. It never reads `children`.
 
 ```json
+// ❌ Renders two EMPTY <li>. `children` is not a template — `list` never reads it,
+//    and `${item.name}` would render literally even if it did.
 {
   "type": "list",
   "bind": "users",
-  "children": [
-    {
-      "type": "card",
-      "props": {
-        "title": "${item.name}",
-        "subtitle": "#${index + 1}"
-      }
-    }
-  ]
+  "children": [{ "type": "text", "content": "${item.name}" }]
 }
 ```
 
-Inside the loop body, `item` refers to the current element and `index` to its 0-based position.
+### What `list` renders
+
+Each entry of `items` (or of the array `bind` resolves to) is read as a node
+descriptor:
+
+| Entry shape | Rendered as |
+|---|---|
+| `"Ada"` (a plain string) | the string |
+| `{ "content": … }` | `content` verbatim — **not** expression-evaluated |
+| `{ "body": node }` or `{ "body": [node, …] }` | rendered through `SchemaRenderer` |
+| `{ "className": … }` | class on the `<li>` |
+| anything else — e.g. a record `{ "name": "Ada" }` | an **empty `<li>`** |
+
+`content` wins over `body` when both are present. The last row is the trap this
+section exists to close: binding `list` to ordinary records produces one empty
+`<li>` per record — the right number of bullets, no text in any of them.
+
+```json
+// ✅ Authored items — `title` and `ordered` are read off the node
+{
+  "type": "list",
+  "title": "Team",
+  "ordered": true,
+  "items": [{ "content": "Ada" }, { "content": "Linus" }]
+}
+```
+
+```json
+// ✅ Bound data, already node-shaped: dataSource = { rows: [{ "content": "Ada" }, { "content": "Linus" }] }
+{ "type": "list", "bind": "rows" }
+```
+
+Only `body` entries go back through `SchemaRenderer`, so they are the one place
+inside a list where expressions are evaluated at all — against the host scope,
+never against a current element:
+
+```json
+// ✅ `${data.*}` works inside `body`; there is still no `${item.*}`
+{
+  "type": "list",
+  "items": [{ "body": { "type": "text", "content": "Owner: ${data.team.owner}" } }]
+}
+```
+
+### Grid and Table are not iterators either
+
+- **`grid`** has no data binding at all — it is a CSS-grid wrapper that renders
+  its `children` **once** and lays them out in columns. A `bind` on a `grid` is
+  inert.
+- **`table`** renders rows from an inline `data` array against `columns`
+  accessors (`accessorKey`, falling back to `name`). Cell values are plain
+  property lookups — never expressions — and `table` does not read `bind`.
+
+```json
+// ✅ `table`: inline rows + column accessors, no per-row scope
+{
+  "type": "table",
+  "columns": [{ "label": "Name", "accessorKey": "name" }],
+  "data": [{ "name": "Ada" }, { "name": "Linus" }]
+}
+```
+
+### Rendering one node per record
+
+Template-per-item rendering is not something any component does today. The two
+working routes:
+
+1. **Expand in the host.** Map your records to nodes *before* handing the schema
+   to `SchemaRenderer` — the host has the full array and can build one node per
+   record with real string interpolation.
+2. **Feed data-as-nodes.** Shape the data as list entries (`content` / `body`)
+   and let `items` or `bind` render it, per the table above.
+
+### The per-row scope that does exist
+
+Row-level **predicates** on list views — conditional formatting and row-action
+`visible` / `disabled` — are CEL over `record.*`, evaluated by
+`@objectstack/formula`; see "List-view conditional tier" above. That is a
+different engine with a different scope: it decides *whether* and *how* a row is
+styled, and it gives `${}` templates no `item`.
 
 ## Security model
 
@@ -488,7 +613,7 @@ Expressions don't throw on missing variables — they return `undefined`. Use fa
 
 When an expression isn't working:
 
-1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded.
+1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded. (A `properties` envelope is the one that is evaluated *and* hoisted onto the node — see [`rules/protocol.md`](../rules/protocol.md) for why that is recorded, not recommended.)
 2. Is the `${}` syntax correct? Check for unmatched braces.
 3. Is the data actually available in scope? Check `SchemaRendererProvider dataSource`.
 4. For conditions: are you using `On` suffix correctly? (`hiddenOn` takes raw expression, `hidden` needs `${}` if it's a string).

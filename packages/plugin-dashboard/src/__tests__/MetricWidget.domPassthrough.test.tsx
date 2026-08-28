@@ -30,14 +30,21 @@
  * The defect was type-only — `id` / `role` / `aria-label` reached the card the
  * whole time — so the fix's own direction cannot be observed by anything vitest
  * runs. The compile-time assertions therefore live in `../domPassthroughPins.ts`,
- * a SOURCE module the package's `tsc --noEmit` actually compiles. They are not
- * here, and deliberately so: this package's tests are compiled by nothing
- * (`tsconfig.json` excludes `**\/*.test.tsx`, the package is the sole remaining
- * `TEST_DEBT` entry in `scripts/check-type-check-coverage.mjs`, and vitest erases
- * types), which is objectui#3181 — assertions in an uncompiled test file read as
- * coverage and are decoration. A `@ts-expect-error` written here would be
- * especially dishonest: nothing would ever check that the error it expects still
- * happens.
+ * a SOURCE module the package's `tsc --noEmit` compiles, next to the contract
+ * they pin.
+ *
+ * That split is a PREFERENCE, not a constraint — do not read it as a rule against
+ * compile-time assertions in this file. It was a constraint when #4426 was
+ * written: this package's tests were then compiled by nothing, so an assertion
+ * here would have read as coverage while being decoration (objectui#3181). That
+ * debt is paid. `tsconfig.test.json` type-checks this package's tests, this file
+ * included, and this package's `type-check` script chains it
+ * (`tsc --noEmit && tsc -p tsconfig.test.json`) — which is what CI's Type Check
+ * job runs. So a `@ts-expect-error` written here IS checked: when the error it
+ * expects stops happening, `tsc` reports it UNUSED (TS2578). Write a
+ * compile-time pin wherever it reads best — the sibling
+ * `ObjectDataTable.emitBoundary-6373.test.tsx` keeps two directives in a test
+ * file for exactly that reason.
  *
  * What IS real here, and only here: that those attributes actually land on the
  * element, and that `title` does NOT. Case (c) is the one that would catch the

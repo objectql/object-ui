@@ -1,7 +1,7 @@
 import React from 'react';
 import { Input, Slider, EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * PercentField - Percentage input with configurable decimal precision

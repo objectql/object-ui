@@ -56,13 +56,14 @@
  * a red test here is always "fix the README (or the barrel)", never "update the
  * test".
  *
- * That parse has a dependency worth naming, because it is easy to break from the
- * other side: the source reader is a regex for `ComponentRegistry` + `.register(`,
- * so a register call QUOTED VERBATIM inside a comment in `src/index.ts` would be
- * collected as a live registration. `src/index.ts` describes the removed
- * `app-shell` call in prose for precisely this reason (objectui#4841 wrote that
- * note); this pin is a third beneficiary of that discipline, and anyone tempted
- * to paste a real call into a comment there breaks this file too.
+ * That parse is `scripts/component-registrations.mjs` (objectui#4894), the one
+ * reader all four pins on this list now share. It is comment- and literal-aware
+ * via `scripts/js-comment-mask.mjs`, so a register call quoted VERBATIM inside a
+ * comment in `src/index.ts` is prose, not a registration — the hazard this
+ * paragraph used to name. `src/index.ts` still describes the removed `app-shell`
+ * call in prose rather than quoting it (objectui#4841 wrote that note), and that
+ * note is still worth keeping: this reader is not the only thing that has ever
+ * read that file.
  *
  * ## Scan surface — deliberately narrow
  *
@@ -88,20 +89,44 @@
  *   - the `### SidebarNav` note that `SidebarNav` is not on the registry. Its
  *     surface is `readme-sidebar-nav-example.test.ts`.
  *
- * The reader below is this repo's fourth copy of the same three-line
- * `ComponentRegistry.register` regex (the others are in
- * `guide-layout-sidebar-nav-doc.test.ts`, `app-shell-not-a-component-key.test.tsx`
- * and `scripts/__tests__/side-effects-declaration-consistency.test.ts`).
- * Extracting a shared helper is raised as a
- * side option on objectui#4860 and is deliberately NOT taken here: it would edit
- * three pin files to serve one, and each of those files is self-contained on
- * purpose — a pin that imports its own reader from a shared module can be
- * silently neutered from outside the file it defends.
+ * ## The reader is shared now, and this paragraph used to say the opposite
+ *
+ * This file landed as the FOURTH copy of one three-line
+ * `ComponentRegistry.register` regex (the others: `guide-layout-sidebar-nav-doc.test.ts`,
+ * `app-shell-not-a-component-key.test.tsx` and
+ * `scripts/__tests__/side-effects-declaration-consistency.test.ts`), and it said
+ * so — extraction was raised as a side option on objectui#4860 and deliberately
+ * declined, because it would have edited three self-contained pin files to serve
+ * one, and a pin that imports its own reader can be neutered from outside the
+ * file it defends.
+ *
+ * That was right on the evidence then, and objectui#4894 changed the evidence.
+ * All four copies accepted ONE quote character, and nothing in this repo enforces
+ * a quote style — no `.prettierrc`, no `prettier` field, no `quotes` rule — so
+ * `ComponentRegistry.register("some-key", …)` was legal, lint-clean, CI-green and
+ * invisible to all four at once. The reason to extract stopped being tidiness and
+ * became correctness: widen in one place, four benefit. So the reader moved to
+ * `scripts/component-registrations.mjs`, and the objection above was answered
+ * rather than overruled — that module has its own pin
+ * (`scripts/__tests__/component-registrations.test.ts`) whose first case is that
+ * an empty read FAILS, because `[]` is exactly the value that would make all four
+ * of these set-difference assertions pass while defending nothing.
+ *
+ * What is NOT shared is what each pin ASSERTS. The four check four different
+ * things — guide table parity, `app-shell` absence, side-effect survival, and
+ * this file's README parity — and merging those is the coupling actually worth
+ * avoiding.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+
+// The shared registration reader (objectui#4894). Plain JS, and this package's
+// test program sets `allowJs: false`, so the import is untyped here — the local
+// annotation below is what keeps the call site checked.
+// @ts-expect-error — plain-JS shared helper, intentionally untyped
+import { readComponentRegistrations } from '../../../../scripts/component-registrations.mjs';
 
 /** `packages/layout` — two levels up from `src/__tests__`. */
 const PKG_DIR = resolve(__dirname, '../..');
@@ -124,9 +149,7 @@ const REGISTRATION_SENTENCE = /registers\s+its\s+component\s+keys\s*\(([^)]*)\)/
 
 /** Component keys `registerLayout()` registers, read out of the source. */
 function registeredKeys(): string[] {
-  return [...LAYOUT_INDEX_SRC.matchAll(/ComponentRegistry\.register\(\s*'([^']+)'/g)].map(
-    (match) => match[1],
-  );
+  return readComponentRegistrations(LAYOUT_INDEX_SRC, 'packages/layout/src/index.ts').keys;
 }
 
 /** Component keys the README's `## Registration` sentence names. */

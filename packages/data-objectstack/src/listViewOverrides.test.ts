@@ -79,7 +79,7 @@ function makeDS(meta: any) {
 }
 
 /**
- * What ObjectView's `persistViewPatch` actually sends on a density toggle +
+ * What ObjectView's `persistViewPatch` USED TO send on a density toggle +
  * column sort: the view's raw config plus the personalization state. The
  * adapter stamps `object` / `name` on top (and the framework's overlay heals
  * the same identity fields onto rows that lack them — objectstack#2555).

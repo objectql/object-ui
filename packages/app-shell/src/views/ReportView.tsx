@@ -6,22 +6,22 @@ const ReportRenderer = lazy(() =>
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 // Runtime report editor — hosts the studio's spec-driven report inspector
 // (lives in app-shell to avoid a circular dep on plugin-report).
-import { ReportConfigPanel } from './ReportConfigPanel';
+import { ReportConfigPanel } from './ReportConfigPanel.js';
 import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { preferLocal } from '../utils/preferLocal';
-import { useAdapter } from '../providers/AdapterProvider';
-import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata } from './runtime-metadata-persistence';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { preferLocal } from '../utils/preferLocal.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { useMetadataClient } from './metadata-admin/useMetadata.js';
+import { persistRuntimeMetadata } from './runtime-metadata-persistence.js';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
 import type { DataSource } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
 import { DrillDownDrawer } from '@object-ui/plugin-dashboard';
 import { DrillNavigationProvider } from '@object-ui/react';
-import { useOpenRecordList } from './useOpenRecordList';
+import { useOpenRecordList } from './useOpenRecordList.js';
 
 // Fallback fields when no schema is available
 const FALLBACK_FIELDS = [
@@ -44,7 +44,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const metadataClient = useMetadataClient();
   // Editing a report mutates the SHARED definition, so it is an admin-only
   // quick-edit affordance (mirrors ObjectView's view-config gate).
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin } = useWorkspaceAdminStatus();
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   // Version counter — incremented on save to refresh the stable config reference
   const [configVersion, setConfigVersion] = useState(0);
@@ -168,7 +168,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // Uses live editSchema when available to respond to objectName changes
   const availableFields = useMemo(() => {
     const liveReport = editSchema || reportData;
-    const objName = liveReport?.objectName || liveReport?.dataSource?.object || liveReport?.dataSource?.resource;
+    const objName = liveReport?.objectName || liveReport?.dataSource?.object;
     return getFieldsForObject(objName) ?? FALLBACK_FIELDS;
   }, [editSchema, reportData, getFieldsForObject]);
 
@@ -269,15 +269,18 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     if (dataFetchSource.dataSource) {
       const fetchDataFromSource = async () => {
         try {
-          // Use the dataSource configuration to fetch data
-          const resource = dataFetchSource.dataSource.object || dataFetchSource.dataSource.resource;
-          if (!resource) {
-            console.warn('ReportView: dataSource missing object/resource property');
+          // Use the dataSource configuration to fetch data. `object` is the
+          // ONLY spelling this binding declares (ElementDataSourceConfig /
+          // the spec's strict ElementDataSourceSchema); the adapter just
+          // happens to call its first parameter `resource` (objectui#5116).
+          const objectName = dataFetchSource.dataSource.object;
+          if (!objectName) {
+            console.warn('ReportView: dataSource missing object property');
             setReportRuntimeData([]);
             return;
           }
 
-          const result = await dataSource.find(resource, {
+          const result = await dataSource.find(objectName, {
             $filter: dataFetchSource.dataSource.filter,
             $orderby: dataFetchSource.dataSource.sort,
             $top: dataFetchSource.dataSource.limit,

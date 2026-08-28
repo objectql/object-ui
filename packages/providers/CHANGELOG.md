@@ -1,5 +1,33 @@
 # @object-ui/providers — Changelog
 
+## 17.6.0
+
+### Patch Changes
+
+- 5458414: Publish relative import specifiers with explicit `.js` extensions so these six packages load under plain Node ESM.
+  
+  Node's ESM resolver does not extension-search relative specifiers and `tsc` never rewrites them, so an extensionless `./Foo` in the source shipped as an extensionless `./Foo` in `dist` and importing the package entry outside a bundler failed with `ERR_MODULE_NOT_FOUND`. Bundled consumers were unaffected. Unbundled consumers — plain Node ESM, an SSR host importing the package directly, anyone running the published tarball without a build step — can now import these entries, and so can the downstream `@object-ui/plugin-*` packages that evaluate through `mobile`, `permissions` and `providers`.
+- Updated dependencies [88085e3]
+- Updated dependencies [279fb13]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [f1d4748]
+- Updated dependencies [578e025]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

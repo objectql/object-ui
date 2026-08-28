@@ -18,6 +18,18 @@ import { DemoGrid } from '@/app/components/ComponentDemo';
 
 The Span component is an inline container. **It is now deprecated in favor of semantic Shadcn-based components** that provide better accessibility and design system integration.
 
+**Scope of this deprecation: JSON-authored pages.** A `kind:'html'` page is written as
+constrained JSX text that the engine compiles (parses, never executes) into
+nodes, tag name straight through — there, the plain inline tag is part of that tier's own
+vocabulary and stays fully supported, because no other spelling of it exists for an
+author to migrate to. The dev-build deprecation notice is therefore reported for
+JSON-authored nodes only, and never for what the html tier compiled from its own source.
+
+Styling on that tier is the blocks' own structured props (`<flex direction gap>`,
+`<grid columns>`) plus a JSON `style` object — **not** Tailwind utility classes, which
+produce no CSS at all when authored in page `source`. `os validate` reports that as
+`page-source-className-tailwind`. See the React Pages guide, §Styling.
+
 ## Migration Guide
 
 Instead of using `span`, use these Shadcn alternatives:
@@ -50,8 +62,9 @@ interface SpanSchema {
   
   // Content
   value?: string;                        // Text content
-  children?: SchemaNode | SchemaNode[];  // Child components
-  body?: SchemaNode | SchemaNode[];      // Alternative content prop
+  children?: SchemaNode | SchemaNode[];  // Child components (the child key this component reads)
+  // Both keys are read. When both are authored, child content wins and `value`
+  // is ignored — the same precedence `text` uses for `content` over `value`.
   
   // Styling
   className?: string;                    // Tailwind CSS classes

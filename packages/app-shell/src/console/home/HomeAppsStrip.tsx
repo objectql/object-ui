@@ -16,9 +16,9 @@ import { useMemo, useState } from 'react';
 import { LayoutGrid, Store, Star } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveKeyedI18nLabel } from '../../utils';
-import { getIcon } from '../../utils/getIcon';
-import type { FavoriteItem } from '../../hooks/useFavorites';
+import { resolveKeyedI18nLabel } from '../../utils/index.js';
+import { getIcon } from '../../utils/getIcon.js';
+import type { FavoriteItem } from '../../hooks/useFavorites.js';
 
 const COMPACT_LIMIT = 19;
 
@@ -55,6 +55,7 @@ export function HomeAppsStrip({
   onBrowseMarketplace,
   isAdmin,
   canAuthorMetadata = true,
+  marketplaceEnabled = true,
 }: {
   apps: any[];
   favorites: FavoriteItem[];
@@ -70,6 +71,15 @@ export function HomeAppsStrip({
    * for hosts that pass the gate explicitly.
    */
   canAuthorMetadata?: boolean;
+  /**
+   * [objectui#5504] Whether this runtime mounts a marketplace at all
+   * (`features.marketplace` from the server's runtime config). A runtime
+   * deployed with `OS_CLOUD_URL=off` has none, and this shortcut used to lead
+   * straight to a red "Failed to load marketplace" card. Defaults to `true`,
+   * so the only behaviour change is on hosts that report the capability
+   * absent.
+   */
+  marketplaceEnabled?: boolean;
 }) {
   const { t } = useObjectTranslation();
   const { appLabel } = useObjectLabel();
@@ -97,7 +107,7 @@ export function HomeAppsStrip({
           {t('home.yourApps', { defaultValue: 'Your apps' })}
         </h2>
         <span className="text-sm text-muted-foreground">{ordered.length}</span>
-        {isAdmin && canAuthorMetadata && (
+        {isAdmin && canAuthorMetadata && marketplaceEnabled && (
           <Button
             variant="ghost"
             size="sm"

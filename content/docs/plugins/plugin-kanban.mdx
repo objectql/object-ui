@@ -13,6 +13,16 @@ Kanban board component with drag-and-drop powered by @dnd-kit.
 npm install @object-ui/plugin-kanban
 ```
 
+This package publishes a stylesheet. Import it after the base sheets, or the board renders unstyled — the themed utilities it uses have no other source in a published app ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)):
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
 <PluginLoader plugins={['kanban']}>
 
 ## Interactive Examples

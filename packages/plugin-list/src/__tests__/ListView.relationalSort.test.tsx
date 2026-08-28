@@ -37,6 +37,11 @@ const objectDef = {
     account: { type: 'master_detail', label: 'Account', reference_to: 'accounts' },
     assignee: { type: 'user', label: 'Assignee', reference_to: 'sys_user' },
     parent: { type: 'tree', label: 'Parent', reference_to: 'contacts' },
+    // The picker's SECOND withholding rule (#4243, and the shared judgement as
+    // of objectui#3950): computed on read, no column to order by. Present in
+    // this fixture so the exact option lists below pin its absence rather than
+    // only prose describing it.
+    score: { type: 'formula', label: 'Score' },
   },
 };
 
@@ -53,7 +58,7 @@ const baseSchema: ListViewSchema = {
   type: 'list-view',
   objectName: 'contacts',
   viewType: 'grid',
-  columns: ['name', 'amount', 'owner', 'account', 'assignee', 'parent'] as any,
+  columns: ['name', 'amount', 'owner', 'account', 'assignee', 'parent', 'score'] as any,
 };
 
 async function openSortPopover(schema: ListViewSchema) {
@@ -112,6 +117,36 @@ describe('ListView sort picker — relational fields (objectui#3096)', () => {
     // have flipped, in both directions.
     expect(hint).toHaveTextContent(/not a formula field/i);
     expect(hint.textContent ?? '').not.toMatch(/add a formula field/i);
+  });
+
+  /**
+   * objectui#4243's own rule, pinned behaviourally for the first time here
+   * (objectui#3950): a `formula` field is withheld too, and for a different
+   * reason — not "the key would be invisible" but "there is no key". Silently,
+   * because the relational hint's sentence is about relations; the remedy for
+   * this one is a stored denormalised field, which is what the hint above
+   * already recommends for its own case.
+   *
+   * The exception the relational half has, this half needs more: a formula field
+   * the CURRENT sort already names stays listed, because that row is the only
+   * way to remove a sort the server refuses outright.
+   */
+  it('withholds a formula field — there is no key to order by', async () => {
+    await openSortPopover({ ...baseSchema, sort: [{ field: 'name', order: 'asc' }] } as any);
+
+    const options = await sortFieldOptions();
+    expect(options).not.toContain('Score');
+    // Collateral control: the two stored columns are still both offered, so the
+    // omission is this one field's type and not a narrower picker.
+    expect(options).toEqual(['Name', 'Amount']);
+  });
+
+  it('keeps a formula field the current sort already names — the only way to remove it', async () => {
+    await openSortPopover({ ...baseSchema, sort: [{ field: 'score', order: 'asc' }] } as any);
+
+    // Unflagged, unlike the relational exception: ordering by ID is a truth
+    // about a relational key, and this field has no key at all to describe.
+    expect(await sortFieldOptions()).toEqual(['Name', 'Amount', 'Score']);
   });
 
   it('keeps a relational field the current sort already uses, flagged as by-ID', async () => {

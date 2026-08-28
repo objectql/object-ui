@@ -183,6 +183,59 @@ export function withHandoffContext(
   return { ...body, context: { ...ctx, parentConversationId } };
 }
 
+/**
+ * objectui#5605 — `maxToolRoundtrips` is an authorable, documented key that
+ * reaches nothing, and the measurement says it cannot be made to reach anything
+ * from here.
+ *
+ * The installed chat runtime is `@ai-sdk/react`'s `useChat`, whose options are
+ * `ChatInit` plus `{ throttle, experimental_throttle, resume }`. `ChatInit`
+ * carries exactly one loop control — `sendAutomaticallyWhen`, a boolean
+ * predicate — and no numeric cap of any spelling: `@ai-sdk/react@1.0.0` shipped
+ * "remove deprecated useChat roundtrip options" as a MAJOR, and the successor
+ * `maxSteps` was renamed through `continueUntil` to `stopWhen`/`stepCountIs`,
+ * which the installed `ai` package declares ONLY on `generateText`,
+ * `streamText` and `ToolLoopAgentSettings` — all server-side. This hook also
+ * never passes `sendAutomaticallyWhen`, so the client performs no automatic
+ * tool round-trips at all: there is no client loop here to cap.
+ *
+ * Nor is there a server loop we own. ObjectUI is backend-agnostic — `api` is
+ * whatever endpoint the author names — so shipping the number in the request
+ * body would only move the same dead key one hop further out, onto a wire
+ * contract no backend reads. The platform's own cap is `maxIterations` on the
+ * agent (`planning.maxIterations`), a different key with a different default.
+ *
+ * So the honest state is retirement, and retirement is two-stage (maintainer
+ * ruling, 2026-08-22 item 13). This is STAGE 1: the key keeps parsing and keeps
+ * its declared shape, so nothing an author already wrote breaks — but an author
+ * who actually writes it is now TOLD it is inert, instead of being left
+ * believing the documented cap applies. Stage 2 deletes it.
+ *
+ * Warned once per process: the hook re-runs on every render, and three renderer
+ * call sites feed it. Reset seam for tests, same shape as `plugin-detail`'s
+ * `recordActivityFeed` warnings.
+ */
+const warnedInertMaxToolRoundtrips = new Set<string>();
+
+/** Test seam: forget that the inert-`maxToolRoundtrips` notice has been given. */
+export function resetMaxToolRoundtripsWarning(): void {
+  warnedInertMaxToolRoundtrips.clear();
+}
+
+/** Tell an author once that their authored cap does nothing. See above. */
+function warnMaxToolRoundtripsInert(): void {
+  if (warnedInertMaxToolRoundtrips.has('maxToolRoundtrips')) return;
+  warnedInertMaxToolRoundtrips.add('maxToolRoundtrips');
+  console.warn(
+    '[@object-ui/plugin-chatbot] `maxToolRoundtrips` is deprecated and has no ' +
+      'effect: the installed chat runtime exposes no client-side round-trip cap ' +
+      '(`useChat` dropped the numeric knob, and the surviving `stopWhen` / ' +
+      '`stepCountIs` step cap is server-side only). Cap tool-calling loops on the ' +
+      'agent instead — `planning.maxIterations`. This key is inert and is slated ' +
+      'for removal in a future major (objectui#5605).',
+  );
+}
+
 type InitialMessage = OuiChatMessage & {
   parts?: Array<Record<string, unknown>>;
   reasoning?: string;
@@ -237,7 +290,14 @@ export interface UseObjectChatOptions {
   body?: Record<string, unknown>;
   /**
    * Maximum tool-calling round-trips per message.
-   * @default 5
+   *
+   * @deprecated objectui#5605 — INERT. Nothing reads this value: the installed
+   * chat runtime exposes no client-side round-trip cap, and ObjectUI does not
+   * own the server loop. Setting it has never had an effect, and it does not
+   * acquire one by being set. Cap tool-calling loops on the agent instead
+   * (`planning.maxIterations`). Still accepted so existing documents keep
+   * parsing; authoring it now logs a one-time notice, and it is slated for
+   * removal in a future major. See {@link warnMaxToolRoundtripsInert}.
    */
   maxToolRoundtrips?: number;
   /**
@@ -360,7 +420,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     streamingEnabled = true,
     headers,
     body,
-    maxToolRoundtrips = 5,
+    maxToolRoundtrips,
     onError,
     showTimestamp,
     autoResponse,
@@ -368,6 +428,15 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     autoResponseDelay = 1000,
     onSend,
   } = options;
+
+  // objectui#5605 — an AUTHORED `maxToolRoundtrips` is inert; say so once. The
+  // check is `!== undefined`, not truthiness, so an authored `0` is reported
+  // too (a cap of zero is exactly the author who most needs telling). Declared
+  // here, at the top of the hook, so it runs before the local-mode early return
+  // and stays unconditional under the Rules of Hooks.
+  useEffect(() => {
+    if (maxToolRoundtrips !== undefined) warnMaxToolRoundtripsInert();
+  }, [maxToolRoundtrips]);
 
   // Lock the mode on first render to satisfy the Rules of Hooks.
   // Conditional hook calls would crash if `api` toggled between renders.
@@ -441,6 +510,26 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     if (parentConversationId && !prev) parentConvRef.current = parentConversationId;
   }, [parentConversationId]);
 
+  // objectui#4187 - the caller's `body`/`headers` are read through refs at SEND
+  // time instead of being closed over by the transport, so they are NOT memo
+  // deps below. Every caller passes a fresh object literal each render (the AI
+  // page's chat pane rebuilds `body.context` inline), so listing them rebuilt
+  // `DefaultChatTransport` on every render of every chat surface - once per
+  // token batch during a streaming turn. Same idiom as `modelRef` above, and
+  // the only one of the two candidate fixes a future caller cannot silently
+  // undo by forgetting its own `useMemo`.
+  //
+  // SAMPLING CONTRACT (the one real behavioural change): a send serializes
+  // whatever these refs hold when `prepareSendMessagesRequest` runs, i.e. the
+  // values from the most recent render, spread at SEND time. Before, the values
+  // were spread into the transport at CONSTRUCTION time, so a send observed the
+  // last render that happened to rebuild it. The ref read is never staler than
+  // that and is now unconditional - see `useObjectChat.transportIdentity.test`.
+  const bodyRef = useRef(body);
+  bodyRef.current = body;
+  const headersRef = useRef(headers);
+  headersRef.current = headers;
+
   // Build a transport for API mode that posts to the configured endpoint and
   // forwards conversation/system/model metadata in the request body.
   // Note: conversationId is sent in the body (not a header) to avoid CORS
@@ -453,9 +542,13 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       // `notSent` so the composer can restore the input and show a clear error
       // instead of silently dropping the message (see sendAwareFetch).
       fetch: sendAwareFetch,
-      headers: { ...headers },
+      // No `headers` here (objectui#4187): the caller's headers are applied
+      // per-send in prepareSendMessagesRequest below. `reconnectToStream` does
+      // NOT run that hook — it reads this constructor's `headers` — so the first
+      // consumer to wire up stream resumption must merge `headersRef.current`
+      // into `prepareReconnectToStreamRequest` too, or it will resume without
+      // them. Nothing in this repo resumes a stream today.
       body: {
-        ...body,
         ...(conversationId ? { conversationId } : {}),
         ...(model ? { model } : {}),
         ...(systemPrompt ? { systemPrompt } : {}),
@@ -463,8 +556,25 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       },
       // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId —
       // it reconstructs the full default body (incl. messages) + adds turnId.
-      prepareSendMessagesRequest: ({ id, body: reqBody, messages, trigger, messageId }) => {
-        const req = withTurnId({ id, body: reqBody, messages, trigger, messageId });
+      prepareSendMessagesRequest: ({
+        id,
+        body: reqBody,
+        messages,
+        trigger,
+        messageId,
+        headers: reqHeaders,
+      }) => {
+        // #4187: the caller's live `body` goes in FIRST, so the fixed keys above
+        // (conversationId/model/systemPrompt/stream) and any per-send body still
+        // win - the same precedence as when it was spread into the transport's
+        // own `body` option.
+        const req = withTurnId({
+          id,
+          body: { ...bodyRef.current, ...reqBody },
+          messages,
+          trigger,
+          messageId,
+        });
         // ADR-0028: always send the CURRENTLY selected model (see modelRef above)
         // so a mid-session picker switch routes, despite the cached transport.
         if (modelRef.current) (req.body as Record<string, unknown>).model = modelRef.current;
@@ -476,10 +586,16 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
           req.body = withHandoffContext(req.body as Record<string, unknown>, parentConvRef.current);
           parentConvRef.current = undefined;
         }
-        return req;
+        // #4187: the SDK hands us its merged base headers and REPLACES them with
+        // whatever we return here, so re-merge instead of replacing. The caller's
+        // live headers go in first so a per-send header still overrides them,
+        // exactly as the transport's own `headers` option behaved.
+        const sendHeaders = new Headers(headersRef.current ?? {});
+        new Headers(reqHeaders ?? {}).forEach((value, key) => sendHeaders.set(key, value));
+        return { ...req, headers: sendHeaders };
       },
     });
-  }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
+  }, [isApiMode, api, model, systemPrompt, streamingEnabled, conversationId]);
 
   // --- @ai-sdk/react useChat (always called to satisfy Rules of Hooks, but only active in API mode) ---
   // Ref so `onError` (fired later, async) can reach the live setMessages/messages

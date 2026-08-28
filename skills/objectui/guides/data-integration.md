@@ -140,7 +140,8 @@ const staticData = {
 </SchemaRendererProvider>
 ```
 
-Components with `bind: "customers"` will then access `staticData.customers`.
+Components that read `bind` (see "Via `bind` + `useDataScope`" below) will then
+access `staticData.customers` when given `bind: "customers"`.
 
 ## ObjectStackAdapter
 
@@ -178,20 +179,47 @@ adapter.onBatchProgress((event) => {
 
 ### Via `bind` + `useDataScope`
 
-Data-driven components (grids, tables, kanbans, charts) use the `bind` field:
+A component reads the `bind` field only if it calls `useDataScope`:
+
+```json
+{
+  "type": "list",
+  "bind": "customerNames"
+}
+```
+
+Inside the component: `const data = useDataScope("customerNames")` resolves to
+the `customerNames` array from the dataSource.
+
+`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
+and by the `object-*` widgets the plugin packages register (`object-grid`,
+`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
+completely — no error, no warning, nothing in the console.
+
+`data-table` is not among them, which is the trap worth knowing by name: it
+takes its rows from an inline `data` array on the node, so a bound `data-table`
+renders a correct-looking header over an empty body, with nothing thrown and
+nothing logged. Pointing the node's own `data` key at an expression
+(`"data": "${data.customers}"`) fails the same silent way — node keys are not
+expression-evaluated — so **the host resolves the array and puts it on the
+node**, as below. The one spelling that does carry a provider expression
+through is measured, with its open-question caveat, in
+[`../rules/protocol.md`](../rules/protocol.md).
 
 ```json
 {
   "type": "data-table",
-  "bind": "customers",
+  "data": [
+    { "name": "Ada Lovelace", "email": "ada@example.com" },
+    { "name": "Grace Hopper", "email": "grace@example.com" }
+  ],
   "columns": [
     { "name": "name", "label": "Name" },
     { "name": "email", "label": "Email" }
   ]
 }
 ```
-
-Inside the component: `const data = useDataScope("customers")` resolves to the `customers` array from the dataSource.
 
 ### Via expressions on the node
 
@@ -224,7 +252,9 @@ A `statistic`'s `label` / `value` / `description` are read off the node but are
 
 Do not reach for a `props` envelope to get an expression evaluated — values
 inside it are evaluated and then handed over as React props, which these
-renderers never read, so the component paints an empty frame.
+renderers never read, so the component paints an empty frame. (`properties` is a
+different envelope and behaves differently; see
+[`../rules/protocol.md`](../rules/protocol.md).)
 
 ### Via DataSource methods (in plugin code)
 

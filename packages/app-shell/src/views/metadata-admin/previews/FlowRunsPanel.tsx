@@ -21,8 +21,8 @@
 import * as React from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle, RefreshCw, SkipForward } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import { apiBase } from './useFlowNodePalette';
-import { t as tr, tFormat } from '../i18n';
+import { apiBase } from './useFlowNodePalette.js';
+import { t as tr, tFormat } from '../i18n.js';
 
 /** An error on a run/step. The engine sends the run-level `error` as a plain
  *  string (`ExecutionLog.error`) while a step-level error is a `{code,message}`

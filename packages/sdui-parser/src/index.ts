@@ -10,11 +10,19 @@ export * from './types.js';
 export { parseJsx, interpretBrace } from './parse.js';
 export { HTML_TIER_NODE, isHtmlTierNode, markHtmlTierNode } from './provenance.js';
 export { validateTree } from './validate.js';
+export {
+  checkDashboardWidgetOptions,
+  CONSUMED_WIDGET_OPTION_KEYS,
+  DASHBOARD_WIDGET_HOST_TYPES,
+  UNCONSUMED_WIDGET_OPTION,
+} from './dashboard-widget-options.js';
 export { generateDts, propsName, generateBlockList } from './codegen.js';
 export type { CodegenOptions } from './codegen.js';
+export { inputTypeArms, canonicalizeInputType, MANIFEST_INPUT_TYPES } from './input-type.js';
 
 import { parseJsx } from './parse.js';
 import { validateTree } from './validate.js';
+import { canonicalizeInputType } from './input-type.js';
 import type { Diagnostic, Manifest, SchemaElement, ManifestValidationResult } from './types.js';
 
 export interface CompileResult {
@@ -61,7 +69,14 @@ export interface RegistryConfigLike {
   category?: string;
   inputs?: Array<{
     name: string;
-    type: string;
+    /**
+     * One coarse kind, or the arms of a union (objectui#3832). Typed loosely
+     * (`string`) on purpose — this interface is the STRUCTURAL boundary that
+     * keeps this package free of a dependency on the registry, so an
+     * off-vocabulary value has to be representable here and is normalized by
+     * `canonicalizeInputType` on the way in.
+     */
+    type: string | string[];
     required?: boolean;
     enum?: Array<string | { value: unknown; label?: string }>;
     binding?: 'object' | 'field';
@@ -101,19 +116,10 @@ export function assertFullyLoaded(configs: RegistryConfigLike[]): void {
   );
 }
 
-const INPUT_TYPES = new Set([
-  'string',
-  'number',
-  'boolean',
-  'enum',
-  'array',
-  'object',
-  'color',
-  'date',
-  'code',
-  'file',
-  'slot',
-]);
+/* The arm vocabulary and the two projections over it now live in
+ * `input-type.ts` — `manifestFromConfigs` below, `validateTree` and the codegen
+ * all read `ManifestInput.type` and must agree on how, since it holds one arm
+ * or an array of them (objectui#3832). */
 
 /**
  * Project registry configs into the SDUI manifest.
@@ -146,7 +152,7 @@ export function manifestFromConfigs(
       isContainer: c.isContainer,
       inputs: (c.inputs ?? []).map((i) => ({
         name: i.name,
-        type: (INPUT_TYPES.has(i.type) ? i.type : 'string') as Manifest['components'][string]['inputs'][number]['type'],
+        type: canonicalizeInputType(i.type),
         required: i.required,
         enum: i.enum,
         binding: i.binding,

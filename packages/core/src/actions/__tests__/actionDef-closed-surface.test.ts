@@ -32,16 +32,18 @@
  * diagnostics against a control interface carrying nothing but an index
  * signature — which is what proves the REJECTIONS come from the promotion and
  * not from some unrelated error. This file states the same contract as ordinary
- * TypeScript that CI compiles directly (via `tsconfig.typetests.json`), so the
+ * TypeScript that CI compiles directly (via `tsconfig.test.json`), so the
  * pin survives even if the harness's compiler-host plumbing ever breaks, and a
  * reader can see the rejected spellings without decoding a test harness.
  *
  * These assertions are TYPES: this package's own `tsconfig.json` is the BUILD
- * config and excludes `src/**` test files, so without the explicit entry in
- * `tsconfig.typetests.json` (chained off `type-check`, enforced by
- * `scripts/check-type-check-coverage.mjs`) nothing would compile this file and
- * every pin below would be decoration — the "declared != enforced" landmine
- * objectstack#4115 exists to remove.
+ * config and excludes `src/**` test files, so without `tsconfig.test.json`
+ * (which takes the test tree by GLOB, is chained off `type-check`, and is
+ * enforced by `scripts/check-type-check-coverage.mjs`) nothing would compile this
+ * file and every pin below would be decoration — the "declared != enforced"
+ * landmine objectstack#4115 exists to remove. There is no list entry to earn:
+ * the narrow `tsconfig.typetests.json` that once named this file by hand was
+ * retired when the package graduated (objectui#4040).
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -119,7 +121,7 @@ const _navigationAlias: ActionDef = {
 const _navNewTabString: ActionDef = { type: 'navigation', to: '/x', newTab: 'new-tab' };
 
 describe('ActionDef is a closed surface (objectstack#4075 step 3)', () => {
-  it('states its contract as types, compiled by tsconfig.typetests.json', () => {
+  it('states its contract as types, compiled by tsconfig.test.json', () => {
     // The assertions above are the test. This body exists so the file is a
     // legitimate vitest suite as well as a tsc input, and so a reader running
     // the suite sees the pin acknowledged rather than an empty file.

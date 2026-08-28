@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { Card } from '@object-ui/components';
 import { useRecordContext } from '@object-ui/react';
-import { AssignedUsersSection } from './AssignedUsersSection';
+import { AssignedUsersSection } from './AssignedUsersSection.js';
 
 /**
  * `record:permission_assignments` — surfaces a permission set's user

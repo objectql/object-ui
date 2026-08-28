@@ -5,22 +5,22 @@
   "children": [
     {
       "type": "icon",
-      "name": "star",
+      "icon": "star",
       "size": "sm"
     },
     {
       "type": "icon",
-      "name": "star",
+      "icon": "star",
       "size": "md"
     },
     {
       "type": "icon",
-      "name": "star",
+      "icon": "star",
       "size": "lg"
     },
     {
       "type": "icon",
-      "name": "star",
+      "icon": "star",
       "size": "xl"
     }
   ]

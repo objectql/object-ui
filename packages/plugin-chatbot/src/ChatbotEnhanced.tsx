@@ -79,7 +79,7 @@ import {
   SourcesContent,
   Source,
 } from './elements/sources';
-import { parseResultEnvelope } from './mapMessages';
+import { parseResultEnvelope, detectAuthoringVerdict } from './mapMessages';
 
 export interface ChatMessage {
   id: string;
@@ -319,6 +319,31 @@ export interface ChatToolInvocation {
   builderHandoff?: {
     prompt: string;
     packageId?: string;
+  };
+  /**
+   * cloud#1658 — the ask agent's `open_record` structured hand-off (the record
+   * sibling of `builderHandoff`). Rendered as a "打开这条记录 →" action landing
+   * on the record the agent already resolved.
+   */
+  recordHandoff?: {
+    objectName: string;
+    recordId: string;
+    label?: string;
+    reason?: string;
+  };
+  /**
+   * objectui#5695 — the terminal verdict of a confirm-replay (`replay_<id>`
+   * tool results; cloud `runApprovedProposalReplay`). Rendered as a terminal
+   * state on the ORIGINAL 确认修改 card — 已生效 / 已暂存为草稿 / 未生效 — so a
+   * rolled-back publish exists somewhere a USER can see it, independent of
+   * whether the model narrates it honestly.
+   */
+  replayOutcome?: {
+    kind: 'published' | 'drafted' | 'failed';
+    outcome?: string;
+    error?: string;
+    packageId?: string;
+    dispatchError?: boolean;
   };
 }
 
@@ -628,12 +653,18 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * → the button is disabled (nothing to route to).
    */
   onOpenBuilder?: (handoff: { prompt: string; packageId?: string }) => void;
+  /** cloud#1658 — open the record an `open_record` hand-off points at. */
+  onOpenRecord?: (handoff: { objectName: string; recordId: string; label?: string; reason?: string }) => void;
   /** Heading for the ADR-0057 P4 "Open in Builder" handoff card (default "Build this in the Builder"). */
   builderHandoffTitleLabel?: string;
   /** Label for the handoff card's primary action button (default "Open in Builder →"). */
   builderHandoffOpenLabel?: string;
   /** Tooltip on a superseded (older) handoff card's disabled button (default "A newer request is available"). */
   builderHandoffSupersededTitle?: string;
+  /** cloud#1658 — the record hand-off card's title. */
+  recordHandoffTitleLabel?: string;
+  /** cloud#1658 — the record hand-off card's action label. */
+  recordHandoffOpenLabel?: string;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -718,6 +749,21 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * not supplied, so an unrecognised server-side verb still renders.
    */
   changeVerbLabels?: Record<string, string>;
+  /** In-flight badge while the confirm-replay is applying (default "Applying…"). objectui#5695. */
+  changesApplyingLabel?: string;
+  /** Terminal badge when the replay published the change (default "Applied"). */
+  changesAppliedLabel?: string;
+  /** Terminal badge when the replay staged a draft (default "Saved as draft"). */
+  changesDraftedLabel?: string;
+  /** Terminal badge when the replay's publish did not go live (default "Not applied"). */
+  changesFailedLabel?: string;
+  /**
+   * cloud#1610 — a small chip above the composer naming what the conversation
+   * is currently ABOUT (「正在讨论：仪表盘 sales_overview」), so the context the
+   * host sends to the agent is visible to the user instead of invisible
+   * grounding. Display-only; absent = no chip.
+   */
+  surfaceContextLabel?: string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -1068,6 +1114,7 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     Boolean(tool.proposedChanges) ||
     // ADR-0057 P4 — the "Open in Builder →" handoff lives in the detailed body.
     Boolean(tool.builderHandoff) ||
+    Boolean(tool.recordHandoff) ||
     // A completed propose_blueprint that produced NO structured plan still needs
     // the detailed body — that's where the fallback "Build it" confirm gate
     // renders so the user is never left guessing the confirmation phrase.
@@ -1246,8 +1293,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planTitleLabel = 'Proposed plan',
       builderHandoffTitleLabel = 'Build this in the Builder',
       builderHandoffOpenLabel = 'Open in Builder →',
+      recordHandoffTitleLabel = 'Open this record',
+      recordHandoffOpenLabel = 'Open record →',
       builderHandoffSupersededTitle = 'A newer request is available',
       onOpenBuilder,
+      onOpenRecord,
       planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
@@ -1267,6 +1317,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       changesConfirmHintLabel = 'Reply to confirm or adjust this change.',
       changesConfirmMessage = 'Confirm — apply the change you just proposed.',
       changeVerbLabels = DEFAULT_CHANGE_VERB_LABELS,
+      changesApplyingLabel = 'Applying…',
+      changesAppliedLabel = 'Applied',
+      changesDraftedLabel = 'Saved as draft',
+      changesFailedLabel = 'Not applied',
+      surfaceContextLabel,
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1599,6 +1654,30 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       },
       [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
     );
+    // objectui#5695 — same optimistic pattern for the 确认修改 card: flip it to
+    // an "Applying…" badge the moment the approval is sent (double-click guard +
+    // immediate feedback); the durable terminal state derives from the replay
+    // envelope in the message stream (replayOutcomeByProposalId). A send that
+    // never left the client rolls the flip back so the buttons return.
+    const [confirmPendingIds, setConfirmPendingIds] = React.useState<ReadonlySet<string>>(
+      () => new Set<string>(),
+    );
+    const lastConfirmedChangeIdRef = React.useRef<string | null>(null);
+    const handleChangesConfirm = React.useCallback(
+      (toolCallId?: string) => {
+        if (toolCallId) {
+          lastConfirmedChangeIdRef.current = toolCallId;
+          setConfirmPendingIds((prev) => {
+            const next = new Set(prev);
+            next.add(toolCallId);
+            return next;
+          });
+        }
+        onSendMessage?.(changesConfirmMessage);
+      },
+      [onSendMessage, changesConfirmMessage],
+    );
+
     // "Adjust" doesn't send anything — it just drops the cursor into the input so
     // the user can describe the change in their own words.
     const handlePlanAdjust = React.useCallback(() => {
@@ -1624,6 +1703,17 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         const failedId = lastApprovedPlanIdRef.current;
         lastApprovedPlanIdRef.current = null;
         setApprovedPlanIds((prev) => {
+          if (!prev.has(failedId)) return prev;
+          const next = new Set(prev);
+          next.delete(failedId);
+          return next;
+        });
+      }
+      // Same rollback for an unsent 确认修改 approval (objectui#5695).
+      if (lastConfirmedChangeIdRef.current) {
+        const failedId = lastConfirmedChangeIdRef.current;
+        lastConfirmedChangeIdRef.current = null;
+        setConfirmPendingIds((prev) => {
           if (!prev.has(failedId)) return prev;
           const next = new Set(prev);
           next.delete(failedId);
@@ -1716,6 +1806,62 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       return ids;
     }, [messages]);
 
+    // objectui#5695 — correlate each confirm-replay result back to the 确认修改
+    // card it replays, so the card carries a UI-owned terminal state (已生效 /
+    // 已暂存为草稿 / 未生效) instead of going dark after the click. A replay
+    // re-dispatches the SAME tool, so the match is "latest earlier proposal of
+    // the same tool" — the same positional+per-tool convention as
+    // `confirmedChangeIds` above. A replay invocation still awaiting its result
+    // marks the card 'applying'; later replays of the same card overwrite
+    // earlier ones (an adjusted-and-reconfirmed change reports its LAST run).
+    //
+    // Self-repair supersede (measured live 2026-08-24): a replay whose DISPATCH
+    // errored (`dispatchError`) may be followed, in the same turn, by the model
+    // landing the change through different tool calls. Any LATER non-replay
+    // invocation whose result parses as an authoring verdict overrides the
+    // provisional failure — the card must never say 未生效 over a change that
+    // actually landed (that would be the original bug, mirrored).
+    const replayOutcomeByProposalId = React.useMemo(() => {
+      const byId = new Map<
+        string,
+        NonNullable<ChatToolInvocation['replayOutcome']> | { kind: 'applying' }
+      >();
+      const dispatchErrorTargets = new Map<string, number>(); // proposalId → replay order
+      const proposals: Array<{ id: string; toolName: string; order: number }> = [];
+      let order = 0;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.proposedChanges && tool.toolCallId) {
+            proposals.push({ id: tool.toolCallId, toolName: tool.toolName ?? '', order });
+            dispatchErrorTargets.delete(tool.toolCallId);
+          } else if (tool.toolCallId?.startsWith('replay_')) {
+            let target: { id: string } | undefined;
+            for (const p of proposals) {
+              if (p.order < order && p.toolName === (tool.toolName ?? '')) target = p;
+            }
+            if (target) {
+              if (tool.replayOutcome) {
+                byId.set(target.id, tool.replayOutcome);
+                if (tool.replayOutcome.dispatchError) dispatchErrorTargets.set(target.id, order);
+                else dispatchErrorTargets.delete(target.id);
+              } else if (tool.result === undefined && !tool.errorText) {
+                byId.set(target.id, { kind: 'applying' });
+              }
+            }
+          } else if (tool.result !== undefined && dispatchErrorTargets.size > 0) {
+            const verdict = detectAuthoringVerdict(tool.result);
+            if (verdict) {
+              for (const [pid, replayOrder] of dispatchErrorTargets) {
+                if (order > replayOrder) byId.set(pid, verdict);
+              }
+            }
+          }
+          order += 1;
+        }
+      }
+      return byId;
+    }, [messages]);
+
     const renderToolDetail = (tool: ChatToolInvocation) => {
       const state =
         tool.state ??
@@ -1806,6 +1952,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             Boolean(tool.proposedChanges) ||
             // ADR-0057 P4 — open so the "Open in Builder →" action is visible.
             Boolean(tool.builderHandoff) ||
+            Boolean(tool.recordHandoff) ||
             // Fallback confirm gate (unstructured proposal) must open so its
             // "Build it" button is visible without an extra click.
             isUnstructuredBuildProposal(tool)
@@ -2076,6 +2223,36 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </button>
                   );
                 })()}
+              </div>
+            ) : null}
+            {/* cloud#1658 — the record hand-off: the agent resolved the record a
+                write request names but has no action to perform the change, so
+                the card lands the user exactly there. No superseded logic on
+                purpose: unlike a build prompt, an older record link stays
+                correct — the record does not go stale because a newer hand-off
+                exists. */}
+            {tool.recordHandoff ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="record-handoff"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <Sparkles className="size-3.5" />
+                  {recordHandoffTitleLabel}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {tool.recordHandoff.label ?? tool.recordHandoff.objectName}
+                  {tool.recordHandoff.reason ? ` — ${tool.recordHandoff.reason}` : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onOpenRecord?.(tool.recordHandoff!)}
+                  disabled={!onOpenRecord}
+                  data-testid="record-handoff-open"
+                  className="inline-flex w-fit items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {recordHandoffOpenLabel}
+                </button>
               </div>
             ) : null}
             {tool.proposedPlan ? (
@@ -2377,22 +2554,110 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </div>
                   ))}
                 </div>
-                {onSendMessage ? (
-                  confirmedChangeIds.has(tool.toolCallId) ? (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
-                      <span
-                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        data-testid="proposed-changes-confirmed"
-                      >
-                        <CheckCircle2 className="size-3.5" />
-                        {changesConfirmedLabel}
+                {(() => {
+                  // objectui#5695 — after 确认修改, the card carries the replay's
+                  // verdict instead of going dark. Terminal states render on
+                  // EVERY surface (incl. the read-only share page): a UI-owned
+                  // failure state is the layer a model cannot narrate over.
+                  const outcome = replayOutcomeByProposalId.get(tool.toolCallId);
+                  if (outcome?.kind === 'published') {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          data-testid="proposed-changes-applied"
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          {changesAppliedLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (outcome?.kind === 'failed') {
+                    return (
+                      <div className="flex flex-col gap-1 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                          data-testid="proposed-changes-failed"
+                        >
+                          <XCircle className="size-3.5" />
+                          {changesFailedLabel}
+                        </span>
+                        {outcome.error ? (
+                          <span className="text-[11px] text-red-700/80 dark:text-red-300/80" data-testid="proposed-changes-failed-reason">
+                            {outcome.error}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  if (outcome?.kind === 'drafted') {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                          data-testid="proposed-changes-drafted"
+                        >
+                          <Clock3 className="size-3.5" />
+                          {changesDraftedLabel}
+                        </span>
+                        {onPublishDrafts && outcome.packageId ? (
+                          <button
+                            type="button"
+                            onClick={() => void handlePublishDrafts(outcome.packageId!)}
+                            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                            data-testid="proposed-changes-publish"
+                          >
+                            <Rocket className="size-3.5" />
+                            {publishDraftsLabel}
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  }
+                  const applying =
+                    outcome?.kind === 'applying' || confirmPendingIds.has(tool.toolCallId);
+                  if (applying) {
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-foreground/70"
+                          data-testid="proposed-changes-applying"
+                        >
+                          <Loader2 className="size-3.5 animate-spin" />
+                          {changesApplyingLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (!onSendMessage) {
+                    return (
+                      <span className="text-[11px] italic text-muted-foreground/80">
+                        {changesConfirmHintLabel}
                       </span>
-                    </div>
-                  ) : (
+                    );
+                  }
+                  if (confirmedChangeIds.has(tool.toolCallId)) {
+                    // Legacy fallback for hosts whose replay envelope predates
+                    // the outcome fields: a later same-tool commit still
+                    // collapses the card, just without a verdict.
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          data-testid="proposed-changes-confirmed"
+                        >
+                          <CheckCircle2 className="size-3.5" />
+                          {changesConfirmedLabel}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
                       <button
                         type="button"
-                        onClick={() => onSendMessage(changesConfirmMessage)}
+                        onClick={() => handleChangesConfirm(tool.toolCallId)}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                         data-testid="proposed-changes-confirm"
                       >
@@ -2408,12 +2673,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planAdjustLabel}
                       </button>
                     </div>
-                  )
-                ) : (
-                  <span className="text-[11px] italic text-muted-foreground/80">
-                    {changesConfirmHintLabel}
-                  </span>
-                )}
+                  );
+                })()}
               </div>
             ) : null}
           </ToolContent>
@@ -2797,6 +3058,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             isPlainSurface && 'mx-auto w-full max-w-2xl px-4 pb-4 sm:px-0',
           )}
         >
+          {surfaceContextLabel ? (
+            <div className="mb-1 flex" data-testid="surface-context-chip">
+              <span className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                {surfaceContextLabel}
+              </span>
+            </div>
+          ) : null}
           {promptOverlaySlot ? (
             <div className="absolute bottom-full left-0 right-0 z-10 px-3 pb-1">
               {promptOverlaySlot}

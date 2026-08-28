@@ -16,7 +16,7 @@
 import { useCallback, useMemo } from 'react';
 import type { NavigationItem } from '@object-ui/types';
 import { resolveHref } from '@object-ui/layout';
-import { useFavorites } from '../context/FavoritesProvider';
+import { useFavorites } from '../context/FavoritesProvider.js';
 
 const MAX_PINS = 20;
 
@@ -134,4 +134,4 @@ export function useNavPins() {
 }
 
 // Re-export the type for legacy import paths.
-export type { FavoriteItem } from '../context/FavoritesProvider';
+export type { FavoriteItem } from '../context/FavoritesProvider.js';

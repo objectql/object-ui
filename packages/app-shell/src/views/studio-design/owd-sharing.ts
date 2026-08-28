@@ -12,7 +12,7 @@
  * DOM-free, so both surfaces can share one validated implementation.
  */
 
-import { readFields } from '../metadata-admin/previews/object-fields-io';
+import { readFields } from '../metadata-admin/previews/object-fields-io.js';
 
 /**
  * The four canonical OWD values (ADR-0090 D4). The legacy `read` / `read_write`
@@ -73,3 +73,42 @@ export function deriveMasterObject(fields: unknown): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * The OWD baseline a BRAND-NEW object starts from, and the models it can
+ * actually choose at creation.
+ *
+ * `OWD_DEFAULT` is `'private'` because that is what the platform itself
+ * treats as the recommended baseline, in two independent places:
+ *   - the framework's own minimal create body seeds `sharingModel: 'private'`
+ *     (`@objectstack/spec` `kernel/metadata-create-seeds.ts`), on the stated
+ *     grounds that the runtime already resolves an absent value to `private`
+ *     (fail-closed, ADR-0090 D1) so making it explicit changes no tenant's
+ *     effective sharing;
+ *   - the `security-owd-unset` rule's own fix-it hint calls `'private'` the
+ *     "recommended default".
+ * It is a PRE-SELECTED, VISIBLE choice on the create form — not a value
+ * written behind the author's back. The ADR's requirement is that the
+ * baseline be authored, and an author who sees the control, reads the gloss
+ * and accepts the default has authored it.
+ *
+ * `OWD_CREATE_MODELS` deliberately OMITS `controlled_by_parent`: it derives
+ * access from a master relation, and a just-created object has no
+ * master-detail field yet, so offering it would trade the `security-owd-unset`
+ * publish wall for the `security-controlled-by-parent-no-relation` one. The
+ * lint's own hint draws the same line — "If the object has no master, its
+ * baseline is its own decision — use sharingModel: 'private' (owner +
+ * shares), 'public_read', or 'public_read_write'." The full four-value set
+ * stays available in the object's Settings tab, where the object may since
+ * have gained the master-detail field that makes the fourth value authorable.
+ */
+export const OWD_CREATE_MODELS = ['private', 'public_read', 'public_read_write'] as const;
+export type OwdCreateModel = (typeof OWD_CREATE_MODELS)[number];
+
+/**
+ * Typed as `OwdCreateModel`, not `OwdModel`: the default has to be a value the
+ * create surface can actually offer. Widening it to the full four-value set
+ * would let a future edit default new objects to `controlled_by_parent`, which
+ * a just-created object has no master relation to derive from.
+ */
+export const OWD_DEFAULT: OwdCreateModel = 'private';

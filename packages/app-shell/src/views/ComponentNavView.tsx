@@ -16,7 +16,7 @@
 import React from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { getAppComponent } from '../services/componentRegistry';
+import { getAppComponent } from '../services/componentRegistry.js';
 
 export interface ComponentNavViewProps {
   /** Extra props injected by the parent route element (typically empty). */

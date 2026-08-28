@@ -211,8 +211,11 @@ generic-engine defaults can be registered independently.
    `type: 'permission'`.
 2. Otherwise it picks a schema: `createSchema` in create mode, else the `/meta/types`
    row's `schema`, else the registry's `defaultSchema`.
-3. Fetches the layered view (`?layers=true`) so code / overlay / effective are all
-   visible, and renders `SchemaForm` against that schema.
+3. Fetches the layered view (`GET /meta/:type/:name/layers`, via `client.layered()`) so
+   code / overlay / effective are all visible, and renders `SchemaForm` against that
+   schema. That projection has a path and a response schema of its own
+   (`GetMetaItemLayeredResponseSchema`); the older spelling that flagged the ordinary
+   item read is deprecated upstream — don't reintroduce it.
 4. Save → PUT. A `409 destructive_change` opens a confirmation dialog and retries with
    `?force=true`. Reset overlay → DELETE. The References tab calls `client.references()`
    so an admin sees the back-pointers before deleting.
@@ -401,12 +404,10 @@ console path uses it.
 
 ## Key hooks
 
-`useBranding` is the **only** file in `apps/console/src/hooks/`. The other seven live in
-`@object-ui/app-shell`, so the first row's prefix does not generalise to the rest.
+All seven live in `@object-ui/app-shell`; the console app declares no hooks of its own.
 
 | Hook | Location | Purpose |
 |------|----------|---------|
-| `useBranding` | `apps/console/src/hooks/useBranding.ts` | AppShell brand colors/logo |
 | `useFavorites` | `packages/app-shell/src/hooks/useFavorites.ts` | Starred items state |
 | `useMetadataService` | `packages/app-shell/src/hooks/useMetadataService.ts` | CRUD operations on metadata |
 | `useNavPins` | `packages/app-shell/src/hooks/useNavPins.ts` | Pinned navigation items |

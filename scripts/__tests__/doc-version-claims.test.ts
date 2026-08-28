@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -117,6 +118,357 @@ import { fileURLToPath } from 'node:url';
  * so a reader following that README installs the package and gets an unmet-peer warning
  * for a dependency the README never named.
  *
+ * ## What objectui#3855 added: the hole was the CLASSIFICATION, not the regex
+ *
+ * objectui#3855 arrived asking why this gate "missed" `content/docs/guide/plugins.md`,
+ * whose plugin `package.json` skeleton taught `typescript` `^5.0.0` and `vite` `^5.0.0`
+ * against a workspace on `^6.0.3` and `^8.2.1` — one major and three majors behind. It did
+ * not miss them. Both lines MATCHED (`TypeScript` and `Vite` are `TOOLCHAIN` words and the
+ * `": "` between name and value is three of `SEP`'s six characters), both were inventoried,
+ * and both sat in `KNOWN_CLAIMS` as `sample` — a class that by construction asserts
+ * nothing. So this gate reported green over three majors of drift for the same reason the
+ * ratchet is blind to a widened range: not a blind spot in the scan, but a class that
+ * records instead of checking, holding a line that had an anchor all along.
+ *
+ * The reason those two entries gave was "the plugin author picks their own bundler version
+ * after copying it". That sentence is true of a standalone plugin and false of the block on
+ * that page, which is why the misfile is worth naming rather than just correcting: the
+ * skeleton is named `@object-ui/plugin-myfeature`, takes all three of its `@object-ui`
+ * dependencies at `workspace:*`, and builds with `vite build && tsc --emitDeclarationOnly`.
+ * A manifest spelled that way resolves in exactly one place — this workspace — so the
+ * toolchain it names is not the reader's choice, it is this repository's, and this
+ * repository states it unanimously: at the cut where #3855 landed, all 19
+ * `packages/plugin-<name>` manifests declared `vite` `^8.2.1`, and the 16 that declare
+ * `typescript` all said `^6.0.3`. An anchor that unanimous is not a judgement call.
+ *
+ * Hence `describe('the plugin-skeleton assertion')` below, and the `skeletonDep` field: those
+ * entries are `anchored`, each naming the dependency whose range is READ off the
+ * skeleton line and compared against the in-repo plugin manifests. The next toolchain bump
+ * turns this file red naming that page, which is the half of #3855 that outlives the two
+ * values it corrected — the values alone would re-fossilise on the next bump, and had
+ * already begun to: the card was filed measuring `vite` `^8.2.1` as `^8.2.0`, and the
+ * workspace had moved on in the nine days before it was implemented.
+ *
+ * What did NOT move: the same skeleton's `peerDependencies` `react` entry stays `sample`,
+ * and the distinction is the point of the class rather than an inconsistency. A peer range
+ * says what a package ACCEPTS from its host, so the author of a copied plugin owns it and
+ * may legitimately widen or narrow it; a devDependency range says what gets INSTALLED to
+ * build this thing here. objectui#3827's anchor table drew that line first and excluded
+ * peer ranges from its anchor sources for the same reason.
+ *
+ * ## What objectui#4961 added: a third anchored line, and the limit of what this judges
+ *
+ * #4961 is the same page and the same block, arriving from the opposite direction: not a
+ * range that had drifted, but a dependency the block never declared AT ALL. Step 5 of the
+ * numbered tutorial writes `vite.config.ts` with `import react from '@vitejs/plugin-react'`
+ * and calls `react()` in `plugins`; step 6's `devDependencies` listed the three
+ * `workspace:*` deps, `typescript` and `vite`, and nothing else. That page-wide import was
+ * the only mention of the package on the page. A reader following 1 through 6 therefore hit
+ * their first `pnpm build` with a config importing something they were never told to
+ * install — the same defect the closed objectui#3716 and #3742 fixed on the
+ * `create-plugin` generator side, on a hand-written page nobody walked at the same time.
+ *
+ * It cost one doc line and one inventory entry, which is what #3855's second half was for:
+ * the derived floor in the unanimity test picks up a third `skeletonDep` without a new
+ * mechanism, and it is now three names rather than two. The entry itself is also the worked
+ * example of why `skeletonDep` is a written-out name and not something derived from the
+ * inventory key: the key the scan produces for that line is `react": "^6.0.5`, because
+ * `React` is a `TOOLCHAIN` word and the `-` in `@vitejs/plugin-react` is a word boundary,
+ * so the recorded literal is the TAIL of the package name and names a different package
+ * than the line declares. `parseManifestLine` reads the whole line, so the comparison is
+ * against `@vitejs/plugin-react` regardless.
+ *
+ * And the boundary, stated because this assertion invites exactly one wrong inference: it
+ * judges the RANGE of a dependency the page ALREADY NAMES. It does not, and must not, be
+ * read as "the skeleton should declare whatever the plugin manifests declare". All 19
+ * in-repo plugin manifests carry `vite-plugin-dts`; the skeleton has no such line and needs
+ * none, because its build script is `vite build && tsc --emitDeclarationOnly` and the
+ * declarations come from the compiler. Both spellings are internally consistent, so
+ * completing the skeleton from the manifest list would add a dependency nothing on the page
+ * uses. What made the plugin-react line belong was not its presence in the manifests but
+ * its use in step 5 — the page contradicted ITSELF, and the manifests only supplied the
+ * range once the line had to exist. The unanimity of an anchor decides which range to
+ * teach, never which dependencies a doc ought to have.
+ *
+ * ## What objectui#4981 added: a THIRD scan root, and a skeleton that is NOT a plugin
+ *
+ * Everything above judges two surfaces humans read. `skills/objectui/**` is the surface
+ * an AGENT reads before it writes a project, and it was outside `SCAN_ROOTS` from the day
+ * this file was written. Nothing else covered it either: `check-skills-paths.mjs` walks
+ * the same 18 files but judges the paths they name, `check-doc-links.mjs` has no `skills`
+ * row, and a grep of `scripts/` finds no other reader of a version literal. So the two
+ * `package.json` blocks those guides teach were the one doc surface in this repository
+ * where a version could sit unmeasured forever — and the cost is not the usual one. A
+ * fossil in `content/docs` costs one human a failed build; a fossil in a scaffolding
+ * guide is COPIED, into a new user repository, every time an agent follows it.
+ *
+ * Measured at objectui#4981's cut (6098ecd08), the widening brought in 12 literals:
+ *
+ *   - FOUR fossils, one to two majors behind and repaired in the content half of that
+ *     card: `typescript` `^5.0.0` (workspace: `^6.0.3`), `vite` `^6.0.0` (`^8.2.1`) and
+ *     `@vitejs/plugin-react` `^4.0.0` (`^6.0.5`) in `project-setup.md`, plus
+ *     `lucide-react` `^0.400.0` (`^1.31.0`) in `plugin-development.md`. The last is the
+ *     one that could never have floated off its value on its own: a `0.x` caret does not
+ *     cross a minor, so `^0.400.0` resolves inside 0.400.x forever — the same trap
+ *     objectui#3755 removed from the `create-plugin` generator's own dependency map.
+ *   - ONE claim measured WRONG and NOT repaired here, inventoried `stale` and filed as
+ *     objectui#5081: `i18n.md` attributed its plain-string label rule to
+ *     `@objectstack/spec` `v4` while 33 manifests declare `^17.0.0`. Thirteen majors,
+ *     same shape as the `architecture-overview.md` literal objectui#3708 repaired. That
+ *     card has since landed and this entry left with it, but NOT down either arm of the
+ *     fork this section originally posed — correct the number, or delete a version
+ *     qualifier that carries no information. Neither arm was writable, and that is the
+ *     part worth keeping: the qualifier was backing a RULE ("labels are plain strings"),
+ *     and measurement against the INSTALLED `@objectstack/spec` 17.0.0 falsified the rule
+ *     too. `I18nLabelSchema` is a union of a plain string AND an inline locale map keyed
+ *     by BCP-47 tags or `default`, so "per v4" and "per v17" alike would have laundered a
+ *     false statement into a current one. objectui#5081 restated the rule instead
+ *     (maintainer ruling 2026-08-20, option A). The transferable lesson for the next
+ *     `stale` entry: a wrong version literal is evidence about the SENTENCE, not only
+ *     about the number in it — re-measure the claim before re-numbering it.
+ *   - The rest are floors and reader-owned ranges, recorded with their reasons below.
+ *
+ * ### Which of them could be ANCHORED, and the line this card had to draw
+ *
+ * `skeletonDep` (the objectui#3855 mechanism) compares a doc's range against the range
+ * the in-repo plugin manifests declare. Two of the three skills claims it now judges are
+ * an exact fit and one is not, and pretending otherwise would be the "wrong anchor" the
+ * card warned about:
+ *
+ *   - `plugin-development.md`'s block IS the shape #3855 was built for, and more clearly
+ *     than the page that motivated it: it is named `@object-ui/plugin-my-widget`, takes
+ *     all four `@object-ui` dependencies at `workspace:*` and builds with `vite build`.
+ *     A manifest spelled that way resolves in exactly one place, so its `lucide-react`
+ *     range is this repository's, not the reader's. Anchor measured: 16 of the 19
+ *     `packages/plugin-<name>` manifests declare `lucide-react` and all 16 say `^1.31.0`
+ *     (23 across the whole workspace, unanimous). The card estimated NINE, which would
+ *     have fallen under the ten-declarer floor the unanimity premise demands; the
+ *     re-measurement is why this line is anchored rather than merely recorded.
+ *   - `project-setup.md`'s block is NOT a plugin. It is a standalone application taking
+ *     published `@object-ui/*` packages at `latest` — no workspace protocol anywhere on
+ *     the page — so "what this workspace installs to build the copied thing" is not
+ *     literally what its toolchain lines state. They are anchored anyway, and the reason
+ *     is a measurement rather than a convenience: this repository states exactly ONE
+ *     range for each of those three dependencies, everywhere. At this cut, of the
+ *     manifests that declare them, `typescript` is `^6.0.3` in 40 of 40, `vite`
+ *     `^8.2.1` in 29 of 29, `@vitejs/plugin-react` `^6.0.5` in 27 of 27 — root,
+ *     `apps/console`, `examples/console-starter` and the plugin packages alike. The
+ *     plugin set the assertion reads is therefore a strict SUBSET of a repo-wide
+ *     unanimity, and the range it pins is "the one range this repository states", not a
+ *     private choice of the plugin packages.
+ *
+ *     The residual is stated rather than implied, because it is the thing that would
+ *     make this entry wrong later: if the plugin packages ever move to a toolchain a
+ *     standalone consumer should NOT be told to use, this assertion will paint that page
+ *     red for a divergence that is not a defect of the page. The red is then a question,
+ *     and the answer is to reclassify these three entries (or to give them an anchor set
+ *     of their own — `apps/console` plus the `examples/*` starters, 3 to 4 declarers
+ *     today, too thin for the current floor). What is NOT an acceptable answer is
+ *     demoting them to `sample`: that class is what let three majors of drift sit in
+ *     `content/docs/guide/plugins.md` for months, and it is what left these four literals
+ *     unread for the whole life of this gate.
+ *
+ * The criterion those two paragraphs share, and the one the react/tailwind lines fail:
+ * a literal is anchorable when this tree states exactly one range for that dependency AND
+ * the doc's line is the same KIND of statement. `react` fails the second half — the repo
+ * pins `19.2.8` exactly, for deterministic test resolution, while the page states a
+ * consumer's caret range, and "the doc must say 19.2.8" would be bad advice mechanically
+ * enforced. `@tailwindcss/vite` fails the first: this repository declares it in ZERO
+ * manifests (it wires Tailwind 4 through `@tailwindcss/postcss` instead), so there is
+ * nothing here to compare against, whatever the page teaches.
+ *
+ * ## What objectui#6307 added: the SPELLING the scan could not see
+ *
+ * Every widening above added a surface or a name. This one added a SEPARATOR, and it is
+ * the first whose absence was invisible from inside this gate's own output: a green
+ * ratchet looks identical whether it examined a line or never matched it at all.
+ *
+ * `SEP` admitted backticks, quotes, whitespace, colons, commas, pipes, brackets and a
+ * dash — and not `*`. So `**Node.js** 20+` never matched `TOOLCHAIN + SEP + VERSION`,
+ * while markdown emphasis around a toolchain name is one of this corpus's ordinary
+ * spellings: measured at this cut, six files across the three scan roots write one in
+ * bold. Two of them were the consumer guides' prerequisite bullets, where the number is
+ * exactly what a reader acts on.
+ *
+ * Measured across the widening, over the 241 files the three roots resolve to: 33
+ * matched literals before, 37 after — four new, none lost, all four on the two pages
+ * objectui#6307 names (`quick-start.md:12-13` and `building-crud-app.md:12`).
+ *
+ * NOT ONE of the four earned an inventory entry, and that is the half of this change
+ * worth carrying forward. They were not a floor this project declares — of the 46
+ * workspace manifests, ZERO declare `engines.node` or `engines.pnpm`, the only
+ * `engines` block outside the root being `packages/vscode-extension`'s `engines.vscode`
+ * — and not one it tests: 26 of the 27 `node-version:` declarations in
+ * `.github/workflows` read `'22.x'` and the 27th reads `'22'`, so nothing anywhere runs
+ * the Node 20 those bullets named. A number a reader will act on, restating no manifest
+ * and tested by no lane, is precisely what the ratchet's own failure message says to
+ * DELETE rather than ledger. The pages now state what CI exercises instead, and THOSE
+ * sentences are the four `anchored` entries below — an entry per literal, each naming
+ * the anchor it can be re-measured against.
+ *
+ * Which leaves the trap this section exists to stop. After that repair the corpus holds
+ * no emphasised claim at all, so reverting `SEP` would change nothing observable and
+ * this file would report green over the same blind spot again.
+ * `it('reads a claim through markdown emphasis…')` is the permanent witness, and it
+ * also pins the boundary the widening does NOT cross: `_` is in the class, yet
+ * `_Node.js_ 20+` still cannot match, because `_` is a word character and the `\b` on
+ * each side of `TOOLCHAIN` therefore fires on neither side of the name. Measured: zero
+ * underscore-emphasised toolchain names in the corpus today (control, same sweep: six
+ * files carry the bold spelling), so it is recorded as a boundary rather than repaired
+ * by widening those boundaries into a lookaround nothing has asked for.
+ *
+ * ## What objectui#6409 added: the WORD between the name and the number
+ *
+ * objectui#6307, one section above, widened a character CLASS. This one could not be
+ * fixed that way, and saying why is the point — the obvious repair is the wrong one. In
+ *
+ *     node-version: 20
+ *
+ * the literal word `version` sits between the toolchain name and the number. `SEP` is a
+ * character class bounded at six characters: it cannot cross a WORD, and widening it to
+ * admit `[a-z]` would weld almost any name to almost any nearby number and leave the
+ * gate matching everything, which is the same as matching nothing. That spelling is not
+ * exotic — it is how every workflow example in these docs writes a Node version — so the
+ * ledger's promise, "every literal is either exempt or inventoried", quietly did not hold
+ * for the one toolchain whose floor moved twice in a day (objectui#5306, objectui#6313).
+ *
+ * ### Why a SECOND RECOGNISER and not an alias in `TOOLCHAIN`
+ *
+ * Both shapes were on the table. The alias — spelling `node-version` as one more
+ * `TOOLCHAIN` name — cannot see the literal that produced the finding, and that is a
+ * measurement rather than a preference. `TOOLCHAIN` feeds the claim regex whose VALUE
+ * pattern is `VERSION`, and `VERSION` deliberately refuses a bare integer: its own
+ * comment records why, that a bare-integer rule reads the coverage table's
+ * `| coerceCell | Vitest | 100% |` as "Vitest 100", and that loosening it flags 37 of
+ * the corpus's 38 hits, most of them prose numbers that are not versions at all. `20` is
+ * a bare integer. Measured on the alias shape: `node-version: '22.x'` matches and
+ * `node-version: 20.11.1` matches, while `node-version: 20` does NOT — so the alias
+ * would have matched the NAME, failed on the VALUE, and left this card's own line
+ * invisible with the gate still green. Buying it back means loosening `VERSION` for
+ * every claim in this file, which is exactly the widening measured and rejected above.
+ *
+ * A second recogniser is entitled to a value pattern of its own, and entitled to it only
+ * inside this shape, because here the KEY declares what the value is. Nothing reads
+ * `node-version: 20` as anything but a version, so the "Vitest 100" ambiguity `VERSION`
+ * exists to refuse does not arise, and a bare integer is admitted for keyed values
+ * alone. `VERSION` itself is untouched. The alias would also have mis-keyed the entry:
+ * the inventory key is the matched TEXT, and an alias hands it whatever `SEP` happened
+ * to consume — the same pathology the `@vitejs` plugin-react entry below records, where
+ * the key is the TAIL of a package name. The keyed recogniser produces the whole shape,
+ * `node-version: 20`, which is what a reader greps for.
+ *
+ * Measured across the widening, over the 241 files the three roots resolve to: 37
+ * matched literals before, 38 after — ONE new, none lost (control, same sweep: the three
+ * `Node 22.x` claims stay matched, and no entry below went stale). The one is in
+ * `content/docs/guide/ci-cd-pipeline.md`, and it is inventoried `anchored` below rather
+ * than repaired, because the sentence carrying it is TRUE: it cites `node-version: 20`
+ * as the value that page's own copied YAML block had fossilised at, and says in the same
+ * breath that every workflow declares 22 instead. Re-measured against
+ * `.github/workflows` at this cut: 28 `node-version` declarations across 23 files, ZERO
+ * of them reading 20, all 28 reading 22 (control, same sweep: 19 `corepack enable`
+ * steps). So the literal is a citation of a REMOVED value, and the claim around it is
+ * one the workflows can adjudicate.
+ *
+ * ### What this does NOT cover, stated so it is not mistaken for covered
+ *
+ *   - The two neighbouring spellings objectui#6409 records, both on that same page and
+ *     both left uncovered ON PURPOSE: `actions/setup-node@v4` and `pnpm/action-setup@v4`.
+ *     They pin an ACTION, not a toolchain floor — what a reader acts on there is which
+ *     action revision to use, which the workflows and the dependabot lanes own and this
+ *     ledger does not. Their obstacle is a different one too: `@`, a separator CHARACTER
+ *     `SEP` does not admit, so they are a `SEP` question and not this one. Both are
+ *     pinned as boundaries in the fixture below, so a later widening that swallows them
+ *     has to say so.
+ *   - Key prefixes that are not `TOOLCHAIN` names. `python-version:`, `java-version:`
+ *     and `go-version:` are the sibling GitHub-Actions keys and they stay out: this
+ *     repository states no version for those runtimes anywhere, so a claim about one
+ *     could not be re-measured against anything here. Measured across the three scan
+ *     roots at this cut: ZERO of the three (control, same sweep: one `node-version:`
+ *     line, on the page named above).
+ *   - The prose spelling with a space rather than a hyphen, `Node version 20`. Same
+ *     obstacle, different shape, and measured at ZERO across the three scan roots
+ *     (control, same sweep: the three `Node 22.x` claims). Recorded as a boundary rather
+ *     than repaired by a widening nothing has asked for — the stance objectui#6307 took
+ *     with underscore emphasis one section above.
+ *
+ * ## What objectui#6400 added: the anchor moved out of the sentence and into a run
+ *
+ * Every section above widened what the SCAN can see. This one changes what an entry may
+ * REST on, and the entry that forced it sat in the strongest class this file has.
+ *
+ * `content/docs/guide/ci-cd-pipeline.md :: Node 22.x` was `anchored`, and its whole reason
+ * read: "Matches the 14 node-version: 22.x declarations across .github/workflows. Verified
+ * true; this page already has its own pin test (ci-cd-pipeline-doc.test.ts)." For an
+ * `anchored` entry carrying no machine-checked field, that sentence IS the anchor - a
+ * reviewer re-runs the command it describes. Both of its halves had gone false, and nothing
+ * in this repository was in a position to notice:
+ *
+ *   - The COUNT. Re-measured at this cut: 28 `node-version` declarations across 23 files in
+ *     `.github/workflows` - twice the 14 the sentence names - and 27 rather than all 28 are
+ *     spelled `'22.x'`, because `half-state-patrol.yml` writes `'22'`, a spelling that
+ *     sentence does not admit at all. (Control, same sweep, same directory: 20 `corepack
+ *     enable` steps across 14 files. A non-zero second reading, so this is not a grep that
+ *     found nothing and was read as agreement.)
+ *   - The PIN TEST. `ci-cd-pipeline-doc.test.ts` contains no `node-version` and no `22`
+ *     whatsoever (control, same file, same sweep: 28 mentions of `ci.yml`). It pins the
+ *     PAGE; it does not pin this LINE. The second half was true of the file it named and
+ *     false of the claim it excused, which is why it read as reassurance for months.
+ *
+ * The CLAIM stayed true throughout - the page says Node 22.x, and CI runs Node 22. What
+ * rotted is the sentence a reader would re-measure it BY, and that sentence is the entire
+ * load an `anchored` entry without a field carries. This class is meant to be the one
+ * immune to exactly this.
+ *
+ * ### Why the repair is a field and not a fresher number
+ *
+ * Correcting 14 to 28 was available and is the wrong move: it reinstalls the same mechanism
+ * with a newer number, and that number moves whenever a lane is added - which happened
+ * twice on the day this was implemented. So `workflowVersionKey` joins `skeletonDep` as the
+ * second way an entry names its anchor and has the comparison RUN rather than re-verified.
+ *
+ * Three entries carry it, not the one the card named, and that is the difference between
+ * building a guard and editing a sentence. `building-crud-app.md` and `quick-start.md`
+ * state the same literal against the same anchor, and both of their counts were stale too -
+ * each said 26 of 27 where the tree holds 27 of 28. Fixing only the entry that was filed
+ * would have left the identical defect one line from its own repair. None of the three
+ * reasons states a declaration count any more; the run takes it.
+ *
+ * ### The `'22'` outlier decided how the comparison works
+ *
+ * The anchor is unanimous on the VERSION and not on the SPELLING, so `majorOf` reduces
+ * every declaration to its major and the comparison happens there. A spelling comparison
+ * has no correct branch available to it: demanding `'22.x'` paints `half-state-patrol.yml`
+ * red for agreeing with every other lane, while accepting whichever spelling the docs
+ * happen to use makes the anchor mean whatever the docs mean.
+ *
+ * Normalising is also what let the reverse-verification be run by moving THAT lane rather
+ * than a convenient one. A derivation admitting only `'22.x'` would have stayed green while
+ * the outlier drifted anywhere at all - a new blind spot, shipped by a card about blind
+ * spots. The fixture below plants both spellings and then a third major, so the red
+ * direction is pinned permanently rather than demonstrated once.
+ *
+ * A value `majorOf` cannot read - a matrix expression, an `lts` alias - is REPORTED rather
+ * than skipped, and the line parser is cross-checked against a counter that knows only the
+ * key, over the same files. A line regex that quietly stops matching some spelling would
+ * otherwise subtract a lane from the anchor and look exactly like a smaller CI.
+ *
+ * ### What it deliberately does NOT cover, and where those went
+ *
+ *   - `ci-cd-pipeline.md :: node-version: 20`, objectui#6409's entry, sits one line above
+ *     and cannot share this field. It CITES a value the workflows do not declare, so its
+ *     sentence is true exactly when this comparison would be false. It stays
+ *     reviewer-checked on purpose - and its `why` already carried no count, the instinct
+ *     this card generalised.
+ *   - The two `pnpm 10.x` entries, whose reasons count `corepack enable` steps. Same class,
+ *     different anchor SOURCE - the root `packageManager` field rather than a workflow key
+ *     - so covering them needs a second derivation, not one more field on this one.
+ *     Measured stale at this cut (17 across 12 stated, 20 across 14 in the tree) and filed
+ *     as objectui#6447.
+ *   - The prose absolute on the page itself: `ci-cd-pipeline.md:1744` says "every workflow
+ *     declares `'22.x'`", which the one `'22'` lane falsifies. That is a claim about
+ *     SPELLING on a doc surface, and this assertion is blind to spelling by construction.
+ *     Filed as objectui#6448.
+ *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
  * The dispatch expected the bare-claim count to be zero, since #3688 and #3698 had just
@@ -172,8 +524,10 @@ import { fileURLToPath } from 'node:url';
  *     and no such peer at all — fixed by objectui#3709.
  *
  * So: scan fences, absorb the samples in the inventory. The residual hole is stated
- * rather than implied — a version literal in a file OUTSIDE the two scan roots is
- * invisible here, exactly as it was before.
+ * rather than implied — a version literal in a file OUTSIDE the three scan roots is
+ * invisible here, exactly as it was before. That hole is not theoretical and the list of
+ * roots is not decorative: `skills` was outside it until objectui#4981, and four fossils
+ * and one thirteen-major misattribution lived there the whole time (see that section).
  *
  * ## The version-heading exemption is deliberately narrow, and here is why
  *
@@ -193,13 +547,22 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * The two surfaces objectui#3697 names. Both are read by humans looking for the
- * version they must install, and both are already walked by `check-doc-links.mjs`
+ * The three surfaces this gate reads.
+ *
+ * The first two are the ones objectui#3697 names. Both are read by humans looking for
+ * the version they must install, and both are already walked by `check-doc-links.mjs`
  * (its `content/docs` and package-README rows — named rather than numbered, since
  * that table has grown twice since) — this gate adds a second question about the
  * same files.
+ *
+ * `skills` is objectui#4981's, and it is NOT a human surface: those 18 files are a
+ * direct input to every agent that scaffolds against this project. It is walked by
+ * `check-skills-paths.mjs`, which judges the PATHS those guides name and reads no
+ * version; `check-doc-links.mjs` has no `skills` row at all. So until this row landed,
+ * every version literal in the agent-facing tree was invisible to every gate in
+ * `scripts/` — see the objectui#4981 section in the header for what the widening found.
  */
-const SCAN_ROOTS = ['content/docs', 'packages/*/README.md'] as const;
+const SCAN_ROOTS = ['content/docs', 'packages/*/README.md', 'skills'] as const;
 
 const UNSCANNED_DIRS = new Set(['node_modules', 'dist', 'build', '.next', '.turbo', '.git']);
 
@@ -275,7 +638,21 @@ const TOOLCHAIN =
  * spelled without the wildcard in the comments here.
  */
 const TICK = '\u0060';
-const SEP = '[' + TICK + '\'"\\s:,|)\\]]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
+const SEP = '[' + TICK + '\'"\\s:,|)\\]*_]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
+
+/**
+ * What may follow a `<toolchain>-version:` key, and the one place a BARE INTEGER counts
+ * as a version literal in this file (objectui#6409).
+ *
+ * `VERSION` refuses `20` on purpose and must go on refusing it: in prose a bare number
+ * next to a name is usually not a version, and the corpus has the coverage table to
+ * prove it. Behind this key the ambiguity is gone — the KEY says the value is a version,
+ * and nothing reads `node-version: 20` as anything else — so the looser value is legal
+ * HERE and nowhere else. Written as a widening of `VERSION` rather than a replacement so
+ * that `'22.x'`, `20.11.1` and `>=20` keep producing the same literal they produce
+ * everywhere else on these surfaces.
+ */
+const KEYED_VERSION_VALUE = '(?:' + VERSION + '|\\d+)';
 
 /**
  * Case-insensitive, and the reason is the biggest single class in the corpus: the
@@ -290,6 +667,18 @@ const CLAIM_RES = [
   // The optional `@scope/` prefix lets a third-party package whose name ends in a
   // toolchain word be read as one claim: `@ai-sdk/react` v3 in plugin-chatbot's README.
   new RegExp('(?:@[a-z0-9-]+/)?\\b' + TOOLCHAIN + '\\b' + SEP + '(' + VERSION + ')(?!\\s*%)', 'gi'),
+  // objectui#6409. The `name-version: N` shape, which no amount of `SEP` reaches: the
+  // word `version` stands between the name and the number and `SEP` is a character
+  // class. See the header for why this is a second recogniser rather than a
+  // `node-version` alias inside `TOOLCHAIN` — the short form is that the alias reuses
+  // `VERSION`, `VERSION` refuses a bare integer on a measurement this file records, and
+  // `node-version: 20` is a bare integer. The optional quote is captured and closed by
+  // backreference so the recorded key is the WHOLE shape (`node-version: '22.x'`) and
+  // not a fragment ending at the opening quote.
+  new RegExp(
+    '\\b' + TOOLCHAIN + '-version\\b\\s*:\\s*([\'"' + TICK + ']?)(' + KEYED_VERSION_VALUE + ')\\1',
+    'gi',
+  ),
 ];
 
 const FENCE_RE = /^(\s*)(`{3,}|~{3,})(.*)$/;
@@ -432,9 +821,17 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  * than folded in silently, because each carries a different repair.
  *
  * `anchored`     - true today AND checkable against a machine-readable truth in this
- *                  tree, so a reviewer can re-verify it in one command.
+ *                  tree. Two fields name that truth and have the comparison RUN here
+ *                  rather than re-verified by a reviewer: `skeletonDep` since
+ *                  objectui#3855 (the in-repo plugin manifests) and `workflowVersionKey`
+ *                  since objectui#6400 (the `.github/workflows` declarations). An entry
+ *                  carrying NEITHER rests on a reviewer re-running the command its `why`
+ *                  describes, which is the arrangement objectui#6400 measured rotted -
+ *                  so prefer a field, and see that card's section in the header for the
+ *                  one neighbouring entry that deliberately still cannot have one.
  * `restatement`  - a README restating its OWN package.json. Formally a subclass of
- *                  `anchored`, kept separate because it is the largest class (13 of 21)
+ *                  `anchored`, kept separate because it is the largest class (14 of the
+ *                  34 entries at the objectui#4981 cut)
  *                  and the one that had already drifted: the two drifted members were
  *                  repaired by objectui#3710 and re-filed here as restatements, and a
  *                  third joined from `stale` when objectui#3690 widened the manifest its
@@ -445,7 +842,14 @@ const keyOf = (c: Pick<Claim, 'file' | 'claim'>): string => `${c.file} :: ${c.cl
  *                  `notAPeerRestatement`.
  * `sample`       - illustrative or template content. NOT an assertion about this
  *                  repository's versions: a changelog a plugin renders as demo data, or
- *                  a package.json skeleton the reader owns after copying it.
+ *                  a range the reader owns after copying it.
+ *
+ *                  Read the header's objectui#3855 section before filing anything here.
+ *                  This class held three majors of real drift for months because "it is
+ *                  a skeleton the reader copies" was accepted for a whole fenced block,
+ *                  when only PART of that block was the reader's to own. A range is a
+ *                  `sample` because nothing in this tree can adjudicate it — not because
+ *                  the lines around it are illustrative.
  * `unanchored`   - a claim about this repository with no checkable anchor anywhere,
  *                  believed true today. The class this gate exists to shrink: nothing
  *                  can tell us when it stops being true.
@@ -476,6 +880,37 @@ interface KnownClaim {
    * coverage by simply not parsing — it goes red until someone writes the sentence.
    */
   notAPeerRestatement?: string;
+  /**
+   * Only legal on an `anchored` entry, and it opts the entry INTO a comparison rather than
+   * out of one (objectui#3855): the dependency name whose range is parsed off the very line
+   * this claim was matched on and compared against the range the in-repo plugin manifests
+   * declare for it. Present means checked; absent means the entry rests on the reviewer.
+   *
+   * The dep name is written out rather than derived from the claim text because the two are
+   * not the same string — the inventory key carries the markdown-normalised match
+   * (`vite": "^8.2.1`), and re-deriving a package name from it would put a second parser in
+   * the path of the assertion for no gain.
+   */
+  skeletonDep?: string;
+  /**
+   * Only legal on an `anchored` entry, and the objectui#6400 counterpart to `skeletonDep`:
+   * the GitHub-Actions key (`node-version`) whose declarations across `.github/workflows`
+   * ARE this claim's anchor, read and compared on every run. Present means checked; absent
+   * means the entry rests on a reviewer re-running the command its `why` describes.
+   *
+   * The field exists because that reviewer arrangement was measured to rot. The entry this
+   * landed on named "the 14 node-version: 22.x declarations across .github/workflows" as
+   * the command to re-run; by the time anyone re-ran it the tree held twice that many, and
+   * one of them was not spelled `22.x` at all. Both halves of the sentence a reader would
+   * re-measure by had gone false while the CLAIM underneath stayed true - the shape this
+   * whole file exists to notice, arriving in the strongest class it has. A count in a
+   * reason string is a measurement frozen at the moment someone typed it and nothing here
+   * re-takes it; naming the KEY moves the count out of the prose and into a run.
+   *
+   * The comparison is on the MAJOR and not the spelling - see `majorOf` for why that is
+   * what lets this field see the one lane that spells the same Node `'22'`.
+   */
+  workflowVersionKey?: string;
 }
 
 /**
@@ -493,28 +928,78 @@ const PEER_RESTATEMENT_OK =
 const KNOWN_CLAIMS: KnownClaim[] = [
   // --- content/docs ------------------------------------------------------------
   {
+    file: 'content/docs/guide/building-crud-app.md',
+    claim: 'Node 22.x',
+    kind: 'anchored',
+    workflowVersionKey: 'node-version',
+    why: "Anchored on the node-version declarations in .github/workflows and ASSERTED against them by the workflow-version assertion below, which re-reads them on every run and demands this page state their major (objectui#6400). Written by objectui#6307, which replaced an invented consumer floor (`**Node.js** 20+`) on this page. The sentence around it states what CI EXERCISES, not what a reader's project requires - no manifest in this tree declares a consumer engines.node, so a floor here would be a number nobody measured. The declaration count this reason used to quote left it in objectui#6400: it had already drifted, and a count no run re-takes is what that card is about.",
+  },
+  {
+    file: 'content/docs/guide/building-crud-app.md',
+    claim: 'pnpm 10.x',
+    kind: 'anchored',
+    why: 'Anchored on the root packageManager field, pnpm@10.31.0: 17 corepack enable steps across 12 workflow files mean the pnpm that installs and builds these packages in CI is the one that field names. Same objectui#6307 rewrite as the Node line above, replacing `**pnpm** 9+` - a floor zero manifests in this workspace declare.',
+  },
+  {
+    file: 'content/docs/guide/ci-cd-pipeline.md',
+    // Newly VISIBLE to the scan in objectui#6409 (the keyed `name-version:` recogniser),
+    // and invisible for the whole life of this gate before it: the word `version` sits
+    // between the toolchain name and the number, and `SEP` is a character class.
+    claim: 'node-version: 20',
+    kind: 'anchored',
+    why: "Not a version this page teaches - the sentence CITES node-version: 20 as the value this page's own copied YAML block had fossilised at, and says in the same breath that every workflow declares 22 instead. Anchored on .github/workflows, where NO node-version declaration reads 20 and every one of them reads 22: the sentence therefore goes false exactly when the workflows move off 22, which is when it should. Deliberately phrased without a declaration COUNT - counts in this ledger's reasons are what objectui#6400 is open about.",
+  },
+  {
     file: 'content/docs/guide/ci-cd-pipeline.md',
     claim: 'Node 22.x',
     kind: 'anchored',
-    why: 'Matches the 14 node-version: 22.x declarations across .github/workflows. Verified true; this page already has its own pin test (ci-cd-pipeline-doc.test.ts).',
+    workflowVersionKey: 'node-version',
+    why: "The Node this repository's CI runs, anchored on the node-version declarations in .github/workflows and ASSERTED against them by the workflow-version assertion below (objectui#6400) rather than restated here. Both halves of the reason this replaces were false by the time anyone read them: it named a declaration count the tree had since doubled, in a spelling one lane does not use, and it credited this page's own pin test with covering the line - ci-cd-pipeline-doc.test.ts contains no node-version and no 22 at all (control, same file: 28 mentions of ci.yml). Nothing re-measured either half, which is the whole reason the count moved into a run.",
   },
   {
     file: 'content/docs/guide/plugins.md',
     claim: 'react": "^18.0.0',
     kind: 'sample',
-    why: 'A package.json skeleton for a plugin author to copy into THEIR repo. Not a statement about versions this repository uses or requires.',
+    why: 'A peerDependencies range in the plugin skeleton: what the copied plugin ACCEPTS from its host, which its author owns and may legitimately widen or narrow. Stays a sample while the two devDependency ranges in the same block became anchored in objectui#3855 - installed-here versus accepted-from-the-host is the distinction, not which fence the line sits in.',
   },
   {
     file: 'content/docs/guide/plugins.md',
-    claim: 'typescript": "^5.0.0',
-    kind: 'sample',
-    why: 'Same skeleton block. Advice a plugin author owns once copied, not a claim this repo can be measured against.',
+    // Reads as a `react` claim and is not one: the scan matches the TAIL of the scoped
+    // package name (`@vitejs/plugin-react`), because `React` is a TOOLCHAIN word and the
+    // `-` before it is a word boundary. The dep this entry is anchored on is the one
+    // `skeletonDep` names, which the assertion parses off the WHOLE line — this entry is
+    // the worked example of why that field is written out rather than derived from the key.
+    claim: 'react": "^6.0.5',
+    kind: 'anchored',
+    skeletonDep: '@vitejs/plugin-react',
+    why: 'The third devDependency of the same in-workspace skeleton, added in objectui#4961 - and added because it was MISSING, not because its range had drifted: step 5 of the same numbered tutorial imports @vitejs/plugin-react in vite.config.ts and calls react() in plugins, while step 6 never declared it, so a reader following 1-6 failed on their first pnpm build with an import of a package they were never told to install. Same shape as the closed objectui#3716 and #3742, which fixed it on the create-plugin generator side while this hand-written page was never walked. Anchored on the same unanimous evidence as its two neighbours: all 19 packages/plugin-<name> manifests declare ^6.0.5.',
   },
   {
     file: 'content/docs/guide/plugins.md',
-    claim: 'vite": "^5.0.0',
-    kind: 'sample',
-    why: 'Same skeleton block; the plugin author picks their own bundler version after copying it.',
+    claim: 'typescript": "^6.0.3',
+    kind: 'anchored',
+    skeletonDep: 'typescript',
+    why: 'A devDependency of the same skeleton, which is an IN-WORKSPACE plugin (workspace:* deps, vite build && tsc --emitDeclarationOnly), so the compiler it builds with is this repo\'s and not the reader\'s. Asserted against the in-repo plugin manifests by the plugin-skeleton assertion below (objectui#3855); it read ^5.0.0, one major behind, while classified as a sample nothing could check.',
+  },
+  {
+    file: 'content/docs/guide/plugins.md',
+    claim: 'vite": "^8.2.1',
+    kind: 'anchored',
+    skeletonDep: 'vite',
+    why: 'Same skeleton, same anchor, same assertion (objectui#3855). This was the worst of the pair: it read ^5.0.0 against a workspace unanimously on ^8.2.1 — three majors — and the entry excusing it said the plugin author picks their own bundler version, which is not what a workspace:* manifest with a vite build script means.',
+  },
+  {
+    file: 'content/docs/guide/quick-start.md',
+    claim: 'Node 22.x',
+    kind: 'anchored',
+    workflowVersionKey: 'node-version',
+    why: 'Same anchor, same assertion and same objectui#6307 rewrite as the building-crud-app.md entry above: the node-version declarations in .github/workflows are re-read and compared on every run (objectui#6400). This page carried the same invented floor in two bullets, `**Node.js** 20+` and `**pnpm** 9+`, and both were invisible to this scan until SEP admitted emphasis markers.',
+  },
+  {
+    file: 'content/docs/guide/quick-start.md',
+    claim: 'pnpm 10.x',
+    kind: 'anchored',
+    why: 'Same anchor as the building-crud-app.md pnpm entry above: the root packageManager field, pnpm@10.31.0, is what corepack hands every CI job that installs this workspace. Written by objectui#6307 in place of `**pnpm** 9+`.',
   },
   {
     file: 'content/docs/guide/theming.md',
@@ -572,6 +1057,80 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     why: 'Names the major of this package own dependencies["@ai-sdk/react"], which is ^4.0.47. Kept rather than deleted because the reader follows it to the streaming protocol docs; re-verify with a one-line read of the manifest.',
     notAPeerRestatement:
       'Restates a dependencies entry, not a peerDependencies range, and restates its MAJOR ("v4" for ^4.0.47) rather than the range verbatim. Both facts put it outside the peer-line assertion, which judges verbatim equality of a peer range and nothing else. Covering it would need a second, weaker rule ("same major"), and one rule that returns two kinds of red is a rule whose failures nobody can read.',
+  },
+
+  // --- skills/objectui (objectui#4981) -----------------------------------------
+  // The agent-facing surface, unscanned until that card. See the header section for
+  // the measurement and for why two of these blocks anchor and one does not.
+  {
+    file: 'skills/objectui/SKILL.md',
+    claim: 'React 18+',
+    kind: 'unanchored',
+    why: 'The Tech Stack floor this file mirrors verbatim from AGENTS.md section 2 ("React 18+ (Hooks), TypeScript 5.0+ (Strict)"). Consistent with the ^18.0.0 || ^19.0.0 peer ranges, but stated repo-wide with no per-package anchor - the same claim, the same class and the same reason as the content/docs/guide/troubleshooting.md entry above.',
+  },
+  {
+    file: 'skills/objectui/SKILL.md',
+    claim: 'TypeScript 5.0',
+    kind: 'unanchored',
+    why: 'The second half of that same mirrored sentence, and a FLOOR ("5.0+") rather than a statement of what this repo builds with - 40 manifests declare typescript ^6.0.3, which satisfies it, and would still satisfy it after another major. Deliberately not "corrected" to 6.0 here: the sentence is copied from AGENTS.md section 2, and editing the skills copy alone would desync the two agent-facing texts. What this gate cannot measure, stated so it is not mistaken for checked: whether 5.0 is still a true floor for a CONSUMER, given the published declarations are emitted by TypeScript 6.',
+  },
+  {
+    file: 'skills/objectui/guides/plugin-development.md',
+    claim: 'react": "^18.0.0',
+    kind: 'sample',
+    why: 'The peerDependencies range of the plugin skeleton on that page: what the copied plugin ACCEPTS from its host, which its author owns and may legitimately widen or narrow. Same line, same class and same reasoning as the content/docs/guide/plugins.md peer entry above - installed-here versus accepted-from-the-host is the distinction, not which fence the line sits in.',
+  },
+  {
+    file: 'skills/objectui/guides/plugin-development.md',
+    // Reads as a `react` claim and is not one, for the same reason the plugins.md
+    // `@vitejs/plugin-react` entry does: `React` is a TOOLCHAIN word and the `-` before it
+    // is a word boundary, so the recorded literal is the TAIL of `lucide-react`.
+    claim: 'react": "^1.31.0',
+    kind: 'anchored',
+    skeletonDep: 'lucide-react',
+    why: 'A runtime dependency of an IN-WORKSPACE plugin skeleton - the block is named @object-ui/plugin-my-widget, takes all four @object-ui dependencies at workspace:* and builds with vite build, so it resolves in this workspace and nowhere else. Anchor measured at the objectui#4981 cut: 16 of the 19 packages/plugin-<name> manifests declare lucide-react and all 16 say ^1.31.0 (23 workspace-wide, unanimous). It read ^0.400.0, which is worse than an ordinary fossil: a 0.x caret cannot cross a minor, so that range resolves inside 0.400.x forever - the trap objectui#3755 removed from create-plugin\'s own dependency map. Recorded fork, not acted on here: #3755 DELETED its lucide entry rather than re-anchoring it, on the rule that this repo declares an icon library only where it imports one, and no code on this page imports one. Deleting the line is the alternative disposition; it would retire this entry with it.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'react": "^19.0.0',
+    kind: 'sample',
+    why: 'The React major the reader\'s own application declares, in a scaffold whose @object-ui/* dependencies are all "latest" - the reader owns it after copying it. Not anchorable even though this repo does state a react range: the repo pins 19.2.8 EXACTLY, for deterministic test resolution, and a page teaching a consumer to pin React to one patch would be bad advice mechanically enforced. Two statements of different kinds, so there is nothing to compare.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: '@tailwindcss/vite": "^4.0.0',
+    kind: 'sample',
+    why: 'Names a package this repository declares in ZERO manifests: it wires Tailwind 4 through @tailwindcss/postcss ^4.3.3 (apps/console and 7 others), not the Vite plugin. The page is internally consistent - its own vite.config.ts example imports @tailwindcss/vite and calls it in plugins, which is the upstream-supported Tailwind 4 integration for a standalone Vite app - so this is the reader\'s toolchain and there is nothing in this tree to adjudicate its range, whatever the page teaches.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'tailwindcss": "^4.0.0',
+    kind: 'sample',
+    why: 'The Tailwind major the reader\'s application installs. A floor the reader owns, and one that already covers the ^4.3.3 the 8 in-repo declarations carry - same major, which is the objectui#3827 criterion for "not a fossil". Anchoring it would demand the page restate this repo\'s patch range for a dependency the reader\'s project, not this workspace, installs.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'typescript": "^6.0.3',
+    kind: 'anchored',
+    skeletonDep: 'typescript',
+    why: 'It read ^5.0.0, one major behind, on the page an agent follows to scaffold a project. Anchored although this block is NOT an in-workspace plugin - it is a standalone app taking published packages at "latest" - because the range being pinned is the one this repository states everywhere: at the objectui#4981 cut, 40 of the 40 manifests that declare typescript say ^6.0.3 (root, apps/console, examples/console-starter and the plugin packages alike), so the plugin set this assertion reads is a strict subset of a repo-wide unanimity. Read the header section for the residual this trades away and what to do if the two sets ever diverge.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    claim: 'vite": "^8.2.1',
+    kind: 'anchored',
+    skeletonDep: 'vite',
+    why: 'Same block, same anchor argument, and the worst of the four: it read ^6.0.0 against a workspace unanimously on ^8.2.1 - two majors - in the devDependencies an agent copies into a user repository. Measured: 29 of 29 declaring manifests, including the root, agree on ^8.2.1.',
+  },
+  {
+    file: 'skills/objectui/guides/project-setup.md',
+    // Same tail-of-the-scoped-name match as the plugins.md entry: the literal reads
+    // `react` and the line declares `@vitejs/plugin-react`, which is what skeletonDep
+    // names and what parseManifestLine reads off the whole line.
+    claim: 'react": "^6.0.5',
+    kind: 'anchored',
+    skeletonDep: '@vitejs/plugin-react',
+    why: 'Same block, same anchor argument. It read ^4.0.0 - two majors - while 27 of 27 declaring manifests, 19 of them packages/plugin-<name>, say ^6.0.5. The page needs the dependency for a reason of its own, independent of this anchor: its vite.config.ts example imports @vitejs/plugin-react and calls react() in plugins, which is the same self-contradiction objectui#4961 repaired on content/docs/guide/plugins.md - here the line existed but named a toolchain generation this repo left behind two majors ago.',
   },
 ];
 
@@ -888,6 +1447,323 @@ for (const block of peerBlocks) {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * The plugin-skeleton anchor (objectui#3855). See the header section.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The in-repo plugin packages: the thing the plugin guide's skeleton IS, and therefore the
+ * anchor its devDependency ranges are read against.
+ *
+ * Scoped to the plugin directories rather than every workspace manifest, because that is
+ * what the skeleton is a skeleton OF. Both spellings were measured at the #3855 cut and
+ * agreed — 19 plugin manifests on `vite` `^8.2.1`, 29 workspace-wide; 16 and 40 on
+ * `typescript` `^6.0.3` — so the narrower one costs no coverage and says something truer
+ * about why the range applies.
+ */
+const PLUGIN_PACKAGE_DIR = /^plugin-[a-z0-9-]+$/;
+
+function pluginPackageDirs(): string[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(path.join(repoRoot, 'packages'), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && PLUGIN_PACKAGE_DIR.test(e.name))
+    .map((e) => e.name)
+    .sort();
+}
+
+const pluginDirs = pluginPackageDirs();
+
+/**
+ * Every range the plugin manifests declare for one dependency, each mapped to the packages
+ * declaring it.
+ *
+ * A Map rather than a single string on purpose: the assertion must be able to tell "the
+ * workspace says X" from "the workspace is mid-bump and says X in twelve places and Y in
+ * seven". Collapsing a split vote to a first-seen winner would let the doc be pinned to
+ * whichever package `readdirSync` happened to return first — an arbitrary choice wearing a
+ * measurement's clothes — and would go red or green depending on directory order.
+ */
+function pluginDeclaredRanges(dep: string): Map<string, string[]> {
+  const byRange = new Map<string, string[]>();
+  for (const dir of pluginDirs) {
+    let raw: string;
+    try {
+      raw = fs.readFileSync(path.join(repoRoot, 'packages', dir, 'package.json'), 'utf8');
+    } catch {
+      continue;
+    }
+    const json = JSON.parse(raw) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const range = json.devDependencies?.[dep] ?? json.dependencies?.[dep];
+    if (range === undefined) continue;
+    const bucket = byRange.get(range);
+    if (bucket === undefined) byRange.set(range, [dir]);
+    else bucket.push(dir);
+  }
+  return byRange;
+}
+
+/**
+ * The dep and range one line of a JSON manifest declares, or null when the line declares
+ * none.
+ *
+ * `RANGE_OPENS` does the same work here it does for peer bullets, and it is just as
+ * load-bearing: the very block this reads contains `"build": "vite build && tsc
+ * --emitDeclarationOnly"` and three `workspace:*` lines, all of which are shaped like a
+ * dependency entry and none of which states a version. Without the guard a future
+ * `skeletonDep` pointed at one of them would compare a build script against a semver range
+ * and go red for a reason that has nothing to do with drift.
+ */
+const MANIFEST_LINE = /^\s*"([^"]+)"\s*:\s*"([^"]+)"\s*,?\s*$/;
+
+function parseManifestLine(line: string): { dep: string; range: string } | null {
+  const match = MANIFEST_LINE.exec(line);
+  if (match === null) return null;
+  if (!RANGE_OPENS.test(match[2])) return null;
+  return { dep: match[1], range: match[2] };
+}
+
+interface SkeletonCheck {
+  entry: KnownClaim;
+  dep: string;
+  /** Lines carrying this entry's literal that read as a declaration OF `dep`. */
+  stated: { line: number; range: string }[];
+  /** The literal is not in the tree — the downward ratchet is its single reporter. */
+  absent: boolean;
+  anchor: Map<string, string[]>;
+}
+
+/**
+ * Resolved through `flaggedClaims` for the same reason the peer checks are: the scan has
+ * already turned each inventory key back into concrete line numbers, and keying off it
+ * keeps "the literal is not in the tree" one fact with one reporter.
+ *
+ * `flatMap` rather than filter-then-map so `skeletonDep` narrows to a string on the way in.
+ * A cast would compile identically and read as if the invariant were assumed rather than
+ * established, which is the opposite of what this file spends its length doing.
+ *
+ * `linesOf` is reused as-is even though its cache was written for READMEs: it resolves any
+ * repo-relative path, and these entries are the first non-README to need it.
+ */
+const skeletonChecks: SkeletonCheck[] = KNOWN_CLAIMS.flatMap((entry) => {
+  const dep = entry.skeletonDep;
+  if (dep === undefined) return [];
+
+  const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
+  const lines = linesOf(entry.file);
+  const stated: { line: number; range: string }[] = [];
+
+  for (const occurrence of occurrences) {
+    const declared = parseManifestLine(lines[occurrence.line - 1] ?? '');
+    if (declared === null || declared.dep !== dep) continue;
+    stated.push({ line: occurrence.line, range: declared.range });
+  }
+
+  return [
+    { entry, dep, stated, absent: occurrences.length === 0, anchor: pluginDeclaredRanges(dep) },
+  ];
+});
+
+/**
+ * The directory that IS this repository's CI, and the anchor source for every
+ * `workflowVersionKey` entry above (objectui#6400).
+ *
+ * Not a scan root and never one: no claim is ever recorded FROM these files. They are read
+ * only as the truth a doc claim is measured against, exactly as `pluginDeclaredRanges`
+ * reads the plugin manifests and for the same reason - the doc sentence restates something
+ * this tree already states machine-readably, so a reviewer should not be the thing that
+ * re-reads it.
+ */
+const WORKFLOWS_DIR = '.github/workflows';
+
+/** One `<key>: <value>` declaration found in one workflow file. */
+interface WorkflowDeclaration {
+  file: string;
+  line: number;
+  /** The value as written, with any surrounding quotes removed: `22.x`, `22`, `20.11.1`. */
+  spelling: string;
+  /** The major that value states, or null when it states none. */
+  major: number | null;
+}
+
+/**
+ * The MAJOR a version value states, or null when it states none.
+ *
+ * Normalising to the major is what lets this assertion see the outlier the sentence it
+ * replaced could not admit. `.github/workflows` spells one Node two ways - most lanes write
+ * `'22.x'` and `half-state-patrol.yml` writes `'22'` - and a comparison on the SPELLING has
+ * no good branch available to it: demanding `'22.x'` paints that lane red for agreeing with
+ * every other lane, while accepting whichever spelling the docs happen to use makes the
+ * anchor mean whatever the docs mean. The major is the fact the doc sentence states; the
+ * spelling is how one YAML file happened to write it, and this is deliberately blind to
+ * that difference.
+ *
+ * Returning null rather than throwing or defaulting is the other half of the same stance. A
+ * value this cannot read - a `matrix` expression, an `lts` alias - is not a value that
+ * AGREES, and the assertion names it instead of dropping it. A parser that silently skips
+ * what it cannot read is how an anchor goes vacuous while every gate stays green, which is
+ * the failure this whole file is made of.
+ */
+function majorOf(value: string): number | null {
+  const match = /^(?:\^|~|>=|<=|>|<|=|v)?\s*(\d+)(?:\.|$)/.exec(value.trim());
+  return match === null ? null : Number(match[1]);
+}
+
+/**
+ * The value one workflow line declares for `key`, or null when the line declares none.
+ *
+ * A LINE parser and not a YAML parse, stated with its cost rather than defended: what is
+ * read is one scalar under a `with:` block, the shape is uniform across every workflow file
+ * in the tree, and a YAML dependency inside a test that guards DOCUMENTATION buys nothing
+ * the census cross-check below does not already buy. A declaration written as a block
+ * scalar, or spread over a flow mapping, would be invisible here - so what this returns is
+ * checked against an independent counter that knows only the KEY, and the two disagreeing
+ * is a red. That cross-check is the guard, not this regex.
+ *
+ * A value it cannot interpret is RETURNED rather than refused, so `majorOf` stays the one
+ * place that decides what is readable and the one place that reports it.
+ */
+function parseWorkflowVersionLine(line: string, key: string): string | null {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp('^\\s*' + escaped + '\\s*:\\s*(.+?)\\s*$').exec(line);
+  if (match === null) return null;
+  const value = match[1].replace(/\s+#.*$/, '').trim();
+  if (value === '') return null;
+  return value.replace(/^(['"])(.*)\1$/, '$2');
+}
+
+/** Every `.yml` / `.yaml` file in a workflow directory, in a stable order. */
+function workflowFiles(dir: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir)
+      .filter((name) => /\.ya?ml$/.test(name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every declaration of `key` across a workflow directory.
+ *
+ * Deliberately UNCACHED. The obvious memo keyed on the directory would be wrong for the
+ * fixture below, which writes a workflow directory, reads it, writes another lane into the
+ * same directory and reads it again to produce the red direction - a cache keyed on a path
+ * whose CONTENTS change inside one test hands back the first answer twice and turns the
+ * red half of a two-direction proof green. Three checks over thirty small files is not a
+ * cost worth that trap.
+ */
+function workflowVersionDeclarations(
+  key: string,
+  dir: string = path.join(repoRoot, WORKFLOWS_DIR),
+): WorkflowDeclaration[] {
+  const found: WorkflowDeclaration[] = [];
+  for (const name of workflowFiles(dir)) {
+    const lines = fs.readFileSync(path.join(dir, name), 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const value = parseWorkflowVersionLine(lines[i], key);
+      if (value === null) continue;
+      found.push({ file: name, line: i + 1, spelling: value, major: majorOf(value) });
+    }
+  }
+  return found;
+}
+
+/**
+ * The same files read by a counter that knows nothing but the KEY - the independent half of
+ * the census cross-check. Should `parseWorkflowVersionLine` ever stop recognising a
+ * spelling that is in the tree, these two lists stop being the same list and the assertion
+ * says so, rather than the anchor quietly shrinking by one lane.
+ */
+function workflowKeyMentions(
+  key: string,
+  dir: string = path.join(repoRoot, WORKFLOWS_DIR),
+): { file: string; line: number }[] {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('(?:^|\\s)' + escaped + '\\s*:');
+  const found: { file: string; line: number }[] = [];
+  for (const name of workflowFiles(dir)) {
+    const lines = fs.readFileSync(path.join(dir, name), 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (re.test(lines[i])) found.push({ file: name, line: i + 1 });
+    }
+  }
+  return found;
+}
+
+/** Spelling to the files declaring it - so a failure message carries the measurement. */
+function spellingCensus(declarations: WorkflowDeclaration[]): string {
+  const bySpelling = new Map<string, string[]>();
+  for (const declaration of declarations) {
+    const bucket = bySpelling.get(declaration.spelling);
+    if (bucket === undefined) bySpelling.set(declaration.spelling, [declaration.file]);
+    else bucket.push(declaration.file);
+  }
+  return [...bySpelling.entries()]
+    .map(
+      ([spelling, files]) =>
+        `${JSON.stringify(spelling)} in ${files.length} (${[...new Set(files)].join(', ')})`,
+    )
+    .join('; ');
+}
+
+/**
+ * The version literal at the END of a matched claim - the number the sentence states.
+ *
+ * The bare-integer arm sits here and nowhere near `VERSION`: this reads a string the scan
+ * has ALREADY decided is a claim, so the "Vitest 100" ambiguity `VERSION` refuses bare
+ * integers to avoid cannot arise by this point.
+ */
+const CLAIM_VERSION_TAIL = new RegExp('(' + VERSION + '|\\d+)[\'"' + TICK + ']?$');
+
+function claimMajor(claim: string): number | null {
+  const match = CLAIM_VERSION_TAIL.exec(claim.trim());
+  return match === null ? null : majorOf(match[1]);
+}
+
+interface WorkflowVersionCheck {
+  entry: KnownClaim;
+  key: string;
+  /** Occurrences of this entry's literal, with the major each one states. */
+  stated: { line: number; literal: string; major: number | null }[];
+  /** The literal is not in the tree - the downward ratchet is its single reporter. */
+  absent: boolean;
+  declarations: WorkflowDeclaration[];
+}
+
+/**
+ * Resolved through `flaggedClaims` for the same reason `skeletonChecks` is: the scan has
+ * already turned each inventory key back into concrete line numbers, so "the literal is not
+ * in the tree" stays one fact with one reporter.
+ */
+const workflowVersionChecks: WorkflowVersionCheck[] = KNOWN_CLAIMS.flatMap((entry) => {
+  const key = entry.workflowVersionKey;
+  if (key === undefined) return [];
+
+  const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
+  return [
+    {
+      entry,
+      key,
+      stated: occurrences.map((occurrence) => ({
+        line: occurrence.line,
+        literal: occurrence.claim,
+        major: claimMajor(occurrence.claim),
+      })),
+      absent: occurrences.length === 0,
+      declarations: workflowVersionDeclarations(key),
+    },
+  ];
+});
+
 describe('doc version claims - the scan itself', () => {
   it('reads a plausible corpus, so a broken scan cannot report green', () => {
     // Every count below is a floor, not the measured value: docs are added and
@@ -902,22 +1778,249 @@ describe('doc version claims - the scan itself', () => {
   });
 
   it('exercises the version-heading exemption, so the exemption is not decorative', () => {
-    // objectui#3697 names two lines as the control group that must stay green:
+    // objectui#3697 named two lines as the control group that must stay green:
     // release-notes.md's `Bump every @object-ui/* dependency to ^3.3.0` upgrade step
-    // and the `| Node.js | >= 18 |` row of the v3.3.0 compatibility matrix. Green by
-    // NOT MATCHING would prove nothing, so the floor asserts the exemption path is
-    // actually taken, and the file assertion names where.
-    expect(
-      exemptClaims.length,
-      'no claim was structurally exempted - either release-notes.md lost its version ' +
-        'sections or VERSION_HEADING stopped matching them, and the exemption this gate ' +
-        'depends on is now untested',
-    ).toBeGreaterThanOrEqual(8);
+    // and the `| Node.js | >= 18 |` row of its v3.3.0 compatibility matrix. Both are
+    // gone: objectui#5786 retired that page's hand-written version table — it had
+    // drifted ~14 majors behind the packages it described and the maintainer ruled it
+    // away in favour of the per-package `CHANGELOG.md` files — and it was the corpus's
+    // ONLY version-heading section. Measured across that change: `exemptClaims` went
+    // from 8 to 0, and this assertion was the one gate that noticed.
+    //
+    // So the control group cannot be a corpus file any more, and a floor over
+    // `exemptClaims.length` would now be a pin demanding that SOME published page keep
+    // carrying release sections — a shape this repository deliberately no longer has.
+    // The exemption is still live code that every corpus claim passes through, so it is
+    // exercised here against a fixture, via `claimsIn`, the same function the corpus
+    // goes through. The fixture keeps the retired compatibility row verbatim and states
+    // the spec range the way that page did (name, then version, within `SEP`'s six
+    // characters — `Bump every @object-ui/* dependency to ^3.3.0` is a sentence, and a
+    // sentence is not a claim: its name and version sit fourteen characters apart). The
+    // assertion is strictly stronger than the one it replaces: BOTH directions are
+    // pinned on one document, which the corpus arrangement never did — there, "green by
+    // NOT MATCHING" was ruled out only for the exempt side.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-'));
+    try {
+      const fixture = path.join(dir, 'release-notes-shaped.md');
+      fs.writeFileSync(
+        fixture,
+        [
+          '# Release Notes',
+          '',
+          'At the time of writing it aligned with `@objectstack/spec` ^4.0.4.',
+          '',
+          '## v3.3.0 — 2026-04-17 · First Official Release',
+          '',
+          '### Compatibility Matrix',
+          '',
+          '| Node.js | >= 18 |',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
 
-    const exemptFiles = new Set(exemptClaims.map((c) => c.file));
-    expect(exemptFiles, 'the v3.3.0 release section must still be reached by the exemption').toContain(
-      'content/docs/guide/release-notes.md',
+      const claims = claimsIn(fixture);
+      const exempt = claims.filter((c) => c.underVersionHeading !== null);
+      const flagged = claims.filter((c) => c.underVersionHeading === null);
+
+      expect(
+        flagged.map((c) => c.claim),
+        'the claim ABOVE the release heading must stay SCANNED - an exemption that ' +
+          'swallowed the whole file would report green over a live claim',
+      ).toEqual([expect.stringContaining('^4.0.4')]);
+
+      expect(
+        exempt.map((c) => c.claim),
+        'the claim under the release heading must be exempt, or the frozen history this ' +
+          'gate refuses to ratchet would start failing it',
+      ).toEqual([expect.stringContaining('>= 18')]);
+
+      // Via an ANCESTOR heading: the matrix row sits under `### Compatibility Matrix`,
+      // not directly under the release heading. That walk is the part of `collect` a
+      // narrower "nearest heading" rule would silently break.
+      expect(exempt[0].underVersionHeading).toBe('v3.3.0 — 2026-04-17 · First Official Release');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reads a claim through markdown emphasis, so the widened separator is not decorative', () => {
+    // objectui#6307. `SEP` admitted backticks, quotes, whitespace, colons, commas,
+    // pipes and brackets — and not `*` — so `**Node.js** 20+` never matched
+    // `TOOLCHAIN + SEP + VERSION`. Both consumer guides spelled their prerequisite
+    // floors that way, four literals across two pages, and this gate reported green
+    // over every one of them: the failure its own header warns about for other
+    // classes, arriving through the scan instead.
+    //
+    // This fixture is the widening's only PERMANENT witness, which is why it is here
+    // rather than left to the corpus. The four literals that motivated the change
+    // were DELETED by the same change (they stated a consumer floor this project
+    // neither declares nor tests, objectui#6307 half 1), and the sentences that
+    // replaced them put a plain space between each name and its version. So on the
+    // corpus alone, reverting `SEP` to its pre-#6307 spelling would change nothing
+    // observable and the blind spot would come back unnoticed.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-emphasis-'));
+    try {
+      const fixture = path.join(dir, 'prerequisites-shaped.md');
+      fs.writeFileSync(
+        fixture,
+        ['# Prerequisites', '', '- **Node.js** 20+', '- *pnpm* 9+ or npm/yarn', ''].join('\n'),
+        'utf8',
+      );
+
+      expect(
+        claimsIn(fixture).map((c) => c.claim),
+        'a toolchain name wrapped in markdown emphasis must still produce a claim',
+      ).toEqual(['Node.js** 20+', 'pnpm* 9+']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+
+    // The two spellings pinned side by side, so that "the widening bought something"
+    // is asserted rather than believed: the pre-#6307 class, rebuilt here, must FAIL
+    // on the same line the current one matches.
+    const claimWith = (sep: string): RegExp =>
+      new RegExp('(?:@[a-z0-9-]+/)?\\b' + TOOLCHAIN + '\\b' + sep + '(' + VERSION + ')', 'i');
+    const SEP_BEFORE_6307 = '[' + TICK + '\'"\\s:,|)\\]]{0,6}(?:[-—]\\s*)?[' + TICK + '\'"]?\\s*';
+
+    expect(claimWith(SEP).test('- **Node.js** 20+'), 'the current SEP must match the bold spelling').toBe(true);
+    expect(
+      claimWith(SEP_BEFORE_6307).test('- **Node.js** 20+'),
+      'the pre-objectui#6307 SEP must be shown NOT to match, or nothing here says what the widening changed',
+    ).toBe(false);
+
+    // The residual, asserted rather than left for someone to assume away: `_` is in
+    // the class (it costs nothing between a name and a version) but underscore
+    // EMPHASIS around the name is still invisible, and no character class can reach
+    // it. `_` is a word character, so `\b` fires on neither side of `_Node.js_` —
+    // the match fails before `SEP` is ever consulted. Measured at this cut across the
+    // three scan roots: ZERO underscore-emphasised toolchain names (control, same
+    // sweep: six files carry the bold spelling), so this is a documented boundary and
+    // not a live hole. A corpus that starts spelling it that way needs the BOUNDARIES
+    // widened, not the class.
+    expect(
+      claimWith(SEP).test('- _Node.js_ 20+'),
+      'if this ever goes true the boundary was changed too - update this comment with what it now covers',
+    ).toBe(false);
+  });
+
+  it('reads a version behind a `name-version:` key, so the second recogniser is not decorative', () => {
+    // objectui#6409. Here the obstacle is a WORD, not a separator character: in
+    // `node-version: 20` the literal `version` stands between the toolchain name and
+    // the number, and `SEP` is a character class — it cannot cross one, and widening it
+    // until it could would weld any name to any nearby number. That spelling is the
+    // canonical one for a Node version in these docs, so the ratchet's promise did not
+    // hold for it and the gate reported green over every instance.
+    //
+    // This fixture is the change's PERMANENT witness, and it is needed for the same
+    // reason objectui#6307's is one section above. The corpus instance is a single line
+    // of PROSE (`ci-cd-pipeline.md`, citing the value a fossilised YAML block had
+    // drifted to), which any docs PR can reword out of existence without knowing it is
+    // load-bearing; objectui#6308 had already deleted the live YAML instance before this
+    // card was written. When the prose goes, reverting this recogniser stops being
+    // observable on the corpus alone and the blind spot returns unnoticed.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-keyed-'));
+    try {
+      const fixture = path.join(dir, 'workflow-shaped.md');
+      fs.writeFileSync(
+        fixture,
+        [
+          '# Setup',
+          '',
+          '```yaml',
+          '- uses: actions/setup-node@v4',
+          '  with:',
+          '    node-version: 20',
+          '```',
+          '',
+          "Pin it with `node-version: '22.x'` the way every workflow here does.",
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      expect(
+        claimsIn(fixture).map((c) => c.claim),
+        'a version behind a `<toolchain>-version:` key must produce a claim, quoted or bare',
+      ).toEqual(['node-version: 20', "node-version: '22.x'"]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+
+    const matches = (res: RegExp[], line: string): boolean =>
+      res.some((re) => {
+        re.lastIndex = 0;
+        const hit = re.test(line);
+        re.lastIndex = 0;
+        return hit;
+      });
+
+    // The two recogniser SETS side by side, so "the second recogniser bought something"
+    // is asserted rather than believed: the pre-#6409 set, rebuilt here, must FAIL on
+    // the same lines the current set matches.
+    const RES_BEFORE_6409 = [
+      new RegExp(FIRST_PARTY + SEP + '(' + VERSION + ')', 'gi'),
+      new RegExp('(?:@[a-z0-9-]+/)?\\b' + TOOLCHAIN + '\\b' + SEP + '(' + VERSION + ')(?!\\s*%)', 'gi'),
+    ];
+    for (const line of ['    node-version: 20', "    node-version: '22.x'", '    node-version: 20.11.1']) {
+      expect(matches(CLAIM_RES, line), `the current recogniser set must match ${line.trim()}`).toBe(true);
+      expect(
+        matches(RES_BEFORE_6409, line),
+        `the pre-objectui#6409 set must be shown NOT to match ${line.trim()}, or nothing here says what the second recogniser changed`,
+      ).toBe(false);
+    }
+
+    // Why a SECOND RECOGNISER and not an alias entry in `TOOLCHAIN`, asserted rather
+    // than argued, because the alias is the obvious simplification and it does not
+    // work: it reuses `VERSION`, and `VERSION` refuses a bare integer on a measurement
+    // this file records. `node-version: 20` — the literal that produced objectui#6409 —
+    // is a bare integer, so the alias matches the NAME and fails on the VALUE.
+    const aliasRe = new RegExp(
+      '(?:@[a-z0-9-]+/)?\\b(?:node-version|' + TOOLCHAIN.slice('(?:'.length) + '\\b' + SEP + '(' + VERSION + ')(?!\\s*%)',
+      'i',
     );
+    expect(
+      aliasRe.test('    node-version: 20'),
+      'the alias shape must be shown to MISS the bare integer, or choosing a second recogniser reads as arbitrary',
+    ).toBe(false);
+    expect(
+      aliasRe.test("    node-version: '22.x'"),
+      'control, same regex: the alias DOES match the dotted spelling — so the miss above is about VERSION refusing a bare integer, not about a pattern that never matched anything',
+    ).toBe(true);
+
+    // The boundaries this recogniser does NOT cross, pinned so a later widening that
+    // swallows them has to say so. Both spellings sit on the same page as the corpus
+    // instance and both were recorded on objectui#6409 as neighbours; neither is a
+    // toolchain FLOOR — they pin an ACTION revision, which the workflows and the
+    // dependabot lanes own. Their obstacle is `@`, a separator CHARACTER, so they are a
+    // `SEP` question and not this one.
+    for (const actionPin of ['- uses: actions/setup-node@v4', '- uses: pnpm/action-setup@v4']) {
+      expect(
+        matches(CLAIM_RES, actionPin),
+        `action pins stay out of this ledger - if this goes true, triage what it surfaced: ${actionPin}`,
+      ).toBe(false);
+    }
+
+    // And the key PREFIX must be a name this repository states a version for. The
+    // sibling GitHub-Actions setup keys name runtimes this tree declares nowhere, so a
+    // claim about one could not be re-measured against anything here. Measured across
+    // the three scan roots at this cut: ZERO of them (control, same sweep: one
+    // `node-version:` line, on `content/docs/guide/ci-cd-pipeline.md`).
+    for (const foreign of ['    python-version: 3.12', '    java-version: 21', '    go-version: 1.23']) {
+      expect(
+        matches(CLAIM_RES, foreign),
+        `a runtime this repository states no version for must not enter the ledger: ${foreign.trim()}`,
+      ).toBe(false);
+    }
+
+    // The prose spelling, same obstacle and a different shape, measured at ZERO across
+    // the three scan roots and therefore recorded rather than repaired — the stance
+    // objectui#6307 took with underscore emphasis. If a doc starts writing it, this
+    // goes true and the recogniser needs the SHAPE widened, not the value pattern.
+    expect(
+      matches(CLAIM_RES, 'Node version 20 is the floor'),
+      'if this ever goes true the shape was widened too - update the header with what it now covers',
+    ).toBe(false);
   });
 
   it('does not treat a numbered section heading as a release section', () => {
@@ -1273,5 +2376,463 @@ describe('doc version claims - the peer-line assertion', () => {
     // block" and "has an empty block" stay distinguishable - the reverse-direction rule
     // above judges the second and deliberately ignores the first.
     expect(peerBlockBullets('packages/plugin-grid/README.md')).toBeNull();
+  });
+});
+
+describe('doc version claims - the plugin-skeleton assertion', () => {
+  it('pins the skeleton toolchain to the range the in-repo plugin packages declare', () => {
+    const failures: string[] = [];
+
+    for (const check of skeletonChecks) {
+      // The downward ratchet already names a literal that left the tree, and reporting it
+      // twice would read as two problems. The coverage floor below is what stops this skip
+      // from becoming the way out.
+      if (check.absent) continue;
+
+      if (check.stated.length === 0) {
+        failures.push(
+          `${check.entry.file} :: the literal ${JSON.stringify(check.entry.claim)} is present, ` +
+            `but no line carrying it reads as a declaration of ${check.dep}, so NOTHING was ` +
+            `compared - point skeletonDep at the dependency the line actually declares, or ` +
+            `drop the field and let the entry rest on a reviewer again`,
+        );
+        continue;
+      }
+
+      if (check.anchor.size === 0) {
+        failures.push(
+          `${check.entry.file} :: skeletonDep names ${check.dep}, which none of the ` +
+            `${pluginDirs.length} in-repo plugin manifests declares - there is no anchor to ` +
+            `read, so this entry cannot be anchored: reclassify it as sample or unanchored`,
+        );
+        continue;
+      }
+
+      if (check.anchor.size > 1) {
+        failures.push(
+          `${check.entry.file} :: the in-repo plugin manifests do not agree on ${check.dep}, ` +
+            `so there is no single range for the docs to state: ` +
+            [...check.anchor.entries()]
+              .map(([range, dirs]) => `${JSON.stringify(range)} in ${dirs.length} (${dirs.join(', ')})`)
+              .join('; ') +
+            ` - finish the bump across the plugin packages first, then update the page`,
+        );
+        continue;
+      }
+
+      const [anchorRange] = [...check.anchor.keys()];
+      for (const stated of check.stated) {
+        if (sameRange(stated.range, anchorRange)) continue;
+        failures.push(
+          `${check.entry.file}:${stated.line}  ${check.dep}: the page teaches ` +
+            `${JSON.stringify(stated.range)}, every in-repo plugin package declares ` +
+            `${JSON.stringify(anchorRange)}`,
+        );
+      }
+    }
+
+    expect(
+      failures,
+      `A package.json skeleton in the docs and this workspace's plugin packages no ` +
+        `longer agree on the toolchain:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nTwo kinds of page reach this assertion, and the fix differs (objectui#4981):\n` +
+        `  - content/docs/guide/plugins.md and skills/objectui/guides/plugin-development.md ` +
+        `teach an IN-WORKSPACE plugin - workspace:* dependencies, a vite build script - so a ` +
+        `reader following either builds with this repo's toolchain, not one they chose. ` +
+        `Update the page to the range measured above.\n` +
+        `  - skills/objectui/guides/project-setup.md teaches a STANDALONE app on published ` +
+        `packages. Its entries are anchored because this repository states exactly one range ` +
+        `for each of those dependencies everywhere, the plugin set being a subset of that ` +
+        `unanimity. If this red says the plugin packages moved somewhere a consumer app ` +
+        `should not follow, that is the case the header names: reclassify those three ` +
+        `entries or give them their own anchor set - do not "fix" the page to a range you ` +
+        `would not recommend.\n\n` +
+        `If the intent has changed and an example should stop naming versions at all, delete ` +
+        `the lines and their entries together: an unpinned example makes no claim and needs ` +
+        `no anchor, which was objectui#3855's documented alternative and the move ` +
+        `objectui#3755 made on the generator side.\n\n` +
+        `Note what this does NOT judge: the same blocks' peerDependencies. A peer range is ` +
+        `what the copied plugin accepts from its host and its author owns it, which is why ` +
+        `those entries stay sample - see the header.`,
+    ).toEqual([]);
+
+    // Vacuity floors. Every branch above is a loop over a list that could be empty, and an
+    // empty list reports success over nothing - the exact failure this file's own history
+    // is made of.
+    expect(
+      pluginDirs.length,
+      'no packages/plugin-<name> directory was found, so the anchor was assembled from ' +
+        'nothing and every comparison above was vacuously green',
+    ).toBeGreaterThanOrEqual(15);
+
+    expect(
+      skeletonChecks.length,
+      'no inventory entry carries skeletonDep - the anchored skeleton entries lost the field ' +
+        'and are back to being recorded rather than checked',
+    ).toBeGreaterThanOrEqual(7);
+
+    expect(
+      skeletonChecks.reduce((n, check) => n + check.stated.length, 0),
+      'the skeleton assertion compared implausibly few lines - the manifest-line parser or ' +
+        'the claim resolution collapsed, and it is now green over nothing',
+    ).toBeGreaterThanOrEqual(7);
+  });
+
+  it('resolves the anchor unanimously, and would notice if it stopped being unanimous', () => {
+    // The premise the assertion rests on, asserted rather than assumed: it is only fair to
+    // pin a doc to "the" range if there is one. Measured at the #3855 cut - 19 plugin
+    // manifests declaring vite ^8.2.1, 16 of them typescript ^6.0.3; re-measured at the
+    // #4961 cut, which added the third name below - 19 of 19 on @vitejs/plugin-react ^6.0.5;
+    // re-measured again at the #4981 cut for the fourth - 16 plugin manifests on
+    // lucide-react ^1.31.0, 23 workspace-wide. That fourth measurement is why the name is
+    // here at all: the card estimated NINE declarers, which would have failed the
+    // ten-declarer floor below, and the entry would have had to be recorded rather than
+    // checked. The floor is doing exactly what it was written for - it decides the class of
+    // an entry from a count, so the count has to be taken rather than quoted.
+    //
+    // Derived from the inventory rather than hardcoded, so a skeletonDep added later is
+    // covered by this premise too instead of resting on the assertion alone. #4961 and
+    // #4981 both needed nothing here beyond joining the list. The names below are then a
+    // floor on that derivation: read from skeletonChecks and it could quietly become an
+    // empty loop, so every dep measured so far must still be in it.
+    const anchoredDeps = [...new Set(skeletonChecks.map((check) => check.dep))];
+    for (const measured of ['vite', 'typescript', '@vitejs/plugin-react', 'lucide-react']) {
+      expect(
+        anchoredDeps,
+        `${measured} lost its skeletonDep entry - either the plugin guide stopped naming it ` +
+          `or the inventory did, and this premise is no longer being checked for it`,
+      ).toContain(measured);
+    }
+
+    for (const dep of anchoredDeps) {
+      const ranges = pluginDeclaredRanges(dep);
+      expect(
+        [...ranges.keys()],
+        `the in-repo plugin packages declare more than one ${dep} range, so the plugin ` +
+          `guide cannot state one - this is a real finding about the workspace, not a test bug`,
+      ).toHaveLength(1);
+      expect(
+        [...ranges.values()][0].length,
+        `implausibly few plugin packages declare ${dep} - the anchor is thinner than the ` +
+          `claim it backs`,
+      ).toBeGreaterThanOrEqual(10);
+    }
+
+    // And a dependency no plugin declares must resolve to nothing rather than to a
+    // coincidence, which is the branch the "no anchor to read" failure above depends on.
+    expect([...pluginDeclaredRanges('webpack').keys()]).toEqual([]);
+  });
+
+  it('reads a manifest dependency line, and refuses the lines beside it', () => {
+    expect(parseManifestLine('    "vite": "^8.2.1"')).toEqual({ dep: 'vite', range: '^8.2.1' });
+    expect(parseManifestLine('    "typescript": "^6.0.3",')).toEqual({
+      dep: 'typescript',
+      range: '^6.0.3',
+    });
+    // A range spelled with a comparator rather than a caret still parses: RANGE_OPENS
+    // admits it, and a doc is free to teach one.
+    expect(parseManifestLine('  "vite": ">=8.2.1",')).toEqual({ dep: 'vite', range: '>=8.2.1' });
+
+    for (const notADeclaration of [
+      // The build script of the very block this parses. Shaped exactly like a dependency
+      // entry, states no version - the line RANGE_OPENS exists to reject.
+      '    "build": "vite build && tsc --emitDeclarationOnly"',
+      // Three of these sit in the same devDependencies object.
+      '    "@object-ui/components": "workspace:*",',
+      // Not a string value at all.
+      '  "files": ["dist"],',
+      '  "exports": {',
+      '  "peerDependencies": {',
+      '```json',
+      '',
+    ]) {
+      expect(
+        parseManifestLine(notADeclaration),
+        `${JSON.stringify(notADeclaration)} declares no version and must not parse as one`,
+      ).toBeNull();
+    }
+  });
+
+  it('lets no skeletonDep sit on a kind the anchor was never meant to judge', () => {
+    // Same closure discipline as notAPeerRestatement, in the opposite direction: that field
+    // must not appear where it would fake coverage, this one must not appear where it would
+    // silently claim a class of anchor the entry does not have. An entry checked against a
+    // machine-readable truth in this tree IS the definition of `anchored`, so a skeletonDep
+    // on a sample or an unanchored entry would be two statements contradicting each other.
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.skeletonDep === undefined) continue;
+      expect(
+        entry.kind,
+        `${keyOf(entry)} carries skeletonDep, so its range IS compared against this tree - ` +
+          `that is what anchored means, and any other kind says the opposite`,
+      ).toBe('anchored');
+    }
+  });
+});
+
+describe('doc version claims - the workflow-version assertion', () => {
+  it('pins every workflow-anchored claim to the version .github/workflows declares', () => {
+    const failures: string[] = [];
+
+    for (const check of workflowVersionChecks) {
+      // The downward ratchet already names a literal that left the tree, and reporting it
+      // twice would read as two problems. The coverage floors below are what stop this
+      // skip from becoming the way out.
+      if (check.absent) continue;
+
+      if (check.declarations.length === 0) {
+        failures.push(
+          `${check.entry.file} :: workflowVersionKey names ${check.key}, which nothing in ` +
+            `${WORKFLOWS_DIR} declares - there is no anchor to read, so this entry cannot ` +
+            `rest on one: point the field at the key the workflows use, or reclassify`,
+        );
+        continue;
+      }
+
+      const unreadable = check.declarations.filter((d) => d.major === null);
+      if (unreadable.length > 0) {
+        failures.push(
+          `${check.entry.file} :: ${unreadable.length} ${check.key} declaration(s) state a ` +
+            `value with no readable major, so this anchor is not unanimous and not split, ` +
+            `it is UNKNOWN: ` +
+            unreadable.map((d) => `${d.file}:${d.line} ${JSON.stringify(d.spelling)}`).join('; '),
+        );
+        continue;
+      }
+
+      const majors = new Set(
+        check.declarations.flatMap((d) => (d.major === null ? [] : [d.major])),
+      );
+      if (majors.size > 1) {
+        failures.push(
+          `${check.entry.file} :: ${WORKFLOWS_DIR} does not agree on ${check.key}, so there ` +
+            `is no single version for the docs to state: ${spellingCensus(check.declarations)}` +
+            ` - finish the bump across the lanes first, then update the page`,
+        );
+        continue;
+      }
+
+      const [anchorMajor] = [...majors];
+      for (const stated of check.stated) {
+        if (stated.major === null) {
+          failures.push(
+            `${check.entry.file}:${stated.line} :: the literal ` +
+              `${JSON.stringify(stated.literal)} states no version this can read, so NOTHING ` +
+              `was compared - fix the key, or drop workflowVersionKey and let the entry rest ` +
+              `on a reviewer again`,
+          );
+          continue;
+        }
+        if (stated.major === anchorMajor) continue;
+        failures.push(
+          `${check.entry.file}:${stated.line}  the page states ` +
+            `${JSON.stringify(stated.literal)} (major ${stated.major}); every ${check.key} ` +
+            `declaration in ${WORKFLOWS_DIR} states major ${anchorMajor} - ` +
+            spellingCensus(check.declarations),
+        );
+      }
+    }
+
+    expect(
+      failures,
+      `A documentation page and this repository's workflows no longer agree on the version ` +
+        `CI runs:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nThese entries state what CI EXERCISES, so the workflows adjudicate and the page ` +
+        `follows - update the page to the major measured above. If instead the workflows ` +
+        `moved somewhere the docs should NOT follow, that is a finding about the workflows ` +
+        `and not about the page.\n\n` +
+        `What this deliberately does NOT judge (objectui#6400):\n` +
+        `  - the SPELLING. '22' and '22.x' are one anchor here - see majorOf for why a ` +
+        `spelling comparison has no correct branch available to it.\n` +
+        `  - the neighbouring content/docs/guide/ci-cd-pipeline.md :: node-version: 20 ` +
+        `entry, which CITES a value the workflows do not declare. Its sentence is true ` +
+        `exactly when this comparison would be false, so it cannot share this field; it ` +
+        `stays reviewer-checked on purpose.`,
+    ).toEqual([]);
+
+    // Vacuity floors. Every branch above loops over a list that could be empty, and an
+    // empty list reports success over nothing - which is the state the entry that motivated
+    // objectui#6400 sat in for months while this file reported green.
+    expect(
+      workflowVersionChecks.reduce((n, check) => n + check.stated.length, 0),
+      'the workflow-version assertion compared no doc lines at all - the claim resolution ' +
+        'collapsed and it is now green over nothing',
+    ).toBeGreaterThanOrEqual(3);
+
+    for (const check of workflowVersionChecks) {
+      expect(
+        check.declarations.length,
+        `implausibly few ${check.key} declarations were read from ${WORKFLOWS_DIR} - the ` +
+          `anchor is thinner than the claims it backs, or the parser stopped reading them`,
+      ).toBeGreaterThanOrEqual(15);
+    }
+  });
+
+  it('reads every declaration the tree contains, so the anchor cannot shrink unnoticed', () => {
+    // The census cross-check. `parseWorkflowVersionLine` is a line regex, and the honest
+    // risk of a line regex is not that it misreads a value - it is that a spelling enters
+    // the tree it does not match at all, which subtracts a lane from the anchor and looks
+    // exactly like a smaller CI. So the parser is measured against a counter that knows
+    // only the key, on the same files, and they must name the same lines.
+    const parsed = workflowVersionDeclarations('node-version');
+    const mentions = workflowKeyMentions('node-version');
+
+    expect(
+      parsed.map((d) => `${d.file}:${d.line}`),
+      'the parser and a counter that knows only the KEY disagree about where node-version ' +
+        'is declared in .github/workflows - a spelling entered the tree that ' +
+        'parseWorkflowVersionLine cannot read, and the anchor lost it silently',
+    ).toEqual(mentions.map((m) => `${m.file}:${m.line}`));
+
+    expect(
+      mentions.length,
+      'control for the agreement above: no node-version line was found in ' +
+        '.github/workflows at all, so two empty lists just agreed with each other',
+    ).toBeGreaterThanOrEqual(15);
+
+    expect(
+      parsed.filter((d) => d.major === null),
+      'a node-version declaration in this tree states a value majorOf cannot read - it is ' +
+        'named here rather than skipped, and the entries anchored on this key are not ' +
+        'checkable until it is resolved',
+    ).toEqual([]);
+  });
+
+  it('treats two spellings as one anchor, and goes red when a lane and a page disagree', () => {
+    // The permanent two-direction witness, and the reason it is a fixture rather than a
+    // corpus reading: a green anchor assertion looks exactly like an assertion that
+    // compared nothing, which is the failure objectui#6400 was filed about. objectui#6307
+    // and objectui#6409 each left one of these behind for the same reason. Here the fixture
+    // is a workflow DIRECTORY, because that is this assertion's input.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-workflows-'));
+    try {
+      const write = (name: string, value: string): void =>
+        fs.writeFileSync(
+          path.join(dir, name),
+          [
+            'jobs:',
+            '  build:',
+            '    steps:',
+            '      - uses: actions/setup-node@v4',
+            '        with:',
+            `          node-version: ${value}`,
+            '',
+          ].join('\n'),
+          'utf8',
+        );
+
+      // Two spellings of one major - the shape half-state-patrol.yml puts in the real tree,
+      // and the shape the replaced sentence ("the 14 node-version: 22.x declarations") could
+      // not describe at all.
+      write('a.yml', "'22.x'");
+      write('b.yml', "'22'");
+      const agreeing = workflowVersionDeclarations('node-version', dir);
+      expect(agreeing.map((d) => d.spelling)).toEqual(['22.x', '22']);
+      expect(
+        [...new Set(agreeing.map((d) => d.major))],
+        "'22' and '22.x' state one major and are therefore one anchor - a spelling " +
+          'comparison would call this a split vote and paint a page red for agreeing with CI',
+      ).toEqual([22]);
+
+      // The RED direction: one lane moves and the page has not followed.
+      write('c.yml', "'24.x'");
+      expect(
+        [...new Set(workflowVersionDeclarations('node-version', dir).map((d) => d.major))].sort(
+          (x, y) => Number(x) - Number(y),
+        ),
+        'a lane declaring a different major must break unanimity - that is the disagreement ' +
+          'the assertion above reports, and if it cannot be produced here then that ' +
+          'assertion cannot go red at all and is prose with extra steps',
+      ).toEqual([22, 24]);
+
+      // And a value nothing can read is REPORTED, not dropped.
+      write('d.yml', '${{ matrix.node }}');
+      expect(
+        workflowVersionDeclarations('node-version', dir)
+          .filter((d) => d.major === null)
+          .map((d) => d.file),
+        'an unreadable value must survive into the declaration list so the assertion can ' +
+          'name it - dropping it would shrink the anchor in silence',
+      ).toEqual(['d.yml']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+
+    // The normalisation itself, at the unit level, including the values it must refuse
+    // rather than guess at.
+    expect(majorOf('22.x')).toBe(22);
+    expect(majorOf('22')).toBe(22);
+    expect(majorOf('20.11.1')).toBe(20);
+    expect(majorOf('>=20')).toBe(20);
+    expect(majorOf('v22')).toBe(22);
+    for (const unreadable of ['lts', 'latest', '${{ matrix.node }}', '22-alpine', '']) {
+      expect(
+        majorOf(unreadable),
+        `${JSON.stringify(unreadable)} states no major and must read as unknown rather than ` +
+          `as a version that happens to agree`,
+      ).toBeNull();
+    }
+
+    // And the doc side of the comparison, which reads the tail of an already-matched claim.
+    expect(claimMajor('Node 22.x')).toBe(22);
+    expect(claimMajor("node-version: '22.x'")).toBe(22);
+    expect(claimMajor('node-version: 20')).toBe(20);
+    expect(claimMajor('pnpm 10.x')).toBe(10);
+  });
+
+  it('reads a workflow version line, and refuses the lines beside it', () => {
+    expect(parseWorkflowVersionLine("          node-version: '22.x'", 'node-version')).toBe('22.x');
+    expect(parseWorkflowVersionLine("          node-version: '22'", 'node-version')).toBe('22');
+    expect(parseWorkflowVersionLine('          node-version: 22.x', 'node-version')).toBe('22.x');
+    expect(parseWorkflowVersionLine('          node-version: "22.x" # pinned', 'node-version')).toBe(
+      '22.x',
+    );
+    // Returned rather than refused: majorOf is the one place that decides readability, and
+    // the assertion needs the value in hand to name it.
+    expect(
+      parseWorkflowVersionLine('          node-version: ${{ matrix.node }}', 'node-version'),
+    ).toBe('${{ matrix.node }}');
+
+    for (const notADeclaration of [
+      // The sibling setup keys, which this ledger stays out of (see the objectui#6409
+      // section in the header).
+      '          python-version: 3.12',
+      '        - uses: actions/setup-node@v4',
+      '          cache: pnpm',
+      // A key that merely STARTS the same way.
+      '          node-versions: 22',
+      // Declares the key and no value.
+      '          node-version:',
+      '',
+    ]) {
+      expect(
+        parseWorkflowVersionLine(notADeclaration, 'node-version'),
+        `${JSON.stringify(notADeclaration)} declares no node-version and must not parse as one`,
+      ).toBeNull();
+    }
+  });
+
+  it('lets no workflowVersionKey sit on a kind the anchor was never meant to judge', () => {
+    // The same closure discipline skeletonDep carries, for the same reason: an entry
+    // compared against a machine-readable truth in this tree IS the definition of
+    // `anchored`, so this field on any other kind would be two statements contradicting
+    // each other.
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.workflowVersionKey === undefined) continue;
+      expect(
+        entry.kind,
+        `${keyOf(entry)} carries workflowVersionKey, so its version IS compared against ` +
+          `this tree - that is what anchored means, and any other kind says the opposite`,
+      ).toBe('anchored');
+    }
+
+    expect(
+      workflowVersionChecks.length,
+      'no inventory entry carries workflowVersionKey - the workflow-anchored entries lost ' +
+        'the field and are back to being recorded rather than checked, which is the state ' +
+        'objectui#6400 found them in',
+    ).toBeGreaterThanOrEqual(3);
   });
 });

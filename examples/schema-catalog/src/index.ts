@@ -163,9 +163,7 @@ import components_feedback_toast_success_toast from './schemas/components-feedba
 import components_feedback_toast_toast_with_action from './schemas/components-feedback-toast/toast-with-action.json' with { type: 'json' };
 import components_feedback_toast_toast_with_undo from './schemas/components-feedback-toast/toast-with-undo.json' with { type: 'json' };
 import components_feedback_toaster_custom_position_limit from './schemas/components-feedback-toaster/custom-position-limit.json' with { type: 'json' };
-import components_feedback_toaster_default_provider from './schemas/components-feedback-toaster/default-provider.json' with { type: 'json' };
 import components_feedback_toaster_default_toaster from './schemas/components-feedback-toaster/default-toaster.json' with { type: 'json' };
-import components_feedback_toaster_sonner_provider from './schemas/components-feedback-toaster/sonner-provider.json' with { type: 'json' };
 import components_feedback_toaster_with_toast_trigger from './schemas/components-feedback-toaster/with-toast-trigger.json' with { type: 'json' };
 import components_form_button_button_sizes from './schemas/components-form-button/button-sizes.json' with { type: 'json' };
 import components_form_button_button_with_icon from './schemas/components-form-button/button-with-icon.json' with { type: 'json' };
@@ -210,7 +208,9 @@ import components_form_file_upload_images_only from './schemas/components-form-f
 import components_form_file_upload_multiple_files from './schemas/components-form-file-upload/multiple-files.json' with { type: 'json' };
 import components_form_file_upload_simple_upload from './schemas/components-form-file-upload/simple-upload.json' with { type: 'json' };
 import components_form_file_upload_single_file from './schemas/components-form-file-upload/single-file.json' with { type: 'json' };
+import components_form_form_basic_form from './schemas/components-form-form/basic-form.json' with { type: 'json' };
 import components_form_form_contact_form from './schemas/components-form-form/contact-form.json' with { type: 'json' };
+import components_form_form_demo_request_form from './schemas/components-form-form/demo-request-form.json' with { type: 'json' };
 import components_form_form_login_form from './schemas/components-form-form/login-form.json' with { type: 'json' };
 import components_form_form_registration_form from './schemas/components-form-form/registration-form.json' with { type: 'json' };
 import components_form_input_basic_input from './schemas/components-form-input/basic-input.json' with { type: 'json' };
@@ -253,6 +253,10 @@ import components_layout_aspect_ratio_square from './schemas/components-layout-a
 import components_layout_aspect_ratio_ultrawide from './schemas/components-layout-aspect-ratio/ultrawide.json' with { type: 'json' };
 import components_layout_aspect_ratio_video_aspect_ratio from './schemas/components-layout-aspect-ratio/video-aspect-ratio.json' with { type: 'json' };
 import components_layout_card_basic_card from './schemas/components-layout-card/basic-card.json' with { type: 'json' };
+import components_layout_card_inventory_table_card from './schemas/components-layout-card/inventory-table-card.json' with { type: 'json' };
+import components_layout_card_profile_detail_card from './schemas/components-layout-card/profile-detail-card.json' with { type: 'json' };
+import components_layout_card_team_roster_card from './schemas/components-layout-card/team-roster-card.json' with { type: 'json' };
+import components_layout_card_user_list_card from './schemas/components-layout-card/user-list-card.json' with { type: 'json' };
 import components_layout_card_with_footer from './schemas/components-layout-card/with-footer.json' with { type: 'json' };
 import components_layout_container_basic_container from './schemas/components-layout-container/basic-container.json' with { type: 'json' };
 import components_layout_flex_horizontal_layout from './schemas/components-layout-flex/horizontal-layout.json' with { type: 'json' };
@@ -381,6 +385,7 @@ import fields_user_single_user_selection from './schemas/fields-user/single-user
 import fields_vector_basic_vector_display from './schemas/fields-vector/basic-vector-display.json' with { type: 'json' };
 import fields_vector_high_dimensional_vector from './schemas/fields-vector/high-dimensional-vector.json' with { type: 'json' };
 import forms_contact_form from './schemas/forms/contact-form.json' with { type: 'json' };
+import forms_create_user_form from './schemas/forms/create-user-form.json' with { type: 'json' };
 import forms_newsletter_signup from './schemas/forms/newsletter-signup.json' with { type: 'json' };
 import forms_payment_form from './schemas/forms/payment-form.json' with { type: 'json' };
 import forms_settings_form from './schemas/forms/settings-form.json' with { type: 'json' };
@@ -409,13 +414,13 @@ import plugin_dashboard_support_dashboard from './schemas/plugin-dashboard/suppo
 import plugin_editor_javascript_editor from './schemas/plugin-editor/javascript-editor.json' with { type: 'json' };
 import plugin_editor_python_editor from './schemas/plugin-editor/python-editor.json' with { type: 'json' };
 import plugin_editor_read_only_json_viewer from './schemas/plugin-editor/read-only-json-viewer.json' with { type: 'json' };
-import plugin_form_basic_form from './schemas/plugin-form/basic-form.json' with { type: 'json' };
-import plugin_form_contact_form from './schemas/plugin-form/contact-form.json' with { type: 'json' };
+import plugin_form_object_form_record from './schemas/plugin-form/object-form-record.json' with { type: 'json' };
+import plugin_form_object_form_tabbed_sections from './schemas/plugin-form/object-form-tabbed-sections.json' with { type: 'json' };
 import plugin_gantt_construction_project_phases from './schemas/plugin-gantt/construction-project-phases.json' with { type: 'json' };
 import plugin_gantt_project_timeline_with_dependencies from './schemas/plugin-gantt/project-timeline-with-dependencies.json' with { type: 'json' };
 import plugin_gantt_sprint_development_timeline from './schemas/plugin-gantt/sprint-development-timeline.json' with { type: 'json' };
-import plugin_grid_product_inventory_grid from './schemas/plugin-grid/product-inventory-grid.json' with { type: 'json' };
-import plugin_grid_team_members_grid from './schemas/plugin-grid/team-members-grid.json' with { type: 'json' };
+import plugin_grid_object_grid_columns from './schemas/plugin-grid/object-grid-columns.json' with { type: 'json' };
+import plugin_grid_object_grid_selection_summaries from './schemas/plugin-grid/object-grid-selection-summaries.json' with { type: 'json' };
 import plugin_kanban_advanced_kanban_with_badges_and_limits from './schemas/plugin-kanban/advanced-kanban-with-badges-and-limits.json' with { type: 'json' };
 import plugin_kanban_basic_kanban_board from './schemas/plugin-kanban/basic-kanban-board.json' with { type: 'json' };
 import plugin_map_event_venue_finder from './schemas/plugin-map/event-venue-finder.json' with { type: 'json' };
@@ -427,9 +432,9 @@ import plugin_markdown_markdown_tables from './schemas/plugin-markdown/markdown-
 import plugin_timeline_gantt_style_timeline from './schemas/plugin-timeline/gantt-style-timeline.json' with { type: 'json' };
 import plugin_timeline_horizontal_timeline from './schemas/plugin-timeline/horizontal-timeline.json' with { type: 'json' };
 import plugin_timeline_vertical_timeline from './schemas/plugin-timeline/vertical-timeline.json' with { type: 'json' };
-import plugin_view_detail_view_mode from './schemas/plugin-view/detail-view-mode.json' with { type: 'json' };
-import plugin_view_form_view_mode from './schemas/plugin-view/form-view-mode.json' with { type: 'json' };
-import plugin_view_grid_view_mode from './schemas/plugin-view/grid-view-mode.json' with { type: 'json' };
+import plugin_view_object_view_list from './schemas/plugin-view/object-view-list.json' with { type: 'json' };
+import plugin_view_object_view_named_views from './schemas/plugin-view/object-view-named-views.json' with { type: 'json' };
+import plugin_view_object_view_record_surface from './schemas/plugin-view/object-view-record-surface.json' with { type: 'json' };
 import report_report_breakdown_table from './schemas/report/report-breakdown-table.json' with { type: 'json' };
 import report_report_header_with_kpis from './schemas/report/report-header-with-kpis.json' with { type: 'json' };
 import report_report_scheduling from './schemas/report/report-scheduling.json' with { type: 'json' };
@@ -1651,9 +1656,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/promise-based-toast': {
     id: 'components-feedback-sonner/promise-based-toast',
     meta: {
-      title: "Promise Based Toast",
-      description: "",
+      title: "Custom Trigger Button",
+      description: "A success toast whose trigger button is styled through buttonVariant.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "button"],
     },
     schema: components_feedback_sonner_promise_based_toast,
   },
@@ -1669,9 +1675,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/toast-with-action': {
     id: 'components-feedback-sonner/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Message With Description",
+      description: "A sonner toast carrying both a message and a secondary description line.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "description"],
     },
     schema: components_feedback_sonner_toast_with_action,
   },
@@ -1759,9 +1766,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/destructive': {
     id: 'components-feedback-toast/destructive',
     meta: {
-      title: "Destructive",
-      description: "",
+      title: "Error Variant",
+      description: "The 'error' toast variant. 'destructive' is a button variant, not a toast variant.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "error"],
     },
     schema: components_feedback_toast_destructive,
   },
@@ -1786,18 +1794,20 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/toast-with-action': {
     id: 'components-feedback-toast/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Info Variant",
+      description: "The 'info' toast variant, used here for an update notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "info"],
     },
     schema: components_feedback_toast_toast_with_action,
   },
   'components-feedback-toast/toast-with-undo': {
     id: 'components-feedback-toast/toast-with-undo',
     meta: {
-      title: "Toast With Undo",
-      description: "",
+      title: "Warning Variant",
+      description: "The 'warning' toast variant, used here for a deletion notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "warning"],
     },
     schema: components_feedback_toast_toast_with_undo,
   },
@@ -1810,15 +1820,6 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_feedback_toaster_custom_position_limit,
   },
-  'components-feedback-toaster/default-provider': {
-    id: 'components-feedback-toaster/default-provider',
-    meta: {
-      title: "Default Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_default_provider,
-  },
   'components-feedback-toaster/default-toaster': {
     id: 'components-feedback-toaster/default-toaster',
     meta: {
@@ -1827,15 +1828,6 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-feedback-toaster',
     },
     schema: components_feedback_toaster_default_toaster,
-  },
-  'components-feedback-toaster/sonner-provider': {
-    id: 'components-feedback-toaster/sonner-provider',
-    meta: {
-      title: "Sonner Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_sonner_provider,
   },
   'components-feedback-toaster/with-toast-trigger': {
     id: 'components-feedback-toaster/with-toast-trigger',
@@ -2233,6 +2225,16 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_form_file_upload_single_file,
   },
+  'components-form-form/basic-form': {
+    id: 'components-form-form/basic-form',
+    meta: {
+      title: "Basic Form",
+      description: "A hand-built `form` node from `@object-ui/components`: name, email, country and newsletter fields declared inline, with no object behind them. For a form generated from an object's own metadata, see the `plugin-form` examples.",
+      category: 'components-form-form',
+      tags: ["form", "input", "select", "checkbox"],
+    },
+    schema: components_form_form_basic_form,
+  },
   'components-form-form/contact-form': {
     id: 'components-form-form/contact-form',
     meta: {
@@ -2241,6 +2243,16 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-form-form',
     },
     schema: components_form_form_contact_form,
+  },
+  'components-form-form/demo-request-form': {
+    id: 'components-form-form/demo-request-form',
+    meta: {
+      title: "Demo Request Form",
+      description: "A longer hand-built `form`: company details, industry and size selects, a message textarea and a terms checkbox, all declared inline. For a form bound to an object, see the `plugin-form` examples.",
+      category: 'components-form-form',
+      tags: ["form", "select", "textarea", "checkbox"],
+    },
+    schema: components_form_form_demo_request_form,
   },
   'components-form-form/login-form': {
     id: 'components-form-form/login-form',
@@ -2619,6 +2631,46 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-layout-card',
     },
     schema: components_layout_card_basic_card,
+  },
+  'components-layout-card/inventory-table-card': {
+    id: 'components-layout-card/inventory-table-card',
+    meta: {
+      title: "Inventory Table Card",
+      description: "A card that draws a product inventory table by hand — toolbar buttons, header row, stock-status badges. For a table bound to an object, see the `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "table", "badge", "layout"],
+    },
+    schema: components_layout_card_inventory_table_card,
+  },
+  'components-layout-card/profile-detail-card': {
+    id: 'components-layout-card/profile-detail-card',
+    meta: {
+      title: "Profile Detail Card",
+      description: "A card that draws one record by hand — avatar header, label/value rows, edit and delete footer. For a record surface bound to an object, see the `plugin-view` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "detail", "profile", "avatar"],
+    },
+    schema: components_layout_card_profile_detail_card,
+  },
+  'components-layout-card/team-roster-card': {
+    id: 'components-layout-card/team-roster-card',
+    meta: {
+      title: "Team Roster Card",
+      description: "A card that draws a team roster table by hand — invite action, header row, presence badges. For a table bound to an object, see the `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "table", "badge", "roster"],
+    },
+    schema: components_layout_card_team_roster_card,
+  },
+  'components-layout-card/user-list-card': {
+    id: 'components-layout-card/user-list-card',
+    meta: {
+      title: "User List Card",
+      description: "A card that draws a directory table by hand — header row, striped rows, status badges. For a table bound to an object, see the `plugin-view` / `plugin-grid` examples.",
+      category: 'components-layout-card',
+      tags: ["card", "list", "badge", "layout"],
+    },
+    schema: components_layout_card_user_list_card,
   },
   'components-layout-card/with-footer': {
     id: 'components-layout-card/with-footer',
@@ -3772,6 +3824,16 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: forms_contact_form,
   },
+  'forms/create-user-form': {
+    id: 'forms/create-user-form',
+    meta: {
+      title: "Create User Form",
+      description: "Two-column name fields, email, role select and a submit/cancel footer.",
+      category: 'forms',
+      tags: ["form", "create", "select", "grid"],
+    },
+    schema: forms_create_user_form,
+  },
   'forms/newsletter-signup': {
     id: 'forms/newsletter-signup',
     meta: {
@@ -4024,23 +4086,25 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_editor_read_only_json_viewer,
   },
-  'plugin-form/basic-form': {
-    id: 'plugin-form/basic-form',
+  'plugin-form/object-form-record': {
+    id: 'plugin-form/object-form-record',
     meta: {
-      title: "Basic Form",
-      description: "",
+      title: "Object Form — One Record From Object Metadata",
+      description: "object-form editing one `users` record: the fields come from the object's own metadata through `getObjectSchema`, the values from `findOne`, and `fields` / `columns` decide which of them appear and how wide the grid is.",
       category: 'plugin-form',
+      tags: ["object-form", "objectql", "edit", "columns"],
     },
-    schema: plugin_form_basic_form,
+    schema: plugin_form_object_form_record,
   },
-  'plugin-form/contact-form': {
-    id: 'plugin-form/contact-form',
+  'plugin-form/object-form-tabbed-sections': {
+    id: 'plugin-form/object-form-tabbed-sections',
     meta: {
-      title: "Contact Form",
-      description: "",
+      title: "Object Form — Sections as Tabs",
+      description: "The same record with `formType: 'tabbed'`: the declared `sections` become tab panels of ONE form, so a single submit spans them and a tab the user leaves keeps its values.",
       category: 'plugin-form',
+      tags: ["object-form", "tabbed", "sections", "objectql"],
     },
-    schema: plugin_form_contact_form,
+    schema: plugin_form_object_form_tabbed_sections,
   },
   'plugin-gantt/construction-project-phases': {
     id: 'plugin-gantt/construction-project-phases',
@@ -4069,23 +4133,25 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_gantt_sprint_development_timeline,
   },
-  'plugin-grid/product-inventory-grid': {
-    id: 'plugin-grid/product-inventory-grid',
+  'plugin-grid/object-grid-columns': {
+    id: 'plugin-grid/object-grid-columns',
     meta: {
-      title: "Product Inventory Grid",
-      description: "",
+      title: "Object Grid — Column Definitions",
+      description: "object-grid rendering the users object: `ListColumn` objects carrying label, width, align, cell `type` and `link`, with `sort`, `searchableFields` and `pagination` shaping the query the host's data source answers.",
       category: 'plugin-grid',
+      tags: ["object-grid", "columns", "sort", "objectql"],
     },
-    schema: plugin_grid_product_inventory_grid,
+    schema: plugin_grid_object_grid_columns,
   },
-  'plugin-grid/team-members-grid': {
-    id: 'plugin-grid/team-members-grid',
+  'plugin-grid/object-grid-selection-summaries': {
+    id: 'plugin-grid/object-grid-selection-summaries',
     meta: {
-      title: "Team Members Grid",
-      description: "",
+      title: "Object Grid — Selection, Row Actions and Summaries",
+      description: "The same object with multi-row `selection`, named `rowActions` / `bulkActions`, and per-column footer `summary` roll-ups computed over the rows the data source returns.",
       category: 'plugin-grid',
+      tags: ["object-grid", "selection", "rowActions", "summary"],
     },
-    schema: plugin_grid_team_members_grid,
+    schema: plugin_grid_object_grid_selection_summaries,
   },
   'plugin-kanban/advanced-kanban-with-badges-and-limits': {
     id: 'plugin-kanban/advanced-kanban-with-badges-and-limits',
@@ -4186,32 +4252,35 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: plugin_timeline_vertical_timeline,
   },
-  'plugin-view/detail-view-mode': {
-    id: 'plugin-view/detail-view-mode',
+  'plugin-view/object-view-list': {
+    id: 'plugin-view/object-view-list',
     meta: {
-      title: "Detail View Mode",
-      description: "",
+      title: "Object View — List Surface",
+      description: "object-view rendering the users object: the columns declared in `table`, with search and sort served by the host's data source.",
       category: 'plugin-view',
+      tags: ["object-view", "grid", "list", "objectql"],
     },
-    schema: plugin_view_detail_view_mode,
+    schema: plugin_view_object_view_list,
   },
-  'plugin-view/form-view-mode': {
-    id: 'plugin-view/form-view-mode',
+  'plugin-view/object-view-named-views': {
+    id: 'plugin-view/object-view-named-views',
     meta: {
-      title: "Form View Mode",
-      description: "",
+      title: "Object View — Saved Views",
+      description: "Two `listViews` entries over one object, each with its own label and column set; `defaultListView` picks which opens first.",
       category: 'plugin-view',
+      tags: ["object-view", "listViews", "tabs", "objectql"],
     },
-    schema: plugin_view_form_view_mode,
+    schema: plugin_view_object_view_named_views,
   },
-  'plugin-view/grid-view-mode': {
-    id: 'plugin-view/grid-view-mode',
+  'plugin-view/object-view-record-surface': {
+    id: 'plugin-view/object-view-record-surface',
     meta: {
-      title: "Grid View Mode",
-      description: "",
+      title: "Object View — Record Surface",
+      description: "Create, read and edit as one surface: `layout` decides where it opens, `form` decides what it contains, and a row click chooses the record.",
       category: 'plugin-view',
+      tags: ["object-view", "form", "drawer", "crud"],
     },
-    schema: plugin_view_grid_view_mode,
+    schema: plugin_view_object_view_record_surface,
   },
   'report/report-breakdown-table': {
     id: 'report/report-breakdown-table',

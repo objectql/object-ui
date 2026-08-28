@@ -44,11 +44,32 @@ describe('ObjectSettingsPanel — record sharing (OWD)', () => {
     ).toBeTruthy();
   });
 
-  it('explains that an unset sharing model defaults to private (ADR-0090 D1)', () => {
+  /**
+   * REPLACED, not re-spelled (objectui#5418). This case used to assert the
+   * panel told the author an unset model "defaults to Private" and left it
+   * there — true about the RUNTIME (ADR-0090 D1 fail-closed) and misleading
+   * about the only question being asked at this control, which is whether the
+   * object can ship. It cannot: the publish door refuses an object that
+   * declares no OWD (`security-owd-unset`). The old assertion passed for as
+   * long as the console reassured the author about a state that blocked them.
+   */
+  it('warns that an unset sharing model is REFUSED at publish, not merely defaulted', () => {
     renderPanel(baseDraft);
-    expect(
-      screen.getByText(/defaults to Private \(ADR-0090\)/i),
-    ).toBeTruthy();
+    const desc = screen.getByTestId('owd-internal-desc');
+    expect(desc.textContent).toMatch(/refused/i);
+    expect(desc.textContent).toMatch(/security-owd-unset/);
+    // The runtime fallback is still stated — it is what makes `private` the
+    // safe pick — but as context, not as an all-clear.
+    expect(desc.textContent).toMatch(/Private/);
+    // Styled as a problem, exactly like the D11 external-wider warning.
+    expect(desc.className).toMatch(/amber/);
+  });
+
+  it('drops the warning styling once a baseline is authored', () => {
+    renderPanel({ ...baseDraft, sharingModel: 'private' });
+    const desc = screen.getByTestId('owd-internal-desc');
+    expect(desc.className).not.toMatch(/amber/);
+    expect(desc.textContent).not.toMatch(/refused/i);
   });
 
   it('patches sharingModel when a model is picked', () => {

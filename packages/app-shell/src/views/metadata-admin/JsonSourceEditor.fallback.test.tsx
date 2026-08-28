@@ -10,10 +10,14 @@ import { render, screen } from '@testing-library/react';
 
 // Monaco "loads" (loader.init resolves) but renders nothing, so the DOM-poll
 // backstop — not the loader fast-fail path — is what must engage here.
-vi.mock('@monaco-editor/react', () => ({
-  default: () => null,
-  loader: { init: () => Promise.resolve({}) },
-}));
+//
+// `Editor` and `default` are ONE declaration in the real package, and the
+// component under test imports the NAMED one (objectui#5440), so the stub is
+// bound to both names rather than to `default` alone.
+vi.mock('@monaco-editor/react', () => {
+  const Editor = () => null;
+  return { Editor, default: Editor, loader: { init: () => Promise.resolve({}) } };
+});
 
 import { JsonSourceEditor } from './JsonSourceEditor';
 

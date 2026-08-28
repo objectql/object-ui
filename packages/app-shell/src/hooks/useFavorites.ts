@@ -11,4 +11,4 @@
  * @module
  */
 
-export { useFavorites, type FavoriteItem } from '../context/FavoritesProvider';
+export { useFavorites, type FavoriteItem } from '../context/FavoritesProvider.js';

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
 import {
   cn,
   Button,
@@ -18,12 +18,51 @@ import {
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
 import { resolveFieldRuleState } from '@object-ui/core';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { LookupField } from './LookupField';
-import { FileCell } from './FileField';
-import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue';
+import { LookupField } from './LookupField.js';
+import { FileCell } from './FileField.js';
+import { toDateInputValue, toDateTimeInputValue, fromDateTimeInputValue } from './nativeDateValue.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
+ *
+ * ## Where the host's label and help text land, and why (objectui#4857)
+ *
+ * This widget forwarded nothing a host handed it, so the field's visible label
+ * pointed `for` at an id no element carried and the help text had zero
+ * consumers. Measured on `origin/main` at `e71c854ce`, a real form, editable
+ * state, `description` set:
+ *
+ * ```
+ * bare (no columns)   for=DANGLING hostIdEl=NONE consumers=0  focusables=[button]
+ * columns + one row   for=DANGLING hostIdEl=NONE consumers=0  focusables=[drag,
+ *                       input(Item), input(Qty), button(Duplicate row),
+ *                       button(Remove row), input(Item), input(Qty), button(Add)]
+ * ```
+ *
+ * The bare row's single focusable is the auxiliary "Add line" BUTTON — labelable,
+ * but routing the host id (and so the label's `for`) onto it would make the
+ * field's label NAME the add-row action and make a click on the label insert a
+ * row. Every realistic config is a composite: many cell inputs, each with its
+ * own `aria-label`, under one container. So this widget declares
+ * `labelling: 'group'` (see `FIELD_WIDGET_LABELLING` in `../index`) — the
+ * objectui#3961 composite shape, like `address` — and the CONTAINER consumes the
+ * host's keys:
+ *
+ *  - editable / list mode: the root div takes the DOM pass-through minus `name`
+ *    (DOM-legal on form controls only — the objectui#3291 leak) and minus
+ *    `aria-invalid` (control-channel state; this grid reports validity per CELL,
+ *    with its own inline marks), answering `role="group"` only when a host
+ *    actually named it — `CheckboxesField`'s split, key for key.
+ *
+ *    That strip STANDS (objectui#3318 upheld it rather than overturning it):
+ *    the container is not a control, so the host's state is not re-routed onto
+ *    it. What #3318 added is the other half the strip implied but nobody had
+ *    built — the host's failure now DRIVES the per-cell channel this comment
+ *    already claimed as the reporting path. See `hostFailedEmpty`.
+ *  - readonly: the table replaces the inputs entirely, so that surface takes the
+ *    name AND the description via `toHostGroupProps` — `'instead-of-the-inputs'`.
  *
  * A controlled component: `value` is an array of row objects, `onChange`
  * receives the next array. It renders one editable cell per configured
@@ -383,6 +422,7 @@ export function GridField({
   readonly,
   disabled,
   className,
+  error,
   onRowExpand,
   displayMode,
   onAdd,
@@ -660,7 +700,14 @@ export function GridField({
   // ── Read-only / view rendering ────────────────────────────────────────────
   if (readonly) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div
+        // No input of the field's own renders here, so this surface is the only
+        // candidate for the host's name AND description (objectui#4857; the
+        // objectui#3990/#4005 route). Standalone rendering hands down none of
+        // the keys, so nothing is emitted and the markup is unchanged.
+        {...toHostGroupProps(props, 'instead-of-the-inputs')}
+        className={cn('space-y-2', className)}
+      >
         {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
         <div className="border border-border rounded-lg overflow-x-auto" data-testid="line-items-readonly">
         <table className="w-full text-sm">
@@ -761,9 +808,42 @@ export function GridField({
   const hasGhost = !isList && allowAdd && (maxRows == null || rows.length < maxRows);
   const displayRows: Row[] = hasGhost ? [...rows, blankRow()] : rows;
 
+  /**
+   * FORM-level failure driving the per-CELL channel (objectui#3318).
+   *
+   * This widget reports validity per cell, and the container deliberately does
+   * NOT take the host's `aria-invalid` (objectui#4857 — it is control-channel
+   * state and the container is not a control). That left one real gap: a
+   * REQUIRED grid submitted while still EMPTY fails at the form level, renders
+   * its "is required" message, and marked nothing — every row was a ghost, and
+   * ghosts were skipped, so assistive tech was told nothing at all. A sighted
+   * user saw the red message; a screen-reader user saw no field state.
+   *
+   * So when the host reports a failure on an empty grid, the ghost row — the
+   * entry line the user would actually type into to fix it — stops being
+   * skipped and its required cells flag like any other. Deliberately narrow:
+   * a POPULATED grid already marks its own empty required cells inline, so
+   * this changes nothing there, and an empty grid that has NOT failed stays
+   * unmarked (no premature alarm before validation runs).
+   */
+  const hostFailedEmpty = !!error && rows.length === 0;
+
   /** Cell content: read-only display (list mode / computed columns) or an
-   *  editable borderless control (spreadsheet feel). */
-  const renderCellInput = (c: GridColumn, colIdx: number, rowIdx: number, row: Row) => {
+   *  editable borderless control (spreadsheet feel).
+   *
+   *  `invalid` is the cell's validity, and it lands on the CONTROL this
+   *  renders — the focusable element a keyboard user edits and the only one
+   *  assistive tech reads a control state from (objectui#3318). The read-only
+   *  branches below ignore it: list-mode and computed cells cannot be invalid
+   *  (the caller's `invalid` is false for both), and a text span is exactly
+   *  the wrapper the sweep forbids marking. */
+  const renderCellInput = (
+    c: GridColumn,
+    colIdx: number,
+    rowIdx: number,
+    row: Row,
+    invalid = false,
+  ) => {
     const val = row?.[c.name];
     // A readonlyWhen-TRUE cell is locked: treat like the form-wide `disabled`.
     const locked = disabled || cellRules(c, row).readonly;
@@ -802,6 +882,9 @@ export function GridField({
           compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={locked}
+          // The published `error` slot, not a hand-rolled attribute: LookupField
+          // already puts `aria-invalid` on its own focusable trigger from it.
+          error={invalid ? `${c.label || c.name} is required` : undefined}
         />
       );
     }
@@ -817,13 +900,22 @@ export function GridField({
           disabled={locked}
           aria-label={c.label || c.name}
           data-cell={`${rowIdx}-${colIdx}`}
+          // The published `error` slot, not a hand-rolled attribute — same
+          // wiring as the lookup branch above: FileCell puts `aria-invalid` on
+          // its own focusable picker button from it (objectui#5431, closing
+          // the one cell type #3318 left out).
+          error={invalid ? `${c.label || c.name} is required` : undefined}
         />
       );
     }
     if (c.type === 'select') {
       return (
         <Select value={val != null ? String(val) : ''} onValueChange={(v) => setCell(rowIdx, c, v)} disabled={locked}>
-          <SelectTrigger className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60" aria-label={c.label || c.name}>
+          <SelectTrigger
+            className="h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus:ring-1 focus:ring-ring/60"
+            aria-label={c.label || c.name}
+            aria-invalid={invalid || undefined}
+          >
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -841,6 +933,7 @@ export function GridField({
         )}
         <Input
           data-cell={`${rowIdx}-${colIdx}`}
+          aria-invalid={invalid || undefined}
           onKeyDown={(e) => onCellKeyDown(e, rowIdx, colIdx)}
           className={cn(
             'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
@@ -887,8 +980,28 @@ export function GridField({
     );
   };
 
+  // DOM pass-through (objectui#4857): the container carries the form renderer's
+  // id / aria-labelledby / aria-describedby, but NOT its `name` (DOM-legal on
+  // form controls only — the objectui#3291 leak) and NOT its `aria-invalid`
+  // (control-channel state; this grid reports validity per CELL with its own
+  // inline marks). `CheckboxesField`'s split, key for key.
+  const {
+    'aria-invalid': _hostAriaInvalid,
+    name: _domName,
+    ...groupDomProps
+  } = toDomProps(props);
+  // The container answers `role="group"` only when a host actually NAMED it by
+  // IDREF (objectui#3961) — standalone rendering (a bare SDUI node) hands down
+  // no `aria-labelledby`, emits no role, and keeps its markup unchanged.
+  const isLabelledGroup = groupDomProps['aria-labelledby'] != null;
+
   return (
-    <div className={cn('space-y-2', className)} data-testid="line-items">
+    <div
+      {...groupDomProps}
+      role={isLabelledGroup ? 'group' : undefined}
+      className={cn('space-y-2', className)}
+      data-testid="line-items"
+    >
       {columnChooser && <div className="flex justify-end">{columnChooser}</div>}
       <div className="border border-border rounded-lg overflow-x-auto">
         <table ref={gridRef} className="w-full text-sm">
@@ -963,15 +1076,30 @@ export function GridField({
                     )}
                     {columns.map((c, colIdx) => {
                       // Inline validation: a required, non-computed cell that's
-                      // empty on a real (non-ghost) row flags red in place. The
-                      // "required" verdict honors a column's `requiredWhen` CEL
-                      // rule (B2), evaluated against the row + parent header.
+                      // empty flags red in place. The "required" verdict honors
+                      // a column's `requiredWhen` CEL rule (B2), evaluated
+                      // against the row + parent header.
+                      //
+                      // The ghost row joins in only when the FORM said this
+                      // grid failed while empty (objectui#3318) — see
+                      // `hostFailedEmpty`.
                       const required = cellRules(c, row).required;
-                      const invalid = !isGhost && !isList && required && !c.computed && (row[c.name] == null || row[c.name] === '');
+                      const invalid =
+                        (!isGhost || hostFailedEmpty) &&
+                        !isList &&
+                        required &&
+                        !c.computed &&
+                        (row[c.name] == null || row[c.name] === '');
                       return (
                         <td
                           key={c.name}
-                          aria-invalid={invalid || undefined}
+                          // NOTE: `aria-invalid` belongs on the cell's CONTROL,
+                          // not here. A `td` is not focusable, and assistive
+                          // tech reads a control's validity from the control —
+                          // marking the wrapper is the move the registry sweep
+                          // exists to forbid (objectui#3318 / #5223). The td
+                          // keeps the VISUAL ring and the test hook; the state
+                          // travels with `invalid` into `renderCellInput`.
                           title={invalid ? `${c.label || c.name} is required` : undefined}
                           data-testid={invalid ? `line-items-invalid-${rowIdx}-${c.name}` : undefined}
                           className={cn(
@@ -980,7 +1108,7 @@ export function GridField({
                             invalid && 'bg-destructive/5 ring-1 ring-inset ring-destructive/50',
                           )}
                         >
-                          {renderCellInput(c, colIdx, rowIdx, row)}
+                          {renderCellInput(c, colIdx, rowIdx, row, invalid)}
                         </td>
                       );
                     })}

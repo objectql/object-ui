@@ -18,16 +18,16 @@
 import * as React from 'react';
 import { Loader2, Pencil, X, Check } from 'lucide-react';
 import type { DashboardWidgetSchema } from '@object-ui/types';
-import { useAdapter } from '../../../providers/AdapterProvider';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
-import { uniqueId, appendArray } from '../inspectors/_shared';
-import { t as tr } from '../i18n';
+import { useAdapter } from '../../../providers/AdapterProvider.js';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell.js';
+import { uniqueId, appendArray } from '../inspectors/_shared.js';
+import { t as tr } from '../i18n.js';
 // The spec's own `I18nLabel` resolver, aliased so it is never confused with
 // objectui's same-named translation-KEY resolver in `app-shell/src/utils`.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
-import { AddWidgetPicker } from './AddWidgetPicker';
-import { WIDGET_TYPE_META } from './widget-types';
+import { AddWidgetPicker } from './AddWidgetPicker.js';
+import { WIDGET_TYPE_META } from './widget-types.js';
 
 const DashboardRenderer = React.lazy(() =>
   import('@object-ui/plugin-dashboard').then((m) => ({ default: m.DashboardRenderer })),

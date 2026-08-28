@@ -48,9 +48,9 @@ Then configure the required files (see "Essential configuration files" below).
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^6.0.0",
-    "@vitejs/plugin-react": "^4.0.0"
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "@vitejs/plugin-react": "^6.0.5"
   }
 }
 ```
@@ -309,9 +309,11 @@ Note that tests are scoped by a **path filter from the repo root**, not by
 root: the root-level `unit`/`dom`/`dom-heavy` projects declare their `include` globs
 relative to that root and match nothing, while the `apps/console` project — brought in
 by absolute path — still resolves. The run then executes console's 22 files, reports
-`Test Files 22 passed (22)`, and never touches the package you asked for. A guard in
-`vitest.config.mts` rejects those invocations with a non-zero exit and prints the
-correct form:
+`Test Files 22 passed (22)`, and never touches the package you asked for. A guard rejects
+those invocations with a non-zero exit and prints the correct form. It is wired into
+`vitest.config.mts` and into each standalone per-package config
+(`packages/plugin-grid/vitest.config.ts` and its ten siblings), since Vitest loads
+whichever config sits in the directory it was launched from (objectui#5406):
 
 ```
 vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)

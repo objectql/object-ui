@@ -22,7 +22,7 @@
  * - ViewSwitcher for toggling between view types
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type {
   ObjectViewSchema,
   ObjectGridSchema,
@@ -32,6 +32,7 @@ import type {
   ViewType,
   NamedListView,
   ViewNavigationConfig,
+  ObjectMapConfig,
 } from '@object-ui/types';
 import { ObjectGrid } from '@object-ui/plugin-grid';
 import { ObjectForm } from '@object-ui/plugin-form';
@@ -56,15 +57,103 @@ import {
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { useObjectTranslation, createSafeTranslation } from '@object-ui/i18n';
-import { buildExpandFields, normalizeListViewSchema, mergeFilterNodes } from '@object-ui/core';
+import {
+  buildExpandFields,
+  normalizeListViewSchema,
+  mergeFilterNodes,
+  columnIdentity,
+  convertSortToQueryParams,
+} from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
+import { useStableIdentity } from './stableIdentity';
 
 /**
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
  */
 const SchemaRendererComponent: React.FC<any> = ImportedSchemaRenderer;
+
+/**
+ * The `case 'map'` branch below builds an `object-map` schema by flattening
+ * `viewOptions.map`'s CONTENTS to the top level. Whitelisted to these keys —
+ * `ObjectMapConfigSchema`'s shape minus `style` — rather than the whole bag:
+ * `style` is ALSO `BaseSchema.style` (inline CSS, legal on every node), and
+ * spreading the raw `map` block collapsed the two namespaces onto one key
+ * (objectui#5177).
+ *
+ * HAND-LISTED, not derived at runtime — deliberately, and only here (`plugin-
+ * map`'s own `FLAT_MAP_CONFIG_KEYS` in `ObjectMap.tsx` DOES derive from
+ * `ObjectMapConfigSchema.shape`, and should stay that way): this file is
+ * reachable from `examples/console-starter`'s own `src/`, so it is part of the
+ * import graph `vite-alias-closure.test.ts` walks. That walker resolves a bare
+ * `@object-ui/*` specifier with plain `index.<ext>` conventions and cannot find
+ * `@object-ui/types/zod`'s actual barrel file (`zod/index.zod.ts` — a
+ * non-standard name) — a REAL runtime import of it here reproducibly fails
+ * that gate (measured on objectui#5177's first PR, PR #5231, CI run
+ * 32160288416), even though Vite's own alias table already resolves the
+ * specifier correctly (`examples/console-starter/vite.config.ts` has carried
+ * an explicit `@object-ui/types/zod` entry since PR #5156). `ObjectMap.tsx`
+ * gets away with the runtime import only because nothing in
+ * console-starter's graph reaches `@object-ui/plugin-map` today.
+ *
+ * Anti-drift is a TEST, not this comment: `ObjectView.mapFlatten.test.tsx`
+ * pins this exact list against `ObjectMapConfigSchema.shape` — imported only
+ * from that TEST file, which the alias-closure walker explicitly excludes
+ * from traversal — so a key added to or removed from the declaration still
+ * fails here, loudly and by name, without reintroducing the runtime edge that
+ * breaks the walker.
+ */
+export const FLAT_MAP_CONFIG_KEYS = [
+  'latitudeField',
+  'longitudeField',
+  'locationField',
+  'titleField',
+  'descriptionField',
+  'zoom',
+  'center',
+] as const satisfies readonly (keyof Omit<ObjectMapConfig, 'style'>)[];
+
+/** Pick only the declared flat map keys present on an authored `map` block. */
+function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
+  if (!mapConfig || typeof mapConfig !== 'object') return {};
+  const source = mapConfig as Record<string, unknown>;
+  return Object.fromEntries(FLAT_MAP_CONFIG_KEYS.filter((key) => key in source).map((key) => [key, source[key]]));
+}
+
+/**
+ * `table.columns` as a FIELD-NAME list — the shape the non-grid field slot
+ * declares (objectui#5269).
+ *
+ * `ObjectGridSchema.columns` is `string[] | ListColumn[]`, but the slot the
+ * non-grid branch forwards into is a names slot: both segments ahead of the
+ * `table` one declare `string[]` (`NamedListView.columns`, the `views` prop),
+ * and its consumers treat every entry as a field name — `ObjectKanban` indexes
+ * the record by it (`resolveKanbanCardFields` casts straight to `string[]`).
+ * Handing a `ListColumn[]` down raw would therefore arrive as a non-empty card
+ * field list naming nothing, which renders WORSE than the empty one this card
+ * fixes: `ObjectKanban` skips its `highlightFields` fallback whenever the list
+ * is non-empty. That is the objectui#5270 failure again — a value forwarded
+ * into a slot whose declared shape it does not have — and it is answered the
+ * same way, at the boundary.
+ *
+ * `columnIdentity` is the repo's single converged reader for "which field does
+ * this column entry name" (objectui#3104), and it is what `ObjectGrid` already
+ * applies to the SAME `table.columns` value on the grid path (its `$select`
+ * derivation) and what `ObjectTree` applies downstream. So this narrows a
+ * declared union to the branch this slot can hold; it does not widen the set
+ * of accepted spellings, and it keeps the two paths resolving one value the
+ * same way.
+ *
+ * `undefined` — never `[]` — when nothing resolves, so the `||` chain falls
+ * through to the deprecated `table.fields` instead of stopping on a truthy
+ * empty array.
+ */
+function tableColumnFieldNames(columns: unknown): string[] | undefined {
+  if (!Array.isArray(columns) || columns.length === 0) return undefined;
+  const names = columns.map(columnIdentity).filter((n): n is string => !!n);
+  return names.length > 0 ? names : undefined;
+}
 
 /**
  * Record-create verb, shared with the runtime object pages: both surfaces
@@ -154,13 +243,36 @@ export interface ObjectViewProps {
    * Views available for the ViewSwitcher.
    * Each view defines a type (grid, kanban, calendar, etc.) and display columns/config.
    * If not provided, uses schema.listViews or falls back to default grid view.
+   *
+   * `sort` spells its direction key `order`, like every other sort surface in
+   * the repo (`SortConfig`, `NamedListView.sort`, `ObjectGridSchema.sort` /
+   * `.defaultSort`) and like the shared sink `convertSortToQueryParams` reads
+   * it. It used to be declared as `direction` (objectui#5293), which NO
+   * consumer of THIS prop ever read: all three consumers of the resolved
+   * `activeView.sort` read `order`, so a host writing `direction: 'desc'` got a
+   * SILENTLY ascending list — the sink's `entry.order === 'desc'` is false for
+   * a missing key, the grid built the wire string `name undefined`, and
+   * `parseSchemaSort` drew an ascending arrow above it. The rename does not
+   * remove a working feature; it converts that silent wrong answer into a loud
+   * type error.
+   *
+   * The claim is scoped to those three consumers on purpose. The published
+   * `toSortItems` export elsewhere in this package used to fold
+   * `s.order || s.direction` for the studio inspector-draft — a different
+   * surface, unreachable from this prop, which is why it was not retired with
+   * this rename. It has since been retired on its own card (objectui#6011), so
+   * `order` is now the only sort spelling this package reads on either surface.
+   *
+   * ⛔ Deliberately NOT a tolerant dual-read (`direction ?? order`) — that is
+   * the tolerance layer objectui#4869 ruled against, and re-adding it here
+   * would restore the very spelling drift this declaration now closes.
    */
   views?: Array<{
     id: string;
     label: string;
     type: ViewType;
     columns?: string[];
-    sort?: Array<{ field: string; direction: 'asc' | 'desc' }>;
+    sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
     filter?: any[];
     [key: string]: any;
   }>;
@@ -229,6 +341,213 @@ export interface ObjectViewProps {
 }
 
 type FormMode = 'create' | 'edit' | 'view';
+
+/**
+ * HOST-COMPOSITION SURFACE on the `object-view` node — the keys the
+ * `renderListView` delegation branch reads off the node that are deliberately
+ * NOT declared members of `ObjectViewSchema`, and ⛔ not to be taught as
+ * schema keys anywhere in the docs (objectui#5097).
+ *
+ * ## The verdict
+ *
+ * The delegation branch in `renderContent` below reads 31 distinct keys off
+ * the object-view node through `(schema as any).K` and forwards them to the
+ * host's list renderer. Four of them — `data`, `navigation`,
+ * `searchableFields`, `filterableFields`, listed in
+ * {@link OBJECT_VIEW_DECLARED_FORWARDED_KEYS} — are declared members of
+ * `ObjectViewSchema`. The other 27, listed here, are not, and stay that way:
+ * they are HOST-COMPOSITION surface, not authored surface. This constant is
+ * their single home; the branch is fenced by `#region` markers so the pin in
+ * `src/__tests__/objectViewHostSurface.test.tsx` fails BY NAME when a read is
+ * added or removed without touching this list.
+ *
+ * ## The ruling that made it deliberate
+ *
+ * Maintainer, 2026-08-18, on objectui#5097, verbatim 「同意」: the 27 keys are
+ * HOST surface, exempted with reasons — not authored surface. Basis: measured
+ * reachability. The delegation branch is entered ONLY when a host passes the
+ * `renderListView` prop; the registered renderer does not pass it; so the
+ * schema-registration path documented to authors cannot reach these keys at
+ * all, and declaring them on `ObjectViewSchema` would promise authors a
+ * surface that does nothing on their path.
+ *
+ * ⛔ Do not declare these on `ObjectViewSchema`, and ⛔ do not delete a read as
+ * a tidy-up — deleting a read is what silently blanks a stored app-shell
+ * document, and it is exactly what a reader of "not authored surface" is most
+ * likely to think is the clean finish. The structural follow-through (typing
+ * this block as an explicit host-side prop contract, so host surface and
+ * authored surface are separated in types, and retiring the `(schema as any)`
+ * reads) is owned by the objectui#5043 family track, not by this exemption.
+ *
+ * ## Who supplies the prop — what makes "host surface" checkable
+ *
+ * Every in-tree non-test supplier lives in `@object-ui/app-shell`, and there
+ * are TWO of them. Re-measured on `main` at `e03dfa5ea`; both were already
+ * present at the ruling's base `9fbb9b52f`, which named only the first:
+ *
+ *   - `packages/app-shell/src/views/ObjectView.tsx:1718` — the React host
+ *     defines the callback; it is passed at `:2481` and `:2524`.
+ *   - `packages/app-shell/src/views/studio-design/StudioDesignSurface.tsx:2575`
+ *     — the Studio design surface, as `renderListView={renderStudioGridList}`.
+ *
+ * The registered renderer is `ObjectViewRenderer` (`./index.tsx:58`), which
+ * renders `ObjectView` with `schema` and `dataSource` only and passes no
+ * `renderListView`. It is registered twice — under `object-view`
+ * (`./index.tsx:66`) and under the alias `view` (`./index.tsx:100`) — and
+ * neither registration can reach this branch.
+ *
+ * ## What the contract says about these keys
+ *
+ * Nothing at all, and that is the shape of the answer here — unlike the
+ * sibling `object-grid` exemption (objectui#5091, PR #5241), where the spec
+ * answered `unrecognized_keys` by name. `@objectstack/spec`'s
+ * `ComponentPropsMap` carries no `object-view` entry, so the repo-wide
+ * `registry-inputs-spec-parity` gate — which derives its expectations FROM
+ * `ComponentPropsMap` — never covers this node in either direction and is owed
+ * nothing here. The node's published authoring surface is the registry
+ * `inputs` list at `./index.tsx:71-86` (15 names; the alias `view` declares no
+ * `inputs` at all), and none of the 27 appears on either registration.
+ *
+ * ## The one asymmetry — `conditionalFormatting` — RESOLVED (objectui#5248)
+ *
+ * As ruled on 2026-08-18, 26 of the 27 were read ONLY inside the host-only
+ * branch, and `conditionalFormatting` had a SECOND read site in
+ * `generateViewSchema`'s kanban branch — reachable through the REGISTERED
+ * renderer, so for that one key the ruling's "the authored path cannot reach
+ * it" basis was narrower than for its 26 neighbours. objectui#5097 recorded the
+ * gap rather than acting on it and filed the contract question as
+ * objectui#5248.
+ *
+ * That question is now answered, and the gap is closed. Maintainer ruling of
+ * 2026-08-19 (verbatim 「全部接受」, recorded on objectui#5248): a conditional —
+ * Option 2 gated on a liveness check, Option 1 (declare the key) had the check
+ * found real authored usage. The liveness check came back EMPTY:
+ *
+ *   - objectui `content/docs/**`, `skills/**`, `examples/**`, `apps/**`:
+ *     `conditionalFormatting` occurs in exactly two files, on `object-grid`
+ *     (`content/docs/plugins/plugin-grid.mdx`) and on `list-view`
+ *     (`skills/objectui/guides/schema-expressions.md`) — both DECLARED homes,
+ *     neither an object-view node.
+ *   - objectstack: no authored `object-view` node exists at all (two prose
+ *     mentions repo-wide), against 54 files carrying `object-form` and 19
+ *     carrying `object-grid` as the control.
+ *   - No in-repo fixture or catalog schema carries both an object-view node and
+ *     the key: the only files carrying both are this one, its pin test, the
+ *     type declarations, app-shell's host (which reads the key into the
+ *     delegated `list-view` node, not onto the object-view node) and prose.
+ *
+ * So the fallback read was dropped from the kanban branch (see
+ * `kanbanConditionalFormatting`). Every one of the 27 is now read ONLY inside
+ * the `#region` fence, and the exemption's stated basis holds for all of them
+ * without exception. The pin in `objectViewHostSurface.test.tsx` asserts the
+ * resolution directly: ZERO exempt keys are read outside the fence.
+ */
+export const OBJECT_VIEW_HOST_COMPOSITION_KEYS = [
+  'addDeleteRecordsInline',
+  'addRecord',
+  'addRecordViaForm',
+  'allowExport',
+  'allowPrinting',
+  'aria',
+  'bulkActions',
+  'clickIntoRecordDetails',
+  'collapseAllByDefault',
+  'color',
+  'compactToolbar',
+  'conditionalFormatting',
+  'emptyState',
+  'fieldTextColor',
+  'hiddenFields',
+  'inlineEdit',
+  'pagination',
+  'prefixField',
+  'resizable',
+  'rowActionDefs',
+  'rowActions',
+  'selection',
+  'sharing',
+  'showDescription',
+  'showRecordCount',
+  'userFilters',
+  'wrapHeaders',
+] as const;
+
+/**
+ * The other four keys the same branch reads through `(schema as any)`: these
+ * ARE declared members of `ObjectViewSchema` (`data` via `BaseSchema`), so
+ * they are authored surface and are NOT part of the objectui#5097 exemption.
+ * They are listed so the pin can assert the split, not just the exempt half —
+ * a read that moves from this list into the one above is a key losing its
+ * declaration, and must fail loudly.
+ */
+export const OBJECT_VIEW_DECLARED_FORWARDED_KEYS = [
+  'data',
+  'filterableFields',
+  'navigation',
+  'searchableFields',
+] as const;
+
+/**
+ * HOST-COMPOSITION VIEW TYPES on the `object-view` node — the two
+ * `generateViewSchema` branches an author cannot select, deliberately NOT
+ * added to the authored view-type unions, and ⛔ not to be taught as
+ * authorable `defaultViewType` / `NamedListView.type` values anywhere in the
+ * docs (objectui#5321).
+ *
+ * ## The verdict
+ *
+ * `generateViewSchema` below switches on eight view types. The type an AUTHOR
+ * uses to select one admits six of them: `ObjectViewSchema.defaultViewType`
+ * and `NamedListView.type` (both `@object-ui/types`) are the same seven-value
+ * union `'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' |
+ * 'map'`, and neither spells `tree` or `chart`. The one segment that can is
+ * the `views` PROP on this component, which is typed `ViewType` — and
+ * `ViewType` carries both. So `currentViewType` is `tree` or `chart` only when
+ * a HOST composes `ObjectView` with a `views` prop; from authored metadata
+ * those two branches are unreachable, including the tree branch's own
+ * `viewOptions.tree.*` config surface and the ADR-0021 dataset-bound chart
+ * shape.
+ *
+ * ## The ruling that made it deliberate
+ *
+ * Maintainer, 2026-08-20, on objectui#5321, verbatim 「其他接受你的建议。」:
+ * option B — `tree` and `chart` are RECORDED as host-composition-only
+ * surfaces, following the objectui#5097 precedent above, rather than added to
+ * the authored unions. Declaring two more authored members is a permanent
+ * authoring-surface obligation with no measured pull; the exemption gets
+ * revisited the day a real metadata-authoring need for tree or chart views
+ * arrives.
+ *
+ * ## Host-only is not dead — the path is live
+ *
+ * Measured, not assumed: `@object-ui/app-shell`'s console passes stored view
+ * records to this component as `views`, and its `CreateViewDialog` offers
+ * `tree` and `chart` among the nine types a console user can create. That is
+ * the path these branches serve, and it is why the icon map beside them is
+ * total over `ViewType` rather than over the authored union.
+ *
+ * ## What holds the record honest
+ *
+ * The exemption is a claim about REACHABILITY, so both halves are pinned:
+ *
+ *   - `src/__tests__/objectViewHostSurface.test.tsx` — the record. The branch
+ *     set is re-derived from the `#region` fence around the switch below, so a
+ *     ninth branch (or a deleted one) fails BY NAME instead of quietly
+ *     changing what this list describes; and type-level pins fail
+ *     `pnpm type-check` the day either authored union grows a `tree` or
+ *     `chart` member, because that is the day this record goes stale.
+ *   - `src/__tests__/ObjectView.hostOnlyViewTypes.test.tsx` — the basis,
+ *     measured: a host `views` prop still reaches both branches. An exemption
+ *     whose reachability stops being proved is a record about nothing.
+ *
+ * ⛔ Do not "finish" this by deleting the branches as unreachable code. They
+ * are unreachable from AUTHORED metadata only; host composition is a supported
+ * path with a live consumer.
+ */
+export const OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES = [
+  'chart',
+  'tree',
+] as const;
 
 /**
  * ObjectView Component
@@ -300,12 +619,34 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Declared with the other top-level hooks so it stays above every conditional
   // return — rules-of-hooks.
   const { t: tView } = useObjectViewTranslation();
-  const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
-  // Assigned in the render body (not in an effect) so the fetchData effect always
-  // reads the latest objectSchema without needing it as a dependency. This matches
-  // the same pattern used in ObjectCalendar's objectSchemaRef.
-  const objectSchemaRef = useRef<Record<string, unknown> | null>(null);
-  objectSchemaRef.current = objectSchema;
+  // The object-schema read and the fact that it has SETTLED are ONE piece of
+  // state, keyed by the object it belongs to (objectui#6419). This replaces a
+  // `useState` + a render-body `objectSchemaRef.current = objectSchema` write,
+  // which existed so the non-grid fetch effect below could read the schema
+  // without listing it as a dependency. That bought the effect one run per
+  // mount — and paid for it with the expansion, permanently: on that one run
+  // the ref was still `null`, so `buildExpandFields` saw no fields and the
+  // query went out with no `$expand` at all, for every non-grid view this
+  // component hosts.
+  //
+  // Two separate states (`def` + `hasSettled`) could disagree for one commit —
+  // long enough for the record query to fire against the previous object's
+  // expand set — and a bare `objectSchema` cannot express "settled with
+  // nothing", which is a legitimate outcome (an adapter with no
+  // `getObjectSchema`, or a read that threw). `key` is compared against the
+  // CURRENT object name during render, so switching objects closes the gate in
+  // the same commit that changes it, not one commit later.
+  const [schemaResolution, setSchemaResolution] =
+    useState<{ key: string; def: Record<string, unknown> | null } | null>(null);
+  const schemaKey = schema.objectName ?? '';
+  /**
+   * Has the object schema for THIS object finished resolving? Note what this is
+   * NOT: "`objectSchema` is truthy". A view whose adapter exposes no
+   * `getObjectSchema`, or whose schema read failed, must still fetch its rows —
+   * gating on a truthy schema would leave those views empty forever.
+   */
+  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
+  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
@@ -379,6 +720,44 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const currentActiveViewId = activeViewId || viewsPropResolved?.[0]?.id;
   const activeView = viewsPropResolved?.find(v => v.id === currentActiveViewId) || viewsPropResolved?.[0];
 
+  /**
+   * ⭐ objectui#6460 — everything the NON-GRID FETCH EFFECT below needs from the
+   * active view, as ONE reference that only changes when one of those values
+   * changes.
+   *
+   * `activeView` is an ELEMENT of the `views` prop array, so a host that builds
+   * that array inline (`views={[{ id: 'cal', type: 'calendar', label: … }]}` —
+   * how this component's own docs write it) hands over a fresh object every
+   * time it renders. Listing `activeView` itself made the fetch effect re-run
+   * once per PARENT render: measured 4 `find` calls where a hoisted array gives
+   * 1, and because `ObjectView` passes `data={data}` down, each of those also
+   * re-delivered a fresh row array to the child view.
+   *
+   * ⚠️ The three members are not interchangeable with "whatever the effect
+   * touches", and objectui#6460's own body got this wrong — it said the effect
+   * reads `filter` and `type`. Measured in the effect body, it reads `filter`
+   * and **`sort`** (`type` reaches it only via `currentViewType`, its own
+   * dependency). Dropping `sort` would stop a host that changes only a view's
+   * sort from ever re-querying — a worse defect than the churn, and invisible
+   * to any test written from that sentence.
+   *
+   * `id` is carried deliberately even though the effect does not read it: it is
+   * the host's own answer to "which view is active", it is a string and so
+   * cannot churn, and pinning it keeps switching views observably re-fetching
+   * even between two views whose filter and sort happen to coincide. Same
+   * ingredients as the display key this file already derives further down
+   * (`${schema.objectName}-${activeNamedView || activeView?.id || 'default'}-…`).
+   *
+   * Precedence is NOT flattened here. Both values still lose to
+   * `currentNamedViewConfig` at the read sites in the effect, exactly as before;
+   * this only decides WHEN the effect re-runs, never which source wins.
+   */
+  const activeViewQueryInputs = useStableIdentity(
+    activeView
+      ? { id: activeView.id, filter: activeView.filter, sort: activeView.sort }
+      : undefined,
+  );
+
   // Current view type from named view, multi-view prop, or default
   const currentViewType: string = useMemo(() => {
     if (currentNamedViewConfig?.type) return currentNamedViewConfig.type;
@@ -389,20 +768,32 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
 
-  // Fetch object schema from ObjectQL/ObjectStack
+  // Fetch object schema from ObjectQL/ObjectStack.
+  //
+  // Every exit settles the resolution — success, failure, and "there is nothing
+  // to read from" alike — because the non-grid record query below WAITS on this
+  // (objectui#6419). A path that returned without settling would not merely
+  // skip the expansion, it would hold that query open forever.
   useEffect(() => {
     let isMounted = true;
+    const key = schema.objectName ?? '';
     const fetchObjectSchema = async () => {
+      if (!schema.objectName || !dataSource || typeof dataSource.getObjectSchema !== 'function') {
+        // No source for a schema: settle with none, so the view still queries
+        // (unexpanded — with no schema there is no expand set to derive, which
+        // is the same query this case produced before).
+        if (isMounted) setSchemaResolution({ key, def: null });
+        return;
+      }
       try {
         const schemaData = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setObjectSchema(schemaData);
+        if (isMounted) setSchemaResolution({ key, def: schemaData });
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
+        if (isMounted) setSchemaResolution({ key, def: null });
       }
     };
-    if (schema.objectName && dataSource) {
-      fetchObjectSchema();
-    }
+    fetchObjectSchema();
     return () => { isMounted = false; };
   }, [schema.objectName, dataSource]);
 
@@ -419,6 +810,43 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       if (currentViewType === 'grid') return;
       if (!dataSource || !schema.objectName) return;
 
+      // ⭐ objectui#6419 — the object schema GATES this query; it does not
+      // refine it afterwards. The shape is `ObjectKanban`'s (objectui#6271),
+      // but the measurement behind it is this component's own, because this
+      // effect has five more dependencies and the kanban's numbers do not
+      // transfer. Instrumented adapter, schema/find both 30ms, rows handed to
+      // the child as `data={data}`:
+      //
+      //   before          1 find, `{$top:100}` — no `$expand`, EVER; the child
+      //                   receives exactly one delivery, of raw rows.
+      //   `objectSchema`  2 finds, `[{$top:100}, {$top:100,$expand:[...]}]`;
+      //   in the deps     the child receives TWO deliveries, `raw` then
+      //                   `expanded`.
+      //   gated (here)    1 find, carrying `$expand` the first time; one
+      //                   delivery, `expanded`.
+      //
+      // That middle row is where this component parts company with the kanban.
+      // On the board the unexpanded first response was DISCARDED on arrival
+      // (`isMounted` flipped false before it landed) — a wasted round trip, no
+      // visible artefact. Here the ordering measured is
+      // `schema:settled -> find:settled -> find:issued`: the raw rows settle
+      // into `setData` BEFORE the re-run's cleanup, reach the child, and paint.
+      // So an extra re-run here costs a visible two-step render — every
+      // lookup / master_detail / user / tree field blank (kanban's
+      // `isOpaqueId`) or a raw id for ~40ms, then swapping — which is exactly
+      // the "duplicate events in child views like the calendar" the ref this
+      // replaces was introduced to avoid. Gating avoids both.
+      //
+      // What the gate costs is one schema resolution ahead of the query, and
+      // this component ALREADY issues that read unconditionally on mount
+      // (measured: `getObjectSchema` calls = 1 in every regime, before and
+      // after). It is one small GET, served from `MetadataCache` (5-min TTL,
+      // concurrent readers coalesced onto one request) for every reader after
+      // the first. Correct, expanded rows land at the same wall clock as the
+      // dependency version reached them — with half the queries and no wrong
+      // paint in between.
+      if (!objectSchemaReady) return;
+
       setLoading(true);
       try {
         // `mergeFilterNodes` rescues an OBJECT source: `table.defaultFilters` is
@@ -429,22 +857,66 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // correctly as a grid and returned everything as a calendar/kanban/
         // gallery. It also keeps each source as its own child of the `and`
         // rather than spreading it, which is what a `ViewFilterRule[]` needs.
+        // The `table` segment reads the CANONICAL key first and the deprecated
+        // one only as its alias (objectui#5102). The two view segments ahead of
+        // it are untouched — this extends the last segment only.
         const finalFilter = mergeFilterNodes(
-          currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
+          currentNamedViewConfig?.filter || activeViewQueryInputs?.filter
+            || schema.table?.filter || schema.table?.defaultFilters,
         );
 
-        const sort = currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort || undefined;
+        // objectui#4869: this was the LAST object-bound read site handing an
+        // AUTHORED sort to `$orderby` unlowered — gantt / map / calendar /
+        // timeline / `record:line_items` all lower through the shared sink
+        // already. Leaving this one raw was not merely a divergence, it was a
+        // live `400 INVALID_SORT`: `table.defaultSort` is declared a SINGLE
+        // `{ field, order }` object, so it reached the adapter's
+        // `serializeOrderBy` as an `$orderby` MAP and
+        // `Object.entries({ field: 'name', order: 'desc' })` serialized to the
+        // wire string `field,-order` — two columns that do not exist. The
+        // server rejects an unreadable sort rather than ignoring it, the catch
+        // below swallows the 400, and a calendar/kanban/gallery whose only sort
+        // was `table.defaultSort` rendered EMPTY while the SAME metadata sorted
+        // correctly as a grid.
+        //
+        // The legacy member of the pair is lowered HERE, before the sink, which
+        // is verbatim the resolution `ObjectGrid` already performs for this
+        // exact pair (`plugin-grid/src/ObjectGrid.tsx`: `schemaSort ??
+        // (schema.defaultSort ? [schema.defaultSort] : undefined)`) and which
+        // ObjectView's own grid path inherits by forwarding both slots. It is
+        // not a new tolerance layer: the sink still honours only the two
+        // spellings the schema declares (`string` and `SortConfig[]`), and
+        // ⛔ must NOT be widened to accept a bare `{ field, order }` — its input
+        // slot legitimately also carries `$orderby`'s own
+        // `Record<field, direction>` map, in which `{ field: 'desc' }` is a
+        // perfectly legal ordering by a column literally named `field`, so the
+        // sink would have to GUESS. (Maintainer ruling 2026-08-22: Option A;
+        // Option B — widening the shared sink — rejected on the merits.)
+        //
+        // Precedence is unchanged: the canonical `table.sort` still outranks the
+        // deprecated `table.defaultSort`, and both still lose to a view's sort —
+        // the same order the grid path and `mergedSort` express.
+        const sort = currentNamedViewConfig?.sort || activeViewQueryInputs?.sort
+          || schema.table?.sort
+          || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
-        // Auto-inject $expand for lookup/master_detail fields.
-        // Use a ref instead of the state variable to avoid re-running this effect
-        // every time the object schema loads — that would cause a double-fetch and
-        // duplicate events in child views like the calendar.
-        const expand = buildExpandFields((objectSchemaRef.current as any)?.fields);
+        // Auto-inject $expand for lookup/master_detail fields. Reached only
+        // with the schema resolved (the gate above), so a view whose object
+        // declares lookups queries WITH its expansion the first time —
+        // `objectSchema` here is `null` only when there was nothing to resolve
+        // it from.
+        const expand = buildExpandFields((objectSchema as any)?.fields);
         const results = await dataSource.find(schema.objectName, {
           // `mergeFilterNodes` returns a node or `undefined`; the old
           // `.length > 0` here was the second place an object filter was lost.
           $filter: finalFilter,
-          $orderby: sort,
+          // objectui#4869: lowered through the shared sink, so ONE normalized
+          // shape reaches `DataSource.find` from every object-bound read site
+          // rather than whichever of `$orderby`'s four declared shapes the
+          // author happened to write. An adapter that implements `find` itself
+          // now sees the same `Record<field, direction>` here that it already
+          // sees from the other five blocks.
+          $orderby: convertSortToQueryParams(sort),
           $top: 100,
           ...(expand.length > 0 ? { $expand: expand } : {}),
         });
@@ -472,9 +944,17 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-    // objectSchema intentionally omitted from deps — read via ref to prevent double-fetch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, currentViewType, refreshKey, currentNamedViewConfig, activeView, renderListView]);
+    // `objectSchemaReady` and `objectSchema` are BOTH listed and both are load
+    // bearing: `objectSchema` is `null` in two different situations — before
+    // the read settles, and after it settles with nothing — and only the first
+    // of those may hold the query. Listing them is what makes the gate open;
+    // it is not the dependency-driven refetch this replaced, because the runs
+    // before the gate opens return above without querying.
+  }, [
+    schema.objectName, dataSource, currentViewType, refreshKey,
+    currentNamedViewConfig, activeViewQueryInputs, renderListView,
+    objectSchemaReady, objectSchema,
+  ]);
 
   // Determine layout mode. #2578: default the record surface from how heavy the
   // object is — a field-heavy object opens create/edit/detail as a full page, a
@@ -604,11 +1084,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     setSelectedRecord(null);
   }, []);
 
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
-  }, []);
-
   // --- ViewSwitcher schema (for multi-view prop views) ---
   const viewSwitcherSchema: ViewSwitcherSchema | null = useMemo(() => {
     if (!hasMultiView || !viewsPropResolved || viewsPropResolved.length <= 1) return null;
@@ -621,17 +1096,44 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       defaultView: (activeView?.type || 'grid') as ViewType,
       activeView: (activeView?.type || 'grid') as ViewType,
       views: viewsPropResolved.map(v => {
-        const iconMap: Record<string, string> = {
+        // objectui#5321 — TOTAL over `ViewType`, so no member can land without
+        // an icon. This was `Record<string, string>`, and a member with no key
+        // falls through to the `'table'` fallback below: a host-supplied
+        // `tree` view was labelled with the GRID icon. objectui#2916 fixed
+        // exactly that for `chart` by adding one key, and nothing recorded
+        // that the set has to be COMPLETE, so `tree` stayed missing. The
+        // annotation is the guard for the whole class: `ViewSwitcher`'s own
+        // `DEFAULT_VIEW_ICONS` — the consumer of these strings — is already
+        // `Record<ViewType, LucideIcon>`, and only this producer was partial.
+        //
+        // The values are the spellings `ViewSwitcher.resolveIcon` PascalCases
+        // back into lucide icons, so `tree: 'list-tree'` resolves to the same
+        // `ListTree` that file's `DEFAULT_VIEW_ICONS.tree` already names for
+        // this view type. The `|| 'table'` fallback stays: `v.type` arrives
+        // from a host prop and nothing validates it at runtime.
+        //
+        // objectui#5586 — the VALUES have to be names lucide still carries in
+        // its runtime `icons` record, which is what `ViewSwitcher.resolveIcon`
+        // reads. `chart: 'bar-chart-3'` and `gantt: 'gantt-chart'` were dropped
+        // from that record while surviving as deprecated NAMED EXPORTS, so both
+        // types rendered with NO icon at all while every sibling had one. The
+        // compiler sees none of it: nothing in this map is a lucide symbol.
+        // Measured on lucide-react 1.31.0, `chart-column` → `ChartColumn` and
+        // `chart-gantt` → `ChartGantt` both resolve, and both agree with the
+        // components `ViewSwitcher.DEFAULT_VIEW_ICONS` names for the same view
+        // types. Every value here is pinned by `ViewSwitcher.test.tsx`.
+        const iconMap: Record<ViewType, string> = {
           kanban: 'kanban',
           calendar: 'calendar',
           map: 'map',
           gallery: 'layout-grid',
           timeline: 'activity',
-          gantt: 'gantt-chart',
+          gantt: 'chart-gantt',
           grid: 'table',
           list: 'list',
           detail: 'file-text',
-          chart: 'bar-chart-3',
+          chart: 'chart-column',
+          tree: 'list-tree',
         };
         return {
           type: v.type as ViewType,
@@ -663,7 +1165,39 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const generateViewSchema = useCallback((viewType: string): any => {
     const baseProps: Record<string, any> = {
       objectName: schema.objectName,
-      fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+      // objectui#5269 — the `table` segment reads the CANONICAL key first.
+      //
+      // `ObjectGridSchema.columns` is the canonical spelling and `fields` is
+      // its `@deprecated` alias ("@deprecated Use columns instead"), and
+      // `ObjectViewSchema.table` is `Partial< Omit< ObjectGridSchema, … > >`,
+      // so `table: { columns: [...] }` is the shape the type recommends. It
+      // reached the grid path (which forwards `table.columns` into its own
+      // `columns` slot) and stopped here: this line read the deprecated half
+      // alone, so an author who wrote the canonical key on a non-grid view got
+      // an empty field list from a compile-clean, semantically correct schema.
+      // Same user-visible shape as objectui#5102, different mechanism — not a
+      // whitelist that knows only legacy spellings, but one that disagreed
+      // with itself between two rendering paths.
+      //
+      // Forwarding, not translation, exactly as objectui#5102 settled it: the
+      // value is handed on unchanged and the two segments ahead of `table`
+      // keep their precedence. Both spellings stay working; only the ORDER
+      // between them is stated, canonical first.
+      //
+      // Reach, measured rather than assumed: of the surfaces this `baseProps`
+      // feeds, `object-kanban` consumes it (via `cardFields`, below) and
+      // `object-tree` consumes it (as its own `fields`). `object-gallery` /
+      // `object-calendar` / `object-timeline` / `object-gantt` / `object-map`
+      // read NO field list off their schema at all, so the value is inert
+      // there — before this change and after it.
+      //
+      // The `table` segment arrives through `tableColumnFieldNames` because
+      // THIS slot is a names slot and `table.columns` is a union — see that
+      // function for why raw forwarding would regress the `ListColumn[]` half.
+      // The delegated `list-view` slot below declares the same union, so it
+      // takes the value raw; each site gets the shape its slot declares.
+      fields: currentNamedViewConfig?.columns || activeView?.columns
+        || tableColumnFieldNames(schema.table?.columns) || schema.table?.fields,
       className: 'h-full w-full',
       showSearch: activeView?.showSearch ?? schema.showSearch ?? false,
       showSort: activeView?.showSort ?? schema.showSort ?? false,
@@ -690,6 +1224,14 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         }
     }
 
+    // #region object-view VIEW-TYPE BRANCHES (objectui#5321)
+    //
+    // Every view type this component can render, and the two of them
+    // (`chart`, `tree`) that no authored document can select — see
+    // {@link OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES} at the top of this file.
+    // The fence is load-bearing, not decoration: `objectViewHostSurface.test`
+    // re-derives the branch set from it, so a ninth branch fails BY NAME
+    // rather than quietly changing what that record describes.
     switch (viewType) {
       case 'kanban': {
         // Per @objectstack/spec, kanban-specific config lives under view.kanban.*
@@ -711,13 +1253,39 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             : baseProps.fields) || [];
         const { columns: _kanbanColumns, groupByField: _gbf, groupField: _gf, titleField: _tf, conditionalFormatting: _kanbanCf, ...restKanban } = kanbanCfg;
         // Forward conditional formatting to kanban (issue #1584): nested
-        // `options.kanban.conditionalFormatting` wins, then the view-level, then
-        // the schema-level rule — matching how the grid branch resolves it.
-        // Previously the top-level rule was dropped for kanban entirely.
+        // `options.kanban.conditionalFormatting` wins, then the view-level rule.
+        // Those are the two places the key is DECLARED — `ObjectKanbanSchema`
+        // for the nested block, the named/active view for the other.
+        //
+        // objectui#5248 — a THIRD fallback used to sit at the end of this chain,
+        // `(schema as any).conditionalFormatting`, reading the key off the
+        // object-view node itself. It was the ONLY read of one of the 27
+        // objectui#5097 host-composition keys outside the `#region` fence below,
+        // and the only one on a path the REGISTERED renderer can reach
+        // (`generateViewSchema` runs precisely when no host supplied
+        // `renderListView`). That made the exemption's stated basis — "the
+        // authored path cannot reach these keys" — false for this one key.
+        //
+        // The maintainer ruled on 2026-08-19 (verbatim 「全部接受」, recorded on
+        // objectui#5248): a conditional, Option 2 gated on a liveness check.
+        // The check came back EMPTY — no authored document in either repo puts
+        // `conditionalFormatting` on an object-view node (objectui: it appears
+        // in `content/docs` only on `object-grid`, and in `skills/` only on
+        // `list-view`; objectstack: `object-view` is not authored anywhere, 2
+        // prose mentions and no node, while `object-form` appears in 54 files
+        // and `object-grid` in 19). So the fallback was dropped: the key is now
+        // genuinely host-only, and the objectui#5097 basis holds for all 27.
+        //
+        // ⛔ Do not restore this fallback as a convenience. Authoring
+        // kanban conditional formatting has two declared homes; a top-level key
+        // that nothing declares, nothing publishes in the registry `inputs` and
+        // tsc cannot see (BaseSchema's index signature) is precisely the
+        // "renderer reads it, manifest denies it" condition objectui#4648 /
+        // objectui#5091 exist to close. The host `renderListView` delegation
+        // below still reads and forwards the key — that half is NOT narrowed.
         const kanbanConditionalFormatting =
           kanbanCfg.conditionalFormatting ??
-          activeView?.conditionalFormatting ??
-          (schema as any).conditionalFormatting;
+          activeView?.conditionalFormatting;
         return {
           type: 'object-kanban',
           ...baseProps,
@@ -768,13 +1336,25 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.gantt || {}),
         };
       case 'map':
+        // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
+        // `viewOptions.map` is an untyped bag (`NamedListView.options`); a raw
+        // spread here forwarded every key the author wrote, including `style`,
+        // which `ObjectMap`'s `FlatMapConfigKeys` declares OUT of this flat form.
         return {
           type: 'object-map',
           ...baseProps,
           locationField: viewOptions.map?.locationField || 'location',
-          ...(viewOptions.map || {}),
+          ...pickFlatMapConfig(viewOptions.map),
         };
       case 'tree':
+        // ⛔ HOST-COMPOSITION ONLY (objectui#5321) — see
+        // {@link OBJECT_VIEW_HOST_COMPOSITION_VIEW_TYPES}. `tree` is a member
+        // of neither `ObjectViewSchema.defaultViewType` nor
+        // `NamedListView.type`, so no authored document reaches this branch;
+        // it runs only when a host passes a `views` prop. Ruled RECORDED, not
+        // declared, 2026-08-20. The `viewOptions.tree.*` surface below is
+        // therefore HOST config — maintained, read, and ⛔ not authoring
+        // surface to teach in the docs.
         return {
           type: 'object-tree',
           ...baseProps,
@@ -788,6 +1368,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.tree || {}),
         };
       case 'chart': {
+        // ⛔ HOST-COMPOSITION ONLY (objectui#5321) — the same record as
+        // `tree` above: `chart` is in neither authored union, so the ADR-0021
+        // shape below is reachable only through a host `views` prop. Ruled
+        // RECORDED, not declared, 2026-08-20.
+        //
         // Aggregated chart of the object's records, delegating to the same
         // object-chart component the dashboard uses.
         const chartCfg = viewOptions.chart || {};
@@ -827,26 +1412,105 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       default:
         return null;
     }
-  }, [schema.objectName, schema.table?.fields, currentNamedViewConfig, activeView]);
+    // #endregion object-view VIEW-TYPE BRANCHES (objectui#5321)
+    // `schema.table?.columns` joins the list with the read added for
+    // objectui#5269: a memo that reads a key but does not depend on it keeps
+    // serving the field list the author has already replaced.
+  }, [schema.objectName, schema.table?.columns, schema.table?.fields, currentNamedViewConfig, activeView]);
 
   // Build grid schema (default content renderer)
-  const gridSchema: ObjectGridSchema = useMemo(() => ({
-    type: 'object-grid',
-    objectName: schema.objectName,
-    title: schema.table?.title,
-    description: schema.table?.description,
-    fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
-    columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.columns,
-    operations: {
-      ...operations,
-      create: false, // Create is handled by the view's create button
-    },
-    defaultFilters: currentNamedViewConfig?.filter || activeView?.filter || schema.table?.defaultFilters,
-    defaultSort: currentNamedViewConfig?.sort || activeView?.sort || schema.table?.defaultSort,
-    pageSize: schema.table?.pageSize,
-    selectable: schema.table?.selectable,
-    className: schema.table?.className,
-  }), [schema, operations, currentNamedViewConfig, activeView]);
+  //
+  // objectui#5102: `table` is documented as "inherits from ObjectGridSchema",
+  // but this whitelist forwarded only the DEPRECATED half of four pairs —
+  // `pageSize` / `selectable` / `defaultFilters` / `defaultSort` — and dropped
+  // their canonical successors `pagination` / `selection` / `filter` / `sort`
+  // on the floor. An author who wrote the canonical shape the type recommends
+  // got a compile-clean, semantically correct, RUNTIME-INERT view.
+  //
+  // ObjectGrid already reads both spellings of all four and already resolves
+  // them canonical-first (`schema.pagination?.pageSize ?? schema.pageSize`;
+  // `if (schema.selection?.type) … else if (schema.selectable !== undefined)`;
+  // `schemaFilter !== undefined ? … : schema.defaultFilters`;
+  // `schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined)`).
+  // So the fix is forwarding, not translation — and the precedence is not a
+  // free choice here: emitting both slots lets ObjectGrid's existing
+  // canonical-wins rule decide, which is the only answer that keeps the two
+  // layers saying the same thing.
+  //
+  // objectui#5270: the two segments AHEAD of `table` had a second, separate
+  // problem — an ARITY mismatch, not a spelling one. Both of them carry an
+  // ARRAY of sort keys (`NamedListView.sort` is `Array< { field, order } >`;
+  // the `views` prop declares an array too) and both were being written into
+  // `defaultSort`, which is declared a SINGLE `{ field, order }`. Neither of
+  // ObjectGrid's two readers survives that:
+  //
+  //   header  `parseSchemaSort(schemaSort ?? [schema.defaultSort])` becomes
+  //           `parseSchemaSort([[{ field, order }]])`. The outer array is
+  //           iterated and each entry must be a string or an object with a
+  //           string `field`; a nested ARRAY is neither, so the entry is
+  //           dropped and the result is `[]` — no arrow, the view arrives
+  //           looking unsorted.
+  //   fetch   `` `${(schema.defaultSort as any).field} ${….order}` `` reads two
+  //           missing keys off an array and sends the literal string
+  //           `"undefined undefined"` as `$orderby`.
+  //
+  // So the view's sort now rides the CANONICAL slot, which is declared
+  // `string | SortConfig[]` and therefore already holds the arity a view
+  // carries. That is also the shape the shared sort sink accepts
+  // (`convertSortToQueryParams`, `string | SortConfig[]` — objectui#4869), so
+  // this converges on the normalized dialect instead of introducing another.
+  // Precedence is unchanged: ObjectGrid resolves `sort ?? defaultSort`, so a
+  // view sort still outranks a `table.defaultSort`, and `table.sort` still
+  // outranks it too — the same order `mergedSort` and the non-grid fetch use.
+  const gridSchema: ObjectGridSchema = useMemo(() => {
+    // The two segments ahead of the `table` one, resolved once.
+    //
+    // `viewFilter` keeps riding the LEGACY slot it rides today:
+    // `filter`/`defaultFilters` are not interchangeable downstream —
+    // ObjectGrid lowers the canonical slot through `toFilterNode` and
+    // raw-assigns the legacy one — so moving a named-view filter across would
+    // change the wire shape of a path objectui#5270 does not own. The sort
+    // pair has no such asymmetry: both slots reach `$orderby` unlowered, and
+    // only the canonical one can hold more than a single key.
+    const viewFilter = currentNamedViewConfig?.filter || activeView?.filter;
+    const viewSort = currentNamedViewConfig?.sort || activeView?.sort;
+
+    return {
+      type: 'object-grid',
+      objectName: schema.objectName,
+      title: schema.table?.title,
+      description: schema.table?.description,
+      fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+      columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.columns,
+      operations: {
+        ...operations,
+        create: false, // Create is handled by the view's create button
+      },
+      defaultFilters: viewFilter || schema.table?.defaultFilters,
+      // Legacy slot, `table` segment ONLY (objectui#5270). The view segments
+      // moved to the canonical `sort` below because this one holds a single
+      // `{ field, order }` and they carry arrays; ObjectGrid resolves
+      // `sort ?? defaultSort`, so a view sort still outranks this default.
+      defaultSort: schema.table?.defaultSort,
+      // Canonical `table` keys, at last forwarded. `filter` carries the
+      // `table` segment ONLY: the view segment resolved above already occupies
+      // the legacy slot, and ObjectGrid prefers this slot over that one — so
+      // handing it `table.filter` while a named view is active would let the
+      // table default outrank the view, inverting the precedence the two
+      // untouched segments exist to express.
+      filter: viewFilter ? undefined : schema.table?.filter,
+      // `sort` carries the WHOLE chain instead — view segments first, then the
+      // `table` one. Same precedence as `mergedSort` and the non-grid fetch
+      // express; what changes is only WHICH slot a view's sort arrives in, and
+      // this is the one whose declared arity can hold it.
+      sort: viewSort || schema.table?.sort,
+      pagination: schema.table?.pagination,
+      selection: schema.table?.selection,
+      pageSize: schema.table?.pageSize,
+      selectable: schema.table?.selectable,
+      className: schema.table?.className,
+    };
+  }, [schema, operations, currentNamedViewConfig, activeView]);
 
   // Build form schema
   const buildFormSchema = (): ObjectFormSchema => {
@@ -964,19 +1628,77 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // written. It never was (see the note by the state declarations), so both
   // branches were dead. They are gone rather than corrected: the delegated
   // renderer owns the filter/sort UI and does its own combining.
+  //
+  // The `table` segment of both chains reads the canonical key first and the
+  // deprecated one as its alias (objectui#5102). Both land on `list-view`'s
+  // own `filter` / `sort` keys below, so a canonical value arrives in the slot
+  // that already matches its shape.
+  //
+  // objectui#6235: that last sentence used to be FALSE of the sort chain's
+  // final branch. `list-view`'s `sort` slot is declared `string | SortConfig[]`
+  // (the spec's own `ListViewSchema.sort`, imported by reference into
+  // `packages/types/src/zod/objectql.zod.ts`), and every branch above the last
+  // produces one of those two — but `table.defaultSort` is declared a SINGLE
+  // `{ field, order }` object, and it was forwarded BARE. There is no
+  // compile-time witness: `ObjectViewSchema.table` collapses to a bare index
+  // signature (objectui#5102) and this node is assembled on the host-
+  // composition surface (objectui#5097), whose `renderListView` slot types
+  // `schema` as `any`.
+  //
+  // Every reader of that slot then drops the sort SILENTLY — no crash, no
+  // error, just an unsorted list: `ListView.parseSortConfig` and
+  // `ObjectGrid.parseSchemaSort` both open `typeof sort === 'string' ? [sort]
+  // : Array.isArray(sort) ? sort : []`, so a bare object yields `[]`, and the
+  // shared sink `convertSortToQueryParams` returns `undefined` for it. Both
+  // in-tree hosts feed this slot straight into `ListView`
+  // (`app-shell/src/views/ObjectView.tsx` `fullSchema`, and
+  // `studio-design/StudioDesignSurface.tsx` `renderStudioGridList`).
+  //
+  // So the legacy member of the pair is lowered HERE, in the caller, verbatim
+  // as the non-grid fetch path above already does it and as `ObjectGrid`
+  // performs it for this exact pair. ⛔ The alternative — teaching the shared
+  // sink to accept a bare `{ field, order }` — is the widening the maintainer
+  // ruling of 2026-08-22 REJECTED on the merits (quoted with the non-grid
+  // fetch above): that slot legitimately also carries `$orderby`'s own
+  // `Record<field, direction>` map, in which `{ field: 'desc' }` is a legal
+  // ordering by a column literally named `field`, so the sink would have to
+  // GUESS. Precedence is untouched — only the last branch changes shape.
   const mergedFilters = currentNamedViewConfig?.filter
     || activeView?.filter
+    || schema.table?.filter
     || schema.table?.defaultFilters;
 
   const mergedSort = currentNamedViewConfig?.sort
     || activeView?.sort
-    || schema.table?.defaultSort;
+    || schema.table?.sort
+    || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
   // --- Content renderer ---
   const renderContent = () => {
     const key = `${schema.objectName}-${activeNamedView || activeView?.id || 'default'}-${currentViewType}-${refreshKey}`;
 
     // If a custom renderListView is provided, use it
+    // #region object-view HOST-COMPOSITION SURFACE (objectui#5097)
+    //
+    // 31 of the values assembled below are read off the object-view node with
+    // `(schema as any).K`. Four are declared members of `ObjectViewSchema`;
+    // the other 27 are NOT, deliberately: the maintainer ruling of 2026-08-18
+    // on objectui#5097 (verbatim 「同意」) ruled them HOST-COMPOSITION surface,
+    // not authored surface, because this branch is entered only when a HOST
+    // passes `renderListView` and the registered renderer never does.
+    //
+    // ⛔ Do not declare these keys on `ObjectViewSchema`, ⛔ do not teach them
+    // as schema keys in the docs, and ⛔ do not delete a read as a tidy-up — a
+    // deleted read silently blanks a stored app-shell document.
+    //
+    // The list, the two supplier `file:line`s, the contract's (non-)verdict and
+    // the now-resolved `conditionalFormatting` asymmetry (objectui#5248) live
+    // with `OBJECT_VIEW_HOST_COMPOSITION_KEYS` at the top of this file. The
+    // `#region` fence is load-bearing: `src/__tests__/objectViewHostSurface.test.tsx`
+    // re-derives the read set from between these two markers, so adding or
+    // removing a read here fails that pin BY NAME — and since objectui#5248 it
+    // also fails if any exempt key is read OUTSIDE the fence, which is where
+    // the author-reachable paths live.
     if (renderListView) {
       return renderListView({
         schema: {
@@ -989,7 +1711,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           // Spec-canonical key (#2890) — the view configs this reads from are
           // already `columns`-keyed, so emitting `fields` here was a pure
           // canonical→legacy downgrade.
-          columns: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
+          //
+          // objectui#5269: the `table` segment reads the canonical key first
+          // here too. This slot is `list-view`'s `columns`, declared
+          // `string[] | ListColumn[]` — the same union `table.columns` carries
+          // — so the canonical value arrives in a slot already shaped to hold
+          // it, and `ListView` reads it (`schema.columns`, its whole column
+          // set). The deprecated `table.fields` stays a working alias.
+          columns: currentNamedViewConfig?.columns || activeView?.columns
+            || schema.table?.columns || schema.table?.fields,
           filter: mergedFilters,
           sort: mergedSort,
           // Propagate appearance/view-config properties for live preview
@@ -1056,6 +1786,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         onAddRecord: handleCreate,
       });
     }
+    // #endregion object-view HOST-COMPOSITION SURFACE (objectui#5097)
 
     // For non-grid views, use SchemaRenderer with generated schema
     if (currentViewType !== 'grid') {

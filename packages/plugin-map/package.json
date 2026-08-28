@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-map",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "license": "MIT",
   "description": "Map visualization plugin for Object UI",
@@ -46,6 +46,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@object-ui/plugin-list": "workspace:*",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "^6.0.5",

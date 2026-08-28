@@ -5,7 +5,7 @@ import { ActionProvider } from '@object-ui/react';
 import { FieldEditWidget } from './FieldEditWidget';
 import { MasterDetailField } from './widgets/MasterDetailField';
 import { GridField } from './widgets/GridField';
-import { FileField } from './widgets/FileField';
+import { FileField, FileCell } from './widgets/FileField';
 import type { FieldWidgetComponentProps } from './widgets/types';
 
 // ------------- Mocks & Setup -------------
@@ -435,8 +435,19 @@ describe('Complex & Relationship Widgets', () => {
 
         it('shows a recently-used section on empty focus', async () => {
             localStorage.setItem('objectui:lookup:recent:customers', JSON.stringify(['r1']));
-            mockDataSource.find.mockResolvedValue({ data: [{ id: 'a', name: 'Acme Corp' }], total: 1 });
-            mockDataSource.findOne.mockResolvedValue({ id: 'r1', name: 'Recent Co' });
+            // The rail resolves its remembered ids through `find`, carrying the
+            // field's merged filter, rather than the unfiltered per-id `findOne`
+            // it used before (#5195) — so the fixture answers the id-restricted
+            // query. Behaviour under test is unchanged: recents still appear on
+            // empty focus, in their own section.
+            mockDataSource.find.mockImplementation(async (_obj: string, params: any) => {
+                const ids = params?.$filter?.id?.$in as string[] | undefined;
+                if (ids) {
+                    const data = [{ id: 'r1', name: 'Recent Co' }].filter(r => ids.includes(r.id));
+                    return { data, total: data.length };
+                }
+                return { data: [{ id: 'a', name: 'Acme Corp' }], total: 1 };
+            });
 
             render(<LookupField {...dynamicProps} />);
 
@@ -853,6 +864,20 @@ describe('Complex & Relationship Widgets', () => {
              // edit mode renders inputs whose values are the row data
              expect(screen.getByDisplayValue('Alice')).toBeInTheDocument();
              expect(screen.getByDisplayValue('30')).toBeInTheDocument();
+        });
+    });
+
+    describe('FileCell (grid cell helper)', () => {
+        it('drives aria-invalid on its picker button from the published error slot (#5431)', () => {
+            render(<FileCell value={null} onChange={() => {}} aria-label="Receipt" error="Receipt is required" />);
+            // The carrier is the focusable picker control, mirroring
+            // LookupField's trigger and FileField's dropzone (#3222 / #5223).
+            expect(screen.getByRole('button', { name: 'Receipt' }).getAttribute('aria-invalid')).toBe('true');
+        });
+
+        it('reports aria-invalid="false" when the slot is empty', () => {
+            render(<FileCell value={null} onChange={() => {}} aria-label="Receipt" />);
+            expect(screen.getByRole('button', { name: 'Receipt' }).getAttribute('aria-invalid')).toBe('false');
         });
     });
 

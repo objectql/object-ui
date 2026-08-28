@@ -7,11 +7,114 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { authGateEvents } from './auth-gate-events';
-import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
-import { AuthCtx, type AuthContextValue } from './AuthContext';
-import { createAuthClient, TokenStorage } from './createAuthClient';
-import { ActiveOrganizationStorage } from './createAuthenticatedFetch';
+import { authGateEvents } from './auth-gate-events.js';
+import type { AuthUser, AuthClient, AuthProviderOptions, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types.js';
+import { AuthCtx, type AuthContextValue } from './AuthContext.js';
+import { createAuthClient, TokenStorage } from './createAuthClient.js';
+import { ActiveOrganizationStorage, SessionUserScope } from './ActiveOrganizationStorage.js';
+
+/**
+ * Prefix of every `MetadataProvider` seed entry in `sessionStorage`
+ * (`objectui:metadata:<type>:<orgId>:<principal>`, `@object-ui/app-shell`).
+ *
+ * Spelled out here rather than imported: `@object-ui/app-shell` depends on
+ * `@object-ui/auth`, so the constant cannot travel in that direction without a
+ * dependency cycle. The two ends are held together by BEHAVIOUR instead of by
+ * a shared symbol — `MetadataProvider.crossPrincipalSeed.test.tsx` fills the
+ * cache by running the real `MetadataProvider` and empties it by signing out
+ * through this provider, so a prefix that drifts on either side fails there
+ * rather than silently purging nothing.
+ */
+const METADATA_SEED_CACHE_PREFIX = 'objectui:metadata:';
+
+/**
+ * Drop the client-side caches that belong to the session being ended
+ * (objectui#5198).
+ *
+ * `sessionStorage` is per-TAB, not per-session, and no sign-out call site
+ * reloads the page — `AppSidebar`, `AppHeader`, `UserMenu` and
+ * `RemediationOverlay` all just call `signOut()` and let the SPA keep running.
+ * So without this the next person to sign in in the same tab (a shared or
+ * kiosk browser, a handover, a support session) is SEEDED from the previous
+ * user's entry, and what is in it is that user's PERMISSION-FILTERED app list —
+ * the server filters `GET /api/v1/meta/:type` per session. That makes it a
+ * cross-principal disclosure, not ordinary staleness, which is why it is
+ * cleared here and not left to the tab being closed.
+ *
+ * Two properties of the loop are load-bearing:
+ *
+ *  - It matches by PREFIX. The keys are org-scoped (objectui#4486), so a purge
+ *    that recomputed the scope would depend on `ActiveOrganizationStorage`
+ *    still holding the org those entries were written under. A prefix sweep has
+ *    no such dependency and therefore no ordering hazard of its own.
+ *  - It runs BEFORE `ActiveOrganizationStorage.clear()` anyway, so the ordering
+ *    stays correct for anything scope-derived added later: clearing the org
+ *    first would leave such a purge computing the no-org scope and deleting
+ *    nothing while the real entries survived.
+ *
+ * `MetadataProvider` additionally keys the entry by session fingerprint, so a
+ * blob that escapes this purge (a tab open across the upgrade, a session ended
+ * by expiry rather than by this call) is unreadable rather than merely
+ * undeleted. The two halves are deliberately independent.
+ *
+ * ## The `try` guards the SNAPSHOT, not the walk (objectui#5777)
+ *
+ * `Object.keys(sessionStorage)` can itself throw — partitioned iframes, some
+ * privacy modes — and that is the reason a guard exists here at all, so it
+ * stays. What it must NOT do is wrap the loop: a `removeItem` that throws on
+ * key `n` would abort the walk, leaving every still-unvisited MATCHING key
+ * unswept, with the failure swallowed so the caller believes the sweep
+ * completed. The keys this purges are a cross-principal disclosure risk on a
+ * shared browser (objectui#5198), not ordinary staleness — a partial sweep
+ * leaves an arbitrary subset of the previous principal's permission-filtered
+ * app list readable to whoever signs in next in this tab. So each
+ * `removeItem` gets its own `try`: one uncooperative key costs exactly that
+ * key. Same defect class and same remedy as `sweepStore` in
+ * `ActiveOrganizationStorage.ts` (objectui#5763) — different file and
+ * different caller (sign-out, not sign-in) is why it is fixed here rather
+ * than there.
+ *
+ * ## Reported, not quarantined — same reason as `sweepStore`
+ *
+ * This function walks keys it does not own reads for: `MetadataProvider`
+ * (`@object-ui/app-shell`) is the reader of the seed cache, not this
+ * provider — there is no local `get()` here to guard, so there is nothing to
+ * quarantine the way `ActiveOrganizationStorage.clear()` quarantines a key
+ * (objectui#5731). What IS mirrored is the reporting channel: a key whose
+ * `removeItem` throws is named in a `console.warn`, so a partial sweep is
+ * discoverable instead of silent. The caller (`signOut`, above) cannot act on
+ * it either way — the session is already ending — so, like `sweepStore` on
+ * the sign-in path, this must not throw.
+ */
+function purgeSignedOutClientCaches(): void {
+  if (typeof sessionStorage !== 'undefined') {
+    let keys: string[];
+    try {
+      // Snapshot the keys first (`Object.keys`) — removing entries during a
+      // live index walk shifts the ones behind it and skips half of them.
+      // Same idiom as the `MarketplacePackagePage` purge loop.
+      keys = Object.keys(sessionStorage);
+    } catch {
+      keys = []; /* storage unavailable */
+    }
+    const unswept: string[] = [];
+    for (const key of keys) {
+      if (!key.startsWith(METADATA_SEED_CACHE_PREFIX)) continue;
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        unswept.push(key);
+      }
+    }
+    if (unswept.length > 0) {
+      console.warn(
+        `[purgeSignedOutClientCaches] could not remove ${unswept.length} key(s) from sessionStorage: ` +
+          `${unswept.join(', ')}. The signed-out user's metadata seed cache may still be readable under these keys.`,
+      );
+    }
+  }
+  ActiveOrganizationStorage.clear();
+}
 
 export interface AuthProviderProps extends AuthProviderOptions {
   children: React.ReactNode;
@@ -80,6 +183,12 @@ export function AuthProvider({
   const [activeOrganization, setActiveOrganization] = useState<AuthOrganization | null>(null);
   const [activeMember, setActiveMember] = useState<AuthOrganizationMember | null>(null);
   const [isOrganizationsLoading, setIsOrganizationsLoading] = useState(false);
+  // objectui#5619 — the two halves of "the membership answer has landed".
+  // Kept as POSITIVE resolution flags rather than another `isLoading`: a
+  // loading flag reads `false` both before the request starts and after it
+  // finishes, and that is precisely the ambiguity this card exists to remove.
+  const [organizationsResolved, setOrganizationsResolved] = useState(false);
+  const [activeMemberResolved, setActiveMemberResolved] = useState(false);
 
   // Determine if we're in preview mode
   const isPreviewMode = previewMode != null;
@@ -94,6 +203,20 @@ export function AuthProvider({
   // `getSession` is already reflected in the answer we are about to apply, and
   // re-entering on it would loop this provider against the server forever.
   const sessionLoadInFlight = useRef(false);
+
+  // objectui#5750 — the org id `switchOrganization` last resolved to, tracked
+  // independently of React state so a switch that starts before the PREVIOUS
+  // switch's render has committed still compares against a value, not a stale
+  // closure. Kept in sync with every path that can move `activeOrganization`
+  // (not just `switchOrganization` itself — `refreshOrganizations`'
+  // single-membership repair also does), via the effect below.
+  const activeOrgIdRef = useRef<string | null>(null);
+  // Bumped by every `switchOrganization` call that decides to re-resolve
+  // identity. Lets an EARLIER switch's still-in-flight `getSession()` notice
+  // a LATER switch superseded it and discard its answer instead of applying
+  // stale, previous-organization data over the newer one (see
+  // `switchOrganization`).
+  const sessionLoadGeneration = useRef(0);
 
   /**
    * The ONE session loader. Runs on mount (below) and on every later
@@ -179,7 +302,13 @@ export function AuthProvider({
         email: 'preview@preview.local',
         name,
         role,
-        roles: [role],
+        // `positions` is the published spelling (framework ADR-0090 D3); this
+        // line was the LAST producer of the retired `roles` key
+        // (objectui#5424, maintainer ruling 2026-08-22). Emitting the position
+        // keeps every `positions` consumer — `AuthGuard`'s `requiredRoles`,
+        // the approver-identity derivations, workspace-admin leg 3 — seeing a
+        // preview identity shaped like a protocol-17 session.
+        positions: [role],
       });
       setSession({
         token: 'preview-token',
@@ -276,9 +405,25 @@ export function AuthProvider({
       setUser(null);
       setSession(null);
       setError(null);
+      // The organization block is the previous principal's data too: the list
+      // is the workspaces THAT user belongs to (the switcher renders it), and
+      // a lingering `activeOrganization` would additionally suppress the
+      // re-resolution below — `refreshOrganizations` only asks the server for
+      // the active org `if (orgs.length > 0 && !activeOrganization)`, so the
+      // next sign-in in this tab would inherit the previous user's active
+      // workspace in context while storage had (correctly) forgotten it.
+      // `activeMember` follows from the effect that watches `activeOrganization`.
+      // Same pairing `deleteOrganization` / `leaveOrganization` already use in
+      // this file: drop the in-memory reference and the stored id together.
+      setOrganizations([]);
+      setActiveOrganization(null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      // Unconditional: `createAuthClient.signOut` clears `TokenStorage` BEFORE
+      // it rethrows a server error, so a failed call still leaves this tab
+      // without a session — the caches it authenticated for must go with it.
+      purgeSignedOutClientCaches();
       setIsLoading(false);
     }
   }, [client]);
@@ -530,6 +675,10 @@ export function AuthProvider({
     } finally {
       if (!isCancelled?.()) {
         setIsOrganizationsLoading(false);
+        // In `finally`, so a failed `listOrganizations` still counts as an
+        // answer. It is not a good answer, but leaving it unresolved would
+        // strand every gate that waits on it (objectui#5619).
+        setOrganizationsResolved(true);
       }
     }
   }, [client, enabled, isPreviewMode, activeOrganization]);
@@ -546,20 +695,66 @@ export function AuthProvider({
         userId: 'preview-user',
         role,
       } as AuthOrganizationMember);
+      // Neither mode runs `refreshOrganizations` (its effect requires a real
+      // `user`, and the callback itself returns early), so this is the one
+      // place that can close BOTH halves for them (objectui#5619).
+      setOrganizationsResolved(true);
+      setActiveMemberResolved(true);
       return;
     }
     if (!activeOrganization) {
+      // "No active organization" is a real answer about the member row — but
+      // only once the org list itself has come back, which is what
+      // `organizationsResolved` below contributes. On mount this branch runs
+      // with the pipeline not yet started, and the combined flag stays false.
       setActiveMember(null);
+      setActiveMemberResolved(true);
       return;
     }
+    // A switch re-opens the question: until `getActiveMember()` answers for the
+    // NEW org, `activeMember` still holds the OLD org's row.
+    setActiveMemberResolved(false);
     try {
       const member = await client.getActiveMember();
       setActiveMember(member);
     } catch (err) {
       console.warn('[AuthProvider] Failed to load active member:', err);
       setActiveMember(null);
+    } finally {
+      setActiveMemberResolved(true);
     }
   }, [client, enabled, isPreviewMode, previewMode, activeOrganization]);
+
+  /**
+   * objectui#5664 — the session-user-change invariant.
+   *
+   * Declared BEFORE the two effects below on purpose: effects run in the order
+   * their hooks were called, so this settles "whose browser is this" before
+   * `refreshActiveMember` and `refreshOrganizations` read or write anything
+   * org-scoped. `refreshOrganizations` in particular calls
+   * `ActiveOrganizationStorage.set()`, which resolves its key through the
+   * pointer this establishes.
+   *
+   * Keyed on the session user ID rather than wired into each of the five
+   * places that set `user` (mount / `refreshSession` / rotation, sign-in,
+   * sign-up, and the two provider flows). One implementation, and a sign-in
+   * path added later is covered without being told to be.
+   *
+   * Preview and auth-disabled mounts are excluded because their identities are
+   * SYNTHETIC — a fixed `preview-user` / `guest` id. Adopting one would read as
+   * a user change and purge a real user's state on any browser that opened a
+   * marketplace demo.
+   *
+   * What "purge" means, and why it is wholesale rather than key-by-key, is in
+   * `ActiveOrganizationStorage.ts`: it is an allowlist sweep, so the NEXT
+   * un-namespaced key is covered before anyone writes it.
+   */
+  useEffect(() => {
+    if (!enabled || isPreviewMode) return;
+    const sessionUserId = user?.id;
+    if (!sessionUserId) return;
+    SessionUserScope.adopt(sessionUserId);
+  }, [user?.id, enabled, isPreviewMode]);
 
   useEffect(() => {
     refreshActiveMember();
@@ -573,9 +768,48 @@ export function AuthProvider({
     return () => { cancelled = true; };
   }, [user, enabled, isPreviewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // objectui#5750 — keep `activeOrgIdRef` current for every path that can
+  // move `activeOrganization`, not only `switchOrganization` (e.g.
+  // `refreshOrganizations`' single-membership repair calls
+  // `client.setActiveOrganization` directly). `switchOrganization` also
+  // writes it synchronously on its own success, below — this effect is the
+  // fallback for every OTHER path, and re-affirms after commit.
+  useEffect(() => {
+    activeOrgIdRef.current = activeOrganization?.id ?? null;
+  }, [activeOrganization]);
+
+  /**
+   * objectui#5750 — `switchOrganization` now DECLARES the re-resolution
+   * instead of relying on the objectui#4467 rotation subscription noticing
+   * one by accident.
+   *
+   * Why that accident cannot be trusted here: `POST /organization/set-active`
+   * always returns the SIGNED `token.signature` spelling in `set-auth-token`
+   * (better-auth's `bearer()` fires for any response that stages a session
+   * cookie), which differs from the UNSIGNED `session.token` spelling the
+   * client normally holds — so `TokenStorage.set` reads the flip as a
+   * rotation and the objectui#4467 subscription re-resolves identity. That
+   * accidental rotation is deterministic on the RAW token, not on the
+   * organization — so a SECOND switch whose response lands before the FIRST
+   * switch's follow-up `get-session` has re-armed it (re-stored the unsigned
+   * spelling) writes the SAME signed value already in storage. No value
+   * change, no notification, no re-resolution — `user.positions` is left
+   * answering for the organization the FIRST switch targeted, while
+   * `activeOrganization` already reads as the new one. Measured in #5749/#5750.
+   *
+   * The fix does not add a second call on the common path: it SUPPRESSES the
+   * accidental one (via `sessionLoadInFlight`, the same flag that already
+   * suppresses the rotation observed inside `loadSession`'s own
+   * `getSession()` call) and re-resolves explicitly instead, so a switch that
+   * changes the active organization still spends exactly one `get-session` —
+   * now unconditionally, so it does not depend on which spelling happened to
+   * already be in storage.
+   */
   const switchOrganization = useCallback(
     async (orgId: string) => {
       setError(null);
+      const previousOrgId = activeOrgIdRef.current;
+      sessionLoadInFlight.current = true;
       try {
         const org = await client.setActiveOrganization(orgId);
         setActiveOrganization(org);
@@ -585,13 +819,27 @@ export function AuthProvider({
         } else {
           ActiveOrganizationStorage.clear();
         }
+        const newOrgId = org?.id ?? null;
+        if (newOrgId !== previousOrgId) {
+          activeOrgIdRef.current = newOrgId;
+          // A LATER switch may already be in flight by the time this
+          // `getSession()` answer comes back (no debounce guards repeat
+          // switches — see the WorkspaceSwitcher/OrganizationLayout callers).
+          // Discard this answer if a newer switch has since claimed the
+          // generation, rather than clobber fresher, later-organization data
+          // with a stale, earlier one.
+          const generation = ++sessionLoadGeneration.current;
+          await loadSession(() => sessionLoadGeneration.current !== generation);
+        }
       } catch (err) {
         const authError = err instanceof Error ? err : new Error(String(err));
         setError(authError);
         throw authError;
+      } finally {
+        sessionLoadInFlight.current = false;
       }
     },
-    [client],
+    [client, loadSession],
   );
 
   const createOrganization = useCallback(
@@ -725,6 +973,23 @@ export function AuthProvider({
   // and a no-op signOut backend, so consumers should hide sign-out UIs.
   const isAuthEnabled = enabled && !isPreviewMode;
 
+  // objectui#5619 — see `AuthContext.isMembershipResolved` for the contract.
+  //
+  // Three modes, three reasons:
+  //  - preview / auth-disabled: no pipeline runs; `refreshActiveMember`'s first
+  //    branch closes both halves on its own effect.
+  //  - no user: there is no membership to fetch, so the question is answered.
+  //    Without this the flag would sit false forever on an unauthenticated
+  //    visitor and hang any gate that waits on it. Consumers that must also
+  //    wait for the SESSION read `isLoading` alongside this (the hook does).
+  //  - signed in: both halves, because "no active organization" only means
+  //    "no member row" once the org list has actually come back.
+  const isMembershipResolved = !isAuthEnabled
+    ? activeMemberResolved
+    : user == null
+      ? true
+      : organizationsResolved && activeMemberResolved;
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -761,6 +1026,7 @@ export function AuthProvider({
       activeOrganization,
       activeMember,
       isOrganizationsLoading,
+      isMembershipResolved,
       switchOrganization,
       createOrganization,
       refreshOrganizations,
@@ -784,7 +1050,7 @@ export function AuthProvider({
       signIn, signUp, signOut, refreshSession, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
       sendPhoneOtp, signInWithPhoneOtp, signInWithPhonePassword, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
       remediationRequired, enrollTotp, verifyTotp,
-      organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
+      organizations, activeOrganization, activeMember, isOrganizationsLoading, isMembershipResolved, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,
       getMembers, inviteMember, describeDelegableScope, removeMember, updateMemberRole,
       listInvitations, cancelInvitation, getInvitation, acceptInvitation, rejectInvitation, listUserInvitations,

@@ -22,7 +22,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, FilePlus2, FilePen, Loader2, Rocket } from 'lucide-react';
+import { ChevronDown, ChevronRight, FilePlus2, FilePen, Loader2, Rocket, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Badge,
   Button,
@@ -33,9 +34,57 @@ import {
   SheetTitle,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { diffFields } from '../views/metadata-admin/previews/object-fields-io';
+// The `/meta` URL-spelling fold (objectstack#7894, #8424), applied once in
+// `listPendingDrafts` below.
+//
+// CORRECTED, and the correction matters more than the number. An earlier
+// version of this comment stated that this import puts `@objectstack/spec/shared`
+// on the console's EAGER graph, at +213.4 KB minified / +60.1 KB gzipped. The
+// attribution is false: that cost was never this import's. Measured by ablation
+// on `origin/main` at 0fce2ef81 (2026-08-24) — delete this import, rebuild
+// `apps/console`, read the `eagerGzipBytes` in `dist/eager-closure.json` — the
+// eager closure moves +285 bytes gzipped, i.e. minifier noise. Read that figure
+// as what it is, one tree on one day; the full measurement, with the
+// counter-probes that discriminate it, is recorded on objectui#5359.
+//
+// The MECHANISM is the part that survives the next release. `/shared` is held on
+// the eager graph by an edge upstream of this repo: `@objectstack/core`, shipped
+// inside `@objectstack/client` and a direct dependency of `apps/console`, has a
+// runtime `import { pluralToSingular } from '@objectstack/spec/shared'`. Every
+// OTHER importer of `/shared` in objectui's own source is type-only and erased
+// at build, so ablating this one still leaves the subpath in the eagerly loaded
+// `vendor-objectstack` chunk. Deferring or deleting this import therefore moves
+// ~nothing while that edge stands, and the lever lives at the producer — it is
+// tracked in objectstack#11503.
+//
+// Still true, and still why laziness is not the local answer: each published
+// spec subpath is a self-contained bundle and nothing tree-shakes it
+// (`@objectstack/spec` declares no `sideEffects`), and the console's
+// `vendor-objectstack` chunk group claims every `@objectstack/*` module except
+// `@objectstack/lint`, that group's chunk being a static import of the app entry
+// (objectui#5266). So an `await import()` here would relocate nothing either.
+//
+// ⛔ Do not "optimize" this into a local copy of the spelling table: a
+// spec-named local declaration is what `scripts/check-spec-symbol-derivation.mjs`
+// refuses, and a faithful copy is exactly the fork that guard exists to prevent.
+import { fetchPendingDrafts } from './usePendingDrafts.js';
+import { canonicalMetaUrlType } from '@objectstack/spec/shared';
+import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
+// The live `?surface=` channel, and NOT `useSurfaceDeepLink` beside it: this
+// import must stay React-only, because that module reaches `nav-selection.js`
+// and through it the App-nav inspector, and this panel sits in the console's
+// EAGER graph (see the `@objectstack/spec` note above for what that costs).
+import { useSurfaceNavigator } from '../views/studio-design/surfaceDeepLinkChannel.js';
+import { lintDraftSecurityPosture, type DraftSecurityProblem } from './securityPostureLint.js';
 
 export interface DraftChangeEntry {
+  /**
+   * The CANONICAL SINGULAR metadata type (objectstack#9180). The `_drafts`
+   * feed returns whatever spelling each row was stored under, so the spelling
+   * is folded once — at the boundary that builds these entries — and every
+   * consumer below (both `/meta` item routes, the grouping, the heading) reads
+   * this one value. Nothing downstream ever sees the raw stored spelling.
+   */
   type: string;
   name: string;
   packageId: string | null;
@@ -45,23 +94,32 @@ export interface DraftChangeEntry {
 
 /** Pending drafts straight from the ADR-0033 `_drafts` endpoint. */
 async function listPendingDrafts(packageId?: string | null): Promise<DraftChangeEntry[]> {
-  const qs = packageId ? `?packageId=${encodeURIComponent(packageId)}` : '';
-  const res = await fetch(`/api/v1/meta/_drafts${qs}`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`_drafts HTTP ${res.status}`);
-  const data = (await res.json()) as
-    | Array<Record<string, unknown>>
-    | { drafts?: Array<Record<string, unknown>> };
-  const list = Array.isArray(data) ? data : data?.drafts ?? [];
-  return list
-    .filter((d) => typeof d?.type === 'string' && typeof d?.name === 'string')
+  // Shared fetch (objectui#5801); the fold below stays HERE because this module
+  // builds `/meta` item URLs from the type.
+  const rows = await fetchPendingDrafts(packageId);
+  return rows
     .map((d) => ({
-      type: d.type as string,
-      name: d.name as string,
-      packageId: typeof d.packageId === 'string' && d.packageId ? (d.packageId as string) : null,
+      // The one fold, at the one boundary where a stored spelling enters this
+      // module: the `/meta` type segment is singular, always (objectstack#9180).
+      // Everything below — both `/meta` item routes, the grouping and the
+      // heading — reads the folded value, so a route added later has no raw
+      // spelling in scope to interpolate.
+      //
+      // `canonicalMetaUrlType` and not `pluralToSingular`: that map's keys are
+      // `defineStack()` collection properties, and `field`, `seed`,
+      // `external_catalog` and `translation` are absent from it because none is
+      // a stack-level collection. That absence is also how the residue folded
+      // here got written — `PUT /meta/fields/…` fell through to the permissive
+      // plugin-type path and minted rows under `type='fields'` while
+      // `PUT /meta/field/…` was refused (objectstack#7894).
+      //
+      // Fold, never strip: `capabilities` folds to `capability`, where a
+      // `replace(/s$/, '')` emits `capabilitie`. And this is EMIT-side only —
+      // residue stored under a plural type stays exactly as it is on the
+      // server; nothing here writes, migrates or re-keys anything.
+      type: canonicalMetaUrlType(d.type),
+      name: d.name,
+      packageId: d.packageId,
     }));
 }
 
@@ -73,6 +131,7 @@ async function listPendingDrafts(packageId?: string | null): Promise<DraftChange
  * tree has no such sub-route — the generic :name handler answers anything.)
  */
 async function publishedNamesOf(type: string): Promise<Set<string>> {
+  // `type` is already the canonical singular — folded in `listPendingDrafts`.
   const res = await fetch(`/api/v1/meta/${encodeURIComponent(type)}`, {
     credentials: 'include',
     headers: { Accept: 'application/json' },
@@ -104,6 +163,7 @@ async function fetchItemBody(
   name: string,
   opts: { draft?: boolean; packageId?: string | null } = {},
 ): Promise<Record<string, unknown> | null> {
+  // `type` is already the canonical singular — folded in `listPendingDrafts`.
   const params: string[] = [];
   if (opts.draft) params.push('state=draft');
   if (opts.packageId) params.push(`package=${encodeURIComponent(opts.packageId)}`);
@@ -278,6 +338,19 @@ export function DraftChangesPanel({
   const { t } = useObjectTranslation();
   const [entries, setEntries] = useState<DraftChangeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Author-time security findings that the publish door would REFUSE
+   * (objectui#5418). Surfaced here, next to the button, so the refusal is
+   * something the author reads before committing rather than a toast that
+   * arrives after the batch has already rolled back.
+   */
+  const [problems, setProblems] = useState<DraftSecurityProblem[]>([]);
+  /**
+   * Null wherever no host listens for a surface request — the degradation this
+   * panel owes its second home (Home / the draft-preview bar). Never a route
+   * string test: reachability is answered by the tree that mounted us.
+   */
+  const openSurface = useSurfaceNavigator();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpanded = useCallback((key: string) => {
@@ -292,9 +365,24 @@ export function DraftChangesPanel({
   const load = useCallback(async () => {
     setEntries(null);
     setError(null);
+    setProblems([]);
     try {
       const drafts = await listPendingDrafts(packageId);
       setEntries(drafts);
+      // Mirror the publish door's own security-posture rule over these drafts.
+      // Deliberately not awaited with the classification below: a finding is
+      // advisory and must never gate the sheet's ability to render, so its
+      // failure mode is "no findings", exactly like an unavailable lint.
+      void lintDraftSecurityPosture(
+        {
+          getDraft: (type, name, opts) =>
+            fetchItemBody(type, name, {
+              draft: true,
+              packageId: (opts?.packageId as string | undefined) ?? packageId ?? null,
+            }),
+        },
+        drafts,
+      ).then(setProblems, () => setProblems([]));
       // Classify new-vs-update per TYPE: one published-list read covers every
       // draft of that type. A type whose read fails stays unclassified
       // (rendered neutrally) rather than failing the whole panel.
@@ -327,6 +415,33 @@ export function DraftChangesPanel({
     if (open) void load();
   }, [open, load]);
 
+  /**
+   * Clear the toast stack when this panel opens (objectui#5416).
+   *
+   * The console mounts its toaster bottom-right (`apps/console/src/App.tsx`)
+   * and this sheet is `side="right"` with a `mt-auto` footer, so the stack
+   * lands exactly on top of the confirm button: a save toast raised moments
+   * earlier on the way here (`对象「…」已存为草稿`, 4s default duration)
+   * covered `全部发布` until it timed out, on the author's first trip through
+   * Studio.
+   *
+   * Moving the toaster is NOT the fix, which is why this sits here and not in
+   * `ConsoleToaster`: every corner of this console is already occupied — the
+   * draft preview bar is `sticky top-0` and carries its own publish actions,
+   * `NotificationSnackbar` anchors bottom-centre, the nav rail owns the left
+   * edge — so a reposition only moves the same collision onto a different
+   * primary control. What is genuinely wrong is the toast's lifetime, not its
+   * corner: the author has left the surface that raised it and is now reading
+   * a review screen about the very drafts it announced.
+   *
+   * Keyed on `open` alone (not on `load`, which changes identity with
+   * `packageId`) so this fires on the open transition and never mid-session —
+   * a toast this panel's OWN publish raises is untouched.
+   */
+  useEffect(() => {
+    if (open) toast.dismiss();
+  }, [open]);
+
   const byType = new Map<string, DraftChangeEntry[]>();
   for (const entry of entries ?? []) {
     const bucket = byType.get(entry.type) ?? [];
@@ -351,7 +466,10 @@ export function DraftChangesPanel({
             })}
           </SheetDescription>
         </SheetHeader>
-        <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6">
+        <div
+          data-testid="draft-changes-list"
+          className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6"
+        >
           {error ? (
             <p className="text-sm text-destructive">
               {t('preview.changes.loadFailed', { defaultValue: 'Could not load pending changes:' })}{' '}
@@ -426,6 +544,57 @@ export function DraftChangesPanel({
             ))
           )}
         </div>
+        {problems.length > 0 && !error && (
+          <div
+            data-testid="draft-security-problems"
+            className="mt-auto border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/60 dark:bg-amber-950/30"
+          >
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              {t('preview.changes.securityBlockTitle', {
+                count: problems.length,
+                defaultValue: 'Publishing will be refused — {{count}} item(s) need a decision first',
+              })}
+            </p>
+            <ul className="mt-1.5 flex flex-col gap-1.5">
+              {problems.map((p) => (
+                <li key={`${p.type}:${p.name}:${p.rule}`} className="text-[11px] leading-5 text-amber-900 dark:text-amber-200">
+                  {/* `type/name`, the way the server's own publish refusal names
+                      the item (`object/crmext_visit: …`) — and, unlike a bare
+                      name, text that cannot collide with the same draft's row in
+                      the list above.
+
+                      Clickable ONLY where a host publishes the surface channel,
+                      i.e. inside Studio. This sheet is shared with the Home /
+                      draft-preview bar, where the designer is not a reachable
+                      destination at all: there `openSurface` is null and the
+                      name stays the plain prose it has always been, because a
+                      link that goes nowhere is worse than the sentence below
+                      telling you where to go. */}
+                  {openSurface ? (
+                    <button
+                      type="button"
+                      onClick={() => openSurface({ type: p.type, name: p.name })}
+                      className="font-mono underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-100"
+                    >
+                      {p.type}/{p.name}
+                    </button>
+                  ) : (
+                    <span className="font-mono">
+                      {p.type}/{p.name}
+                    </span>
+                  )}{' '}
+                  — {p.hint || p.message}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] text-amber-800/80 dark:text-amber-300/80">
+              {t('preview.changes.securityBlockWhere', {
+                defaultValue: 'Fix it on the object under Settings → Record sharing, then publish again.',
+              })}
+            </p>
+          </div>
+        )}
         {onPublish && (entries?.length ?? 0) > 0 && !error && (
           <div className="mt-auto flex flex-col gap-2 border-t px-4 py-3">
             <p className="text-xs text-muted-foreground">

@@ -285,7 +285,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // ── i18n: convention-based label resolution for dashboard / widget /
     // action text. The dashboard name (`schema.name`) keys all lookups; when
     // it's missing we silently degrade to the raw English fallbacks.
-    const { dashboardLabel, dashboardDescription, dashboardActionLabel, widgetTitle, widgetDescription, fieldLabel } = useObjectLabel();
+    const { dashboardLabel, dashboardDescription, dashboardActionLabel, widgetTitle, widgetDescription, widgetSubCaption, fieldLabel } = useObjectLabel();
     const { t, language } = useObjectTranslation();
 
     /**
@@ -371,6 +371,50 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         return widgetDescription(dashName, widget.id, fallback);
       },
       [dashName, widgetDescription, resolveLabel],
+    );
+
+    /**
+     * Translate a metric card's SUB-CAPTION — the line under the big number —
+     * using the `{ns}.dashboards.{dashName}.widgets.{widgetId}.subCaption`
+     * convention (objectui#4032 item 4).
+     *
+     * The authored field is `widget.options.description`, NOT
+     * `widget.description`. They are two different authored fields with two
+     * different keys (objectstack#5428 item-4 ruling: 「两个作者字段两个
+     * key」), which is why PR #4358 stopped here instead of routing the
+     * sub-caption through `tWidgetDescription`: `widget.description` feeds the
+     * shared Card header, and on a `kpi` / `gauge` / `bullet` widget BOTH are
+     * on screen at once, so one shared key would make a single translation
+     * entry overwrite the other field's text.
+     *
+     * `subCaption` is the widget-translation-node member objectstack#8056
+     * added, shipped in `@objectstack/spec@17.0.0` (the version this repo
+     * pins). The server already reads the same key on the `/meta` path —
+     * `translateDashboard` overlays it onto `options.description` — so a served
+     * document needs no client work; this is the same key path resolved for the
+     * app bundles objectui loads into `I18nProvider` itself.
+     *
+     * Composition order is the one `tWidgetTitle` fixed: the authored value is
+     * collapsed to the active language FIRST (an inline per-locale map — the
+     * #4208 `pickLocalized` seam), and the plain string that falls out is
+     * offered to the bundle as its fallback, so a bundle entry always wins over
+     * an inline map and the two channels can never disagree about what "the
+     * authored sub-caption" is.
+     *
+     * A translation with no authored counterpart is legitimate and matches the
+     * server: `translateDashboard` writes `options.description` whenever the
+     * bundle carries a non-empty `subCaption`, whether or not the author wrote
+     * one. Absent both, this answers `undefined` rather than `''` —
+     * `MetricWidget` gates its whole caption row on the value's truthiness.
+     */
+    const tWidgetSubCaption = useCallback(
+      (widget: DashboardWidgetSchema): string | undefined => {
+        const authored = (widget.options as Record<string, unknown> | undefined)?.description;
+        const fallback = resolveLabel(authored);
+        if (!dashName || !widget.id) return fallback;
+        return widgetSubCaption(dashName, widget.id, fallback);
+      },
+      [dashName, widgetSubCaption, resolveLabel],
     );
 
     // Install host-supplied modal/script handlers on the underlying ActionRunner.
@@ -519,9 +563,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
 
         // ADR-0021 — a widget bound to a semantic-layer dataset renders through
         // the governed queryDataset path (DatasetWidget) instead of the inline
-        // object-aggregate schema. `as any` because the bundled DashboardWidget
-        // type gains `dataset` only after objectui bumps @objectstack/spec.
-        const datasetBound = !!(widget as any).dataset;
+        // object-aggregate schema. No cast needed: `dataset` flows onto
+        // `DashboardWidgetSchema` from `@objectstack/spec`'s `DashboardWidget`
+        // (`packages/types/src/complex.ts`), so `widget.dataset` type-checks
+        // directly.
+        const datasetBound = !!widget.dataset;
 
         const getComponentSchema = () => {
             if (widget.component) return widget.component;
@@ -636,6 +682,16 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 // spec-valid inline map that `resolveLabel` could not read, so
                 // an authored title silently became the string `"metric"`.
                 const label = tWidgetTitle(widget) || widgetType;
+                // objectui#4032 item 4 — and the card's SUB-CAPTION comes from
+                // its own key, `…widgets.{id}.subCaption`, because it is a
+                // different authored field (`options.description`) from the
+                // shared header's `widget.description`. Assigned AFTER the
+                // `...options` spread in both branches below: the spread is
+                // what carries the raw authored `options.description` through,
+                // and this is the resolved value that replaces it. When nothing
+                // translates it, `tWidgetSubCaption` hands back exactly what the
+                // spread would have — so an untranslated dashboard is byte-identical.
+                const subCaption = tWidgetSubCaption(widget);
                 // provider: 'object' — ObjectMetricWidget aggregates server-side.
                 if (isObjectProvider(widgetData)) {
                     const providerAgg = widgetData.aggregate;
@@ -644,6 +700,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         ...options,
                         objectName: widgetData.object,
                         label,
+                        description: subCaption,
                         aggregate: providerAgg ? {
                             field: providerAgg.field,
                             function: providerAgg.function,
@@ -660,6 +717,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                     type: 'metric',
                     ...options,
                     label,
+                    description: subCaption,
                     value: options.value ?? rows[0]?.[valueField] ?? '—',
                 };
             }
@@ -827,9 +885,11 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 style={innerGridSpanStyle}
                 {...designModeProps}
             >
-                 {datasetBound
-                   ? <div className={cn("h-full w-full", designMode && "pointer-events-none")}><DatasetWidget widget={effectiveWidget} dataSource={dataSource} /></div>
-                   : <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />}
+                 {/* `isSelfContained` implies `!datasetBound` (see its definition above), so a
+                     dataset-bound widget can never render here — it always takes the Card branch
+                     below for its title + border chrome. Do not re-add a `datasetBound` fork
+                     here: the arm is unreachable by construction (objectui#4620). */}
+                 <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />
                  {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
             </div>
         ) : (
@@ -885,25 +945,50 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     // spec-compliant dashboards get their header title (framework#1878/#1891;
     // mirrors the DashboardGridLayout fallback from #2666).
     const headerTitle = schema.title || schema.label;
-    const headerSection = schema.header && (
+    /**
+     * Decide what the header would actually SHOW before deciding whether to
+     * render its wrapper at all.
+     *
+     * Every child here is independently suppressible: the console page chrome
+     * passes `hideHeaderText` because it already renders the dashboard's title
+     * and description itself, and `showTitle` / `showDescription` can be
+     * authored off. The wrapper, however, used to render whenever `header` was
+     * merely *declared* — so with the chrome present and no `header.actions`,
+     * every child evaluated falsy and the DOM still got
+     * `<div class="col-span-full mb-4"></div>`: an empty node that claims a
+     * full grid row (measured 64px) plus `mb-4`, opening every console
+     * dashboard page with a blank band above the filter bar (objectui#5812,
+     * measured on HotCRM 17.1.0). Authors had no lever — dropping `header`
+     * would have traded this for the standalone embed's lost title, which is
+     * the very thing `header` is for.
+     *
+     * So the contract is: the header costs zero pixels when it has nothing to
+     * show, and is otherwise untouched. `header.actions` keep it alive even
+     * under the chrome, since the chrome renders text only, not actions.
+     */
+    const header = schema.header;
+    const showHeaderTitle = !hideHeaderText && header?.showTitle !== false && !!headerTitle;
+    const showHeaderDescription = !hideHeaderText && header?.showDescription !== false && !!schema.description;
+    const headerActions = header?.actions ?? [];
+    const headerSection = header && (showHeaderTitle || showHeaderDescription || headerActions.length > 0) && (
       <div className="col-span-full mb-4">
-        {!hideHeaderText && schema.header.showTitle !== false && headerTitle && (
+        {showHeaderTitle && (
           <h2 className="text-lg font-semibold tracking-tight">
             {dashName
               ? dashboardLabel({ name: dashName, label: resolveLabel(headerTitle) })
               : resolveLabel(headerTitle)}
           </h2>
         )}
-        {!hideHeaderText && schema.header.showDescription !== false && schema.description && (
+        {showHeaderDescription && (
           <p className="text-sm text-muted-foreground mt-1">
             {dashName
               ? dashboardDescription({ name: dashName, description: resolveLabel(schema.description) })
               : resolveLabel(schema.description)}
           </p>
         )}
-        {schema.header.actions && schema.header.actions.length > 0 && (
+        {headerActions.length > 0 && (
           <div className="flex gap-2 mt-3">
-            {schema.header.actions.map((action: { label: string; actionUrl?: string; actionType?: string; icon?: string }, i: number) => {
+            {headerActions.map((action: { label: string; actionUrl?: string; actionType?: string; icon?: string }, i: number) => {
               const Icon = resolveLucideIcon(action.icon);
               const handleClick = async () => {
                 const { actionType, actionUrl, label } = action;

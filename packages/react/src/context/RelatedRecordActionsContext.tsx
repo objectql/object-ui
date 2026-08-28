@@ -65,6 +65,21 @@ export interface RelatedRecordHandlers {
    * argument is needed here (增).
    */
   onCreate?: () => void;
+  /**
+   * [#4646] Offer "+ New", but GREYED — the `userActions.create.disabledWhen`
+   * verdict for the scope this toolbar sits in (the host parent record on a
+   * record page's related list).
+   *
+   * A separate channel from omitting {@link onCreate} because hidden and
+   * disabled are different answers, exactly as they are for the row Edit/Delete
+   * predicates (objectui#2614) and for the record header's (objectui#4419 /
+   * PR #4515): `visibleWhen` decides whether the affordance exists at all,
+   * `disabledWhen` decides whether the existing affordance can be pressed. The
+   * host still supplies `onCreate` in the disabled case, so the button keeps
+   * its label and tooltip and the user can see that creating is a thing this
+   * list does — just not right now.
+   */
+  createDisabled?: boolean;
   /** Open an edit form for an existing child record (改). */
   onEdit?: (recordId: string | number, record?: unknown) => void;
   /**

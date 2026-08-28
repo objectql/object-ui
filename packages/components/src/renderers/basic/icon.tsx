@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { IconSchema } from '@object-ui/types';
-import { icons } from 'lucide-react';
+import { icons, SquareDashed } from 'lucide-react';
 import React, { forwardRef } from 'react';
 import { cn } from '../../lib/utils';
 
@@ -26,6 +26,49 @@ const iconNameMap: Record<string, string> = {
   'Home': 'House', // "Home" was renamed to "House" in lucide-react's icons object
 };
 
+/**
+ * The glyph rendered when the requested one does not resolve (objectui#5631).
+ *
+ * ## Why a placeholder at all
+ *
+ * This branch used to `return null`. That made an unresolvable icon invisible
+ * in two independent ways at once, which is the whole reason objectui#5631
+ * existed long enough to be found by accident:
+ *
+ *   - **Invisible to a human.** Nothing rendered. No error boundary, no gap
+ *     that reads as broken — just an absent glyph a reviewer's eye completes.
+ *   - **Invisible to a gate.** A renderer that returns `null` spreads no
+ *     attributes, so the DOM-leak sweep in
+ *     `packages/app-shell/src/__tests__/widget-dom-leak-sweep.test.tsx` scanned
+ *     an empty tree and reported no findings. An empty scan and a clean scan
+ *     are the same reading. `ui:icon` was one of twelve targets that read clean
+ *     for exactly that reason, and it only started reporting its fourteen
+ *     leaked attributes once the sweep forced a resolvable name onto it.
+ *
+ * The maintainer ruling of 2026-08-22 (issue #5631, comment 5380754137) makes
+ * ending that silence unconditional — it holds "regardless of the key
+ * question", i.e. independent of *which* schema key names the glyph.
+ *
+ * ## Why a NAMED IMPORT and not a lookup in the `icons` record
+ *
+ * A placeholder that itself fails to resolve is the original bug again, one
+ * level up, and silent in the same way. Every other lookup in this file goes
+ * through lucide's runtime `icons` record, and lucide retires a spelling by
+ * dropping it from that record while keeping the deprecated named export —
+ * the objectui#5622 mechanism. Measured on the installed lucide-react 1.31.0:
+ * `CircleHelp` and `HelpCircle`, the two obvious "unknown" glyphs, are BOTH
+ * absent from the `icons` record while both still resolve as named exports.
+ * Either one looked up the usual way would have rendered nothing.
+ *
+ * A direct named import removes the failure mode instead of dodging it: it is
+ * resolved at build time, so if lucide ever retires this spelling the build
+ * fails loudly rather than the placeholder silently becoming another `null`.
+ * `SquareDashed` is currently both a named export and present in the record,
+ * and it is used DIRECTLY in the placeholder branch below rather than through a
+ * module-scope alias — an alias reads to `react-refresh/only-export-components`
+ * as a second component declaration in a file that exports none.
+ */
+
 // Index signature on the parameter annotation, not on the `forwardRef` type
 // argument — mechanism note on `action:bar` (objectui#4422), pinned by
 // `__tests__/forwardref-props-annotation.guard.test.ts`.
@@ -38,28 +81,101 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
       style,
       ...iconProps
     } = props;
-    
-    // Convert icon name to PascalCase for Lucide lookup
-    const iconName = toPascalCase(schema.name);
-    // Apply icon name mapping for renamed icons
-    const mappedIconName = iconNameMap[iconName] || iconName;
-    const Icon = (icons as any)[mappedIconName];
-    
-    if (!Icon) {
-      console.warn(`Icon "${schema.name}" (lookup: "${iconName}"${mappedIconName !== iconName ? ` -> "${mappedIconName}"` : ''}) not found in lucide-react`);
-      return null;
-    }
-    
+
     // Build size style
     const sizeStyle = schema.size ? { width: schema.size, height: schema.size } : undefined;
-    
+
     // Merge classNames: schema color, schema className, prop className
     const mergedClassName = cn(
       schema.color,
       schema.className,
       className
     );
-    
+
+    // The glyph key is `icon` (objectui#5631, maintainer rulings 2026-08-22
+    // option A and 2026-08-24 「5631 A′」). It used to be `name` — the SDUI
+    // IDENTITY key every authored node carries — so an ordinary
+    // `{ type:'icon', id:'save_icon', name:'save_icon' }` asked lucide for
+    // `SaveIcon`, missed, and rendered nothing at all.
+    //
+    // ⛔ There is NO `schema.icon ?? schema.name` here, and there must not be.
+    // The ruling excluded that shape by name, twice: it is the tolerant-consumer
+    // pattern this family is migrating away from, and it would make `name` mean
+    // "identity" or "glyph" depending on whether a lucide lookup happened to
+    // hit. A node that still authors `name` is REFUSED by `IconSchema`, and if
+    // it reaches this renderer unvalidated it lands in the placeholder branch
+    // below — loud in both directions, silent in neither.
+    //
+    // `schema.icon` is typed `string` but arrives from authored JSON, so it can
+    // be absent at runtime. It used to reach `toPascalCase` unguarded, where
+    // `undefined.split` threw and the SchemaErrorBoundary swallowed it — a
+    // third way for this renderer to fail without saying so.
+    const requested = typeof schema.icon === 'string' ? schema.icon : '';
+    // Read ONLY to make the migration diagnostic below specific. ⛔ Never a
+    // fallback glyph source: it is not consulted by the lookup, and a node
+    // carrying it still renders the placeholder.
+    const legacyGlyphName = typeof schema.name === 'string' && schema.name.length > 0
+      ? schema.name
+      : '';
+    // Convert icon name to PascalCase for Lucide lookup
+    const iconName = toPascalCase(requested);
+    // Apply icon name mapping for renamed icons
+    const mappedIconName = iconNameMap[iconName] || iconName;
+    const Icon = requested ? (icons as any)[mappedIconName] : undefined;
+
+    if (!Icon) {
+      console.warn(
+        `ui:icon: no lucide glyph resolves for ${requested ? `"${requested}"` : 'an absent icon name'}` +
+          `${requested ? ` (lookup: "${iconName}"${mappedIconName !== iconName ? ` -> "${mappedIconName}"` : ''})` : ''}. ` +
+          `Rendering a visible placeholder instead of nothing (objectui#5631).` +
+          // The migration half. An author looking at a placeholder on a node
+          // that used to work needs to be told the key moved — saying only
+          // "no glyph resolves" would make a mechanical rename look like a
+          // missing icon. Named separately from the generic case so it cannot
+          // be mistaken for one.
+          (!requested && legacyGlyphName
+            ? ` This node names its glyph with the SDUI identity key \`name\`` +
+              ` ("${legacyGlyphName}"), which is no longer read as a glyph name.` +
+              ` Rename it: \`icon: "${legacyGlyphName}"\`. Stored metadata converts in` +
+              ` bulk with \`migrateIconNodeKeys\` from \`@object-ui/types\`.`
+            : '')
+      );
+
+      // Same host element and the same authored box as a resolved icon, so the
+      // gap is visible exactly where the glyph would have been. `role`/
+      // `aria-label` sit BEFORE the spread so an author can still override
+      // them; the marker attribute sits AFTER it so nothing can clobber the
+      // one hook a gate uses to find this branch.
+      return (
+        <SquareDashed
+          ref={ref}
+          role="img"
+          aria-label={
+            requested
+              ? `Unresolved icon: ${requested}`
+              : legacyGlyphName
+                ? `Unresolved icon: \`name\` is no longer the icon key, rename it to \`icon\` (${legacyGlyphName})`
+                : 'Unresolved icon'
+          }
+          className={mergedClassName}
+          style={{ ...sizeStyle, ...style }}
+          {...iconProps}
+          // Apply designer props
+          {...{
+            'data-obj-id': dataObjId,
+            'data-obj-type': dataObjType,
+            'data-objectui-icon-unresolved': requested || '(none)',
+            // Present ONLY on the legacy shape, so a gate (and a designer) can
+            // tell "author wrote a glyph name that does not resolve" apart from
+            // "author has not migrated this node yet" (objectui#5631).
+            ...(!requested && legacyGlyphName
+              ? { 'data-objectui-icon-legacy-name-key': legacyGlyphName }
+              : {}),
+          }}
+        />
+      );
+    }
+
     return (
       <Icon 
         ref={ref} 
@@ -80,10 +196,36 @@ ComponentRegistry.register('icon',
   {
     namespace: 'ui',
     label: 'Icon',
-    icon: 'smile',
+    // objectui#5622 — `face-slightly-smiling`, NOT `smile`, in BOTH places
+    // below. Every lookup in this file goes through lucide's runtime `icons`
+    // record, and lucide retires a spelling by dropping it from that record
+    // while keeping it as a deprecated named export. `Smile` is gone from the
+    // record, so this component's own declared default resolved to nothing:
+    // the palette entry's glyph was blank and an `icon` dropped in from the
+    // palette rendered nothing plus the `console.warn` below. The two spots
+    // must move together — repairing one alone leaves either the default
+    // rendering nothing or the palette glyph blank.
+    //
+    // `face-slightly-smiling` is the record's own spelling of the SAME glyph
+    // object (`Smile === FaceSlightlySmiling` is true on the installed
+    // lucide), so the palette looks exactly as it did — this is a spelling
+    // repair, not a redesign of the default.
+    icon: 'face-slightly-smiling',
     category: 'basic',
     inputs: [
-      { name: 'name', type: 'string', label: 'Icon Name', defaultValue: 'smile' },
+      // objectui#5631 — this entry declares `icon`, and it moved in the SAME
+      // change as the resolver above, by construction.
+      //
+      // It advertised `name` up to PR #5959, deliberately: renaming it while
+      // the resolver still read `name` would have been this card's own defect
+      // pointing the other way — a declared input list naming a key nothing
+      // reads. That note retires here, under the 2026-08-24 ruling
+      // 「5631 A′，按一次正经的契约迁移立项。」, because the contract, the
+      // resolver, the corpus and this list all move together.
+      //
+      // The `name:` on the left is the INPUT DESCRIPTOR's own key — which
+      // schema property this input edits. Its value is what changed.
+      { name: 'icon', type: 'string', label: 'Icon Name', defaultValue: 'face-slightly-smiling' },
       { name: 'size', type: 'number', label: 'Size (px)' },
       { name: 'color', type: 'string', label: 'Color Class' },
       { name: 'className', type: 'string', label: 'CSS Class' }

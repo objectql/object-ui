@@ -8,7 +8,7 @@
 
 import { useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { serializeDrillFilterParams } from './drillUrlFilters';
+import { serializeDrillFilterParams } from './drillUrlFilters.js';
 
 /**
  * `useOpenRecordList` — the console's implementation of the drill "escape

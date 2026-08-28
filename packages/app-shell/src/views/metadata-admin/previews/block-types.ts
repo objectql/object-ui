@@ -56,7 +56,7 @@ export type BlockTypeId =
   | 'page:accordion' | 'page:card' | 'page:section'
   // record:*
   | 'record:details' | 'record:highlights' | 'record:related_list'
-  | 'record:activity' | 'record:chatter' | 'record:path' | 'record:alert'
+  | 'record:activity' | 'record:discussion' | 'record:path' | 'record:alert'
   | 'record:quick_actions' | 'record:reference_rail' | 'record:history'
   // nav:* — page-content navigation (shell singletons like app:launcher /
   // global:notifications / user:profile are intentionally NOT page blocks)
@@ -100,7 +100,7 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
   'record:highlights':      { label: 'Highlights',          category: 'record', Icon: Tag },
   'record:related_list':    { label: 'Related list',        category: 'record', Icon: ListChecks },
   'record:activity':        { label: 'Activity timeline',   category: 'record', Icon: Activity },
-  'record:chatter':         { label: 'Chatter feed',        category: 'record', Icon: MessageSquare },
+  'record:discussion':      { label: 'Discussion',          category: 'record', Icon: MessageSquare },
   'record:path':            { label: 'Stage path',          category: 'record', Icon: Compass },
   'record:alert':           { label: 'Alert banner',        category: 'record', Icon: AlertTriangle },
   'record:quick_actions':   { label: 'Quick actions',       category: 'record', Icon: Zap },
@@ -151,13 +151,92 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   'app:launcher': 'shell singleton — the app shell renders it, not a page',
   'global:notifications': 'shell singleton — lives in the app shell header',
   'user:profile': 'shell singleton — lives in the app shell header',
-  // No renderer, by decision.
+  // No renderer, by decision — and these two are the ones that MEASURE that way.
+  // Nothing registers `form` under `namespace: 'element'` (the form renderers are
+  // `ui:form` in `components/renderers/form/form.tsx` and `view:form` in
+  // `plugin-form/src/index.tsx`; the object-bound alternative named below,
+  // `object-form`, is registered in that same file), and no `ai:` namespace
+  // registration exists anywhere — `components/renderers/placeholders.tsx` keeps
+  // `ai:chat_window` out on purpose so a referencing schema fails loudly.
   'ai:chat_window': 'no inline renderer — the floating chat overlay (plugin-chatbot) is canonical',
-  'element:filter': 'no renderer — list surfaces own filtering (userFilters / filter builder)',
   'element:form': 'no renderer — use the object-bound `object-form` block',
-  'element:record_picker': 'no renderer — record picking is a field widget, not a page block',
-  'element:text_input': 'no renderer — bare inputs belong to a form, not a page block',
+  // Renders fine — excluded because it is not PAGE CONTENT, not because it is
+  // unrenderable. Both types have a registered renderer under `namespace:
+  // 'element'` (`components/renderers/basic/text-input.tsx:161`,
+  // `components/renderers/basic/record-picker.tsx:303`), so the "no renderer"
+  // these two reasons used to open with was simply false (#6071). That matters
+  // because this ledger is read as the DECISION RECORD: #5837 had to re-derive
+  // registration state from source precisely because the stated reason could not
+  // be trusted. `core/src/registry/public-blocks.ts` already words these same two
+  // exclusions without any renderer claim.
+  //
+  // ⛔ The exclusions themselves are unchanged — still decisions, still standing.
+  // Only the false leading clause moved; the substantive half (field widget /
+  // belongs to a form) was correct all along and is kept verbatim.
+  // `exclusion-reason-truthfulness.test.ts` pins the CLASS so it cannot come
+  // back: an exclusion whose reason claims "no renderer" must not have one.
+  'element:record_picker': 'renders, but not as page content — record picking is a field widget, not a page block (also excluded from PUBLIC_BLOCKS)',
+  'element:text_input': 'renders, but not as page content — bare inputs belong to a form, not a page block',
+  // Renders fine — excluded to keep ONE palette entry per renderer, not because
+  // it is unauthorable. `record:chatter` and `record:discussion` are the same
+  // renderer under two names: `plugin-detail/src/index.tsx` registers both
+  // against `RecordChatterRenderer`, and the palette offers the CANONICAL one
+  // above as 'Discussion'.
+  //
+  // ⛔ Excluded from the palette is NOT removed. `record:chatter` stays fully
+  // renderable for schemas already in the wild — this entry changes what Studio
+  // ADVERTISES, not what works. Deleting the registration is a different (and
+  // breaking) change; `palette-discussion-alias.test.tsx` pins both halves so
+  // "not offered" cannot quietly become "not rendered".
+  //
+  // Which of the two the palette advertises was a decision, not a pin-bump edit
+  // (maintainer ruling 2026-08-22, objectui#5495 — Option A, the canonical name).
+  // Everything else already pointed that way: `core/src/registry/public-blocks.ts`
+  // records `record:chatter` as "`record:discussion` under a Salesforce-familiar
+  // name, kept for schemas", objectui's own generator has emitted the canonical
+  // spelling all along (`synth/buildDefaultPageSchema.ts`), and the console's AI
+  // vocabulary leaves the alias uncurated for the same reason
+  // (`apps/console/src/__tests__/public-contract.test.ts`, DELIBERATELY_UNCURATED).
+  // The palette was the last surface still pointing at the alias — it offered it
+  // only because the then-pinned `@objectstack/spec` did not declare the
+  // canonical name yet (objectui#5328); the pinned spec now declares both.
+  'record:chatter': 'compatibility alias — same renderer as the offered canonical `record:discussion`; still renders, just no longer advertised',
 };
+
+/**
+ * Block types that are ONE renderer under several spellings — the DISPLAY
+ * counterpart to {@link PALETTE_EXCLUSIONS}.
+ *
+ * {@link BLOCK_TYPE_META} answers "what may an author drag IN". The page canvas
+ * asks a different question — "what may an author already HAVE in this page" —
+ * and for most exclusions the two answers coincide: `ai:chat_window`,
+ * `element:form`, `element:record_picker` and `element:text_input` are not page
+ * blocks an author composes with, so a node bearing one of those names is
+ * something the canvas cannot draw meaningfully, and {@link UnknownBlockIcon}
+ * plus the neutral `misc` tone is the honest chrome for it.
+ *
+ * An alias pair is where the two questions diverge. `record:discussion` and
+ * `record:chatter` are registered against the SAME renderer function
+ * (`plugin-detail/src/index.tsx`), and the palette deliberately offers exactly
+ * one of them so there is one entry per renderer — which leaves the other
+ * spelling rendering perfectly while the canvas drew it as an unknown grey box.
+ *
+ * The key here is RENDERER IDENTITY, not "is excluded". A group may only list
+ * spellings that resolve, through `ComponentRegistry`, to the very same
+ * component; `canvas-display-meta.test.tsx` asserts exactly that against the
+ * real registry, so a group cannot claim a renderability it does not have. That
+ * is what keeps `element:text_input` — excluded for an unrelated reason, and
+ * with no twin — from borrowing an icon it has not earned.
+ *
+ * Groups are UNORDERED and orientation-agnostic on purpose. Which spelling the
+ * palette advertises is a maintainer decision that has already flipped once
+ * (objectui#5495 moved it from the alias to the canonical name), so the
+ * resolver borrows from whichever member is offered TODAY rather than
+ * hard-coding a direction; a future flip cannot re-open this gap.
+ */
+export const BLOCK_RENDERER_ALIAS_GROUPS: readonly (readonly string[])[] = [
+  ['record:discussion', 'record:chatter'],
+];
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
   data:       'Data',
@@ -227,8 +306,41 @@ export const BLOCK_CATEGORY_TONE: Record<BlockCategory, BlockCategoryTone> = {
   },
 };
 
+/**
+ * Icon + tone inputs for any block type the canvas can ENCOUNTER, as opposed to
+ * {@link BLOCK_TYPE_META}, which lists what the palette OFFERS.
+ *
+ * Deliberately narrower than {@link BlockTypeMeta}: no `label`. `blockLabel()`
+ * in `PageBlockCanvas` never consulted this catalogue — it falls back to the
+ * raw type string — and widening display resolution into labels would change
+ * author-visible naming, a separate decision from chrome.
+ */
+export interface BlockDisplayMeta {
+  Icon: LucideIcon;
+  category: BlockCategory;
+}
+
+/**
+ * Resolve the canvas chrome for a block `type`: its palette entry when it has
+ * one, otherwise an alias sibling's ({@link BLOCK_RENDERER_ALIAS_GROUPS}).
+ * `undefined` for everything else, so the caller draws
+ * {@link UnknownBlockIcon}. Nothing here makes a type offerable — the palette
+ * is built from {@link BLOCK_TYPE_META} alone ({@link TYPES_BY_CATEGORY}).
+ */
+export function resolveBlockDisplayMeta(type: string): BlockDisplayMeta | undefined {
+  const direct = BLOCK_TYPE_META[type as BlockTypeId];
+  if (direct) return { Icon: direct.Icon, category: direct.category };
+  for (const group of BLOCK_RENDERER_ALIAS_GROUPS) {
+    if (!group.includes(type)) continue;
+    for (const sibling of group) {
+      const meta = BLOCK_TYPE_META[sibling as BlockTypeId];
+      if (meta) return { Icon: meta.Icon, category: meta.category };
+    }
+  }
+  return undefined;
+}
+
 /** Resolve a category tone for any block `type` string (handles unknowns). */
 export function resolveBlockTone(type: string): BlockCategoryTone {
-  const meta = BLOCK_TYPE_META[type as BlockTypeId];
-  return BLOCK_CATEGORY_TONE[meta?.category ?? 'misc'];
+  return BLOCK_CATEGORY_TONE[resolveBlockDisplayMeta(type)?.category ?? 'misc'];
 }

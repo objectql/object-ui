@@ -21,6 +21,7 @@
  * unit-testable without the dialog render tree (mirrors app-shell's
  * `paramToField`).
  */
+import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { resolveFormWidgetType } from '@object-ui/fields';
 import type { BulkActionParam } from '@object-ui/types';
 
@@ -50,8 +51,43 @@ const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
  */
 const USER_WIDGET_TYPES = new Set(['user']);
 
-/** Widget keys whose widget must be handed the grid's DataSource explicitly. */
-const DATA_SOURCE_WIDGET_TYPES = new Set([...LOOKUP_WIDGET_TYPES, ...USER_WIDGET_TYPES]);
+/**
+ * Whether the widget rendered for this key has to QUERY records to do its job —
+ * so it must be handed the grid's `DataSource`, and its field shape needs the
+ * `reference_to` / `display_field` the picker queries with.
+ *
+ * The reference-bearing half is NOT restated here: it is `EXPANDABLE_FIELD_TYPES`
+ * from `@object-ui/core`, the one relational-field family the `$expand` builder
+ * and the predicate-record projection already read, and the same seam the object
+ * form derives `needsDataSourceWiring` from (objectui#4790). This module held a
+ * private copy of it (`DATA_SOURCE_WIDGET_TYPES = LOOKUP_WIDGET_TYPES ∪
+ * USER_WIDGET_TYPES`) until objectui#4815 — the FOURTH hand-maintained answer to
+ * one question, with a member set that matched neither of the other three and no
+ * gate anywhere that could say so.
+ *
+ * Converging on the shared set costs this surface nothing, because the one cell
+ * where the two tables differ is unreachable here: `tree` is a core member but
+ * never a widget key on this path — it is absent from `fields`' widget map and
+ * `mapFieldTypeToFormType` sends it to `field:lookup`, so every key tested here
+ * (always `resolveBulkParamWidgetType` output) arrives as `lookup`. The form's
+ * copy carries the same inert `tree` member for the same reason.
+ *
+ * The other direction is deliberately NOT converged: the form additionally wires
+ * `object-ref` / `filter-condition` / `recipient-picker`, which are widget HINTS
+ * that no object schema can declare (`widgetHintOnly: true`) and that a bulk
+ * param does not produce. Pulling them in would CHANGE which widgets receive a
+ * DataSource on this surface — a behaviour change, not a convergence — so
+ * objectui#4815 left that cell measured and empty on purpose.
+ *
+ * Extending this surface later: OR in a second, surface-local set, the way
+ * `needsDataSourceWiring` does — `EXPANDABLE_FIELD_TYPES.has(t) || SURFACE_ONLY.has(t)`.
+ * Never `new Set([...EXPANDABLE_FIELD_TYPES, …])`: a copy silently re-forks the
+ * table, which is the defect objectui#4815 removed, and the identity pin in
+ * `__tests__/bulkParamToField.test.ts` fails on it by design.
+ */
+function widgetNeedsDataSource(widgetType: string): boolean {
+  return EXPANDABLE_FIELD_TYPES.has(widgetType);
+}
 
 /** Resolve a param `type` to the form widget key that renders it. */
 export function resolveBulkParamWidgetType(paramType: string): string {
@@ -61,7 +97,7 @@ export function resolveBulkParamWidgetType(paramType: string): string {
 /** True when the resolved widget is a record/person picker (id-valued). */
 export function isLookupishParam(param: BulkActionParam): boolean {
   const type = resolveBulkParamWidgetType(param.type);
-  return DATA_SOURCE_WIDGET_TYPES.has(type);
+  return widgetNeedsDataSource(type);
 }
 
 /**
@@ -140,7 +176,7 @@ export function bulkParamToField(
     multiple,
   };
 
-  if (DATA_SOURCE_WIDGET_TYPES.has(type)) {
+  if (widgetNeedsDataSource(type)) {
     field.reference_to = object;
     if (typeof labelField === 'string') field.display_field = labelField;
   }
@@ -150,5 +186,5 @@ export function bulkParamToField(
 
 /** Whether the widget for this field shape needs the DataSource threaded in. */
 export function fieldNeedsDataSource(field: Record<string, any>): boolean {
-  return DATA_SOURCE_WIDGET_TYPES.has(field.type);
+  return widgetNeedsDataSource(field.type);
 }

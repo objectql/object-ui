@@ -66,6 +66,12 @@ import { join, resolve } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '@object-ui/react';
 
+// The shared registration reader (objectui#4894). Plain JS, and this package's
+// test program sets `allowJs: false`, so the import is untyped here — the local
+// annotation below is what keeps the call site checked.
+// @ts-expect-error — plain-JS shared helper, intentionally untyped
+import { readComponentRegistrations } from '../../../../scripts/component-registrations.mjs';
+
 import { registerLayout, AppShell } from '../index';
 
 /** Repo root — four levels up from `packages/layout/src/__tests__`. */
@@ -75,11 +81,17 @@ const LAYOUT_INDEX_SRC = readFileSync(
   'utf8',
 );
 
-/** Component keys `registerLayout()` registers, read out of the source. */
+/**
+ * Component keys `registerLayout()` registers, read out of the source.
+ *
+ * `scripts/component-registrations.mjs` (objectui#4894) — the one reader the
+ * four pins on this key list share. This file's source-side assertion is the
+ * least urgent of the four, because the live-registry assertion below catches a
+ * re-registration this read misses; it is wired to the shared reader anyway, so
+ * the two faces are not read by two different definitions of "registered".
+ */
 const registeredKeys = (): string[] =>
-  [...LAYOUT_INDEX_SRC.matchAll(/ComponentRegistry\.register\(\s*'([^']+)'/g)].map(
-    (match) => match[1],
-  );
+  readComponentRegistrations(LAYOUT_INDEX_SRC, 'packages/layout/src/index.ts').keys;
 
 beforeAll(() => {
   // The barrel registers on evaluation, but say so explicitly: this file's

@@ -24,8 +24,10 @@ ObjectUI includes enterprise-grade capabilities to build production-ready applic
 #### [App Schema](/docs/core/app-schema)
 Define your entire application structure with navigation, branding, and global settings.
 
+<!-- doc-snippet: fragment — a shape excerpt: `menu` and `actions` are written as a literal `[...]` ellipsis because the section is about the app schema's top-level keys, not about a menu -->
+
 ```typescript
-const app: AppSchema = {
+const app: AppComponentSchema = {
   type: 'app',
   title: 'My Application',
   layout: 'sidebar',
@@ -47,19 +49,17 @@ const app: AppSchema = {
 #### [Theme Schema](/docs/core/theme-schema)
 Dynamic theming with light/dark modes, color palettes, and typography.
 
-```typescript
-const theme: ThemeSchema = {
-  type: 'theme',
-  mode: 'dark',
-  themes: [{
-    name: 'professional',
-    light: { primary: '#3b82f6', ... },
-    dark: { primary: '#60a5fa', ... }
-  }]
-};
-```
+Theming is **not** a component you declare in a page. There is no `type: 'theme'`
+node: the `ThemeComponentSchema` wrapper documented here until objectui#5489 was
+retired because no renderer ever implemented it, so a page declaring one got the
+registry's "Unknown component type" panel rather than a theme manager.
 
-**Features:**
+A theme is a **document**, not a node. Author it as the `Theme` shape
+`@object-ui/types` re-exports from `@objectstack/spec/ui`, hand it to
+`ThemeProvider` (`@object-ui/react`), and `ThemeEngine` (`@object-ui/core`)
+turns it into the CSS variables your components already read.
+
+**What the theme document carries:**
 - Light/dark mode switching
 - 20+ semantic colors
 - Typography system
@@ -73,13 +73,15 @@ const theme: ThemeSchema = {
 #### [Enhanced Actions](/docs/core/enhanced-actions)
 Powerful action system with AJAX calls, chaining, conditions, and callbacks.
 
+<!-- doc-snippet: fragment — a shape excerpt: `chain`, `onSuccess` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
+
 ```typescript
 const action: ActionSchema = {
   type: 'action',
   actionType: 'ajax',
   api: '/api/submit',
   chain: [...],
-  condition: { expression: '${...}', then: {...} },
+  condition: '${...}',
   onSuccess: {...},
   tracking: {...}
 };
@@ -92,7 +94,7 @@ const action: ActionSchema = {
 
 **Key Features:**
 - Action chaining (sequential/parallel)
-- Conditional execution (if/then/else)
+- Conditional execution (a `condition` predicate gates whether an action runs)
 - Success/failure callbacks
 - Event tracking
 - Retry logic
@@ -105,7 +107,9 @@ const action: ActionSchema = {
 Enterprise reports with aggregation, export, and scheduling.
 
 ```typescript
-const report: ReportSchema = {
+import type { ReportComponentSchema } from '@object-ui/types';
+
+const report: ReportComponentSchema = {
   type: 'report',
   title: 'Sales Report',
   fields: [
@@ -132,6 +136,8 @@ const report: ReportSchema = {
 
 #### [Block Schema](/docs/blocks/block-schema)
 Reusable component blocks with variables, slots, and marketplace support.
+
+<!-- doc-snippet: fragment — a shape excerpt: the block template's `children` is written as a literal `[...]` ellipsis, since the section is about the block wrapper rather than what it wraps -->
 
 ```typescript
 const block: BlockSchema = {
@@ -160,10 +166,9 @@ const block: BlockSchema = {
 
 | Schema | Purpose | Best For |
 |--------|---------|----------|
-| **AppSchema** | Application structure | Multi-page apps, dashboards |
-| **ThemeSchema** | Visual theming | Brand consistency, white-labeling |
+| **AppComponentSchema** | Application structure | Multi-page apps, dashboards |
 | **Enhanced Actions** | Complex workflows | API integration, multi-step processes |
-| **ReportSchema** | Data reporting | Analytics, business intelligence |
+| **ReportComponentSchema** | Data reporting | Analytics, business intelligence |
 | **BlockSchema** | Reusable components | Marketing pages, component libraries |
 
 ## View Components
@@ -202,10 +207,9 @@ Import the type definitions you need:
 
 ```typescript
 import type { 
-  AppSchema, 
-  ThemeSchema, 
+  AppComponentSchema, 
   ActionSchema,
-  ReportSchema,
+  ReportComponentSchema,
   BlockSchema 
 } from '@object-ui/types';
 ```
@@ -216,14 +220,15 @@ For runtime validation, use the included Zod schemas:
 
 ```typescript
 import { 
-  AppSchema,
-  ThemeSchema,
+  AppComponentSchema,
   ActionSchema,
-  ReportSchema,
+  ReportComponentSchema,
   BlockSchema
 } from '@object-ui/types/zod';
 
-const result = AppSchema.safeParse(myConfig);
+const myConfig = { type: 'app', title: 'My Application', layout: 'sidebar' };
+
+const result = AppComponentSchema.safeParse(myConfig);
 if (result.success) {
   // Valid configuration
   const app = result.data;
@@ -238,10 +243,10 @@ if (result.success) {
 Here's a complete example showing how to build a simple CRM application using ObjectUI schemas:
 
 ```typescript
-import type { AppSchema, ThemeSchema } from '@object-ui/types';
+import type { AppComponentSchema } from '@object-ui/types';
 
 // Define your application structure
-const app: AppSchema = {
+const app: AppComponentSchema = {
   type: 'app',
   name: 'enterprise-crm',
   title: 'Enterprise CRM',
@@ -275,26 +280,15 @@ const app: AppSchema = {
     }
   ]
 };
-
-// Configure your theme
-const theme: ThemeSchema = {
-  type: 'theme',
-  mode: 'system',
-  themes: [{
-    name: 'professional',
-    light: { primary: '#3b82f6', background: '#fff' },
-    dark: { primary: '#60a5fa', background: '#0f172a' }
-  }],
-  allowSwitching: true,
-  persistPreference: true
-};
 ```
 
 This creates a professional-looking CRM application with:
 - A sidebar layout with navigation menu
 - Sales section with leads and deals
 - User menu with profile and logout options
-- Professional theme with light/dark mode support
+
+Theming is configured separately, as a theme document handed to `ThemeProvider` —
+see [Theme Schema](/docs/core/theme-schema).
 
 ## Advanced Features
 
@@ -304,9 +298,8 @@ ObjectUI provides advanced schemas and capabilities for enterprise applications:
 
 ObjectUI includes these top-level schemas:
 
-- **`AppSchema`** - Define your entire application structure
-- **`ThemeSchema`** - Configure themes and color palettes
-- **`ReportSchema`** - Create data reports with aggregation
+- **`AppComponentSchema`** - Define your entire application structure
+- **`ReportComponentSchema`** - Create data reports with aggregation
 - **`BlockSchema`** - Build reusable component blocks
 
 ### Enhanced ActionSchema
@@ -338,9 +331,9 @@ ObjectUI includes enhanced view components:
    npm install @object-ui/types@latest
    ```
 
-2. **Configure application** - Define your app structure with AppSchema (optional)
+2. **Configure application** - Define your app structure with AppComponentSchema (optional)
    
-3. **Set up theming** - Add a ThemeSchema for consistent styling (optional)
+3. **Set up theming** - Hand a `Theme` document to `ThemeProvider` for consistent styling (optional)
 
 4. **Implement actions** - Use advanced action features like `confirm` and callbacks
 

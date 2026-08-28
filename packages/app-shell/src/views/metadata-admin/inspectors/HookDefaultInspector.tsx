@@ -25,19 +25,19 @@
 
 import * as React from 'react';
 import { Label, Textarea } from '@object-ui/components';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
-import { SchemaForm } from '../SchemaForm';
-import { t } from '../i18n';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
   InspectorNumberField,
   InspectorCheckboxField,
-} from './_shared';
-import { useObjectOptions } from '../previews/useObjectOptions';
-import { ConditionBuilder } from './ConditionBuilder';
-import { expressionSource, writeExpressionSource } from './expression-envelope';
+} from './_shared.js';
+import { useObjectOptions } from '../previews/useObjectOptions.js';
+import { ConditionBuilder } from './ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from './expression-envelope.js';
 
 /* ─────────────── constants ─────────────── */
 

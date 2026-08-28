@@ -19,20 +19,27 @@ The Formula Field component displays computed values calculated from other field
 
 ## Field Schema
 
-```plaintext
-interface FormulaFieldSchema {
-  type: 'formula';
-  name: string;                  // Field name/ID
-  label?: string;                // Field label
-  value?: any;                   // Computed value (read-only)
-  readonly: true;                // Always read-only
-  className?: string;            // Additional CSS classes
-  
-  // Formula Configuration
-  formula?: string;              // Formula expression
-  return_type?: string;          // Return type (text, number, boolean, date, currency)
-}
+A formula field is authored as `FormulaFieldMetadata` (`@object-ui/types`), which is
+the source of truth for the key set: it extends `BaseFieldMetadata` with the
+expression, its declared return type and the recompute switch. `return_type` is a
+closed union — `'text' | 'number' | 'boolean' | 'date' | 'datetime'`.
+
+```ts
+import type { FormulaFieldMetadata } from '@object-ui/types';
+
+const totalPrice: FormulaFieldMetadata = {
+  type: 'formula',
+  name: 'total_price',
+  label: 'Total Price',
+  readonly: true,
+  formula: 'quantity * unit_price',
+  return_type: 'number',
+  auto_compute: true,
+};
 ```
+
+The computed value, and the `className` a host supplies, are **not** metadata keys —
+they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
 ## Return Types
 
@@ -70,7 +77,7 @@ formula: 'end_date - start_date'
 
 In tables/grids, displays with monospace font:
 
-```plaintext
+```ts
 import { FormulaCellRenderer } from '@object-ui/fields';
 
 // Renders computed value in monospace font

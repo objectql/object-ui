@@ -483,6 +483,58 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     expect(screen.queryByText('actionDialog.lookupHelpText')).toBeNull();
   });
 
+  /**
+   * objectui#5654 — the hint condition reads the ADAPTER's degradation
+   * predicate, not a second literal over raw param spellings.
+   *
+   * The old line was `param.type === 'lookup' || param.type === 'reference'`,
+   * a set that overlapped the degrading one without containing it. The four
+   * cases below are the card's table plus its controls: the row that gained
+   * behaviour, the alias row that must not lose it, and two rows that must stay
+   * hint-free (one that renders a real picker, one that renders text for a
+   * reason that is not degradation).
+   *
+   * `master_detail` is reachable here because `ActionParamDef['type']` is a
+   * plain `string` (core's `ActionRunner`), and it degrades exactly as `lookup`
+   * does — it just used to arrive at the user as an unexplained empty box.
+   */
+  it('a targetless master_detail param degrades to text AND now carries both #3405 hints (objectui#5654)', async () => {
+    openDialog([def({ name: 'parent', type: 'master_detail' })]);
+    const input = await screen.findByLabelText('Param One');
+    // Unchanged half: the adapter always degraded this param.
+    expect(input.getAttribute('type')).toBe('text');
+    // Changed half — the deliberate behaviour change this card ships.
+    expect(input.getAttribute('placeholder')).toBe('actionDialog.lookupPlaceholder');
+    expect(await screen.findByText('actionDialog.lookupHelpText')).toBeTruthy();
+  });
+
+  it('the `reference` alias spelling keeps its hints (it folds to lookup before the test)', async () => {
+    // The spelling the retired literal hand-copied out of `PARAM_TYPE_ALIASES`.
+    // Reading resolved widget keys must not cost it the hints it already had.
+    openDialog([def({ name: 'account', type: 'reference' })]);
+    const input = await screen.findByLabelText('Param One');
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('placeholder')).toBe('actionDialog.lookupPlaceholder');
+    expect(await screen.findByText('actionDialog.lookupHelpText')).toBeTruthy();
+  });
+
+  it('a master_detail param WITH a target renders the picker and gets no hints', async () => {
+    openDialog([def({ name: 'parent', type: 'master_detail', referenceTo: 'accounts' })]);
+    expect(await screen.findByTestId('lookup-trigger-parent')).toBeTruthy();
+    expect(screen.queryByText('actionDialog.lookupHelpText')).toBeNull();
+  });
+
+  it('a param that renders as text WITHOUT degrading gets no picker hints', async () => {
+    // The control that a reader keyed on the rendered type alone would fail:
+    // an unknown type also lands on the text widget, but it was never a picker,
+    // so telling its user to "paste a record id" would be nonsense.
+    openDialog([def({ name: 'x', type: 'no-such-type' })]);
+    const input = await screen.findByLabelText('Param One');
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('placeholder')).toBeNull();
+    expect(screen.queryByText('actionDialog.lookupHelpText')).toBeNull();
+  });
+
   it('seeds defaultValue and returns it untouched on confirm', async () => {
     const resolve = openDialog([def({ name: 'note', type: 'text', defaultValue: 'seed' })]);
     const input = await screen.findByLabelText('Param One');

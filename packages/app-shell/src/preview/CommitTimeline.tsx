@@ -35,7 +35,7 @@ import {
   isCommitStoreUnreachable,
   revertCommit,
   type CommitEntry,
-} from './commitHistory';
+} from './commitHistory.js';
 
 export interface CommitTimelineProps {
   open: boolean;

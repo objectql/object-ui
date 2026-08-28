@@ -43,6 +43,15 @@
  * it) while still writing the dropped group's measure into the bucket. The
  * blocks at the bottom of this file are its own.
  *
+ * objectui#4507 is the last of the family, and it is about the DIVISION rather
+ * than the bucket: the pivot wrote the axis key onto every bucket it created,
+ * so a first dimension grouped by but never PROJECTED reached the renderer with
+ * the key present (value `undefined`) and `hasNoCategoryKey` could not fire for
+ * a pivoted chart at all. The pin at the bottom of this file recorded that as a
+ * measured limit; it is now lifted, and the case's own assertion — key-absent
+ * rows are never relabelled `(None)` — is unchanged. `key in row` is the whole
+ * signal, and `toEqual` cannot see it: `chart-series.unprojectedCategory.test.ts`.
+ *
  * objectui#4508 then answers what #4497 filed instead of widening into: that
  * map KEY was the DISPLAY string, so it could not tell a null group from an
  * empty-string one, nor from a record whose stored value spells the bucket
@@ -267,17 +276,25 @@ describe('buildChartSeries — pivot must-not-change (objectui#4497)', () => {
     // defect (a dimension grouped by but never projected) and must not be
     // relabelled "(None)", which would say the records have no value.
     //
-    // MEASURED LIMIT, deliberately pinned: the pivot writes `[xKey]` onto every
-    // bucket it creates, so this shape reaches the renderer WITH the key and
-    // `hasNoCategoryKey` (framework#4033) cannot see it — that was already true
-    // before #4497 and is unchanged by it. Filed separately rather than widened
-    // into this card.
+    // The LIMIT this case pinned is lifted by objectui#4507: the pivot used to
+    // write `[xKey]` onto every bucket it created, so the shape reached the
+    // renderer WITH the key and `hasNoCategoryKey` (framework#4033) could not
+    // see it. It now reaches the renderer key-LESS, and the guard fires. What
+    // this case asserts is unchanged: the row is not bucketed and never wears
+    // the `(None)` label.
+    //
+    // Asserted with `in` / `toStrictEqual` on purpose. `toEqual` DROPS an
+    // undefined-valued key, so the old expectation below read the same against
+    // `{ status: undefined, Low: 3 }` and `{ Low: 3 }` — which is precisely how
+    // the pivot's dead guard stayed invisible while this file pinned the rows
+    // four cards in a row. See `chart-series.unprojectedCategory.test.ts`.
     const r = buildChartSeries(
       [{ priority: 'Low', est_hours: 3 }],
       ['status', 'priority'],
       ['est_hours'],
     );
-    expect(r.data).toEqual([{ status: undefined, Low: 3 }]);
+    expect(r.data).toStrictEqual([{ Low: 3 }]);
+    expect('status' in r.data[0]).toBe(false);
     expect(r.data[0].status).not.toBe(NULL_CATEGORY_LABEL);
   });
 });

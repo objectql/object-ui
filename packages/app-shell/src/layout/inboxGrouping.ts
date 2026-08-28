@@ -13,6 +13,28 @@
  * @module
  */
 
+/**
+ * One inbox row as the UI knows it: the shape `mergeInboxRows`
+ * (`hooks/sharedUserFeeds.ts`) produces, and it is the single producer of every
+ * row both the bell (`InboxPopover`) and Home's action centre render.
+ *
+ * Every member below is mapped by that producer and read by at least one of
+ * those two consumers, and that agreement is what this interface is for. A
+ * field declared here but filled by nobody is not documentation — it is a
+ * standing invitation to wire it up, and two rounds of them have now been
+ * removed: `source_object`/`source_id` (objectui#5190, see `action_url` below)
+ * and `actor_name` (objectui#5203).
+ *
+ * `actor_name` was dead at BOTH ends — `mergeInboxRows` never mapped it, no
+ * consumer read it, and `sys_inbox_message` declares no actor column for it to
+ * be mapped FROM. Beware that the same NAME is alive on unrelated shapes in
+ * this package: the `sys_activity` -> `ActivityItem` map in
+ * `hooks/sharedUserFeeds.ts` and the approval activity rows in
+ * `hooks/useRecordApprovals.ts` both carry a real `actor_name`, so a grep for
+ * the bare name conflates three different fields. Naming an actor on an inbox
+ * row is a capability expansion (a column on `sys_inbox_message`, then a
+ * producer that maps it), not a re-declaration here.
+ */
 export interface InboxNotification {
   id: string;
   /** FK → sys_notification (L2 event) — keys the read-state receipt (ADR-0030). */
@@ -22,11 +44,22 @@ export interface InboxNotification {
   type: string;
   title: string;
   body?: string | null;
-  /** Deep-link target carried by the inbox materialization. */
+  /**
+   * Deep-link target carried by the inbox materialization — the ONLY pointer a
+   * row carries (ADR-0030 L5).
+   *
+   * The pre-ADR-0030 `source_object`/`source_id` pair used to sit here as a
+   * back-compat fallback. It was declared and never filled: `mergeInboxRows`
+   * (`hooks/sharedUserFeeds.ts`), the single producer of every row both the bell
+   * and Home render, maps neither, and the `sys_inbox_message` object declares
+   * `action_url` with no source columns to map FROM. A declared input no
+   * producer fills is a standing invitation to wire it up; removed rather than
+   * maintained (objectui#5190). A row that carries no link at all is a real
+   * state — the producer leaves `action_url` undefined when an emit has neither
+   * a `payload.url` nor a `source` — and both consumers now answer it the same
+   * way, by opening the full inbox.
+   */
   action_url?: string | null;
-  source_object?: string | null;
-  source_id?: string | null;
-  actor_name?: string | null;
   is_read?: boolean;
   created_at?: string;
 }

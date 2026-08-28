@@ -38,14 +38,22 @@ import type { ObjectDefinition } from '@object-ui/types';
 import { MetadataClient, type MetadataClientConfig } from '@object-ui/data-objectstack';
 import { ObjectManager } from './ObjectManager';
 
-/** Minimal shape we consume from a framework ObjectSchema payload. */
+/**
+ * Minimal shape we consume from a framework ObjectSchema payload — and, merged
+ * back in {@link MetadataObjectsPage}, the body of `PUT /api/v1/meta/object/:name`.
+ */
 interface ServerObjectSchema {
   name: string;
   label?: string;
   pluralLabel?: string;
   description?: string;
   icon?: string;
-  group?: string;
+  // No `group` (objectui#6223): `ObjectSchema` has no object-level grouping key
+  // and refuses this one BY NAME, so the merged save-back made the whole PUT a
+  // 422 `INVALID_METADATA` — which then blocks EVERY later save of that object.
+  // Nothing is lost by dropping it: a key the schema refuses was never stored,
+  // so `raw.group` was always absent on the way back in. The manager's grouping
+  // is a display category and `toObjectDefinition` derives it below.
   isSystem?: boolean;
   fields?: Record<string, unknown>;
   [key: string]: unknown;
@@ -87,7 +95,13 @@ function toObjectDefinition(raw: ServerObjectSchema): ObjectDefinition {
     pluralLabel: raw.pluralLabel,
     description: raw.description,
     icon: raw.icon,
-    group: raw.group,
+    // Derived, never round-tripped (objectui#6223). `group` is the Object
+    // Manager's display category; `ObjectSchema` has no object-level grouping
+    // key, so the server neither stores nor serves one. Deriving it from the
+    // spec key that IS accepted (`isSystem`) keeps the grouping control
+    // populated with the same two `OBJECT_GROUPS` entries the sibling
+    // converter uses, instead of reading a key that can only ever be absent.
+    group: (raw.isSystem ?? false) ? 'System Objects' : 'Custom Objects',
     isSystem: raw.isSystem ?? false,
     fieldCount,
   };
@@ -96,8 +110,23 @@ function toObjectDefinition(raw: ServerObjectSchema): ObjectDefinition {
 interface ServerObjectsState {
   loading: boolean;
   error: string | null;
-  /** Raw server payloads, indexed by object name (for save-back merging). */
-  byName: Record<string, ServerObjectSchema>;
+  /**
+   * Raw server payloads, indexed by object name (for save-back merging).
+   *
+   * A `Map`, not a plain object (objectui#6522). Object names are server data:
+   * `ObjectSchema` pins them to /^[a-z_][a-z0-9_]*$/, which accepts BOTH
+   * `constructor` and `__proto__`. Filled by assignment into an object
+   * literal, the `__proto__` entry invoked the prototype setter instead of
+   * creating a key — the object never became an own property, so it never
+   * reached the manager at all and left its payload on the lookup's prototype
+   * chain for every later name to answer out of. A `Map` key is just a key.
+   *
+   * Nothing serialises this container — only its VALUES are spread into a PUT
+   * body — so unlike the fields map in the sibling `MetadataFieldsPage` it has
+   * no reason to stay a plain object. Same ruling (objectui#6489 /
+   * objectui#6240), the shape that fits this lookup.
+   */
+  byName: Map<string, ServerObjectSchema>;
 }
 
 export function MetadataObjectsPage({
@@ -119,17 +148,17 @@ export function MetadataObjectsPage({
   const [state, setState] = useState<ServerObjectsState>({
     loading: true,
     error: null,
-    byName: {},
+    byName: new Map(),
   });
 
   const reload = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const items = await client.list<ServerObjectSchema>('object');
-      const byName: Record<string, ServerObjectSchema> = {};
+      const byName = new Map<string, ServerObjectSchema>();
       for (const item of items) {
         if (item && typeof item === 'object' && typeof item.name === 'string') {
-          byName[item.name] = item;
+          byName.set(item.name, item);
         }
       }
       setState({ loading: false, error: null, byName });
@@ -137,7 +166,7 @@ export function MetadataObjectsPage({
       setState({
         loading: false,
         error: err instanceof Error ? err.message : String(err),
-        byName: {},
+        byName: new Map(),
       });
     }
   }, [client]);
@@ -147,7 +176,7 @@ export function MetadataObjectsPage({
   }, [reload]);
 
   const objects = useMemo<ObjectDefinition[]>(
-    () => Object.values(state.byName).map(toObjectDefinition),
+    () => [...state.byName.values()].map(toObjectDefinition),
     [state.byName],
   );
 
@@ -165,14 +194,21 @@ export function MetadataObjectsPage({
    */
   const handleObjectsChange = useCallback(async (next: ObjectDefinition[]) => {
     const prev = state.byName;
-    const nextByName: Record<string, ObjectDefinition> = {};
-    for (const o of next) nextByName[o.name] = o;
+    // objectui#6522 — a `Map`, because the READ below is the consequential
+    // half. Built by assignment into an object literal, `!nextByName[name]`
+    // answered out of `Object.prototype`: for an object named `constructor`
+    // the lookup returned the `Object` function, the deletion read as "still
+    // present", and `client.reset` never fired. No error, no refusal — the row
+    // vanished from the manager, the save reported success, and the object was
+    // still there after the reload. `Map.has` consults nothing but the entries
+    // actually put in. Never serialised: built, read and discarded right here.
+    const nextByName = new Map<string, ObjectDefinition>(next.map((o) => [o.name, o]));
 
     const errors: string[] = [];
 
     // Deletions
-    for (const name of Object.keys(prev)) {
-      if (!nextByName[name]) {
+    for (const name of prev.keys()) {
+      if (!nextByName.has(name)) {
         try {
           await client.reset('object', name);
         } catch (err) {
@@ -183,7 +219,13 @@ export function MetadataObjectsPage({
 
     // Inserts + updates
     for (const updated of next) {
-      const base = prev[updated.name] ?? { name: updated.name };
+      // One own-entry lookup feeding both the merge base and the
+      // redundant-save guard below (objectui#6522). Off a plain object literal
+      // a name that was never stored still answered — `prev['constructor']`
+      // handed back the `Object` function — so the merge spread the wrong base
+      // and the guard below compared against inherited `undefined`s.
+      const previous = prev.get(updated.name);
+      const base = previous ?? { name: updated.name };
       const merged: ServerObjectSchema = {
         ...base,
         name: updated.name,
@@ -191,17 +233,23 @@ export function MetadataObjectsPage({
         pluralLabel: updated.pluralLabel,
         description: updated.description,
         icon: updated.icon,
-        group: updated.group,
+        // `group` is deliberately not merged back (objectui#6223) — see the
+        // note on `ServerObjectSchema`.
         isSystem: updated.isSystem,
       };
+      // `...base` is a verbatim spread of whatever the server sent, so simply
+      // not writing `group` is not enough: an object that already has the key
+      // stored from before this fix would spread it straight back out and stay
+      // permanently unsaveable. Strip it on the way out too — the objectui#4644
+      // strip-on-load shape, applied on the write side where the spread is.
+      delete merged.group;
       // Don't issue redundant saves if nothing visible changed.
       if (
-        prev[updated.name]
-        && prev[updated.name].label === merged.label
-        && prev[updated.name].pluralLabel === merged.pluralLabel
-        && prev[updated.name].description === merged.description
-        && prev[updated.name].icon === merged.icon
-        && prev[updated.name].group === merged.group
+        previous
+        && previous.label === merged.label
+        && previous.pluralLabel === merged.pluralLabel
+        && previous.description === merged.description
+        && previous.icon === merged.icon
       ) {
         continue;
       }
@@ -219,7 +267,7 @@ export function MetadataObjectsPage({
   }, [client, reload, state.byName]);
 
   const handleSelectObject = useCallback((obj: ObjectDefinition) => {
-    const raw = state.byName[obj.name];
+    const raw = state.byName.get(obj.name);
     if (raw && onSelectObject) onSelectObject(obj, raw);
   }, [onSelectObject, state.byName]);
 

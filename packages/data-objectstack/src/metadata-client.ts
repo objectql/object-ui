@@ -32,7 +32,11 @@
  * type, mirroring the framework's "single Zod source per type" rule.
  */
 
-import type { RuntimeAuthoringIssue } from '@objectstack/spec/api';
+import { GetMetaItemLayeredResponseSchema } from '@objectstack/spec/api';
+import type {
+  GetMetaItemLayeredResponse,
+  RuntimeAuthoringIssue,
+} from '@objectstack/spec/api';
 
 /**
  * One advisory finding the framework's runtime authoring gate produced for a
@@ -179,9 +183,9 @@ export interface MetadataDraftHeader {
  * metadata item to a FILE — `format: json|yaml|ts`, `path`, `indent`,
  * `prettify`, `sortKeys`, `backup`, `atomic`, `loader`. Not one of those keys
  * exists here, and not one of these exists there: this is the REST client's
- * request envelope — optimistic concurrency (`ifMatch` → `If-Match`), actor
- * attribution, the destructive-change override, the ADR-0033 draft/publish
- * mode, and the owning package. Same words, different layer.
+ * request envelope — optimistic concurrency (`ifMatch` → `If-Match`), the
+ * destructive-change override, the ADR-0033 draft/publish mode, and the
+ * owning package. Same words, different layer.
  */
 export interface MetadataClientSaveOptions {
   /**
@@ -190,8 +194,6 @@ export interface MetadataClientSaveOptions {
    * edits get a 409 instead of overwriting each other.
    */
   ifMatch?: string;
-  /** Optional actor id, sent as `X-Actor` for history attribution. */
-  actor?: string;
   /**
    * Bypass destructive-change protection (Phase 3a). The server returns
    * `409 destructive_change` with `issues[]` if a write would drop or
@@ -239,14 +241,80 @@ export interface MetadataDeleteOptions extends MetadataClientSaveOptions {
   state?: 'active' | 'draft';
 }
 
-/** Layered view of a metadata item — Phase 3a `?layers=true`. */
+/**
+ * Which layer an overlay was saved at — `'org'` for a tenant overlay, `'env'`
+ * for an environment-level one, `null` exactly when `overlay` is null.
+ *
+ * DERIVED from `@objectstack/spec`, not restated: the vocabulary lives once, in
+ * `GetMetaItemLayeredResponseSchema`'s `overlayScope`
+ * (`z.enum(['org', 'env']).nullable()`), and this alias indexes the published
+ * response type so a scope the spec adds arrives here with no edit. Restating
+ * the union locally is the fork `scripts/check-spec-symbol-derivation.mjs`
+ * exists to reject, and the mirror-image mistake — a consumer re-spelling a
+ * producer's enum — is what this field carried until objectui#4982.
+ *
+ * What it carried: `string | null`, under a comment naming the vocabulary as
+ * `organization | environment | package`. Not one of those three spellings is a
+ * value the producer emits (`metadata-protocol`'s two assignment sites write
+ * `'org'` / `'env'`); the schema rejects all three by name, and `package` is
+ * not a scope this field has ever had. Because the declared type was `string`
+ * the compiler had no opinion, so the wrong comment was the only description of
+ * the vocabulary — a planted premise rather than stale prose, and the reason
+ * the Studio's layer badge shipped the raw value straight to screen.
+ */
+export type MetadataOverlayScope = GetMetaItemLayeredResponse['overlayScope'];
+
+/**
+ * ADR-0010 §3.6 — the four-state metadata protection lock
+ * (`none` / `no-overlay` / `no-delete` / `full`), read from
+ * `GetMetaItemLayeredResponseSchema`'s own `z.enum` rather than spelled out
+ * again here (objectui#5024).
+ *
+ * It used to be written out twice in this file, 42 lines apart: once as
+ * {@link MetadataLayered.lock} (optional) and once as
+ * {@link MetadataAuditEntry.lockState} (nullable), identical in every other
+ * respect and compared by no gate. A fifth state added to one would have left
+ * the other compiling — the same "declared N times, diffed by nothing" failure
+ * objectui#4972 and objectui#4984 record for other vocabularies.
+ *
+ * Deriving beats a local alias the two merely share. The producer of these
+ * values is the framework, and `packages/spec` already declares the vocabulary,
+ * so the copies were restating a schema that existed rather than filling a gap.
+ * The card that reported this recorded the opposite — "`@objectstack/spec` 也没
+ * 有对应的 `z.enum` 可派生" — and so did the audit panel's neighbouring comment;
+ * both predate the enum, which ships in `@objectstack/spec` 17.1.0. This is the
+ * same treatment {@link MetadataOverlayScope} above already gets, and it closes
+ * the cross-repo half of the drift, not just the in-repo half.
+ *
+ * ⚠️ This types what this repo may WRITE. It does NOT constrain what a server
+ * may SEND, and it never will — {@link MetadataClient.layered} forwards the
+ * wire value rather than dropping it, so every reader must still handle a value
+ * outside these four. What changed in objectui#5676 is that the value is no
+ * longer forwarded *silently*: the boundary validates it against the producer's
+ * own schema and names the field in {@link MetadataLayered._unrecognized} when
+ * it does not match. The lock banner in `ResourceEditPage` is the worked
+ * example of a reader that labels such a value instead of rendering it blank.
+ */
+export type MetadataLockState = GetMetaItemLayeredResponse['lock'];
+
+/**
+ * Layered view of a metadata item — the body of
+ * `GET /meta/:type/:name/layers` (`GetMetaItemLayeredResponseSchema`).
+ *
+ * A subset by design: the response also carries `type` / `name`, which the
+ * caller already knows because it passed them in, so
+ * {@link MetadataClient.layered} does not hand them back.
+ */
 export interface MetadataLayered<T = unknown> {
   /** Code-level (artifact) item; null if the item only exists as an overlay. */
   code: T | null;
   /** Org/environment overlay (just the saved delta or full overlay row). */
   overlay: T | null;
-  /** Overlay scope (`organization` | `environment` | `package` | null). */
-  overlayScope: string | null;
+  /**
+   * Which layer {@link MetadataLayered.overlay} came from, or null when there
+   * is no overlay. Spec-derived — see {@link MetadataOverlayScope}.
+   */
+  overlayScope: MetadataOverlayScope;
   /** Merged effective view — what the runtime actually sees. */
   effective: T | null;
   /**
@@ -259,7 +327,7 @@ export interface MetadataLayered<T = unknown> {
   _diagnostics?: MetadataDiagnostics;
   // ── ADR-0010 Phase 1 — protection envelope ──
   /** 4-state lock: `none` / `no-overlay` / `no-delete` / `full`. */
-  lock?: 'none' | 'no-overlay' | 'no-delete' | 'full';
+  lock?: MetadataLockState;
   /** Human-readable reason for the lock (tooltip text). */
   lockReason?: string;
   /** Which layer set the lock: artifact / package / overlay / env-forced. */
@@ -278,6 +346,68 @@ export interface MetadataLayered<T = unknown> {
   deletable?: boolean;
   /** True when "Reset to package default" applies (has overlay + artifact). */
   resettable?: boolean;
+  /**
+   * Protection-envelope keys whose wire value did NOT match `packages/spec`'s
+   * schema for them (objectui#5676). Computed HERE, at the boundary — the
+   * server never sends this key, and {@link MetadataClient.layered} builds the
+   * returned object field by field, so a server that tried could not smuggle
+   * one in.
+   *
+   * Absent when everything the server sent parsed, so its presence is the
+   * signal. The offending values are still forwarded on the fields themselves:
+   * this is "pass through and label", the treatment objectui#5672 chose for
+   * `lock` alone, applied to the whole ADR-0010 envelope. Dropping them would
+   * be the reject semantics that card refused — turning a wrong render into no
+   * render is a behaviour change for every consumer of this client.
+   */
+  _unrecognized?: readonly string[];
+}
+
+/**
+ * The ADR-0010 protection envelope as it reaches this client, listed once so
+ * the boundary check below cannot drift from the interface above.
+ *
+ * The `satisfies` pins each spelling against BOTH ends at compile time: it must
+ * be a key {@link MetadataLayered} carries AND a key the producer's
+ * `GetMetaItemLayeredResponseSchema` declares. A key renamed upstream, or one
+ * added here without a schema to check it against, fails `type-check` naming
+ * itself — which is the failure mode objectui#5676 was filed about, one level up.
+ */
+const PROTECTION_ENVELOPE_KEYS = [
+  'overlayScope',
+  'lock',
+  'lockReason',
+  'lockSource',
+  'lockDocsUrl',
+  'provenance',
+  'packageId',
+  'packageVersion',
+  'editable',
+  'deletable',
+  'resettable',
+] as const satisfies readonly (keyof MetadataLayered & keyof GetMetaItemLayeredResponse)[];
+
+/**
+ * Which envelope keys the server sent that its own schema rejects.
+ *
+ * Per-key on purpose, and the granularity is the whole point. Measured on the
+ * installed spec (17.2.0) rather than assumed: `GetMetaItemLayeredResponseSchema
+ * .safeParse(body)` is ALL-OR-NOTHING — one unknown `lock` token returns
+ * `success: false` with `data` undefined, so the other six fields lose their
+ * types too. Degrading the whole envelope because one field is from a newer
+ * dialect would be a subtler version of the bug this fixes, so the failure
+ * branch re-checks each key against that same schema's own `shape[key]`, where
+ * only the offending one fails.
+ *
+ * A key the server omitted is not "unrecognised" — absence is a legitimate
+ * envelope (every field but the four resolved verdicts is optional upstream,
+ * and a pre-ADR-0010 backend sends none of them at all).
+ */
+function unrecognizedEnvelopeKeys(body: Record<string, unknown>): string[] {
+  const shape = GetMetaItemLayeredResponseSchema.shape;
+  return PROTECTION_ENVELOPE_KEYS.filter(
+    (key) => body[key] !== undefined && !shape[key].safeParse(body[key]).success,
+  );
 }
 
 /**
@@ -290,7 +420,10 @@ export interface MetadataAuditEntry {
   id: unknown;
   /** ISO timestamp when the attempt happened. */
   occurredAt: string;
-  /** Who attempted the operation (`x-actor` header or `'system'`). */
+  /**
+   * Who attempted the operation — the identity the request was authorized
+   * as, or `'system'` for internal machine writes (objectstack#7941).
+   */
   actor: string;
   /** Code path that recorded the row (e.g. `protocol.saveMetaItem`). */
   source: string | null;
@@ -301,7 +434,7 @@ export interface MetadataAuditEntry {
   /** Machine-readable reason code (`item_locked`, `ok`, …). */
   code: string;
   /** Effective lock at the moment of the attempt. */
-  lockState: 'none' | 'no-overlay' | 'no-delete' | 'full' | null;
+  lockState: MetadataLockState | null;
   /** True when admin forced the write through despite the lock. */
   lockOverridden: boolean;
   /** Request-id for trace correlation (if propagated). */
@@ -739,7 +872,6 @@ export class MetadataClient {
       'Content-Type': 'application/json',
     };
     if (options.ifMatch) headers['If-Match'] = options.ifMatch;
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'PUT',
       headers,
@@ -803,25 +935,72 @@ export class MetadataClient {
   }
 
   /**
-   * Get the 3-state layered view of a metadata item (Phase 3a). Returns
-   * `code` (the artifact / fallback default), `overlay` (the saved
-   * customisation, if any), and `effective` (what the runtime sees).
+   * Get the 3-state layered view of a metadata item: `code` (the packaged
+   * artifact baseline), `overlay` (the tenant customisation row alone) and
+   * `effective` (the merged value the runtime sees).
+   *
+   * Reads **`GET /meta/:type/:name/layers`** — the path the framework declares
+   * for this projection, with a response schema of its own
+   * (`GetMetaItemLayeredResponseSchema`, objectstack#5882 ruling B). It used to
+   * be reached by hanging a `layers` flag on the ordinary item read, which made
+   * one route answer two unrelated representations while `packages/spec`
+   * declared only one of them. That spelling still answers this same body
+   * inside its deprecation window (the response carries RFC 9745
+   * `Deprecation: true` and an RFC 8288 `Link: rel="successor-version"` back to
+   * this path) and is scheduled for removal upstream, so nothing here may
+   * depend on it — the repo-wide ratchet is
+   * `scripts/__tests__/layered-read-declared-path-4016.test.ts`.
+   *
+   * The request is built here rather than delegated to `@objectstack/client`
+   * because the SDK expresses no layered read in EITHER spelling: the
+   * framework's REST route ledger records this route as `server-only`,
+   * "consumed by objectui over plain HTTP", and whether the SDK should express
+   * it is an open upstream product call.
+   *
+   * One behaviour delta rides along with the path, and it is the server's
+   * choice rather than ours: the retired flag FELL THROUGH to the plain item
+   * read on a backend whose protocol implementation had no layered support,
+   * answering the `{ type, name, item }` envelope. A dedicated path refuses to
+   * answer a different resource under this one's declared shape, so it returns
+   * 501 `NOT_IMPLEMENTED` instead — which surfaces here as a thrown error
+   * rather than a view with `code` and `overlay` silently blank.
    */
   async layered<T = unknown>(
     type: string,
     name: string,
     options: { packageId?: string } = {},
   ): Promise<MetadataLayered<T>> {
-    const pkg = options.packageId ? `&package=${encodeURIComponent(options.packageId)}` : '';
-    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}?layers=true${pkg}`;
+    // ADR-0048 — `?package=` scopes resolution to one installed package (the
+    // editor passes the edited item's owning package, not the Studio app's).
+    // It leads the query string now that the flag it used to trail is gone:
+    // keeping the `&` would have appended it to the last PATH segment
+    // (`…/layers&package=crm`), which matches no route — a 404 that this
+    // method turns into an empty-but-successful layered view.
+    const qs = options.packageId ? `?package=${encodeURIComponent(options.packageId)}` : '';
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/layers${qs}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
     if (res.status === 404) {
       return { code: null, overlay: null, overlayScope: null, effective: null };
     }
     if (!res.ok) throw await parseError(res);
     const body = (await res.json()) as MetadataLayered<T> & Record<string, unknown>;
+    // `typeof body === 'object'` rather than a bare truthiness check: `in`
+    // throws a TypeError on a primitive, so a server answering 200 with a bare
+    // JSON string or number REJECTED this promise (objectui#5676). That is the
+    // one outcome the boundary ruling forbids outright — a malformed body must
+    // degrade, never throw — and it fired before any of the validation below
+    // could be reached.
     const hasEnvelope =
-      body && (('code' in body) || ('overlay' in body) || ('effective' in body));
+      typeof body === 'object' &&
+      body !== null &&
+      (('code' in body) || ('overlay' in body) || ('effective' in body));
+    // Left standing, but no longer reachable from a conforming server: the only
+    // producer of a 200 body WITHOUT these keys was the retired flag's
+    // fall-through to the plain item read, and the declared path answers 501
+    // there. Kept out of this migration's scope on purpose — deleting it is a
+    // behaviour change for a non-conforming backend, not part of moving the
+    // request — and filed as objectui#4983 for removal once the upstream
+    // deprecation window closes.
     if (!hasEnvelope) {
       return {
         code: null,
@@ -830,14 +1009,59 @@ export class MetadataClient {
         effective: body as unknown as T,
       };
     }
+    // ADR-0010 Phase 4 — the metadata-protection envelope, so the editor can
+    // render lock affordances without a second round trip. objectui#5676: it is
+    // now VALIDATED here against the producer's own schema instead of cast
+    // through unchecked. `safeParse`, never `parse` — a metadata console that
+    // rejected every dialect it had not been compiled against would turn a
+    // newer server into a blank page, which is strictly worse than the wrong
+    // render this fixes.
+    const parsed = GetMetaItemLayeredResponseSchema.safeParse(body);
+    if (parsed.success) {
+      // The conforming path: every value below is the producer's schema output,
+      // so the ten `as` assertions this block used to carry are simply gone.
+      // `code` / `overlay` / `effective` stay asserted — upstream declares them
+      // `z.unknown()`, and `T` is the caller's own choice of narrowing, not
+      // something any schema here can check.
+      const envelope = parsed.data;
+      return {
+        code: (envelope.code ?? null) as T | null,
+        overlay: (envelope.overlay ?? null) as T | null,
+        overlayScope: envelope.overlayScope,
+        effective: (envelope.effective ?? null) as T | null,
+        ...(body._diagnostics ? { _diagnostics: body._diagnostics as MetadataDiagnostics } : {}),
+        lock: envelope.lock,
+        ...(envelope.lockReason !== undefined ? { lockReason: envelope.lockReason } : {}),
+        ...(envelope.lockSource !== undefined ? { lockSource: envelope.lockSource } : {}),
+        ...(envelope.lockDocsUrl !== undefined ? { lockDocsUrl: envelope.lockDocsUrl } : {}),
+        ...(envelope.provenance !== undefined ? { provenance: envelope.provenance } : {}),
+        ...(envelope.packageId !== undefined ? { packageId: envelope.packageId } : {}),
+        ...(envelope.packageVersion !== undefined ? { packageVersion: envelope.packageVersion } : {}),
+        editable: envelope.editable,
+        deletable: envelope.deletable,
+        resettable: envelope.resettable,
+      };
+    }
+
+    // Degrade and label — never throw, never reject. The body still reaches the
+    // caller field for field exactly as it did before this check existed, so
+    // nothing that rendered yesterday stops rendering today; what is added is
+    // `_unrecognized`, naming the fields the server's own schema refuses. That
+    // is the operator's only route to "which state did my server actually
+    // send", and the reason the offending value is forwarded rather than
+    // dropped (objectui#5672's treatment of `lock`, applied to the envelope).
+    //
+    // This branch is NOT rare, and must not be read as the error case: the
+    // four resolved verdicts (`lock` / `editable` / `deletable` / `resettable`)
+    // are required upstream on this path, so any backend older than ADR-0010
+    // Phase 4 lands here with nothing unrecognised at all.
+    const unrecognized = unrecognizedEnvelopeKeys(body);
     return {
       code: body.code ?? null,
       overlay: body.overlay ?? null,
       overlayScope: body.overlayScope ?? null,
       effective: body.effective ?? null,
       ...(body._diagnostics ? { _diagnostics: body._diagnostics as MetadataDiagnostics } : {}),
-      // ADR-0010 Phase 4 — pass through the metadata-protection envelope so
-      // the editor can render lock affordances without a second round trip.
       ...(body.lock !== undefined ? { lock: body.lock as MetadataLayered['lock'] } : {}),
       ...(body.lockReason !== undefined ? { lockReason: body.lockReason as string } : {}),
       ...(body.lockSource !== undefined ? { lockSource: body.lockSource as MetadataLayered['lockSource'] } : {}),
@@ -848,6 +1072,7 @@ export class MetadataClient {
       ...(body.editable !== undefined ? { editable: body.editable as boolean } : {}),
       ...(body.deletable !== undefined ? { deletable: body.deletable as boolean } : {}),
       ...(body.resettable !== undefined ? { resettable: body.resettable as boolean } : {}),
+      ...(unrecognized.length > 0 ? { _unrecognized: unrecognized } : {}),
     };
   }
 
@@ -915,7 +1140,6 @@ export class MetadataClient {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}${qs}`;
     const headers: Record<string, string> = { ...this.headers };
     if (options.ifMatch) headers['If-Match'] = options.ifMatch;
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, { method: 'DELETE', headers });
     if (!res.ok) throw await parseError(res);
     return (await res.json()) as T;
@@ -931,14 +1155,27 @@ export class MetadataClient {
   async publish<T = unknown>(
     type: string,
     name: string,
-    options: { actor?: string; message?: string } = {},
+    options: { message?: string; packageId?: string } = {},
   ): Promise<T> {
-    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish`;
+    // objectstack#10354 (`@objectstack/rest` 17.2.0) — this door accepts
+    // `?package=<id>` and forwards it as the promotion's package binding, so
+    // #9612's package-closure narrowing at the runtime publish gate is
+    // reachable from an HTTP-driven promotion at all. Deliberately the SAME
+    // wire spelling and the same conditional as `save()` a few hundred lines
+    // up: ONE value, ONE spelling, both steps of the save->publish loop.
+    //
+    // The parameter is OMITTED, never sent empty, when there is no binding.
+    // `?package=` with an empty value and no `package` key at all are folded
+    // together by the framework's normaliser today (`all` and the empty value
+    // both mean "env-local overlay, no package"), so this is not a behaviour
+    // difference on the current server — it is the shape the save door already
+    // follows, and the two calls of one loop must not disagree about it.
+    const qs = options.packageId ? `?package=${encodeURIComponent(options.packageId)}` : '';
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/publish${qs}`;
     const headers: Record<string, string> = {
       ...this.headers,
       'Content-Type': 'application/json',
     };
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'POST',
       headers,
@@ -960,14 +1197,13 @@ export class MetadataClient {
     type: string,
     name: string,
     toVersion: number,
-    options: { actor?: string; message?: string } = {},
+    options: { message?: string } = {},
   ): Promise<T> {
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}/rollback`;
     const headers: Record<string, string> = {
       ...this.headers,
       'Content-Type': 'application/json',
     };
-    if (options.actor) headers['X-Actor'] = options.actor;
     const res = await this.fetchImpl(url, {
       method: 'POST',
       headers,

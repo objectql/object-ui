@@ -8,6 +8,7 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
 // from `MetadataClient.save` (#4133/#4236), this one from the interceptor below.
@@ -44,6 +45,7 @@ import type {
 } from '@object-ui/types';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
 import {
+  attachObjectSortability,
   convertFiltersToAST,
   emulateBatchTransaction,
   normalizeSchemaReferenceKeys,
@@ -99,6 +101,15 @@ export const FILTER_OPERATOR_ALIASES: Record<string, string> = {
   notin: 'nin',
   nin: 'nin',
   contains: 'contains',
+  // Case-insensitive contains. A canonical `VIEW_FILTER_OPERATORS` member that
+  // arrived with `@objectstack/spec` 17.1.0 (objectui#5328), and an IDENTITY row
+  // like `contains` above: `icontains` is itself a member of
+  // `VALID_AST_OPERATORS`, so the spelling the author writes is the spelling the
+  // AST takes — nothing is translated and no case-sensitivity is lost.
+  // Declared rather than left to the `?? op` fall-through on the rule this
+  // table's test states: the AST gate accepting a spelling is not the driver
+  // compiling it into a WHERE clause.
+  icontains: 'icontains',
   not_contains: 'notcontains',
   notcontains: 'notcontains',
   starts_with: 'startswith',
@@ -545,6 +556,78 @@ export function isAppPermissionDeniedError(error: unknown): boolean {
 }
 
 /**
+ * [ADR-0066] The system capability a view-configuration write requires.
+ *
+ * objectstack#7494's ruling (maintainer, 2026-08-12) settled what this store
+ * IS: the `sort` / `hiddenFields` / `columnState` / `rowHeight` persisted by
+ * {@link ObjectStackAdapter.updateViewConfig} are ORG-WIDE view configuration
+ * — shared by every user of the view — not a per-user preference. A per-user
+ * scope is parked (objectstack#7611, v18) and deliberately NOT built here, so
+ * there is no second, narrower store for an ungated write to fall back to:
+ * the only thing this write can do is change the view for everyone.
+ *
+ * That makes a toolbar toggle a metadata-authoring act, so it gates on the
+ * capability this repo ALREADY uses for metadata authoring rather than a newly
+ * minted name. `manage_metadata` is what `HomePage`'s `AUTHORING_CAPABILITY`
+ * gates the builder CTAs on, what the server itself refuses metadata writes
+ * without (`PackageFormDialog` reads that 403), and what
+ * `capability.label.manage_metadata` is already translated as in all ten
+ * locale packs. Decisively: the write gated here goes through
+ * `client.meta.saveItem` — the very same ADR-0005 metadata door — so this is
+ * the same authority the server is already applying, not an analogous one.
+ */
+export const VIEW_CONFIG_CAPABILITY = 'manage_metadata';
+
+/**
+ * Thrown by {@link ObjectStackAdapter.updateViewConfig} when the session's
+ * REPORTED capability set does not contain {@link VIEW_CONFIG_CAPABILITY}.
+ *
+ * Raised BEFORE `connect()` and before `saveItem`, so a refused call issues no
+ * request at all — the org-wide row is not touched, not even optimistically.
+ *
+ * Deliberately an ERROR and not a silent `return`. The production caller is a
+ * debounced toolbar toggle whose UI has ALREADY moved by the time this runs, so
+ * a quiet no-op would leave the operator looking at a density they did not get,
+ * with nothing to explain it and a reload to discover it. The message names the
+ * SCOPE first and the capability second, in that order, because the scope is
+ * the part the operator cannot otherwise see — and it is written to be shown
+ * as-is, the same contract {@link AnalyticsNotInstalledError} states.
+ */
+export class ViewConfigPermissionDeniedError extends Error {
+  readonly code = 'VIEW_CONFIG_PERMISSION_DENIED';
+  /** The capability that was required and not held. */
+  readonly capability = VIEW_CONFIG_CAPABILITY;
+  /** The object whose view configuration the refused write targeted. */
+  readonly objectName: string;
+  /** The view id the refused write targeted. */
+  readonly viewId: string;
+  constructor(objectName: string, viewId: string) {
+    super(
+      `View configuration is shared: changing "${viewId}" changes it for everyone who uses this view. ` +
+      `That requires the "${VIEW_CONFIG_CAPABILITY}" capability, which this session does not hold.`,
+    );
+    this.name = 'ViewConfigPermissionDeniedError';
+    this.objectName = objectName;
+    this.viewId = viewId;
+  }
+}
+
+/**
+ * True when `error` is a {@link ViewConfigPermissionDeniedError}.
+ *
+ * Duck-checks `code`/`name` rather than using `instanceof`, matching
+ * {@link isConcurrentUpdateError}: a host that bundles this package twice
+ * (or re-throws across a worker boundary) still gets the right verdict.
+ */
+export function isViewConfigPermissionDeniedError(
+  error: unknown,
+): error is ViewConfigPermissionDeniedError {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as Record<string, unknown>;
+  return e.code === 'VIEW_CONFIG_PERMISSION_DENIED' || e.name === 'ViewConfigPermissionDeniedError';
+}
+
+/**
  * Thrown when the deployment has no analytics capability installed
  * (framework#3891 / #4019).
  *
@@ -563,7 +646,18 @@ export class AnalyticsNotInstalledError extends Error {
   readonly code = 'ANALYTICS_NOT_INSTALLED';
   /** The surface that was unavailable, for the message a host renders. */
   readonly surface: string;
-  constructor(surface: string, detail?: string) {
+  /**
+   * The server's own ADR-0112 code — the field this branch was chosen BY, when
+   * a producer named one (`NOT_IMPLEMENTED` from the mounted route with no
+   * service behind it, `ROUTE_NOT_FOUND` from the dispatcher when the route is
+   * not mounted at all). Absent for the no-code residual, where a bare
+   * transport 404/501 is all there was to read.
+   *
+   * Additive (objectui#5663): carried so a reader can audit that the headline
+   * and the quoted `detail` below came off the same answer.
+   */
+  readonly serverCode?: string;
+  constructor(surface: string, detail?: string, serverCode?: string) {
     super(
       `Analytics capability is not installed on this deployment — ${surface} is unavailable. ` +
       'Install @objectstack/service-analytics and mount AnalyticsServicePlugin to enable it.' +
@@ -571,6 +665,7 @@ export class AnalyticsNotInstalledError extends Error {
     );
     this.name = 'AnalyticsNotInstalledError';
     this.surface = surface;
+    this.serverCode = serverCode;
   }
 }
 
@@ -579,6 +674,172 @@ export function isAnalyticsNotInstalledError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   return (error as { code?: unknown }).code === 'ANALYTICS_NOT_INSTALLED';
 }
+
+/**
+ * Thrown when the dataset route ANSWERED and said the dataset this query named
+ * does not exist in this environment — `404` + ADR-0112 `NOT_FOUND`, the
+ * `body.datasetName` lookup miss in `@objectstack/rest`'s
+ * `registerAnalyticsEndpoints` (`Dataset "<name>" not found.`).
+ *
+ * A SIBLING of {@link AnalyticsNotInstalledError}, never a shade of it
+ * (objectui#5663). Both conditions answer **404** — routes-not-mounted through
+ * the runtime dispatcher's `ROUTE_NOT_FOUND`, an unknown dataset through this
+ * route's own `NOT_FOUND` — so a `res.status === 404` test cannot separate
+ * them, and the mapping that could not tell them apart reported EVERY unknown
+ * dataset as a missing server capability.
+ *
+ * Measured live on a prod tenant: four HotCRM Executive Overview widgets told
+ * the operator to install `@objectstack/service-analytics` and mount
+ * `AnalyticsServicePlugin`, while the analytics service was installed and
+ * answering the whole time. The real condition was an installed
+ * `app.objectstack.hotcrm` pinned at 1.3.0 whose datasets ship in 2.2.2. The
+ * remedy the banner named — install a server plugin — is the opposite corner of
+ * the system from the remedy that works: upgrade the installed app. A wrong
+ * diagnosis is not a smaller version of no diagnosis; it spends the operator's
+ * time in the wrong subsystem.
+ *
+ * The `code` is the ONLY field that separates the two, which is why this branch
+ * reads it and nothing else. See `readAnalyticsErrorEnvelope` below — the
+ * module-private reader that pulls the code out of either declared envelope.
+ */
+export class AnalyticsDatasetNotFoundError extends Error {
+  readonly code = 'ANALYTICS_DATASET_NOT_FOUND';
+  /**
+   * The dataset this query asked for, taken from the REQUEST rather than parsed
+   * back out of the server's prose: the request is what we know for certain,
+   * and re-reading the name out of a message would make the headline depend on
+   * that message's WORDING — the coupling framework#5367 spent a whole issue
+   * removing from the producing route.
+   */
+  readonly datasetName?: string;
+  /** The server's own ADR-0112 code — the field this branch was chosen BY. */
+  readonly serverCode?: string;
+  /** The server's own message, quoted verbatim in the parenthetical. */
+  readonly serverMessage?: string;
+  constructor(opts: { datasetName?: string; serverCode?: string; serverMessage?: string }) {
+    const subject = opts.datasetName ? `Dataset "${opts.datasetName}"` : 'The requested dataset';
+    super(
+      `${subject} is not defined in this environment — the app that defines it is missing or out of date. ` +
+      'Analytics itself is installed and answering, so the fix is to upgrade the installed app, not to install a server plugin.' +
+      (opts.serverMessage ? ` (server said: ${opts.serverMessage})` : ''),
+    );
+    this.name = 'AnalyticsDatasetNotFoundError';
+    this.datasetName = opts.datasetName;
+    this.serverCode = opts.serverCode;
+    this.serverMessage = opts.serverMessage;
+  }
+}
+
+/**
+ * Thrown when the dataset query was refused before it ran because the session
+ * is not authenticated — `401` + ADR-0112 `UNAUTHENTICATED`, the REST seam's
+ * `ANONYMOUS_DENY_BODY` (`@objectstack/core`'s `security/anonymous-deny.ts`,
+ * written verbatim by `enforceAuth`).
+ *
+ * The THIRD branch, and the one the reported card under-states (objectui#5663):
+ * it recorded a live `POST /api/v1/analytics/dataset/query -> 401
+ * UNAUTHENTICATED` and read it as evidence for the dataset-unknown branch. It
+ * is neither of the other two. An expired session reported as "the deployment
+ * is missing a capability" is the SAME defect wearing a different mask — an
+ * operator sent to install a server plugin because their token lapsed — so the
+ * separation is the point, not a nicety.
+ *
+ * Deliberately not left to the generic `Dataset query failed: 401 …` either:
+ * that string names a transport status where a person needs an action, and
+ * "sign in again" is an action.
+ */
+export class AnalyticsUnauthenticatedError extends Error {
+  readonly code = 'ANALYTICS_UNAUTHENTICATED';
+  /** The server's own ADR-0112 code — the field this branch was chosen BY. */
+  readonly serverCode?: string;
+  /** The server's own message, quoted verbatim in the parenthetical. */
+  readonly serverMessage?: string;
+  constructor(opts: { serverCode?: string; serverMessage?: string } = {}) {
+    super(
+      'Analytics query refused: this session is not authenticated. Sign in again and retry — ' +
+      'the request was refused before it ran, so it says nothing about whether the analytics ' +
+      'capability is installed.' +
+      (opts.serverMessage ? ` (server said: ${opts.serverMessage})` : ''),
+    );
+    this.name = 'AnalyticsUnauthenticatedError';
+    this.serverCode = opts.serverCode;
+    this.serverMessage = opts.serverMessage;
+  }
+}
+
+/**
+ * The ADR-0112 `code` + `message` an analytics REST error body declares.
+ *
+ * ONE url, TWO declared producers — which is why this reads two SHAPES, and why
+ * it is not the tolerant `body.error?.code ?? body.error` chain that
+ * `@objectstack/core`'s `anonymous-deny.ts` explicitly warns consumers off:
+ *
+ *  - **flat** `{ code, message }` — everything the route writes itself in
+ *    `@objectstack/rest`'s `registerAnalyticsEndpoints` (`501 NOT_IMPLEMENTED`
+ *    when no analytics service provides `queryDataset`, `404 NOT_FOUND` for an
+ *    unknown `datasetName`, `400 VALIDATION_FAILED`, `500
+ *    ANALYTICS_QUERY_FAILED`), plus `enforceAuth`'s `401` `ANONYMOUS_DENY_BODY`
+ *    — `{ error: 'UNAUTHENTICATED', code: 'UNAUTHENTICATED', message: … }`,
+ *    where `error` carries the CODE as a string.
+ *  - **wrapped** `{ success: false, error: { code, message } }` — what answers
+ *    when this route is not mounted at all: `@objectstack/runtime`'s dispatcher
+ *    `404 ROUTE_NOT_FOUND`. The REST auth-gate `403` (`{ error: { code,
+ *    message } }`) is the same shape.
+ *
+ * Both envelopes are live and sanctioned (ADR-0112's 2026-07-30 amendment
+ * records the flat and wrapped families as the two live ones and assigns
+ * converging them to the envelope-convergence line). Reading both here is not a
+ * consumer inventing leniency: this ONE request genuinely has two possible
+ * producers, and which one answered is itself part of the signal — the wrapped
+ * `ROUTE_NOT_FOUND` means the route is absent, and only the route's own flat
+ * envelope can mean the dataset is.
+ *
+ * They are told apart STRUCTURALLY — `typeof body.error === 'object'` — never
+ * by trying one key and falling through to the other. A producer that regresses
+ * its envelope therefore reads as "no code" here, which is the honest answer
+ * and lands in the residual below, instead of being quietly absorbed.
+ *
+ * `message` is DISPLAY ONLY and never feeds classification. That split is what
+ * makes the objectui#5663 contradiction structurally impossible: the headline
+ * is a pure function of `code`, the parenthetical is a verbatim quote of
+ * `message`, and both are read off the SAME response. If they ever disagree the
+ * producer has a bug — whereas under the old mapping the CONSUMER did, because
+ * the headline came from a status two conditions share while the quote came
+ * from the one that had actually happened.
+ */
+function readAnalyticsErrorEnvelope(body: unknown): { code?: string; message?: string } {
+  if (!body || typeof body !== 'object') return {};
+  const flat = body as { code?: unknown; message?: unknown; error?: unknown };
+  const wrapped =
+    flat.error && typeof flat.error === 'object'
+      ? (flat.error as { code?: unknown; message?: unknown })
+      : undefined;
+  const source = wrapped ?? flat;
+  const code = typeof source.code === 'string' && source.code.length > 0 ? source.code : undefined;
+  // Display-only fallback: the flat family's `error` key carries the MESSAGE in
+  // some producers (`{ code: 'ANALYTICS_QUERY_FAILED', error: <text> }`) and the
+  // CODE in others (`ANONYMOUS_DENY_BODY`). Harmless here precisely because
+  // nothing downstream classifies on it — at worst the parenthetical quotes a
+  // code string, which is still the server's own words about its own answer.
+  const message =
+    typeof source.message === 'string' && source.message.length > 0 ? source.message
+    : typeof flat.error === 'string' && flat.error.length > 0 ? flat.error
+    : undefined;
+  return { code, message };
+}
+
+/**
+ * Statuses that identify a condition ON THEIR OWN when the answer carries no
+ * ADR-0112 `code` at all — a bare transport 404/501 from a proxy, a gateway, or
+ * a host that never mounted the API, none of which any ObjectStack route wrote.
+ *
+ * NOT a re-entry for status-mapping (objectui#5663 exists because of it): these
+ * are consulted only AFTER every code branch has declined, i.e. only when there
+ * is no contract field to read at all. `404` is safe HERE and unsafe as a
+ * primary test for exactly the same reason — the route's own `NOT_FOUND` always
+ * ships a `code`, so a 404 WITHOUT one cannot be the unknown-dataset case.
+ */
+const ANALYTICS_ABSENT_STATUSES: readonly number[] = [404, 501];
 
 /**
  * Thrown when the server REJECTED the analytics query body (HTTP 400 —
@@ -609,28 +870,82 @@ export class AnalyticsQueryRejectedError extends Error {
  *
  * `@objectstack/client`'s fetch wrapper throws on a non-2xx, decorating the
  * error with the semantic `code` string and the numeric `httpStatus` (the
- * ADR-0112 / framework#3842 shape this repo already reads elsewhere). Two
- * outcomes must NOT be conflated:
+ * ADR-0112 / framework#3842 shape this repo already reads elsewhere).
  *
- *   - **`not-installed`** — the deployment has no analytics service. Since
- *     framework#3891 retired the degraded in-kernel shim, that is a 404 (the
- *     routes aren't mounted at all, framework#4019) or a 501 `NOT_IMPLEMENTED`
- *     (REST's dataset route with no service behind it). Degrading to a
- *     client-side aggregate over a scoped `find()` is CORRECT here.
- *   - **`rejected`** — the server refused OUR body (400 `VALIDATION_FAILED`;
- *     framework#4010 validates `/analytics/query` at the entry). Degrading
- *     would answer our own contract violation with plausible numbers from a
- *     different code path and bury it — the misdirection framework#3878
- *     documented. It must be surfaced.
+ * ## The `code` is the contract; the status is a transport fact (objectui#5721)
  *
- * Anything else (5xx, network) is `unknown`: degrade, but silently — it is a
- * transient failure, not a deployment that is missing a capability.
+ * What stood here tested `status === 404 || status === 501` BEFORE the code
+ * operands that followed them, so the status short-circuited every one of
+ * them: any 404 on this face was `not-installed` whatever code it carried, and
+ * `NOT_IMPLEMENTED` / `ROUTE_NOT_FOUND` were unreachable for the very
+ * conditions they name. Three unrelated conditions answer 404 on this url —
+ *
+ *   route absent    404 `ROUTE_NOT_FOUND`  (runtime dispatcher, framework#4019)
+ *   cube unknown    404 `CUBE_NOT_FOUND`   (service-analytics' inference gate)
+ *   object unknown  404 `OBJECT_NOT_FOUND` (the `/data` fallback's own answer)
+ *
+ * — so a misspelled cube read as "this deployment has no analytics", told the
+ * operator to install a server plugin, and re-answered the chart from a
+ * different code path. Same defect as objectui#5663, arrived at from the other
+ * direction: the mapping read a field it did not quote. Branch on the `code`;
+ * consult the status only as a residual, when the answer declared no code at
+ * all. Comparisons go through `errorCodeIs`/`errorCodeIsAnyOf` — the pre- and
+ * post-ADR-0112 spellings both have to match (`@object-ui/types`).
+ *
+ * ### Both envelope families reach this function already decorated (MEASURED)
+ *
+ * `/analytics/query` exits through `@objectstack/runtime`'s
+ * `dispatcher-plugin.errorResponseBase`, i.e. the **wrapped** `{ success:
+ * false, error: { code, message } }` shape — not the flat one the dataset
+ * route writes — and its 401 is `enforceAuth`'s **flat** `ANONYMOUS_DENY_BODY`.
+ * The client's fetch wrapper flattens BOTH before throwing:
+ * `errorBody?.code ?? errorBody?.error?.code` → `error.code`, plus
+ * `error.httpStatus = res.status`. So no envelope reading belongs here; unlike
+ * `queryDataset` (which owns its `fetch` and must read the body itself), this
+ * function is handed the already-flattened error and reads one field.
+ *
+ * ## Each branch names ONE of the three outcomes the caller can take
+ *
+ *   - **`not-installed`** — *degrade LOUDLY*. The deployment has no analytics
+ *     service: 501 `NOT_IMPLEMENTED` (route mounted, nothing behind it) or 404
+ *     `ROUTE_NOT_FOUND` (framework#4019 stops mounting the routes at all).
+ *     A client-side aggregate over a scoped `find()` answers the chart
+ *     correctly, and the operator is told once that the semantic layer is off.
+ *   - **`rejected`** — *THROW*. The server refused OUR body (400
+ *     `VALIDATION_FAILED`; framework#4010 validates `/analytics/query` at the
+ *     entry). Degrading would answer our own contract violation with plausible
+ *     numbers from a different code path and bury it — the misdirection
+ *     framework#3878 documented.
+ *   - **`unauthenticated`** — *THROW*. 401 `UNAUTHENTICATED`: the request was
+ *     refused before it ran, so it is evidence about the SESSION and none at
+ *     all about the capability. Degrading is not merely misleading here, it is
+ *     futile: the fallback's `find()` carries the same lapsed token and is
+ *     refused the same way, so the chart cannot be answered either. "Sign in
+ *     again" is an action; "install @objectstack/service-analytics" is not.
+ *   - **`cube-not-found`** — *THROW*. 404 `CUBE_NOT_FOUND`
+ *     (`analytics-service.assertInferableCube`, framework#3867): analytics IS
+ *     installed and answering — the NAME does not exist. That gate throws only
+ *     when the name is neither a registered cube nor a registered object, and
+ *     the fallback asks `/data/<the same name>`, which objectql's
+ *     `assertObjectRegistered` (framework#3770) answers 404 `OBJECT_NOT_FOUND`.
+ *     So degrading cannot produce numbers; it can only swap a message that
+ *     names the fix ("Define a Cube in your stack, or check the object name")
+ *     for a distant one, behind a warning that instructs the wrong repair.
+ *   - **`unknown`** — *degrade SILENTLY*. Anything else (5xx, network, a code
+ *     this consumer does not know): a transient failure, not a deployment
+ *     missing a capability and not a request that named something absent.
  */
 export function classifyAnalyticsFailure(
   error: unknown,
-): { kind: 'not-installed' | 'rejected' | 'unknown'; code?: string; message?: string } {
+): {
+  kind: 'not-installed' | 'rejected' | 'unauthenticated' | 'cube-not-found' | 'unknown';
+  code?: string;
+  message?: string;
+} {
   const err = (error ?? {}) as Record<string, unknown>;
-  const code = typeof err.code === 'string' ? err.code : undefined;
+  // An empty-string `code` is "the producer declared nothing", not a code —
+  // otherwise it would block the residual below while matching no branch.
+  const code = typeof err.code === 'string' && err.code.length > 0 ? err.code : undefined;
   const message = typeof err.message === 'string' ? err.message : undefined;
   const status =
     typeof err.httpStatus === 'number' ? err.httpStatus
@@ -638,10 +953,33 @@ export function classifyAnalyticsFailure(
     : typeof err.statusCode === 'number' ? err.statusCode
     : undefined;
 
-  if (code === 'VALIDATION_FAILED' || status === 400) return { kind: 'rejected', code, message };
-  if (status === 404 || status === 501 || code === 'NOT_IMPLEMENTED' || code === 'ROUTE_NOT_FOUND') {
+  // ① The capability really is absent, from either of its two producers.
+  if (errorCodeIsAnyOf({ code }, ['NOT_IMPLEMENTED', 'ROUTE_NOT_FOUND'])) {
     return { kind: 'not-installed', code, message };
   }
+
+  // ② The server refused the body WE sent.
+  if (errorCodeIs({ code }, 'VALIDATION_FAILED')) return { kind: 'rejected', code, message };
+
+  // ③ The request never ran — the session is anonymous or its token lapsed.
+  if (errorCodeIs({ code }, 'UNAUTHENTICATED')) return { kind: 'unauthenticated', code, message };
+
+  // ④ Analytics answered; the cube this query named is the thing that is missing.
+  if (errorCodeIs({ code }, 'CUBE_NOT_FOUND')) return { kind: 'cube-not-found', code, message };
+
+  // ⑤ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
+  //   wrote it (a proxy, a gateway, a host with no API mounted). Only here is
+  //   the bare status the best signal available, and only because every code
+  //   branch has already declined: this face's own 404s all ship a `code`, so a
+  //   code-less 404 cannot be the unknown-cube case.
+  if (code === undefined) {
+    if (status !== undefined && ANALYTICS_ABSENT_STATUSES.includes(status)) {
+      return { kind: 'not-installed', code, message };
+    }
+    if (status === 400) return { kind: 'rejected', code, message };
+    if (status === 401) return { kind: 'unauthenticated', code, message };
+  }
+
   return { kind: 'unknown', code, message };
 }
 
@@ -668,11 +1006,29 @@ export class ConcurrentUpdateError extends Error {
   readonly httpStatus = 409;
   readonly currentVersion: string | null;
   readonly currentRecord: unknown;
-  constructor(opts: { currentVersion: string | null; currentRecord: unknown; message?: string }) {
+  /**
+   * The refusal text the PRODUCER marked as addressed to the end user
+   * (`ApiErrorSchema.userMessage`, objectstack#9934), or `null` when the
+   * refusal carried no marking.
+   *
+   * Declared on the class because this error has no `details` bag: the shared
+   * reader (`declaredUserMessage` in `@object-ui/react`) looks at the
+   * top-level field first, so parking it here is what makes the marking
+   * readable at the surface. The contract is status-agnostic — a 409 carries
+   * it exactly like a 400 or a 403 does.
+   */
+  readonly userMessage: string | null;
+  constructor(opts: {
+    currentVersion: string | null;
+    currentRecord: unknown;
+    message?: string;
+    userMessage?: string | null;
+  }) {
     super(opts.message ?? 'Record was modified by another user');
     this.name = 'ConcurrentUpdateError';
     this.currentVersion = opts.currentVersion;
     this.currentRecord = opts.currentRecord;
+    this.userMessage = opts.userMessage ?? null;
   }
 }
 
@@ -680,11 +1036,71 @@ export class ConcurrentUpdateError extends Error {
  * Detect "concurrent update" errors raised by the platform. The wire
  * shape is `409` + `code: 'CONCURRENT_UPDATE'`. The client surfaces
  * extra details on `error.details` (full response body).
+ *
+ * Accepts EITHER that wire `code` OR `name === 'ConcurrentUpdateError'`, and
+ * reads `httpStatus` for neither. This paragraph exists because the doc used
+ * to name only the wire shape, which left the `name` limb reading as drift
+ * (objectui#6375). It is not drift: it is the deliberate cross-realm
+ * duck-check that {@link isViewConfigPermissionDeniedError} documents and
+ * cites *this* function as its precedent for — a host that bundles this
+ * package twice (or re-throws across a worker boundary) ends up holding two
+ * copies of the class, `instanceof` fails, and the `name` string is the only
+ * discriminator left. That host is out of tree by construction, so an in-repo
+ * consumer census cannot see the case the limb was written for and is not
+ * evidence against it; `@object-ui/plugin-form` and `@object-ui/plugin-detail`
+ * each carry their own copy of the same two-limb check for adapters they must
+ * not depend on.
+ *
+ * Deliberately WIDER than {@link normaliseClientError}'s re-wrap, which keys
+ * on the wire `code` alone: an error carrying only the class name is
+ * recognised here and passed through there. Both accepted sets are pinned in
+ * `occ.test.ts`.
  */
 export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpdateError {
   if (!error || typeof error !== 'object') return false;
   const e = error as Record<string, unknown>;
   return e.code === 'CONCURRENT_UPDATE' || e.name === 'ConcurrentUpdateError';
+}
+
+/**
+ * The one declared key this boundary carries, anchored to the contract rather
+ * than to a string literal: `ApiError` is `z.input<typeof ApiErrorSchema>` in
+ * `@objectstack/spec`, so a rename there fails this file at compile time
+ * instead of silently going quiet. The same anchor `@object-ui/react`'s
+ * reader uses.
+ */
+type MarkedRefusal = Pick<ApiError, 'userMessage'>;
+
+/**
+ * Lift the producer's user-facing marking off a client error.
+ *
+ * `userMessage` (`ApiErrorSchema.userMessage`, objectstack#9934) is the opt-in
+ * channel an application author sets at throw time to say "this text is for
+ * the end user". The contract states it **status-agnostic** — not a 403
+ * special case, any refusal status may carry it — so this read is
+ * deliberately gated on neither a status nor a code.
+ *
+ * Read from the same two places, under the same declared key, as the shared
+ * reader `declaredUserMessage` in `@object-ui/react`: the error itself
+ * (`@objectstack/client` lifts a marked body onto `err.userMessage`, from
+ * either wire dialect) and `details`, which the client falls back to the WHOLE
+ * response body — the identical pair the `fields[]` read below uses. The
+ * predicate (non-empty after trimming, returned untrimmed) matches that reader
+ * exactly, so a marking that survives this boundary is one the surface accepts.
+ *
+ * Deliberately not imported from `@object-ui/react`: that package depends on
+ * THIS one, so the symbol cannot travel in this direction. The key is anchored
+ * to the contract type rather than to either copy of the predicate.
+ */
+function liftUserMessage(
+  e: Record<string, unknown>,
+  details: Record<string, unknown>,
+): MarkedRefusal['userMessage'] | null {
+  if (typeof e.userMessage === 'string' && e.userMessage.trim()) return e.userMessage;
+  if (typeof details.userMessage === 'string' && details.userMessage.trim()) {
+    return details.userMessage;
+  }
+  return null;
 }
 
 /**
@@ -697,6 +1113,12 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
  *   - `400` + `VALIDATION_FAILED` → {@link DataApiValidationError}, carrying the
  *     server's per-field entries so a form can mark the offending inputs
  *     instead of showing one undirected toast.
+ *
+ * Both re-wraps preserve the producer's `userMessage` marking (see
+ * {@link liftUserMessage}). Re-wrapping used to drop it, which made the
+ * marking unreadable at every surface downstream of this boundary — nothing
+ * threw, the typed error was otherwise correct, and the user simply got a
+ * generic string.
  */
 export function normaliseClientError(error: unknown): unknown {
   if (!error || typeof error !== 'object') return error;
@@ -705,6 +1127,9 @@ export function normaliseClientError(error: unknown): unknown {
   // the WHOLE body — and the validation envelope has no `details` key, so this
   // is where `fields[]` lands.
   const details = (e.details ?? {}) as Record<string, unknown>;
+  // Status-agnostic on purpose: lifted before either branch decides a shape,
+  // so a 400 and a 409 carry the marking identically.
+  const userMessage = liftUserMessage(e, details);
 
   if (e.code === 'VALIDATION_FAILED' || e.name === 'ValidationError') {
     const rawFields = Array.isArray(details.fields)
@@ -731,16 +1156,30 @@ export function normaliseClientError(error: unknown): unknown {
       typeof e.message === 'string' ? e.message : 'Validation failed',
       validationErrors[0]?.field,
       validationErrors,
-      { fields: rawFields },
+      // The marking rides the details bag exactly the way `fields` already
+      // does, landing on `err.details.userMessage` — the second of the two
+      // places the shared reader looks. Purely additive: `field`,
+      // `validationErrors` and `fields` are untouched, so the per-field
+      // marking a form already draws keeps working. Omitted entirely when
+      // unmarked, so an unmarked refusal carries no empty key.
+      userMessage === null ? { fields: rawFields } : { fields: rawFields, userMessage },
     );
   }
 
-  if (e.code !== 'CONCURRENT_UPDATE' && e.httpStatus !== 409) return error;
+  // The wire `code` is the sole discriminator. A
+  // `code !== 'CONCURRENT_UPDATE' && httpStatus !== 409` guard used to sit
+  // directly above this line and could never decide an outcome: its condition
+  // is strictly stronger, so everything it would have returned is returned
+  // here anyway. Its `httpStatus !== 409` half advertised a second acceptance
+  // path — a bare 409 still getting re-wrapped — that never existed, on the
+  // one function whose whole job is deciding what gets re-wrapped
+  // (objectui#6375). The truth table is pinned in `occ.test.ts`.
   if (e.code !== 'CONCURRENT_UPDATE') return error;
   return new ConcurrentUpdateError({
     currentVersion: typeof details.currentVersion === 'string' ? details.currentVersion : null,
     currentRecord: details.currentRecord ?? null,
     message: typeof e.message === 'string' ? e.message : undefined,
+    userMessage,
   });
 }
 
@@ -1141,6 +1580,127 @@ function isPersonalizationOverlayRow(item: any, spec: any): boolean {
 }
 
 /**
+ * The keys a personalization overlay row legitimately OWNS (objectui#5233).
+ *
+ * One per `persistViewPatch` call site in app-shell's `ObjectView` — the ONLY
+ * production writer of these rows — read off the tree rather than recalled:
+ * `rowHeight` (the density toggle, spec-canonical since #2890), `sort`,
+ * `hiddenFields`, `columnState` and `inlineEdit`. Nothing else in such a row
+ * is an opinion the user expressed; anything else it carries is a COPY of the
+ * source view as it stood at write time, because `persistViewPatch` USED TO
+ * send `{ ...baseViewDef, ...patch }` and this adapter persists what it is
+ * given.
+ *
+ * That copy was the defect the maintainer ruled on (objectstack#7494, comment
+ * 5261754173): an overlay written by a mere column drag froze the view's
+ * effective `filter` — and its `columns`, `label`, `type`, `isDefault` … — as
+ * of that moment, and because the display merge is `{ ...source, ...override }`
+ * the frozen copy SHADOWED the source view forever. An admin then edited the
+ * view's filter and every user who once resized a column kept the old one,
+ * with nothing anywhere reporting it.
+ *
+ * Both halves of that ruling have now landed, and this adapter's behaviour is
+ * unchanged by either — it still persists what it is given:
+ *
+ * - **read** (PR #5272, {@link narrowPersonalizationOverlay}): the consumer
+ *   that MERGES an overlay over a source view contributes only these keys, so
+ *   every already-stored fat row stops shadowing its source.
+ * - **write** (objectui#5233, `buildPersistedViewBody` in app-shell's
+ *   `ObjectView`, unblocked by `columnState`'s admission to the view-metadata
+ *   surface as a runtime-only overlay key — objectstack#9933, released in
+ *   `@objectstack/spec` 17.1.0): a *system view's* overlay is now written as
+ *   the patch alone, so no new row freezes anything, and because the write is
+ *   a whole-document PUT the next toggle also strips an old fat row. A *saved
+ *   view's* own row is deliberately still written whole — for it the body IS
+ *   the view, not a copy of one.
+ *
+ * A fat row is therefore a legacy shape, not a shape this product still
+ * produces; the list below is still what a reader is allowed to trust from one.
+ *
+ * ⛔ Do not grow this list to make some other key "stick" through an overlay.
+ * A key that belongs to the view belongs in the view; the overlay is a patch,
+ * and a patch that carries the whole document is what this list exists to
+ * stop. Adding a sixth entry is only correct alongside a sixth
+ * `persistViewPatch` call site — {@link narrowPersonalizationOverlay} is what
+ * a reader checks that against.
+ */
+export const VIEW_OVERLAY_OWNED_KEYS = Object.freeze([
+  'rowHeight',
+  'sort',
+  'hiddenFields',
+  'columnState',
+  'inlineEdit',
+] as const);
+
+/**
+ * Identity, not content — kept so a narrowed row is still addressable and
+ * still says what KIND of row it is.
+ *
+ * `label` is deliberately NOT here even though the platform stamps it onto
+ * these rows: `viewIdentityPatch` (`@objectstack/metadata-protocol`, #2555)
+ * inherits `viewKind`/`object`/`label` from the registry entry an overlay
+ * shadows, so a stored `label` is a snapshot of the source view's label at
+ * write time — content, and exactly the class of frozen key this narrowing
+ * exists to stop shadowing the source.
+ */
+const VIEW_OVERLAY_IDENTITY_KEYS = Object.freeze([
+  'name',
+  'object',
+  'viewKind',
+  VIEW_OVERLAY_MARKER,
+] as const);
+
+/**
+ * Reduce a personalization overlay row to the keys it owns — the read-side
+ * half of objectui#5233, and the half that reaches rows ALREADY STORED.
+ *
+ * Rows written before this shipped carry the whole source view (see
+ * {@link VIEW_OVERLAY_OWNED_KEYS}). Of the three dispositions the issue names
+ * for them — strip on next write, migrate, tolerate on read — this is the
+ * third, chosen deliberately and stated here rather than left implicit,
+ * because it is the only one that is already true for every existing row the
+ * moment it ships: strip-on-next-write heals a row only when its user happens
+ * to touch that view again (and leaves the frozen filter live until then),
+ * and a migration needs a runner this product does not have for `sys_metadata`
+ * rows an operator may not even know exist. What the issue forbids is SILENT
+ * tolerance; this is the explicit, pinned kind (`viewOverlayPatchOnly.test.ts`
+ * in this package, `ObjectView.overlayPatchOnly.test.tsx` in app-shell).
+ *
+ * Applied by the consumer that MERGES an override over a source view
+ * (app-shell's `sanitizeViewOverride`, the one seam both of
+ * `loadViewOverrides`' read branches pass through), NOT by
+ * {@link ObjectStackAdapter.listViewOverrides} / {@link ObjectStackAdapter.getView}:
+ * those two answer with the stored DOCUMENT, their equality is itself pinned
+ * ("same key space, same document" — `listViewOverrides.test.ts`), and
+ * `InterfaceListPage` hydrates a hollow view out of that document. Narrowing
+ * belongs where a row is read AS A PATCH, not where it is read as a row.
+ *
+ * Non-overlay rows — a genuine saved view's own body, which the same batch
+ * read enumerates — are returned by REFERENCE, untouched: for those the row
+ * IS the view, and every key on it is an opinion its author expressed.
+ * Classification is {@link isPersonalizationOverlayRow}, the same predicate
+ * {@link ObjectStackAdapter.listViews} excludes rows by, so a row cannot be a
+ * saved view for one reader and an overlay for the other.
+ */
+export function narrowPersonalizationOverlay<T>(row: T): T {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return row;
+  const item = row as Record<string, any>;
+  // Same unwrap the other readers of this namespace use — a `{list: {...}}`
+  // artifact wrapper is a view CONTAINER, never an overlay, and
+  // `isPersonalizationOverlayRow` reads both levels.
+  const spec = item.list ?? item;
+  if (!isPersonalizationOverlayRow(item, spec)) return row;
+  const narrowed: Record<string, any> = {};
+  for (const key of VIEW_OVERLAY_IDENTITY_KEYS) {
+    if (item[key] !== undefined) narrowed[key] = item[key];
+  }
+  for (const key of VIEW_OVERLAY_OWNED_KEYS) {
+    if (item[key] !== undefined) narrowed[key] = item[key];
+  }
+  return narrowed as T;
+}
+
+/**
  * Unwrap a `?state=draft` view read into its bare body, or `null` when there
  * is nothing pending (#4139).
  *
@@ -1321,6 +1881,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // record CRUD, this one is the metadata save door.
   private saveAdvisoryListeners = new Set<MetadataSaveAdvisoryListener>();
 
+  // [ADR-0066] The session's REPORTED system capabilities, pushed in by the
+  // host (see `setSystemCapabilities`). `undefined` means NO answer was ever
+  // reported — which is NOT the same as a reported-empty grant, and the two
+  // are treated differently by `maySetViewConfig` below.
+  private systemCapabilities: string[] | undefined;
+
   constructor(config: {
     baseUrl: string;
     token?: string;
@@ -1332,6 +1898,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     autoReconnect?: boolean;
     maxReconnectAttempts?: number;
     reconnectDelay?: number;
+    /**
+     * [ADR-0066] The session's system capabilities, when the host already has
+     * them at construction time. Most hosts do NOT — `/me/permissions`
+     * resolves after the adapter exists — and push them in later via
+     * {@link ObjectStackAdapter.setSystemCapabilities}. Omit for "unreported".
+     */
+    systemCapabilities?: string[];
   }) {
     // Inject a quiet logger that demotes expected 404s ("HTTP request failed"
     // from probing optional collections like sys_presence/sys_activity) to
@@ -1347,6 +1920,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     this.reconnectDelay = config.reconnectDelay ?? 1000;
     this.baseUrl = config.baseUrl;
     this.token = config.token;
+    this.systemCapabilities = config.systemCapabilities;
     this.fetchImpl = config.fetch || globalThis.fetch.bind(globalThis);
   }
 
@@ -3082,7 +3656,26 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     // Unwrap defensively across server/SDK response shapes: the standard
     // `{ success, data }` envelope, an `{ item }` wrapper, or the bare item.
     const data = body && typeof body === 'object' && 'success' in body && 'data' in body ? body.data : body;
-    return data && typeof data === 'object' && 'item' in data ? data.item : data;
+    const item = data && typeof data === 'object' && 'item' in data ? data.item : data;
+    // [#5729] Carry the ENVELOPE's per-column sortability projection
+    // (objectstack#10235) across the unwrap that just discarded it.
+    //
+    // This line is the whole reason the signal was invisible to the grid: the
+    // platform serves `sortability` BESIDE `item` — deliberately, since the
+    // document is parsed `strict` server-side and the key must stay
+    // un-authorable — and the unwrap above returns `item` alone, so every
+    // consumer downstream saw a document with no signal on it and could only
+    // conclude the platform had sent nothing.
+    //
+    // Re-attached under a symbol key, so it survives to the renderer without
+    // becoming a document property: invisible to `JSON.stringify`, to
+    // `Object.keys` and to a spread, which is what keeps a schema that is ever
+    // handed back to a metadata write endpoint from carrying it into a body the
+    // server would reject by name. No-op when the envelope carried no
+    // projection (a backend older than the upstream change), so such a
+    // deployment is left exactly as it was rather than being told, falsely,
+    // that nothing is sortable.
+    return attachObjectSortability(item, data && typeof data === 'object' ? (data as any).sortability : undefined);
   }
 
   /**
@@ -3351,12 +3944,57 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    *   (vs. a system view being personalized for the first time). Omit /
    *   `false` for the default overlay-marking behavior.
    */
+  /**
+   * [ADR-0066] Tell this adapter which system capabilities the session holds.
+   *
+   * Pass `undefined` for "no answer was reported" (a backend predating
+   * ADR-0066, or no permission provider mounted). Pass `[]` for a real,
+   * reported, empty grant — {@link maySetViewConfig} treats those two
+   * differently and callers must not collapse them, which is the same
+   * distinction `MePermissionsProvider` preserves natively (objectui#4656).
+   */
+  setSystemCapabilities(capabilities: string[] | undefined): void {
+    this.systemCapabilities = capabilities ? [...capabilities] : undefined;
+  }
+
+  /**
+   * May this session write ORG-WIDE view configuration?
+   *
+   * **Unknown fails OPEN**, deliberately, and this is the one judgement in the
+   * gate worth reading twice. It is the doctrine `PermissionContextValue`
+   * .`hasCapabilities` states for every ADR-0066 gate in this repo
+   * (objectui#4656, framework#3923): the server enforces `manage_metadata` on
+   * the metadata door regardless of what the client believes, so a client-side
+   * denial on MISSING DATA cannot protect anything the server was not already
+   * protecting — it can only break a permitted user. Failing closed here would
+   * have refused the write on every deployment predating ADR-0066 and every
+   * host with no permission provider, which is "break the write for everyone"
+   * wearing the costume of a security fix.
+   *
+   * A REPORTED empty array gates strictly: "holds nothing" is a real answer.
+   */
+  private maySetViewConfig(): boolean {
+    if (this.systemCapabilities === undefined) return true;
+    return this.systemCapabilities.includes(VIEW_CONFIG_CAPABILITY);
+  }
+
   async updateViewConfig(
     objectName: string,
     viewId: string,
     config: Record<string, any>,
     opts?: { isSavedView?: boolean }
   ): Promise<Record<string, any> | void> {
+    // objectstack#7494's ruling — THE GATE. Checked first: before `connect()`,
+    // before `saveItem`, before the payload is even assembled, so a refused
+    // call puts nothing on the wire and cannot half-write the org-wide row.
+    //
+    // This is on the WRITE PATH on purpose. Withholding the toolbar affordance
+    // would leave this method still accepting the call from anything else
+    // holding the adapter; the ruling gates the write, so the write is where
+    // the refusal lives — and every caller, present or future, inherits it.
+    if (!this.maySetViewConfig()) {
+      throw new ViewConfigPermissionDeniedError(objectName, viewId);
+    }
     await this.connect();
     // ADR-0005 metadata customization overlay: persist views under
     // `type='view'` (NOT `type=<objectName>` — that was a pre-overlay
@@ -3783,7 +4421,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const cacheKey = `app:${appId}`;
       return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItem('apps', appId);
+        const result: any = await this.client.meta.getItem('app', appId);
         if (result && result.item) return result.item;
         return result ?? null;
       });
@@ -3861,7 +4499,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const cacheKey = `page:${pageId}`;
       return await this.metadataCache.get(cacheKey, async () => {
-        const result: any = await this.client.meta.getItem('pages', pageId);
+        const result: any = await this.client.meta.getItem('page', pageId);
         if (result && result.item) return result.item;
         return result ?? null;
       });
@@ -4011,10 +4649,37 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         throw new AnalyticsQueryRejectedError(failure.message, failure.code);
       }
 
-      // The capability is absent (404 — framework#4019 stops mounting the
-      // routes when no analytics service is registered — or 501). Say so ONCE
-      // so an operator sees a missing capability rather than charts that
-      // quietly read from a slower path forever.
+      // The session, not the deployment (401 `UNAUTHENTICATED`). Reusing the
+      // error the dataset face already throws, because the sentence is the
+      // same one on both faces: the request was refused before it ran, so it
+      // says nothing about whether the capability is installed. The fallback
+      // would send the SAME lapsed token to `find()` and be refused again, so
+      // this is a chart that cannot be answered — not one that degrades.
+      if (failure.kind === 'unauthenticated') {
+        throw new AnalyticsUnauthenticatedError({
+          serverCode: failure.code,
+          serverMessage: failure.message,
+        });
+      }
+
+      // Analytics answered; the cube this query named does not exist
+      // (framework#3867). Rethrown VERBATIM, deliberately: the producer's own
+      // message already names both repairs ("Define a Cube in your stack, or
+      // check the object name"), and rethrowing keeps `code` =
+      // `CUBE_NOT_FOUND` on the error so a caller can still branch on the
+      // contract field — a wrapper of ours would restate the server's words
+      // less well and add a published error type nothing has asked for. The
+      // fallback is not an option to weigh here: it re-reads the SAME name
+      // through `/data`, which framework#3770 answers 404 `OBJECT_NOT_FOUND`.
+      if (failure.kind === 'cube-not-found') {
+        throw e;
+      }
+
+      // The capability is absent (`ROUTE_NOT_FOUND` — framework#4019 stops
+      // mounting the routes when no analytics service is registered — or
+      // `NOT_IMPLEMENTED`, or a code-less 404/501 no ObjectStack route wrote).
+      // Say so ONCE so an operator sees a missing capability rather than
+      // charts that quietly read from a slower path forever.
       if (failure.kind === 'not-installed') {
         this.warnAnalyticsCapabilityOnce(failure.message);
       }
@@ -4171,21 +4836,99 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     });
 
     if (!res.ok) {
-      let detail = '';
-      try {
-        const errBody = await res.json();
-        detail = errBody?.message || errBody?.error || JSON.stringify(errBody);
-      } catch { /* non-JSON error body */ }
-      // "The capability isn't installed" is not a stack trace to show an
-      // author (framework#3891): the REST dataset route answers 501
-      // NOT_IMPLEMENTED when no analytics service provides `queryDataset`, and
-      // a host that doesn't mount the route at all answers 404. Both mean the
-      // same thing and both get a message a UI can render verbatim; anything
-      // else (a compile error like "relationship not declared in include") is
-      // a real authoring error and keeps its server detail.
-      if (res.status === 501 || res.status === 404) {
-        throw new AnalyticsNotInstalledError('POST /analytics/dataset/query', detail || undefined);
+      let errBody: unknown;
+      try { errBody = await res.json(); } catch { /* non-JSON error body */ }
+      const { code: serverCode, message: serverMessage } = readAnalyticsErrorEnvelope(errBody);
+      // The generic branch's tail, and ONLY the generic branch's: it falls back
+      // to the raw body so an unclassifiable failure still shows an operator
+      // something the server actually sent. Every classified branch below
+      // quotes `serverMessage` instead — a message the producer DECLARED — so a
+      // parenthetical is never a JSON dump dressed up as the server speaking.
+      const detail = serverMessage || (errBody === undefined ? '' : JSON.stringify(errBody));
+      const surface = 'POST /analytics/dataset/query';
+      // The dataset this query asked for, read off OUR request. `queryDataset`
+      // accepts either a saved dataset by name or an inline draft; only the
+      // by-name form can miss, but the inline form still carries `name`, so the
+      // subject of the sentence is known in both.
+      const requestedDatasetName =
+        typeof dataset === 'string' ? dataset
+        : typeof (dataset as { name?: unknown })?.name === 'string' ? String((dataset as { name?: unknown }).name)
+        : undefined;
+
+      /* ── objectui#5663 — branch on the server's ADR-0112 `code`, never on
+       * "the endpoint errored" ────────────────────────────────────────────────
+       *
+       * What stood here tested `res.status === 501 || res.status === 404` and
+       * called all of it "the analytics capability is not installed". TWO
+       * unrelated conditions answer 404 on this url, and the mapping could not
+       * see the difference:
+       *
+       *   route absent      404 `ROUTE_NOT_FOUND` (runtime dispatcher)
+       *   dataset unknown   404 `NOT_FOUND`       (this route's own lookup miss)
+       *
+       * So a HotCRM tenant whose installed app was too old to define
+       * `opportunity_metrics` was told to install a server plugin — while the
+       * server printed `Dataset "opportunity_metrics" not found.` inside the
+       * SAME banner, in the parenthetical the headline was contradicting. The
+       * evidence was in the payload the whole time; the mapping was reading a
+       * different field from the one it quoted.
+       *
+       * The status is not a contract here and never was: it is a transport fact
+       * several conditions share, which is the same reason `isApiAccessDenied`
+       * and `isAppPermissionDeniedError` above discriminate on `code` (see
+       * objectui#4408). The `code` is the contract, it is what ADR-0112 exists
+       * to make readable, and the framework declares a distinct one for every
+       * condition this call can land in. Branch on it.
+       */
+
+      // ① The capability really is absent, from either of its two producers:
+      //    the route is mounted with no analytics service behind it (501
+      //    `NOT_IMPLEMENTED`, `registerAnalyticsEndpoints`), or the route was
+      //    never mounted and the dispatcher answered (404 `ROUTE_NOT_FOUND`).
+      //    One remedy — install and mount the service — so one copy.
+      if (errorCodeIsAnyOf({ code: serverCode }, ['NOT_IMPLEMENTED', 'ROUTE_NOT_FOUND'])) {
+        throw new AnalyticsNotInstalledError(surface, serverMessage, serverCode);
       }
+
+      // ② The route answered; the DATASET is the thing that is missing (404
+      //    `NOT_FOUND`). A package problem in the environment, not a missing
+      //    server capability — the remedy is upgrading the installed app.
+      if (errorCodeIs({ code: serverCode }, 'NOT_FOUND')) {
+        throw new AnalyticsDatasetNotFoundError({
+          datasetName: requestedDatasetName,
+          serverCode,
+          serverMessage,
+        });
+      }
+
+      // ③ The request never ran: the session is anonymous or its token lapsed
+      //    (401 `UNAUTHENTICATED`, `enforceAuth`). Nothing about it is evidence
+      //    for or against the capability being installed.
+      if (errorCodeIs({ code: serverCode }, 'UNAUTHENTICATED')) {
+        throw new AnalyticsUnauthenticatedError({ serverCode, serverMessage });
+      }
+
+      // ④ Residual — the answer declared NO ADR-0112 code, so no ObjectStack
+      //    route wrote it (a proxy, a gateway, a host with no API mounted).
+      //    Only here is the bare status the best signal available, and only
+      //    because every code branch has already declined: this route's own
+      //    `NOT_FOUND` always ships a `code`, so a code-less 404 cannot be the
+      //    unknown-dataset case.
+      if (serverCode === undefined) {
+        if (ANALYTICS_ABSENT_STATUSES.includes(res.status)) {
+          throw new AnalyticsNotInstalledError(surface, detail || undefined);
+        }
+        if (res.status === 401) {
+          throw new AnalyticsUnauthenticatedError({ serverMessage });
+        }
+      }
+
+      // ⑤ Everything that named itself and is none of the above — a compile
+      //    error like "relationship not declared in include" (400
+      //    `DATASET_INVALID`), a `CUBE_NOT_FOUND`, a 5xx — is a real failure
+      //    with a real server detail, and keeps it. Note that a 404
+      //    `CUBE_NOT_FOUND` used to land in the capability-missing branch too,
+      //    by the same status collision; it now reads as what it is.
       throw new Error(`Dataset query failed: ${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
     }
 
@@ -4530,6 +5273,8 @@ export function createObjectStackAdapter<T = unknown>(config: {
   autoReconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectDelay?: number;
+  /** [ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}. */
+  systemCapabilities?: string[];
 }): DataSource<T> {
   return new ObjectStackAdapter<T>(config);
 }
@@ -4576,6 +5321,8 @@ export type {
   MetadataError,
   MetadataValidationIssue,
   MetadataLayered,
+  MetadataLockState,
+  MetadataOverlayScope,
   MetadataReference,
   MetadataDiagnostics,
   MetadataDiagnosticsOptions,

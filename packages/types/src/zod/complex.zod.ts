@@ -18,12 +18,17 @@
 
 import { z } from 'zod';
 import {
+  ChartTypeSchema as SpecChartTypeSchema,
   DashboardSchema as SpecDashboardSchema,
   DashboardWidgetSchema as SpecDashboardWidgetSchema,
   GlobalFilterSchema as SpecGlobalFilterSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema, specFieldsExcept } from './base.zod.js';
 import { DASHBOARD_COLOR_VARIANTS, DASHBOARD_WIDGET_TYPES } from '../designer.js';
+import {
+  DASHBOARD_COMPONENT_WIDGET_TYPES,
+  DASHBOARD_WIDGET_TYPE_EXTENSIONS,
+} from '../complex.js';
 
 /**
  * Kanban Card Schema
@@ -66,9 +71,13 @@ export const KanbanSchema = BaseSchema.extend({
 });
 
 /**
- * Calendar View Mode
+ * Calendar View Mode — the registered renderer's rendered set.
+ *
+ * `'agenda'` was retired (objectui#5740): no view ever rendered it, and no
+ * measured app authors it. `view` is a DECLARED key, so this retirement is a
+ * new rejection — see the accept-set note on {@link CalendarViewSchema}.
  */
-export const CalendarViewModeSchema = z.enum(['month', 'week', 'day', 'agenda']);
+export const CalendarViewModeSchema = z.enum(['month', 'week', 'day']);
 
 /**
  * Calendar Event Schema
@@ -86,21 +95,57 @@ export const CalendarEventSchema = z.object({
 
 /**
  * Calendar View Schema - Calendar component
+ *
+ * Mirrors `CalendarViewSchema` in `../complex.ts`, converged on the registered
+ * `calendar-view` renderer's measured read set (objectui#5667): events are
+ * computed from `data` plus the field-name keys; the formerly required
+ * `events` and the eight other inert keys (`defaultView`, `defaultDate`,
+ * `date`, `views`, `editable`, `onEventCreate`, `onEventUpdate`,
+ * `onDateChange`) are retired (ADR-0049 enforce-or-remove).
+ *
+ * `BaseSchema` is `.passthrough()`, so the retired keys are not REJECTED here
+ * — they are simply no longer declared or type-checked. The material accept
+ * change is that `events` is no longer required.
+ *
+ * Value-level residue (objectui#5740): `'agenda'` left
+ * `CalendarViewModeSchema`. Unlike the key retirements above, this IS a new
+ * rejection — `view` is a declared key, and declared keys are validated even
+ * under `.passthrough()` — so `view: 'agenda'`, which parsed green before,
+ * now fails with an `invalid_value` issue on the `view` path.
  */
 export const CalendarViewSchema = BaseSchema.extend({
   type: z.literal('calendar-view'),
-  events: z.array(CalendarEventSchema).describe('Calendar events'),
-  defaultView: CalendarViewModeSchema.optional().describe('Default view mode'),
-  view: CalendarViewModeSchema.optional().describe('Controlled view mode'),
-  defaultDate: z.union([z.string(), z.date()]).optional().describe('Default date'),
-  date: z.union([z.string(), z.date()]).optional().describe('Controlled date'),
-  views: z.array(CalendarViewModeSchema).optional().describe('Available views'),
-  editable: z.boolean().optional().describe('Whether events are editable'),
-  onEventClick: z.function().optional().describe('Event click handler'),
-  onEventCreate: z.function().optional().describe('Event create handler'),
-  onEventUpdate: z.function().optional().describe('Event update handler'),
-  onDateChange: z.function().optional().describe('Date change handler'),
-  onViewChange: z.function().optional().describe('View change handler'),
+  data: z
+    .any()
+    .optional()
+    .describe(
+      'Records to display as events (computed with the field-name keys; binding expressions resolve before the renderer reads it)',
+    ),
+  titleField: z.string().optional().describe("Record field for the event title (default 'title')"),
+  startDateField: z
+    .string()
+    .optional()
+    .describe("Record field for the event start date/time (default 'start')"),
+  endDateField: z
+    .string()
+    .optional()
+    .describe("Record field for the event end date/time (default 'end')"),
+  allDayField: z.string().optional().describe("Record field for the all-day flag (default 'allDay')"),
+  colorField: z.string().optional().describe("Record field for the event color (default 'color')"),
+  view: CalendarViewModeSchema.optional().describe(
+    "View mode — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5740)",
+  ),
+  currentDate: z
+    .union([z.string(), z.date()])
+    .optional()
+    .describe('Initial calendar date (ISO string authored; Date instance from a React host)'),
+  allowCreate: z.boolean().optional().describe('Show the "New event" affordance (default false)'),
+  className: z.string().optional().describe('Tailwind classes for the calendar container'),
+  onEventClick: z
+    .function()
+    .optional()
+    .describe('Host-only event click handler (authored JSON cannot produce a function)'),
+  onViewChange: z.function().optional().describe('Host-only view change handler'),
 });
 
 /**
@@ -261,7 +306,9 @@ export const ChatbotSchema = BaseSchema.extend({
   streamingEnabled: z.boolean().optional().describe('Enable streaming responses'),
   headers: z.record(z.string(), z.string()).optional().describe('Additional API headers'),
   body: z.record(z.string(), z.unknown()).optional().describe('Additional API body params'),
-  maxToolRoundtrips: z.number().optional().describe('Max tool-calling round-trips'),
+  /** @deprecated objectui#5605 — inert; nothing reads it. Cap loops on the agent (`planning.maxIterations`). Slated for removal. */
+  maxToolRoundtrips: z.number().optional()
+    .describe('DEPRECATED (inert, slated for removal) — Max tool-calling round-trips. Nothing reads this; cap tool loops on the agent via planning.maxIterations'),
   onError: z.function().optional().describe('Error callback'),
 });
 
@@ -274,6 +321,49 @@ export const DashboardWidgetLayoutSchema = z.object({
   w: z.number().describe('Grid width'),
   h: z.number().describe('Grid height'),
 });
+
+/**
+ * The CLOSED vocabulary a dashboard widget's `type` may name — Zod twin of
+ * `../complex.ts` {@link DashboardWidgetTypeName}, and the enforcement half of
+ * the 2026-08-14 maintainer ruling on objectstack#8593.
+ *
+ * Composed of three sets, each reached the way its own provenance demands:
+ *
+ *  - the spec's 20 visualization families, BY REFERENCE off
+ *    `ChartTypeSchema.options` — the same enum the spec's own
+ *    `DashboardWidgetSchema.shape.type` wraps in a `.default()`. Restating them here would be the
+ *    "narrower than the contract it implements" shape this file already
+ *    records twice (`label`, `defaultRange`): a family the spec ADDS would be a
+ *    legal document objectui refuses.
+ *  - `DASHBOARD_WIDGET_TYPE_EXTENSIONS` — objectui-only widget FAMILIES
+ *    (`list`, `custom`). The pre-existing divergence, until objectui#4600
+ *    carried only as the prose "widened to `z.string()`" and enforced nowhere.
+ *  - `DASHBOARD_COMPONENT_WIDGET_TYPES` — objectui COMPONENT types the widget
+ *    slot holds directly (`metric-card`). The ruling puts it HERE and
+ *    explicitly not in the spec widget enum, which is a different repo and a
+ *    different contract.
+ *
+ * ⛔ Closed, not `z.string()`. The open form is what let the catalog ship
+ * widgets naming types nothing registers: measured on this tree before the
+ * change, `DashboardComponentSchema.safeParse` ACCEPTED a widget with
+ * `type: 'zzz-not-a-widget-type'` and one with no `type` at all, so a gate
+ * built on it would have passed by validating nothing.
+ *
+ * ⚠️ A member of `DASHBOARD_COMPONENT_WIDGET_TYPES` is a component node, and
+ * this schema is NOT the schema for its body: the object below strips undeclared
+ * keys, so `metric-card`'s own props (`value`, `icon`, `trend`, `trendValue` —
+ * registry `inputs`, not widget keys) do not survive a parse here. They are
+ * kept by objectui's own passthrough component schema, `BaseSchema`, which is
+ * the schema the ruling names for a component node. The standing gate
+ * (`examples/schema-catalog/test/plugin-dashboard-component-schema.test.ts`)
+ * routes each widget to whichever of the two owns it and asserts neither loses
+ * an authored key.
+ */
+export const DashboardWidgetTypeSchema = z.enum([
+  ...SpecChartTypeSchema.options,
+  ...DASHBOARD_WIDGET_TYPE_EXTENSIONS,
+  ...DASHBOARD_COMPONENT_WIDGET_TYPES,
+]);
 
 /**
  * Dashboard Widget Schema — DERIVED from `@objectstack/spec/ui`
@@ -292,9 +382,12 @@ export const DashboardWidgetLayoutSchema = z.object({
  * Two pinned divergences plus one objectui-only extension:
  *  - `id` relaxed to optional — the spec requires it, but stored objectui
  *    dashboards (and the legacy `component` format below) omit it.
- *  - `type` widened to `z.string()` — objectui's `DASHBOARD_WIDGET_TYPES` also
- *    carries `list` and `custom`, which the spec's 19-family visualization enum
- *    does not model. Narrowing here would reject widgets the designer emits.
+ *  - `type` re-pointed at {@link DashboardWidgetTypeSchema} — the spec's own
+ *    enum plus objectui's two CLOSED extension sets. It was `z.string()` until
+ *    objectui#4600; the widening was real (objectui renders `list` / `custom`,
+ *    and the 2026-08-14 ruling admits the `metric-card` component type) but it
+ *    was spent as an unbounded hatch rather than a named set, so every typo and
+ *    every retired family validated too.
  *  - `component` — the legacy `{ id, component: <SDUI node>, layout }` envelope,
  *    which the spec has no room for. Migration to the shorthand form is deferred.
  *
@@ -305,7 +398,8 @@ export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.
   'type',
 ] as const).extend({
   id: z.string().optional().describe('Widget ID'),
-  type: z.string().optional().describe('Widget visualization type (spec shorthand; widened for `list`/`custom`)'),
+  type: DashboardWidgetTypeSchema.optional()
+    .describe('Widget visualization type — the spec families plus objectui\'s closed `list`/`custom` and `metric-card` extensions'),
   component: SchemaNodeSchema.optional().describe('Widget Component (legacy format)'),
 });
 
@@ -469,6 +563,18 @@ export const DashboardWidgetConfigSchema = z.object({
  * Dashboard Config Schema — Zod validator for DashboardConfigPanel data model.
  *
  * Validates the unified dashboard configuration used by create/edit workflows.
+ *
+ * The `aria` member is an ADR-0049 retirement tombstone (objectui#5852),
+ * following this package's convention (`data-display.zod.ts`
+ * `StaticTableColumnSchema`, the set `crud.zod.ts` `confirm` established):
+ * `z.never().optional()` REFUSES an authored value at parse time with the key
+ * named in the error path, rather than letting it be silently stripped the way
+ * an undeclared key would be on this non-`.strict()` object. Loud refusal is
+ * the ruled outcome — `aria` was accepted-and-preserved for as long as it was
+ * declared, so a plain deletion would have converted a preserved key into a
+ * silent drop. The TS twin (`../designer.ts` `DashboardConfig`) no longer
+ * declares it at all; both halves are pinned by
+ * `__tests__/dashboard-config.test.ts`.
  */
 export const DashboardConfigSchema = z.object({
   id: z.string().optional().describe('Dashboard identifier'),
@@ -498,10 +604,7 @@ export const DashboardConfigSchema = z.object({
     icon: z.string().optional(),
     variant: z.string().optional(),
   })).optional().describe('Header action buttons'),
-  aria: z.object({
-    label: z.string().optional(),
-    description: z.string().optional(),
-  }).optional().describe('ARIA accessibility attributes'),
+  aria: z.never({ error: 'RETIRED (objectui#5852) — `aria` is no longer part of DashboardConfig; delete the key. The `{ label, description }` spellings matched no renderer vocabulary and nothing ever read them.' }).optional().describe('RETIRED (objectui#5852) — the `{ label, description }` spellings matched no renderer vocabulary and no read point ever consumed them; delete the key. For real ARIA use the spec vocabulary (`ariaLabel` / `ariaDescribedBy` / `role`) on a surface that reads it.'),
 });
 
 /**

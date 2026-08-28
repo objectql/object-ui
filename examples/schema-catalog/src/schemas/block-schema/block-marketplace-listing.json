@@ -11,23 +11,24 @@
       "children": [
         {
           "type": "icon",
-          "name": "layout-template",
+          "icon": "layout-template",
           "className": "h-12 w-12 text-primary/60"
         }
       ]
     },
     {
       "type": "stack",
-      "spacing": 3,
+      "gap": 3,
       "className": "p-4",
       "children": [
         {
           "type": "flex",
-          "className": "items-start justify-between",
+          "align": "start",
+          "justify": "between",
           "children": [
             {
               "type": "stack",
-              "spacing": 1,
+              "gap": 1,
               "children": [
                 {
                   "type": "text",
@@ -55,7 +56,8 @@
         },
         {
           "type": "flex",
-          "className": "gap-2 flex-wrap",
+          "gap": 2,
+          "wrap": true,
           "children": [
             {
               "type": "badge",
@@ -76,7 +78,9 @@
         },
         {
           "type": "flex",
-          "className": "items-center justify-between pt-2 border-t",
+          "align": "center",
+          "justify": "between",
+          "className": "pt-2 border-t",
           "children": [
             {
               "type": "text",

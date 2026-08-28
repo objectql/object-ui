@@ -28,7 +28,7 @@ vi.mock('react-router-dom', () => ({
 const authFetchSpy = vi.fn();
 vi.mock('@object-ui/auth', () => ({
   useAuth: () => ({ user: { id: 'u1', name: 'User', role: 'user', image: null }, activeOrganization: null }),
-  useIsWorkspaceAdmin: () => false,
+  useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   createAuthenticatedFetch: () => authFetchSpy,
 }));
 

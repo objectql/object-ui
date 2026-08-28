@@ -8,7 +8,8 @@ A lightweight, framework-agnostic rendering engine that enables third-party syst
 
 This package provides the essential building blocks for rendering ObjectUI schemas:
 - Basic layout components (AppShell, Sidebar, Main)
-- Renderer components for objects, dashboards, pages, and forms
+- Route-level views for objects, dashboards, pages and records
+  (`ObjectView`, `DashboardView`, `PageView`, `RecordDetailView`)
 - Zero console-specific dependencies
 - Bring-your-own-router design
 
@@ -18,20 +19,48 @@ This package provides the essential building blocks for rendering ObjectUI schem
 pnpm add @object-ui/app-shell
 ```
 
+## Requires a bundler — plain Node cannot import this package
+
+This package's own artifact is clean, but `DashboardView` and `ReportView` import
+`@object-ui/plugin-dashboard` **statically**, and that package imports `react-grid-layout`'s
+stylesheet at module scope. Node has no loader for `.css`, so importing the published entry
+from plain Node ESM — no bundler, no loader hooks — resolves and then fails during evaluation:
+
+```text
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+  for .../react-grid-layout/css/styles.css
+```
+
+**This is a supported-configuration statement, not a bug to report.** Unbundled Node
+consumption is not supported for style-carrying plugin packages, and app-shell inherits the
+boundary through the import above. It was ruled that way on
+[objectui#5384](https://github.com/objectstack-ai/objectui/issues/5384), over the alternative
+of moving those stylesheet imports out of module scope, because no unbundled-Node consumer
+exists to serve.
+
+Consume it through a host that handles CSS imports, which every supported host does: Vite,
+webpack, or Next with the package listed in `transpilePackages`. If you have a real need to
+import it under plain Node — SSR with no bundler, a Node-side script — please open an issue.
+That reopens the question as a design decision rather than a defect, and the shape of your
+consumer is the missing input.
+
 ## Usage
 
 ### Basic Setup
 
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
+import { AppShell } from '@object-ui/app-shell';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import type { ObjectViewSchema } from '@object-ui/types';
+
+const contactView: ObjectViewSchema = { type: 'object-view', objectName: 'contact' };
 
 function MyCustomConsole() {
   return (
     <AppShell sidebar={<MySidebar />}>
-      <ObjectRenderer
-        objectName="contact"
-        dataSource={myDataSource}
-      />
+      <SchemaRendererProvider dataSource={myDataSource}>
+        <SchemaRenderer schema={contactView} />
+      </SchemaRendererProvider>
     </AppShell>
   );
 }
@@ -39,8 +68,11 @@ function MyCustomConsole() {
 
 ### With Dashboard
 
+`DashboardRenderer` ships from `@object-ui/plugin-dashboard` — this package's
+own `DashboardView` imports it from there.
+
 ```tsx
-import { DashboardRenderer } from '@object-ui/app-shell';
+import { DashboardRenderer } from '@object-ui/plugin-dashboard';
 
 function MyDashboard() {
   return (
@@ -103,39 +135,37 @@ Basic layout container with sidebar support.
 </AppShell>
 ```
 
-### ObjectRenderer
+### ObjectView
 
-Renders object views (Grid, Kanban, List, etc.).
-
-```tsx
-<ObjectRenderer
-  objectName="contact"
-  viewId="grid-view"
-  dataSource={dataSource}
-  onRecordClick={(record) => navigate(`/detail/${record.id}`)}
-/>
-```
-
-### DashboardRenderer
-
-Renders dashboard layouts from schema.
+The route-level object surface (Grid, Kanban, List, etc.). It resolves the
+object and view from the host's route, so it takes no `objectName` prop —
+mount it on a route that supplies them, as the console does with
+`/apps/:appName/:objectName` and `/apps/:appName/:objectName/view/:viewId`.
 
 ```tsx
-<DashboardRenderer
-  schema={dashboardSchema}
-  dataSource={dataSource}
-/>
+<ObjectView dataSource={dataSource} />
 ```
 
-### PageRenderer
+To render an object view from a schema instead of from a route, use
+`SchemaRenderer` from `@object-ui/react` — see [Basic Setup](#basic-setup).
 
-Renders custom page schemas.
+### DashboardView / PageView
+
+`DashboardView` and `PageView` are the route-level equivalents for dashboards
+and custom pages; like `ObjectView` they resolve their target from the route
+(`dashboardName` / `pageName`) rather than from a `schema` prop.
 
 ```tsx
-<PageRenderer
-  schema={pageSchema}
-/>
+<DashboardView dataSource={dataSource} />
 ```
+
+```tsx
+<PageView />
+```
+
+The schema-driven renderers live elsewhere: `DashboardRenderer` in
+`@object-ui/plugin-dashboard`, and everything else through `SchemaRenderer` in
+`@object-ui/react`, which resolves `type` against the component registry.
 
 ### ActionParamDialog
 

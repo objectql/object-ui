@@ -8,7 +8,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { type ManagedByBucket } from '../utils/crudAffordances';
+import { type ManagedByBucket } from '../utils/crudAffordances.js';
 
 /**
  * ManagedByBadge — replaces the verbose, full-width `ManagedByBanner` with

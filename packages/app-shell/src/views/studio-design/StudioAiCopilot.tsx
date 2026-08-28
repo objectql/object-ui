@@ -1,26 +1,26 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useIsMobile } from '@object-ui/components';
 import { useAgents } from '@object-ui/plugin-chatbot';
-import { useChatConversation } from '../../hooks/useChatConversation';
-import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
-import { resolveSurfaceAgent } from '../../hooks/surfaceAgent';
-import { t } from '../metadata-admin/i18n';
-import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
+import { useChatConversation } from '../../hooks/useChatConversation.js';
+import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope.js';
+import { resolveSurfaceAgent } from '../../hooks/surfaceAgent.js';
+import { t } from '../metadata-admin/i18n.js';
+import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage.js';
 import {
   ChatDockPanel,
   ChatDockLauncher,
   ChatDockMobileSheet,
   useChatDockState,
-} from '../../layout/ChatDock';
+} from '../../layout/ChatDock.js';
 import {
   rememberDockReturnLocation,
   DOCK_STUDIO_EXPANDED_STORAGE_KEY,
   DOCK_STUDIO_WIDTH_STORAGE_KEY,
-} from '../../layout/chatDockState';
+} from '../../layout/chatDockState.js';
 
 interface StudioCopilotConversationProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */
@@ -40,6 +40,25 @@ export function StudioCopilotConversation({
   packageId,
   onCanvasOpenChange,
 }: StudioCopilotConversationProps): React.ReactElement | null {
+  // cloud#1610 — the URL is the single source of the surface context: the
+  // pillar is the :tab route segment, the artifact is the `?surface=type:name`
+  // deep-link every pillar already mirrors (useSurfaceDeepLink). Derived per
+  // render; the ChatPane transport reads it per send, so each turn carries
+  // what the user is looking at RIGHT NOW.
+  const { tab } = useParams<{ tab?: string }>();
+  const copilotLocation = useLocation();
+  const surfaceContext = React.useMemo(() => {
+    const raw = new URLSearchParams(copilotLocation.search).get('surface');
+    let artifact: { type: string; name: string } | undefined;
+    if (raw) {
+      const idx = raw.indexOf(':');
+      if (idx > 0 && idx < raw.length - 1) {
+        artifact = { type: raw.slice(0, idx), name: raw.slice(idx + 1) };
+      }
+    }
+    if (!tab && !artifact) return undefined;
+    return { ...(tab ? { pillar: tab } : {}), ...(artifact ? { artifact } : {}) };
+  }, [tab, copilotLocation.search]);
   const { user } = useAuth();
   const userId = user?.id;
   const apiBase = React.useMemo(() => resolveApiBase(), []);
@@ -88,6 +107,7 @@ export function StudioCopilotConversation({
       apiBase={apiBase}
       conversationId={conversationId}
       editPackageId={packageId}
+      surfaceContext={surfaceContext}
       initialMessages={initialMessages}
       pendingFirstMessageRef={pendingFirstMessageRef}
       onSent={() => {}}
@@ -163,6 +183,15 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
   // returns to THIS Studio surface, not to some console page.
   const openFullPage = React.useCallback(() => {
     rememberDockReturnLocation(`${location.pathname}${location.search}`);
+    // objectui#5799 — the built-moment transition auto-routes package build
+    // conversations into the Studio workbench; this door is the ONE sanctioned
+    // way back to the full page, so it opts the arrival out (read + cleared by
+    // AiChatPage's transition effect).
+    try {
+      sessionStorage.setItem('objectstack:ai-full-page-requested', '1');
+    } catch {
+      /* storage unavailable — the transition will bounce back to Studio */
+    }
     navigate(`/ai/build?package=${encodeURIComponent(packageId)}`);
   }, [location.pathname, location.search, navigate, packageId]);
 

@@ -99,15 +99,22 @@ export function parseResultEnvelope(result: unknown): Record<string, unknown> | 
   }
   // Prefer a candidate that carries the framework's `status` discriminator —
   // this peels the Vercel `{ type:'text', value:'…json…' }` wrapper, whose
-  // outer object has no `status`, to the inner envelope that does.
+  // outer object has no `status`, to the inner envelope that does. The
+  // wrapper itself is only ever a LAST-resort fallback: a status-less inner
+  // envelope (e.g. a bare `{error: …}` replay dispatch failure, #5695) must
+  // still win over the wrapper it rode in on, or the error is invisible to
+  // every detector on the rehydration path.
   let fallback: Record<string, unknown> | undefined;
+  let wrapperFallback: Record<string, unknown> | undefined;
   for (const candidate of candidates) {
     const obj = tryParse(candidate);
     if (!obj) continue;
     if (typeof obj.status === 'string') return obj;
-    fallback ??= obj;
+    const isTextWrapper = obj.type === 'text' && 'value' in obj;
+    if (isTextWrapper) wrapperFallback ??= obj;
+    else fallback ??= obj;
   }
-  return fallback;
+  return fallback ?? wrapperFallback;
 }
 
 function detectPendingApproval(
@@ -302,6 +309,42 @@ export function detectBuilderHandoff(result: unknown): BuilderHandoff | undefine
   return { prompt, ...(packageId ? { packageId } : {}) };
 }
 
+/**
+ * cloud#1658 — the ask agent's `open_record` structured hand-off: the OTHER
+ * ending of a write request. Envelope
+ * `{ status:'record_handoff', handoff:'record', objectName, recordId, label?, reason? }`.
+ * Lifted so the chat renders an explicit "打开这条记录 →" action landing on the
+ * record the agent already resolved — the whole point is that the user never
+ * re-finds a record the agent has in hand. Both ids are REQUIRED: a hand-off
+ * with either missing is dropped here exactly as the server refuses to emit
+ * one, because a card pointing nowhere is worse than the prose it replaces.
+ */
+export interface RecordHandoff {
+  objectName: string;
+  recordId: string;
+  label?: string;
+  reason?: string;
+}
+
+export function detectRecordHandoff(result: unknown): RecordHandoff | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj || obj.status !== 'record_handoff') return undefined;
+  const str = (v: unknown): string | undefined => {
+    const t = typeof v === 'string' ? v.trim() : '';
+    return t.length > 0 ? t : undefined;
+  };
+  const o = obj as { objectName?: unknown; recordId?: unknown; label?: unknown; reason?: unknown };
+  const objectName = str(o.objectName);
+  const recordId = str(o.recordId);
+  if (!objectName || !recordId) return undefined;
+  return {
+    objectName,
+    recordId,
+    ...(str(o.label) ? { label: str(o.label) } : {}),
+    ...(str(o.reason) ? { reason: str(o.reason) } : {}),
+  };
+}
+
 export function detectProposedChanges(result: unknown): ProposedChanges | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'changes_proposed') return undefined;
@@ -323,6 +366,117 @@ export function detectProposedChanges(result: unknown): ProposedChanges | undefi
   });
   if (changes.length === 0) return undefined;
   return { ...(str(obj.summary) ? { summary: str(obj.summary) } : {}), changes };
+}
+
+/**
+ * objectui#5695 — the terminal verdict of a confirm-replay.
+ *
+ * When the user approves a 确认修改 card, the runtime re-dispatches the
+ * proposal deterministically and appends the result under a synthetic
+ * `replay_<turn>_<i>` tool-call id (cloud `runApprovedProposalReplay`). The
+ * envelope is the ordinary authoring envelope — `status:'published'`,
+ * or `status:'drafted'` optionally stamped `publishFailed:true` +
+ * `publishOutcome`/`publishError` when the in-turn publish rolled back
+ * (cloud#1467). Lifted into a dedicated shape so the confirm card can render
+ * a UI-owned terminal state — the layer a model cannot narrate over.
+ */
+export interface ReplayOutcome {
+  kind: 'published' | 'drafted' | 'failed';
+  /** Machine verdict of a failed publish (`rejected` / `rolled_back` / `nothing_published`). */
+  outcome?: string;
+  /** First line of `publishError`, for the 未生效 headline. */
+  error?: string;
+  /** Owning package of a drafted outcome, for the inline publish affordance. */
+  packageId?: string;
+  /**
+   * The replay DISPATCH itself errored (bare `{error: …}` envelope) rather
+   * than the publish being refused — measured live 2026-08-24: an apply_edit
+   * replay carrying a blueprint-local object name errored `object "task" not
+   * found`, after which the MODEL self-repaired with different tool calls
+   * that succeeded. A dispatch error is therefore only provisionally
+   * `failed`: the card walk may supersede it with a later successful
+   * authoring verdict from the same turn (see `detectAuthoringVerdict`),
+   * so the card never says 未生效 over a change that actually landed.
+   */
+  dispatchError?: boolean;
+}
+
+export function detectReplayOutcome(
+  toolCallId: string | undefined,
+  result: unknown,
+): ReplayOutcome | undefined {
+  if (!toolCallId || !toolCallId.startsWith('replay_')) return undefined;
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status === 'published') return { kind: 'published' };
+  const rawDispatchErr = (obj as { error?: unknown }).error;
+  if (typeof rawDispatchErr === 'string' && rawDispatchErr.trim() && obj.status === undefined) {
+    return {
+      kind: 'failed',
+      dispatchError: true,
+      error: rawDispatchErr.trim().split('\n')[0],
+    };
+  }
+  if (obj.status !== 'drafted') return undefined;
+  const rawPkg = (obj as { packageId?: unknown }).packageId;
+  const packageId =
+    typeof rawPkg === 'string' && rawPkg ? { packageId: rawPkg } : {};
+  if ((obj as { publishFailed?: unknown }).publishFailed === true) {
+    const rawErr = (obj as { publishError?: unknown }).publishError;
+    const error =
+      typeof rawErr === 'string' && rawErr.trim() ? rawErr.trim().split('\n')[0] : undefined;
+    const rawOutcome = (obj as { publishOutcome?: unknown }).publishOutcome;
+    return {
+      kind: 'failed',
+      ...(typeof rawOutcome === 'string' && rawOutcome ? { outcome: rawOutcome } : {}),
+      ...(error ? { error } : {}),
+      ...packageId,
+    };
+  }
+  return { kind: 'drafted', ...packageId };
+}
+
+/**
+ * objectui#5695 — classify ANY tool result as an authoring verdict, for the
+ * confirm card's self-repair supersede: after a replay DISPATCH error, the
+ * model may land the same change through different tool calls; those results
+ * carry the ordinary authoring envelope, and the latest one in the turn is
+ * the truthful terminal state for the card.
+ */
+export function detectAuthoringVerdict(
+  result: unknown,
+): { kind: 'published' | 'drafted' | 'failed'; packageId?: string } | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status === 'published') return { kind: 'published' };
+  if (obj.status !== 'drafted') return undefined;
+  const rawPkg = (obj as { packageId?: unknown }).packageId;
+  const packageId = typeof rawPkg === 'string' && rawPkg ? { packageId: rawPkg } : {};
+  if ((obj as { publishFailed?: unknown }).publishFailed === true) return { kind: 'failed', ...packageId };
+  return { kind: 'drafted', ...packageId };
+}
+
+/**
+ * objectui#5799 — did this tool result finish a WHOLE-APP build, and for which
+ * package? Posture-independent on purpose: an auto-publish environment
+ * rewrites the apply_blueprint envelope to `status:'published'` (keeping
+ * `drafted[]` + `packageId`), so keying the built-moment transition on
+ * `draftReview` (drafted-only) missed every staging/cloud build — measured
+ * live: reopening a built conversation stayed on the full page.
+ */
+export function detectBuiltAppPackage(result: unknown): string | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj) return undefined;
+  if (obj.status !== 'drafted' && obj.status !== 'published') return undefined;
+  const pkg = (obj as { packageId?: unknown }).packageId;
+  if (typeof pkg !== 'string' || !pkg) return undefined;
+  const drafted = (obj as { drafted?: unknown }).drafted;
+  const hasApp =
+    Array.isArray(drafted) &&
+    drafted.some(
+      (d) => d && typeof d === 'object' && (d as { type?: unknown }).type === 'app',
+    );
+  return hasApp ? pkg : undefined;
 }
 
 export function detectDraftResult(result: unknown): DraftReview | undefined {
@@ -453,12 +607,22 @@ function extractToolInvocations(
           : typeof p.type === 'string'
             ? p.type.replace(/^tool-/, '')
             : 'tool';
+      const toolCallId =
+        p.toolCallId ?? p.id ?? `${p.type ?? 'tool'}-${Math.random().toString(36).slice(2, 8)}`;
       const result = p.output ?? p.result;
       const pending = detectPendingApproval(result);
-      const draftReview = detectDraftResult(result);
+      // A confirm-replay result renders as a terminal state on the ORIGINAL
+      // confirm card, never as its own card — in particular a failed in-turn
+      // publish must NOT surface as an ordinary draft card with a live Publish
+      // button (that is exactly the "narrated success over a rollback" the
+      // card exists to prevent, #5695). So a matched replay suppresses the
+      // draft-review lift for this invocation.
+      const replayOutcome = detectReplayOutcome(toolCallId, result);
+      const draftReview = replayOutcome ? undefined : detectDraftResult(result);
       const proposedPlan = detectProposedPlan(result);
       const proposedChanges = detectProposedChanges(result);
       const builderHandoff = detectBuilderHandoff(result);
+      const recordHandoff = detectRecordHandoff(result);
       // Promote a dangling `input-*` state to a terminal one so a reloaded
       // conversation never shows "Running" forever (the server doesn't always
       // snapshot the terminal tool state). Two cases:
@@ -481,8 +645,7 @@ function extractToolInvocations(
       const state: ChatToolInvocation['state'] =
         pending && baseState !== 'output-error' ? 'approval-requested' : baseState;
       return {
-        toolCallId:
-          p.toolCallId ?? p.id ?? `${p.type ?? 'tool'}-${Math.random().toString(36).slice(2, 8)}`,
+        toolCallId,
         toolName,
         args: p.input ?? p.args,
         result,
@@ -493,6 +656,8 @@ function extractToolInvocations(
         proposedPlan,
         proposedChanges,
         builderHandoff,
+        recordHandoff,
+        replayOutcome,
       } satisfies ChatToolInvocation;
     });
 }

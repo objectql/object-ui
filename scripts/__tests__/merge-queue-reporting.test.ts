@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
+import { producedCheckNames, readWorkflows, subscribesMergeGroup } from './workflow-checks.js';
+
 /**
  * objectui#3523 — the merge queue was enforced and validated nothing.
  *
@@ -51,11 +54,27 @@ const doc = fs.readFileSync(path.join(repoRoot, DOC), 'utf8');
 /**
  * `filename -> why this workflow must subscribe merge_group`.
  *
- * A hand-maintained list, and it has to be: "may this context be required?" is a
- * property of the repository's settings, not of the YAML, so nothing mechanical
- * can derive the set. What IS mechanical is the honesty check below — an entry
- * naming a workflow that no longer exists fails, so the list cannot rot into a
- * comfortable fiction the way a stale count does (#3261).
+ * Hand-maintained, and it carries the REASONS only — since objectui#6160 it no
+ * longer decides the MEMBERSHIP. `DERIVED_MERGE_GROUP_FLOOR` below does that,
+ * out of `REQUIRED_CONTEXTS`.
+ *
+ * The header this replaced said the set could not be derived at all, because
+ * "may this context be required?" is a property of the repository's settings and
+ * not of the YAML. That premise is still true and the conclusion no longer
+ * follows: `REQUIRED_CONTEXTS` in `scripts/dependabot-merge-gate.mjs` is already
+ * a human's written-down answer to exactly that question, so deriving from it
+ * mechanises nothing — it stops one judgement being written down twice in two
+ * files that then drift apart. Which is what happened: the map named six
+ * workflows while eight produced an unfiltered blocking check, and by the time
+ * anyone acted on that it was seven against ten, because PR #6159 added its own
+ * entry by hand without closing the class (objectui#6160).
+ *
+ * Two mechanical honesty checks keep what is left of it true: an entry naming a
+ * workflow that no longer exists fails, so the list cannot rot into a
+ * comfortable fiction the way a stale count does (#3261); and an entry naming a
+ * workflow that produces no required context fails, so this map can only ever be
+ * a SUBSET of the derived floor and the derivation cannot silently narrow past
+ * it.
  */
 const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
   ['ci.yml', 'produces Type Check, Build & E2E, Test (shard N/4) and Changeset Fixed Group Check'],
@@ -74,7 +93,93 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'entire scan surface is markdown, so it carries no path filter, reports on every pull ' +
       'request, and is therefore requirable',
   ],
+  [
+    'pre-install-import-graph.yml',
+    'produces Pre-Install Import Graph Check — added by objectui#6148. What it judges is the ' +
+      'arrangement of the workflows themselves, so it carries no path filter, reports on every ' +
+      'pull request, and is requirable; `scripts/dependabot-merge-gate.mjs` already classifies ' +
+      'it as a required context',
+  ],
+  [
+    'vi-mock-specifiers.yml',
+    'produces Inert vi.mock Specifier Check — added by objectui#5646. A module mock can be ' +
+      'written into any package in any shape of pull request, and the gate costs a checkout plus ' +
+      'one node call, so it carries no path filter, reports on every pull request, and is ' +
+      'requirable; `scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
+  ],
+  [
+    'readme-exports.yml',
+    'produces README Export Check — added by objectui#5043. A fabricated self-import can be ' +
+      'written into any package README, and a README-only pull request is the shape `ci.yml` ' +
+      'structurally cannot see (its jobs short-circuit on a diff that excludes `**/*.md`), so ' +
+      'this gate carries no path filter, reports on every pull request, and is requirable; ' +
+      '`scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
+  ],
 ]);
+
+/**
+ * The floor, DERIVED — objectui#6160.
+ *
+ * ## What it is protecting
+ *
+ * `main` sits behind an enforced merge queue (#3243). A context the repository
+ * REQUIRES, produced by a workflow that does not subscribe `merge_group`, never
+ * reports on the queue build — and a required check that never reports does not
+ * FAIL the queue, it STALLS it until the ruleset's 60-minute status-check
+ * timeout. That is the whole reason a floor exists here at all: objectui#3523,
+ * where nothing subscribed, the queue's required set could therefore only be
+ * empty, and #3503 / #3510 / #3516 merged on 2026-08-07 with `Type Check` at
+ * `conclusion=failure`.
+ *
+ * ## Why it derives instead of being listed
+ *
+ * `REQUIRED_CONTEXTS` is the other place this repository writes down "this check
+ * is blocking and reports on every pull request". Every name in it is a check a
+ * maintainer may put in the required set, so every workflow producing one is
+ * exactly a workflow that must subscribe `merge_group`. Reading the membership
+ * off that list instead of off a second hand-kept one means a gate added to
+ * `REQUIRED_CONTEXTS` is inside this floor the moment it is added, with nobody
+ * having to remember a second file.
+ *
+ * The check names come from `REQUIRED_CONTEXTS`; the name -> workflow-file
+ * mapping is `producedCheckNames()`, the same parser
+ * `dependabot-merge-gate.test.ts` partitions its buckets with. One parser, so
+ * the two files cannot disagree about which workflow produces what.
+ *
+ * ## The precondition, and why it is pinned rather than assumed
+ *
+ * A derived floor is an improvement only while it is a SUPERSET of what the hand
+ * map named. A derivation that quietly narrows would read as more coverage while
+ * asserting less — this card's own defect, one level up. So the containment is
+ * itself an assertion below ("loses nothing the hand-maintained map named"), and
+ * so is the resolvability of every `REQUIRED_CONTEXTS` name: a renamed check that
+ * resolves to no workflow drops that workflow out of the floor silently, which is
+ * the same narrowing wearing a different hat.
+ *
+ * Measured on this tree when the derivation landed: every one of the map's
+ * entries produces a `REQUIRED_CONTEXTS` check (nothing is lost) and every
+ * workflow producing one subscribes `merge_group` (the floor is satisfiable
+ * today, and no workflow YAML needed changing — the missing thing was the
+ * assertion, not the trigger).
+ */
+function deriveMergeGroupFloor(): { byWorkflow: Map<string, string[]>; unresolved: string[] } {
+  const produced = producedCheckNames();
+  const byWorkflow = new Map<string, string[]>();
+  const unresolved: string[] = [];
+
+  for (const context of REQUIRED_CONTEXTS) {
+    const file = produced.get(context);
+    if (!file) {
+      unresolved.push(context);
+      continue;
+    }
+    byWorkflow.set(file, [...(byWorkflow.get(file) ?? []), context]);
+  }
+
+  return { byWorkflow, unresolved };
+}
+
+const DERIVED_MERGE_GROUP_FLOOR = deriveMergeGroupFloor();
 
 /** Workflows whose path filtering had to move from the trigger into the jobs. */
 const FILTER_MOVED_INTO_JOBS = ['ci.yml', 'lint.yml'];
@@ -202,6 +307,85 @@ describe('every requirable context reports on a merge-queue build (#3523 step 1)
         `tests at all. Write the exclusion as "not push" instead — \`test-coverage\` is the push ` +
         `lane, and the queue build is the last check before \`main\` (objectui#3523).`,
     ).not.toMatch(/^\s*if: github\.event_name == 'pull_request'\s*$/m);
+  });
+});
+
+describe('the merge_group floor derives itself from REQUIRED_CONTEXTS (#6160)', () => {
+  const { byWorkflow, unresolved } = DERIVED_MERGE_GROUP_FLOOR;
+
+  it('resolves every required context to the workflow that produces it', () => {
+    // Non-vacuity guard, and it comes first because the two assertions after it
+    // are both quantified over `byWorkflow`: a derivation that resolved nothing
+    // would make them pass while asserting nothing at all — green because
+    // nothing was produced, the failure mode this whole file is about.
+    expect(
+      unresolved,
+      `These names are in \`REQUIRED_CONTEXTS\` but no \`pull_request\` workflow produces a check ` +
+        `by that name:\n` +
+        unresolved.map((name) => `  - ${name}`).join('\n') +
+        `\n\nEach one is a workflow silently dropped OUT of the merge_group floor below — the ` +
+        `derivation cannot require a subscription of a workflow it failed to identify. Usually a ` +
+        `renamed job: fix the name on whichever side is stale. (\`dependabot-merge-gate.test.ts\` ` +
+        `fails on the same drift from the other direction — there it means the gate waits forever ` +
+        `for a context nothing creates.)`,
+    ).toEqual([]);
+
+    expect(
+      byWorkflow.size,
+      `The derivation resolved no workflows at all, so the floor below is empty and asserts ` +
+        `nothing. Either \`REQUIRED_CONTEXTS\` was emptied or \`producedCheckNames()\` stopped ` +
+        `parsing \`.github/workflows\`.`,
+    ).toBeGreaterThan(0);
+  });
+
+  it('requires merge_group of every workflow that produces a required context', () => {
+    const workflows = new Map(readWorkflows().map((workflow) => [workflow.file, workflow]));
+
+    const missing = [...byWorkflow.keys()].filter((file) => {
+      const workflow = workflows.get(file);
+      return !workflow || !subscribesMergeGroup(workflow);
+    });
+
+    expect(
+      missing,
+      `These workflows produce a context \`REQUIRED_CONTEXTS\` declares blocking, but do not ` +
+        `subscribe \`merge_group\`:\n` +
+        missing.map((f) => `  - ${f} (produces ${byWorkflow.get(f)?.join(', ')})`).join('\n') +
+        `\n\nThe merge queue is ENFORCED here (#3243). A required context that does not report on ` +
+        `a queue build does not fail the queue, it STALLS it until the ruleset's 60-minute ` +
+        `status-check timeout — every queued pull request burns an hour and fails with nothing ` +
+        `red to point at. Add \`merge_group:\` to the workflow's \`on:\` block; it is a pure ` +
+        `addition and changes nothing about pull requests (objectui#3523 step 1, where the ` +
+        `opposite state let #3503 / #3510 / #3516 merge with \`Type Check\` at ` +
+        `conclusion=failure).\n\nIf the context genuinely cannot be required, it does not belong ` +
+        `in \`REQUIRED_CONTEXTS\` — move it to \`OPTIONAL_CONTEXTS\` or \`NOT_A_GATE\` in ` +
+        `\`scripts/dependabot-merge-gate.mjs\` with the reason, rather than weakening this floor.`,
+    ).toEqual([]);
+  });
+
+  it('loses nothing the hand-maintained map named', () => {
+    // The precondition of the whole derivation, pinned rather than assumed: the
+    // derived floor must CONTAIN what the hand-maintained map named, or swapping
+    // one for the other would look like more coverage while asserting less.
+    //
+    // It fails in the direction that matters. Adding a workflow to the map that
+    // produces no `REQUIRED_CONTEXTS` check reads as "the map now covers
+    // something the derivation does not" — which is the two declarations
+    // crossing, and is exactly what may not happen quietly.
+    const lost = [...MUST_SUBSCRIBE_MERGE_GROUP.keys()].filter((file) => !byWorkflow.has(file));
+
+    expect(
+      lost,
+      `MUST_SUBSCRIBE_MERGE_GROUP names these workflows, but none of them produces a check listed ` +
+        `in \`REQUIRED_CONTEXTS\`:\n` +
+        lost.map((f) => `  - ${f} (${MUST_SUBSCRIBE_MERGE_GROUP.get(f)})`).join('\n') +
+        `\n\nSince objectui#6160 the floor is DERIVED from \`REQUIRED_CONTEXTS\`, and this map ` +
+        `carries only the reasons. So the two declarations have just crossed: either the check ` +
+        `belongs in \`REQUIRED_CONTEXTS\` (add it there — that is what puts the workflow inside ` +
+        `the floor), or it is not requirable and the entry here is claiming a floor nothing ` +
+        `enforces (drop it). Leaving it is the one option that is not available: it would be a ` +
+        `hand-maintained membership again, the thing that fell behind twice before anyone noticed.`,
+    ).toEqual([]);
   });
 });
 
@@ -434,11 +618,23 @@ const namesWorkflow = (text: string, file: string): boolean =>
   new RegExp(`(?<![\\w./-])${file.replace(/\./g, '\\.')}`).test(text);
 
 describe('ci-cd-pipeline.md does not keep its own copy of the subscriber list (#4154)', () => {
+  /**
+   * Every workflow the page may not enumerate: the map's entries AND the derived
+   * floor's, which since objectui#6160 is the larger set. Scanning only the map
+   * would have let the page name the subscribers the map does not — the same
+   * drift this describe exists to stop, hiding in the gap the map had already
+   * fallen behind by.
+   */
+  const CURRENT_SUBSCRIBERS = new Set([
+    ...MUST_SUBSCRIBE_MERGE_GROUP.keys(),
+    ...DERIVED_MERGE_GROUP_FLOOR.byWorkflow.keys(),
+  ]);
+
   it('names no current subscriber outside the dated #3523 paragraph', () => {
     const offenders: string[] = [];
     for (const paragraph of paragraphsOf(mergeQueueSection())) {
       const dated = paragraph.includes(HISTORY_ANCHOR);
-      for (const file of MUST_SUBSCRIBE_MERGE_GROUP.keys()) {
+      for (const file of CURRENT_SUBSCRIBERS) {
         if (!namesWorkflow(paragraph, file)) continue;
         if (dated && HISTORY_NON_SUBSCRIBERS.includes(file)) continue;
         offenders.push(`${file} — in ${dated ? 'the dated #3523 paragraph' : 'a live paragraph'}: "${paragraph.split('\n')[0].slice(0, 72)}…"`);

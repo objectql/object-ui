@@ -429,6 +429,107 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
   });
 });
 
+// objectui#5006 — the `maxVisible` / `mobileMaxVisible` VALUE DOMAIN.
+//
+// Three authorities used to give two answers for the same value. Measured on
+// `ComponentPropsMap['page:header']` at @objectstack/spec 17.0.0 (the member
+// lives on the `@objectstack/spec/ui` subpath, NOT the package root), both keys
+// are a positive safe integer — `{format:'safeint'}` plus
+// `{check:'greater_than',value:0,inclusive:false}`:
+//
+//   value | spec                                  | old readMax
+//   ------+---------------------------------------+---------------------------
+//   3     | OK                                    | 3
+//   0     | REJECT "expected number to be >0"     | 0  (all actions overflowed)
+//   -1    | REJECT "expected number to be >0"     | undefined -> default
+//   1.5   | REJECT "expected int, received number"| 1  (floored)
+//   2^53+2| REJECT "expected int to be <=2^53-1"  | 2^53+2 (nothing overflowed)
+//
+// The renderer was the loosest of the three, so a value `os validate` rejects
+// outright still changed what shipped on screen. `readMax` now enforces the
+// contract and a rejected value falls back to the documented default (3 desktop
+// / 1 mobile) instead of taking effect.
+//
+// ⚠️ Scope note for future readers: `readMax` is `page:header`-only and has
+// exactly two call sites. `action:bar` reads `schema.maxVisible ?? 3` through a
+// wholly separate reader (`renderers/action/action-bar.tsx`) and is NOT in
+// `ComponentPropsMap` at all, so its `maxVisible: 0` fixtures are legitimate and
+// untouched by this suite. The notification stack's `maxVisible` is a third,
+// unrelated reader (provider config).
+describe('PageHeaderRenderer — maxVisible contract domain (objectui#5006)', () => {
+  const fourActions = [
+    { name: 'a', locations: ['record_header'], label: 'Action A' },
+    { name: 'b', locations: ['record_header'], label: 'Action B' },
+    { name: 'c', locations: ['record_header'], label: 'Action C' },
+    { name: 'd', locations: ['record_header'], label: 'Action D' },
+  ];
+
+  // Asserts the DEFAULT-3 split: A/B/C inline, D folded into the overflow menu.
+  // That is what a contract-rejected override must fall back to.
+  function expectDefaultThreeSplit() {
+    expect(screen.getByRole('button', { name: /Action A/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Action C/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action D/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  }
+
+  it('rejects maxVisible: 0 and falls back to the default (spec rejects 0)', () => {
+    // Pre-fix this rendered ZERO inline buttons and swept every action into the
+    // overflow menu — the most visible of the divergences, and the one an author
+    // was most likely to hit by writing "0 means unlimited".
+    renderHeader({ type: 'page:header', maxVisible: 0, actions: fourActions });
+    expectDefaultThreeSplit();
+  });
+
+  it('rejects a fractional maxVisible instead of flooring it (spec rejects 1.5)', () => {
+    // Pre-fix: Math.floor(1.5) === 1, so only Action A stayed inline. Flooring
+    // invented a value the contract never accepted.
+    renderHeader({ type: 'page:header', maxVisible: 1.5, actions: fourActions });
+    expectDefaultThreeSplit();
+  });
+
+  it('rejects a maxVisible past Number.MAX_SAFE_INTEGER (spec format is safeint)', () => {
+    // Pre-fix this was finite and >= 0, so it passed straight through and every
+    // action rendered inline with no overflow button at all. This is the case
+    // that makes Number.isSafeInteger — not Number.isInteger — the correct
+    // predicate: Number.isInteger(2**53 + 2) is true, but spec rejects it.
+    renderHeader({
+      type: 'page:header',
+      maxVisible: Number.MAX_SAFE_INTEGER + 2,
+      actions: fourActions,
+    });
+    expectDefaultThreeSplit();
+  });
+
+  it('applies the same domain to the properties.* spelling (spec bridge variant)', () => {
+    // Both spellings flow through the one `readMax`, so the bridge variant must
+    // not be a way around the contract.
+    renderHeader({
+      type: 'page:header',
+      properties: { maxVisible: 0, actions: fourActions },
+    });
+    expectDefaultThreeSplit();
+  });
+
+  // ⚠️ The two tests below are GREEN BOTH BEFORE AND AFTER the fix — they pin
+  // no part of this change and are recorded as regression guards only. A
+  // negative override already fell back (the old guard was `v >= 0`), and a
+  // positive safe integer was already honoured. They are kept so the accepted
+  // and rejected halves of the domain are both stated in one place.
+  it('regression guard (green pre-fix too): a negative maxVisible falls back', () => {
+    renderHeader({ type: 'page:header', maxVisible: -1, actions: fourActions });
+    expectDefaultThreeSplit();
+  });
+
+  it('regression guard (green pre-fix too): a positive safe integer is honoured', () => {
+    renderHeader({ type: 'page:header', maxVisible: 2, actions: fourActions });
+    expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action C/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  });
+});
+
 // objectui#3391 — record dispatch shape. A `record_header` / `record_more`
 // action must reach the runtime in the SAME shape ObjectGrid row actions and
 // DeclaredActionsBar dispatch: the record stashed under `params._rowRecord`
@@ -723,8 +824,8 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
               },
             ],
           },
-          // Non-empty payload WITHOUT the referenced field — mirrors the
-          // server stripping `hidden: true` fields from detail payloads.
+          // Non-empty payload WITHOUT the referenced field — mirrors a
+          // projected/partial read binding a record that lacks the key.
           { record: { id: '1', status: 'new' } },
         );
         expect(screen.queryByRole('button', { name: /Hidden Field Gate/i })).toBeNull();
@@ -732,8 +833,8 @@ describe('PageHeaderRenderer — #2358 action visibility traps', () => {
           String(c[0]).includes('hidden_field_gate_2358'),
         );
         // TWO diagnostics, one per fact, each once (objectui#3521): this local
-        // one names the missing field — a CAUSE only this surface can see, since
-        // the server strips `hidden: true` fields from detail payloads — and the
+        // one names the missing field — a FACT only this surface can see, since
+        // only the page knows which payload it bound (objectui#5399) — and the
         // shared `evalRowPredicate` report states the VERDICT (a CEL fault on an
         // absent key, resolved to the fail-closed default). Before #3521 the
         // legacy JS evaluator returned `undefined` for the absent key without

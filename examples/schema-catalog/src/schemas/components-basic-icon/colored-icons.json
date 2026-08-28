@@ -4,17 +4,17 @@
   "children": [
     {
       "type": "icon",
-      "name": "heart",
+      "icon": "heart",
       "color": "text-red-500"
     },
     {
       "type": "icon",
-      "name": "star",
+      "icon": "star",
       "color": "text-yellow-500"
     },
     {
       "type": "icon",
-      "name": "check",
+      "icon": "check",
       "color": "text-green-500"
     }
   ]

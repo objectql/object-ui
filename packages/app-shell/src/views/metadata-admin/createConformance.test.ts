@@ -116,7 +116,7 @@ describe('create-roundtrip conformance: default create output passes spec valida
 // same dead-end family (a minimal shape the spec rejects → create→save 422s).
 describe('Studio inline creators: skeletons pass spec validation', () => {
   const STUDIO_SKELETONS: Array<{ type: string; skeleton: Record<string, unknown> }> = [
-    { type: 'object', skeleton: buildObjectSkeleton('conf_obj', 'Conformance Object', 'Name') },
+    { type: 'object', skeleton: buildObjectSkeleton('conf_obj', 'Conformance Object', 'Name', 'private') },
     { type: 'flow', skeleton: buildFlowSkeleton('conf_flow', 'Conformance Flow', 'Start', 'End') },
     { type: 'app', skeleton: buildAppSkeleton('conf_app', 'Conformance App') },
     {

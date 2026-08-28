@@ -27,7 +27,17 @@ You don't just build components — you build a **Renderer** that interprets JSO
 - **Styling:** Tailwind CSS (utility-first).
   - ✅ Use `class-variance-authority` (cva) for component variants.
   - ✅ Use `tailwind-merge` + `clsx` (via `cn()`) for class overrides.
-  - ❌ No inline styles (`style={{}}`), CSS Modules, or styled-components.
+  - ❌ No inline styles (`style={{}}`), CSS Modules, or styled-components. The
+    hazard the ban exists to stop: an inline value that hard-codes a colour, so
+    dark mode renders identically and the design system loses theme control.
+    - ⚠️ **One carve-out — author-declared, data-driven colour.** A colour the
+      *author* declared in metadata (e.g. `options[].color`) may reach the DOM
+      through `style={{}}`, but **only** as CSS custom properties that *static*
+      Tailwind utilities consume, so `dark:` stays a real variant. Never a
+      colour-bearing property (`backgroundColor`, `color`) written inline, and
+      never a colour the *component* chose. Colour only — layout, spacing and
+      sizing stay on utilities. Full rule and worked example:
+      `skills/objectui/rules/styling.md`.
 - **UI primitives:** Shadcn UI (Radix) + Lucide icons.
 - **State:** Zustand (global store), React Context (scoped data).
 - **Testing:** Vitest + React Testing Library.
@@ -176,9 +186,18 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   pnpm 把 `--` **原样**转发进脚本,vitest 的 CLI 解析在 `--` 处停止,后面的一切(包括你的路径)
   在 vitest 看到之前就没了 —— 不是「被忽略并警告」,是压根不存在。于是退回默认集合(叠加陷阱一
   就是别人的包),新加的测试文件零执行、输出全绿。
-- **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 在 `vitest.config.mts` 顶部
-  拦下:vitest root 不是仓根 → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的
-  正确命令。包级 `test` 脚本的存废是 objectui#3240;在那之前它们只失败,不撒谎。
+- **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 拦下:vitest root 不是仓根
+  → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的正确命令。包级 `test` 脚本的
+  存废是 objectui#3240;在那之前它们只失败,不撒谎。
+  - **拦截点不止 `vitest.config.mts` 一处**(objectui#5406)。vitest 只加载「启动目录里的那份」
+    config,所以根 config 顶部那一次调用,只覆盖得到「本包没有 config(向上找到根 config)」或
+    「本包 config import 了根 config(import 即执行其模块作用域)」这两条路。11 个**独立**的
+    `packages/plugin-*/vitest.config.ts` 两条都不占——它们自带 `happy-dom` + `globals` + 本地
+    setup 且**完全没有 alias 表**,于是从包目录跑就用上了一份 CI 从不使用的 config,而 guard
+    根本没被 import。实测:`cd packages/plugin-grid && pnpm exec vitest run
+    src/__tests__/ObjectGrid.exportOptionsKeys.test.ts` 曾经报 `Test Files 1 passed (1)` /
+    `Tests 5 passed (5)` 并以 0 退出。这 11 份现在各自调用 guard;新增任何一份 `vitest.config.*`
+    若两条路都不占,`scripts/__tests__/vitest-invocation-guard.test.ts` 会红。
 - **路径过滤零匹配也不再是绿的**:一旦命令行点名了文件,`passWithNoTests` 自动关闭 ——
   写错的路径 / 相对错目录的路径 → 非零退出,而不是「跑了 0 个文件然后绿」。
 - 确需从包目录启动,把 root 显式指回仓根:`pnpm exec vitest run --root ../.. packages/<pkg>/`。
@@ -222,8 +241,38 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   ```
 
   三者的共同点是**先把未提交状态捕获下来**再动工作区;任何「先覆盖、事后再从某个 ref 取回」的写法都**不是**替代做法 —— 它假设你的改动已经提交,而反向验证时通常没有(objectstack#7800:那条推荐语害一个 agent 丢了在途改动)。一个 **PreToolUse 钩子**(`.claude/hooks/guard-shared-stash.sh`)**强制**此规则:拦截 push/pop/drop/clear 共享栈的 `Bash` 命令,放行拿不到别人条目的形式 —— `git stash list`/`show`/`create`,以及 `git stash apply <sha>` / `store <sha>` 且 sha 为**字面十六进制 object id**(绝不用 `stash@{N}` —— 那是你并不拥有的那个栈里的一个**位置**)。确知栈只属于你时用 `OS_ALLOW_STASH=1` 放行;改了钩子就重跑 `.claude/hooks/guard-shared-stash.selftest.sh`。
+- **上一条不是孤例 —— worktree 只隔离你的 checkout 和四个 ref 命名空间,其余一切共享。** Git 的 per-worktree ref 命名空间**恰好四个**:`HEAD`、`refs/bisect`、`refs/worktree`、`refs/rewritten`。**除此之外全部共享** —— 不是 object store,不是 repo config,也不是任何别的 ref。上一条的 `refs/stash` 是本规则的一个**特例**,不是一条孤立的怪癖;只读到那一条就以为「worktree 隔离 ref、只有 stash 例外」的,恰好把结论记反了。判据只有一条命令:`git rev-parse --git-dir` 与 `--git-common-dir` **不同**说明你在 linked worktree 里,而**凡是落在 common dir 底下的东西都是共用的**(实测本仓:linked worktree 的 `--git-dir` 是 `.git/worktrees/<name>`,`--git-common-dir` 是 `.git`;`HEAD` 两棵树各有一份、读数不同,`refs/remotes/` 在 per-worktree 目录里**根本不存在**,只有 common dir 那一份)。除 stash 外,另外两个已经吃过亏的实例:
+
+  1. **`refs/remotes/*`** —— 别的 agent 在**它自己的** worktree 里 `git fetch`,推进的是**你的** `origin/main`。于是 `git checkout origin/main -- <paths>` 在 worktree 里**不是**「还原到我的分支基点」,而是「还原到 `origin/main` **此刻**指向的地方」—— 那可能比你切分支的那个 commit 更新,别人刚合并的改动就以「revert」的名义进了你的工作区,随后一次 `git add -A` 把它们扫进你的 PR。实测本仓:四个 agent 并行时 `origin/main` **十分钟内动了三次**。⚠️ 而且 path-scoped checkout 会**顺带 stage** 它还原的内容 —— 污染到达时已经在 index 里了。
+  2. ⭐ **`FETCH_HEAD`** —— **它的症状是「没有内容」而不是「内容不对」,这是前两个实例推不出来的那一半。** `FETCH_HEAD` 是「**本 checkout 里最后一次 fetch** 的结果」,谁 fetch 的都算。`git fetch X && git diff …FETCH_HEAD` 写成**一条**命令是安全的;拆成**两条**就不是 —— 中间任何一次 fetch 都把它换成了另一条分支,而 `git diff` **退出 0、什么都不打印**。那个输出最自然的读法是「这个改动根本不在」:一个关于**别人**工作的、基于看起来很干净的证据的、自信的错误结论。⚠️ 对**做评审的座位**尤其致命 —— PM 拿 PR 比对 `main` 做的正是这个操作,而它朝「活儿没做」的方向失败。
+
+  ⚠️ **`FETCH_HEAD` 的隔离边界和前两个不一样,别照着 `refs/stash` 外推**(实测 git 2.43):`git rev-parse --git-path FETCH_HEAD` 在 linked worktree 里解析到 `.git/worktrees/<name>/FETCH_HEAD`,**B 在自己 worktree 里 fetch 并不会动 A 的 `FETCH_HEAD`** —— 这一点已经量过。它咬人的地方是**共享的主 checkout**:那里同一条命令解析到 common dir 的 `.git/FETCH_HEAD`,而每个 agent 在建自己 worktree**之前**的第一条 `git fetch` 都落在那儿,评审座位更是整天待在那儿。所以这一条按 **checkout** 说、不按 worktree 说:**同一个 checkout 里,最后一次 fetch 说了算**。
+
+  三条做法(都是**做法**,不是禁令):
+
+  - **钉住基点。** 建 worktree 时记下 `BASE=$(git rev-parse HEAD)`,还原一律 `git checkout "$BASE" -- <paths>`,绝不用一个会动的 remote-tracking 名字。真要以 `origin/main` 为源,就**按 commit 说**,别按 ref 名说。
+  - **确实点了 remote-tracking ref,就核验到手的内容。** 规则不是「绝不点名」,而是「它会在你脚下动,所以要查清楚拿到的是什么」—— 用磁盘上的出现次数**正反两个方向**查。objectui#5235 是这个缓解措施成功的实例:`resetInFlightRef` 计数 `7 → 0`,同时确认修复前的注释文本回到 2 处;`origin/main` 若已漂到另一个版本,这两个数都对不上。
+  - **fetch 进一个你自己命名的 ref。** `git fetch origin <branch>:refs/<namespace>/<id> -f`,然后读**那个** ref —— 没有任何 sibling 动得了它。这是 `FETCH_HEAD` 的解法。
+  - 任何 path-scoped 还原做完之后,把还原的那几个路径和记录的基点 diff 一次,**确认为空再 stage**。
+
+  ⛔ **这一条不会有钩子兜底**(上面 worktree 与 stash 两条各有一个 PreToolUse 钩子):安全形式就是 `git checkout` / `git fetch` 这些日常命令,而不安全的那个形式在别处完全正当 —— 机械拦截只会拦在正确用法上。所以这条规则的全部效力,就在于你还记不记得基点是**钉住的那个 commit**。
+- **临时文件所在的 scratchpad 目录跨会话共享 —— 提交信息与 PR 正文一律别落到那里。** 容器发给每个会话的「scratchpad」临时目录事实上被多个并行会话映射到**同一个路径**,和上一条的 stash 栈同族:一块位于 worktree 之外的共享可写状态,worktree 隔离**管不到它**。两个 agent 各写一份同名的 `commitmsg.txt` / `pr-body.md`,后写的整份顶掉先写的;而 `git commit -F` 读到别人的文件**不报错**,每一步都报成功 —— 受害的是**另一个** agent 的产出(你的提交信息落到别人的 commit 上,你这边什么都看不出来),没有任何错误可供发现。实测在 20 分钟内撞了两次,可见的损伤是 `main` 上一条 squash commit:提交信息描述的是一张卡、diff 实施的是另一张卡,两者毫无关系;`main` 不重写,于是这条误导永久留在 git 考古里 —— 下一个人按 `git log --grep` 找那张卡,会得出「已经做过了」的错误结论。两条做法,**有先后之分**:
+
+  1. **首选机制:让内容根本不落共享盘。** 提交信息用 `git commit -F -` 配 heredoc(或多个 `-m`),PR 正文直接作为工具参数传(用 `gh` 就把正文写成进程内的 heredoc,别先写文件再 `--body-file`)。内容不落盘,就无从被顶掉。
+
+  ```bash
+  git commit -F - <<'EOF'
+  fix(scope): 一句话主题
+
+  正文……
+  EOF
+  ```
+
+  2. **次选纪律:确实需要临时文件时,文件名一律带卡号/分支号前缀**(该目录里既有的 `3309-pr.md` 就是这个惯例),**且用完即删**;写完要用之前先读回一遍,确认拿到的还是自己那份。
+
+  两条不是并列的两个建议:前缀与删除要求每个作者每一次都记得,记性会衰减,而衰减是静默的(见上:撞车不报错);`git commit -F -` 那种形式让撞车**不可能发生**,不依赖任何人的记性。所以能用形式解决的,就别退回到纪律。这一族目前**没有钩子**兜底(上面 worktree 与 stash 两条各有一个 PreToolUse 钩子),因此这条规则的全部效力就在于你选哪种形式。
 - **一个任务一个 feature 分支 + 一个 PR**;**绝不**把任务改动直接提交到 `main`。
-- **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。
+- **绝不 `git push --force`/`--force-with-lease`,绝不推 `main`**(会覆盖并行 agent 的工作;`main` 共享,一律走 PR)。**禁令不按「这条分支是不是只有我一个人用」分档**:那个判断评估错的时候没有任何症状,而错掉的代价正是本节要防的那类静默丢工作 —— 所以它一律绝对,单人 feature 分支同样不例外。**要把自己的分支同步到当前 `main`,合规路线是 merge,不是 rebase**:`git fetch origin && git merge origin/main`,解完冲突照常 push。代价只是一个 merge commit —— 本仓 PR 一律 `--squash` 入队合并,它不会留到 `main` 上;换来的是任何一次 push 都不重写已经推上去的历史。**「要同步分支」从来不是 force-push 的理由**,别用 `git rebase origin/main` + `--force-with-lease` 去「把历史弄干净」。(入队合并本身并不要求你同步 —— 队列会在当前 `main` 上重建,见下面「不必为了合并去 rebase 其他在途分支」那条;主动同步的价值在于提前撞出别人刚落地的破坏。)
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
 - **要做反向验证(删掉修复 → 看预期的钉子变红 → 还原)就先把修复 commit 掉。** 提交之后,还原是 `git checkout <你的分支> -- <path>`,对着一个真实存在的 commit 取回;直接对**未提交**的改动做同一个删除(`git checkout origin/main -- <path>`)则没有任何还原点 —— 工作区就是唯一副本,而 `git stash` 一律禁用(共享 stash 栈,见本节上面「绝不 `git stash`」那条),改动当场就没了。同一天两次踩实:#4278(PR #4293)、#4243(PR #4299),两次都靠会话 transcript 逐行重打才找回来 —— transcript 不全就是净损失。#4243 那次是先 commit、再重跑一遍反向验证,最终那组红绿数字才可信。
@@ -236,7 +285,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
   ```
 
   实测是从 REST 端点发起的;405 正文那句 `Changes must be made through the merge queue` 拒绝的是**「直接合并」这个动作**本身,不是某个客户端,所以旧文教的 `gh pr merge --squash --delete-branch`(不带 `--auto`)这条收尾路径同样不成立(`gh` 具体报什么文案随版本变,**别按文案去猜**,认准下面的入队路径)。**撞上这个 405 不是你权限不够** —— 别去试更强的手段,也别以为要等人工审批。
-- **CI 全绿即自行合并,不必等维护者确认**(授权语义没变,变的只是动作)—— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 **draft** PR;等远端 CI 全绿后:
+- **CI 全绿即自行合并,不必等维护者确认**(授权语义没变,变的只是动作;⛔ **例外:diff 命中受管面的 PR 不适用本条** —— 见下方「受管面」,那类 PR 停在 draft 等人类合并)—— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 **draft** PR;等远端 CI 全绿后:
 
   ```bash
   gh pr ready <n>                                    # 退出 draft
@@ -248,6 +297,99 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 - **auto-merge 会在「合并冲突」和「draft」窗口里被静默丢弃 —— 事后必须复查并重挂。** 已两次踩实(先例 PR #3458):PR 一旦变成 conflicting、或被(重新)标记为 draft,已挂上的 auto-merge 就没了,**且不会有任何通知**。解完冲突或 `gh pr ready` 之后若不重新挂一次,PR 会一直停在那里 —— 看着"全绿待合",实际谁也没在等它。收工前复查一次:`gh pr view <n> --json isDraft,mergeStateStatus,autoMergeRequest`,`autoMergeRequest` 为 `null` 就是掉了,重挂。
 - **不必为了合并去 rebase 其他在途分支** —— 队列自己会在当前 `main` 上重建,旧版「串行合并、合下一个前先 rebase 在途分支」那套编排已是历史。**但队列只拦得住文本冲突和 CI 看得见的破坏**:两个各自全绿的 PR 仍可能**语义冲突**(改了同一约定的两端;一边删掉了另一边刚开始用的导出)。所以动**共享面**(barrel/注册表/公共类型/跨包约定)时,合并前扫一眼在途 PR(`gh pr list`),有交叠就在 PR 正文里写清交叠点与取并集的办法(先例:PR #3458 对 #3456 同文件交叠的说明)。
 - ruleset 的**具体配置**(谁可绕过、required checks 清单)本文不写 —— 从仓内读不到,别照抄任何推断。上面几条写的都是实测到的可观测行为。
+
+### ⚠️ Actions workflow 注册表:`list_workflows` 回答不了「本仓到底跑不跑 X」
+
+这条已经造成过实际损害(objectui#6069):一个 agent 被要求**删掉**一条虚假的安全工具声明,却被一张
+建立在注册表读数上的卡**指去写上另一条同样虚假的安全工具声明**。那条虚假声明写在 #5408 的 dispatch
+评论里(不在它的 diff 里),而 #5408 已随 PR #5963 合并。它没有酿成更大的事,只因为实施的 dev 拿
+`main` 核对了替换文本,而不是信任那张卡。
+
+**注册表按「该 workflow 在任意 ref 上的第一次运行」建条目 —— 与默认分支无关,条目此后一直留着。**
+不是 push 建的,也不是合进 `main` 建的。实测:四个样本、跨越七个月,注册表条目的 `created_at` 与该
+workflow **最早一次 run** 的 `created_at` **精确到秒相同**;push 被一个决定性的负例排除 ——
+`pre-install-import-graph.yml` 推上分支后在**未注册状态下停了 7 分 45 秒**,直到 PR 打开、第一次 run
+被调度的那一刻,条目才出现。
+
+于是:**一个 workflow 文件只要在任何 PR 分支上跑过一次,就永久登记在册** —— 哪怕它从未进过 `main`,
+哪怕那条分支早已废弃。2026-08-24 复测(`c677fe3b8`):在册的文件型条目 32 个(另有 4 个 `dynamic/*`),
+`main` 上的 workflow 文件 26 个,**「在册但不在 `main`」6 个,「在 `main` 但不在册」0 个** —— 分歧是
+单向的。
+
+**`state: "active"` 的意思是「没有被 disable」。它不是关于 `main` 的任何断言。** 这就是那个 false
+friend 的全部:读到 `active` 就以为「这个扫描在本仓生效」,是把「曾经跑过一次」当成了「现在在跑」。
+
+⛔ **别据此写一个「注册表 vs `main`」的交叉校验门禁 ——「应该在册」没有可靠定义。** 「在册但不在
+`main`」正是**在 PR 分支上跑过一个新 workflow 的正常结果**:每一个新增 workflow 的 PR 在合并前都会造
+出这样一条。活例子:`pre-install-import-graph.yml` 于 `21:41Z` 注册,本轮测量开始时它是「在册但不在
+`main`」的第 7 条;测量进行到一半,它随 PR #6159 于 `22:58Z` 合并进 `main`,这一条自己就消失了 —— 在
+那 77 分钟里开着的门禁,会红在一个完全健康的 PR 上。反方向「在 `main` 但不在册」则结构性地近乎恒空:
+在 `main` 上的 workflow 会跑,而一跑就注册,只有「合并到首次运行」之间的时间窗能填充它,那是竞态不是
+缺陷。要把「废弃」和「在途」分开,只能靠一个分支存活性的猜测 —— 正是这张卡自己警告过的那种猜测。
+
+⚠️ **删除方向本仓没有数据,别外推。** 「workflow 文件从默认分支被删掉之后,注册表条目会怎样」在本仓
+**从未发生过、也未经测试**:`git log origin/main --diff-filter=D --name-only -- '.github/workflows/*'`
+返回**空**,而 `main` 历史上出现过的路径集合与今天在册的完全一致(复测:26 = 26)。所以上面那句「条
+目此后一直留着」只对**从未进过 `main`** 的文件成立 —— 它们根本没有「从默认分支删除」这个事件可供触
+发。⛔ 别把它读成关于删除行为的结论。
+
+⚠️ **API 与人类看到的 Actions 标签页是否一致,本仓无法确定 —— 这是个未解问题,不是已答问题。**
+`https://github.com/objectstack-ai/objectui/actions` 与 `api.github.com` 对这些会话都返回 **403**,
+MCP 工具是唯一能到达的注册表视图,所以两者的差异既没被证实也没被排除。
+
+#### ⭐ 通用规则:相信任何「不存在」之前,先把 `total_count` 和返回数组的长度比一下
+
+**这不是 workflow 专属的 —— 它对每一个分页列表都成立。** `list_workflows` **忽略 `per_page`**,固定
+返回 30 条,同时在**同一个 JSON body 里**如实报告真实的 `total_count`。实测:`total_count: 36`,第 1
+页 30 条,第 2 页 6 条,`30 + 6 = 36` —— **并集**才是完整的。
+
+只读数组、不读计数,一次截断的列表就变成一份「确信的缺席」。#6069 那张卡本身就是这么错的:它的整个
+论点正是「枚举会给出自信的错误答案」,而它自己只读了 36 条里的 30 条,把两个**已注册**的 workflow
+写成了「注册表看不见它们」。**从一页被截断的结果里读出来的「没有」,根本不是一次读数。**
+
+#### 「本仓到底跑不跑 X?」—— 一条命令,不查注册表,不上 CI
+
+```bash
+git cat-file -e origin/main:.github/workflows/X.yml     # 退出 0 = 真的在 main 上,真的会跑
+git cat-file -e origin/main:.github/workflows/ci.yml    # 阳性对照:必须解析成功
+```
+
+**阳性对照不是可选项。** 没有它,一个打错的路径和一次真实的缺席给出完全相同的退出码,而你会把前者读成
+后者。
+
+### ⛔ 受管面(governed surface):agent 起草,人类合并
+
+维护者裁决(2026-08-18),**原文照录、不翻译** —— 提问明确点名了本仓:
+
+> 任何对 agents.md 等文件的修改是不是也需要人类审核? 包括 objectui cloud仓库
+
+> 同意
+
+**本仓的受管面 —— 四项,已逐条对本仓实际目录核实:**
+
+- `AGENTS.md` —— **你正在读的这个文件本身就是受管面**。
+- `CLAUDE.md` —— 仓根一个。
+- `.claude/**` —— **整棵树**:hooks、settings、launch 配置、内部 skills,一个不落,**不是只有 skills**。
+- `docs/adr/**` —— 本仓**确实有**这个目录;它和上面三项同级,不因为篇数少而降级。
+
+⚠️ **别把两棵 skills 树弄混 —— 这是本仓最容易踩的一条:**
+
+- `.claude/skills/**` —— 内部 agent 工具,在 `.claude/**` 之内,**受管**。
+- `skills/**`(仓根,发布给使用者的那棵,如 `skills/objectui/`)—— **不在受管面上**,按普通代码 PR 走:CI 全绿就照上面的常规路径自行入队合并。`.agents/skills/` 是 skill 的**安装位置**(内容由 `skills-lock.json` 还原,第三方的那些被 gitignore),不是规程文本,同样不受管。
+
+  两棵树名字像、内容都叫 skill,判据却只有一个:**路径是不是以 `.claude/` 开头**。曾有 agent 把发布用的 `skills/` 当成「维护者专属」而不敢挂 auto-merge,PR 白等一轮 —— **往保守方向误判同样是误判**,它一样让活停在那里。
+
+**硬规则 —— PR 的 diff 命中受管面时:**
+
+⛔ 绝不 `gh pr ready`(不退出 draft)、⛔ 绝不加入合并队列、⛔ 绝不 `gh pr merge --auto` / `enable_pr_auto_merge`、⛔ 绝不自己合并。这类 PR **停在 draft,等人类合并**。**人类的那次合并动作本身就是审核记录** —— 不需要额外的逐 PR 批准点击,也别去等一个不存在的 approval。
+
+- **判据是 PR 的文件清单,不是 PR 的标题或描述。** 命中与否只看路径。
+- **混合 diff:一条命中即整个 PR 分叉,没有比例判断。** 99 个普通文件 + 1 个受管文件 = 整个 PR 等人类合并。其余部分急着落地,就把受管文件**拆成单独的 PR**,别用「占比很小」给自己开口子。
+- **起草不受限。** 写、推分支、开 PR、按 review 修改,每个席位照做不误;被保留的只有**落地**这一个动作。
+- **CI 全绿、已 review 都不构成例外。** 这类文件是后续每一次 dispatch 读的操作规程,绿灯说明不了它该不该成为规程。
+- **发现自己已经挂上了怎么办**:把 PR 转回 **draft** 是唯一能可靠退出合并队列的动作 —— 只调 `disable_pr_auto_merge` 会摘掉 auto-merge 但**不取消队列成员资格**,两个都要做。⚠️ 只回收**你自己**挂上的:本仓多 agent 共用同一 GitHub 身份,不是你设置的状态就属于别的 actor —— 去问、去报告,别替他回退。
+
+**本仓没有任何机械兜底,这一段就是全部。** 本仓没有 CODEOWNERS(核实:仓内不存在该文件),受管面上没有 required check、没有钩子,也没有事后审计把受管面的合并列出来给任何人看 —— 违规会**静默成功**,不会有任何人被通知。`../objectstack` 有一份 report-only 的合并后审计(`scripts/pm/check-governed-merges.mjs`),它只读那个仓自己的合并,**不覆盖本仓**。所以在本仓,这条规则的全部效力就在于你读到了它并照做。**本段没点名的兜底工具,就是不存在的工具**;哪天本仓真有了检测,它会写在这里。
 
 ### 服务纪律(本仓库与 `../objectstack` 多 agent 并行开发)
 

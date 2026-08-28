@@ -63,12 +63,12 @@ export type {
   ObjectSelection,
   AppWizardDraft,
   EditorMode,
-} from './app';
-export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app';
+} from './app.js';
+export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app.js';
 
 // Object-level semantic-role readers (ADR-0085), shared across surfaces.
-export { detectStatusField } from './record-semantics';
-export type { StatusFieldSource } from './record-semantics';
+export { detectStatusField } from './record-semantics.js';
+export type { StatusFieldSource } from './record-semantics.js';
 
 // Dashboard global-filter legacy alias (ADR-0089 retirement window, #4165) —
 // `{ preset: <name> }` → the canonical bare preset name. Read-site helpers, so
@@ -76,7 +76,17 @@ export type { StatusFieldSource } from './record-semantics';
 export {
   liftLegacyGlobalFilterDefault,
   liftLegacyDashboardFilterDefaults,
-} from './dashboard-filter-alias';
+} from './dashboard-filter-alias.js';
+
+// `ui:icon` glyph-key conversion (objectui#5631) — stored `{ type:'icon',
+// name:'check' }` -> `{ type:'icon', icon:'check' }`. A one-shot converter a
+// deployer runs over stored metadata; ⛔ NOT a read-path fallback, which the
+// ruling excluded by name. Zod-free, so it belongs on the main entry.
+export { migrateIconNodeKeys } from './icon-key-migration.js';
+export type {
+  IconKeyMigrationResult,
+  IconKeyMigrationWarning,
+} from './icon-key-migration.js';
 
 // ============================================================================
 // Base Types - The Foundation
@@ -92,12 +102,16 @@ export type {
   SchemaNode,
   ComponentRendererProps,
   ComponentInput,
+  // The arm vocabulary of `ComponentInput.type`, exported because that field
+  // takes one arm OR an array of them (objectui#3832) and every declaration
+  // site and reader needs the set by name rather than re-spelling it.
+  ComponentInputControlType,
   ComponentMeta,
   ComponentConfig,
   HTMLAttributes,
   EventHandlers,
   StyleProps,
-} from './base';
+} from './base.js';
 
 // ============================================================================
 // Layout Components - Structure & Organization
@@ -110,6 +124,7 @@ export type {
   IconSchema,
   SeparatorSchema,
   ContainerSchema,
+  FlexLayoutProps,
   FlexSchema,
   StackSchema,
   GridSchema,
@@ -127,7 +142,7 @@ export type {
   PageNodeRegion,
   PageRegionWidth,
   PageVariable,
-} from './layout';
+} from './layout.js';
 
 // ============================================================================
 // Form Components - User Input & Interaction
@@ -159,7 +174,7 @@ export type {
   FormSchema,
   LabelSchema,
   FormComponentSchema,
-} from './form';
+} from './form.js';
 
 // ============================================================================
 // Data Display Components - Information Presentation
@@ -171,6 +186,7 @@ export type {
   ListSchema,
   ListItem,
   TableColumn,
+  StaticTableColumn,
   TableSortItem,
   TableSchema,
   DataTableSchema,
@@ -184,12 +200,18 @@ export type {
   PivotTableSchema,
   DrillDownConfig,
   TimelineEvent,
+  TimelineScale,
   TimelineSchema,
   KbdSchema,
   HtmlSchema,
   StatisticSchema,
   DataDisplaySchema,
-} from './data-display';
+  TableColumnType,
+} from './data-display.js';
+
+// The canonical `TableColumn.type` vocabulary and the producer-seam fold that
+// keeps undeclared inference values out of that slot (objectui#5853).
+export { TABLE_COLUMN_TYPES, normalizeTableColumnType } from './data-display.js';
 
 // ============================================================================
 // Feedback Components - Status & Progress Indication
@@ -204,7 +226,7 @@ export type {
   SonnerSchema,
   ToasterSchema,
   FeedbackSchema,
-} from './feedback';
+} from './feedback.js';
 
 // ============================================================================
 // Disclosure Components - Collapsible Content
@@ -215,7 +237,7 @@ export type {
   AccordionSchema,
   CollapsibleSchema,
   DisclosureSchema,
-} from './disclosure';
+} from './disclosure.js';
 
 // ============================================================================
 // Overlay Components - Modals & Popovers
@@ -235,7 +257,7 @@ export type {
   DropdownMenuSchema,
   ContextMenuSchema,
   OverlaySchema,
-} from './overlay';
+} from './overlay.js';
 
 // ============================================================================
 // Navigation Components - Menus & Navigation
@@ -250,7 +272,7 @@ export type {
   NavigationMenuSchema,
   NavigationSchema,
   PaginationSchema,
-} from './navigation';
+} from './navigation.js';
 
 // ============================================================================
 // Complex Components - Advanced/Composite Components
@@ -272,13 +294,25 @@ export type {
   DashboardWidgetLayout,
   DashboardWidgetSchema,
   DashboardComponentSchema,
+  DashboardComponentWidgetType,
+  DashboardWidgetTypeExtension,
+  DashboardWidgetTypeName,
   ChatMessage,
   ChatMessageSource,
   ChatToolInvocation,
   ChatbotSchema,
   FloatingChatbotConfig,
   ComplexSchema,
-} from './complex';
+} from './complex.js';
+
+/**
+ * The two CLOSED extension sets a dashboard widget's `type` may draw on beyond
+ * the spec's own families (objectui#4600, maintainer ruling 2026-08-14).
+ */
+export {
+  DASHBOARD_COMPONENT_WIDGET_TYPES,
+  DASHBOARD_WIDGET_TYPE_EXTENSIONS,
+} from './complex.js';
 
 // ============================================================================
 // Data Management - Backend Integration
@@ -320,22 +354,17 @@ export type {
   ImportJobUndoResult,
   ListImportJobsOptions,
   ExportDownloadRequest,
-} from './data';
+} from './data.js';
 
 // ============================================================================
 // CRUD Components - Create, Read, Update, Delete Operations
 // ============================================================================
 export type {
   ActionSchema,
-  CRUDOperation,
-  CRUDFilter,
-  CRUDToolbar,
-  CRUDPagination,
-  CRUDSchema,
   DetailSchema,
   CRUDDialogSchema,
   CRUDComponentSchema,
-} from './crud';
+} from './crud.js';
 
 // ============================================================================
 // ObjectQL Components - ObjectQL-specific components
@@ -360,6 +389,7 @@ export type {
   ConditionalFormattingRule,
   // Component schemas
   ObjectMapSchema,
+  ObjectMapConfig,
   ObjectGanttSchema,
   ObjectCalendarSchema,
   ObjectKanbanSchema,
@@ -381,7 +411,7 @@ export type {
   BulkActionDef,
   BulkActionParam,
   BulkActionOperation,
-} from './objectql';
+} from './objectql.js';
 
 // ============================================================================
 // Record Components - Spec-aligned record:* page component props
@@ -394,7 +424,7 @@ export type {
   RecordActivityComponentProps,
   RecordChatterComponentProps,
   RecordPathComponentProps,
-} from './record-components';
+} from './record-components.js';
 
 // ============================================================================
 // Field Types - ObjectQL Field Type System
@@ -446,11 +476,10 @@ export type {
   RatingFieldMetadata,
   MasterDetailFieldMetadata,
   FieldMetadata,
-  ObjectTrigger,
   ObjectSchemaMetadata,
+  ObjectSchemaClientExtensions,
   ObjectIndex,
-  ObjectRelationship,
-} from './field-types';
+} from './field-types.js';
 
 // System / audit / ownership field classification — runtime helper + name set,
 // used by default list-column derivation to keep framework-injected fields
@@ -460,10 +489,10 @@ export {
   AUDIT_FIELD_BY_ROLE,
   AUDIT_FIELD_NAMES,
   isSystemManagedField,
-} from './system-fields';
-export type { AuditFieldName } from './system-fields';
-export { MANAGED_BY_BUCKETS } from './managed-by';
-export type { ManagedByBucket } from './managed-by';
+} from './system-fields.js';
+export type { AuditFieldName } from './system-fields.js';
+export { MANAGED_BY_BUCKETS } from './managed-by.js';
+export type { ManagedByBucket } from './managed-by.js';
 
 // ============================================================================
 // Phase 3: Data Protocol Advanced Types
@@ -549,7 +578,7 @@ export type {
   DatasourceManager,
   HealthCheckResult,
   DatasourceMetrics,
-} from './data-protocol';
+} from './data-protocol.js';
 
 // ============================================================================
 // Permission & RBAC Types (Q2 2026)
@@ -566,7 +595,7 @@ export type {
   PermissionCheckResult,
   PermissionContext,
   PermissionGuardConfig,
-} from './permissions';
+} from './permissions.js';
 
 // ============================================================================
 // Mobile Optimization Types (Q2 2026)
@@ -575,7 +604,6 @@ export type {
   BreakpointName,
   ResponsiveValue,
   MobileResponsiveConfig,
-  MobileOverrides,
   PWAConfig,
   PWAIcon,
   FetchCacheStrategy,
@@ -601,12 +629,12 @@ export type {
   LongPressGestureConfig,
   TouchTargetConfig,
   TouchInteraction,
-} from './mobile';
+} from './mobile.js';
 
 // Runtime witness for the retired touch vocabulary — a VALUE, so it must not
 // sit inside the `export type` block above (#2561: inside one it is
 // value-erased and resolves to `undefined` at runtime).
-export { SPEC_GESTURE_TYPES } from './mobile';
+export { SPEC_GESTURE_TYPES } from './mobile.js';
 
 // ============================================================================
 // Visual Designer Types (Q2 2026)
@@ -649,13 +677,13 @@ export type {
   DesignerValidationRule,
   DesignerFieldDefinition,
   FieldDesignerSchema,
-} from './designer';
+} from './designer.js';
 
 export {
   DASHBOARD_COLOR_VARIANTS,
   DASHBOARD_WIDGET_TYPES,
   DESIGNER_FIELD_TYPES,
-} from './designer';
+} from './designer.js';
 
 // ============================================================================
 // API and Events - API Integration and Event Handling
@@ -671,44 +699,54 @@ export type {
   ExpressionContext,
   ExpressionNodeSchema,
   APISchema,
-} from './api-types';
+} from './api-types.js';
 
 // ============================================================================
 // Union Types - Discriminated Unions for All Schemas
 // ============================================================================
 
-import type { BaseSchema, SchemaNode } from './base';
-import type { LayoutSchema, PageNodeSchema } from './layout';
-import type { FormComponentSchema } from './form';
-import type { DataDisplaySchema } from './data-display';
-import type { FeedbackSchema } from './feedback';
-import type { DisclosureSchema } from './disclosure';
-import type { OverlaySchema } from './overlay';
-import type { NavigationSchema } from './navigation';
-import type { ComplexSchema, DashboardComponentSchema } from './complex';
-import type { CRUDComponentSchema } from './crud';
-import type { ObjectQLComponentSchema, ListViewSchema } from './objectql';
-import type { AppComponentSchema } from './app';
+import type { BaseSchema, SchemaNode } from './base.js';
+import type { LayoutSchema, PageNodeSchema } from './layout.js';
+import type { FormComponentSchema } from './form.js';
+import type { DataDisplaySchema } from './data-display.js';
+import type { FeedbackSchema } from './feedback.js';
+import type { DisclosureSchema } from './disclosure.js';
+import type { OverlaySchema } from './overlay.js';
+import type { NavigationSchema } from './navigation.js';
+import type { ComplexSchema, DashboardComponentSchema } from './complex.js';
+import type { CRUDComponentSchema } from './crud.js';
+import type { ObjectQLComponentSchema, ListViewSchema } from './objectql.js';
+import type { AppComponentSchema } from './app.js';
 
 // ============================================================================
 // Phase 2 Schemas - New Additions
 // ============================================================================
 export type {
-  // Theme System (aligned with @objectstack/spec)
+  // Theme System — the document vocabulary is owned HERE since objectui#5716
+  // (maintainer ruling 2026-08-23, option A — localize): the spec retired its
+  // theme module (objectstack#10485) while objectui RETAINED the theme system,
+  // so the types moved into `./theme` with the last-published 17.1.0 shapes as
+  // the blueprint. `Typography` / `BorderRadius` / `Shadow` /
+  // `ThemeDefinition` were DELETED under the same ruling's zero-reader rider
+  // (the first three live on as inline members of `Theme`).
   Theme,
-  ThemeComponentSchema,
+  // `ThemeComponentSchema` RETIRED in objectui#5489 — the `type: 'theme'`
+  // component kind no renderer implemented. See `./theme` for the tombstone.
   ThemeMode,
   ColorPalette,
-  Typography,
-  BorderRadius,
-  Shadow,
   // `Animation` / `ZIndex` retired with `theme.animation` / `theme.zIndex` in
   // @objectstack/spec 17.0.0-rc.3 (objectstack#5021) — see `./theme`.
-  ThemeSwitcherSchema,
-  ThemePreviewSchema,
-  // Legacy aliases
-  ThemeDefinition,
-} from './theme';
+  // `ThemeSwitcherSchema` / `ThemePreviewSchema` RETIRED in objectui#5647 —
+  // the `type: 'theme-switcher'` / `'theme-preview'` component kinds no
+  // renderer implemented; same shape, same inherited ruling as
+  // `ThemeComponentSchema` above. See `./theme` for the tombstone.
+} from './theme.js';
+
+// Runtime witness for the theme mode vocabulary — a VALUE, so it must not sit
+// inside the `export type` block above (#2561: inside one it is value-erased
+// and resolves to `undefined` at runtime). Same pattern as
+// `SPEC_GESTURE_TYPES` below.
+export { THEME_MODES } from './theme.js';
 
 export type {
   // Report Presentation Layer (ObjectUI-specific UX enhancements:
@@ -727,7 +765,7 @@ export type {
   ReportExportConfig,
   ReportBuilderSchema,
   ReportViewerSchema,
-} from './reports';
+} from './reports.js';
 
 // ---------------------------------------------------------------------------
 // Spec Report Bridge
@@ -747,7 +785,7 @@ export type {
   LegacyReportPresentationLike,
   JoinedReportBlock,
   JoinedSpecReport,
-} from './spec-report';
+} from './spec-report.js';
 
 export {
   SpecReportSchema,
@@ -758,7 +796,7 @@ export {
   specReportToPresentation,
   isSpecReport,
   isJoinedSpecReport,
-} from './spec-report';
+} from './spec-report.js';
 
 // Workflow / Flow Designer schemas removed in 9.0 — they backed the retired
 // `@object-ui/plugin-workflow` designers, whose BPMN-style node vocabulary the
@@ -779,7 +817,7 @@ export type {
   NLQueryResult,
   NLQuerySchema,
   AIInsightsSchema,
-} from './ai';
+} from './ai.js';
 
 export type {
   // Block System
@@ -792,7 +830,7 @@ export type {
   BlockEditorSchema,
   BlockInstanceSchema,
   ComponentSchema,
-} from './blocks';
+} from './blocks.js';
 
 export type {
   // View System Enhancements
@@ -818,14 +856,13 @@ export type {
   Mention,
   Reaction,
   RecordSubscription,
-} from './views';
+} from './views.js';
 
 export type {
   // Enhanced Action System (Phase 2)
   ActionExecutionMode,
   ActionCallback,
-  ActionCondition,
-} from './crud';
+} from './crud.js';
 
 /**
  * Union of all component schemas.
@@ -862,8 +899,43 @@ export type AnySchema =
 export type SchemaByType<T extends string> = Extract<AnySchema, { type: T }>;
 
 /**
- * Utility type to make all properties optional except the type.
+ * Utility type INTENDED to make all properties optional except the type.
  * Useful for partial schema definitions in editors.
+ *
+ * ⚠️ MEASURED READING — it does not currently deliver that (objectui#6397).
+ * Every instantiation declares exactly ONE property, `type`, and carries a live
+ * `[key: string]: any`, so it accepts any key at `any`. Measured through the
+ * TypeScript checker against the emitted `index.d.ts`:
+ *
+ *   PartialSchema<ObjectGridSchema>  -> 1 declared property: type   (source: 61)
+ *   PartialSchema<ObjectFormSchema>  -> 1 declared property: type   (source: 67)
+ *   PartialSchema<ObjectViewSchema>  -> 1 declared property: type   (source: 42)
+ *   PartialSchema<ButtonSchema>      -> 1 declared property: type   (source: 27)
+ *
+ * `Omit<T, K>` is `Pick<T, Exclude<keyof T, K>>`, and `keyof T` on a type
+ * carrying a string index signature is `string | number` — the literal member
+ * names are ABSORBED. Every `T extends BaseSchema` inherits `BaseSchema`'s
+ * `[key: string]: any` (objectui#5155), so `Partial<Omit<T, 'type'>>` rebuilds a
+ * type holding the index signature and none of the named members; the explicit
+ * `{ type: T['type'] }` half is the only reason the count is 1 and not 0. Same
+ * mechanism as objectui#6151 (heritage clause) and objectui#6269 (property
+ * position) — this is its generic mapped-type-alias position.
+ *
+ * ⭐ SEQUENCING (objectui#6397 triage, 2026-08-25) — this declaration is
+ * deliberately left AS WRITTEN. It is not repairable in place: `T` is generic,
+ * so there is no literal key list to `Pick` the way objectui#6269 could for its
+ * two concrete schemas, and every generic re-spelling collapses for the same
+ * `keyof T` reason. It is also not removable here — dropping a published export
+ * of `@object-ui/types` is a breaking removal of published capability and sits
+ * on the human floor. Once objectui#5155 removes the root index signature,
+ * `keyof T` resolves to the literal member union again and this alias starts
+ * working exactly as its first line promises, with no edit here at all.
+ *
+ * Until then, do not adopt it as protection it does not provide: name the
+ * concrete schema type, or write `Partial<Pick<T, 'a' | 'b'>>` over literal keys
+ * (objectui#6269's repair shape), when you need a real partial. The reading
+ * above is pinned by `src/__tests__/partial-schema-collapse-pin.test.ts`, which
+ * goes red — by design — the day objectui#5155 lands.
  */
 export type PartialSchema<T extends BaseSchema> = {
   type: T['type'];
@@ -892,7 +964,7 @@ export const SCHEMA_VERSION = '1.0.0';
 export type {
   SchemaRegistry,
   ComponentType,
-} from './registry';
+} from './registry.js';
 
 // ============================================================================
 // Plugin Scope Isolation - Section 3.3
@@ -902,10 +974,35 @@ export type {
   PluginScopeConfig,
   AppPluginContext,
   AppMetadataPlugin,
+  /**
+   * @deprecated Use `ComponentMeta` instead. Since objectui#5893 converged the
+   * plugin-scoped declaration onto `base.ts`, this alias names the SAME type
+   * under a second name — it carries no information `ComponentMeta` does not.
+   * Before that convergence it named a genuinely different nine-key interface,
+   * which is why it is deprecated only now and not alongside
+   * `PluginComponentInput`: deprecating it earlier would have warned about a
+   * name that was still about to change meaning. Retirement follows
+   * objectui#5674's two-stage pattern (maintainer ruling, 2026-08-22:
+   * deprecate for a release, then remove). This deprecation window exists for
+   * consumers outside this repository, which cannot be measured from here;
+   * in-repo the name has zero importers. Removal ships as a `minor` under this
+   * repo's version policy (objectui's own breaking changes never declare
+   * `major`).
+   */
   ComponentMeta as PluginComponentMeta,
+  /**
+   * @deprecated Use `ComponentInput` instead. Since objectui#4972 converged the
+   * plugin-scoped declaration onto `base.ts`, this alias names the SAME type
+   * under a second name — it carries no information `ComponentInput` does not.
+   * Retiring it is objectui#5674 (maintainer ruling, 2026-08-22: deprecate for a
+   * release, then remove). This deprecation window exists for consumers outside
+   * this repository, which cannot be measured from here; in-repo the name has
+   * zero importers. Removal ships as a `minor` under this repo's version policy
+   * (objectui's own breaking changes never declare `major`).
+   */
   ComponentInput as PluginComponentInput,
   PluginEventHandler,
-} from './plugin-scope';
+} from './plugin-scope.js';
 
 // ============================================================================
 // UI Actions - Enhanced Action Schema (ObjectStack Spec v2.0.1)
@@ -937,7 +1034,7 @@ export type {
   UndoRedoEntry,
   UndoRedoConfig,
   UndoRedoState,
-} from './ui-action';
+} from './ui-action.js';
 
 export {
   ACTION_LOCATIONS,
@@ -946,7 +1043,7 @@ export {
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
   ACTION_PARAM_FIELD_TYPES,
   actionRendersAt,
-} from './ui-action';
+} from './ui-action.js';
 
 // ============================================================================
 // ObjectStack Protocol Namespaces - Protocol Re-exports
@@ -966,10 +1063,13 @@ export {
  * ```
  */
 export type * as Data from '@objectstack/spec/data';
-// Deliberate public namespace export of the spec vocabulary. Note the #4171
-// caveat: `UI.FormField` erases to `any` until the spec types its unions.
-// eslint-disable-next-line no-restricted-imports
-export type * as UI from '@objectstack/spec/ui';
+// Deliberate public namespace export of the spec vocabulary — via the local
+// shim module since objectui#5716, so the `UI.Theme`-family members are
+// re-pointed at their owner (`./theme.ts`) and survive the spec's theme
+// retirement instead of narrowing silently on the pin refresh. See the shim's
+// header for the full reasoning. The #4171 caveat still applies:
+// `UI.FormField` erases to `any` until the spec types its unions.
+export type * as UI from './spec-ui-namespace.js';
 export type * as System from '@objectstack/spec/system';
 export type * as AI from '@objectstack/spec/ai';
 export type * as API from '@objectstack/spec/api';
@@ -1251,9 +1351,9 @@ export type {
   ResolvedWidget,
   WidgetRegistryEvent,
   WidgetRegistryListener,
-} from './widget';
+} from './widget.js';
 
-export { errorCodeIs, errorCodeIsAnyOf } from './error-code';
+export { errorCodeIs, errorCodeIsAnyOf } from './error-code.js';
 
 // Transient-HTTP-retry primitives, shared by the two `/auth/me/*` providers
 // (permissions is fail-closed and blocks across the waits, localization is
@@ -1267,4 +1367,16 @@ export {
     backoffMs,
     sleep,
     retryAfterFrom,
-} from './http-retry';
+} from './http-retry.js';
+
+// In-flight sharing for identical GETs (objectui#5544). Same argument for the
+// same home: the callers that overlap — the pre-React branding script, app-shell's
+// runtime config, the language seed and the localization provider — have no
+// package in common lower than this one. Shares the PROMISE only; the entry is
+// gone the moment the request settles, so nothing here is a cache.
+export {
+    INFLIGHT_GET_REGISTRY_KEY,
+    inflightGetKey,
+    sharedGetJson,
+    resetInflightGetsForTesting,
+} from './http-inflight.js';

@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Button component
@@ -764,8 +764,21 @@ export interface FieldValidationRules {
   max?: { value: number; message: string };
   /**
    * Pattern validation (regex)
+   *
+   * `value` must be a compiled `RegExp` on this hand-written surface — never a
+   * string. react-hook-form's field validator applies `pattern` only when
+   * `value instanceof RegExp` (verified against the installed 7.85.0 bundle),
+   * so a string here type-checked and then validated NOTHING, silently: the
+   * form looked validated while the rule never ran (objectui#5099, maintainer
+   * ruling 2026-08-18). String patterns belong to the metadata route's field
+   * declaration (`FieldSchema.pattern`), which `buildValidationRules` in
+   * `@object-ui/fields` compiles via `new RegExp(...)` before it reaches this
+   * shape. The renderer deliberately does NOT compile strings at its read
+   * point — that consumer-side tolerance would harden the ambiguous
+   * declaration into contract (AGENTS.md #0.1); the declaration is narrowed
+   * at the producer instead.
    */
-  pattern?: { value: string | RegExp; message: string };
+  pattern?: { value: RegExp; message: string };
   /**
    * Custom validation function
    * @param value - The field value to validate
@@ -834,6 +847,30 @@ export interface FormFieldTab {
    * `FormSchema.fieldContainerClass`, scoped to this tab).
    */
   containerClass?: string;
+  /**
+   * The tab's predicate slot (objectui#6237) — the tabbed arm of the grouping
+   * contract objectui#6236 landed for `section-divider` rows, so a section
+   * rendered as a tab can carry the same authored `FormSection.visibleWhen` a
+   * stacked section can. Evaluated by the form renderer on the canonical
+   * engine with the live record and the host predicate scope bound (#6010),
+   * exactly like a field's own `visibleWhen`; a broken predicate fails OPEN
+   * (the tab stays visible).
+   *
+   * When it resolves FALSE the renderer draws neither the tab's trigger nor
+   * its panel. Ruled semantics (maintainer, 2026-08-27 — the same ruling for
+   * tabs as for sections): visibility decides what is DRAWN and nothing else —
+   * a hidden tab's values still submit — and a hidden tab's fields SKIP
+   * client-side validation, so a user is never blocked by an error pointing at
+   * a control they cannot see; the server-side contract remains the loud floor
+   * for genuinely-required data. Both semantics ride the unmount mechanism a
+   * field's own false predicate already uses.
+   *
+   * The layout decision stays structural: whether the tabbed arm engages at
+   * all is judged on the DECLARED tabs, so a predicate hiding all but one tab
+   * filters what is drawn without collapsing the strip mid-interaction. A tab
+   * without this key keeps the pre-#6237 contract (always drawn).
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**
@@ -1047,6 +1084,32 @@ export interface FormField {
    * @objectstack/spec FormField.span. Prefer this over `colSpan`.
    */
   span?: 'auto' | 'full';
+  /**
+   * Section grouping claim (objectui#6236) — `type: 'section-divider'` rows
+   * only. Names of the fields (as declared in `FormSchema.fields`) that belong
+   * to the section this divider heads: the same membership-claim shape
+   * {@link FormFieldTab.fields} and {@link FormFieldPane.fields} already model,
+   * so tabs, panes and sections share ONE grouping contract (the tabbed arm's
+   * predicate slot is objectui#6237).
+   *
+   * A divider that carries this claim gates its WHOLE group: when the
+   * divider's own visibility verdict (`visibleWhen` / `visibleOn` / legacy
+   * `condition`) resolves FALSE, the renderer draws neither the heading nor
+   * the claimed fields. Ruled semantics (maintainer, 2026-08-27, following the
+   * console precedent of 2026-08-22 after #5594): visibility decides what is
+   * DRAWN and nothing else — a hidden section's values still submit — and a
+   * hidden section's fields SKIP client-side validation, so a user is never
+   * blocked by an error pointing at a control they cannot see (the
+   * objectui#6110 defect shape); the server-side contract remains the loud
+   * floor for genuinely-required data.
+   *
+   * Unknown names are ignored (FormFieldTab parity). A field should be claimed
+   * by at most one divider; when several claim it, any hidden claimer hides
+   * it. A divider WITHOUT this claim keeps the pre-#6236 contract — a
+   * presentational row whose predicate gates only the heading. On a
+   * non-divider row the key has no meaning and is ignored by the renderer.
+   */
+  fields?: string[];
 }
 
 /**

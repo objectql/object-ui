@@ -12,6 +12,7 @@ import { Label, Button } from '../../ui';
 import { Upload, X, Rocket, CheckCircle2, ScanLine } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '../../lib/utils';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('file-upload', 
   ({ schema, className, value, onChange, ...props }: { schema: FileUploadSchema; className?: string; value?: File[]; onChange?: (files: File[]) => void; [key: string]: any }) => {
@@ -89,7 +90,7 @@ ComponentRegistry.register('file-upload',
             accept={schema.accept}
             multiple={schema.multiple}
             onChange={handleFileChange}
-            {...inputProps}
+            {...toFormControlDomProps(inputProps)}
           />
           
           <div 

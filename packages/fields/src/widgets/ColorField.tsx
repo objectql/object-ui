@@ -1,7 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * Color field widget - provides a color picker input

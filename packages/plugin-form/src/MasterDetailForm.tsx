@@ -119,6 +119,102 @@ interface RowState {
 }
 
 /**
+ * What happened to one detail entry's schema resolution (objectui#6372).
+ *
+ * A plain `MasterDetailDetailConfig[]` cannot express this. An entry whose
+ * fetch FAILED and one that is STILL IN FLIGHT are represented identically —
+ * both are simply an entry with no `columns` — so the renderer showed the same
+ * "Loading columns…" for both. For the failed one that message never ends: the
+ * fetch that would have supplied those columns has already failed and is not
+ * retried, so nothing can ever replace it.
+ */
+type DetailResolution =
+  /** The schema fetch has not settled yet — "Loading columns…" is TRUE here. */
+  | 'pending'
+  /** No `childObject` was authored, so no fetch was made (objectui#5940). */
+  | 'declined'
+  /** Columns are hydrated, or were fully authored to begin with. */
+  | 'ready'
+  /** The schema fetch THREW — columns can never arrive (objectui#6372). */
+  | 'failed'
+  /**
+   * The schema LOADED FINE, but `deriveDetail` threw on it (objectui#6394) —
+   * almost always "no lookup/master_detail field on the child references the
+   * parent". A CONFIGURATION error, not a load error, which is why it is a
+   * state of its own rather than a second reading of `failed`: the remedy is a
+   * key the author writes (`relationshipField`), not a reload, and the two
+   * placeholders must not borrow each other's copy.
+   */
+  | 'underivable';
+
+/**
+ * One authored detail collection, plus the two pieces of per-entry metadata a
+ * bare `MasterDetailDetailConfig[]` could not carry: WHICH entry this is, and
+ * WHAT happened to it.
+ *
+ * ⭐ Both defects this record closes came from the same absence. With no
+ * per-entry metadata, "what happened to this entry" (objectui#6372) and "which
+ * entry is this" (objectui#6371) were BOTH inferred from the entry's position
+ * in the array. One record answers both, which is why they land together:
+ * either one alone would have reshaped this structure and the second would
+ * then have rewritten the first.
+ */
+interface DetailEntry {
+  /**
+   * Stable identity, synthesized ONCE from the incoming config — never the map
+   * index of the rendered array. See {@link synthesizeDetailIds}.
+   */
+  id: string;
+  /** The authored config, with derived columns / FK folded in once resolved. */
+  config: MasterDetailDetailConfig;
+  status: DetailResolution;
+}
+
+/**
+ * Give every authored detail entry an identity that does not change when a
+ * SIBLING moves.
+ *
+ * ## The hazard, stated correctly
+ *
+ * ⛔ The old key — `${d.childObject}` joined to the map index — did NOT
+ * collide. The index is unique among siblings by construction, so two declined
+ * details keyed as `undefined-0` and `undefined-1`: distinct, no React
+ * duplicate-key warning, no remount collision. Anyone re-deriving this starts
+ * from the INDEX-IDENTITY hazard, never from a collision claim (objectui#6371
+ * corrects the record on that point).
+ *
+ * The real defect: for a declined entry the DATA half of that key is
+ * `undefined`, so the entry's identity was purely its POSITION — and the
+ * row-state store was addressed the same way. Reordering or removing an entry
+ * therefore re-associated a collection's DOM node, its rows, AND its
+ * contribution to the document subtotal with a different collection.
+ *
+ * ## What the identity is
+ *
+ * A named collection is identified by the child object it lists: the half of
+ * the old key that actually carried data, and the half that survives a
+ * reorder. A DECLINED entry has no such half — the decline is precisely the
+ * absence of one — so its identity is its AUTHORED POSITION in the incoming
+ * `details` array, synthesized here, once, at config time.
+ *
+ * Two collections may legitimately list the SAME child object, so an
+ * occurrence counter separates them without sending the named case back to
+ * position. Two entries indistinguishable in the config stay indistinguishable
+ * here: that ambiguity is authored, not introduced.
+ */
+function synthesizeDetailIds(raw: MasterDetailDetailConfig[]): string[] {
+  const seen = new Map<string, number>();
+  return raw.map((d, authoredPosition) => {
+    // The prefixes keep the two namespaces apart, so a child object literally
+    // named `pos:0` cannot take a declined entry's identity.
+    const base = d.childObject ? `obj:${d.childObject}` : `pos:${authoredPosition}`;
+    const nth = seen.get(base) ?? 0;
+    seen.set(base, nth + 1);
+    return nth === 0 ? base : `${base}~${nth}`;
+  });
+}
+
+/**
  * Read the live header record from the rendered parent-form host by scraping its
  * named controls. The header is owned by react-hook-form (inside <ObjectForm>),
  * which exposes no values callback here; rather than couple into its internals
@@ -154,16 +250,23 @@ function scrapeHeaderRecord(host: HTMLElement | null): Record<string, unknown> {
 }
 
 interface MasterDetailLinesProps {
-  details: MasterDetailDetailConfig[];
-  state: RowState[];
-  setRows: (detailIdx: number, rows: Record<string, any>[]) => void;
+  entries: DetailEntry[];
+  /** Row state addressed by ENTRY ID, never by array position (objectui#6371). */
+  rowState: Record<string, RowState>;
+  setRows: (entryId: string, rows: Record<string, any>[]) => void;
   /** Host wrapping the header <ObjectForm> — scraped for the live parent record. */
   formHostRef: React.RefObject<HTMLDivElement | null>;
   taxRateField: string;
   /** Bumped when the header form remounts (after create) so the lines re-scrape. */
   formKey: number;
-  onRowExpand: (detailIdx: number, rowIdx: number) => void;
-  onAddViaForm: (detailIdx: number) => void;
+  onRowExpand: (entryId: string, rowIdx: number) => void;
+  onAddViaForm: (entryId: string) => void;
+  /**
+   * The PARENT object's name, for the `underivable` config hint — "which parent
+   * this collection could not be linked to" is half the diagnosis, and the
+   * entry's own config cannot carry it (objectui#6394).
+   */
+  parentObjectName: string;
 }
 
 /**
@@ -180,14 +283,15 @@ interface MasterDetailLinesProps {
  * scrape is deduped by value so an identical re-read causes no state churn.
  */
 const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
-  details,
-  state,
+  entries,
+  rowState,
   setRows,
   formHostRef,
   taxRateField,
   formKey,
   onRowExpand,
   onAddViaForm,
+  parentObjectName,
 }) => {
   const [parentRecord, setParentRecord] = useState<Record<string, unknown>>({});
   const parentKeyRef = useRef<string>('');
@@ -216,15 +320,22 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
       host.removeEventListener('change', onEvt);
       timers.forEach(clearTimeout);
     };
-  }, [formHostRef, formKey, details.length]);
+  }, [formHostRef, formKey, entries.length]);
 
   // Document totals: Subtotal (Σ line amounts) → Tax (header rate %) → Total.
   // Shown only when the header carries the tax-rate field AND a detail has an
   // amount column; otherwise each grid keeps its own footer total.
   const taxRaw = parentRecord[taxRateField];
   const taxRate = taxRaw === undefined ? null : (Number.isFinite(Number(taxRaw)) ? Number(taxRaw) : 0);
-  const subtotal = details.reduce((acc, d, i) => acc + sumRows(state[i]?.rows ?? [], d.amountField || 'amount'), 0);
-  const showTaxStack = taxRate !== null && details.some((d) => !!d.amountField);
+  // ⚠️ Addressed by ENTRY ID. This reducer read `state[i]` — so a reorder did
+  // not merely show a collection the wrong grid, it MIS-COMPUTED the document
+  // total: each entry summed a different collection's rows, under its own
+  // `amountField` (objectui#6371).
+  const subtotal = entries.reduce(
+    (acc, e) => acc + sumRows(rowState[e.id]?.rows ?? [], e.config.amountField || 'amount'),
+    0,
+  );
+  const showTaxStack = taxRate !== null && entries.some((e) => !!e.config.amountField);
   const taxPct = taxRate ?? 0;
   const taxAmount = subtotal * (taxPct / 100);
   const grandTotal = subtotal + taxAmount;
@@ -236,15 +347,87 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
           grid's own bordered table) rather than a heavy Card — a Card here would
           double-frame the grid and its p-6 padding wastes the width the line
           table needs. */}
-      {details.map((d, i) => (
-        <section key={`${d.childObject}-${i}`} className="space-y-2">
+      {entries.map((entry) => {
+        const d = entry.config;
+        return (
+        // Keyed on the entry's SYNTHESIZED identity, not on the map index. The
+        // old key put `d.childObject` — `undefined` for a declined entry —
+        // ahead of the index, which left such a section with no identity beyond
+        // its position, so a sibling moving above it re-associated the section
+        // and its rows with a different collection (objectui#6371).
+        <section key={entry.id} className="space-y-2">
           <h3 className="text-sm font-medium text-foreground">{d.title || 'Line Items'}</h3>
-          {!d.columns?.length ? (
+          {/* A detail whose child object never resolved gets its OWN branch,
+              ahead of the columns/loading one (objectui#6360) — the render half
+              of the decline at `MasterDetailForm`'s resolve effect, and the same
+              shape `LineItemsPanel` takes for this exact key (objectui#6194)
+              following objectui#5940's config-hint precedent. It must not sit on
+              "Loading columns…": the decline is precisely the guarantee that
+              those columns can never arrive, so the spinner-shaped message is
+              permanently, unfixably wrong and never names the key the author has
+              to set. Checked BEFORE the columns arm because nothing is pending —
+              there is no first paint where "loading" is true. */}
+          {!d.childObject ? (
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              data-testid="md-detail-no-child-object"
+            >
+              This collection has no child object configured: set{' '}
+              <code className="font-mono">childObject</code> to the object whose rows it lists.
+            </p>
+          ) : entry.status === 'failed' ? (
+            /* The OTHER arm of the same resolver (objectui#6372). This entry
+               DOES name a child object, so it skips the config hint above — and
+               before this branch existed it fell through to "Loading columns…"
+               and stayed there forever, because the fetch that would have
+               supplied those columns already failed and is not retried.
+               Distinguishing it from a genuinely-pending entry is exactly what
+               `entry.status` exists for: on a bare `MasterDetailDetailConfig[]`
+               the two states are identical (no `columns`).
+               Shaped on `AdvancedChartImpl`'s refusal placeholders — a refusal
+               is a state, not an alert, so `role="status"` — and it NAMES the
+               child object, because "which collection refused" is the whole
+               diagnosis for the author reading it. */
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              role="status"
+              data-testid="md-detail-schema-unavailable"
+            >
+              Could not load the schema of{' '}
+              <code className="font-mono">{d.childObject}</code>, so this collection has no
+              columns to show. Check that the object exists and is readable, then reload.
+            </p>
+          ) : entry.status === 'underivable' ? (
+            /* The THIRD arm of the same resolver (objectui#6394): the schema
+               LOADED, and `deriveDetail` then threw on it — no lookup /
+               master_detail field on the child references the parent. Before
+               this branch existed it fell through to "Loading columns…" and
+               stayed there forever, exactly like the two arms above, because
+               the derive is not retried either.
+               ⛔ NOT the refusal placeholder above: that one states the schema
+               could not be LOADED, which is false here — "dishonest copy for a
+               schema that loaded fine" (objectui#6394 triage). This is a
+               CONFIGURATION error with a named remedy, so it takes the config
+               hint shape of the `!d.childObject` branch (objectui#5940 /
+               objectui#6360) and NAMES `relationshipField` as the key to set —
+               the same key the thrown message names, which is why that error is
+               also logged rather than discarded. */
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              data-testid="md-detail-no-relationship-field"
+            >
+              Could not work out how <code className="font-mono">{d.childObject}</code> links
+              to <code className="font-mono">{parentObjectName}</code>: no lookup or
+              master_detail field on it references the parent. Set{' '}
+              <code className="font-mono">relationshipField</code> on this collection to the
+              field that holds the parent record.
+            </p>
+          ) : !d.columns?.length ? (
             <p className="py-4 text-sm text-muted-foreground">Loading columns…</p>
           ) : (
             <LineItemsField
-              value={state[i]?.rows ?? []}
-              onChange={(rows) => setRows(i, rows)}
+              value={rowState[entry.id]?.rows ?? []}
+              onChange={(rows) => setRows(entry.id, rows)}
               // The live header record — a line cell's readonlyWhen/requiredWhen
               // CEL rule evaluates against it as `parent` (e.g. lock when
               // parent.status == 'paid').
@@ -255,10 +438,10 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
               // columns already cover every field (e.g. invoice lines) shows no
               // redundant expand button.
               {...((d.inlineMode === 'form' || (d.formFields?.length ?? 0) > (d.columns?.length ?? 0))
-                ? { onRowExpand: (rowIdx: number) => onRowExpand(i, rowIdx) }
+                ? { onRowExpand: (rowIdx: number) => onRowExpand(entry.id, rowIdx) }
                 : {})}
               displayMode={d.inlineMode === 'form' ? 'list' : 'grid'}
-              {...(d.inlineMode === 'form' ? { onAdd: () => onAddViaForm(i) } : {})}
+              {...(d.inlineMode === 'form' ? { onAdd: () => onAddViaForm(entry.id) } : {})}
               field={
                 {
                   columns: d.columns,
@@ -274,7 +457,8 @@ const MasterDetailLines: React.FC<MasterDetailLinesProps> = ({
             />
           )}
         </section>
-      ))}
+        );
+      })}
 
       {/* Document totals stack (Subtotal / Tax / Total) — the right-aligned block
           every invoicing tool shows. Live as lines and the header tax rate change. */}
@@ -322,28 +506,108 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const needsDerive = rawDetails.some(
     (d) => !d.relationshipField || !d.columns?.length || d.columns.some((c) => !c.type),
   );
-  const [resolvedDetails, setResolvedDetails] = useState<MasterDetailDetailConfig[] | null>(
-    needsDerive ? null : rawDetails,
+  /**
+   * Per-entry identity, synthesized ONCE from the incoming config — the anchor
+   * everything below is addressed by (objectui#6371). Recomputed only when the
+   * authored `details` array itself changes, never per render and never from a
+   * map index.
+   */
+  const detailIds = useMemo(
+    () => synthesizeDetailIds(rawDetails),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [schema.details],
   );
-  const details = resolvedDetails ?? rawDetails; // length always matches rawDetails
+
+  /** The unresolved entries — what renders until (or unless) the fetch lands. */
+  const baseEntries = useMemo<DetailEntry[]>(
+    () =>
+      rawDetails.map((d, i) => ({
+        id: detailIds[i],
+        config: d,
+        status: needsDerive ? ('pending' as const) : ('ready' as const),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [schema.details, detailIds, needsDerive],
+  );
+
+  const [resolvedEntries, setResolvedEntries] = useState<DetailEntry[] | null>(null);
+  const entries = resolvedEntries ?? baseEntries; // length always matches rawDetails
 
   useEffect(() => {
-    if (!needsDerive) { setResolvedDetails(rawDetails); return; }
+    if (!needsDerive) { setResolvedEntries(baseEntries); return; }
     if (!dataSource || typeof (dataSource as any).getObjectSchema !== 'function') return;
     let cancelled = false;
     (async () => {
       const out = await Promise.all(
-        rawDetails.map(async (d) => {
+        baseEntries.map(async (entry): Promise<DetailEntry> => {
+          const d = entry.config;
           const columnsTyped = d.columns?.length ? d.columns.every((c) => !!c.type) : false;
           // Fully configured (FK + every column typed) — nothing to resolve.
-          if (d.relationshipField && columnsTyped) return d;
+          if (d.relationshipField && columnsTyped) return { ...entry, status: 'ready' };
+          // Decline to fetch when the child object never resolved (objectui#5940).
+          // `childObject` is REQUIRED on `MasterDetailDetailConfig`, but a detail
+          // entry reaches this renderer straight off an authored schema, so a
+          // malformed one (or a bare string) arrives with it `undefined` — and the
+          // fetch below then asked the data layer for an object literally named
+          // `undefined`. A real backend receives that query and whatever it returns
+          // becomes the console's problem. `RelatedList` already takes the other
+          // choice for the same class of missing key ("has no referenceField/parentId
+          // — refusing to fetch all rows", RelatedList.tsx), and the sibling effect
+          // below already spells it `.filter(Boolean)`; this makes the three agree.
+          // Left as-is rather than dropped: `details` stays length-matched to
+          // `rawDetails` (the row-state array is indexed against it), and the
+          // `!d.childObject` branch in <MasterDetailLines> renders a config hint
+          // naming this key. That hint did not exist when this comment was first
+          // written — the branch showed "Loading columns…" forever, and a reader
+          // who trusted the claim had to run the component to find out
+          // (objectui#6360). Do not restore the claim that the `catch` below
+          // behaves the same way: it does not (objectui#6372).
+          if (!d.childObject) {
+            console.warn(
+              `[MasterDetailForm] a detail collection has no childObject — refusing to fetch its schema. Set childObject to the child object the collection lists.`,
+            );
+            return { ...entry, status: 'declined' };
+          }
+          // ⭐ The FETCH and the DERIVE are caught SEPARATELY, because they are
+          // different failures with different truths to tell. The bare `catch`
+          // this replaces covered both, so both showed the same permanent
+          // "Loading columns…" — and folding both into the new refusal
+          // placeholder would be just as wrong in the other direction: it says
+          // the schema could not be loaded, which is FALSE for a schema that
+          // loaded fine and then failed to yield a relationship field.
+          // Measured while building this: `deriveDetail` throwing is what the
+          // objectui#6360 fixture actually hits, not a pending fetch.
+          let childSchema: Awaited<ReturnType<DataSource['getObjectSchema']>>;
           try {
-            const childSchema = await dataSource.getObjectSchema(d.childObject);
+            childSchema = await dataSource.getObjectSchema(d.childObject);
+          } catch (err) {
+            // THE FETCH FAILED — objectui#6372's subject. The entry is kept (not
+            // dropped) so `entries` stays length-matched to `rawDetails` and the
+            // author still sees WHICH collection failed; what changes is that
+            // the failure is now RECORDED. `status: 'failed'` is the smallest
+            // shape that tells this apart from "still in flight": on a bare
+            // `MasterDetailDetailConfig[]` the two are identical (no `columns`),
+            // which is why the renderer showed the same spinner-shaped message
+            // for both, and why for this one it never ended — the fetch is not
+            // retried, so nothing can ever replace it.
+            //
+            // The thrown error used to be DISCARDED, so whoever debugged this
+            // had neither a message nor a stack. The parity bar is the decline
+            // arm above, which has warned since objectui#5940; the error object
+            // itself is passed through because the stack is the half that makes
+            // the failure actionable.
+            console.warn(
+              `[MasterDetailForm] could not load the schema of child object "${d.childObject}" — its columns cannot be derived, so the collection renders a refusal placeholder instead of a permanent "Loading columns…".`,
+              err,
+            );
+            return { ...entry, status: 'failed' };
+          }
+          try {
             // Author gave the FK + an explicit column set but left some columns
             // untyped — hydrate just their widget types from the schema, keeping
             // their exact column set / order / labels (don't re-derive columns).
             if (d.relationshipField && d.columns?.length) {
-              return { ...d, columns: hydrateColumns(d.columns, childSchema) };
+              return { ...entry, config: { ...d, columns: hydrateColumns(d.columns, childSchema) }, status: 'ready' };
             }
             const derived = deriveDetail(d.childObject, childSchema, schema.objectName, {
               relationshipField: d.relationshipField,
@@ -351,31 +615,68 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               amountField: d.amountField,
             });
             return {
-              ...d,
-              relationshipField: derived.relationshipField,
-              columns: derived.columns,
-              formFields: d.formFields ?? derived.formFields,
-              inlineMode: d.inlineMode ?? derived.mode,
-              amountField: d.amountField ?? derived.amountField,
-              sortField: d.sortField ?? derived.sortField,
+              ...entry,
+              status: 'ready',
+              config: {
+                ...d,
+                relationshipField: derived.relationshipField,
+                columns: derived.columns,
+                formFields: d.formFields ?? derived.formFields,
+                inlineMode: d.inlineMode ?? derived.mode,
+                amountField: d.amountField ?? derived.amountField,
+                sortField: d.sortField ?? derived.sortField,
+              },
             };
-          } catch {
-            return d; // leave as-is; the grid card will show a config hint
+          } catch (err) {
+            // THE DERIVE FAILED, on a schema that loaded fine — almost always
+            // "no lookup/master_detail field on the child references the
+            // parent", i.e. a configuration error the author fixes by setting
+            // `relationshipField`.
+            //
+            // ⛔ Still NOT the refusal placeholder above: that one states the
+            // schema could not be loaded, and here it was — triage's words,
+            // "dishonest copy for a schema that loaded fine". What changed in
+            // objectui#6394 is the OTHER half: this arm used to return the entry
+            // UNRESOLVED (`return entry`), so it fell through to "Loading
+            // columns…" and stayed there forever — the derive is not retried, so
+            // those columns can never arrive, the same unbounded-wait-shown-as-a
+            // -spinner defect objectui#5940 / objectui#6360 / objectui#6372
+            // removed one arm at a time. `status: 'underivable'` routes it to a
+            // config hint of its own, naming `relationshipField`.
+            //
+            // The error stays logged, not discarded (objectui#6372): it carries
+            // the whole diagnosis — which child object, which parent, which key
+            // to set — and the placeholder deliberately shows the author the
+            // key, not the raw message.
+            console.warn(
+              `[MasterDetailForm] loaded the schema of child object "${d.childObject}" but could not derive its detail configuration; the collection cannot render its columns. Set relationshipField (and columns) explicitly on the detail entry.`,
+              err,
+            );
+            return { ...entry, status: 'underivable' };
           }
         }),
       );
-      if (!cancelled) setResolvedDetails(out);
+      if (!cancelled) setResolvedEntries(out);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataSource, schema.objectName, schema.details]);
 
-  // One row-state per detail collection (length is known up-front from rawDetails).
-  const [state, setState] = useState<RowState[]>(() =>
-    rawDetails.map(() => ({ rows: [], original: [] })),
-  );
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  /**
+   * One row-state per detail collection, addressed by the collection's
+   * SYNTHESIZED ENTRY ID.
+   *
+   * ⚠️ This used to be an ARRAY indexed in parallel with `details`, seeded once
+   * at mount from the original `rawDetails` and never re-synced when the
+   * authored config changed. Reordering or removing an entry therefore handed a
+   * collection a different collection's rows — visible in the grid, in the
+   * document subtotal, and in the batch payload on save (objectui#6371). Keyed
+   * by identity, a collection can only ever read its own slot: an entry whose
+   * identity is new simply finds nothing, which is the correct answer.
+   */
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const rowStateRef = useRef(rowState);
+  rowStateRef.current = rowState;
 
   // Cache of child object schemas (keyed by childObject), fetched once so the
   // client-orchestrated and atomic-batch child writes can strip computed /
@@ -428,30 +729,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     if (!isEdit || !dataSource) return;
     (async () => {
       const loaded = await Promise.all(
-        details.map(async (d) => {
-          if (!d.relationshipField) return { rows: [], original: [] }; // not resolved yet
+        entries.map(async (e): Promise<[string, RowState]> => {
+          const d = e.config;
+          if (!d.relationshipField) return [e.id, { rows: [], original: [] }]; // not resolved yet
           try {
             const res = await dataSource.find(d.childObject, {
               $filter: { [d.relationshipField]: schema.recordId },
               $top: 500,
             });
             const rows = (res?.data ?? []) as Record<string, any>[];
-            return { rows: rows.map((r) => ({ ...r })), original: rows.map((r) => ({ ...r })) };
+            return [e.id, { rows: rows.map((r) => ({ ...r })), original: rows.map((r) => ({ ...r })) }];
           } catch {
-            return { rows: [], original: [] };
+            return [e.id, { rows: [], original: [] }];
           }
         }),
       );
-      if (!cancelled) setState(loaded);
+      // Keyed by entry id, so a collection's loaded rows land in ITS slot
+      // regardless of where it currently sits in the authored array.
+      if (!cancelled) setRowState(Object.fromEntries(loaded));
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEdit, dataSource, schema.recordId, resolvedDetails]);
+  }, [isEdit, dataSource, schema.recordId, resolvedEntries]);
 
-  const setRows = useCallback((detailIdx: number, rows: Record<string, any>[]) => {
-    setState((prev) => prev.map((s, i) => (i === detailIdx ? { ...s, rows } : s)));
+  const setRows = useCallback((entryId: string, rows: Record<string, any>[]) => {
+    setRowState((prev) => ({
+      ...prev,
+      [entryId]: { rows, original: prev[entryId]?.original ?? [] },
+    }));
   }, []);
 
   // Header tax-rate field name — the live value is read by <MasterDetailLines>
@@ -464,31 +771,31 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   // persists everything on the parent Save (no separate backend write here).
   // `isNew` marks a row created by "Add" in list/form mode — cancelling the
   // editor without applying discards that empty row.
-  const [expanded, setExpanded] = useState<{ detailIdx: number; rowIdx: number; isNew?: boolean } | null>(null);
+  const [expanded, setExpanded] = useState<{ entryId: string; rowIdx: number; isNew?: boolean } | null>(null);
   const expandedRow =
-    expanded ? state[expanded.detailIdx]?.rows?.[expanded.rowIdx] : undefined;
-  const expandedDetail = expanded ? details[expanded.detailIdx] : undefined;
+    expanded ? rowState[expanded.entryId]?.rows?.[expanded.rowIdx] : undefined;
+  const expandedDetail = expanded ? entries.find((e) => e.id === expanded.entryId)?.config : undefined;
 
   const applyRowEdit = useCallback(
-    (detailIdx: number, rowIdx: number, values: Record<string, any>) => {
-      setState((prev) =>
-        prev.map((s, i) =>
-          i === detailIdx
-            ? { ...s, rows: s.rows.map((r, j) => (j === rowIdx ? { ...r, ...values } : r)) }
-            : s,
-        ),
-      );
+    (entryId: string, rowIdx: number, values: Record<string, any>) => {
+      setRowState((prev) => {
+        const cur = prev[entryId] ?? { rows: [], original: [] };
+        return {
+          ...prev,
+          [entryId]: { ...cur, rows: cur.rows.map((r, j) => (j === rowIdx ? { ...r, ...values } : r)) },
+        };
+      });
     },
     [],
   );
 
   /** List/form mode "Add": append a blank row and open it in the full form. */
-  const addRowViaForm = useCallback((detailIdx: number) => {
-    setState((prev) => {
-      const next = prev.map((s, i) => (i === detailIdx ? { ...s, rows: [...s.rows, {}] } : s));
-      const rowIdx = next[detailIdx].rows.length - 1;
-      setExpanded({ detailIdx, rowIdx, isNew: true });
-      return next;
+  const addRowViaForm = useCallback((entryId: string) => {
+    setRowState((prev) => {
+      const cur = prev[entryId] ?? { rows: [], original: [] };
+      const rows = [...cur.rows, {}];
+      setExpanded({ entryId, rowIdx: rows.length - 1, isNew: true });
+      return { ...prev, [entryId]: { ...cur, rows } };
     });
   }, []);
 
@@ -496,9 +803,11 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const cancelRowEdit = useCallback(() => {
     setExpanded((cur) => {
       if (cur?.isNew) {
-        setState((prev) =>
-          prev.map((s, i) => (i === cur.detailIdx ? { ...s, rows: s.rows.filter((_, j) => j !== cur.rowIdx) } : s)),
-        );
+        setRowState((prev) => {
+          const s = prev[cur.entryId];
+          if (!s) return prev;
+          return { ...prev, [cur.entryId]: { ...s, rows: s.rows.filter((_, j) => j !== cur.rowIdx) } };
+        });
       }
       return null;
     });
@@ -522,13 +831,16 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created');
       }
       if (!isEdit) {
-        setState(details.map(() => ({ rows: [], original: [] })));
+        // Every collection back to empty for the next entry. Dropping the whole
+        // record is the same statement the per-detail rebuild made, without
+        // re-deriving it from positions.
+        setRowState({});
         setFormKey((k) => k + 1);
       }
       await schema.onSuccess?.(parent);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isEdit, schema.onSuccess, schema.title, details.length, releaseSave],
+    [isEdit, schema.onSuccess, schema.title, entries.length, releaseSave],
   );
 
   /** Surface failures (validation / network / atomic rollback) to the user. */
@@ -554,37 +866,48 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       const parentData: Record<string, any> = { ...parentValues };
       // Client-side rollups merged into the parent payload (hooks can't do
       // nested writes — see ADR-0001).
-      details.forEach((d, i) => {
-        if (d.totalField) parentData[d.totalField] = sumRows(stateRef.current[i]?.rows ?? [], d.amountField || 'amount');
+      entries.forEach((e) => {
+        const d = e.config;
+        if (d.totalField) {
+          parentData[d.totalField] = sumRows(rowStateRef.current[e.id]?.rows ?? [], d.amountField || 'amount');
+        }
       });
       const ops = isEdit
         ? buildMasterDetailEditBatch(
             schema.objectName,
             String(schema.recordId),
             parentData,
-            details.filter((d) => d.relationshipField).map((d, i) => ({
-              childObject: d.childObject,
-              relationshipField: d.relationshipField!,
-              rows: stateRef.current[i]?.rows ?? [],
-              original: stateRef.current[i]?.original ?? [],
-              childSchema: childSchemasRef.current[d.childObject],
+            // ⚠️ Read by ENTRY ID. This was
+            // `.filter(…).map((d, i) => stateRef.current[i])`, where `i` indexes
+            // the FILTERED array while the row state was indexed against the
+            // FULL one — so a declined or unresolved entry sitting above a real
+            // collection shifted every read below it by one and that
+            // collection's rows were silently dropped from the transaction.
+            // Data loss on save, not a display defect (objectui#6371).
+            entries.filter((e) => e.config.relationshipField).map((e) => ({
+              childObject: e.config.childObject,
+              relationshipField: e.config.relationshipField!,
+              rows: rowStateRef.current[e.id]?.rows ?? [],
+              original: rowStateRef.current[e.id]?.original ?? [],
+              childSchema: childSchemasRef.current[e.config.childObject],
             })),
           )
         : buildMasterDetailBatch(
             schema.objectName,
             parentData,
-            details.filter((d) => d.relationshipField).map((d, i) => ({
-              childObject: d.childObject,
-              relationshipField: d.relationshipField!,
-              rows: stateRef.current[i]?.rows ?? [],
-              childSchema: childSchemasRef.current[d.childObject],
+            // Same identity read as the edit branch above, for the same reason.
+            entries.filter((e) => e.config.relationshipField).map((e) => ({
+              childObject: e.config.childObject,
+              relationshipField: e.config.relationshipField!,
+              rows: rowStateRef.current[e.id]?.rows ?? [],
+              childSchema: childSchemasRef.current[e.config.childObject],
             })),
           );
       const res = await runBatchTransaction(dataSource, ops);
       // create → parent is op 0; edit → echo the parent values back.
       return res?.results?.[0] ?? { ...parentData, id: schema.recordId };
     },
-    [dataSource, details, schema.objectName, schema.recordId, isEdit],
+    [dataSource, entries, schema.objectName, schema.recordId, isEdit],
   );
 
   // The parent form renders WITHOUT its own submit button — the master-detail
@@ -657,14 +980,15 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           live header record (scraped from the form host) so header edits never
           re-render — and thus never reset — the header <ObjectForm> (see #1581). */}
       <MasterDetailLines
-        details={details}
-        state={state}
+        entries={entries}
+        rowState={rowState}
         setRows={setRows}
         formHostRef={formHostRef}
         taxRateField={taxRateField}
         formKey={formKey}
-        onRowExpand={(detailIdx, rowIdx) => setExpanded({ detailIdx, rowIdx })}
+        onRowExpand={(entryId, rowIdx) => setExpanded({ entryId, rowIdx })}
         onAddViaForm={addRowViaForm}
+        parentObjectName={schema.objectName}
       />
 
       {/* Per-row "expand to full form": an inline editor panel for the selected
@@ -693,7 +1017,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           </CardHeader>
           <CardContent>
             <ObjectForm
-              key={`row-${expanded.detailIdx}-${expanded.rowIdx}`}
+              key={`row-${expanded.entryId}-${expanded.rowIdx}`}
               schema={{
                 type: 'object-form',
                 objectName: expandedDetail.childObject,
@@ -706,7 +1030,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
                 // parent Save does the real write.
                 submitHandler: async (values: any) => values,
                 onSuccess: (values: any) => {
-                  applyRowEdit(expanded.detailIdx, expanded.rowIdx, values);
+                  applyRowEdit(expanded.entryId, expanded.rowIdx, values);
                   setExpanded(null);
                 },
                 onCancel: cancelRowEdit,
@@ -726,7 +1050,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               {schema.cancelText ?? 'Cancel'}
             </Button>
           )}
-          <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedDetails)} data-testid="md-form-submit">
+          <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedEntries)} data-testid="md-form-submit">
             {saving ? 'Saving…' : submitText}
           </Button>
         </div>

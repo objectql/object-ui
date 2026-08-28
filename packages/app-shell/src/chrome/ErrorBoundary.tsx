@@ -19,7 +19,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button, Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { captureError } from '../observability';
+import { captureError } from '../observability/index.js';
 
 /** Inner fallback component that uses the i18n hook */
 function DefaultErrorFallback({ error, onReset }: { error: Error; onReset: () => void }) {

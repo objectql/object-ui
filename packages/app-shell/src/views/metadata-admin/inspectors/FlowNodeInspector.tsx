@@ -10,8 +10,8 @@
  *                   `draft.nodes[i]`; nested nodes rebuild the container's
  *                   `config.<region>.nodes[i]` with explicit spreads.
  *
- * Both share the SAME schema-driven form. Beyond id / label / type /
- * description, each node type exposes a set of typed form fields (see
+ * Both share the SAME schema-driven form. Beyond id / label / type, each node
+ * type exposes a set of typed form fields (see
  * `flow-node-config`, or the engine-published configSchema) that edit scalar
  * keys on `node.config`; remaining keys go to an "Advanced (JSON)" block so
  * authors are never locked out. A nested node is edit-only this phase: its id is
@@ -21,15 +21,15 @@
 
 import * as React from 'react';
 import { Plus } from 'lucide-react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
   InspectorRemoveButton,
   InspectorEmptyState,
-} from './_shared';
+} from './_shared.js';
 import {
   mergeServerFlowFields,
   localizeFlowFields,
@@ -38,9 +38,9 @@ import {
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
   type FlowConfigField,
-} from './flow-node-config';
-import { translateNodeLabel } from '../i18n';
-import { jsonSchemaToFlowFields } from './json-schema-to-fields';
+} from './flow-node-config.js';
+import { translateNodeLabel } from '../i18n.js';
+import { jsonSchemaToFlowFields } from './json-schema-to-fields.js';
 import {
   applyConnectorInputForm,
   connectorActionInputSchema,
@@ -48,33 +48,67 @@ import {
   connectorInputFields,
   mergeConnectorInputExtras,
   useConnectorRegistry,
-} from './connector-input-fields';
-import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges';
-import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
-import { FlowNodeConfigField } from './FlowNodeConfigField';
-import { useFlowScope } from './useFlowScope';
-import { nodeOutputRefs, type ScopeRef } from './flow-scope';
-import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode } from './flow-nested-selection';
-import { ScreenPreview } from '../previews/ScreenPreview';
+} from './connector-input-fields.js';
+import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges.js';
+import { useActionConfigSchemas } from '../previews/useFlowNodePalette.js';
+import { FlowNodeConfigField } from './FlowNodeConfigField.js';
+import { useFlowScope } from './useFlowScope.js';
+import { nodeOutputRefs, type ScopeRef } from './flow-scope.js';
+import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode, type FlowNodeLike } from './flow-nested-selection.js';
+import type { FlowDesignerEdge } from '../previews/flow-canvas-layout.js';
+import { ScreenPreview } from '../previews/ScreenPreview.js';
 
-interface FlowNode {
-  id: string;
-  type?: string;
-  label?: string;
-  description?: string;
-  config?: Record<string, unknown>;
-  [k: string]: unknown;
-}
+/**
+ * The node and edge shapes this panel edits — ALIASED, never restated
+ * (objectui#6287).
+ *
+ * Both used to be hand-written copies here, and both had already drifted from
+ * the declarations they duplicate:
+ *
+ * - the node copy declared `description?: string`, a key `FlowNodeSchema`
+ *   refuses by name (`.strict()`, objectstack#4001) — and the copy was not even
+ *   the type the panel reads through, since `locateFlowNode` returns
+ *   `FlowNodeLike`. Narrowing the copy alone would have changed nothing.
+ * - the edge copy still spelled `condition?: unknown`, months after
+ *   `FlowEdgeInspector`'s twin was narrowed to the spec's `ExpressionInput`
+ *   because the loose spelling described an envelope the server rejects — the
+ *   over-wide read type that got objectui#3171 filed against a defect that does
+ *   not reproduce (objectui#3202).
+ *
+ * `FlowPreview.tsx` made exactly this move for its own pair, and its comment is
+ * about this one: "two copies of one shape is how the wrong one survives being
+ * fixed". Aliasing costs nothing at runtime — both imports are `import type`,
+ * erased at compile time, and `flow-canvas-layout` is dependency-free by design.
+ * `flow-designer-edge.types.test.ts` already pins the edge condition against the
+ * spec, so this panel now inherits that pin instead of needing its own copy of
+ * it.
+ */
+type FlowNode = FlowNodeLike;
+type FlowEdge = FlowDesignerEdge;
 
-interface FlowEdge {
-  id?: string;
-  source: string;
-  target: string;
-  condition?: unknown;
-  label?: string;
-  isDefault?: boolean;
-  type?: string;
-  [k: string]: unknown;
+/**
+ * Node keys the spec's `.strict()` `FlowNodeSchema` refuses, stripped on write
+ * so a stored flow HEALS on the author's first edit.
+ *
+ * This is the same migrate-on-write boundary `withCanonicalGeometry` gives the
+ * retired `ui` geometry, for the same reason it gives it: a node carrying such
+ * a key is unsavable rather than untidy — `unrecognized_keys` in the live
+ * client validation, a 422 on save. `description` reached stored flows through
+ * this panel's own Description field (removed in objectui#6287), and with that
+ * field gone there would otherwise be no way left to clear it by hand.
+ *
+ * Deliberately a NAMED list rather than "everything the spec does not list":
+ * the index signature on the node type is load-bearing — the canvas
+ * round-trips node properties this layer does not understand, and a blanket
+ * strip would be exactly the data loss that type exists to prevent.
+ */
+const SPEC_REFUSED_NODE_KEYS = ['description'] as const;
+
+function withoutSpecRefusedKeys(node: Record<string, unknown>): Record<string, unknown> {
+  if (!SPEC_REFUSED_NODE_KEYS.some((k) => k in node)) return node;
+  const next = { ...node };
+  for (const k of SPEC_REFUSED_NODE_KEYS) delete next[k];
+  return next;
 }
 
 /**
@@ -249,7 +283,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   }
 
   const patchNode = (updates: Partial<FlowNode>) => {
-    const patch = loc?.write({ ...node, ...updates });
+    const patch = loc?.write(withoutSpecRefusedKeys({ ...node, ...updates }));
     if (patch) onPatch(patch);
   };
 
@@ -299,7 +333,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     // Migrate-on-edit: writing the canonical path drops any looser fallback
     // location, so the node never carries a stale duplicate (engine + designer agree).
     if (field.fallbackPath) nextNode = setAtPath(nextNode, field.fallbackPath, undefined);
-    const patch = loc.write(nextNode);
+    const patch = loc.write(withoutSpecRefusedKeys(nextNode));
     if (!patch) return;
     if (nextEdges) patch.edges = nextEdges;
     onPatch(patch);
@@ -320,7 +354,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
       const nextNode: Record<string, unknown> = { ...node };
       if (Object.keys(merged).length === 0) delete nextNode.config;
       else nextNode.config = merged;
-      const patch = loc?.write(nextNode);
+      const patch = loc?.write(withoutSpecRefusedKeys(nextNode));
       if (patch) onPatch(patch);
     } catch (e) {
       setAdvError(String((e as Error).message));
@@ -370,13 +404,6 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
         onCommit={(v) => patchNode({ type: v })}
         disabled={readOnly}
       />
-      <InspectorTextField
-        label={t('engine.inspector.flowNode.description', locale)}
-        value={node.description ?? ''}
-        onCommit={(v) => patchNode({ description: v || undefined })}
-        disabled={readOnly}
-      />
-
       {fields.length === 0 ? (
         <p className="pt-1 text-xs italic text-muted-foreground">
           {t('engine.inspector.flowNode.noConfig', locale)}

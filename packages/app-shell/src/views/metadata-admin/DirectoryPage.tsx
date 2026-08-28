@@ -28,16 +28,16 @@ import {
   useMetadataTypes,
   useGlobalDiagnostics,
   type RichMetadataTypeEntry,
-} from './useMetadata';
-import { MetadataQuickFind } from './QuickFind';
+} from './useMetadata.js';
+import { MetadataQuickFind } from './QuickFind.js';
 import {
   translateMetadataType,
   translateMetadataDomain,
   t,
   tFormat,
   useMetadataLocale,
-} from './i18n';
-import { buildPackageScopeOptions } from './package-scope';
+} from './i18n.js';
+import { buildPackageScopeOptions } from './package-scope.js';
 
 const DOMAIN_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   data: Database,

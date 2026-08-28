@@ -25,7 +25,7 @@ import {
   NODE_W,
   NODE_H,
   type LabeledRegion,
-} from './flow-canvas-layout';
+} from './flow-canvas-layout.js';
 
 /** Dashed border of one region block, per side (`border` = 1px). */
 export const REGION_BLOCK_BORDER = 1;

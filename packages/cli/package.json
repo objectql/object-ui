@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/cli",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "description": "Standalone CLI for Object UI — scaffold, develop, build and validate JSON/YAML schema-driven applications.",
   "type": "module",
   "homepage": "https://www.objectui.org/docs/utilities/cli",
@@ -66,12 +66,13 @@
     "express-rate-limit": "^8.6.2",
     "glob": "^13.0.6",
     "js-yaml": "^5.2.3",
+    "jsonc-parser": "^3.3.1",
     "vite": "^8.2.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.25",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

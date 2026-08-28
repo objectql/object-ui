@@ -24,14 +24,15 @@
  *
  * **Fail-OPEN when unknown.** No runner, no user, no `systemPermissions` array:
  * the action shows. Unknown is not denied, the server is the authority
- * (ADR-0057 D10), and hiding a permitted user's button on missing client data
- * is the worse failure. An EMPTY array is not unknown — it means "holds
- * nothing" and gates normally.
+ * (the framework's ADR-0124 D1 — server enforces, client is courtesy), and
+ * hiding a permitted user's button on missing client data is the worse
+ * failure. An EMPTY array is not unknown — it means "holds nothing" and gates
+ * normally.
  */
 
 import { useCallback, useContext } from 'react';
-import { ActionCtxReact } from '../context/ActionContext';
-import { usePredicateScope } from './useExpression';
+import { ActionCtxReact } from '../context/ActionContext.js';
+import { usePredicateScope } from './useExpression.js';
 
 /**
  * The caller's system capabilities, or `undefined` when the host never supplied

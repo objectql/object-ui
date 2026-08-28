@@ -37,6 +37,7 @@
 import { evalFieldPredicate, type FieldRulePredicate } from './fieldRules.js';
 import { ExpressionEvaluator } from './ExpressionEvaluator.js';
 import { toPredicateRecord, type FieldContainerLike } from '../utils/predicate-record.js';
+import { warnNonCanonicalRowSpelling } from './rowPredicateCanon.js';
 
 /**
  * Syntax that only the legacy JS-dialect evaluator understands and that is NOT
@@ -206,8 +207,27 @@ export interface RowPredicateOptions {
  * Evaluate a single boolean predicate against a row record on the canonical CEL
  * engine (with a legacy-dialect fallback — see the module note). The row's
  * fields are bound three ways so every authoring convention resolves:
- * `record.status` (spec/canonical), bare `status` (row-action shorthand), and
- * `data.status` (legacy). The optional `scope` (host predicate scope) is bound
+ * `record.status`, bare `status` (row-action shorthand), and `data.status`.
+ *
+ * ⚠️ Those three are NOT peers, and this doc comment used to read as though
+ * they were. **The canon is `record.*`** (maintainer ruling 2026-08-20 on
+ * objectui#5330, option B); the other two are client tolerances in a
+ * deprecation window, kept because stored metadata carries them and warned
+ * about — from the CEL path below — by `warnNonCanonicalRowSpelling`. The
+ * server accepts `record.*` and NOTHING else: measured on
+ * `@objectstack/formula@17.1.0`, `buildScope({ record })` mounts exactly
+ * `['record']`, so a bare field faults `Unknown variable: status` there and a
+ * `data.*` predicate faults `Unknown variable: data`. See
+ * {@link ./rowPredicateCanon.ts} for the full measurement, for why `data.*` is
+ * the dangerous one (it is silently ACCEPTED by the server's authoring oracle
+ * and still binds nothing at runtime), and for why the deprecation is scoped to
+ * this runtime layer rather than declared platform-wide (`data` is the
+ * canonical root of a metadata-editing form — ADR-0089 D3).
+ *
+ * ⛔ No spelling is removed from the binding, and none may be before a
+ * stored-metadata survey sizes the window — that is part of the same ruling.
+ *
+ * The optional `scope` (host predicate scope) is bound
  * alongside so `features.*` / `user.*` predicates keep working — but the row is
  * the subject: `record` and `data` always name THIS row, on both dialect paths,
  * even when the host scope carries keys of those names (objectui#3796).
@@ -287,6 +307,16 @@ export function evalRowPredicate(
     }
   }
 
+  // CEL path — everything reaching here is CEL, which is what makes this the
+  // right place for the objectui#5330 spelling warning: in the legacy `${…}`
+  // dialect above, `data.*` is the NORMAL spelling, so reporting it there would
+  // be a false positive on every legacy predicate. `data` names THIS row unless
+  // the caller is `rowless` (then the host scope keeps its own — see the
+  // option), which is exactly the condition the detector needs.
+  if (predicateText !== '(expression)') {
+    warnNonCanonicalRowSpelling(predicateText, rowObj, !opts.rowless, opts.label);
+  }
+
   // CEL path. The fault-aware `evalCel` costs two evaluations (to tell a fault
   // from a genuine `false`), so only pay it when a caller wants the labelled
   // fail-closed warning — the formatting hot path takes the single-eval fast
@@ -302,6 +332,71 @@ export function evalRowPredicate(
     return fallback;
   }
   return verdict.value;
+}
+
+/** The two halves of a {@link partitionRowsByPredicate} verdict over a selection. */
+export interface RowPartition<TRow> {
+  /** Records whose predicate passed — the ones an operation may act on. */
+  eligible: TRow[];
+  /**
+   * How many records were filtered out. A caller that shrinks a user's
+   * selection owes them this number: a run over fewer records than they picked
+   * must say so rather than quietly shrinking.
+   */
+  skipped: number;
+}
+
+/**
+ * Split a set of records by one per-record predicate — the SET-shaped
+ * counterpart of {@link evalRowPredicate}, and the reason a bulk gate never
+ * needs a hook.
+ *
+ * A bulk affordance spans N records, so its gate is a **loop**, and React
+ * forbids calling `useRowPredicate` (or any hook) per iteration. Every bulk
+ * surface therefore reaches for `evalRowPredicate` directly; this wrapper is
+ * that loop written once, with the three cases each caller was otherwise
+ * re-deriving:
+ *
+ *   - **absent** (`null` / `undefined` / blank string) — nothing is gated, so
+ *     `rows` is returned BY REFERENCE and `skipped` is 0. The common case
+ *     allocates nothing and a caller's downstream memo still holds.
+ *   - **boolean** — a verdict, not an expression, short-circuited exactly as
+ *     `useCondition` / `useRowPredicate` do. Handing `true` to the engine
+ *     produces `{ dialect: 'cel', source: undefined }`, which faults and — on
+ *     this fail-closed path — would disqualify every record, so the most
+ *     explicit way to say "always" would exclude everyone (objectui#3492).
+ *   - **expression** — evaluated once per record with that record in scope,
+ *     **fail-closed**: a predicate that faults must not hand the caller records
+ *     it was written to exclude. `warnOnError` (default `true`) makes the
+ *     resulting exclusion diagnosable once per predicate instead of silent.
+ *
+ * The fail-closed default is what separates this from a lenient record-free
+ * evaluation, and the difference is not mere strictness: evaluated with NO
+ * record bound, `record.status != 'paid'` returns `true` for every row —
+ * including the ones it was written to exclude — so an authored gate is not
+ * weakened, it is inverted for half its inputs (objectui#3067).
+ */
+export function partitionRowsByPredicate<TRow extends Record<string, unknown>>(
+  pred: FieldRulePredicate | boolean | undefined | null,
+  rows: readonly TRow[],
+  opts: Omit<RowPredicateOptions, 'fallback' | 'rowless'> = {},
+): RowPartition<TRow> {
+  if (pred == null || pred === '') {
+    return { eligible: rows as TRow[], skipped: 0 };
+  }
+  if (typeof pred === 'boolean') {
+    return pred
+      ? { eligible: rows as TRow[], skipped: 0 }
+      : { eligible: [], skipped: rows.length };
+  }
+  const eligible = (rows as TRow[]).filter(row =>
+    evalRowPredicate(pred, row, {
+      ...opts,
+      warnOnError: opts.warnOnError ?? true,
+      fallback: false,
+    }),
+  );
+  return { eligible, skipped: rows.length - eligible.length };
 }
 
 // ---------------------------------------------------------------------------

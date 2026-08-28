@@ -22,17 +22,17 @@
 import { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { ViewVariantInspector } from './metadata-admin/inspectors/ViewVariantInspector';
-import { RuntimeDraftBar } from './RuntimeDraftBar';
-import { isFormFamilyKey } from './metadata-admin/view-variant-model';
-import { useMetadataLocale } from './metadata-admin/i18n';
-import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields';
+import { ViewVariantInspector } from './metadata-admin/inspectors/ViewVariantInspector.js';
+import { RuntimeDraftBar } from './RuntimeDraftBar.js';
+import { isFormFamilyKey } from './metadata-admin/view-variant-model.js';
+import { useMetadataLocale } from './metadata-admin/i18n.js';
+import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields.js';
 import {
     runtimeViewToInspectorDraft,
     inspectorDraftToRuntimeView,
     type InspectorViewDraft,
     type RuntimeView,
-} from './view-config-adapter';
+} from './view-config-adapter.js';
 
 /** Editor panel types that can be opened from clickable rows */
 export type EditorPanelType = 'columns' | 'filter' | 'sort';

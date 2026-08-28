@@ -87,27 +87,34 @@ function createRetryImport<P extends object>(
 
 /**
  * Create a lazy-loaded plugin component with Suspense wrapper
- * 
- * @param importFn - Dynamic import function that returns a module with default export
+ *
+ * @param importFn - Dynamic import function resolving to a module whose
+ *   `default` is the component to render. ObjectUI plugin packages export
+ *   their components by NAME and have no `default`, so a bare
+ *   `() => import('@object-ui/plugin-<x>')` does NOT satisfy this — it hands
+ *   over the module namespace object, which is neither a component at runtime
+ *   nor assignable here. Name the component you want, as the examples do.
  * @param options - Configuration options for the lazy plugin
  * @returns A component that lazy loads the plugin
- * 
+ *
  * @example
  * ```tsx
- * // Basic usage
+ * // Basic usage. `@object-ui/plugin-grid` has no default export, so unwrap the
+ * // named component. Use the `async` form: the `.then((m) => ({ default: m.X }))`
+ * // spelling infers `P` as `never` on one branch of the `then` overload.
  * const ObjectGrid = createLazyPlugin(
- *   () => import('@object-ui/plugin-grid')
+ *   async () => ({ default: (await import('@object-ui/plugin-grid')).ObjectGrid })
  * );
- * 
+ *
  * // With custom fallback
- * const ObjectGrid = createLazyPlugin(
- *   () => import('@object-ui/plugin-grid'),
+ * const ObjectGridWithFallback = createLazyPlugin(
+ *   async () => ({ default: (await import('@object-ui/plugin-grid')).ObjectGrid }),
  *   { fallback: <div>Loading grid...</div> }
  * );
- * 
+ *
  * // With retry and error handling
- * const ObjectGrid = createLazyPlugin(
- *   () => import('@object-ui/plugin-grid'),
+ * const ObjectGridWithRetry = createLazyPlugin(
+ *   async () => ({ default: (await import('@object-ui/plugin-grid')).ObjectGrid }),
  *   {
  *     retries: 3,
  *     errorFallback: ({ error, retry }) => (

@@ -25,9 +25,9 @@
 import * as React from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
-import { MetadataResourceListPage } from './ResourceListPage';
-import { MetadataResourceEditPage } from './ResourceEditPage';
-import { MetadataResourceHistoryPage } from './ResourceHistoryPage';
+import { MetadataResourceListPage } from './ResourceListPage.js';
+import { MetadataResourceEditPage } from './ResourceEditPage.js';
+import { MetadataResourceHistoryPage } from './ResourceHistoryPage.js';
 
 /**
  * Props forwarded by `ComponentNavView` — it merges URL query-string

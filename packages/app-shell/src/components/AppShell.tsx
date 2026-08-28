@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AppShellProps } from '../types';
+import type { AppShellProps } from '../types.js';
 
 /**
  * AppShell - Minimal layout container

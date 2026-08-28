@@ -65,6 +65,42 @@ type Phase =
   | { kind: 'bound'; status: StatusData }
   | { kind: 'error'; message: string };
 
+/**
+ * The two RFC 8628 device-authorization outcomes a user can actually cause,
+ * rendered in the user's language instead of the producer's (objectui#5054).
+ *
+ * `declaredCode` is read FIRST because that is where the upstream spelling
+ * lives: it is not a member of the closed `ApiErrorSchema.code` vocabulary, so
+ * ADR-0112 puts it in the open producer-authored channel and `code` carries the
+ * registered member — `DEVICE_CODE_FAILED` for BOTH of these. `code` is
+ * consulted second only so a producer that does put the RFC spelling in the
+ * registered slot is still understood.
+ *
+ * ⛔ Closed on purpose. Every other code — `invalid_grant`, `slow_down`,
+ * whatever upstream invents next — returns `null` here and keeps rendering the
+ * wire `message`, which is both today's behaviour and the single source of
+ * truth for failures this console has no copy for. Widening this map means
+ * adding a key to all ten packs, not adding a branch here.
+ *
+ * The `t()` arguments are string literals so `check:i18n-keys` can resolve
+ * them against the `en` pack; a `Record<code, key>` read as `t(key)` is a
+ * dynamic key and that gate goes blind to it.
+ */
+function translateFailureCode(
+  t: (key: string) => string,
+  declaredCode?: unknown,
+  code?: unknown,
+): string | null {
+  for (const candidate of [declaredCode, code]) {
+    if (candidate === 'expired_token') return t('cloudConnection.errors.expired');
+    if (candidate === 'access_denied') return t('cloudConnection.errors.accessDenied');
+  }
+  return null;
+}
+
+/** An `Error` that still carries the envelope's codes — see `getJson`. */
+type ApiFailure = Error & { declaredCode?: string; code?: string };
+
 async function getJson(url: string, init?: RequestInit): Promise<any> {
   const resp = await fetch(url, {
     credentials: 'same-origin',
@@ -74,7 +110,19 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
   const body = await resp.json().catch(() => ({}));
   if (!resp.ok && body?.success !== true) {
     const msg = body?.error?.message ?? body?.error?.code ?? body?.error ?? `HTTP ${resp.status}`;
-    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    // The codes ride along. A bare `Error` dropped them, and the message was
+    // then the only thing that survived the throw — which is exactly why a
+    // SERVER-detected expiry rendered the producer's English while the same
+    // expiry noticed by this panel's own clock rendered the locale. Attached,
+    // not subclassed: extending `Error` is brittle under a downlevel target.
+    const failure: ApiFailure = Object.assign(
+      new Error(typeof msg === 'string' ? msg : JSON.stringify(msg)),
+      {
+        declaredCode: typeof body?.error?.declaredCode === 'string' ? body.error.declaredCode : undefined,
+        code: typeof body?.error?.code === 'string' ? body.error.code : undefined,
+      },
+    );
+    throw failure;
   }
   return body;
 }
@@ -86,6 +134,28 @@ export function CloudConnectionPanel() {
   const [copied, setCopied] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // `t` is a fresh function on every render under several translation
+  // providers, so it must not reach a `useCallback` dependency list that the
+  // MOUNT effect transitively depends on: `refreshStatus` is exactly that, and
+  // an unstable dep there re-runs the effect on every state update — an
+  // infinite render loop. Measured: routing `t` into `refreshStatus`'s deps
+  // timed out all nine cases in this directory's two suites at 15s. A latest-ref
+  // gives the helper the current `t` while keeping its own identity stable.
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
+
+  /**
+   * What a caught failure says to a human. One reading for all four catch
+   * sites, so no future call site can reintroduce the split this card closed.
+   */
+  const failureText = useCallback((err: unknown): string => {
+    const e = err as { declaredCode?: unknown; code?: unknown; message?: unknown } | null | undefined;
+    return (
+      translateFailureCode(tRef.current, e?.declaredCode, e?.code) ??
+      ((e?.message as string | undefined) ?? String(err))
+    );
+  }, []);
+
   const stopPolling = useCallback(() => {
     if (pollTimer.current) { clearTimeout(pollTimer.current); pollTimer.current = null; }
   }, []);
@@ -96,9 +166,9 @@ export function CloudConnectionPanel() {
       const data: StatusData = body?.data ?? { environmentId: null, bound: false, connection: null };
       setPhase(data.bound ? { kind: 'bound', status: data } : { kind: 'unbound' });
     } catch (err: any) {
-      setPhase({ kind: 'error', message: err?.message ?? String(err) });
+      setPhase({ kind: 'error', message: failureText(err) });
     }
-  }, []);
+  }, [failureText]);
 
   useEffect(() => {
     void refreshStatus();
@@ -125,13 +195,37 @@ export function CloudConnectionPanel() {
           await refreshStatus();
           return;
         }
-        setPhase({ kind: 'error', message: body?.error?.code ?? t('cloudConnection.errors.bindFailed') });
+        // `message` first, `code` only as a fallback — the same precedence
+        // `getJson` above already applies to every OTHER failure on this
+        // surface. Reading `code` alone showed a machine identifier to a human
+        // whenever the readable half was on the wire.
+        //
+        // Which bodies land here: a 2xx that says `success: false` with neither
+        // `pending` nor `bound` — i.e. the control plane's `/bind` answer,
+        // passed through verbatim with its own status. A non-2xx failure never
+        // reaches this line at all: `getJson` throws it, and the catch below
+        // renders that error's message.
+        //
+        // The chain stops at `code` deliberately. `getJson` has a third arm
+        // (`?? body?.error`) but guards it with a non-string check before use;
+        // here the last arm is the translated string, which is always safe to
+        // render, and an unguarded object would reach JSX as a child.
+        setPhase({
+          kind: 'error',
+          // The code -> copy map runs FIRST here too (objectui#5054): a body
+          // that reaches this branch carrying a spelling the console knows must
+          // read the same as the same spelling arriving on a 400, or the
+          // asymmetry just moves to a third reader.
+          message:
+            translateFailureCode(t, body?.error?.declaredCode, body?.error?.code) ??
+            body?.error?.message ?? body?.error?.code ?? t('cloudConnection.errors.bindFailed'),
+        });
       } catch (err: any) {
-        setPhase({ kind: 'error', message: err?.message ?? String(err) });
+        setPhase({ kind: 'error', message: failureText(err) });
       }
     };
     pollTimer.current = setTimeout(tick, intervalMs);
-  }, [refreshStatus, t]);
+  }, [failureText, refreshStatus, t]);
 
   const connect = useCallback(async () => {
     setBusy(true);
@@ -152,11 +246,11 @@ export function CloudConnectionPanel() {
       setPhase({ kind: 'waiting', code, popupOpened });
       poll(code, Date.now());
     } catch (err: any) {
-      setPhase({ kind: 'error', message: err?.message ?? String(err) });
+      setPhase({ kind: 'error', message: failureText(err) });
     } finally {
       setBusy(false);
     }
-  }, [poll, t]);
+  }, [failureText, poll, t]);
 
   const disconnect = useCallback(async () => {
     setBusy(true);
@@ -164,11 +258,11 @@ export function CloudConnectionPanel() {
       await getJson(`${BASE}/unbind`, { method: 'POST', body: '{}' });
       await refreshStatus();
     } catch (err: any) {
-      setPhase({ kind: 'error', message: err?.message ?? String(err) });
+      setPhase({ kind: 'error', message: failureText(err) });
     } finally {
       setBusy(false);
     }
-  }, [refreshStatus]);
+  }, [failureText, refreshStatus]);
 
   const copyCode = useCallback(async (code: string) => {
     try {

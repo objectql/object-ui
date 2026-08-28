@@ -332,10 +332,16 @@ describe('GridField / LineItemsField — editable line items', () => {
 
       // The `zh` half of this — the sub-grid following the SESSION locale
       // (objectui#4468) — lives in `__tests__/date-locale-channel.test.tsx`,
-      // not here. Mounting an `I18nProvider` anywhere in THIS file changes what
-      // the provider-less renders further down resolve, and the file-columns
-      // chip test reads a translated `aria-label`; keeping the provider in its
-      // own file keeps that coupling out of the way.
+      // grouped with the rest of the locale cases.
+      //
+      // It used to be a HAZARD rather than a preference: mounting an
+      // `I18nProvider` anywhere in this file left react-i18next's global on
+      // that provider's instance, so the file-columns chip test ~200 lines
+      // down read a Chinese `aria-label` and went red. objectui#4514 fixed
+      // that in the harness — `installI18nGlobalReset()` in
+      // `vitest.setup.base.ts` restores the global after every test, and
+      // `packages/i18n/src/__tests__/global-instance-reset.test.tsx` fails if
+      // it stops. A provider is safe to mount here now.
     });
   });
 
@@ -542,6 +548,47 @@ describe('GridField / LineItemsField — editable line items', () => {
       expect(screen.getByText('receipt.png')).toBeTruthy();
       fireEvent.click(screen.getByLabelText('Remove receipt.png'));
       expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', receipt: null }]);
+    });
+
+    it('announces a required, empty file cell on the focusable picker control (#5431)', () => {
+      const reqFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, required: true }],
+      } as any;
+      render(<GridField value={[{ receipt: null }]} onChange={() => {}} field={reqFileField} />);
+      // The VISUAL ring + testid predate #5431 and are not the assertion —
+      // the announced state is. The carrier must be the focusable picker
+      // button inside the cell, never the td wrapper (#3318 / #5223).
+      const cell = screen.getByTestId('line-items-invalid-0-receipt');
+      const carrier = cell.querySelector('[aria-invalid="true"]');
+      expect(carrier).toBeTruthy();
+      expect(carrier!.tagName).toBe('BUTTON');
+      expect(cell.getAttribute('aria-invalid')).toBeNull();
+    });
+
+    it('does not announce invalid on an optional empty file cell or on the ghost row', () => {
+      const optFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const }],
+      } as any;
+      const { container } = render(
+        <GridField value={[{ receipt: null }]} onChange={() => {}} field={optFileField} />,
+      );
+      // Data row and ghost row each render a picker; none may announce invalid.
+      expect(container.querySelector('[aria-invalid="true"]')).toBeNull();
+    });
+
+    it('stops announcing once the required file cell holds a file', () => {
+      const reqFileField = {
+        columns: [{ name: 'receipt', label: 'Receipt', type: 'file' as const, required: true }],
+      } as any;
+      const { container } = render(
+        <GridField
+          value={[{ receipt: { name: 'receipt.png', mime_type: 'image/png' } }]}
+          onChange={() => {}}
+          field={reqFileField}
+        />,
+      );
+      expect(screen.queryByTestId('line-items-invalid-0-receipt')).toBeNull();
+      expect(container.querySelector('[aria-invalid="true"]')).toBeNull();
     });
 
     it('passes the column accept list to the native picker', () => {

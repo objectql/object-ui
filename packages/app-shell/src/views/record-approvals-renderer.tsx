@@ -35,8 +35,8 @@ import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useRecordContext } from '@object-ui/react';
 import { useAuth } from '@object-ui/auth';
-import { useRecordApprovals } from '../hooks/useRecordApprovals';
-import { RecordApprovalsPanel } from './RecordApprovalsPanel';
+import { useRecordApprovals } from '../hooks/useRecordApprovals.js';
+import { RecordApprovalsPanel } from './RecordApprovalsPanel.js';
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};

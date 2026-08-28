@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+
+// The shared registration reader (objectui#4894). Types are INFERRED from the
+// .mjs source by `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error`.
+import { readComponentRegistrations } from '../component-registrations.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -101,19 +105,19 @@ import { fileURLToPath } from 'node:url';
  *
  * ## The workspace-alias trap
  *
- * The published paths are NOT the only consumption surface. Three in-repo
- * bundler configs alias `@object-ui/*` specifiers at a package's `src`
- * (`apps/console/vite.config.ts`, `examples/console-starter/vite.config.ts`,
- * `packages/fields/vite.config.ts`), and a bundler reads the SAME
- * `package.json` for those source files. PR #3940 measured it: with only the
- * `dist/*` forms declared, the console's alias shape still produced a 0-byte
- * bundle. A gate that skipped alias entries would hand a green light to a
- * package that still breaks, so the alias tables are parsed and folded into the
- * entry forms below.
+ * The published paths are NOT the only consumption surface. In-repo bundler
+ * configs alias `@object-ui/*` specifiers at a package's `src`, and a bundler
+ * reads the SAME `package.json` for those source files. PR #3940 measured it:
+ * with only the `dist/*` forms declared, the console's alias shape still
+ * produced a 0-byte bundle. A gate that skipped alias entries would hand a
+ * green light to a package that still breaks, so the alias tables are parsed
+ * and folded into the entry forms below.
  *
- * The root `vitest.config.mts` has a fourth such table and is deliberately NOT
- * read: Vitest transforms and executes modules, it does not tree-shake them, so
- * `sideEffects` has no effect on that path. It is not a bundling surface.
+ * The root `vitest.config.mts` has such a table and is deliberately NOT read:
+ * Vitest transforms and executes modules, it does not tree-shake them, so
+ * `sideEffects` has no effect on that path. It is not a bundling surface. The
+ * same reasoning scopes the parse below to `resolve.alias` and not to a
+ * `test.alias` inside a `vite.config.*`.
  *
  * ## What this gate deliberately does NOT prove
  *
@@ -247,25 +251,193 @@ interface AliasEntry {
  * Bundler configs, by strict basename.
  *
  * The strictness is load-bearing rather than tidy: a `vite.config.*` glob also
- * matches `packages/plugin-editor/vite.config.ts.timestamp-*.mjs`, a Vite
- * temp-config artifact that is git-tracked even though `.gitignore:99` names
- * the pattern (objectui#4540). It is a stale CI-runner snapshot pinned to vite
- * 5.4.21 and reading it would feed this guard a table from another era.
+ * matches `vite.config.ts.timestamp-*.mjs`, the temp-config Vite writes beside a
+ * config while loading it, and reading one would feed this guard an alias table
+ * from whenever that snapshot was taken. Being git-ignored (`.gitignore:99`) does
+ * not put it out of reach — `readAliasEntries` below walks the filesystem, so any
+ * copy a crashed or killed Vite left behind is visible here whether or not git
+ * tracks it. One such file was tracked in `packages/plugin-editor` until
+ * objectui#4540 removed it.
  */
 const BUNDLER_CONFIG_RE = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/;
 
+/** Only workspace packages are a `sideEffects` surface this repo can fix. */
+const ALIAS_SPECIFIER_PREFIX = '@object-ui/';
+
 /**
- * Alias tables parsed out of every bundler config in the workspace, as TEXT.
+ * An `@object-ui/*` key sitting in a `resolve.alias` table that the parser
+ * below could not turn into an entry. Never a silent skip: the whole failure
+ * mode this shape exists to end is a surface that shrinks without saying so.
+ */
+interface AliasParseGap {
+  config: string;
+  /** The specifier, or a description of the table when the table itself is unreadable. */
+  what: string;
+  /** The source text that was not understood, first line, clipped. */
+  text: string;
+}
+
+const aliasParseGaps: AliasParseGap[] = [];
+
+/** `x as T`, `x satisfies T`, `(x)` — spellings that wrap the node we want. */
+function unwrapExpression(node: ts.Expression): ts.Expression {
+  let current = node;
+  while (
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isParenthesizedExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+/** A property's name as text, for the spellings a config uses (`k`, `'k'`, `"k"`). */
+function propertyKey(prop: ts.PropertyAssignment): string | undefined {
+  const name = prop.name;
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) {
+    return name.text;
+  }
+  return undefined;
+}
+
+/**
+ * A `resolve()`-shaped call, whatever the callee is spelled as: bare `resolve`
+ * from `import { resolve } from 'path'`, `path.resolve`, or a renamed import
+ * like `nodePath.resolve`. The ARGUMENTS are what make it an alias target —
+ * `(__dirname | import.meta.dirname, '<relative>')` — so the callee only has to
+ * be the right function name, not the right import style.
+ */
+function resolveCallTarget(value: ts.Expression): string | undefined {
+  const call = unwrapExpression(value);
+  if (!ts.isCallExpression(call)) return undefined;
+
+  const callee = call.expression;
+  const isResolve =
+    (ts.isIdentifier(callee) && callee.text === 'resolve') ||
+    (ts.isPropertyAccessExpression(callee) && callee.name.text === 'resolve');
+  if (!isResolve) return undefined;
+
+  if (call.arguments.length !== 2) return undefined;
+  const base = call.arguments[0];
+  const isDirname =
+    (ts.isIdentifier(base) && base.text === '__dirname') ||
+    (ts.isPropertyAccessExpression(base) && base.name.text === 'dirname' && ts.isMetaProperty(base.expression));
+  if (!isDirname) return undefined;
+
+  const relative = call.arguments[1];
+  if (!ts.isStringLiteral(relative) && !ts.isNoSubstitutionTemplateLiteral(relative)) return undefined;
+  return relative.text;
+}
+
+/**
+ * The `resolve.alias` tables of one config, as expressions.
+ *
+ * Scoped to `alias` under a `resolve` property on purpose. A blind search for
+ * any `alias:` would also pick up a `test.alias`, and the header above says why
+ * that must not count: Vitest executes modules rather than tree-shaking them,
+ * so a Vitest-only alias is not a bundling surface and folding it in here would
+ * widen this gate past what it can justify.
+ *
+ * One hop of identifier indirection is followed, because two of the three
+ * tables the previous regex DID read are spelled that way — `apps/console` and
+ * `examples/console-starter` both declare `const workspaceAliases = { … }` and
+ * then write `alias: workspaceAliases`. Reading only inline literals would drop
+ * 63 of the entries this gate has been resting on, i.e. narrow the surface
+ * while claiming to widen it.
+ */
+function aliasTableExpressions(source: ts.SourceFile, config: string): ts.Expression[] {
+  const declarations = new Map<string, ts.Expression>();
+  const tables: ts.Expression[] = [];
+
+  const collectDeclarations = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      declarations.set(node.name.text, unwrapExpression(node.initializer));
+    }
+    ts.forEachChild(node, collectDeclarations);
+  };
+  collectDeclarations(source);
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAssignment(node) && propertyKey(node) === 'alias') {
+      const owner = node.parent.parent;
+      const underResolve = ts.isPropertyAssignment(owner) && propertyKey(owner) === 'resolve';
+      if (underResolve) {
+        let table = unwrapExpression(node.initializer);
+        if (ts.isIdentifier(table)) {
+          const declared = declarations.get(table.text);
+          if (declared === undefined) {
+            aliasParseGaps.push({
+              config,
+              what: `resolve.alias -> \`${table.text}\``,
+              text: 'alias table is an identifier this file does not declare',
+            });
+            ts.forEachChild(node, visit);
+            return;
+          }
+          table = declared;
+        }
+        tables.push(table);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+
+  return tables;
+}
+
+/**
+ * Alias tables parsed out of every bundler config in the workspace.
  *
  * Read as source rather than imported, for the reason
  * `vitest-config-alias-targets-3944.test.ts` gives: these configs pull in the
  * whole Vite plugin surface at module scope, and a guard that only needs a list
  * of strings should not boot that.
  *
- * Whole comment lines are stripped first so a commented-out entry cannot be
- * counted (and `examples/console-starter/vite.config.ts` documents that it
- * deliberately avoids spelling a quoted specifier inside a comment, because
- * that decoy already fooled one scan).
+ * ## Why a parser and not a regex (objectui#5158)
+ *
+ * Until #5158 this read the source TEXT with one regex that required the exact
+ * characters `path.resolve(` after a SINGLE-quoted key inside an object
+ * literal. Every config that spelled the same table any other way was not
+ * checked-and-passed, it was never looked at — measured on `main@cdac3cc20`:
+ * 70 of 196 entries read, 15 configs contributing zero. Three independent
+ * spellings were invisible, and only the first is the one #5158 opened on:
+ *
+ *   - `import { resolve } from 'path'` + `resolve(__dirname, …)` — 15 configs,
+ *     105 entries (every `packages/plugin-*` that has a table);
+ *   - the ARRAY table form, `alias: [{ find, replacement }]` — 7 entries in
+ *     `packages/components`, which a widened `(?:path\.)?resolve` regex would
+ *     still have missed because there is no `'key':` at all;
+ *   - DOUBLE-quoted keys — 14 entries in `packages/runner`, missed for a reason
+ *     that has nothing to do with `resolve` and everything to do with `'`.
+ *
+ * Three invisible spellings of one structure is the argument against
+ * enumerating spellings — the widened `(?:path\.)?` regex #5158 proposed closes
+ * the first and leaves the other two, because they do not differ on `resolve`.
+ * The AST reads the structure instead: a property of an alias table whose
+ * value is a `resolve(dirname, '<relative>')` call, however the callee, the
+ * quotes and the table are written.
+ *
+ * It also retires two decoys by construction rather than by heuristic. A
+ * `rollupOptions.output.globals` map is keyed by the same specifiers
+ * (`'@object-ui/core': 'ObjectUICore'`) and is not an alias table — outside
+ * `resolve.alias`, so it is never reached, and its values are strings, so it
+ * could not parse anyway. And a specifier quoted inside a COMMENT is not a
+ * node: the previous reader stripped whole comment LINES to approximate that,
+ * which left an entry inside a multi-line block comment counted as live, and
+ * `examples/console-starter/vite.config.ts` still carries a note that it avoids
+ * spelling a quoted specifier in prose because "that decoy already fooled one
+ * scan". The parser makes the note unnecessary rather than load-bearing.
+ *
+ * ## What is still out of reach, named
+ *
+ * `apps/console` mutates its table at runtime under an env var
+ * (`Object.assign(workspaceAliases, specDistInjection.aliases)`, gated on
+ * `OBJECTSTACK_SPEC_DIST`). A static read sees the baseline literal, which is
+ * the table every ordinary build uses, and the injected entries alias
+ * `@objectstack/spec` — not an `@object-ui/*` package, so they could not
+ * contribute an entry form here in any case.
  */
 function readAliasEntries(): AliasEntry[] {
   const entries: AliasEntry[] = [];
@@ -274,19 +446,65 @@ function readAliasEntries(): AliasEntry[] {
     for (const name of fs.readdirSync(dir)) {
       if (!BUNDLER_CONFIG_RE.test(name)) continue;
       const configPath = path.join(dir, name);
-      const source = fs
-        .readFileSync(configPath, 'utf8')
-        .split('\n')
-        .filter((line) => !/^\s*\/\//.test(line) && !/^\s*\/\*.*\*\/\s*$/.test(line))
-        .join('\n');
+      const config = path.relative(repoRoot, configPath).split(path.sep).join('/');
+      const source = ts.createSourceFile(
+        configPath,
+        fs.readFileSync(configPath, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
+      );
+      const clip = (node: ts.Node): string => node.getText(source).split('\n')[0].trim().slice(0, 120);
 
-      const re = /'(@object-ui\/[^']+)':\s*path\.resolve\(\s*(?:import\.meta\.dirname|__dirname)\s*,\s*'([^']+)'\s*\)/g;
-      for (const match of source.matchAll(re)) {
-        entries.push({
-          config: path.relative(repoRoot, configPath).split(path.sep).join('/'),
-          specifier: match[1],
-          target: path.resolve(dir, match[2]),
-        });
+      for (const table of aliasTableExpressions(source, config)) {
+        /** `[specifier, value node, node to quote in a gap report]` */
+        const pairs: [string, ts.Expression, ts.Node][] = [];
+
+        if (ts.isObjectLiteralExpression(table)) {
+          for (const prop of table.properties) {
+            if (!ts.isPropertyAssignment(prop)) continue;
+            const key = propertyKey(prop);
+            if (key === undefined || !key.startsWith(ALIAS_SPECIFIER_PREFIX)) continue;
+            pairs.push([key, prop.initializer, prop]);
+          }
+        } else if (ts.isArrayLiteralExpression(table)) {
+          for (const element of table.elements) {
+            const entry = unwrapExpression(element);
+            if (!ts.isObjectLiteralExpression(entry)) continue;
+            let find: ts.Expression | undefined;
+            let replacement: ts.Expression | undefined;
+            for (const prop of entry.properties) {
+              if (!ts.isPropertyAssignment(prop)) continue;
+              if (propertyKey(prop) === 'find') find = unwrapExpression(prop.initializer);
+              if (propertyKey(prop) === 'replacement') replacement = prop.initializer;
+            }
+            // A `find` that is not a plain string is a RegExp matcher, which
+            // names no single specifier and cannot yield an entry form.
+            if (find === undefined) continue;
+            if (!ts.isStringLiteral(find) && !ts.isNoSubstitutionTemplateLiteral(find)) continue;
+            if (!find.text.startsWith(ALIAS_SPECIFIER_PREFIX)) continue;
+            if (replacement === undefined) {
+              aliasParseGaps.push({ config, what: find.text, text: clip(entry) });
+              continue;
+            }
+            pairs.push([find.text, replacement, entry]);
+          }
+        } else {
+          aliasParseGaps.push({
+            config,
+            what: `resolve.alias (${ts.SyntaxKind[table.kind]})`,
+            text: clip(table),
+          });
+          continue;
+        }
+
+        for (const [specifier, value, node] of pairs) {
+          const relative = resolveCallTarget(value);
+          if (relative === undefined) {
+            aliasParseGaps.push({ config, what: specifier, text: clip(node) });
+            continue;
+          }
+          entries.push({ config, specifier, target: path.resolve(dir, relative) });
+        }
       }
     }
   }
@@ -788,19 +1006,49 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
     expect(Array.isArray(layout!.declared), '@object-ui/layout must still declare the ARRAY form').toBe(true);
   });
 
-  it('parses the workspace alias tables (the surface `exports` cannot see)', () => {
-    // Anti-vacuity for the alias derivation specifically. If the regex stops
-    // matching — a config reformatted, `import.meta.dirname` swapped for
-    // something else — every alias entry silently disappears from the entry
-    // forms, and this gate goes back to blessing exactly the shape PR #3940
-    // measured as still-broken.
+  it('reads every `@object-ui/*` alias table entry in the workspace, whatever its spelling', () => {
+    // objectui#5158's assertion, and the one that has to be DERIVED rather than
+    // listed. The defect it closes was not a wrong verdict, it was a
+    // measurement surface that had quietly stopped covering most of the
+    // workspace while every assertion below it stayed green — 70 of 196 entries
+    // read, 15 configs contributing zero. A census written out as a literal
+    // list is the same failure waiting to happen, so both sides of this
+    // reconciliation come out of the scan.
+    //
+    // The independent side is the KEY census: every `@object-ui/*` key that
+    // sits in a `resolve.alias` table, counted without looking at its value.
+    // The parsed side additionally has to understand the value. They agree
+    // exactly when no spelling escaped — so the gap list IS the reconciliation,
+    // and a fourth spelling arriving tomorrow fails here by name instead of
+    // shrinking the surface in silence.
+    expect(
+      aliasParseGaps.map((gap) => `${gap.config}: ${gap.what} — ${gap.text}`),
+      [
+        'An `@object-ui/*` entry sits in a `resolve.alias` table and this guard could not read it,',
+        'so the package it aliases is missing an entry form and is being judged on an incomplete',
+        'surface — the exact objectui#5158 defect, in a new spelling.',
+        '',
+        'Teach `readAliasEntries()` the spelling. Do NOT narrow the table or delete the entry to',
+        'make this pass: a surface that shrinks is how this went unnoticed for so long.',
+        '',
+        ...aliasParseGaps.map((gap) => `  ${gap.config}: ${gap.what} — ${gap.text}`),
+      ].join('\n'),
+    ).toEqual([]);
+
+    // A floor, not a fossil: it catches the collapse (a broken walk, a renamed
+    // field, a parser that stopped matching) without going red every time a
+    // package gains an alias. Measured on main@cdac3cc20: 196 entries across 20
+    // configs, up from the 70 across 3 that the pre-#5158 regex could see.
     const configs = [...new Set(aliasEntries.map((a) => a.config))].sort();
-    expect(configs).toEqual([
-      'apps/console/vite.config.ts',
-      'examples/console-starter/vite.config.ts',
-      'packages/fields/vite.config.ts',
-    ]);
-    expect(aliasEntries.length).toBeGreaterThanOrEqual(60);
+    expect(aliasEntries.length, 'the alias surface collapsed — see readAliasEntries()').toBeGreaterThanOrEqual(150);
+    expect(configs.length, 'the alias surface collapsed to a handful of configs').toBeGreaterThanOrEqual(18);
+
+    // Named specimens of the three spellings #5158 found invisible, so a
+    // regression to "only `path.resolve(` after a single-quoted key" fails here
+    // with the reason attached rather than as a number that moved.
+    expect(configs, 'bare `resolve(` (objectui#5158)').toContain('packages/plugin-editor/vite.config.ts');
+    expect(configs, 'the `{ find, replacement }` table form').toContain('packages/components/vite.config.ts');
+    expect(configs, 'double-quoted keys').toContain('packages/runner/vite.config.ts');
 
     // The trap, named: `@object-ui/layout` aliased at `packages/layout/src` is
     // the entry form that made the console's bundle 0 bytes while every
@@ -812,6 +1060,56 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
     ]);
     for (const alias of layoutAliases) {
       expect(alias.target).toBe(path.join(repoRoot, 'packages/layout/src'));
+    }
+  });
+
+  it('the three spellings objectui#5158 uncovered each parse to a real target', () => {
+    // The widening asserted as CONTENT, not only as a count. Each case is a
+    // different reason the pre-#5158 regex read nothing, and each is pinned on
+    // an entry that must resolve to a module — so "the config is in the census"
+    // cannot pass on an entry that parsed to nonsense.
+    const entryFor = (config: string, specifier: string): AliasEntry | undefined =>
+      aliasEntries.find((a) => a.config === config && a.specifier === specifier);
+
+    // 1. `import { resolve } from 'path'` — 15 `packages/plugin-*` configs.
+    const bare = entryFor('packages/plugin-editor/vite.config.ts', '@object-ui/core');
+    expect(bare?.target).toBe(path.join(repoRoot, 'packages/core/src'));
+
+    // 2. The array table form, `alias: [{ find, replacement }]`.
+    const arrayForm = entryFor('packages/components/vite.config.ts', '@object-ui/core');
+    expect(arrayForm?.target).toBe(path.join(repoRoot, 'packages/core/src'));
+
+    // 3. Double-quoted keys.
+    const doubleQuoted = entryFor('packages/runner/vite.config.ts', '@object-ui/core');
+    expect(doubleQuoted?.target).toBe(path.join(repoRoot, 'packages/core/src'));
+
+    // And a target spelled as a FILE rather than a directory, which is the one
+    // shape where `resolveAliasModule` has to not append `index.*`.
+    const file = entryFor('packages/plugin-map/vite.config.ts', '@object-ui/core');
+    expect(file?.target).toBe(path.join(repoRoot, 'packages/core/src/index.ts'));
+    for (const entry of [bare, arrayForm, doubleQuoted, file]) {
+      expect(resolveAliasModule(entry!.target), `${entry!.config}: ${entry!.specifier} resolves to no module`).toBeDefined();
+    }
+  });
+
+  it('a `globals` map keyed by the same specifiers is not read as an alias table', () => {
+    // The false positive the widening had to avoid. Every `plugin-*` library
+    // config carries `rollupOptions.output.globals`, keyed by the SAME
+    // `@object-ui/*` specifiers and valued with UMD global names, and
+    // `packages/plugin-calendar` / `plugin-chatbot` / `plugin-gantt` carry one
+    // while their `resolve.alias` table has no `@object-ui/*` entry at all.
+    // Those three are therefore the clean control: if a globals map were being
+    // read as aliases, they would appear in the census.
+    const configs = new Set(aliasEntries.map((a) => a.config));
+    for (const config of [
+      'packages/plugin-calendar/vite.config.ts',
+      'packages/plugin-chatbot/vite.config.ts',
+      'packages/plugin-gantt/vite.config.ts',
+    ]) {
+      expect(fs.readFileSync(path.join(repoRoot, config), 'utf8'), `${config} must still carry the decoy`).toContain(
+        "'@object-ui/core': 'ObjectUICore'",
+      );
+      expect(configs.has(config), `${config}: a \`globals\` map was read as an alias table`).toBe(false);
     }
   });
 
@@ -1140,20 +1438,50 @@ describe('objectui#3899 specimen: @object-ui/layout registers through the source
     // a test asserting a component that does not exist. (`SidebarNav` reaches
     // the registry under NO key at all — it is consumed as a plain React
     // component in JSX, corrected in objectui#3999.)
-    const registeredKeys = [
-      ...fs.readFileSync(path.join(layoutSrc, 'index.ts'), 'utf8').matchAll(/ComponentRegistry\.register\(\s*'([^']+)'/g),
-    ].map((match) => match[1]);
+    //
+    // The read is `scripts/component-registrations.mjs` (objectui#4894), shared
+    // with the three pins in `packages/layout/src/__tests__/`. It replaced four
+    // copies of a regex that accepted a single-quoted key and nothing else, and
+    // this file was the copy whose failure was SILENT: see the census note below.
+    const registrations = readComponentRegistrations(
+      fs.readFileSync(path.join(layoutSrc, 'index.ts'), 'utf8'),
+      'packages/layout/src/index.ts',
+    );
+    const registeredKeys = registrations.keys;
 
-    // A floor, not a census: it exists so a regex that stops matching cannot
-    // turn the loop below into a no-op. It read `6` until objectui#4841
-    // deregistered `app-shell` (ADR-0049 remove side), which is the one way this
-    // number is allowed to move — DOWN, with a register call deleted in the same
-    // commit. The keys themselves are pinned by name in
+    // A CENSUS, not a floor — and this is the half of objectui#4894 that widening
+    // a regex does not fix.
+    //
+    // This assertion read `toBeGreaterThanOrEqual(5)`, and its own comment said
+    // "a floor, not a census". A floor cannot see a key that is MISSING FROM THE
+    // READ: "five single-quoted calls plus one double-quoted call" satisfied it,
+    // so the sixth key's "survives the side-effect-only bundle" assertion simply
+    // never ran, and nothing anywhere went red. Of the four pins on this key
+    // list, this was the one that failed in silence — the two doc-parity pins at
+    // least reddened (with a backwards message), and the `app-shell` pin has a
+    // live-registry second line of defence.
+    //
+    // An exact LITERAL was the other candidate and is worse: it read `6` until
+    // objectui#4841 deregistered `app-shell`, and a number kept here reds on every
+    // legitimate registration added — which is how an exact count gets loosened
+    // back to a floor by the next person who adds a key. So the count is exact and
+    // DERIVED: every `ComponentRegistry.register` call the reader saw in code has
+    // to have yielded a key it could read. Add a key and it still holds; write one
+    // in a form the reader cannot see and it does not.
+    //
+    // The shared reader refuses a partial read at source — it throws rather than
+    // returning a short list — so on today's tree this line cannot be the thing
+    // that reddens first. It is stated here anyway, because it is the fact THIS
+    // loop depends on, and it is what still holds the loop honest if that refusal
+    // is ever relaxed. The keys themselves are pinned by name in
     // `packages/layout/src/__tests__/guide-layout-sidebar-nav-doc.test.ts`.
     expect(
       registeredKeys.length,
-      'No `ComponentRegistry.register` call found in src/index.ts — the loop below would assert nothing.',
-    ).toBeGreaterThanOrEqual(5);
+      `src/index.ts has ${registrations.calls} \`ComponentRegistry.register\` call(s) but only ` +
+        `${registeredKeys.length} readable key(s), so the loop below would skip one in silence. ` +
+        'Unreadable: ' +
+        (registrations.unreadable.map((c: { line: number }) => `line ${c.line}`).join(', ') || 'none'),
+    ).toBe(registrations.calls);
 
     for (const key of registeredKeys) {
       expect(code, `the \`${key}\` registration must survive a side-effect-only import`).toContain(key);

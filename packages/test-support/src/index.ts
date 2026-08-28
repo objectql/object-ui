@@ -29,3 +29,16 @@ export {
   leakReport,
 } from './dom-leak-judge';
 export type { Leak } from './dom-leak-judge';
+
+export {
+  RETIRED_DESCRIPTION_PREFIX,
+  authorableShapeKeys,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  resolvePropsShape,
+  shapeMemberTypeName,
+  tombstoneEvidence,
+  tombstonedShapeKeys,
+} from './spec-tombstones';
+
+export { shapeEnumOptions } from './spec-enum-options';

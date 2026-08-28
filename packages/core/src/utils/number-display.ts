@@ -116,9 +116,13 @@ export interface DisplayNumberFormatOptions {
    * repo's runner, `80.175` percentage points formatted to 2 decimals renders
    * `80.18%` when formatted directly and `80.17%` after the divide-and-remultiply
    * — 27,581 of 1,200,013 ordinary-magnitude en-US forms move, plus every
-   * value at the top of the double range (`MAX_SAFE_INTEGER`, `1e23`). A caller
-   * holding percentage points must therefore NOT reach for `'percent'`; that is
-   * exactly the trap this option removes.
+   * value at the top of the double range (`MAX_SAFE_INTEGER`, `1e23`). That
+   * count is objectui#4576's tie-dense grid — 0.005 steps to 2,000, precisions
+   * 0/1/2 — measured on `formatDisplayNumber` / `formatMeasure`'s call shape.
+   * objectui#4590 re-measured the same route through `formatPercent` and
+   * reports 27,577 of 1,200,003: a different form set, not a correction of this
+   * one. A caller holding percentage points must therefore NOT reach for
+   * `'percent'`; that is exactly the trap this option removes.
    *
    * `'percentPoints'` is implemented with `Intl`'s `style: 'unit'` /
    * `unit: 'percent'`, which was measured to produce a BYTE-IDENTICAL percent

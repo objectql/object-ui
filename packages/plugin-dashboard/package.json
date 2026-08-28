@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-dashboard",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "license": "MIT",
   "description": "Dashboard plugin for Object UI",
@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@object-ui/plugin-charts": "workspace:*",
+    "@object-ui/sdui-parser": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "@types/react-grid-layout": "^2.1.0",
     "@vitejs/plugin-react": "^6.0.5",

@@ -9,8 +9,7 @@ Get up and running with ObjectUI in a small Vite app. This guide installs the co
 
 ## Prerequisites
 
-- **Node.js** 20+
-- **pnpm** 9+ or npm/yarn
+- **Node.js** and **pnpm** (or npm/yarn) — ObjectUI is tested on Node 22.x with pnpm 10.x.
 - Basic knowledge of **React** and **TypeScript**
 
 ## Step 1: Create a React Project
@@ -40,6 +39,7 @@ pnpm add -D tailwindcss @tailwindcss/vite
 
 Add Tailwind to your `vite.config.ts`:
 
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's own project: @vitejs/plugin-react and @tailwindcss/vite are the reader's dependencies, not this repository's, so the imports cannot resolve here -->
 ```ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -61,6 +61,15 @@ Add to your `src/index.css`:
 Each `style.css` is a stylesheet the package compiles from its own sources at build time, and between them they carry every utility ObjectUI renders with — the themed ones (`bg-primary`, `border-input`) included.
 
 **Import them in that order.** `@object-ui/components/style.css` is the complete sheet: Tailwind's base layer, the `@theme` tokens and the utilities its components use. `@object-ui/fields/style.css` is a small supplement on top of it — only the ~155 utilities the field widgets add and the components sheet does not already carry, which is why it is a few kB rather than another 170. It is not a standalone stylesheet, and on its own it will not style anything.
+
+**Plugin packages that publish a stylesheet need one line each.** `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` ship the same kind of supplement, built the same way, so add whichever of them you install:
+
+```css
+@import "@object-ui/plugin-grid/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
+Without that line the plugin renders with no themed styling at all — its `bg-muted/10`, `bg-card/60` and `text-muted-foreground/60` have no other source in a published app, because the `@theme` block they resolve lives in package source that is never published ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)). The remaining `@object-ui/plugin-*` packages ship no stylesheet yet; importing one that does not exist breaks the build, so add only the lines above.
 
 That is the whole styling setup: you do not add `@source` lines for the ObjectUI packages, and pointing Tailwind at them inside `node_modules` only regenerates utilities these imports already gave you.
 

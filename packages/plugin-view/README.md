@@ -26,24 +26,108 @@ pnpm add @object-ui/plugin-view
 ```typescript
 // In your app entry point (e.g., App.tsx or main.tsx)
 import '@object-ui/plugin-view';
+import type { ObjectViewSchema } from '@object-ui/types';
 
 // Now you can use view types in your schemas
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'grid'
+  objectName: 'users', // required — the ObjectQL object name
+  defaultViewType: 'grid',
 };
 ```
 
-### Manual Registration
+The object name key is **`objectName`**, and it is the only required key besides
+`type`. There is no `object`, `viewMode`, `fields`, `mode` or `recordId` key on
+this node — see "Schema API" below for the keys `ObjectView` actually reads.
+
+### What the side-effect import registers
+
+Registration is *only* a side effect of importing the package — the single
+`import '@object-ui/plugin-view'` above is the whole of it. There is no
+components map to iterate over: importing the entry point runs the
+`ComponentRegistry.register(...)` calls in `src/index.tsx`, which claim these
+schema types:
+
+| Schema `type` | Namespaced key | Renderer |
+| --- | --- | --- |
+| `object-view` | `plugin-view:object-view` | `ObjectViewRenderer` |
+| `view` | `plugin-view:view` | `ObjectViewRenderer` (alias of `object-view`) |
+| `view-switcher` | `view:view-switcher` | `ViewSwitcher` |
+| `filter-ui` | `view:filter-ui` | `FilterUI` |
+| `sort-ui` | `view:sort-ui` | `SortUI` |
+| `shared-view-link` | `view:shared-view-link` | `SharedViewLink` |
+| `view:simple` | `plugin-view:view:simple` | `SimpleViewRenderer` (container) |
+
+Both spellings resolve — `register` stores the namespaced key *and* a bare-`type`
+fallback (`packages/core/src/registry/Registry.ts:195,240`). Note the namespaces
+are not uniform: `object-view` / `view` / `view:simple` register under
+`plugin-view`, the four control components under `view`.
+
+`ObjectViewRenderer` is a thin internal wrapper — it pulls `dataSource` off the
+renderer context and hands the schema to `ObjectView`. It is not exported,
+because `ObjectView` itself takes `dataSource` as a **required prop**, not as a
+schema key.
+
+### Public exports
+
+The package exports components, helpers and their types — not a registry map:
 
 ```typescript
-import { viewComponents } from '@object-ui/plugin-view';
-import { ComponentRegistry } from '@object-ui/core';
+import {
+  ObjectView, // ObjectQL-integrated view: list + integrated create/edit
+  ViewSwitcher, // registered renderer for `view-switcher`
+  FilterUI, // registered renderer for `filter-ui`
+  SortUI, // registered renderer for `sort-ui`
+  SharedViewLink, // registered renderer for `shared-view-link`
+  ViewTabBar, // horizontal strip of saved-view tabs
+  ManageViewsDialog, // sortable dialog over every saved view
+  deriveRecordSurface, // record schema -> drawer / modal / page surface
+  deriveRecordFlowSurface,
+  deriveOverlaySize,
+  overlayWidthFor,
+  RECORD_SURFACE_PAGE_THRESHOLD,
+  deriveFieldOptions, // object fields -> picker options
+  toFilterGroup, // filter rules -> FilterGroup
+  toSortItems, // sort config ({ field, order }) -> SortItem[]
+  VIEW_TYPE_LABELS,
+  VIEW_TYPE_OPTIONS,
+  isImageLikeField,
+  isGeoLikeField,
+  pickPreferredField,
+  KANBAN_GROUP_PREFERRED,
+  PRIMARY_DATE_PREFERRED,
+  END_DATE_PREFERRED,
+  TITLE_PREFERRED,
+} from '@object-ui/plugin-view';
 
-// Register view components
-Object.entries(viewComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+import type {
+  ObjectViewProps,
+  ViewSwitcherProps,
+  FilterUIProps,
+  SortUIProps,
+  SharedViewLinkProps,
+  ViewTabBarProps,
+  ViewTabItem,
+  AvailableViewType,
+  ManageViewsDialogProps,
+  RecordSurface,
+  RecordFlow,
+  RecordFlowContainer,
+  RecordFlowSurface,
+  OverlaySize,
+  FieldOption,
+} from '@object-ui/plugin-view';
+```
+
+To serve one of these components under a registry key of your own, register the
+exported component under that key:
+
+```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import { ViewSwitcher } from '@object-ui/plugin-view';
+
+ComponentRegistry.register('my-switcher', ViewSwitcher, {
+  namespace: 'my-app',
 });
 ```
 
@@ -51,21 +135,124 @@ Object.entries(viewComponents).forEach(([type, component]) => {
 
 ### ObjectView
 
-Unified view component for ObjectQL objects:
+Unified view component for ObjectQL objects. The keys below are the ones
+`ObjectView` reads off the schema node (`src/ObjectView.tsx`); every example in
+this README is typed with `ObjectViewSchema` from `@object-ui/types`, so a
+missing `objectName` fails to compile.
 
 ```typescript
-{
+import type { ObjectViewSchema } from '@object-ui/types';
+
+const shape: ObjectViewSchema = {
   type: 'object-view',
-  object: string,                 // ObjectQL object name
-  viewMode?: 'grid' | 'form' | 'detail',
-  fields?: string[],              // Fields to display
-  dataSource?: DataSource,
-  onCreate?: (data) => void,
-  onUpdate?: (id, data) => void,
-  onDelete?: (id) => void,
-  className?: string
-}
+  objectName: 'users', // required — ObjectQL object name
+  title: 'Users',
+  description: 'Everyone with an account',
+
+  // --- List surface ---
+  defaultViewType: 'grid', // grid | kanban | gallery | calendar | timeline | gantt | map
+  listViews: { all: { label: 'All Users' } }, // named views; each needs a `label`
+  defaultListView: 'all',
+  table: { columns: ['name', 'email'] }, // grid configuration (see below)
+
+  // --- Record surface (create / edit / read) ---
+  layout: 'drawer', // drawer | modal | page
+  form: { showSubmit: true }, // form configuration (see below)
+  navigation: { mode: 'drawer' }, // row-click behaviour
+  onNavigate: (recordId, mode) => {}, // required by layout/navigation 'page'
+
+  // --- Toolbar ---
+  showSearch: true,
+  showFilters: true,
+  showSort: true,
+  showCreate: true,
+  showViewSwitcher: false, // default false
+  allowCreateView: false,
+  viewActions: [{ type: 'share' }],
+
+  // --- Built-in CRUD toggles ---
+  operations: { create: true, read: true, update: true, delete: true },
+};
 ```
+
+Three structural facts this component's schema does **not** work the way an
+older version of this README claimed:
+
+- **`dataSource` is not a schema key.** It is a **required prop** of
+  `ObjectViewProps` (`src/ObjectView.tsx`). Pass it to `<ObjectView>` directly,
+  or let the registered renderer pull it off `SchemaRendererProvider` context.
+  Putting `dataSource` inside the schema object does nothing.
+- **There is no `viewMode`, and no per-record `mode` / `recordId`.** The list
+  type is `defaultViewType` (plus `listViews` / `defaultListView`); create,
+  edit and read are internal states of one record surface, opened by the
+  toolbar's create button and by row actions, and rendered as a drawer, a modal
+  or a page according to `layout`. Accordingly `ObjectViewSchema['form']` omits
+  `mode` — the component sets it.
+- **There are no `onCreate` / `onUpdate` / `onDelete` / `onSubmit` callbacks.**
+  The component performs mutations itself through the `dataSource`. What you
+  can author is `operations` (booleans that enable or disable each built-in)
+  and `onNavigate(recordId, mode)`, which hands off to your router when the
+  record surface is a page.
+
+#### `table` and `form` sub-configuration
+
+`table` carries grid configuration and `form` carries form configuration, but
+`ObjectView` forwards a **fixed set of keys** from each rather than passing the
+object through. Anything else you put in them is ignored:
+
+| Sub-config | Keys `ObjectView` forwards |
+| --- | --- |
+| `table` | `columns`, `fields`, `title`, `description`, `filter`, `defaultFilters`, `sort`, `defaultSort`, `pagination`, `pageSize`, `selection`, `selectable`, `operations`, `className` |
+| `form` | `fields`, `customFields`, `sections`, `groups`, `layout`, `columns`, `title`, `description`, `subforms`, `buttons`, `defaults`, `initialValues`, `readOnly`, `showSubmit`, `submitText`, `showCancel`, `cancelText`, `showReset`, `className` |
+
+Four of the forwarded `table` keys are pairs — a canonical `ObjectGridSchema`
+key and the `@deprecated` legacy spelling it replaced. As of objectui#5102 the
+canonical spelling **takes effect** on every rendering path (the grid, and the
+non-grid `kanban` / `gallery` / `calendar` / `timeline` / `gantt` / `map`
+renderers); the legacy spelling on the right keeps working as an alias, it is
+just no longer the one to reach for:
+
+| write this (canonical) | not this (legacy alias — still works) |
+| --- | --- |
+| `pagination: { pageSize, pageSizeOptions? }` | `pageSize: number` |
+| `selection: { type: 'single' \| 'multiple' \| 'none' }` | `selectable: boolean \| 'single' \| 'multiple'` |
+| `filter: [{ field, operator, value }, …]` (same shape as a named view's `filter`) | `defaultFilters: Record<field, value>` (equality-only) |
+| `sort: 'field direction'` or `SortConfig[]` | `defaultSort: { field, order }` (**no string form** — that arity only exists on `sort`) |
+
+**Precedence when a key is written both ways** — `table: { pagination: {
+pageSize: 10 }, pageSize: 50 }`, say — the canonical spelling wins. That is
+`ObjectGrid`'s own existing resolution (`schema.pagination?.pageSize ||
+schema.pageSize`; `if (schema.selection?.type) … else if (schema.selectable
+!== undefined)`; `schemaFilter !== undefined ? … : schema.defaultFilters`;
+`schemaSort ?? (schema.defaultSort ? [schema.defaultSort] : undefined)`), and
+`ObjectView` defers to it by forwarding both slots rather than re-resolving
+the pair itself:
+
+```typescript
+const schema: ObjectViewSchema = {
+  type: 'object-view',
+  objectName: 'products',
+  table: {
+    pagination: { pageSize: 10 }, // wins
+    pageSize: 50, // ignored while `pagination` is present
+  },
+};
+```
+
+`filter` / `sort` have one more tier ahead of `table` entirely, and it
+predates this change: an **active named view's own** `filter` / `sort`
+(`listViews.<name>.filter` / `.sort`) always outranks anything written on
+`table`. In order, highest first: the active named view's `filter`/`sort`,
+then `table.filter`/`table.sort`, then `table.defaultFilters`/
+`table.defaultSort`. (If you never write `listViews`, that first tier never
+applies.) `pagination` and `selection` have no such tier, and no effect
+outside the grid — the non-grid renderers don't page or multi-select, so
+`ObjectView` never forwards either spelling to them.
+
+`columns` is the one forwarded `table` key that is **not** part of this
+canonical/legacy story, and it has an unrelated gap: it is forwarded on the
+grid path only, so on a non-grid `defaultViewType` the field list still comes
+from `table.fields` (objectui#5269, open).
 
 ### ViewSwitcher
 
@@ -126,111 +313,165 @@ Configure sorting with dropdowns or buttons:
 
 ## Examples
 
-### Grid View
+### Choosing the list type
 
-Display objects in a data grid:
+The list is always rendered; `defaultViewType` picks which renderer draws it,
+and `table` configures the grid:
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'grid',
-  fields: ['name', 'email', 'role', 'created_at'],
-  dataSource: myDataSource
+  objectName: 'users',
+  defaultViewType: 'grid',
+  table: {
+    columns: ['name', 'email', 'role', 'created_at'],
+    sort: 'created_at desc', // or [{ field: 'created_at', order: 'desc' }]
+  },
 };
 ```
 
-### Form View
+Non-grid types (`kanban`, `gallery`, `calendar`, `timeline`, `gantt`, `map`)
+are rendered through `SchemaRenderer`, so `@object-ui/react` and the matching
+plugin must be installed for those.
 
-Create or edit objects with a form:
+### Configuring the record form
+
+Create and edit share one record surface. `layout` chooses where it opens and
+`form` configures what it contains — there is no separate "form view" node and
+no authored `mode`:
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'form',
-  mode: 'create',
-  fields: ['name', 'email', 'role'],
-  onSubmit: (data) => {
-    console.log('Form submitted:', data);
-  }
+  objectName: 'users',
+  layout: 'drawer', // drawer | modal | page
+  form: {
+    fields: ['name', 'email', 'role'],
+    submitText: 'Save user',
+    showCancel: true,
+  },
 };
 ```
 
-### Detail View
+When `layout` is omitted, the surface is derived from how heavy the object is
+(`deriveRecordSurface`): a field-heavy object opens as a page, a light one as a
+drawer, and mobile always pages.
 
-Display a single object's details:
+### Opening a record
+
+Reading a record is the same surface in its read state, reached by clicking a
+row. `navigation.mode` decides how, and `onNavigate` is what hands a page-mode
+record off to your router:
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'detail',
-  recordId: '123',
-  fields: ['name', 'email', 'role', 'bio', 'created_at']
+  objectName: 'users',
+  layout: 'page',
+  navigation: { mode: 'page' }, // none | drawer | modal | page | split | popover | new_window
+  onNavigate: (recordId, mode) => {
+    // mode is 'view' or 'edit'
+    router.push(`/users/${recordId}${mode === 'edit' ? '/edit' : ''}`);
+  },
 };
 ```
+
+Without an `onNavigate` handler, `page` mode has nowhere to send the user, so
+keep the two together. `navigation: { mode: 'none' }` (or `preventNavigation`)
+makes rows inert.
 
 ## CRUD Operations
 
+All four operations are built in and run against the `dataSource` prop. You do
+not wire handlers for them — you switch them on or off with `operations`, and
+`show*` controls whether the matching toolbar affordance is visible.
+
 ### Create
 
+`operations.create` enables record creation; `showCreate` shows the button.
+Both default to on, and the new-record form opens on the `layout` surface:
+
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'products',
-  viewMode: 'form',
-  mode: 'create',
-  onCreate: async (data) => {
-    const newProduct = await dataSource.create('products', data);
-    console.log('Created:', newProduct);
-  }
+  objectName: 'products',
+  showCreate: true,
+  operations: { create: true },
+  layout: 'drawer',
+  form: { fields: ['name', 'price', 'category'] },
 };
 ```
 
+With `layout: 'page'`, creation calls `onNavigate('new', 'edit')` instead of
+opening a drawer, so the host route owns the form.
+
 ### Read/List
 
+Search, filter and sort are toolbar toggles; column set, filter, sort and page
+size live in `table`:
+
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'products',
-  viewMode: 'grid',
-  pagination: true,
-  searchable: true,
-  filters: {
-    category: 'electronics'
-  }
+  objectName: 'products',
+  defaultViewType: 'grid',
+  showSearch: true,
+  showFilters: true,
+  showSort: true,
+  table: {
+    columns: ['name', 'price', 'category'],
+    filter: [{ field: 'category', operator: 'equals', value: 'electronics' }],
+    pagination: { pageSize: 25 },
+  },
+};
+```
+
+Saved views are `listViews`, keyed by view name, with `defaultListView`
+selecting which opens first:
+
+```typescript
+const schema: ObjectViewSchema = {
+  type: 'object-view',
+  objectName: 'products',
+  listViews: {
+    all: { label: 'All Products', type: 'grid', columns: ['name', 'price'] },
+    cheap: {
+      label: 'Under 100',
+      type: 'grid',
+      filter: [{ field: 'price', operator: 'lessThan', value: 100 }],
+    },
+  },
+  defaultListView: 'all',
 };
 ```
 
 ### Update
 
+Editing is reached from a row's edit action; `operations.update` is what gates
+it. The edited record is chosen by the click, never by an authored `recordId`:
+
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'products',
-  viewMode: 'form',
-  mode: 'edit',
-  recordId: '123',
-  onUpdate: async (id, data) => {
-    await dataSource.update('products', id, data);
-    console.log('Updated product:', id);
-  }
+  objectName: 'products',
+  operations: { update: true },
+  layout: 'modal',
+  form: { fields: ['name', 'price'], submitText: 'Update' },
 };
 ```
 
+Under `layout: 'page'` this becomes `onNavigate(recordId, 'edit')`.
+
 ### Delete
 
+`operations.delete` enables both the per-row delete and bulk delete; there is
+no `enableDelete` key and no `onDelete` callback:
+
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'products',
-  viewMode: 'grid',
-  enableDelete: true,
-  onDelete: async (id) => {
-    await dataSource.delete('products', id);
-    console.log('Deleted product:', id);
-  }
+  objectName: 'products',
+  operations: { create: true, read: true, update: true, delete: false },
 };
 ```
 
@@ -238,109 +479,147 @@ const schema = {
 
 The plugin works seamlessly with ObjectStack:
 
+The adapter is the `dataSource` **prop**, not part of the schema:
+
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import { ObjectView } from '@object-ui/plugin-view';
+import type { ObjectViewSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
-  token: 'your-auth-token'
+  token: 'your-auth-token',
 });
 
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'contacts',
-  viewMode: 'grid',
-  dataSource,
-  fields: ['first_name', 'last_name', 'email', 'company'],
-  searchable: true,
-  sortable: true,
-  pagination: {
-    pageSize: 25
-  }
+  objectName: 'contacts',
+  defaultViewType: 'grid',
+  showSearch: true,
+  showSort: true,
+  table: {
+    columns: ['first_name', 'last_name', 'email', 'company'],
+    pagination: { pageSize: 25 },
+  },
 };
+
+<ObjectView schema={schema} dataSource={dataSource} />;
 ```
+
+Rendering the same node through the registry instead (`type: 'object-view'` in
+a larger schema tree) works because `ObjectViewRenderer` reads the
+`dataSource` off `SchemaRendererProvider` context — again, not off the schema.
 
 ## Field Configuration
 
-Customize field display and behavior:
+There is no `fieldConfig` key. Labels, types, requiredness and validation come
+from the object's own metadata, which the view reads through the `dataSource` —
+that is what makes the view "automatic". What the schema node chooses is
+**which** fields appear and how they are grouped:
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'form',
-  fieldConfig: {
-    name: {
-      label: 'Full Name',
-      required: true,
-      placeholder: 'Enter name'
-    },
-    email: {
-      label: 'Email Address',
-      type: 'email',
-      required: true,
-      validation: [
-        { type: 'email', message: 'Invalid email format' }
-      ]
-    },
-    role: {
-      label: 'User Role',
-      type: 'select',
-      options: [
-        { label: 'Admin', value: 'admin' },
-        { label: 'User', value: 'user' },
-        { label: 'Guest', value: 'guest' }
-      ]
-    }
-  }
+  objectName: 'users',
+  table: {
+    columns: ['name', 'email', 'role'], // grid columns
+  },
+  form: {
+    fields: ['name', 'email', 'role'], // flat field list, or use sections
+    sections: [
+      { label: 'Identity', fields: ['name', 'email'] },
+      { label: 'Access', fields: ['role'] },
+    ],
+    columns: 2,
+  },
 };
 ```
+
+To override a field's rendering beyond what the object metadata says, use
+`form.customFields` (full field definitions) rather than a per-field patch on
+the view node.
 
 ## Advanced Features
 
-### Nested Objects
+### Child records (master-detail)
+
+There is no `nestedFields` key. A child collection is declared as a **subform**
+on the record form, which is where an order's line items belong:
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'orders',
-  viewMode: 'detail',
-  fields: ['order_number', 'customer.name', 'items', 'total'],
-  nestedFields: {
-    items: {
-      type: 'object-grid',
-      object: 'order_items',
-      fields: ['product.name', 'quantity', 'price']
-    }
-  }
+  objectName: 'orders',
+  layout: 'page',
+  form: {
+    fields: ['order_number', 'customer', 'total'],
+    subforms: [
+      {
+        childObject: 'order_items',
+        title: 'Line items',
+        columns: ['product', 'quantity', 'price'],
+      },
+    ],
+  },
 };
 ```
 
-### Tabs View
+Only `childObject` is required — the relationship field and the grid columns are
+derived from the child object's metadata unless you override them
+(`relationshipField`, `columns`).
+
+### View tabs
+
+There is no `tabs` key, and `form.layout` has no tabbed value
+(`vertical | horizontal | inline | grid`). The tab strip this package ships is
+the **saved-view** tab bar: declare the views and render `<ViewTabBar>` (or let
+a host such as `@object-ui/app-shell` do it):
 
 ```typescript
-const schema = {
+const schema: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'tabs',
-  tabs: [
-    { label: 'Details', fields: ['name', 'email', 'bio'] },
-    { label: 'Settings', fields: ['theme', 'notifications', 'timezone'] },
-    { label: 'Activity', type: 'object-grid', object: 'user_activities' }
-  ]
+  objectName: 'users',
+  showViewSwitcher: true,
+  allowCreateView: true,
+  listViews: {
+    active: { label: 'Active', type: 'grid', columns: ['name', 'email'] },
+    admins: {
+      label: 'Admins',
+      type: 'grid',
+      filter: [{ field: 'role', operator: 'equals', value: 'admin' }],
+    },
+  },
+  defaultListView: 'active',
 };
 ```
+
+To group a *form's* fields instead, use `form.sections` as shown under "Field
+Configuration".
 
 ## TypeScript Support
 
+This package's type export surface is the seven `*Props` types plus the
+record-surface and field-option types listed under "Public exports" — it ships
+**no schema types**. The authored `type: 'object-view'` node is typed by
+`@object-ui/types`, which this package imports (`src/ObjectView.tsx`) without
+re-exporting, so import it from there:
+
+| Import from `@object-ui/types` | What it types |
+| --- | --- |
+| `ObjectViewSchema` | the whole `type: 'object-view'` node — `objectName` (required), `title`, `description`, `layout`, `defaultViewType`, `listViews`, `defaultListView`, `navigation`, `table`, `form`, `searchableFields`, `filterableFields`, `show*`, `operations`, `onNavigate`, `viewTabBar`, `viewActions` |
+| `NamedListView` | one entry of `listViews` |
+| `ViewNavigationConfig` | `navigation` — row/item click behaviour |
+| `ViewTabBarConfig` | `viewTabBar` — tab-bar UX (inline add, overflow, indicators) |
+
 ```typescript
-import type { ObjectViewSchema } from '@object-ui/plugin-view';
+import type { ObjectViewSchema } from '@object-ui/types';
 
 const userView: ObjectViewSchema = {
   type: 'object-view',
-  object: 'users',
-  viewMode: 'grid',
-  fields: ['name', 'email', 'role']
+  objectName: 'users',
+  defaultViewType: 'grid',
+  // Displayed columns are grid configuration, inherited from ObjectGridSchema.
+  table: { columns: ['name', 'email', 'role'] },
 };
 ```
 

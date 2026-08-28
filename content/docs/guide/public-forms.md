@@ -20,7 +20,9 @@ from `/api/v1/meta/view/:name` and posting to `/api/v1/data/:object`.
 
 ```tsx
 import { EmbeddableForm } from '@object-ui/plugin-form';
-import { restDataSource } from '@object-ui/data-rest';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 <EmbeddableForm
   config={{
@@ -43,7 +45,7 @@ import { restDataSource } from '@object-ui/data-rest';
       redirectUrl: 'https://example.com/thank-you',
     },
   }}
-  dataSource={restDataSource}
+  dataSource={dataSource}
 />
 ```
 
@@ -67,6 +69,9 @@ thank-you page so bots can't tell they failed.
 ## Configuration reference
 
 ```ts
+import type { FormField } from '@object-ui/types';
+import type { EmbeddableFormTexts } from '@object-ui/plugin-form';
+
 interface EmbeddableFormConfig {
   formId: string;
   objectName: string;
@@ -102,6 +107,8 @@ interface EmbeddableFormConfig {
 Public form URLs are user-controlled, so prefill is **off** unless you
 explicitly opt fields in:
 
+<!-- doc-snippet: fragment — the quick-start element again with its `config` elided down to the one key this section adds; `EmbeddableForm` is the import made there -->
+
 ```tsx
 <EmbeddableForm
   config={{
@@ -123,7 +130,65 @@ bypasses this whitelist.
 match subdomains; the apex itself must be listed explicitly. Dangerous
 schemes (`javascript:`, `data:`) are always rejected.
 
+The thank-you panel follows that verdict rather than the declaration: the
+`Redirecting in N seconds…` line appears only for a destination that was
+**accepted**, and reads its countdown from the delay that destination was
+accepted with. When the destination is refused the line is omitted, and
+`texts.redirectBlocked` — if you declared it — is shown in the panel instead;
+leave it undeclared and the panel stays silent. Either way the refusal is
+logged with `console.warn`, which is where to look if a redirect you expected
+never happens.
+
+### Who performs the redirect (mounted hosts)
+
+The guard decides **whether** a destination is followed; who travels to it
+depends on the shape of the destination:
+
+| Destination | Travelled by |
+|---|---|
+| App-relative — `/thanks`, `thanks`, `?ok=1`, `#done` | the host's navigate, when one is supplied; otherwise a browser navigation |
+| External — a host you listed in `allowedRedirectHosts` | a browser navigation, always |
+| Same-origin but **absolute** — `https://your.app/thanks` | a browser navigation, always |
+
+This matters when your application is mounted at a sub-path (the console runs
+at basename `/_console`). A browser navigation resolves `/thanks` against the
+**origin root**, which leaves the application — so an in-app thank-you page
+needs the host to place the path. Supply one with `HostNavigationProvider`
+from `@object-ui/react` and the form hands app-relative destinations to it:
+
+```tsx
+import { HostNavigationProvider } from '@object-ui/react';
+import { EmbeddableForm, type EmbeddableFormConfig } from '@object-ui/plugin-form';
+import type { DataSource } from '@object-ui/types';
+
+export function MountedPublicForm(props: {
+  /** Your own router's navigate — it already knows the basename. */
+  navigate: (to: string) => void;
+  config: EmbeddableFormConfig;
+  dataSource: DataSource;
+}) {
+  return (
+    <HostNavigationProvider value={{ navigate: props.navigate }}>
+      <EmbeddableForm config={props.config} dataSource={props.dataSource} />
+    </HostNavigationProvider>
+  );
+}
+```
+
+Supplying it is optional and changes nothing for an unmounted host: with no
+provider — or with no router at all, where there is no basename to miss —
+every destination keeps the browser navigation it always had.
+
+An external destination is never handed to your navigate. A host navigate is a
+client-side router transition, so it takes an application-relative path, and a
+form holding a cross-origin address must not route it through your router. A
+same-origin **absolute** URL is treated the same way for a different reason:
+you spelled out the whole address, so that is the address the submitter gets —
+write the destination relatively if you want it placed inside your mount.
+
 ### GDPR consent
+
+<!-- doc-snippet: fragment — two bare config properties, shown on their own: they belong inside the `config` object of the quick-start block and are not a program -->
 
 ```tsx
 consent: { required: true, label: 'I agree to the privacy policy.' }
@@ -152,6 +217,8 @@ hard error, so legit speed-typers can simply retry.
 `EmbeddableForm` doesn't bundle a specific provider. Mount your
 preferred widget (hCaptcha, Turnstile, reCAPTCHA) and feed the token in:
 
+<!-- doc-snippet: fragment — the captcha widget, `useState` import and data source are the reader's own, and the `config` object is elided down to the one key this section adds -->
+
 ```tsx
 const [token, setToken] = useState<string>();
 <EmbeddableForm config={{ /* … */ captchaToken: token }} dataSource={ds} />
@@ -164,6 +231,8 @@ The token is forwarded as `payload._captcha` for server-side validation.
 `EmbeddableForm` is i18n-agnostic — every user-visible string is
 overridable via `config.texts: EmbeddableFormTexts`. The console wires
 this up through `@object-ui/i18n`:
+
+<!-- doc-snippet: fragment — `t` comes from the console's own i18n provider and the `config` object is elided down to the `texts` key this section is about -->
 
 ```tsx
 const { t } = useObjectTranslation();

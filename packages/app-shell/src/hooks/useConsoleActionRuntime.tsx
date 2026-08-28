@@ -40,18 +40,19 @@ import type {
   ToastHandler,
 } from '@object-ui/core';
 import { actionErrorDetail, isRecordScopedAction, resolveRecordIdParamSeed } from '@object-ui/core';
-import { useActionModal } from './useActionModal';
-import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog';
-import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog';
-import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
-import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner';
-import { resolveActionParams } from '../utils/resolveActionParams';
-import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
-import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
-import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
-import { interpretFlowResponse } from '../utils/flowResponse';
-import { createConsoleServerActionHandler } from '../utils/consoleServerAction';
-import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics';
+import { useActionModal } from './useActionModal.js';
+import { ActionConfirmDialog, type ConfirmDialogState } from '../views/ActionConfirmDialog.js';
+import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDialog.js';
+import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog.js';
+import { FlowRunner, type ScreenFlowState, type ScreenSpec } from '../views/FlowRunner.js';
+import { resolveActionParams } from '../utils/resolveActionParams.js';
+import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog.js';
+import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements.js';
+import { resolvePageVarTokens } from '../utils/resolvePageVarTokens.js';
+import { interpretFlowResponse } from '../utils/flowResponse.js';
+import { createConsoleServerActionHandler } from '../utils/consoleServerAction.js';
+import { modalTargetRefusalMessage } from '../utils/modalTargetDiagnostics.js';
+import type { ConsoleActionDispatch } from '../consoleActionDispatch.js';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -193,7 +194,14 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     });
   }, []);
 
-  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: any) => {
+  // `ConsoleActionDispatch`, not bare `ActionDef` (objectui#5611): this handler
+  // reads `overrideNotice`, which is host-composed dispatch chrome rather than
+  // authorable metadata, so it is declared at the seam instead of on the
+  // published authored-metadata mirror. Narrowing off `any` is what puts this
+  // whole function under the compiler — every other read below is a declared
+  // `ActionDef` field, and the one that was not is the reason objectui#4282
+  // backed the narrowing out.
+  const paramCollectionHandler = useCallback<ParamCollectionHandler>((params: ActionParamDef[], action?: ConsoleActionDispatch) => {
     return new Promise<Record<string, any> | null>((resolve) => {
       // List_item actions stash the row record under params._rowRecord (see
       // ObjectGrid → onRowAction). Pull it out so resolveActionParams can
@@ -232,11 +240,41 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           ? p.options.map((o: any) => ({ ...o, label: actionParamOptionLabel(objForI18n, action?.name, p.name, o.value, o.label) }))
           : p.options,
       }));
+      // objectui#5178 — a caller-authored notice that must reach the user
+      // AHEAD of the declared description, and must not be replaceable by a
+      // translation bundle.
+      //
+      // `DeclaredActionsBar` sets this when the viewer is taking a privileged
+      // admin-override branch (`can_act:false && can_override:true`), naming the
+      // approvers about to be bypassed. It is deliberately NOT folded into
+      // `description`: `actionDescription` resolves
+      // `_actions.<name>.description` and prefers a bundle hit over the passed
+      // literal, and `plugin-approvals` ships exactly such an entry for
+      // `approval_reject` — so a warning routed through `description` would be
+      // silently overwritten by the ordinary "Reject this request?" copy in
+      // every locale that has the bundle. A safety notice a translation can
+      // delete is not a safety notice.
+      //
+      // The notice arrives already localized (bar-authored chrome, resolved
+      // through the normal locale bundle), so it is concatenated verbatim.
+      const declaredDescription = actionDescription(objForI18n, action?.name, action?.description);
+      const overrideNotice = typeof action?.overrideNotice === 'string' && action.overrideNotice
+        ? action.overrideNotice
+        : undefined;
       setParamState({
         open: true,
         params: localized,
-        title: action?.label || action?.title,
-        description: actionDescription(objForI18n, action?.name, action?.description),
+        // Titled from `label` alone — the one spelling an action carries for
+        // this. The `|| action?.title` fallback that used to sit here read a
+        // key declared on no action surface at all — not `@objectstack/spec`'s
+        // `ActionSchema`, not `ActionDef`, not `@object-ui/types`' renderer
+        // view (`ui-action.ts`) or `crud.ts` — and forwarded by none of the
+        // four action renderers, so it could not fire from authored metadata
+        // (objectui#4282). Reads exactly one key, like `description` below.
+        title: action?.label,
+        description: overrideNotice
+          ? [overrideNotice, declaredDescription].filter(Boolean).join('\n\n')
+          : declaredDescription,
         resolve,
       });
     });
@@ -267,7 +305,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [navigate]);
 
   // Authenticated fetch for direct backend calls. Declared before apiHandler.
-  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
+  //
+  // `sameOriginOnly` (#2725 mitigation, applied to this lane per the #5702
+  // ruling): an action's `target` comes from author-supplied metadata and may
+  // name an off-origin host. Cross-origin requests pass through to the bare
+  // global fetch — no Authorization, X-Tenant-ID, or Accept-Language — matching
+  // the `provider: 'api'` data-source lane (ConsoleShell). Same-origin actions
+  // are unaffected. An off-origin integration that legitimately needs the
+  // platform bearer declares itself explicitly or proxies same-origin.
+  const authFetch = useMemo(() => createAuthenticatedFetch({ sameOriginOnly: true }), []);
 
   const openEntitlementDialog = useCallback((spec: EntitlementDialogSpec) => {
     setEntitlementDialog({ open: true, spec });
@@ -279,9 +325,12 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       const params = action.params || {};
 
       // Absolute HTTP target — bypass dataSource and call the API directly
-      // through the authenticated fetch wrapper (Bearer + X-Tenant-ID +
-      // same-origin cookies). The canonical path for schema actions on
-      // managed-by tables and global page actions.
+      // through the authenticated fetch wrapper. Same-origin targets get
+      // Bearer + X-Tenant-ID + same-origin cookies; an off-origin target
+      // (the metadata may name a third-party host) goes out through the bare
+      // global fetch with none of them (`sameOriginOnly`, #5702). The
+      // canonical path for schema actions on managed-by tables and global
+      // page actions.
       const targetStr = typeof target === 'string' ? target : '';
       const isAbsolute = targetStr.startsWith('/') || /^https?:\/\//i.test(targetStr);
       if (isAbsolute) {
@@ -547,14 +596,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // memoized once) while the config thunks read the latest object scope and
   // refresh callback — the factory's in-flight guard only spans invocations of
   // the same instance.
-  const serverActionEnvRef = useRef({ objApiName, refresh, t });
-  serverActionEnvRef.current = { objApiName, refresh, t };
+  const serverActionEnvRef = useRef({ objApiName, refresh, t, navigate });
+  serverActionEnvRef.current = { objApiName, refresh, t, navigate };
   const serverActionHandler = useMemo(
     () => createConsoleServerActionHandler({
       fetch: authFetch,
       baseUrl: () => import.meta.env.VITE_SERVER_URL || '',
       resolveObject: () => serverActionEnvRef.current.objApiName,
       onRefresh: () => serverActionEnvRef.current.refresh(),
+      // SPA route hop for a handler-returned `openIn: 'self'` — react-router's
+      // own `navigate`, read through the env ref like every other live value
+      // here so the handler instance stays stable.
+      navigate: (url: string) => serverActionEnvRef.current.navigate(url),
       // Read through the env ref so the spinner-tab / popup-blocked copy
       // follows a language switch without invalidating the handler instance
       // (objectui#3321).
@@ -639,11 +692,60 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
 
   const dialogs = (
     <>
+      {/*
+        Close = flip `open` and KEEP every other field (objectui#6034). Radix
+        holds `AlertDialogContent` mounted through its exit animation
+        (`data-[state=closed]:animate-out … duration-200`), so
+        `ActionConfirmDialog` goes on reading `state.message` into the
+        description and `state.options` into the title and both button labels
+        for the whole fade-out. The `{ open: false, message: '' }` this replaced
+        blanked the description and reverted the labels to their i18n defaults
+        mid-fade. The retained `resolve` is inert — the dialog settles the
+        promise BEFORE it asks for the close, and the open path above replaces
+        the whole state object, so nothing stale survives a reopen.
+
+        `RecordDetailView` mounts a SECOND runtime into this same dialog and
+        already closed this way; that both runtimes hand the dialog one field
+        set on open AND reset it one way on close is pinned by
+        `views/RecordDetailView.confirmRuntimeParity-5835.test.tsx`.
+      */}
       <ActionConfirmDialog state={confirmState} onOpenChange={(open) => {
-        if (!open) setConfirmState({ open: false, message: '' });
+        if (!open) setConfirmState(s => ({ ...s, open: false }));
       }} />
+      {/*
+        Close = flip `open` and KEEP every other field (objectui#6431), the same
+        shape the confirm pair converged on above — and for the same reason,
+        re-measured on THIS dialog rather than inherited from #6034.
+
+        `DialogContent` carries `duration-200 data-[state=closed]:animate-out`,
+        so Radix holds the content mounted through its exit animation and
+        `ActionParamDialog` goes on rendering off `state` for the whole
+        fade-out. The `{ open: false, params: [] }` this replaced dropped
+        `title`, `description` and `resolve` and emptied `params`, so the
+        closing dialog re-titled itself to the generic `actionDialog.title`,
+        swapped the action's description for the generic one, and dropped every
+        param row — a form the user just filled in blanks out and re-labels
+        itself while it fades.
+
+        This is NOT the params form deliberately dropping stale values: the
+        user's typed values never lived in `paramState`. They live in the
+        dialog's own `values` state, which its `useEffect` reseeds from the
+        param defaults on every `state.open` false→true edge — so a reopen
+        starts blank under BOTH reset shapes, and nothing a user can observe
+        beyond the fade-out frame differs between them.
+
+        The retained `resolve` is inert, as on the confirm path: the dialog
+        settles the promise before it asks for the close, and the open path
+        above replaces the whole state object, so nothing stale survives a
+        reopen.
+
+        `RecordDetailView` mounts a SECOND runtime into this same dialog and
+        already closed this way; that both runtimes now reset it identically is
+        pinned by `views/RecordDetailView.paramRuntimeParity-6431.test.tsx`,
+        which also renders the real dialog across the exit-animation frame.
+      */}
       <ActionParamDialog state={paramState} onOpenChange={(open) => {
-        if (!open) setParamState({ open: false, params: [] });
+        if (!open) setParamState(s => ({ ...s, open: false }));
       }} />
       <ActionResultDialog
         state={resultDialogState}

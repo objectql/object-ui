@@ -291,12 +291,15 @@ describe('channel precedence is unchanged (green both sides)', () => {
    * The third step of the precedence — the provider-less `'en'` last resort —
    * is pinned in `DateCellRenderer.test.tsx`, deliberately NOT here.
    *
-   * It cannot be measured in this file: `useObjectTranslation()` outside a
-   * provider reports `i18n.language` from react-i18next's GLOBAL instance, and
-   * every `I18nProvider` mounted above leaves that global on the language it
-   * was given. So a provider-less render placed after these cases resolves
-   * `'zh'` — which is the state react-i18next is in, not the fallback under
-   * test. Written here it would assert a fact about test ordering.
+   * It USED to be unmeasurable in this file: `useObjectTranslation()` outside
+   * a provider reports `i18n.language` from react-i18next's GLOBAL instance,
+   * and every `I18nProvider` mounted above left that global on its own
+   * instance. So a provider-less render placed after these cases resolved
+   * `'zh'` — the state react-i18next was in, not the fallback under test.
+   *
+   * objectui#4514 closed that: `installI18nGlobalReset()` in
+   * `vitest.setup.base.ts` restores the global after every test. The split
+   * below is now organisation, not a workaround.
    *
    * `DateCellRenderer.test.tsx` mounts no provider at all, so its
    * `6 days ago` / `Overdue 6d` / `Tomorrow` cases ARE that pin, and they hold

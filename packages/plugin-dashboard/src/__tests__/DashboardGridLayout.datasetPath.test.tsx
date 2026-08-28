@@ -55,7 +55,7 @@
  * as before AND must never reach the dataset query.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import type { DashboardComponentSchema } from '@object-ui/types';
@@ -63,7 +63,89 @@ import '@object-ui/components';
 import '@object-ui/plugin-charts';
 import { DashboardGridLayout } from '../DashboardGridLayout';
 
-afterEach(cleanup);
+/* ────────────────────────────────────────────────────────────────────────────
+ * objectui#5299 — this file's own real-network escape (same class as #5225 /
+ * #5280, a DIFFERENT call site).
+ *
+ * `-t` bisected across all 13 cases: isolating each of the 5 negative-control
+ * tests alone reproduces the escape ONLY for 'does NOT take the dataset path
+ * for an options.data provider widget' (3/3). The other two suspects the card
+ * named — both #4613 legacy-retired-widget cases — do NOT escape in isolation
+ * (0/1 each), and neither do the dataset-bound positives, confirming the
+ * card's own re-derived reading: `useDatasetDimensionMeta`'s `!object` guard
+ * is a no-op here (no mocked `queryDataset` result declares `object`), so it
+ * was never the site. There is exactly ONE escape in this file, not several.
+ *
+ * The site: the `options.data.provider: 'object'` widget maps to component
+ * type `object-chart` (`DashboardGridLayout.tsx`'s `getComponentSchema`,
+ * `isObjectProvider` branch) with `objectName: 'invoices'` and a defaulted
+ * `xAxisKey: 'name'` (no `xField` authored). `ObjectChart` — the ORIGINAL
+ * #4106 defect site, still carrying its own inline fetch rather than the
+ * `useDatasetDimensionMeta` hook #4389 later extracted for the dataset path —
+ * runs a category-dimension option-color probe on mount:
+ *
+ *   ObjectChart                        packages/plugin-charts/src/ObjectChart.tsx
+ *     useEffect (~L351-415)
+ *       → `const doFetch = apiFetch ?? fetch`   ← the escape (L355)
+ *         → GET /api/v1/meta/object/invoices    (L376, via loadDimensionFieldMeta)
+ *
+ * With no `SchemaRendererProvider` in this file's render tree, `context` is
+ * undefined, so `apiFetch` is undefined and the probe degrades to the GLOBAL
+ * `fetch` on purpose (#4114 / #4121 — a standalone embed must keep rendering,
+ * not crash). Under happy-dom that global `fetch` is a real HTTP client
+ * resolving the relative URL against the default document origin
+ * (`http://localhost:3000`), hence the ECONNREFUSED-on-port-3000 signature.
+ * The read is wrapped in `try { … } catch { setOptionMeta(null) }`, which is
+ * why the widget renders fine and all 13 tests stay green regardless.
+ *
+ * Answered here from the same RECORDING-double shape #5225's reference fix
+ * (PR #5283) established and #5280 ported (PR #5300): NOT a blanket network
+ * stub — it records every URL it is handed, `afterEach` fails on any URL that
+ * is not the metadata route, and the probe's own request is pinned below.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const META_OBJECT_ROUTE = /^\/api\/v1\/meta\/object\/(.+)$/;
+
+let metaCalls: string[] = [];
+
+/** Serve `/api/v1/meta/object/<name>` with an empty schema doc; record everything. */
+function installMetaObjectDouble() {
+  metaCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      metaCalls.push(url);
+      const m = META_OBJECT_ROUTE.exec(url);
+      if (!m) return { ok: false, status: 404, json: async () => ({}) };
+      const name = decodeURIComponent(m[1]);
+      // No fields declared: `loadDimensionFieldMeta` resolves nothing, so
+      // `optionMeta` stays empty and no pre-existing assertion changes
+      // meaning — this widget's colors were never asserted against the probe.
+      return { ok: true, status: 200, json: async () => ({ item: { name, fields: {} } }) };
+    }),
+  );
+}
+
+beforeEach(() => {
+  installMetaObjectDouble();
+});
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into ObjectChart's best-effort `catch`.
+  expect(metaCalls.filter((url) => !META_OBJECT_ROUTE.test(url))).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks
+  // in reverse registration order, so the light DOM setup's RTL cleanup (its
+  // own `afterEach`, registered before this file loads) runs AFTER this one:
+  // unstubbing first would leave the tree mounted with the real global back
+  // in place, and a metadata effect that settles in that window escapes again
+  // (#5225 / #5280 measured this ordering flake).
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 /**
  * `dataset` / `values` / `dimensions` are the ADR-0021 authoring keys; `object`
@@ -245,6 +327,33 @@ describe('DashboardGridLayout dataset-bound widgets (#4614)', () => {
     const src = makeSource(async () => ({ rows: [{ x: 1 }] }));
     renderOne({ id: 'w1', type: 'metric', object: 'invoices', aggregate: 'count' }, src);
     expect(screen.getByText(/retired data format/i)).toBeInTheDocument();
+    expect(src.queryDataset).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * objectui#5299 — the `options.data.provider: 'object'` widget's own
+ * category-color metadata probe, pinned so a future widening of the read (or
+ * a regression back onto the real network) shows up as a red test here
+ * instead of a silent extra request to whatever owns port 3000.
+ */
+describe('DashboardGridLayout — object-chart metadata probe (objectui#5299)', () => {
+  it('probes exactly the widget-declared object, once, over the metadata route', async () => {
+    const src = { queryDataset: vi.fn(async () => ({ rows: [] })) };
+    render(
+      <DashboardGridLayout
+        schema={dash({
+          id: 'w1',
+          type: 'bar',
+          options: { data: { provider: 'object', object: 'invoices', aggregate: { field: 'amount', function: 'sum' } } },
+        })}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(metaCalls).toEqual(['/api/v1/meta/object/invoices']));
+    // Bisected as the ONLY escape site in this file (see the block comment
+    // above): the rows never touch this channel, which is why the sibling
+    // `dataSource` double in the test above it could not intercept it either.
     expect(src.queryDataset).not.toHaveBeenCalled();
   });
 });

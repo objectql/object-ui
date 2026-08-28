@@ -29,10 +29,10 @@ import {
   NODE_H,
   type FlowDesignerNode,
   type LabeledRegion,
-} from './flow-canvas-layout';
-import { NodeTypeIcon, nodeTone } from './flow-canvas-parts';
-import { REGION_BLOCK_PAD, REGION_GAP, REGION_LABEL_H } from './flow-region-metrics';
-import { t as tr, tFormat } from '../i18n';
+} from './flow-canvas-layout.js';
+import { NodeTypeIcon, nodeTone } from './flow-canvas-parts.js';
+import { REGION_BLOCK_PAD, REGION_GAP, REGION_LABEL_H } from './flow-region-metrics.js';
+import { t as tr, tFormat } from '../i18n.js';
 
 /**
  * Localized header for a nested region. `extractRegions` (a pure, i18n-free

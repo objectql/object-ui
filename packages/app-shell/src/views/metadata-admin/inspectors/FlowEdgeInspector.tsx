@@ -15,8 +15,8 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorTextField,
@@ -25,14 +25,14 @@ import {
   InspectorRemoveButton,
   InspectorEmptyState,
   spliceArray,
-} from './_shared';
+} from './_shared.js';
 import { Label } from '@object-ui/components';
-import { edgeKey, conditionText } from '../previews/flow-canvas-layout';
-import { validateExpressionClient } from './expression-validate';
-import { useFlowScope } from './useFlowScope';
-import { VariableTextInput } from './VariableTextInput';
-import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
-import { writeExpressionSource } from './expression-envelope';
+import { edgeKey, conditionText } from '../previews/flow-canvas-layout.js';
+import { validateExpressionClient } from './expression-validate.js';
+import { useFlowScope } from './useFlowScope.js';
+import { VariableTextInput } from './VariableTextInput.js';
+import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check.js';
+import { writeExpressionSource } from './expression-envelope.js';
 import type { ExpressionInput } from '@objectstack/spec/shared';
 
 /**

@@ -8,8 +8,8 @@
  * and these stay unit-testable.
  */
 
-import type { ScreenSpec, ScreenFieldSpec } from '../../ScreenView';
-import { evalCondition } from './simulator/flow-sim-validate';
+import type { ScreenSpec, ScreenFieldSpec } from '../../ScreenView.js';
+import { evalCondition } from './simulator/flow-sim-validate.js';
 
 /** Minimal node shape the preview needs (id + authored config). */
 export interface ScreenPreviewNode {

@@ -62,8 +62,33 @@ export type UserActionOverride =
     };
 
 export interface UserActionsOverride {
-  create?: boolean;
-  import?: boolean;
+  /**
+   * Bare boolean or the object form. Widened from `boolean` in objectui#4646:
+   * `@objectstack/spec@17.0.0` types this key
+   * `z.union([z.boolean(), RowCrudActionOverrideSchema])`, and the spec's
+   * resolver emits the parsed predicates as `CrudAffordances.createPredicates`.
+   * The local type said `boolean` — so an author writing the shape the spec
+   * accepts, and that the related-list toolbar now honours
+   * (`RelatedRecordActionsBridge`, objectui#4646), was rejected by objectui's
+   * own type while the runtime handled it.
+   */
+  create?: UserActionOverride;
+  /**
+   * Bare boolean or the object form — the SAME union as `create` above, which
+   * is how `@objectstack/spec@17.0.0` types the two toolbar keys
+   * (`z.union([z.boolean(), RowCrudActionOverrideSchema])` for each), and its
+   * resolver emits `CrudAffordances.importPredicates` beside
+   * `createPredicates`.
+   *
+   * Widened in objectui#5142, deliberately IN THE SAME change that gave the
+   * object-list toolbar's Import button a consumer for those predicates
+   * (`ObjectView`). objectui#4646 left this key narrow on purpose and said why:
+   * widening a type ahead of its consumer re-declares the inert-metadata defect
+   * — objectui would have *claimed* to accept the object form while still
+   * dropping the predicate. Type and consumer travel together, so the
+   * declaration stays an honest statement of what this renderer honours.
+   */
+  import?: UserActionOverride;
   edit?: UserActionOverride;
   delete?: UserActionOverride;
   exportCsv?: boolean;

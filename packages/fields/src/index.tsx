@@ -8,17 +8,17 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, type ComponentMeta } from '@object-ui/core';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';
-import { withFieldCarrier } from './withFieldCarrier';
+import { withFieldCarrier } from './withFieldCarrier.js';
 // Pure formatting rule shared with `AddressField`'s readonly branch — no React,
 // so this does not pull the widget out of its lazy chunk (objectui#4037).
-import { formatAddress, type AddressValue } from './widgets/address-format';
+import { formatAddress, type AddressValue } from './widgets/address-format.js';
 
 // Module-level cache so multiple renderers fetching the same lookup ID
 // only trigger one network call. Keyed by `${objectName}:${id}`.
@@ -302,8 +302,8 @@ function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) =
 // through the lazy loaders in `fieldWidgetMap` below, so nothing here needs a
 // static reference; the widgets stay publicly available via the `export * from
 // './widgets/…'` block at the end of this file.
-import { ImageLightbox } from './widgets/ImageLightbox';
-import { readFileValues } from './widgets/file-value';
+import { ImageLightbox } from './widgets/ImageLightbox.js';
+import { readFileValues } from './widgets/file-value.js';
 
 /**
  * Cell renderer props
@@ -371,7 +371,7 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * value of `.50` renders `.50`, not `.5`, and a yen amount renders `¥1,235`
  * rather than cents the yen does not have.
  */
-import { resolveFieldCurrency, currencyFractionDigits } from './currency';
+import { resolveFieldCurrency, currencyFractionDigits } from './currency.js';
 export { resolveFieldCurrency };
 
 export function formatCurrency(value: number, currency?: string, locale?: string): string {
@@ -547,17 +547,21 @@ export function formatPercent(value: number, precision: number = 0, locale?: str
 }
 
 /**
- * Humanize a snake_case or kebab-case string into Title Case.
- * Used as fallback label when no explicit option.label exists.
- * 
- * Examples:
- *   "in_progress" → "In Progress"
- *   "high-priority" → "High Priority"
- *   "active" → "Active"
+ * Humanize a snake_case or kebab-case string into Title Case — the fallback
+ * label when no explicit `option.label` exists.
+ *
+ * Defined in `@object-ui/core` (`utils/humanize-label.ts`) and re-exported here
+ * because this package is one of its two doorways: `plugin-grid`,
+ * `plugin-gantt` and `plugin-detail` read it from `@object-ui/fields`, while
+ * `plugin-charts` reads the same function straight from core. Until
+ * objectui#5444 this file and `plugin-charts`' `ObjectChart.tsx` each held a
+ * byte-identical private copy; core is the shared ancestor both packages
+ * already depend on, so the convention has one home and no new dependency edge
+ * (objectui#4389: core-canonical logic, plugins consume). The core docstring
+ * carries the convention itself, and the reason it stays distinct from
+ * `humanizeFieldKey`'s camelCase-splitting KEY convention.
  */
-export function humanizeLabel(value: string): string {
-  return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
+export { humanizeLabel };
 
 /** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
 export interface DateDisplayOptions {
@@ -1167,6 +1171,276 @@ function resolveColorName(color?: string): string | undefined {
   return undefined;
 }
 
+/* ---------------------------------------------------------------------------
+ * Explicit-hex badge rendering (objectui#5141).
+ *
+ * `hexToPaletteName` above answers "which of the nine palette families is this
+ * hex nearest?" — a deliberately lossy question. Two same-hue tiers an author
+ * declared as distinct (`#2ecc71` "in progress" vs `#1e8449` "completed") land
+ * in the same bucket and render byte-identical, so the declaration is silently
+ * discarded. `plugin-gantt` already settled this class of conflict the other
+ * way ("explicit colorField value (hex or semantic name) — metadata wins"), and
+ * Studio's own option editor paints the author's swatch straight from the raw
+ * hex. Badges were the odd one out.
+ *
+ * So when the author declared a hex we render THAT hex, deriving the soft-pill
+ * surface / label / border from it instead of snapping to a family. The
+ * derivation deliberately keeps the two properties the family maps gave us for
+ * free:
+ *
+ *   1. Theme control. The derived colors are published as CSS custom
+ *      properties and consumed by *static* Tailwind utilities, so light and
+ *      dark remain ordinary `dark:` variants rather than a hard-coded inline
+ *      background that ignores the theme. Tailwind can never generate a class
+ *      for a runtime value (`bg-[#1e8449]` built from metadata is not in the
+ *      source at build time), so the custom property — not the colour — has to
+ *      be the dynamic part.
+ *   2. Contrast. The label is not "the hex" but the lightness along the
+ *      declared hue nearest the declared one that still clears WCAG AA against
+ *      the derived surface. Authors can and do declare colours that are
+ *      unreadable under a label; honoring the declaration must not turn that
+ *      into a legibility bug across every list view.
+ *
+ * Non-hex declarations (family names, the semantic value map, the hash
+ * fallback) are untouched and keep resolving exactly as before.
+ * -------------------------------------------------------------------------*/
+
+/** WCAG AA floor for badge label text against its own pill surface. */
+const BADGE_TEXT_CONTRAST = 4.5;
+
+/**
+ * Visibility floor for the `appearance: 'dot'` marker. A dot carries no text,
+ * so the AA *text* ratio does not apply; this is the measured floor of the
+ * -500 shades `DOT_COLOR_MAP` ships today (yellow-500 `#eab308` is the weakest
+ * at 1.92:1 on white). Pinning it here means an author-declared dot is never
+ * less visible than the palette dot it replaces.
+ */
+const DOT_CONTRAST_FLOOR = 1.9;
+
+interface Rgb { r: number; g: number; b: number }
+
+/** Surfaces a dot sits on — used only to keep the dot itself visible. */
+const LIGHT_SURFACE: Rgb = { r: 255, g: 255, b: 255 };
+const DARK_SURFACE: Rgb = { r: 10, g: 10, b: 10 };
+
+const clampNum = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+function parseHexColor(hex: string): Rgb | undefined {
+  const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return undefined;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+function rgbToHsl({ r, g, b }: Rgb): { h: number; s: number; l: number } {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const d = max - min;
+  const l = (max + min) / 2;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === rn) h = (((gn - bn) / d) % 6 + 6) % 6;
+    else if (max === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+  }
+  return { h, s, l };
+}
+
+function hslToRgb(h: number, s: number, l: number): Rgb {
+  const hue = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  let p: [number, number, number];
+  if (hue < 60) p = [c, x, 0];
+  else if (hue < 120) p = [x, c, 0];
+  else if (hue < 180) p = [0, c, x];
+  else if (hue < 240) p = [0, x, c];
+  else if (hue < 300) p = [x, 0, c];
+  else p = [c, 0, x];
+  return {
+    r: Math.round((p[0] + m) * 255),
+    g: Math.round((p[1] + m) * 255),
+    b: Math.round((p[2] + m) * 255),
+  };
+}
+
+const rgbToHex = ({ r, g, b }: Rgb): string =>
+  '#' + [r, g, b].map((v) => clampNum(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+
+/** WCAG relative luminance of an sRGB color. */
+function relativeLuminance({ r, g, b }: Rgb): number {
+  const channel = (v: number): number => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two colors (1..21). */
+function contrastRatio(a: Rgb, b: Rgb): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/**
+ * Walk the declared hue for the lightness *closest to the declared one* that
+ * still clears `target` against `surface`.
+ *
+ * Choosing the closest passing lightness rather than simply maximizing
+ * contrast is what keeps the author's colour recognizable — maximizing would
+ * collapse every badge label to black or white and re-lose the declaration we
+ * are here to preserve. Only when the hue cannot reach the target at any
+ * lightness (a very low-chroma declaration against a mid surface) do we fall
+ * back to black or white, whichever is further from the surface: legibility
+ * outranks fidelity.
+ */
+function readableOnSurface(
+  h: number,
+  s: number,
+  declaredL: number,
+  surface: Rgb,
+  target: number,
+): Rgb {
+  let best: Rgb | undefined;
+  let bestDistance = Infinity;
+  for (let step = 0; step <= 100; step++) {
+    const lightness = step / 100;
+    const candidate = hslToRgb(h, s, lightness);
+    if (contrastRatio(candidate, surface) < target) continue;
+    const distance = Math.abs(lightness - declaredL);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+  if (best) return best;
+  const black: Rgb = { r: 0, g: 0, b: 0 };
+  const white: Rgb = { r: 255, g: 255, b: 255 };
+  return contrastRatio(black, surface) >= contrastRatio(white, surface) ? black : white;
+}
+
+/** The six pill colors plus the two dot colors derived from one declared hex. */
+export interface HexBadgePalette {
+  bg: string;
+  fg: string;
+  border: string;
+  bgDark: string;
+  fgDark: string;
+  borderDark: string;
+  dot: string;
+  dotDark: string;
+}
+
+/**
+ * Derive a full soft-pill palette from an author-declared hex.
+ *
+ * The declared LIGHTNESS is what separates two same-hue tiers (`#2ecc71` is
+ * l=0.49, `#1e8449` is l=0.32 — their hues differ by 0.1°), so it has to
+ * survive into the *surface*. A fixed pale tint — the obvious reading of
+ * "compute a soft pill from the hex" — does not carry it: measured, that
+ * leaves the reported pair ΔE 2.3 apart in Lab, at the ~2.3 just-noticeable
+ * threshold, which would close this issue on paper while the user still cannot
+ * tell the two badges apart. Letting the tint depth track the declared
+ * lightness puts them ΔE 8.0 apart instead.
+ */
+export function deriveHexBadgePalette(color: string): HexBadgePalette | undefined {
+  const rgb = parseHexColor(color);
+  if (!rgb) return undefined;
+  const { h, s, l } = rgbToHsl(rgb);
+  // Keep a usable chroma at both ends: a fully desaturated declaration stays
+  // neutral instead of being pushed into a hue it never declared, and a neon
+  // one is reined in so the pill never fights the row it sits in.
+  const sat = clampNum(s, 0.18, 0.92);
+
+  // Light theme: pale for light declarations (the -50 look we ship today),
+  // deepening as the declared colour darkens.
+  const bgLightness = 0.95 - 0.32 * (1 - l);
+  const bg = hslToRgb(h, sat * (0.55 + 0.25 * (1 - l)), bgLightness);
+  const border = hslToRgb(h, sat * 0.62, clampNum(bgLightness - 0.14, 0, 1));
+  const fg = readableOnSurface(h, sat, l, bg, BADGE_TEXT_CONTRAST);
+
+  // Dark theme: the same idea mirrored — a dark surface whose depth tracks the
+  // declared lightness, with the label lifted until it clears AA against it.
+  const bgDarkLightness = 0.10 + 0.30 * l;
+  const bgDark = hslToRgb(h, sat * 0.6, bgDarkLightness);
+  const borderDark = hslToRgb(h, sat * 0.55, clampNum(bgDarkLightness + 0.12, 0, 1));
+  const fgDark = readableOnSurface(h, sat, l, bgDark, BADGE_TEXT_CONTRAST);
+
+  return {
+    bg: rgbToHex(bg),
+    fg: rgbToHex(fg),
+    border: rgbToHex(border),
+    bgDark: rgbToHex(bgDark),
+    fgDark: rgbToHex(fgDark),
+    borderDark: rgbToHex(borderDark),
+    dot: rgbToHex(readableOnSurface(h, sat, l, LIGHT_SURFACE, DOT_CONTRAST_FLOOR)),
+    dotDark: rgbToHex(readableOnSurface(h, sat, l, DARK_SURFACE, DOT_CONTRAST_FLOOR)),
+  };
+}
+
+/**
+ * Static utility strings. Tailwind has to SEE these at build time — they are
+ * scanned out of this file by `packages/fields/src/index.css` — which is
+ * exactly why the custom properties carry the colours.
+ */
+const HEX_BADGE_CLASSES =
+  'bg-[color:var(--os-badge-bg)] text-[color:var(--os-badge-fg)] border-[color:var(--os-badge-border)] ' +
+  'dark:bg-[color:var(--os-badge-bg-dark)] dark:text-[color:var(--os-badge-fg-dark)] dark:border-[color:var(--os-badge-border-dark)]';
+
+const HEX_DOT_CLASSES = 'bg-[color:var(--os-dot-bg)] dark:bg-[color:var(--os-dot-bg-dark)]';
+
+/** A className plus the custom properties it reads. */
+export interface HexColorAppearance {
+  className: string;
+  style: React.CSSProperties;
+}
+
+/**
+ * Soft-pill appearance for an explicitly declared hex, or `undefined` for
+ * every other kind of declaration (family name, no colour at all) so the
+ * caller falls back to `getBadgeColorClasses`.
+ */
+export function getBadgeHexAppearance(color?: string): HexColorAppearance | undefined {
+  if (!color || color.charAt(0) !== '#') return undefined;
+  const palette = deriveHexBadgePalette(color);
+  if (!palette) return undefined;
+  return {
+    className: HEX_BADGE_CLASSES,
+    style: {
+      '--os-badge-bg': palette.bg,
+      '--os-badge-fg': palette.fg,
+      '--os-badge-border': palette.border,
+      '--os-badge-bg-dark': palette.bgDark,
+      '--os-badge-fg-dark': palette.fgDark,
+      '--os-badge-border-dark': palette.borderDark,
+    } as React.CSSProperties,
+  };
+}
+
+/** Dot appearance for an explicitly declared hex (see `getBadgeHexAppearance`). */
+export function getDotHexAppearance(color?: string): HexColorAppearance | undefined {
+  if (!color || color.charAt(0) !== '#') return undefined;
+  const palette = deriveHexBadgePalette(color);
+  if (!palette) return undefined;
+  return {
+    className: HEX_DOT_CLASSES,
+    style: {
+      '--os-dot-bg': palette.dot,
+      '--os-dot-bg-dark': palette.dotDark,
+    } as React.CSSProperties,
+  };
+}
+
 export function getBadgeColorClasses(color?: string, val?: unknown): string {
   const named = resolveColorName(color);
   if (named && BADGE_COLOR_MAP[named]) return BADGE_COLOR_MAP[named];
@@ -1262,22 +1536,32 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
     if (appearance === 'dot') {
       // Resolve a real CSS color for the dot. Prefer explicit option color,
       // then semantic mapping for the value, then deterministic palette.
+      // An explicitly declared hex is painted as declared (objectui#5141);
+      // every other declaration keeps resolving to a palette family below.
+      const hexDot = getDotHexAppearance(option?.color);
       const colorName = resolveColorName(option?.color)
         || SEMANTIC_COLOR_MAP[String(val).toLowerCase().replace(/[\s-]/g, '_')]
         || hashToColor(String(val).toLowerCase().replace(/[\s-]/g, '_'));
-      const dotClass = DOT_COLOR_MAP[colorName] || DOT_COLOR_MAP.gray;
+      const dotClass = hexDot ? hexDot.className : (DOT_COLOR_MAP[colorName] || DOT_COLOR_MAP.gray);
       // max-w-full bounds the (otherwise content-sized) inline-flex box so the
       // inner truncate can engage; title keeps the full label on hover
       // (objectui#3466, same class of bug as the badge branch below).
       return (
         <span key={key} className="inline-flex max-w-full items-center gap-1.5 text-sm" title={label}>
-          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dotClass)} aria-hidden="true" />
+          <span
+            className={cn('h-1.5 w-1.5 rounded-full shrink-0', dotClass)}
+            style={hexDot?.style}
+            aria-hidden="true"
+          />
           <span className="min-w-0 truncate">{label}</span>
         </span>
       );
     }
 
-    const colorClasses = getBadgeColorClasses(option?.color, val);
+    // An explicitly declared hex renders as declared (objectui#5141); family
+    // names, the semantic value map and the hash fallback are unchanged.
+    const hexBadge = getBadgeHexAppearance(option?.color);
+    const colorClasses = hexBadge ? hexBadge.className : getBadgeColorClasses(option?.color, val);
     // max-w-full + inner truncate: in bounded containers (detail highlight
     // strip columns, grid cells) an overlong label used to clip mid-glyph at
     // the container edge; now the badge shrinks and ellipsizes, with the full
@@ -1287,6 +1571,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
         key={key}
         variant="outline"
         className={cn('max-w-full min-w-0', colorClasses)}
+        style={hexBadge?.style}
         title={label}
       >
         <span className="truncate">{label}</span>
@@ -1619,6 +1904,15 @@ function ReferencedRecordLink({
 }
 
 /**
+ * How many chips a multi-value lookup cell shows before collapsing the rest
+ * into a single "+N" chip. Mirrors UserCellRenderer's avatar cap (3): enough
+ * to identify the cell's content, few enough that the cell cannot grow its
+ * row unboundedly (objectui — a 60-reference cell blew a grid row up to
+ * several screens of height).
+ */
+const MAX_LOOKUP_CELL_CHIPS = 3;
+
+/**
  * Lookup/Master-Detail field cell renderer.
  *
  * Display order:
@@ -1748,18 +2042,31 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   };
 
   if (Array.isArray(value)) {
+    const itemDisplay = (item: unknown): { label: string; muted: boolean } => {
+      if (item != null && typeof item === 'object') {
+        return {
+          label:
+            resolveLookupRecordName(item as Record<string, unknown>, refSchema, displayField) ||
+            String((item as any).id || (item as any)._id || '[Object]'),
+          muted: false,
+        };
+      }
+      const r = resolveLabel(item);
+      return { label: r.text, muted: r.muted };
+    };
+
+    // Cap the chips the same way UserCellRenderer caps its avatars: a
+    // multi-value lookup can reference dozens of records (a 60-reference cell
+    // has been seen in the wild), and one chip per reference lets a single
+    // cell stretch its row to several screens. The hidden names stay
+    // reachable — the overflow chip's `title` lists them, and the record
+    // itself shows the full set.
+    const visible = value.slice(0, MAX_LOOKUP_CELL_CHIPS);
+    const overflow = value.slice(MAX_LOOKUP_CELL_CHIPS);
     return (
       <div className="flex flex-wrap gap-1">
-        {value.map((item, idx) => {
-          let label: string;
-          let muted = false;
-          if (item != null && typeof item === 'object') {
-            label = resolveLookupRecordName(item as Record<string, unknown>, refSchema, displayField) || String((item as any).id || (item as any)._id || '[Object]');
-          } else {
-            const r = resolveLabel(item);
-            label = r.text;
-            muted = r.muted;
-          }
+        {visible.map((item, idx) => {
+          const { label, muted } = itemDisplay(item);
           // Each chip is one referenced record, so each links on its own —
           // there is no single destination a multi-value cell could point at.
           return (
@@ -1782,6 +2089,14 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
             </ReferencedRecordLink>
           );
         })}
+        {overflow.length > 0 && (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted/40 text-muted-foreground"
+            title={overflow.map((item) => itemDisplay(item).label).join(', ')}
+          >
+            +{overflow.length}
+          </span>
+        )}
       </div>
     );
   }
@@ -1985,45 +2300,17 @@ export function ColorSwatchCellRenderer({ value }: CellRendererProps): React.Rea
   );
 }
 
-const LazyMarkdownContent = React.lazy(() => import('./widgets/MarkdownContent'));
-
 /**
- * Renders `markdown` / `richtext` values as formatted GFM markdown (lazy-loaded,
- * sanitized) instead of the raw markup string.
+ * The rich-content display pipelines — `markdown` through the GFM renderer,
+ * `html`/`richtext` through the sanitizing HTML renderer — live in
+ * `./widgets/richTextDisplay.js` rather than here, so `RichTextField` can
+ * import them without importing this barrel back (objectui#5498). Re-exported
+ * unchanged: they are part of this package's published surface, and
+ * `RICH_TEXT_CELL_RENDERERS` below is the one table both the cell resolver and
+ * the widget's readonly branch read.
  */
-export function MarkdownCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
-  return (
-    <React.Suspense fallback={<span className="text-sm text-muted-foreground">{String(value).slice(0, 80)}</span>}>
-      <LazyMarkdownContent value={String(value)} />
-    </React.Suspense>
-  );
-}
-
-/**
- * Minimal HTML sanitizer for display: drops <script>/<style>/<iframe> blocks,
- * inline event handlers, and javascript: URLs. Defense-in-depth — stored HTML
- * is authored by users with write access, but is never trusted blindly.
- */
-function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
-}
-
-/**
- * Renders an `html` value as sanitized, formatted HTML instead of raw markup.
- */
-export function HtmlCellRenderer({ value }: CellRendererProps): React.ReactElement {
-  if (value == null || value === '') return <EmptyValue />;
-  return (
-    <div
-      className="prose prose-sm max-w-none dark:prose-invert break-words"
-      dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(value)) }}
-    />
-  );
-}
+export { MarkdownCellRenderer, HtmlCellRenderer } from './widgets/richTextDisplay.js';
+import { RICH_TEXT_CELL_RENDERERS } from './widgets/richTextDisplay.js';
 
 /**
  * Renders a `location`/`geolocation` value as readable coordinates with a pin.
@@ -2124,9 +2411,13 @@ export function getCellRenderer(fieldType: string): React.FC<CellRendererProps> 
   const standardMap: Record<string, React.FC<CellRendererProps>> = {
     text: TextCellRenderer,
     textarea: TextCellRenderer,
-    markdown: MarkdownCellRenderer,
-    html: HtmlCellRenderer,
-    richtext: MarkdownCellRenderer,
+    // `markdown` / `html` / `richtext` — spread from THE table rather than
+    // written out here, so this resolver and `RichTextField`'s readonly branch
+    // cannot drift apart on which pipeline a rich-content type reads through
+    // (objectui#5498). `richtext` maps to the HTML renderer, NOT the markdown
+    // one, which drops raw HTML and therefore rendered every populated richtext
+    // value as a blank cell (objectui#5452).
+    ...RICH_TEXT_CELL_RENDERERS,
     code: TextCellRenderer,
     qrcode: TextCellRenderer,
     number: NumberCellRenderer,
@@ -2200,17 +2491,31 @@ registerFieldRenderer('user', UserCellRenderer);
 
 // Register getCellRenderer in the bridge so RecordPickerDialog can access it
 // via LookupField without circular imports.
-import { setCellRendererResolver } from './widgets/_cell-renderer-bridge';
+import { setCellRendererResolver } from './widgets/_cell-renderer-bridge.js';
 setCellRendererResolver(getCellRenderer);
 
 
 
 // `mapFieldTypeToFormType` moved to './field-type-alias' (re-exported below) so
 // FieldEditWidget can resolve spec aliases without importing this barrel.
-export { mapFieldTypeToFormType } from './field-type-alias';
-import { mapFieldTypeToFormType } from './field-type-alias';
-export { RETIRED_FIELD_TYPES, reportRetiredFieldType, resetRetiredFieldTypeReports } from './field-type-alias';
-import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias';
+export { mapFieldTypeToFormType } from './field-type-alias.js';
+import { mapFieldTypeToFormType } from './field-type-alias.js';
+// `isRetiredFieldType` is the gate the maintainer ruled onto THIS package's
+// surface (objectui#4914, ruling B) — "export a single `isRetiredFieldType(t)`
+// gate from `@object-ui/fields` and place it ahead of each of the six live
+// predicate faces". The implementation is homed in `@object-ui/core` because
+// one of those six faces lives in `@object-ui/components`, which this package
+// depends on; see `core/src/utils/retired-field-types.ts`. Every consumer that
+// can reach `@object-ui/fields` reads it from here, and the two that cannot
+// (`components`, and `plugin-view` which carries no `fields` dependency) read
+// the same function object from `@object-ui/core`.
+export {
+  RETIRED_FIELD_TYPES,
+  isRetiredFieldType,
+  reportRetiredFieldType,
+  resetRetiredFieldTypeReports,
+} from './field-type-alias.js';
+import { RETIRED_FIELD_TYPES, reportRetiredFieldType } from './field-type-alias.js';
 
 /**
  * Formats file size in bytes to human-readable string
@@ -2393,75 +2698,81 @@ export function evaluateCondition(condition: any, formData: any): boolean {
  * Field widget map for lazy loading
  * Maps field type to widget component
  */
-const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
+type FieldWidgetLoader = () => Promise<{ default: React.ComponentType<any> }>;
+
+// `satisfies` (not a `Record<string, …>` annotation) so the KEY SET survives as
+// a literal union — that union is what makes `FIELD_WIDGET_LABELLING` below
+// exhaustive BY CONSTRUCTION: adding a widget here without deciding its
+// labelling is a compile error, not a silent fallback (objectui#4857).
+const fieldWidgetMap = {
   // Basic fields
-  'text': () => import('./widgets/TextField').then(m => ({ default: m.TextField })),
-  'textarea': () => import('./widgets/TextAreaField').then(m => ({ default: m.TextAreaField })),
-  'number': () => import('./widgets/NumberField').then(m => ({ default: m.NumberField })),
-  'boolean': () => import('./widgets/BooleanField').then(m => ({ default: m.BooleanField })),
-  'select': () => import('./widgets/SelectField').then(m => ({ default: m.SelectField })),
-  'date': () => import('./widgets/DateField').then(m => ({ default: m.DateField })),
-  'datetime': () => import('./widgets/DateTimeField').then(m => ({ default: m.DateTimeField })),
-  'time': () => import('./widgets/TimeField').then(m => ({ default: m.TimeField })),
+  'text': () => import('./widgets/TextField.js').then(m => ({ default: m.TextField })),
+  'textarea': () => import('./widgets/TextAreaField.js').then(m => ({ default: m.TextAreaField })),
+  'number': () => import('./widgets/NumberField.js').then(m => ({ default: m.NumberField })),
+  'boolean': () => import('./widgets/BooleanField.js').then(m => ({ default: m.BooleanField })),
+  'select': () => import('./widgets/SelectField.js').then(m => ({ default: m.SelectField })),
+  'date': () => import('./widgets/DateField.js').then(m => ({ default: m.DateField })),
+  'datetime': () => import('./widgets/DateTimeField.js').then(m => ({ default: m.DateTimeField })),
+  'time': () => import('./widgets/TimeField.js').then(m => ({ default: m.TimeField })),
   
   // Contact fields
-  'email': () => import('./widgets/EmailField').then(m => ({ default: m.EmailField })),
-  'phone': () => import('./widgets/PhoneField').then(m => ({ default: m.PhoneField })),
-  'url': () => import('./widgets/UrlField').then(m => ({ default: m.UrlField })),
+  'email': () => import('./widgets/EmailField.js').then(m => ({ default: m.EmailField })),
+  'phone': () => import('./widgets/PhoneField.js').then(m => ({ default: m.PhoneField })),
+  'url': () => import('./widgets/UrlField.js').then(m => ({ default: m.UrlField })),
   
   // Selection fields (multi-value / option groups)
-  'multiselect': () => import('./widgets/MultiSelectField').then(m => ({ default: m.MultiSelectField })),
-  'radio': () => import('./widgets/RadioField').then(m => ({ default: m.RadioField })),
-  'checkboxes': () => import('./widgets/CheckboxesField').then(m => ({ default: m.CheckboxesField })),
-  'tags': () => import('./widgets/TagsField').then(m => ({ default: m.TagsField })),
+  'multiselect': () => import('./widgets/MultiSelectField.js').then(m => ({ default: m.MultiSelectField })),
+  'radio': () => import('./widgets/RadioField.js').then(m => ({ default: m.RadioField })),
+  'checkboxes': () => import('./widgets/CheckboxesField.js').then(m => ({ default: m.CheckboxesField })),
+  'tags': () => import('./widgets/TagsField.js').then(m => ({ default: m.TagsField })),
 
   // Specialized fields
-  'currency': () => import('./widgets/CurrencyField').then(m => ({ default: m.CurrencyField })),
-  'percent': () => import('./widgets/PercentField').then(m => ({ default: m.PercentField })),
-  'password': () => import('./widgets/PasswordField').then(m => ({ default: m.PasswordField })),
-  'markdown': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'html': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'richtext': () => import('./widgets/RichTextField').then(m => ({ default: m.RichTextField })),
-  'lookup': () => import('./widgets/LookupField').then(m => ({ default: m.LookupField })),
+  'currency': () => import('./widgets/CurrencyField.js').then(m => ({ default: m.CurrencyField })),
+  'percent': () => import('./widgets/PercentField.js').then(m => ({ default: m.PercentField })),
+  'password': () => import('./widgets/PasswordField.js').then(m => ({ default: m.PasswordField })),
+  'markdown': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'html': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'richtext': () => import('./widgets/RichTextField.js').then(m => ({ default: m.RichTextField })),
+  'lookup': () => import('./widgets/LookupField.js').then(m => ({ default: m.LookupField })),
   // master_detail represents the child-side FK to its parent. In create/edit forms it
   // must render as a single-value lookup picker (it is typically NOT NULL). The legacy
   // MasterDetailField widget modelled this as a one-to-many list, which is incorrect
   // for the child-side and prevented users from filling the required parent reference.
-  'master_detail': () => import('./widgets/LookupField').then(m => ({ default: m.LookupField })),
+  'master_detail': () => import('./widgets/LookupField.js').then(m => ({ default: m.LookupField })),
   
   // File fields
-  'file': () => import('./widgets/FileField').then(m => ({ default: m.FileField })),
-  'image': () => import('./widgets/ImageField').then(m => ({ default: m.ImageField })),
+  'file': () => import('./widgets/FileField.js').then(m => ({ default: m.FileField })),
+  'image': () => import('./widgets/ImageField.js').then(m => ({ default: m.ImageField })),
   
   // Location field
-  'location': () => import('./widgets/LocationField').then(m => ({ default: m.LocationField })),
+  'location': () => import('./widgets/LocationField.js').then(m => ({ default: m.LocationField })),
   
   // Computed/Read-only fields
-  'formula': () => import('./widgets/FormulaField').then(m => ({ default: m.FormulaField })),
-  'summary': () => import('./widgets/SummaryField').then(m => ({ default: m.SummaryField })),
-  'auto_number': () => import('./widgets/AutoNumberField').then(m => ({ default: m.AutoNumberField })),
+  'formula': () => import('./widgets/FormulaField.js').then(m => ({ default: m.FormulaField })),
+  'summary': () => import('./widgets/SummaryField.js').then(m => ({ default: m.SummaryField })),
+  'auto_number': () => import('./widgets/AutoNumberField.js').then(m => ({ default: m.AutoNumberField })),
   
   // User fields. `owner` pointed at this same UserField until objectui#4814
   // retired it (see the TOMBSTONE near `registerAllFields`) — do not re-add it
   // here: membership in this map is what makes a name a renderable field type
   // (`FORM_FIELD_TYPES` is its key set).
-  'user': () => import('./widgets/UserField').then(m => ({ default: m.UserField })),
+  'user': () => import('./widgets/UserField.js').then(m => ({ default: m.UserField })),
 
   // Complex data types
-  'object': () => import('./widgets/ObjectField').then(m => ({ default: m.ObjectField })),
-  'vector': () => import('./widgets/VectorField').then(m => ({ default: m.VectorField })),
-  'grid': () => import('./widgets/GridField').then(m => ({ default: m.GridField })),
+  'object': () => import('./widgets/ObjectField.js').then(m => ({ default: m.ObjectField })),
+  'vector': () => import('./widgets/VectorField.js').then(m => ({ default: m.VectorField })),
+  'grid': () => import('./widgets/GridField.js').then(m => ({ default: m.GridField })),
   
   // Additional field types from @objectstack/spec
-  'color': () => import('./widgets/ColorField').then(m => ({ default: m.ColorField })),
-  'slider': () => import('./widgets/SliderField').then(m => ({ default: m.SliderField })),
-  'rating': () => import('./widgets/RatingField').then(m => ({ default: m.RatingField })),
-  'code': () => import('./widgets/CodeField').then(m => ({ default: m.CodeField })),
-  'avatar': () => import('./widgets/AvatarField').then(m => ({ default: m.AvatarField })),
-  'address': () => import('./widgets/AddressField').then(m => ({ default: m.AddressField })),
-  'geolocation': () => import('./widgets/GeolocationField').then(m => ({ default: m.GeolocationField })),
-  'signature': () => import('./widgets/SignatureField').then(m => ({ default: m.SignatureField })),
-  'qrcode': () => import('./widgets/QRCodeField').then(m => ({ default: m.QRCodeField })),
+  'color': () => import('./widgets/ColorField.js').then(m => ({ default: m.ColorField })),
+  'slider': () => import('./widgets/SliderField.js').then(m => ({ default: m.SliderField })),
+  'rating': () => import('./widgets/RatingField.js').then(m => ({ default: m.RatingField })),
+  'code': () => import('./widgets/CodeField.js').then(m => ({ default: m.CodeField })),
+  'avatar': () => import('./widgets/AvatarField.js').then(m => ({ default: m.AvatarField })),
+  'address': () => import('./widgets/AddressField.js').then(m => ({ default: m.AddressField })),
+  'geolocation': () => import('./widgets/GeolocationField.js').then(m => ({ default: m.GeolocationField })),
+  'signature': () => import('./widgets/SignatureField.js').then(m => ({ default: m.SignatureField })),
+  'qrcode': () => import('./widgets/QRCodeField.js').then(m => ({ default: m.QRCodeField })),
 
   // Widget-hint-only pickers (reached via a field `widget:` override, never a
   // bare field `type`). They render a *picker* over machine data an admin would
@@ -2469,10 +2780,19 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
   //   object-ref       → choose a registered object by name
   //   filter-condition → visual criteria builder scoped to the chosen object
   //   recipient-picker → record picker whose target follows a sibling type
-  'object-ref': () => import('./widgets/ObjectRefField').then(m => ({ default: m.ObjectRefField })),
-  'filter-condition': () => import('./widgets/FilterConditionField').then(m => ({ default: m.FilterConditionField })),
-  'recipient-picker': () => import('./widgets/RecipientPickerField').then(m => ({ default: m.RecipientPickerField })),
-};
+  'object-ref': () => import('./widgets/ObjectRefField.js').then(m => ({ default: m.ObjectRefField })),
+  'filter-condition': () => import('./widgets/FilterConditionField.js').then(m => ({ default: m.FilterConditionField })),
+  'recipient-picker': () => import('./widgets/RecipientPickerField.js').then(m => ({ default: m.RecipientPickerField })),
+} satisfies Record<string, FieldWidgetLoader>;
+
+/** The registered field widget keys, as a literal union (objectui#4857). */
+export type RegisteredFieldWidgetType = keyof typeof fieldWidgetMap;
+
+// String-indexed view of the same object, for the resolver call sites below
+// that look up ARBITRARY spellings (aliases, retired keys, author typos). The
+// literal-keyed `fieldWidgetMap` cannot be indexed by a plain `string`; this
+// alias widens the key without copying anything.
+const fieldWidgetLoaderByKey: Record<string, FieldWidgetLoader | undefined> = fieldWidgetMap;
 
 /**
  * Every field type the form can render (the canonical list of supported types).
@@ -2494,14 +2814,14 @@ export const FORM_FIELD_TYPES: readonly string[] = Object.freeze(Object.keys(fie
  * support can never drift behind the form surface (ADR-0059).
  */
 export function resolveFormWidgetType(fieldType: string): string {
-  if (fieldWidgetMap[fieldType]) return fieldType;
+  if (fieldWidgetLoaderByKey[fieldType]) return fieldType;
   // A retired spelling resolves to ITSELF, not to `text`: the registry holds a
   // tombstone widget under that key which refuses visibly, so every host built
   // on this seam (the app-shell `ActionParamDialog`, the bulk dialog) reports
   // the retirement instead of silently rendering an input (objectui#4814).
   if (RETIRED_FIELD_TYPES[fieldType]) return fieldType;
   const mapped = mapFieldTypeToFormType(fieldType).replace(/^field:/, '');
-  return fieldWidgetMap[mapped] ? mapped : 'text';
+  return fieldWidgetLoaderByKey[mapped] ? mapped : 'text';
 }
 
 /**
@@ -2536,7 +2856,8 @@ export function getLazyFieldWidget(fieldType: string): React.ComponentType<any> 
   if (RETIRED_FIELD_TYPES[key]) return RetiredFieldTombstone;
   let Widget = lazyFieldWidgets.get(key);
   if (!Widget) {
-    Widget = React.lazy(fieldWidgetMap[key]);
+    // `resolveFormWidgetType` only returns keys the map holds, hence the `!`.
+    Widget = React.lazy(fieldWidgetLoaderByKey[key]!);
     lazyFieldWidgets.set(key, Widget);
   }
   return Widget;
@@ -2589,58 +2910,110 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
 ]);
 
 /**
- * Widgets whose labelled surface is NOT a labelable HTML element, so a host's
- * `<label for>` cannot reach it and the association has to go by IDREF instead
- * (`ComponentMeta.labelling`, objectui#3961). Two shapes, one declaration:
+ * The labelling declaration of EVERY registered field widget
+ * (`ComponentMeta.labelling` — the closed `'control' | 'group' | 'display'`
+ * vocabulary, objectui#3961 extended by objectui#4857). This `Record` is keyed
+ * by the widget map's own literal key union, so it is exhaustive BY
+ * CONSTRUCTION: registering a widget without deciding how a host's label
+ * reaches it is a COMPILE error here, not a silent fall-through to the
+ * `'control'` path — the omitted-declaration degradation is exactly the trap
+ * the #4857 ruling named, and it is what turned the display-only four into
+ * fields with no accessible name.
+ *
+ * ## `'group'` — a surface no `<label for>` can reach; the WIDGET consumes the IDREF
+ *
+ * Two shapes, one declaration:
  *
  *  - real composites — `address` / `geolocation` render several inputs under one
- *    container, and `checkboxes` / `radio` / `rating` / `multiselect` a set of
- *    choice controls; the host's label names the GROUP, each sub-control keeps
- *    its own name (a sub-label, or the chip's own text content).
- *  - `file` is not composite at all: it has exactly ONE control, the dropzone,
- *    which is a `div[role="button"]` (it is the keyboard path to the hidden file
- *    input). It is here because a `div` cannot be `for`-labelled, not because it
- *    is a group, and it renders NO `role="group"` — the dropzone itself takes the
- *    `aria-labelledby`.
+ *    container, `checkboxes` / `radio` / `rating` / `multiselect` a set of
+ *    choice controls, and `grid` a whole table of cell inputs plus row actions;
+ *    the host's label names the GROUP, each sub-control keeps its own name (a
+ *    sub-label, the chip's text content, or a cell's own `aria-label`).
+ *  - single non-labelable controls — `file`'s one control is a
+ *    `div[role="button"]` dropzone, `slider`'s is Radix's `span[role="slider"]`
+ *    thumb (objectui#3318), `signature`'s drawing surface is a `<canvas>`
+ *    (objectui#3318). A `div`/`span`/`canvas` cannot be `for`-labelled, so the
+ *    name goes by IDREF to the control (or, for `signature`, its container).
  *
- * Measured, not assumed: every entry was verified in a real form to be a widget
- * whose host label either resolved to nothing (`address` / `geolocation`, whose
- * sub-input ids overwrote the host id — objectui#3343) or resolved to an element
- * that cannot carry it (`checkboxes` / `radio` / `rating` / `file` /
- * `multiselect`). In both shapes the visible group label was, before this
- * declaration, the accessible name of NOTHING.
+ * Measured, not assumed: every `'group'` entry was verified in a real form —
+ * the #3961/#3975 probes for the first seven, the #3318 delivery for
+ * `slider`/`signature`, and the #4857 re-measurement for `grid` (bare config:
+ * one focusable, the auxiliary "Add line" BUTTON — routing `for` there would
+ * have label clicks INSERT A ROW; realistic config: 8 focusables across cell
+ * inputs and row actions — a composite, not a single control).
  *
- * `multiselect` arrived one issue later (objectui#3975) for a coverage reason,
- * not a mechanism one: #3961's probe covered the six above, and re-running it
- * over the full widget map afterwards found `multiselect` on the byte-identical
- * failure shape as `checkboxes` — the host id kept, on the chip row's wrapper
- * `div`, where a `for` is inert. Same declaration, same container answer.
+ * ## `'display'` — a pure display in EVERY state; the HOST wraps (objectui#4857)
  *
- * A widget NOT listed here takes the single-control path unchanged. That is the
- * safe default: the host keeps emitting `for`, and a composite that forgot to
- * declare itself is caught by the label-association tests (objectui#3952) rather
- * than silently emitting an `aria-labelledby` onto a container with no role.
+ * `formula` / `summary` / `auto_number` / `vector` have no editable branch at
+ * all: the whole widget is a replacement display with no focusable control, in
+ * the editable state as much as the readonly one (on the real object-form path
+ * they arrive `disabled`, never `readonly`, so the #4788 readonly gate could
+ * not cover them). The form renderer answers the declaration with its own
+ * wrapper — id + `aria-labelledby` + `aria-describedby` + `role="group"`, the
+ * #4788 container — and the label emits no `for`. The widgets spread nothing,
+ * by design; the host is the named surface.
+ *
+ * ## `'control'` — everything else
+ *
+ * The host's `<label for>` reaches a real labelable element. At registration
+ * this is deliberately spelled as ABSENCE of the meta key (one spelling of the
+ * default, objectui#3961), so hosts keep one rule for these and for
+ * out-of-registry widgets alike; the entry here is still mandatory, because
+ * "defaulted by omission" and "decided to be the default" are different facts.
  */
-const FIELD_TYPES_GROUP_LABELLED = new Set([
-  'address',
-  'geolocation',
-  'checkboxes',
-  'radio',
-  'rating',
-  'file',
-  // objectui#3975 — the residual after #3961's six, same shape as `checkboxes`.
-  'multiselect',
-  // objectui#3318 — two more of `file`'s shape, not composites:
-  //  - `slider`'s one control is Radix's `span[role="slider"]` thumb;
-  //  - `signature`'s drawing surface is a `<canvas>`.
-  // Neither is one of HTML's labelable elements, so a host `for` can only
-  // dangle at it; both must be named by IDREF instead.
-  'slider',
-  'signature',
-]);
+export const FIELD_WIDGET_LABELLING: Record<
+  RegisteredFieldWidgetType,
+  NonNullable<ComponentMeta['labelling']>
+> = {
+  text: 'control',
+  textarea: 'control',
+  number: 'control',
+  boolean: 'control',
+  select: 'control',
+  date: 'control',
+  datetime: 'control',
+  time: 'control',
+  email: 'control',
+  phone: 'control',
+  url: 'control',
+  multiselect: 'group',
+  radio: 'group',
+  checkboxes: 'group',
+  tags: 'control',
+  currency: 'control',
+  percent: 'control',
+  password: 'control',
+  markdown: 'control',
+  html: 'control',
+  richtext: 'control',
+  lookup: 'control',
+  master_detail: 'control',
+  file: 'group',
+  image: 'control',
+  location: 'control',
+  formula: 'display',
+  summary: 'display',
+  auto_number: 'display',
+  user: 'control',
+  object: 'control',
+  vector: 'display',
+  grid: 'group',
+  color: 'control',
+  slider: 'group',
+  rating: 'group',
+  code: 'control',
+  avatar: 'control',
+  address: 'group',
+  geolocation: 'group',
+  signature: 'group',
+  qrcode: 'control',
+  'object-ref': 'control',
+  'filter-condition': 'control',
+  'recipient-picker': 'control',
+};
 
 export function registerField(fieldType: string): void {
-  const loader = fieldWidgetMap[fieldType];
+  const loader = fieldWidgetLoaderByKey[fieldType];
   if (!loader) {
     console.warn(`Unknown field type: ${fieldType}`);
     return;
@@ -2653,13 +3026,17 @@ export function registerField(fieldType: string): void {
   // label/description/spacing. The only thing wrapped is the metadata carrier:
   // `withFieldCarrier` maps `SchemaRenderer`'s `schema` node onto `field`
   // (objectui#3233) and renders nothing of its own.
+  // The loader check above proves `fieldType` is a map key, which is what the
+  // labelling record is keyed by — hence the cast, not a second lookup table.
+  const labelling = FIELD_WIDGET_LABELLING[fieldType as RegisteredFieldWidgetType];
   ComponentRegistry.register(fieldType, withFieldCarrier(LazyFieldWidget), {
     namespace: 'field',
     skipFallback: FIELD_TYPES_SKIP_FALLBACK.has(fieldType),
-    // Only the group-labelled widgets carry the key; everything else leaves it
-    // absent, which the form renderer reads as `'control'` (objectui#3961). One
-    // spelling of the default, in one place.
-    ...(FIELD_TYPES_GROUP_LABELLED.has(fieldType) ? { labelling: 'group' as const } : null),
+    // Only the group- and display-labelled widgets carry the meta key;
+    // `'control'` stays ABSENT, which every host reads as `'control'`
+    // (objectui#3961). One spelling of the default, in one place — while the
+    // exhaustive record above still forces every widget to declare.
+    ...(labelling !== 'control' ? { labelling } : null),
   });
 }
 
@@ -2782,79 +3159,79 @@ export function registerAllFields(): void {
 // field NAME carries ownership meaning, the type carries the widget.
 // `UserField` and `UserCellRenderer` are untouched; only the synonym is gone.
 
-export * from './widgets/types';
+export * from './widgets/types.js';
 // File field value shapes (ObjectStack ADR-0104 D3 wave 2) — the single
 // arbiter of reference vs expanded vs legacy-blob form, shared by the upload
 // widgets and by action-param serialization.
-export * from './widgets/file-value';
-export * from './FieldEditWidget';
-export * from './widgets/TextField';
-export * from './widgets/NumberField';
-export * from './widgets/BooleanField';
-export * from './widgets/SelectField';
-export * from './widgets/DateField';
-export * from './widgets/DateTimeField';
-export * from './widgets/TimeField';
-export * from './widgets/EmailField';
-export * from './widgets/PhoneField';
-export * from './widgets/UrlField';
-export * from './widgets/CurrencyField';
-export * from './widgets/PercentField';
-export * from './widgets/PasswordField';
-export * from './widgets/TextAreaField';
-export * from './widgets/RichTextField';
-export * from './widgets/LookupField';
-export * from './widgets/CapabilityMultiSelectField';
-export * from './widgets/ObjectRefField';
-export * from './widgets/FilterConditionField';
-export * from './widgets/RecipientPickerField';
-export * from './widgets/RecordPickerDialog';
+export * from './widgets/file-value.js';
+export * from './FieldEditWidget.js';
+export * from './widgets/TextField.js';
+export * from './widgets/NumberField.js';
+export * from './widgets/BooleanField.js';
+export * from './widgets/SelectField.js';
+export * from './widgets/DateField.js';
+export * from './widgets/DateTimeField.js';
+export * from './widgets/TimeField.js';
+export * from './widgets/EmailField.js';
+export * from './widgets/PhoneField.js';
+export * from './widgets/UrlField.js';
+export * from './widgets/CurrencyField.js';
+export * from './widgets/PercentField.js';
+export * from './widgets/PasswordField.js';
+export * from './widgets/TextAreaField.js';
+export * from './widgets/RichTextField.js';
+export * from './widgets/LookupField.js';
+export * from './widgets/CapabilityMultiSelectField.js';
+export * from './widgets/ObjectRefField.js';
+export * from './widgets/FilterConditionField.js';
+export * from './widgets/RecipientPickerField.js';
+export * from './widgets/RecordPickerDialog.js';
 // Shared picker-column derivation (ADR-0085 highlightFields → displayFields →
 // schema walk) — consumed by LookupField AND by RelatedList's Add-picker so a
 // lookup picker and a related-list Add dialog of the same object agree on
 // columns (#3365).
-export * from './widgets/deriveLookupColumns';
-export * from './widgets/FileField';
-export * from './widgets/ImageField';
-export { ImageCropperDialog } from './widgets/ImageCropperDialog';
-export type { ImageCropperDialogProps } from './widgets/ImageCropperDialog';
-export * from './widgets/LocationField';
-export * from './widgets/FormulaField';
-export * from './widgets/SummaryField';
-export * from './widgets/AutoNumberField';
-export * from './widgets/UserField';
-export * from './widgets/ObjectField';
-export * from './widgets/VectorField';
-export * from './widgets/GridField';
+export * from './widgets/deriveLookupColumns.js';
+export * from './widgets/FileField.js';
+export * from './widgets/ImageField.js';
+export { ImageCropperDialog } from './widgets/ImageCropperDialog.js';
+export type { ImageCropperDialogProps } from './widgets/ImageCropperDialog.js';
+export * from './widgets/LocationField.js';
+export * from './widgets/FormulaField.js';
+export * from './widgets/SummaryField.js';
+export * from './widgets/AutoNumberField.js';
+export * from './widgets/UserField.js';
+export * from './widgets/ObjectField.js';
+export * from './widgets/VectorField.js';
+export * from './widgets/GridField.js';
 // New widgets according to @objectstack/spec
-export * from './widgets/ColorField';
-export * from './widgets/SliderField';
-export * from './widgets/RatingField';
-export * from './widgets/CodeField';
-export * from './widgets/AvatarField';
-export * from './widgets/AddressField';
-export * from './widgets/GeolocationField';
-export * from './widgets/SignatureField';
-export * from './widgets/QRCodeField';
-export * from './widgets/MasterDetailField';
-export * from './widgets/MultiSelectField';
-export * from './widgets/RadioField';
-export * from './widgets/CheckboxesField';
-export * from './widgets/TagsField';
+export * from './widgets/ColorField.js';
+export * from './widgets/SliderField.js';
+export * from './widgets/RatingField.js';
+export * from './widgets/CodeField.js';
+export * from './widgets/AvatarField.js';
+export * from './widgets/AddressField.js';
+export * from './widgets/GeolocationField.js';
+export * from './widgets/SignatureField.js';
+export * from './widgets/QRCodeField.js';
+export * from './widgets/MasterDetailField.js';
+export * from './widgets/MultiSelectField.js';
+export * from './widgets/RadioField.js';
+export * from './widgets/CheckboxesField.js';
+export * from './widgets/TagsField.js';
 
 // The SDUI-node → `field` adapter every registration here goes through
 // (objectui#3233). Exported so a widget registered OUTSIDE this repo can reach
 // the same single-carrier guarantee instead of re-growing a `field || schema`
 // read of its own.
-export { withFieldCarrier } from './withFieldCarrier';
+export { withFieldCarrier } from './withFieldCarrier.js';
 
 // The whitelist that decides what a widget's `...props` spread may put on a
 // DOM element (objectui#3291) — the runtime executor of the "DOM pass-through"
 // block of `FieldWidgetComponentProps`. Exported for the same reason as
 // `withFieldCarrier` above: a widget authored outside this repo needs to reach
 // it, or it re-grows the bare spread this closed.
-export { toDomProps } from './widgets/toDomProps';
-export type { DomProps } from './widgets/toDomProps';
+export { toDomProps } from './widgets/toDomProps.js';
+export type { DomProps } from './widgets/toDomProps.js';
 
 // The native date/time control value adapters (objectui#3127). `DateTimeField`
 // is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
@@ -2870,7 +3247,7 @@ export {
   toDateInputValue,
   toDateTimeInputValue,
   fromDateTimeInputValue,
-} from './widgets/nativeDateValue';
+} from './widgets/nativeDateValue.js';
 
 // Initialize registry
 registerAllFields();

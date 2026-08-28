@@ -9,6 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { SwitchSchema } from '@object-ui/types';
 import { Switch, Label } from '../../ui';
+import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('switch', 
   ({ schema, className, ...props }: { schema: SwitchSchema; className?: string; [key: string]: any }) => {
@@ -27,7 +28,7 @@ ComponentRegistry.register('switch',
         data-obj-type={dataObjType}
         style={style}
     >
-      <Switch id={schema.id} className={className} {...switchProps} />
+      <Switch id={schema.id} className={className} {...toFormControlDomProps(switchProps)} />
       <Label htmlFor={schema.id}>{schema.label}</Label>
     </div>
   );

@@ -29,7 +29,7 @@ import { useUpload } from '@object-ui/providers';
 import { Loader2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useOrgContext } from './orgContext';
+import { useOrgContext } from './orgContext.js';
 
 export function SettingsPage() {
   const { t } = useObjectTranslation();

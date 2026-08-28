@@ -62,7 +62,7 @@ vi.mock('@object-ui/app-shell', () => ({
   useAdapter: () => ({ find: async () => ({ data: [] }) }),
 }));
 vi.mock('@object-ui/auth', () => ({
-  useIsWorkspaceAdmin: () => true,
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));
 
 import { SystemHubPage } from '../SystemHubPage';

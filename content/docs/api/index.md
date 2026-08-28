@@ -17,7 +17,7 @@ Complete reference for every ObjectUI schema type with annotated JSON examples c
 - **Layout** — `PageSchema`, `DivSchema`, `CardSchema`, `GridSchema`, `TabsSchema`
 - **Forms** — `FormSchema`, `InputSchema`, `SelectSchema`, `ButtonSchema`
 - **Data Display** — `TableSchema`, `ChartSchema`, `TreeViewSchema`
-- **CRUD** — `CRUDSchema`, `ActionSchema`, `DetailSchema`
+- **CRUD** — `ActionSchema`, `DetailSchema`, `CRUDDialogSchema`
 - **ObjectQL** — `ObjectGridSchema`, `ObjectFormSchema`, `ObjectViewSchema`
 - **Complex** — `KanbanSchema`, `DashboardSchema`, `CalendarViewSchema`
 - **Views** — `DetailViewSchema`, `ViewSwitcherSchema`

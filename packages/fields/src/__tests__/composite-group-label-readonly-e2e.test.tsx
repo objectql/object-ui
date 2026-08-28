@@ -185,7 +185,7 @@ beforeAll(() => {
     ComponentRegistry.register(type, Component as any, {
       namespace: 'field',
       skipFallback: true,
-      // The declaration under test, mirroring `FIELD_TYPES_GROUP_LABELLED`.
+      // The declaration under test, mirroring `FIELD_WIDGET_LABELLING`.
       labelling: 'group',
     });
   }
@@ -674,7 +674,7 @@ describe('STANDALONE readonly widgets are unchanged (objectui#3990)', () => {
 
   it('the shared options-empty box emits nothing for a widget that is not group-labelled', () => {
     // The positive control for `OptionsEmptyState`'s new prop. The single
-    // `SelectField` is NOT in `FIELD_TYPES_GROUP_LABELLED` — its label keeps a
+    // `SelectField` is NOT in `FIELD_WIDGET_LABELLING` — its label keeps a
     // plain, working `for` — so the shared box must stay attribute-for-attribute
     // what it was: no `role`, no IDREF, no host id.
     render(

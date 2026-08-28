@@ -28,7 +28,7 @@
  * the call site.
  */
 
-import { slugify } from './metadata-admin/createDerive';
+import { slugify } from './metadata-admin/createDerive.js';
 
 /** The runtime-editable artifact types ADR-0034 unifies. `page` (a record
  *  `PageSchema`) joins the original three (#1541): a record page is edited in

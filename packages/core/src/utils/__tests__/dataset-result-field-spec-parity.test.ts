@@ -20,11 +20,17 @@
  * The assertions below are TYPES. `Assert< Equal< Local, Spec > >` is a compile
  * error or it is nothing — and this package's own `tsconfig.json` is the BUILD
  * config, which excludes every `.test.ts` file under `src` (correctly: a test
- * must not emit into `dist`), while `@object-ui/core` is still in
- * `scripts/check-type-check-coverage.mjs`'s TEST_DEBT, so no other `tsc`
- * invocation reads this tree either. `packages/core/tsconfig.typetests.json`
- * lists this file explicitly and is chained off the package's `type-check`
- * script; without that project these pins would be the "declared != enforced"
+ * must not emit into `dist`). What compiles them is
+ * `packages/core/tsconfig.test.json`, which takes the package's test tree by
+ * glob — this file included — and is chained off the package's `type-check`
+ * script (`tsc --noEmit && tsc -p tsconfig.test.json`), the script CI's Type
+ * Check job runs. That coverage arrived late: `@object-ui/core` sat in
+ * `scripts/check-type-check-coverage.mjs`'s TEST_DEBT with a narrow
+ * `tsconfig.typetests.json` naming this file by hand, until the package
+ * graduated in objectui#4040 and the narrow project was retired with it. The
+ * debt table is now empty.
+ *
+ * Without SOME such project these pins would be the "declared != enforced"
  * landmine objectstack#4115 exists to remove, sitting inside a guard for it
  * (objectui#3009 found precisely that: reverting a derived alias produced zero
  * errors under a header calling the assertions "the real enforcement").

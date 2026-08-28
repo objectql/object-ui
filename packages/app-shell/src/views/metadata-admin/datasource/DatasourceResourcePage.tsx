@@ -70,7 +70,7 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
-import { useMetadataClient } from '../useMetadata';
+import { useMetadataClient } from '../useMetadata.js';
 
 interface DatasourceRow {
   name: string;

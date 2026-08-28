@@ -11,19 +11,111 @@ import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuild
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
-import { VALUELESS_FILTER_BUILDER_OPERATORS } from '@object-ui/components';
+import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
-import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
+import { SchemaRenderer, useNavigationOverlay, classifyLoadError, usePredicateScope } from '@object-ui/react';
 import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
-import type { ListViewSchema } from '@object-ui/types';
+import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation } from '@object-ui/i18n';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
+import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
+// Two resolvers, two vocabularies — the repo spells the distinction into the
+// NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
+// `resolveI18nLabel`: it resolves the INLINE per-locale map
+// (`{ en: …, 'zh-CN': … }`) that `@objectstack/spec` 17.0.0-rc.6 folded into
+// `I18nLabel`, which is what the nested `aria` bag carries. It does NOT accept
+// objectui's keyed `{ key, defaultValue, params }` ref — that vocabulary lives
+// on the FLAT `schema.ariaLabel` and is resolved by `SchemaRenderer` instead
+// (objectui#5134).
+import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import { usePermissions } from '@object-ui/permissions';
+
+/**
+ * The `case 'map'` branch below builds an `object-map` schema by flattening
+ * `schema.options.map`'s CONTENTS to the top level. Whitelisted to these keys —
+ * `ObjectMapConfigSchema`'s shape minus `style` — rather than the whole bag:
+ * `style` is ALSO `BaseSchema.style` (inline CSS, legal on every node), and
+ * spreading the raw `map` block collapsed the two namespaces onto one key
+ * (objectui#5177).
+ *
+ * HAND-LISTED, not derived at runtime — deliberately, and only here (`plugin-
+ * map`'s own `FLAT_MAP_CONFIG_KEYS` in `ObjectMap.tsx` DOES derive from
+ * `ObjectMapConfigSchema.shape`, and should stay that way): this file is
+ * reachable from `examples/console-starter`'s own `src/`, so it is part of the
+ * import graph `vite-alias-closure.test.ts` walks. That walker resolves a bare
+ * `@object-ui/*` specifier with plain `index.<ext>` conventions and cannot find
+ * `@object-ui/types/zod`'s actual barrel file (`zod/index.zod.ts` — a
+ * non-standard name) — a REAL runtime import of it here reproducibly fails
+ * that gate (measured on objectui#5177's first PR, PR #5231, CI run
+ * 32160288416), even though Vite's own alias table already resolves the
+ * specifier correctly (`examples/console-starter/vite.config.ts` has carried
+ * an explicit `@object-ui/types/zod` entry since PR #5156). `ObjectMap.tsx`
+ * gets away with the runtime import only because nothing in
+ * console-starter's graph reaches `@object-ui/plugin-map` today.
+ *
+ * Anti-drift is a TEST, not this comment: `ListView.mapFlatten.test.tsx` pins
+ * this exact list against `ObjectMapConfigSchema.shape` — imported only from
+ * that TEST file, which the alias-closure walker explicitly excludes from
+ * traversal — so a key added to or removed from the declaration still fails
+ * here, loudly and by name, without reintroducing the runtime edge that
+ * breaks the walker.
+ */
+export const FLAT_MAP_CONFIG_KEYS = [
+  'latitudeField',
+  'longitudeField',
+  'locationField',
+  'titleField',
+  'descriptionField',
+  'zoom',
+  'center',
+] as const satisfies readonly (keyof Omit<ObjectMapConfig, 'style'>)[];
+
+/** Pick only the declared flat map keys present on an authored `map` block. */
+function pickFlatMapConfig(mapConfig: unknown): Record<string, unknown> {
+  if (!mapConfig || typeof mapConfig !== 'object') return {};
+  const source = mapConfig as Record<string, unknown>;
+  return Object.fromEntries(FLAT_MAP_CONFIG_KEYS.filter((key) => key in source).map((key) => [key, source[key]]));
+}
+
+/**
+ * The effective map configuration for a list view: the spec's VIEW-LEVEL `map`
+ * block merged OVER the legacy `options.map` bag, per key.
+ *
+ * `map` is `ListMapConfigSchema` (objectstack#9340, consumable here since the
+ * `@objectstack/spec` 17.1.0 pin) — a strict, seven-key block that flows into
+ * this package's own `ListViewSchema` by reference (it is not in
+ * `LIST_VIEW_LOCAL_OVERRIDES`, so `specFieldsExcept` imports it). It was
+ * authorable and validated but never read: `case 'map'` forwarded only
+ * `schema.options?.map`, so declaring it changed nothing at runtime
+ * (objectui#5042).
+ *
+ * PRECEDENCE — the view-level block wins, per key. Both halves of that are the
+ * convention already set by every sibling visualization in this file, not a new
+ * rule: `kanban`, `calendar`, `gallery`, `timeline` and `gantt` each spread
+ * `schema.options?.<kind>` FIRST and `schema.<kind>` LAST, which is a per-key
+ * override in the view-level block's favour. (`tree` and `chart` also put the
+ * view-level block first, but with `||` — whole-block replacement rather than a
+ * merge. The direction is unanimous across all seven; only the granularity
+ * differs, and this follows the five that merge, which are also the five that
+ * flatten config into props the way the map branch does.)
+ *
+ * Both sides go through the same whitelist, so the typed block cannot
+ * reintroduce the `style` namespace collision that objectui#5177 closed.
+ *
+ * NOT a second validation of the seven keys — that reading belongs to
+ * `getMapConfig` in `ObjectMap.tsx` and stays there (objectui#5018). This is
+ * the whitelist-flatten that already existed, applied to one more source.
+ */
+function resolveListMapConfig(schema: { map?: unknown; options?: { map?: unknown } }): Record<string, unknown> {
+  return {
+    ...pickFlatMapConfig(schema.options?.map),
+    ...pickFlatMapConfig(schema.map),
+  };
+}
 
 /**
  * The list view's props.
@@ -134,6 +226,13 @@ export function mapOperator(op: string) {
     case 'equals': case 'eq': return '=';
     case 'notequals': case 'ne': case 'neq': return '!=';
     case 'contains': return 'contains';
+    // Canonical in `VIEW_FILTER_OPERATORS` as of @objectstack/spec 17.1.0
+    // (objectui#5328), and an explicit arm rather than a `default` fall-through
+    // even though the emitted spelling is identical: `icontains` is its own
+    // member of `VALID_AST_OPERATORS`, so the raw passthrough happens to be
+    // accepted today, and relying on that is the exact slack this file's own
+    // header records as how it stopped discriminating in #3641.
+    case 'icontains': return 'icontains';
     case 'notcontains': return 'notcontains';
     case 'startswith': return 'startswith';
     case 'endswith': return 'endswith';
@@ -220,34 +319,6 @@ export function normalizeFilterCondition(condition: any[]): any[] {
 }
 
 /**
- * Format an action identifier string into a human-readable label.
- * e.g., 'send_email' → 'Send Email'
- */
-/**
- * Field types the SERVER refuses to order by, so the sort picker must not
- * offer them (objectui#4243).
- *
- * This mirrors `UNMATERIALIZED_SORT_TYPES` in objectstack
- * `packages/metadata-protocol/src/protocol.ts` — a `formula` value is computed
- * on read, no driver materialises a column for it, and since objectstack#6994
- * a sort naming one is a hard 400 (before that it degraded silently: the
- * response carried the very values it was asked to order by, out of order,
- * under a 200, with `asc` and `desc` byte-identical).
- *
- * The set is `formula` ALONE, deliberately — NOT the spec's
- * `COMPUTED_VALUE_TYPES` (`formula` / `summary` / `autonumber`). That set is
- * the WRITE contract ("never client-written"); `summary` and `autonumber` each
- * get a real maintained column and order correctly. objectstack's own
- * conformance test pins that trap by name ("a summary field still sorts, in
- * both directions — the family is `formula`, not 'computed'"), so widening
- * this set would withhold two types that work.
- *
- * Kept local to this renderer rather than added to `@object-ui/core`: it is
- * one sortability rule for one picker.
- */
-const UNSORTABLE_FIELD_TYPES: ReadonlySet<string> = new Set(['formula']);
-
-/**
  * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
  * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
  * value may be a bare string ("name desc"); array entries may be strings
@@ -278,6 +349,10 @@ export function parseSortConfig(sort: unknown): SortItem[] {
   return items;
 }
 
+/**
+ * Format an action identifier string into a human-readable label.
+ * e.g., 'send_email' → 'Send Email'
+ */
 function formatActionLabel(action: string): string {
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -425,8 +500,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
       // would be a silently-wrong filter (matches only empty) rather than
       // "no filter", excluding all rows. Matches groupToCondition in
       // datasetFilterCondition.ts (#1964).
-      const v = c.value;
-      return !(v == null || v === '' || (Array.isArray(v) && v.length === 0));
+      //
+      // Read from `@object-ui/components` rather than spelled out here
+      // (objectstack#8815): the local predicate this replaces was blind to the
+      // operator's ARITY, so a `between` row with one bound typed
+      // (`["2024-01-01", ""]` — an array of length 2) counted as complete and
+      // this function emitted a range with an empty end. The server refuses
+      // that outright (`400 INVALID_FILTER`) and the whole view fails to load,
+      // so the row the user half-filled took down the rows they had already
+      // filtered. The builder decides when one of its rows is finished; this
+      // asks it.
+      return isFilterValueComplete(c.operator, c.value);
     })
     .map(c => {
       if (c.operator === 'isEmpty') return [c.field, '=', null];
@@ -606,7 +690,7 @@ export const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.toolbar.densityCycleHint': '{{label}} (click to cycle)',
   'grid.toolbar.densityCycleShortHint': 'Click to cycle',
   'list.viewSettings': 'View settings',
-  'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
+  'list.viewSettingsHint': 'Grouping, color, density, and visible fields. Applies to everyone who uses this view.',
   // Heading of the record-detail overlay this view opens when a child view's
   // row is clicked (objectui#3426). Borrowed from the `detail.*` namespace
   // rather than minted as `list.recordDetail`: `NavigationOverlay` already
@@ -686,6 +770,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const { t } = useListViewTranslation();
   const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel, objectLabel: resolveObjectLabel } = useListFieldLabel();
   const { translateOptions } = useSafeFieldLabel();
+  // The audience's BCP-47 tag (tenant locale → UI language → `en`), used below
+  // to resolve the inline locale map the nested `aria` bag admits.
+  const displayLocale = useDisplayLocale();
 
   // Canonicalize the view vocabulary ONCE, here, before anything reads it
   // (#2890): the legacy `fields` folds into the spec's `columns`, and `viewType`
@@ -731,6 +818,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // off unless turned on. (`hideFields`/`rowColor` default OFF is objectui's
     // historical behavior, kept deliberately — flipping it would grow two
     // buttons on every existing view.)
+    //
+    // This is the VIEW half of a NAME COLLISION, and the right half here:
+    // `userActions` on a VIEW is toolbar policy (`UserActionsConfigSchema`),
+    // while `userActions` on an OBJECT is the CRUD-predicate block
+    // (`edit`/`delete`/`create` with `visibleWhen`/`disabledWhen`). So this
+    // read stays `schema`-only and must never gain an
+    // `?? (objectDef as any)?.userActions` fallback: the object block carries
+    // no toolbar key, and the mirrored mistake — reading VIEW-first where only
+    // the object block is interpretable — is exactly what the `$select`
+    // predicate harvest below was fixed for (objectui#5398, the sibling of
+    // objectui#5240). Pinned by `__tests__/ListView.userActionsCollision.test.tsx`.
     const ua = schema.userActions as Record<string, boolean | undefined> | undefined;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
     const addRecordPlacement = resolveAddRecordPlacement(schema.addRecord?.position);
@@ -1080,6 +1178,123 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     if (objectDeleteAllowed) return declared;
     return declared.filter((a: unknown) => String(a).toLowerCase() !== 'delete');
   }, [schema.bulkActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
+
+  /**
+   * [objectui#4420] The PER-RECORD half of the same key, for the same bar.
+   *
+   * `permittedBulkActions` above reads `userActions.delete` as a BOOLEAN — the
+   * object-level verdict — and that is all it ever read. Since objectui#2614
+   * the key also accepts `{ enabled?, visibleWhen?, disabledWhen? }`, whose
+   * `visibleWhen` gates the affordance **per record**; the row kebab has
+   * honoured it since, and this bar did not. Tick only a record the predicate
+   * excludes and the bar still offered the red Delete — the same declared key
+   * meaning two different things on two surfaces.
+   *
+   * ## What was ruled (maintainer, 2026-08-17 — behaviour 1 of three)
+   *
+   * Filter the operation and report the skipped. The bar evaluates
+   * `visibleWhen` once per selected record, Delete runs over the allowed
+   * SUBSET, and the excluded records are reported rather than silently
+   * dropped. Two rejected alternatives, restated because each is a way to
+   * misread this code: the button is **never hidden or disabled** by the
+   * predicate (behaviour 2 — one stray tick would disable the whole bar), and
+   * the predicate is **not** declared out of scope for set operations
+   * (behaviour 3 — the key must not mean different things on two surfaces).
+   * A selection where EVERY row is excluded therefore still renders the
+   * button; what the user gets is a legible refusal, not an absence.
+   *
+   * ## Why `evalRowPredicate`, never `useRowPredicate`
+   *
+   * A bulk gate evaluates N records in a LOOP, and React forbids a hook per
+   * iteration. `partitionRowsByPredicate` is that loop — the shared,
+   * fail-closed fold in `@object-ui/core` that the grid's own bulk bar reads
+   * through `partitionBulkRows`, so the two bars cannot drift on what
+   * "eligible" means.
+   *
+   * ## Why `objectDef`, and only the built-in `delete`
+   *
+   * The predicates come off the OBJECT's `userActions` block (the CRUD
+   * predicate vocabulary), never the VIEW's `schema.userActions` (toolbar
+   * policy) — the same name collision `toolbarFlags` above is pinned against.
+   * Only the built-in `delete` entry is filtered: custom action ids route
+   * through the action runner carrying their own gates, exactly as the
+   * object-level gate above leaves them alone.
+   */
+  const deleteVisibleWhen = React.useMemo(
+    () => resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).deletePredicates?.visibleWhen,
+    [objectDef, effectiveApiOps],
+  );
+  const predicateScope = usePredicateScope();
+  const bulkDeleteEligibility = React.useMemo(
+    () => partitionRowsByPredicate(deleteVisibleWhen as never, selectedRows as Array<Record<string, unknown>>, {
+      scope: predicateScope,
+      fields: objectDef?.fields,
+      label: 'delete',
+    }),
+    [deleteVisibleWhen, selectedRows, predicateScope, objectDef],
+  );
+
+  /**
+   * [#4647] Is the grid toolbar's inline-edit toggle offered at all?
+   *
+   * Two gaps closed together, because both end at this one render condition.
+   *
+   * ## Gap 1 — the permission gate
+   *
+   * The toggle used to render on the sole conditions "grid view", "the host
+   * wired `onInlineEditChange`" and "not the compact toolbar" — and every host
+   * passes that callback unconditionally. It was the ONE affordance on this
+   * toolbar with no permission check: New and Import are hidden for an account
+   * without the grant, the bulk-delete entry directly above ANDs
+   * `can(obj, 'delete')`, and inline edit alone stayed available to a read-only
+   * principal, who could flip it, edit cells and press "Save all" to earn a
+   * server 403. No data ever landed (the server gate is solid), but the UI
+   * walked the user through a round-trip guaranteed to fail.
+   *
+   * The gate is `permittedBulkActions`' verbatim, with the operation moved from
+   * `delete` to `update`: the object's resolved affordance — ADR-0103 bucket ∧
+   * `userActions.edit` ∧ the server's effective API operations (#3391) — AND
+   * the CURRENT PRINCIPAL's grant (#4096). The first half is spelled
+   * `isObjectInlineEditable`, which IS
+   * `resolveEffectiveCrudAffordances(...).edit` under the name that says what
+   * this surface is asking; it is the same helper the record body's
+   * double-click/pencil affordances read, so a list and a record page cannot
+   * disagree about whether an object's rows are editable in place.
+   *
+   * `can()` answers `true` with no `PermissionProvider`, so standalone embeds
+   * and the Studio designer keep today's behavior — the same fail-open the
+   * bulk gate above relies on.
+   *
+   * ## Gap 2 — consuming the declared `userActions.editInline`
+   *
+   * `ListViewSchema.userActions.editInline` is spec-declared and, on this
+   * toolbar, was read by nothing: an author could not switch inline editing off
+   * even unconditionally. It is read here as an explicit opt-OUT (`!== false`).
+   *
+   * That default is deliberate and it does NOT enforce the spec's
+   * `.default(false)`. Enforcing it would take the toggle away from every
+   * existing console list view in one release, since nothing folds a legacy key
+   * into `editInline` and no stored view declares it — the console's own
+   * channel for this capability is the view's `inlineEdit` property, which the
+   * host relays as `onInlineEditChange`. This is `toolbarFlags`' stated rule
+   * for exactly this block (defaults "matching what these flags have always
+   * done"; `hideFields`/`rowColor` keep their historical OFF because flipping
+   * them "would grow two buttons on every existing view") applied in the
+   * direction that would REMOVE one. So: an explicit `false` is honoured, an
+   * explicit `true` is honoured, and absence defers to the host channel that
+   * already governs this surface. `InterfaceListPage` — the other consumer of
+   * this key — reads the absent case as OFF (`=== true`), because the
+   * ADR-0047 interface page has no such host channel to defer to.
+   */
+  const inlineEditOffered = React.useMemo(() => {
+    if ((schema.userActions as Record<string, boolean | undefined> | undefined)?.editInline === false) {
+      return false;
+    }
+    return (
+      isObjectInlineEditable(objectDef as any, effectiveApiOps) &&
+      (schema.objectName ? canDo(schema.objectName, 'update') : true)
+    );
+  }, [schema.userActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
@@ -1494,7 +1709,49 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             rowActionDefs: (schema as any).rowActionDefs,
             bulkActionDefs: (schema as any).bulkActionDefs,
             objectActions: (objectDef as any)?.actions,
-            userActions: (schema as any).userActions ?? (objectDef as any)?.userActions,
+            // KEY COLLISION — `userActions` names TWO different blocks, and
+            // only the OBJECT's is interpretable here. This read is therefore
+            // `objectDef`-only; it must never regain a
+            // `(schema as any).userActions ??` left operand. Maintainer ruling
+            // of 2026-08-20 on objectui#5240 (Q1=A), whose `plugin-grid` half
+            // landed as objectui#5426 — this is the sibling read site named in
+            // that ruling (objectui#5398), carrying the same shape and the same
+            // reason on purpose rather than a second spelling of one fix. The
+            // measurements, re-taken here against `@objectstack/spec@17.0.0`:
+            //
+            //   - VIEW-level `userActions` is TOOLBAR POLICY —
+            //     `UserActionsConfigSchema` (`sort`, `search`, `filter`,
+            //     `refresh`, `rowHeight`, `addRecordForm`, `editInline`,
+            //     `buttons`), which REJECTS `edit` BY NAME
+            //     (`unrecognized_keys`). `ListViewSchema` accepts it, so it is
+            //     spec-legal and really authored — it is the very block
+            //     `toolbarFlags` and `inlineEditOffered` read above, and
+            //     `normalizeListViewSchema` MANUFACTURES one from a legacy
+            //     `show*` view that never wrote the key at all.
+            //   - OBJECT-level `userActions` is the CRUD-PREDICATE block
+            //     (`edit` / `delete` / `create` carrying `visibleWhen` /
+            //     `disabledWhen`, objectui#2614) — what
+            //     `resolveEffectiveCrudAffordances` / `isObjectInlineEditable`
+            //     consume off `objectDef` above, and the only shape
+            //     `listViewPredicates` can read: its loop skips every
+            //     non-object value, so a toolbar block yields ZERO predicates.
+            //
+            // Read view-first, a legitimately authored toolbar block therefore
+            // SHADOWED the object's CRUD predicates and dropped their operands
+            // from `$select`; CEL then faults `No such key`, fails CLOSED, and
+            // the row Edit/Delete button vanishes for everyone with nothing
+            // pointing at the projection (objectui#3501 — the whole reason this
+            // harvest exists, stated six lines up).
+            //
+            // On THIS component the shadowing was TOTAL rather than occasional:
+            // `app-shell/src/views/ObjectView.tsx` builds the `userActions` it
+            // hands down as an object literal of two spreads, so the left
+            // operand was `{}` at worst — never nullish, so `??` never fell
+            // through and the object's CRUD block was never reached AT ALL on
+            // that path.
+            //
+            // Pinned by `__tests__/ListView.userActionsCollision.test.tsx`.
+            userActions: (objectDef as any)?.userActions,
           }))) addPredicateField(f);
 
           return Array.from(required);
@@ -1641,8 +1898,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('gantt');
     }
 
-    // Check for Map capabilities
-    if (schema.options?.map?.locationField || (schema.options?.map?.latitudeField && schema.options?.map?.longitudeField)) {
+    // Check for Map capabilities (spec config takes precedence)
+    //
+    // Asked of the SAME merged config the render branch forwards
+    // (`resolveListMapConfig`), not of `options.map` alone: the gate and the
+    // seam must answer one question, or a view that binds its coordinates in
+    // the view-level `map` block renders fine but is filtered out of
+    // `allowedVisualizations` below — whitelist ∩ resolvable — and falls back
+    // to `['grid']`. That is what made the spec block inert for the SWITCHER
+    // even where the forward alone would have been enough (objectui#5042).
+    // Sharing the resolver also means a split binding (`latitudeField` on the
+    // block, `longitudeField` in the bag) is judged the way it will render.
+    const mapConfig = resolveListMapConfig(schema);
+    if (mapConfig.locationField || (mapConfig.latitudeField && mapConfig.longitudeField)) {
       resolvable.push('map');
     }
 
@@ -1668,7 +1936,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return resolvable;
-  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, (schema as any).tree, schema.appearance?.allowedVisualizations]);
+  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
   React.useEffect(() => {
@@ -1835,7 +2103,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           columns: effectiveFields,
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
-          editable: inlineEdit,
+          // [#4647] The MODE, not just its toggle. Gating only the toggle would
+          // leave the issue's own consequence reachable by a different door: a
+          // stored view carrying `inlineEdit: true` (the console persists it
+          // per view) drops a read-only principal straight into editable cells
+          // with no toggle to press, and "Save all" still earns the 403. The
+          // toggle can only ever be the cheapest entrance to this state; the
+          // state is what needs the grant.
+          editable: inlineEdit && inlineEditOffered,
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
           ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
           ...(schema.selection ? { selection: schema.selection } : {}),
@@ -1958,13 +2233,34 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.options?.gantt || {}),
           ...(schema.gantt || {}),
         };
-      case 'map':
+      case 'map': {
+        // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
+        // `schema.options.map` is an untyped bag; a raw spread here forwarded
+        // every key the author wrote, including `style`, which `ObjectMap`'s
+        // `FlatMapConfigKeys` declares OUT of this flat form.
+        //
+        // The spec's view-level `map` block merges over that bag — see
+        // `resolveListMapConfig` for the precedence and its sibling evidence.
+        //
+        // Emitted in the FLAT form, deliberately, exactly as before: a nested
+        // `map` key would win OUTRIGHT at `getMapConfig` (objectui#5018), which
+        // would turn this per-key merge into whole-block replacement of the bag
+        // and would trip `warnOnShadowedFlatMapKeys`. That precedence rule is
+        // written around the flatten product — "neither flattener emits a `map`
+        // key at all" — and this branch keeps that true.
+        //
+        // No camera is synthesized here: `pickFlatMapConfig` copies only keys
+        // the author actually wrote, so an undeclared `zoom`/`center` stays
+        // absent and `ObjectMap` still fits the camera to the queried records
+        // (objectui#5000, objectui#4941).
+        const mapConfig = resolveListMapConfig(schema);
         return {
           type: 'object-map',
           ...baseProps,
-          locationField: schema.options?.map?.locationField || 'location',
-          ...(schema.options?.map || {}),
+          locationField: mapConfig.locationField || 'location',
+          ...mapConfig,
         };
+      }
       case 'tree': {
         // Self-referencing tree-grid. Config lives under view.tree.* (direct)
         // or options.tree.* (app-shell object pages). parentField auto-detects
@@ -2029,7 +2325,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // objectDef is in the deps because the kanban default lane field derives
   // from it (ADR-0085 stageField) and it loads async — without it the board
   // would keep the null-def result forever.
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, objectDef]);
+  // `inlineEditOffered` joins the deps for #4647: the permission verdict lands
+  // asynchronously (`/me/permissions`) and `objectDef` loads into state, so a
+  // grid schema built before either resolved must be rebuilt when they do —
+  // otherwise `editable` keeps the pre-verdict answer for the session.
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
@@ -2122,7 +2422,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // sort on a field this picker then refused to list — the declared sort
   // worked on load, while its rows rendered blank and the user could neither
   // reproduce nor modify it. The whitelist is a FILTER contract; sortability
-  // is a property of the field's type, which is what the two rules below read.
+  // is a separate question, answered by the two rules below.
   //
 
   // This view's sort becomes a server `$orderby` on the FLAT field name, and a
@@ -2132,30 +2432,59 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // server cannot sort by the related record's name without a join
   // (objectstack#4256 settled that it won't), so the honest move is to stop
   // offering the illusion: relational fields leave the picker, and the hint
-  // below points at the supported alternative (a formula field that
-  // denormalizes the name onto this object, which sorts like any text column).
+  // below points at the supported alternative (a stored field that
+  // denormalizes the name onto this object, written when the source changes).
   //
-  // Second rule — {@link UNSORTABLE_FIELD_TYPES}: a `formula` field has no
-  // materialised column, so the server answers a sort naming one with a 400.
-  // It matters here precisely BECAUSE the base set widened: a formula field
-  // used to reach this picker only if someone had whitelisted it, and now
-  // every formula field on the object would be offered. Withheld silently —
-  // the relational hint below stays strictly about relations, which is what
-  // its sentence describes.
+  // Second rule — THE PLATFORM SAYS which field names it will order by
+  // (objectstack#10235 ruling A, consumed here via #5729's landed spelling in
+  // `@object-ui/core`). `isPlatformSortableField` is the contract: an entry
+  // must EXIST in the served projection and say `sortable: true`. Absence is a
+  // refusal — an unknown name, a dotted path, an unprovisioned audit column —
+  // never a default of `true`. Withheld silently, so the relational hint below
+  // stays strictly about relations, which is what its sentence describes.
+  //
+  // This picker used to re-derive that verdict from the field's TYPE, reading
+  // `UNMATERIALIZED_FIELD_TYPES` (#3950 consolidated the local copy into core).
+  // The two agree about `formula` — the platform computes its own projection
+  // from the same `@objectstack/spec` storage fact — which is exactly why the
+  // drift went unnoticed: they part company on everything the projection
+  // encodes as ABSENCE, and on any verdict the runtime doors add later, where
+  // a type read answers `sortable` and the platform answers `400 INVALID_SORT`.
+  // One judgement, served; not a fourth copy of it drifting apart.
+  //
+  // NO SIGNAL SERVED (`undefined`) is a different question from "nothing is
+  // sortable": a deployment older than objectstack#10235, an inline/mock data
+  // source, or `objectDef` not yet loaded. That branch keeps the type read as a
+  // compatibility floor — behaviour identical to before this card — and is
+  // meant to be deleted when the supported floor passes that release.
   //
   // Exception (both rules): a field the CURRENT sort already uses stays listed
   // — relational ones flagged as ordering by ID — so opening this popover on a
   // view that was authored (or saved before this change) with such a sort
   // neither renders a blank row nor silently drops that sort on the next edit.
-  // For a formula field that exception is the only way to REMOVE the offending
-  // row, since the sort it names is one the server refuses outright.
+  // For a platform-refused field that exception is the only way to REMOVE the
+  // offending row, since the sort it names is one the server refuses outright.
+  //
+  // ONE read of the served projection, for BOTH legs below — the list this
+  // picker renders, and the sort it emits for a host to persist. Read twice,
+  // the two copies could answer differently about the same field on the same
+  // render, which is the drift `isPlatformSortableField` was consolidated to
+  // end. `undefined` stays "no signal served", never "nothing is sortable".
+  const platformSortability = React.useMemo(
+    () => readObjectSortability(objectDef),
+    [objectDef],
+  );
+
   const { sortFields, sortHasRelationalField } = React.useMemo(() => {
     const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
     let excluded = false;
     const fields: Array<{ value: string; label: string }> = [];
     for (const field of candidateFields) {
       const relational = EXPANDABLE_FIELD_TYPES.has(field.type);
-      if (!relational && !UNSORTABLE_FIELD_TYPES.has(field.type)) {
+      const platformSortable = platformSortability
+        ? isPlatformSortableField(platformSortability, field.value)
+        : !UNMATERIALIZED_FIELD_TYPES.has(field.type);
+      if (!relational && platformSortable) {
         fields.push({ value: field.value, label: field.label });
         continue;
       }
@@ -2169,7 +2498,44 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       if (relational) excluded = true;
     }
     return { sortFields: fields, sortHasRelationalField: excluded };
-  }, [candidateFields, currentSort, t]);
+  }, [candidateFields, currentSort, t, platformSortability]);
+
+  /**
+   * [#6455] THE persist boundary: what this picker LISTS is not what it
+   * PERSISTS.
+   *
+   * The exception just above deliberately keeps a platform-refused field
+   * listed while the CURRENT sort names it — it is the only way a user can
+   * REMOVE a sort the server refuses outright. But the picker used to render
+   * and emit from the SAME array, so any OTHER edit in the popover — adding a
+   * second key, flipping a direction — re-emitted the refused entry, and the
+   * host's `onSortChange` turned it into `persistViewPatch({ sort })`: a
+   * personalization PUT storing a column the platform answers
+   * `400 INVALID_SORT` for, written by a user who never touched that row.
+   *
+   * So the two legs part company HERE, at the one boundary every emit crosses,
+   * exactly as #5729 parted them at the grid seam (`ObjectGrid`'s
+   * `manualSort` / `manualOnSortChange` pair). The refused entry stays in
+   * `currentSort` — listed, removable, and still the order this list asks the
+   * server for — while no write ever carries it. Removing it persists the
+   * removal; a sort with nothing refused in it is emitted unchanged.
+   *
+   * Every `onSortChange` in this component goes through here rather than each
+   * call site filtering for itself: a builder edit, a header click and a
+   * "reset to default" are three doors onto ONE stored `sort`, and a filter
+   * spelled three times is a filter one new door can be added without.
+   *
+   * Only under a served projection: with no signal there is no verdict to
+   * filter by, and the pre-objectstack#10235 behaviour stands unchanged.
+   */
+  const emitSortChange = React.useCallback((next: SortItem[]) => {
+    if (!onSortChange) return;
+    onSortChange(
+      platformSortability
+        ? filterPlatformSortableSort(next, platformSortability)
+        : next,
+    );
+  }, [onSortChange, platformSortability]);
 
   /**
    * A column-header sort from the child grid (#3106).
@@ -2194,8 +2560,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }));
     setCurrentSort(items);
     setServerPage(1);
-    onSortChange?.(items);
-  }, [onSortChange]);
+    emitSortChange(items);
+  }, [emitSortChange]);
 
   /**
    * "Reset to the view's default sort" (objectui#4243) — the way back the
@@ -2216,9 +2582,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const restored = parseSortConfig(schema.sort);
     setCurrentSort(restored);
     setServerPage(1);
-    onSortChange?.(restored);
+    emitSortChange(restored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schemaSortKey, onSortChange]);
+  }, [schemaSortKey, emitSortChange]);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -2382,11 +2748,38 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     });
   }, [schema.columns, tFieldLabel]);
 
+  /**
+   * The accessible name for the list region, resolved — not cast.
+   *
+   * The NESTED bag is the spec's `AriaPropsSchema`, whose `ariaLabel` is
+   * `I18nLabel`: a plain string **or** an inline locale map
+   * (`{ en: 'Accounts', 'zh-CN': '客户' }`). This read site used to spread it
+   * with `as string` — a cast, not a conversion — so a map-valued label
+   * reached the DOM as `aria-label="[object Object]"` and a screen reader
+   * announced that as the view's accessible name, in every locale
+   * (objectui#5134). `as string` is invisible to the compiler by
+   * construction, which is why the sweep that fixed the compile-visible sites
+   * (objectui#4163 part 1) could not see this one.
+   *
+   * A miss resolves to `undefined` and the attribute is omitted, which is what
+   * an attribute wants — no accessible name beats a garbage one. That is also
+   * why this uses the spec's resolver rather than objectui's `pickLocalized`
+   * (`''` on a miss, the spelling a TEXT NODE wants — see `TabBar.tsx`); the
+   * two agree limb for limb, pinned by `i18nLabel-resolver-parity.test.ts` in
+   * this package.
+   *
+   * ⚠️ The FLAT `schema.ariaLabel` is a different vocabulary — objectui's
+   * keyed `{ key, defaultValue?, params? }` ref, resolved by `SchemaRenderer`'s
+   * `resolveKeyedI18nLabel` — and is deliberately NOT touched here. Neither
+   * resolver accepts the other's shape.
+   */
+  const ariaLabel = resolveInlineI18nLabel(schema.aria?.ariaLabel, displayLocale);
+
   return (
     <div
       ref={pullRef}
       className={cn('flex flex-col h-full bg-background relative min-w-0 overflow-hidden', className)}
-      {...(schema.aria?.ariaLabel ? { 'aria-label': schema.aria.ariaLabel as string } : {})}
+      {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}
       {...(schema.aria?.ariaDescribedBy ? { 'aria-describedby': schema.aria.ariaDescribedBy } : {})}
       {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
       role={schema.aria?.role ?? 'region'}
@@ -2458,8 +2851,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             </>
           )}
           {/* Inline edit — toggle record editing for this (grid) view. Persists
-              `inlineEdit` on the view via onInlineEditChange. */}
-          {currentView === 'grid' && onInlineEditChange && !toolbarFlags.compactToolbar && (
+              `inlineEdit` on the view via onInlineEditChange.
+              [#4647] `inlineEditOffered` carries BOTH the `can(obj,'update')`
+              permission gate this affordance was missing and the declared
+              `userActions.editInline` switch — see its definition above. */}
+          {currentView === 'grid' && onInlineEditChange && !toolbarFlags.compactToolbar && inlineEditOffered && (
             <Button
               variant="ghost"
               size="sm"
@@ -2684,8 +3080,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   fields={sortFields}
                   value={currentSort}
                   onChange={(newSort) => {
+                    // `setCurrentSort` takes the array WHOLE (the in-use
+                    // exception depends on it); `emitSortChange` is what the
+                    // host persists. See the boundary's docblock above.
                     setCurrentSort(newSort);
-                    if (onSortChange) onSortChange(newSort);
+                    emitSortChange(newSort);
                   }}
                 />
                 {sortHasRelationalField && (
@@ -2846,7 +3245,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               showHideFields={toolbarFlags.showHideFields}
               hiddenFields={hiddenFields}
               updateHiddenFields={updateHiddenFields}
-              showInlineEdit={currentView === 'grid'}
+              /* [#4647] The compact toolbar's inline-edit entry — the SECOND
+                 render site for this affordance, and the one with no gate at
+                 all: it never even required `onInlineEditChange`. Same
+                 `inlineEditOffered` verdict as the wide toolbar's toggle, or a
+                 read-only principal would keep the entry on mobile after
+                 losing it on desktop. */
+              showInlineEdit={currentView === 'grid' && inlineEditOffered}
               inlineEdit={inlineEdit}
               setInlineEdit={updateInlineEdit}
             />
@@ -3245,13 +3650,23 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               const actionStr = String(action).toLowerCase();
               const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');
               const Icon = isDestructive ? Trash2 : null;
+              // [objectui#4420] The built-in `delete` runs over the ALLOWED
+              // SUBSET — the records `userActions.delete.visibleWhen` admits —
+              // never the raw tick list. The button itself is untouched by the
+              // predicate (ruled: never hidden, never disabled); what shrinks
+              // is what it acts on, and the notice below owns up to it. Only
+              // the canonical `delete` is filtered: every other id routes
+              // through the action runner with its own gates.
+              const rowsForAction = actionStr === 'delete'
+                ? (bulkDeleteEligibility.eligible as any[])
+                : selectedRows;
               return (
                 <Button
                   key={action}
                   variant={isDestructive ? 'destructive' : 'outline'}
                   size="sm"
                   className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => props.onBulkAction?.(action, selectedRows)}
+                  onClick={() => props.onBulkAction?.(action, rowsForAction)}
                   data-testid={`bulk-action-${action}`}
                 >
                   {Icon && <Icon className="h-3 w-3" />}
@@ -3260,6 +3675,30 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               );
             })}
           </div>
+          {/* [objectui#4420] The report half of the ruling, on the surface that
+              has one. This bar dispatches straight through `onBulkAction` — it
+              never opens `BulkActionDialog`, so there is no confirm step to
+              carry the grid's `bulk-skipped-notice`; the bar states it up
+              front instead, which also makes the all-excluded case a legible
+              refusal BEFORE the click rather than a dead press. Same testid as
+              the dialog's slot: one name for one fact, whichever surface says
+              it. */}
+          {bulkDeleteEligibility.skipped > 0
+            && permittedBulkActions.some((a: any) => String(a).toLowerCase() === 'delete') && (
+            <span
+              className="text-muted-foreground ml-3"
+              data-testid="bulk-skipped-notice"
+            >
+              {/* The grid dialog's own key, deliberately: this is the same
+                  sentence about the same fact, already translated in every
+                  locale pack. A `list.*` alias would be a second spelling of
+                  one string — ten packs to keep in step for no new meaning. */}
+              {t('grid.bulk.skippedIneligible', {
+                count: bulkDeleteEligibility.skipped,
+                defaultValue: `${bulkDeleteEligibility.skipped} selected record(s) are not eligible for this action and will be skipped.`,
+              })}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"

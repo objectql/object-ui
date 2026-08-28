@@ -15,7 +15,7 @@
 
 import * as React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { getIcon } from '../utils/getIcon';
+import { getIcon } from '../utils/getIcon.js';
 import {
   Sidebar,
   SidebarContent,
@@ -40,15 +40,15 @@ import {
 } from 'lucide-react';
 import { NavigationRenderer, hasVisibleNavigationItems } from '@object-ui/layout';
 import type { NavigationArea, NavigationItem } from '@object-ui/types';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider.js';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useRecentItems } from '../hooks/useRecentItems';
-import { useFavorites } from '../hooks/useFavorites';
-import { useNavPins } from '../hooks/useNavPins';
-import { useNavActionDispatch } from '../hooks/useNavActionDispatch';
-import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
+import { useRecentItems } from '../hooks/useRecentItems.js';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useNavPins } from '../hooks/useNavPins.js';
+import { useNavActionDispatch } from '../hooks/useNavActionDispatch.js';
+import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
 // Aliased for symmetry with objectui's own `resolveKeyedI18nLabel` above (the
 // names stopped colliding in objectui#4167): this is the spec's resolver (new in
 // @objectstack/spec 17.0.0-rc.6) for the INLINE per-locale map form of
@@ -58,13 +58,13 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based
 // i18n lookup — `{ns}.apps.{name}.label` resolves to the translated label
 // loaded from /api/v1/i18n/translations/:locale.
-import { useNavigationContext } from '../context/NavigationContext';
+import { useNavigationContext } from '../context/NavigationContext.js';
 import {
   useAppContextSelectors,
   contextSelectorQueryKey,
   STUDIO_PACKAGE_SELECTOR_ID,
-} from './ContextSelectors';
-import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
+} from './ContextSelectors.js';
+import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger.js';
 
 // ---------------------------------------------------------------------------
 // useNavOrder – localStorage-persisted drag-and-drop reorder for nav items
@@ -158,10 +158,10 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const { t, language } = useObjectTranslation();
-  const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, navGroupLabel: resolveNavGroupLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
+  const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
   const { context, currentAppName } = useNavigationContext();
   const { user, activeOrganization } = useAuth();
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   // `type: 'action'` nav items dispatch through here (framework#4509). The
   // sidebar renders inside ConsoleShell's GlobalActionRuntimeProvider, so this
   // resolves to the fully-wired console runner — confirm/param/result dialogs
@@ -548,12 +548,6 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
              onReorder={handleReorder}
              resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
              resolveDashboardLabel={(dashboardName, fallback) => resolveNavDashboardLabel({ name: dashboardName, label: fallback })}
-             resolveGroupLabel={activeApp ? (groupId, fallback) => resolveNavGroupLabel(activeApp.name, groupId, fallback) : undefined}
-             resolveItemLabel={activeApp ? (itemId, fallback) => (
-               activeApp.name === 'studio' && fallback === t('sidebar.packageManagement', { defaultValue: 'Package management' })
-                 ? fallback
-                 : resolveNavGroupLabel(activeApp.name, itemId, fallback)
-             ) : undefined}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
              onAction={dispatchNavAction}
              t={t}
@@ -668,10 +662,10 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
                  order. A pinned section would also land directly above this
                  arm's own "Starred" group. Separate product decisions, not part
                  of unflattening a group.
-               - `resolveGroupLabel` / `resolveItemLabel` — keyed on
-                 `activeApp.name`, which does not denote this context. Home
-                 labels are already resolved through `t()` where the items are
-                 constructed. */}
+               (Until objectui#5197 this list also named `resolveGroupLabel` /
+               `resolveItemLabel`. Those props are gone from the renderer
+               entirely — they were unreachable for every real nav entry, and
+               app-nav localization belongs to the server `/meta` boundary.) */}
            <NavigationRenderer
              items={homeNavigation}
              basePath=""

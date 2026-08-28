@@ -36,10 +36,13 @@
  * FIRST, so any `id` key inside the merged body or the stored override REPLACED
  * it. Both of those are stored metadata documents that really do carry one:
  *
- *   A. `persistViewPatch(viewDef.id, viewDef, patch)` writes the whole tab
+ *   A. `persistViewPatch(viewDef.id, viewDef, patch)` WROTE the whole tab
  *      object — its `id` included — back through `updateViewConfig`, which
  *      stores it under `name: viewId`. `listViewOverrides` reads that row back
  *      and `loadViewOverrides` hands it to the tab list, where its `id` won.
+ *      (objectui#5233 narrowed the overlay branch of that write to the patch,
+ *      so no NEW overlay carries an `id` — every row written before it did,
+ *      which is what this divergence is still about.)
  *   B. A duplicated view copies its source artifact's `id` verbatim into the
  *      view body; `MetadataProvider.applyViewItem` spreads that body into
  *      `objectDef.listViews[<key>]`, so the entry carries the foreign `id`.
@@ -148,8 +151,10 @@ describe('the identity seam — ONE spelling for a view row id (#4211)', () => {
 
 describe('divergence A — a stored override row carrying a foreign `id` (#4211)', () => {
   /**
-   * The row `persistViewPatch` → `updateViewConfig` leaves behind: the whole tab
-   * object, `id` included, stored under `name: <viewId>`. Its `id` was written
+   * The row `persistViewPatch` → `updateViewConfig` USED TO leave behind: the
+   * whole tab object, `id` included, stored under `name: <viewId>`. Since
+   * objectui#5233 an overlay is written as the patch alone, so this is a row
+   * already at rest rather than one a new write produces. Its `id` was written
    * under an earlier tab-id spelling (objectui#3770 re-keyed the default list),
    * so from then on the stored `id` and the row's `name` disagree — and the
    * stored one used to win.

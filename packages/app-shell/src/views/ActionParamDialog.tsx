@@ -47,7 +47,7 @@ import {
 } from '@object-ui/core';
 import { usePredicateScope } from '@object-ui/react';
 import { getLazyFieldWidget, fileIdOf } from '@object-ui/fields';
-import { paramToField } from '../utils/paramToField';
+import { paramToField, paramDegradesWithoutTarget } from '../utils/paramToField.js';
 
 export interface ParamDialogState {
   open: boolean;
@@ -298,7 +298,11 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{state.title || t('actionDialog.title')}</DialogTitle>
-          <DialogDescription>
+          {/* `whitespace-pre-line` so a description composed of more than one
+              paragraph renders as authored. objectui#5178 puts an admin-override
+              warning ahead of the action's declared description here; collapsed
+              to one run-on paragraph the warning stops reading as a warning. */}
+          <DialogDescription className="whitespace-pre-line">
             {state.description || t('actionDialog.description')}
           </DialogDescription>
         </DialogHeader>
@@ -342,13 +346,28 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
             const cascadeProps = CASCADE_OPTION_WIDGET_TYPES.has(field.type)
               ? { dependentValues: values }
               : {};
-            // A lookup-typed param that fell back to text (no referenceTo)
-            // keeps the "paste an ID" placeholder/help hints.
-            const isLookupParam = param.type === 'lookup' || param.type === 'reference';
+            // A picker param that fell back to text for want of a declared
+            // target keeps the "paste an ID" placeholder/help hints (#3405).
+            //
+            // WHICH params fell back is asked of the adapter that performs the
+            // fallback — never restated here (objectui#5654). This line used to
+            // carry its own literal over RAW spellings
+            // (`param.type === 'lookup' || param.type === 'reference'`), a set
+            // that was neither a subset nor a superset of the one that actually
+            // degrades: `master_detail` degraded and got NO hints, while
+            // `reference` was a hand-copy of an alias-table row this side of the
+            // adapter never sees. One member set, answered once.
+            //
+            // The `field.type === 'text'` conjunct the two readers below used to
+            // carry is subsumed, not dropped: it was their proxy for "did this
+            // param degrade?", and the predicate answers that exactly — it is
+            // true only when the `paramToField(param)` call above returned the
+            // text fallback (equivalence pinned in `paramToField.test.ts`).
+            const degradedPicker = paramDegradesWithoutTarget(param);
             if (field.type === 'select' && !field.placeholder) {
               field.placeholder = t('actionDialog.selectPlaceholder', { label: param.label });
             }
-            if (isLookupParam && field.type === 'text' && !field.placeholder) {
+            if (degradedPicker && !field.placeholder) {
               field.placeholder = t('actionDialog.lookupPlaceholder', { label: param.label });
             }
 
@@ -440,7 +459,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
               {param.helpText && (
                 <p className="text-xs text-muted-foreground">{param.helpText}</p>
               )}
-              {isLookupParam && field.type === 'text' && !param.helpText && (
+              {degradedPicker && !param.helpText && (
                 <p className="text-xs text-muted-foreground">
                   {t('actionDialog.lookupHelpText')}
                 </p>

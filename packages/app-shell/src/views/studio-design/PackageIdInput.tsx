@@ -12,8 +12,8 @@
  */
 
 import * as React from 'react';
-import { PACKAGE_ID_RE, sanitizePackageId } from './packages-io';
-import { t } from '../metadata-admin/i18n';
+import { PACKAGE_ID_RE, sanitizePackageId } from './packages-io.js';
+import { t } from '../metadata-admin/i18n.js';
 
 export interface PackageIdInputProps {
   value: string;

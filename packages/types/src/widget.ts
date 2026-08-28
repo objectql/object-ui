@@ -17,6 +17,8 @@
  * @packageDocumentation
  */
 
+import type { ComponentInputControlType } from './base.js';
+
 /**
  * Widget manifest describing a runtime-loadable widget — what
  * `@object-ui/core`'s `WidgetRegistry` registers, and what the designer palette
@@ -158,13 +160,78 @@ export interface WidgetSourceRegistry {
 }
 
 /**
- * Configurable input for a widget.
+ * Configurable input for a widget — the authoring face of one entry in a
+ * {@link RuntimeWidgetManifest}'s `inputs`.
+ *
+ * ## `type` names the shared arm vocabulary; it does not restate it
+ *
+ * `type` is {@link ComponentInputControlType}, the single declaration in
+ * `./base.js` (objectui#5675). It used to spell the eleven arm literals inline,
+ * which made this the third site writing out one vocabulary — after
+ * objectui#3832 gave that vocabulary a name and objectui#4972 converged the
+ * last structural copy of the surrounding interface onto `ComponentInput`.
+ *
+ * The inline restatement was member-equal to the shared declaration when it was
+ * replaced — measured in both directions, quoted in the PR that did it — so
+ * this is a convergence and not a widening or a narrowing: the set of values a
+ * widget author may write is exactly what it was.
+ *
+ * What it buys is that the two can no longer drift, and one drift direction was
+ * SILENT. `WidgetRegistry.load()` in `@object-ui/core` translates each
+ * `WidgetInput` into a `ComponentInput` and passes `type` straight through, so
+ * a member REMOVED from the shared vocabulary would break that assignment
+ * loudly at compile time — while a member ADDED to it produced no error
+ * anywhere: widget authoring would simply have stayed narrower than component
+ * registration, with nothing in the tree saying so.
+ *
+ * Deliberately the SINGLE-kind form. `ComponentInput.type` also accepts an
+ * ARRAY of arms, for a key whose contract is a union (objectui#3832). Widget
+ * inputs have never carried that capability; granting it here would be a
+ * widening rather than a convergence, so it stays out — the same disposition
+ * objectui#4972 recorded when it left this face alone.
+ *
+ * ## Where this face still diverges from `ComponentInput` — recorded, not repaired
+ *
+ * Two differences remain, and the ruling on both is NOT NOW rather than "these
+ * are the same thing" (objectui#5675). Widget authoring and component
+ * registration are not obviously one surface, and nothing measured is pulling
+ * for the merge. They are written down here so the next reader meets a
+ * decision instead of an accident.
+ *
+ * 1. **The enum slot is spelled `options` here and `enum` on `ComponentInput`.**
+ *    One concept, two names, one package. It is adapted rather than broken:
+ *    `WidgetRegistry.load()` maps `enum: input.options` at the seam, and
+ *    `sdui-parser`'s manifest serializer reads `enum` downstream of that. So
+ *    the cost is not a value that fails to arrive — it is a hand-written rename
+ *    that every reader of both faces has to know about, and that a future key
+ *    added to either side can forget. Renaming either spelling is a change to a
+ *    published key on a published type, which needs its own mandate.
+ *
+ * 2. **`ComponentInput` carries five keys this face does not** — `inputType`,
+ *    `min`, `max`, `step`, `placeholder` (thirteen keys against this face's
+ *    eight; `options`/`enum` above accounts for the difference in the other
+ *    direction). They are not lost in translation — they are unwritable from a
+ *    widget manifest to begin with, so the `ComponentInput` that
+ *    `WidgetRegistry` synthesises never carries one. Measured before leaving
+ *    them out: no reader in this repository consumes any of the five on
+ *    `ComponentInput` either, and `sdui-parser`'s serializer forwards six keys
+ *    (`name`, `type`, `required`, `enum`, `binding`, `description`) and none of
+ *    these. Copying them here would mirror surface that nothing reads on the
+ *    face it already lives on.
+ *
+ * Pin: `__tests__/widget-input-control-vocabulary.test.ts`.
  */
 export interface WidgetInput {
   /** Input field name (maps to prop name) */
   name: string;
-  /** Input field type */
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object' | 'color' | 'date' | 'code' | 'file' | 'slot';
+  /**
+   * Input field type — ONE coarse control kind.
+   *
+   * The vocabulary is {@link ComponentInputControlType}, shared with
+   * `ComponentInput` rather than restated; see this interface's own doc block
+   * for why the single-kind form is deliberate.
+   */
+  type: ComponentInputControlType;
   /** Human-readable label */
   label?: string;
   /** Default value */

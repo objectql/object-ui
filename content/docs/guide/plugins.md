@@ -199,10 +199,28 @@ Kanban board component with drag-and-drop powered by @dnd-kit.
 
 ## How Plugins Work
 
+### Stylesheets
+
+A plugin's JavaScript is only half of what it renders with. `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` publish a `style.css` of their own, and an app that installs one must import it after the base sheets:
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-grid/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
+Each plugin sheet is compiled against the components theme and then has every rule that sheet already ships subtracted from it, so it carries only what the plugin adds. That includes the themed utilities (`bg-muted/10`, `bg-card/60`, `ring-primary/40`) which **no consumer-side configuration can produce** — the `@theme` block declaring their tokens lives in package source that is not published, so scanning `node_modules` cannot reach it ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)). Skip the import and the view renders unstyled.
+
+Add a line only for the plugins you install. The other `@object-ui/plugin-*` packages do not publish a stylesheet yet; the build step above is the pattern each of them will adopt when it needs one.
+
 ### Lazy Loading Architecture
 
 Plugins use React's `lazy()` and `Suspense` to load heavy dependencies on-demand:
 
+<!-- doc-snippet: fragment — excerpt of a plugin package's own source; './MonacoImpl' is a sibling file in the reader's package, not a module resolvable from this repo -->
 ```typescript
 // The plugin structure
 import React, { Suspense } from 'react'
@@ -248,6 +266,7 @@ Without lazy loading, all this code would be in your main bundle!
 
 Plugins automatically register their components when imported:
 
+<!-- doc-snippet: fragment — continues the block above — CodeEditorRenderer is defined there, and this line is the tail of the same plugin index.tsx -->
 ```typescript
 // In the plugin's index.tsx
 import { ComponentRegistry } from '@object-ui/core'
@@ -284,6 +303,7 @@ cd packages/plugin-myfeature
 
 ### 2. Create Heavy Implementation
 
+<!-- doc-snippet: fragment — the reader's new package importing its own heavy dependency; 'heavy-library' is a placeholder name, not an installed module -->
 ```typescript
 // src/MyFeatureImpl.tsx
 import HeavyLibrary from 'heavy-library'
@@ -295,6 +315,7 @@ export default function MyFeatureImpl(props) {
 
 ### 3. Create Lazy Wrapper
 
+<!-- doc-snippet: fragment — the reader's new src/index.tsx; './MyFeatureImpl' is the sibling file created in the previous step -->
 ```typescript
 // src/index.tsx
 import React, { Suspense } from 'react'
@@ -334,6 +355,7 @@ export interface MyFeatureSchema extends BaseSchema {
 
 ### 5. Configure Build
 
+<!-- doc-snippet: fragment — a vite.config.ts for the reader's plugin package; '@vitejs/plugin-react' is that package's devDependency, not this repo's -->
 ```typescript
 // vite.config.ts
 import { defineConfig } from 'vite'
@@ -398,8 +420,9 @@ export default defineConfig({
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-react": "^6.0.5",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1"
   }
 }
 ```
@@ -419,6 +442,7 @@ Heavy imports go in the `*Impl.tsx` file.
 
 Always show a meaningful skeleton while loading:
 
+<!-- doc-snippet: fragment — a bare JSX excerpt showing the Suspense wrapper shape; Suspense, Skeleton, LazyComponent and props all come from the surrounding component -->
 ```typescript
 <Suspense fallback={
   <Skeleton className="w-full h-[400px]" />
@@ -431,6 +455,7 @@ Always show a meaningful skeleton while loading:
 
 Make your plugin type-safe:
 
+<!-- doc-snippet: fragment — re-export excerpt from the reader's package; './types' is the file created in step 4 -->
 ```typescript
 export type { MyFeatureSchema } from './types'
 ```
@@ -473,6 +498,7 @@ ls -lh dist/
 
 Check that you imported it in your app:
 
+<!-- doc-snippet: fragment — the app-side import of '@object-ui/plugin-myfeature', the package this guide teaches the reader to publish -->
 ```typescript
 import '@object-ui/plugin-myfeature'
 ```
@@ -481,6 +507,7 @@ import '@object-ui/plugin-myfeature'
 
 Make sure types are exported:
 
+<!-- doc-snippet: fragment — re-export from '@object-ui/plugin-myfeature', the reader's own published package -->
 ```typescript
 export type { MyFeatureSchema } from '@object-ui/plugin-myfeature'
 ```
@@ -498,6 +525,7 @@ Check that the implementation is in a separate file:
 
 Check that ComponentRegistry.register() is called at the module level:
 
+<!-- doc-snippet: fragment — a good/bad contrast pair; ComponentRegistry and MyFeatureRenderer are the ambient names of the plugin index.tsx being discussed -->
 ```typescript
 // ✅ Good - runs on import
 ComponentRegistry.register('my-feature', MyFeatureRenderer)

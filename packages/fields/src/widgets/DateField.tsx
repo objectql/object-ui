@@ -1,10 +1,10 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { openNativePicker } from './openNativePicker';
-import { toDateInputValue } from './nativeDateValue';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { openNativePicker } from './openNativePicker.js';
+import { toDateInputValue } from './nativeDateValue.js';
 
 /**
  * DateField - Date picker input widget

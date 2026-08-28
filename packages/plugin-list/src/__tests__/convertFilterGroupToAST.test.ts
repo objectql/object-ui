@@ -175,3 +175,69 @@ describe('convertFilterGroupToAST — every value-less operator emits a real nod
     expect(isFilterAST(both)).toBe(true);
   });
 });
+
+/**
+ * A half-filled `between` is not a narrower range — it is a query the server
+ * refuses (objectstack#8815).
+ *
+ * The row this covers is reachable in two keystrokes: pick a date column, pick
+ * 「介于」, type the start, stop. The builder holds `["2024-01-01", ""]`, and the
+ * predicate this function used to apply (`null` / `''` / empty array) saw an
+ * array of length 2 and called it complete. The emitted AST carried the empty
+ * bound to the server, which refused the WHOLE view — so a half-typed row took
+ * down the filters the user had already applied, and the list showed
+ * 「该视图的查询被拒绝」rather than a partially-filtered result.
+ *
+ * DIRECTION, predicted before running: red before the fix on the two
+ * half-filled cases (they emitted a `between` node instead of nothing), green
+ * on the paired and value-less cases both before and after.
+ */
+describe('convertFilterGroupToAST — `between` needs both bounds', () => {
+  it('emits a well-formed range when both bounds are filled', () => {
+    const ast = convertFilterGroupToAST({
+      logic: 'and',
+      conditions: [
+        { field: 'declare_date', operator: 'between', value: ['2024-01-01', '2024-03-01'] },
+      ],
+    } as unknown as FilterGroup);
+    expect(ast).toEqual(['declare_date', 'between', ['2024-01-01', '2024-03-01']]);
+    expect(isFilterAST(ast)).toBe(true);
+  });
+
+  it.each([
+    ['upper bound missing', ['2024-01-01', '']],
+    ['lower bound missing', ['', '2024-03-01']],
+    ['both bounds missing', ['', '']],
+    ['nothing filled in', []],
+  ])('drops the row when %s', (_name, value) => {
+    const ast = convertFilterGroupToAST({
+      logic: 'and',
+      conditions: [{ field: 'declare_date', operator: 'between', value }],
+    } as unknown as FilterGroup);
+    // No filter at all — the same answer this function already gives a
+    // half-typed `equals` row, rather than a filter the server will refuse.
+    expect(ast).toEqual([]);
+  });
+
+  it('drops only the half-filled range, keeping the rest of the group', () => {
+    // The part that made this user-visible: one unfinished row used to refuse
+    // the whole view, so the complete filters beside it stopped applying too.
+    const ast = convertFilterGroupToAST({
+      logic: 'and',
+      conditions: [
+        { field: 'stage', operator: 'equals', value: 'won' },
+        { field: 'declare_date', operator: 'between', value: ['2024-01-01', ''] },
+      ],
+    } as unknown as FilterGroup);
+    expect(ast).toEqual(['stage', '=', 'won']);
+    expect(isFilterAST(ast)).toBe(true);
+  });
+
+  it('keeps a bound of 0 — a real bound, not an empty one', () => {
+    const ast = convertFilterGroupToAST({
+      logic: 'and',
+      conditions: [{ field: 'amount', operator: 'between', value: [0, 100] }],
+    } as unknown as FilterGroup);
+    expect(ast).toEqual(['amount', 'between', [0, 100]]);
+  });
+});

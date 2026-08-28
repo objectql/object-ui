@@ -1,5 +1,54 @@
 # @object-ui/collaboration
 
+## 17.6.0
+
+### Patch Changes
+
+- 5458414: Publish relative import specifiers with explicit `.js` extensions so these six packages load under plain Node ESM.
+  
+  Node's ESM resolver does not extension-search relative specifiers and `tsc` never rewrites them, so an extensionless `./Foo` in the source shipped as an extensionless `./Foo` in `dist` and importing the package entry outside a bundler failed with `ERR_MODULE_NOT_FOUND`. Bundled consumers were unaffected. Unbundled consumers — plain Node ESM, an SSR host importing the package directly, anyone running the published tarball without a build step — can now import these entries, and so can the downstream `@object-ui/plugin-*` packages that evaluate through `mobile`, `permissions` and `providers`.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [37f6844]
+- Updated dependencies [2b50261]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [578e025]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [ad13d63]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+
 ## 17.5.0
 
 ### Patch Changes

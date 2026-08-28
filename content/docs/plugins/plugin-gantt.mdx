@@ -121,10 +121,15 @@ const schema = {
   staticData?: Array<any>,          // Static data array
   data?: ViewData,                  // Advanced data configuration
   gantt?: GanttConfig,              // Gantt-specific configuration
-  onTaskClick?: (record: any) => void,
-  className?: string
+  viewMode?: 'day' | 'week' | 'month' | 'quarter' | 'year',
+  readOnly?: boolean                // disable every edit path
 }
 ```
+
+`onTaskClick` and `className` are **React props on `<ObjectGantt>`**, not schema
+keys — the renderer never reads them off the schema, and a function cannot
+survive serializable metadata anyway. `viewMode` is read through the gantt
+config, so it applies alongside a `gantt` block or the flat `*Field` keys.
 
 ### GanttConfig
 
@@ -243,8 +248,9 @@ The dependencies field should contain an array of task IDs that this task depend
   type: 'object-gantt',
   data: {
     provider: 'api',
-    endpoint: '/api/project/tasks',
-    method: 'GET'
+    // the api member is `read` / `write` HTTP requests — there is no
+    // top-level `endpoint` key, and nothing reads one
+    read: { url: '/api/project/tasks', method: 'GET' }
   },
   gantt: {
     startDateField: 'startDate',
@@ -265,23 +271,30 @@ bare global fetch and rely on same-origin cookies alone.
 
 ### Task Click
 
+The click handler is a **React prop**, not a schema key — the schema stays
+serializable:
+
 ```tsx
-{
-  type: 'object-gantt',
-  objectName: 'tasks',
-  gantt: {
-    startDateField: 'start',
-    endDateField: 'end',
-    titleField: 'name'
-  },
-  onTaskClick: (task) => {
+<ObjectGantt
+  schema={{
+    type: 'object-gantt',
+    objectName: 'tasks',
+    gantt: {
+      startDateField: 'start',
+      endDateField: 'end',
+      titleField: 'name'
+    }
+  }}
+  dataSource={dataSource}
+  onTaskClick={(task) => {
     console.log('Task clicked:', task);
-    // Open task details
-    // Edit task
-    // Show task dependencies
-  }
-}
+    // Open task details / edit / show dependencies
+  }}
+/>
 ```
+
+Rendered through the registered `object-gantt` type there is usually nothing to
+wire: clicking a row already opens the standard detail drawer.
 
 ## Examples
 
@@ -297,9 +310,6 @@ const softwareProject = {
     titleField: 'taskTitle',
     progressField: 'completionPercent',
     dependenciesField: 'blockedBy'
-  },
-  onTaskClick: (task) => {
-    // Show task details modal
   }
 }
 ```
@@ -315,9 +325,6 @@ const constructionGantt = {
     endDateField: 'phase_end',
     titleField: 'phase_name',
     progressField: 'percent_complete'
-  },
-  onTaskClick: (phase) => {
-    // Navigate to phase details
   }
 }
 ```

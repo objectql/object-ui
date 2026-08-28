@@ -58,7 +58,7 @@ const schema = {
 - **Customizable Markers**: Color-coded markers with icon support
 - **Date Formatting**: Multiple date format options
 - **Gantt Charts**: Project timeline visualization with task bars
-- **Time Scales**: Day, week, or month scales for Gantt view
+- **Time Scales**: Hour, day, week, month, quarter, or year scales for Gantt view
 - **Lightweight**: Pure CSS and React components
 
 ## Schema API
@@ -72,7 +72,8 @@ const schema = {
   items?: TimelineItem[],
   dateFormat?: 'short' | 'long' | 'iso',
   // Gantt-specific
-  timeScale?: 'day' | 'week' | 'month',
+  scale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year',
+  timeScale?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year',  // deprecated alias of `scale`
   rowLabel?: string,
   minDate?: string,
   maxDate?: string,
@@ -115,11 +116,23 @@ const schema = {
 | `variant` | string | `'vertical'` | Timeline layout: vertical, horizontal, or gantt |
 | `items` | array | `[]` | Array of timeline items |
 | `dateFormat` | string | `'short'` | Date formatting: short, long, or iso |
-| `timeScale` | string | `'month'` | Gantt time scale: day, week, or month |
+| `scale` | string | `'month'` | Gantt axis bucket: hour, day, week, month, quarter, or year |
+| `timeScale` | string | — | **Deprecated** — the pre-spec spelling of `scale`, still read as a fallback |
 | `rowLabel` | string | `'Items'` | Label for Gantt rows |
 | `minDate` | string | auto | Override min date for Gantt (YYYY-MM-DD) |
 | `maxDate` | string | auto | Override max date for Gantt (YYYY-MM-DD) |
 | `className` | string | `''` | Additional Tailwind CSS classes |
+
+Every key above is declared on the exported `TimelineSchema`, so an editor
+completes them and a wrong value is a type error. `scale` is the canonical axis
+key — it is `@objectstack/spec`'s `ui/TimelineConfig.json` spelling and the one
+the renderer reads first (`scale ?? timeScale`).
+
+<Callout type="warn">
+`events`, `orientation` and `position` are also declared on `TimelineSchema`
+and are **read by nothing**. A timeline authored with `events` renders an empty
+rail — use `items`. They are deprecated and scheduled for removal.
+</Callout>
 
 ## Variants
 

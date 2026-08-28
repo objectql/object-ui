@@ -4,16 +4,16 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
+      "gap": 4,
       "children": [
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "className": "text-center",
           "children": [
             {
               "type": "icon",
-              "name": "mail",
+              "icon": "mail",
               "className": "h-12 w-12 mx-auto text-primary"
             },
             {
@@ -30,7 +30,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             {
               "type": "label",
@@ -49,7 +49,8 @@
         },
         {
           "type": "flex",
-          "className": "items-start space-x-2",
+          "align": "start",
+          "gap": 2,
           "children": [
             {
               "type": "checkbox",

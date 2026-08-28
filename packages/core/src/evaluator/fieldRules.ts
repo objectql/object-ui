@@ -35,8 +35,7 @@
  * `stripReadonlyWhenFieldsMulti` on the bulk path — DELETES that key from the
  * UPDATE payload. This file keeps the same fault fail-OPEN. For that one class
  * the two ends therefore point in OPPOSITE directions, deliberately: the
- * framework's ADR-0057 D10 — server enforces, client is courtesy (framework
- * numbering; this repo's own ADR-0057 is an unrelated document) — makes the
+ * framework's ADR-0124 D1 — server enforces, client is courtesy — makes the
  * server the authority, so the courtesy layer does not get to guess "locked"
  * and grey out a field the server might have accepted.
  *

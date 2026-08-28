@@ -1,5 +1,665 @@
 # @object-ui/plugin-grid
 
+## 17.6.0
+
+### Minor Changes
+
+- dbbd38a: fix(plugin-grid): `ObjectGrid` reads the declared column spelling, and only it
+  
+  `ObjectGridSchema.columns` is declared `string[] | ListColumn[]`, and
+  `ListColumnSchema` in `@objectstack/spec/ui` is a **strict** object: `field` is
+  required, and `accessorKey` / `header` are refused **by name** —
+  `unrecognized_keys`, with a prescriptive message. The renderer accepted that
+  refused spelling anyway, through a branch that sniffed `columns[0]` for an
+  `accessorKey` and synthesized a `ListColumn` from it. One key, two spellings:
+  one the schema admits, one only the runtime did.
+  
+  That branch retires (inheriting the disposition of objectui#3951 together with
+  its reason — unify at the producer, no consumer-side tolerance alias, AGENTS.md
+  #0.1). It is also why the fictional `{ header, accessorKey }` column interface
+  in the plugin README (objectui#5013) read as credible: it rendered, so nothing
+  signalled that the contract refuses it.
+  
+  **Affected input.** A column authored `{ accessorKey, header }` no longer
+  resolves; it is dropped, and a grid whose columns are all mis-spelled renders as
+  the row-number column alone. Write columns the declared way — `{ field, label }`
+  — which is what the spec has always accepted and what the docs have always said
+  (`content/docs/plugins/plugin-grid.mdx`: "The field this column reads. There is
+  no `accessorKey`."). No authored usage of the retired spelling exists in this
+  repo's examples, docs, apps or fixtures; every in-repo occurrence of the name
+  belongs to the `table` / `data-table` component, which legitimately owns it.
+  
+  The `columns[0]` sniff goes with the branch. Column identity is a per-column
+  property, and one filter now judges it: a mis-spelled column is dropped alone,
+  where the sniff let the first entry decide the fate of the whole array — a
+  declared column standing behind an undeclared one was lost with it, and the
+  reverse order threw a `TypeError` mid-render.
+  
+  `accessorKey` keeps its job on the way **out**: it is the data-table adapter's
+  column key, which `@object-ui/core` deliberately holds outside the metadata
+  identity fold (`TABLE_ADAPTER_COLUMN_KEY`) and which `ObjectGrid` still writes
+  when it hands columns to the adapter. Metadata vocabulary in, adapter vocabulary
+  out, one translation at one boundary.
+- b1119ec: Project every declared `recordIdField`, and refuse an action that names no record
+  
+  objectstack#8018. An `api` action declaring `recordIdParam` identifies the record
+  it acts on by a row field — `recordIdField`, default `id`. The grid built
+  `$select` from the listView columns, `id` and the predicate refs only, so an
+  action keyed on any other field asked the server for everything except the key
+  naming its own record. The row arrived without it, and the injection was skipped
+  silently: the request went out anyway, minus the parameter. A backend reading a
+  missing selector as "match nothing" then answers success for having changed
+  nothing, so a record-scoped mutation reports success and does nothing.
+  
+  Two independent repairs, both in this change:
+  
+  - **Projection.** `listViewPredicates` (`@object-ui/core`) now also harvests
+    `recordIdField` from `rowActionDefs`, `bulkActionDefs` and the object's
+    `actions`, spelled as a synthetic `record.<name>` so the one existing harvester
+    handles it. Both projection builders — `ObjectGrid` and `ListView` — read that
+    function, so both gain the key with no call-site change. The existing guards
+    still apply: a name the object does not declare, or one that is not a bare
+    identifier, is dropped rather than put in `$select`, because an unknown key
+    there is not ignored by every backend.
+  - **Loud failure.** New `resolveRecordIdParamSeed` (`@object-ui/core`) is the one
+    definition of "can this row identify the record?". `useConsoleActionRuntime`'s
+    api handler now refuses the dispatch — `{ success: false, error }`, before the
+    request — when the row lacks the key, or holds `null` for it. The two refusals
+    are worded differently because they point at different repairs: an absent key
+    is a projection or read-visibility problem, a null value is a data one. Falsy
+    real values (`0`, `''`, `false`) are values and still dispatch.
+  
+  The second half is what closes the class rather than the common case: a row can
+  lack the key for reasons projection cannot fix — a server-side read mask that
+  strips the field regardless of `$select`, a partial payload, a field the
+  principal cannot read.
+  
+  Behaviour change worth noting: an action that previously dispatched an
+  under-specified request now fails visibly instead. That is the point — the old
+  path could not report the failure it was causing.
+- d2ce342: Retire the structured `confirm` object on actions (objectui#4314, maintainer ruling
+  2026-08-17, ADR-0049 enforce-or-remove). `confirmText` is now the one confirm
+  spelling — the only one the translation bundle can address
+  (`{ns}.objects.{obj}._actions.{name}.confirmText`), matching `@objectstack/spec`'s
+  action surface.
+  
+  Breaking semantics (flagged `minor` per this repo's version-alignment policy):
+  
+  - `@object-ui/types`: `ActionSchema.confirm` is a `?: never` tombstone — authoring
+    it is now a tsc error, and the Zod twin rejects any authored value at parse time
+    (it previously accepted the object). The backwards `@deprecated` note that
+    steered authors from `confirmText` INTO the structured arm is gone.
+  - `@object-ui/core`: `ActionRunner` no longer reads `confirm.message` (which used
+    to outrank `confirmText`, untranslated). `ActionDef.confirm` carries the same
+    `never` tombstone. The `ConfirmationHandler` signature is unchanged, but the
+    runner now invokes it without the `options` argument.
+  - `@object-ui/plugin-grid`: `resolveBulkActions` no longer falls back to
+    `confirm.message` when promoting an object action — spec metadata can never
+    deliver that key.
+  
+  Nothing in the repo, the example apps, or the schema catalog authored the
+  structured form (verified on the issue); a dialog authored that way silently lost
+  localization. Reopen condition recorded on objectui#4314: real demand returns the
+  arm WITH bundle keys designed in.
+
+### Patch Changes
+
+- feb6b16: Grid group headers, compact cards and kanban card badges honour an author-declared option hex, matching the grid cell.
+  
+  objectui#5141 taught the grid's cell renderer (`SelectCellRenderer`) to render an
+  explicitly declared `options[].color` hex as declared instead of quantizing it
+  onto one of nine palette families. Four badge call sites in `plugin-grid` and
+  `plugin-kanban` still resolved through `getBadgeColorClasses`, which returns a
+  class string and therefore cannot carry a runtime colour — Tailwind can only
+  emit classes it saw in the source at build time.
+  
+  The result was worse than the bug it replaced: the same option in the same
+  object rendered one colour in a desktop grid cell and a different one in the
+  group header above it or on the kanban card beside it. The pre-#5141 state was
+  at least uniformly wrong.
+  
+  All four sites now resolve exactly as the cell does — prefer
+  `getBadgeHexAppearance(color)` and use its `className` **and** its `style`,
+  falling back to `getBadgeColorClasses` for palette-family names, no colour, and
+  every other declaration. The compact card keeps its pipeline-stage heuristic
+  when the author declared no colour at all.
+  
+  Two carriers were widened so the style can reach the element, because these
+  badges are not all plain JSX: `GroupRow` takes a `labelColorStyle` alongside
+  `labelColorClass`, and a kanban card badge takes `colorStyle` alongside
+  `colorClass` (`KanbanCard.badges[]`). Both additions are optional and additive;
+  a badge that carries only a class renders exactly as before. The colours ride
+  CSS custom properties that the class reads, so a class passed without its style
+  paints against undefined variables — the two halves have to travel together.
+  
+  Behaviour is unchanged for every declaration that is not an explicit hex.
+- 9aecabe: A bulk action dialog's per-option `visibleWhen` predicates now read the dialog's own in-progress param values.
+  
+  The second landing site of the same gap objectui#3765 closed for the
+  single-record action dialog. A field's per-option `visibleWhen` reaches a bulk
+  param's control, but the dialog supplied no record to evaluate it against: it
+  passed no `dependentValues`, so the shared cascading-options evaluator fell
+  through its chain (`dependentValues ?? formValues ?? data`) to whatever record
+  the host grid page happened to publish, or to nothing at all. A predicate
+  written against a SIBLING PARAM — `record.country == 'cn'` on a province option,
+  next to a `country` param in the same dialog — could therefore never see the
+  value the user had just entered. Authored cascades were dead on this surface, in
+  the safe direction: an unresolvable predicate offers the option rather than
+  hiding it, so nobody was shown a wrongly-narrowed list.
+  
+  Per the maintainer's 2026-08-11 ruling (Option B on objectui#3765) the dialog is
+  a small form, and its in-progress values are that record. The bulk dialog now
+  passes them as `dependentValues` to the option widgets (`select`, `multiselect`,
+  `radio`, `checkboxes` — the same allow-list the object form and the single-record
+  action dialog thread the live record to). The evaluator is unchanged; this is the
+  supply half that was missing.
+  
+  Bulk is the cheap case for that ruling, which is why it needed no separate one:
+  an action over N selected rows has no single row record for the dialog's values
+  to displace — the selection was never offered to these predicates, so the
+  dialog's values are the only record there has ever been. What the supplied record
+  does displace is the host page's, since it wins the chain outright: a predicate
+  naming a column the dialog has no param for stays unresolvable, which fails open
+  — the option is offered, never wrongly hidden.
+- 2533ec5: The bulk-action dialog's "this widget needs a DataSource" rule now derives from the shared reference-field family instead of a fourth private copy.
+  
+  `packages/plugin-grid/src/components/bulkParamToField.ts` held its own
+  `DATA_SOURCE_WIDGET_TYPES` — the fourth hand-maintained answer to one question
+  ("which widget has to query records, so it must be handed a DataSource and a
+  `reference_to`"), and the only one whose member set matched none of the other
+  three: `lookup` / `master_detail` / `user`, against `@object-ui/core`'s
+  `EXPANDABLE_FIELD_TYPES` (which also holds `tree`) and the object form's rule
+  (which adds three widget-hint pickers). Nothing anywhere could detect the drift;
+  the same shape objectui#4770 and objectui#4790 each closed on another surface.
+  
+  It now reads core's set through one predicate, so all three consumers of the rule
+  — the label prefetch / option source (`isLookupishParam`), the `dataSource` prop
+  the dialog threads into the widget (`fieldNeedsDataSource`), and the
+  `reference_to` / `display_field` branch of `bulkParamToField` — cannot drift apart
+  from each other or from the form again.
+  
+  No behaviour change on any reachable path, which is why this is a patch. The one
+  member the two tables differed on, `tree`, can never be a widget key on this
+  surface: it is absent from the fields widget map and `mapFieldTypeToFormType`
+  sends it to `field:lookup`, so a `tree` param arrives at the rule as `lookup`
+  (pinned). The divergence in the other direction is deliberately preserved: the
+  form additionally wires `object-ref` / `filter-condition` / `recipient-picker`,
+  widget hints no object schema can declare and no bulk param produces — absorbing
+  them would change which widgets receive a DataSource here, which is a behaviour
+  change and not a convergence.
+  
+  The pin is an identity pin, not a membership one: it spies on the `has` of the
+  Set object core exports, so a member-identical private copy fails it. A
+  value-equality assertion would have passed against exactly the defect this
+  change removes.
+- bbe8b86: The allow-list of option widgets that are fed the live record is now one exported constant, `CASCADE_OPTION_WIDGET_TYPES`, instead of three private copies.
+  
+  `select` / `multiselect` / `radio` / `checkboxes` are the widgets whose OFFERED
+  option set is re-resolved against a record (per-option `visibleWhen`, plus the
+  `dependsOn` gate), so they are the widgets a surface must thread its live record
+  to. Three surfaces feed that one evaluator — the object form, the single-record
+  action dialog and the bulk action dialog — and until now each carried its own
+  private `new Set([...])` of the same four keys, with a comment in each asking the
+  next person to change all three together. Nothing could have reported them
+  drifting: every copy passed its own behavioural tests, and a divergence would
+  have shown up only as one surface silently disagreeing with another about what
+  "the record" is.
+  
+  The set now lives in `@object-ui/core`, next to `resolveCascadingOptions` — the
+  evaluator that reads that record — because core is the one package all three
+  surfaces already depend on, and it is re-exported from `@object-ui/fields` next
+  to `resolveFormWidgetType`, whose output is the vocabulary the keys are written
+  in. Both are the same object, pinned by test; each consumer keeps its own
+  normalization (`normalizeFieldType` in the form, `resolveFormWidgetType` in the
+  dialogs), which agree on these four members.
+  
+  No behaviour changes: the members are identical on all three surfaces, and the
+  existing pins for each surface still assert the same records reaching the same
+  widgets. The rationale that was repeated in the three copies — including the
+  note that the widget-hint picker family (`filter-condition`, `recipient-picker`,
+  the lookup family) reads a different sibling key off the same channel and is
+  deliberately NOT in this set — is now stated once, in the constant's own
+  documentation. Whether the action and bulk dialogs should ever feed those
+  pickers stays an open question (objectui#4771), unchanged by this convergence.
+- ad07b65: Four packages stop publishing tooling material in their `dist/`
+  
+  Each of these packages spelled its build exclusions as `*.test.*`, while this repo's tooling convention is a directory one — `__tests__` / `__mocks__` / `__benchmarks__`, exactly as `TOOLING_FILE` in `scripts/check-phantom-dependencies.mjs` spells it. Any tooling file whose *name* is not `*.test.*` therefore stayed in the emit program and shipped in the tarball. This is the same shape and the same cause as objectui#4006, which fixed `@object-ui/fields` and `@object-ui/plugin-editor` by the filename criterion and so did not reach these four.
+  
+  Measured by building each package from a cleared `dist/` on both sides of the change. Nine files disappear, none appears, and every surviving file is untouched — the totals move by exactly the count removed:
+  
+  | package | `dist/` files | removed |
+  | --- | --- | --- |
+  | `@object-ui/core` | 176 to 174 | `dist/__benchmarks__/core.bench.js`, `core.bench.d.ts` |
+  | `@object-ui/plugin-designer` | 70 to 66 | `dist/__tests__/__mocks__/plugin-form.d.ts`, `plugin-grid.d.ts`, and both `.d.ts.map` |
+  | `@object-ui/plugin-grid` | 62 to 60 | `dist/__tests__/explainDouble.d.ts` and its `.d.ts.map` |
+  | `@object-ui/plugin-view` | 13 to 12 | `dist/__tests__/explainDouble.d.ts` |
+  
+  Only `@object-ui/core`'s had runtime weight. The other eight are declarations nothing resolves, but `core.bench.js` is a real emitted module whose first import is `import { bench, describe } from 'vitest'` — a runtime import of a package a consumer never installs, since `vitest` is a devDependency of `@object-ui/core` and devDependencies are not installed transitively. Nothing resolves it today either (it is not in the `exports` map), so no consumer breaks in either direction; this is the tarball shedding files nothing reached.
+  
+  No type coverage leaves with the emit. The three plugins' helper and mock files are already program inputs of the `tsconfig.test.json` that each package's `type-check` chains, reached through the imports in the suites beside them — `tsc --listFiles` names all four files on both sides of the change. `core.bench.ts` had no such edge, since nothing imports a benchmark, so it is now named explicitly in `packages/core/tsconfig.test.json`. That move was deliberate rather than forced: `scripts/check-type-check-coverage.mjs` enumerates `*.test.ts(x)` only, so a benchmark that no program reads is invisible to it, and dropping the coverage silently would have been the "coverage that was right by accident" objectui#4006 recorded. Verified by appending a provably-false annotation to the benchmark, which turns `tsc -p packages/core/tsconfig.test.json` red at exit 2.
+- c1ef923: Grid and related-list column headers no longer offer a sort on a `formula` column.
+  
+  A `formula` value is computed on read: no driver materialises a column for it, so
+  a server `$orderby` naming one has nothing to order by. That sort never worked.
+  Until objectstack#6994 the platform did not say so — the response carried the very
+  values it had been asked to order by, out of order, under a `200`, with ascending
+  and descending byte-identical on a real SQL driver — and it now answers
+  `400 INVALID_SORT`. So the header was wrong before the platform's refusal and is
+  wrong after it, for the same reason: it offers a sort that cannot be performed.
+  
+  `ObjectGrid` withheld the affordance only from reference-bearing columns
+  (objectui#3096). Unmaterialized types are a SECOND reason a server sort is
+  impossible, not a different mechanism, so it now reads both — and so do the two
+  sort entry points of a related list (the embedded table's headers and the
+  sort-button row a `data-list` card keeps), which each derived that rule
+  separately.
+  
+  Client-side sorting is deliberately unchanged. There the rows are all in the
+  browser and the formula value is the one the server hydrated on read, so ordering
+  by what the cell shows is honest — the same split the relational carve-out makes.
+  A sort DECLARED in view metadata is also unchanged: it still goes out and is still
+  refused by name, because silently dropping an author's declaration would hide the
+  authoring error instead of surfacing it (the toolbar's sort picker keeps such a
+  field listed for exactly that reason — it is the only way to remove it).
+  
+  The membership — `formula` alone — moved out of a private set in `ListView` into
+  `@object-ui/core` (`UNMATERIALIZED_FIELD_TYPES` / `isUnmaterializedFieldType`),
+  bound to `@objectstack/spec`'s own storage predicate so the renderer cannot drift
+  from what the drivers actually store. It is deliberately narrower than the spec's
+  write contract `COMPUTED_VALUE_TYPES`: a `summary` and an `autonumber` each get a
+  real maintained column and sort correctly, and withholding their headers would
+  have broken two affordances that work.
+- 375efb4: Publish the authoring surfaces of the four GA `object-*` blocks
+  
+  `object-form`, `object-grid`, `object-master-detail-form` and `object-metric`
+  each honoured far more keys than they declared as registry `inputs`. An author —
+  very often an AI author — who wrote one of the undeclared keys got an
+  `unknown-prop` report from `sdui-parser` on a key that works, while the designer
+  panel and the generated `sdui-intrinsics.d.ts` denied it existed.
+  
+  68 keys are now declared with descriptions written to teach correct authoring:
+  `object-form` +20 (record binding, button labels, post-submit behaviour, mobile
+  overrides), `object-grid` +21 (sorting, pagination, grouping, selection, row and
+  bulk actions, navigation, export), `object-master-detail-form` +10, and
+  `object-metric` +14 (formatting, comparison, drill-down). No renderer behaviour
+  changes — this documents what already shipped, so the manifest, the generated
+  `.d.ts`, the designer panel and the renderers finally agree.
+  
+  Ten of `object-grid`'s spec-declared keys are deliberately NOT published:
+  its own `@deprecated` legacy spellings (`fields`, `staticData`, `selectable`,
+  `pageSize`, `showSearch`, `showPagination`, `defaultSort`, `defaultFilters`,
+  `resizableColumns`, `title`). The renderer keeps reading them so existing
+  documents render, but recommending a deprecated alias as new authoring surface
+  would harden it into a second dialect. Each canonical replacement — `columns`,
+  `data`, `selection`, `pagination`, `searchableFields`, `sort`, `filter`,
+  `resizable`, `label` — is declared, and each carries a description naming the
+  legacy spelling it supersedes.
+- 3e0214c: `ObjectGrid`'s inline add-record row now honours `can(object, 'create')` (objectui#5148).
+  
+  The `create` face of the shape #5143 closed for `update`. `ObjectGrid` resolves
+  `permissionUpdate` / `permissionDelete` through `perms.can(...)` and ANDs each
+  into the affordance it governs, but the Airtable-style add-record row was gated
+  on the author-declared `operations.create` **alone** — a flag that says whether
+  the affordance was *wired*, never a permission grant. There was no
+  `permissionCreate` in the component at all.
+  
+  The symptom is the one #5143 and #4646 each closed on a neighbouring surface: a
+  principal with no `create` grant was offered the add row, filled it in, and was
+  stopped only by the server's 403 — while the toolbar's New button on the very
+  same screen had already hidden itself for that principal. No data ever landed
+  (the server gate is solid); the cost was a round-trip the UI guaranteed would
+  fail, and one component answering "may this user create records here?" two
+  opposite ways at once.
+  
+  `showAddRow` is now the authored request **∧** the principal's verdict, the same
+  conjunction #4646 / PR #5145 spelled for the related-list "+ New"
+  (`affordances.create ∧ can(obj, 'create')`) with the operation moved to
+  `create`. The authored key stays the gate's left half, so this narrows and never
+  widens: no verdict turns the add row on for a grid that did not ask for it, and
+  a grid declaring no `operations` block keeps falling through the
+  `{ update: !!onEdit, delete: !!onDelete }` default that carries no `create` key.
+  
+  Fail-open is preserved, and is load-bearing rather than incidental here:
+  `can()` answers `true` with no `PermissionProvider` mounted, and the verdict is
+  skipped entirely when no object name resolves. `plugin-designer`'s
+  `FieldDesigner` and `ObjectManager` both build grids with
+  `operations: { create: true, update: true, delete: true }` when not read-only
+  and typically render with no provider, so those surfaces are untouched — pinned
+  by a dedicated test rather than left to inspection.
+- 27c9cbd: `object-grid` now declares its `data` input as the object its contract actually
+  accepts, instead of as an array (objectui#5090).
+  
+  The declaration published `{ name: 'data', type: 'array', label: 'Static Data',
+  description: 'Inline rows, …' }` — which is the shape of `staticData`, the
+  deprecated alias the objectui#4648 carve-out deliberately leaves unpublished,
+  under the canonical key's name. The contract is
+  `ObjectGridSchema.data?: ViewData`: the spec's discriminated union on
+  `provider`, four strict object arms (`object` / `api` / `value` / `schema`),
+  none of them an array.
+  
+  Both halves of that misdeclaration were user-visible. An author following the
+  designer panel or the generated `sdui-intrinsics.d.ts` wrote `data: [ …rows… ]`
+  and got a grid that renders but a document `tsc` rejects (TS2322) and spec
+  parsing refuses; meanwhile the one form that satisfies both,
+  `{ provider: 'value', items: [...] }`, was reported as `type-mismatch` by the
+  save gate, because a declared `array` arm accepts only arrays. Writing the
+  inline-rows form the README already documents now validates clean, and the
+  designer labels the key `Data Source` with a description that names all four
+  providers rather than only the deprecated shortcut's shape.
+  
+  The renderer is unchanged: a bare array is still honoured as back-compat
+  (`getDataConfig` folds it to `{ provider: 'value', items }`), it is simply no
+  longer advertised as authoring surface — the same standing `staticData` has.
+  Authors who wrote the array shorthand keep working and will now see a
+  `type-mismatch` hint pointing at the spec-valid spelling.
+- b4089be: `ObjectGrid`'s `editable` schema key now honours the caller's `update` permission.
+  
+  A declaratively-authored `object-grid` block carrying `editable: true` opened
+  inline editing for every principal, including one with no `update` grant. The
+  component had already resolved that principal's verdict — `permissionUpdate =
+  can(objectName, 'update')`, sitting a few lines above — but consumed it only for
+  the row kebab; the three inline-edit props read `schema.editable` raw. One
+  component therefore gave two opposite answers to "may this user write these
+  records?" on the very same rows: the kebab correctly hid Edit, while a click on
+  a cell dropped the user into an editor whose save could only earn a server 403.
+  No data ever landed (the server gate is solid) — the cost was a round-trip the
+  UI walked the user through knowing it would fail.
+  
+  `editable`, `renderCellEditor` and the save/cancel `rowActions` column now read
+  one resolved verdict: the authored key AND the object's resolved affordance
+  (ADR-0103 bucket, `userActions.edit`, and the server's effective API operations)
+  AND the principal's own grant. This is the conjunction objectui#4647 used to
+  close the same hole at the ListView layer; the SDUI-authored grid schema is a
+  second, independent door into that state which never passes through ListView.
+  
+  Behaviour change, stated because it is one: a principal WITHOUT the `update`
+  grant no longer enters inline edit on such a grid, and no longer sees the
+  trailing save/cancel column that served it — that grid is now column-for-column
+  the non-editable grid, which is what it always effectively was. Everyone with
+  the grant is unaffected. The gate fails OPEN where there is no verdict to be
+  had: `can()` answers `true` with no `PermissionProvider`, and a grid with no
+  object name resolves the default-writable affordance, so standalone embeds, the
+  Studio designer canvas and pure inline-data grids keep today's behaviour.
+- b4bccc7: The list row kebab now ANDs the RECORD-level write verdict, not just the object-level grant (objectui#4296). A user holding a broad object grant under `writeScope: 'own'` was offered Edit and Delete on every row they could read, including rows the server refuses with `403 "You do not have access to this record"` — while the record detail header, which has folded the record-grained verdict since objectstack#3821, correctly hid both on the same record for the same user. `ObjectGrid` now asks the same authority the detail header asks (`security/explain`), batched once per (object, operation) for the rows on screen using the `recordIds` form from objectstack#8326, and feeds the answer through the row menu's existing per-row visibility decision — so a denied row loses its entries entirely rather than growing a disabled one, and grows no empty overflow trigger.
+  
+  Fails open on every uncertainty: a row with no verdict yet, an endpoint that is absent or failing, a row missing from the answer, or a row with no id keeps the object-level rendering this list had before. The server remains the authority; hiding a capability on missing data would be worse than the wasted click this removes. No public entry export changes.
+- b29488f: The plugin-grid documentation-site page now spells keys the grid actually reads.
+  
+  `content/docs/plugins/plugin-grid.mdx` is the docs-site mirror of the README pass
+  in objectui#5065, and carried the same defect end to end: the `### Grid` sketch,
+  the column definition and every example block declared `type: 'grid'` with
+  `header` / `accessorKey` columns.
+  
+  Bare `grid` is deliberately not this plugin's key — the `view:grid` registration
+  passes `skipFallback: true` (`packages/plugin-grid/src/index.tsx`), because `grid`
+  belongs to the CSS Grid *layout* container in `@object-ui/components`, whose
+  `columns` is a column **count** rather than a column list. A reader copying an
+  example therefore rendered a layout container, not a data grid. The registry
+  confirms this in both plausible host import orders: `object-grid`,
+  `plugin-grid:object-grid` and `view:grid` all resolve to `ObjectGridRenderer`,
+  while bare `grid` resolves to the layout container.
+  
+  The column vocabulary was rejected rather than ignored: `ListColumnSchema`
+  (`@objectstack/spec/ui`) is a **strict** Zod object, so `header` and `accessorKey`
+  fail validation with `unrecognized_keys` — the identity key is `field` and the
+  header is `label`. Likewise `object` is not a key (`objectName` is required and
+  there is no `object`), `pagination` carried a `showSizeChanger` that the strict
+  `PaginationConfig` rejects, `rowActions` was written as inline definitions with
+  callbacks and then as `true` when it is a `string[]` of action names, and the
+  top-level `sortable` / `filterable` switches have zero read points anywhere in the
+  package — sorting is the per-column `ListColumn.sortable` and filtering is the
+  metadata `filter` plus `searchableFields`.
+  
+  The five `on*` names were taught as schema keys; they are React props on
+  `ObjectGridComponentProps`. A schema is a serialisable document and cannot hold a
+  function, and the renderer never reads a callback off the schema.
+  
+  Every block is rewritten against the declared authoring surface
+  (`GRID_QUERY_INPUTS`), matching the README pass so the two teaching surfaces no
+  longer disagree. The TypeScript section additionally fixes the grid third of
+  objectui#5086: it imported `GridSchema` / `GridColumn` from
+  `@object-ui/plugin-grid`, and neither name is on that package's 49-name export
+  surface — both are taken elsewhere by unrelated types (`GridSchema` in
+  `@object-ui/types` is the CSS Grid layout container; `GridColumn` in
+  `@object-ui/fields` is a column of the line-items form widget, keyed `name`). It
+  now imports `ObjectGridSchema` / `ListColumn` from `@object-ui/types`, with no new
+  re-export added to make the old path work.
+  
+  Documentation only — no renderer behaviour changes, and no capability was added to
+  make an example true.
+- 9fbb9b5: plugin-grid's README examples now spell keys the grid actually reads.
+  
+  Ten example blocks and the `### Grid` sketch documented an authoring surface that
+  does not exist. Every one declared `type: 'grid'`, which is deliberately NOT this
+  plugin's key — the bare `grid` registration is `skipFallback: true`
+  (`src/index.tsx:193`), because `grid` belongs to the CSS Grid *layout* container in
+  `@object-ui/components`. A reader copying an example therefore rendered a layout
+  container, not a data grid, and its unrecognised props leaked into the DOM as
+  invalid HTML attributes (objectui#4787 is that runtime symptom; this is its
+  documentation-side cause).
+  
+  The keys inside those blocks fared no better. `sortable`, `filterable` and `object`
+  have zero read points anywhere in the repo — sorting is per column
+  (`ListColumn.sortable`), filtering is the metadata `filter` plus `searchableFields`,
+  and the object is `objectName` (required). `onRowClick`, `onSelectionChange`,
+  `onCellChange`, `onRowSave` and `onBatchSave` are React props on
+  `ObjectGridComponentProps`; a schema is a serialisable document and cannot carry a
+  function, and the grid builds the inner table's handlers itself rather than reading
+  any callback off the schema. Columns were written `{ header, accessorKey }` against
+  a **strict** `ListColumnSchema` whose column is `{ field, label, … }`; `data` was
+  written as a bare row array against a `ViewData`; `pagination` carried a
+  `showSizeChanger` that its strict config has no room for; and `rowActions` was
+  written as inline definitions with callbacks, then as `true`, against a `string[]`
+  of action names.
+  
+  Every block is rewritten to the declared surface (`GRID_QUERY_INPUTS`,
+  `src/index.tsx:145`) and annotated `ObjectGridSchema` — the annotation is the point,
+  since an un-annotated `const schema = { … }` type-checks whatever is written in it.
+  Documentation only; no renderer behaviour changes, and no capability was added to
+  make an example true.
+- 90517e1: plugin-grid README: replace the fictional `gridComponents` manual-registration
+  snippet and the `GridSchema` / `GridColumn` type names with this package's real
+  export surface and the real data-grid types.
+  
+  Three assertions the README made about identifiers were not true of this package
+  (objectui#5013):
+  
+  - `gridComponents` had zero hits anywhere in the repo. The snippet's
+    `Object.entries(gridComponents).forEach(…)` threw `TypeError` on the first
+    copied line. Registration here is a side effect of importing the entry, so the
+    section is replaced by what actually happens: the keys the three real
+    `ComponentRegistry.register(…)` calls claim, the 49-name export surface, and —
+    for the case the snippet was reaching for — registering the exported
+    `ObjectGridRenderer` under a caller's own key.
+  - `GridSchema` and `GridColumn` were imported from `@object-ui/plugin-grid` as
+    the data-grid schema and column types. Neither is on this package's export
+    surface, and both names denote something else where they do exist:
+    `GridSchema` in `@object-ui/types` is the **CSS Grid layout** container
+    (`columns` there is a column count, not a column list), and `GridColumn` in
+    `@object-ui/fields` is the **form line-items** widget's column (keyed `name`).
+    The example is rewritten on the real types, `ObjectGridSchema` and
+    `ListColumn` from `@object-ui/types`, with the component-props type
+    `ObjectGridComponentProps` named as the thing row callbacks belong to.
+  - The in-prose `interface GridColumn { header; accessorKey; … }` reference block
+    made that absent name read like a real export, and contradicted this README's
+    own Column Summaries section, which already documented columns as `field` +
+    `summary`. It is replaced by the 14 keys of `ListColumn`, whose Zod
+    declaration is strict — `accessorKey` / `header` are rejected, not ignored.
+  
+  Documentation only: no code, type or runtime change. `patch` because `README.md`
+  is in the package's published `files`.
+- e7747f1: fix(fields): retire the `owner` field-type alias with a loud tombstone
+  
+  `owner` was a synonym for `user` with zero behavioral delta — both resolved to
+  the same `UserField` widget — and it is not a member of `@objectstack/spec`'s
+  closed `FieldType`, so no object schema could ever declare it. It was reachable
+  only through hand-written SDUI, and the three code faces that read it had
+  already drifted apart on the word: the form's data-source rule excluded it,
+  while plugin-grid's bulk-action dialog and app-shell's `paramToField` included
+  it.
+  
+  The retired spelling now fails **loudly**. Deleting the alias on its own would
+  have been absorbed by two silent tails (`mapFieldTypeToFormType`'s
+  `|| 'field:text'` and `resolveFormWidgetType`'s `: 'text'`), each handing back a
+  working plain text input with no check turning red — so anyone who had written
+  `type: 'owner'`, including an AI author copying it out of a doc, would have
+  shipped a text box believing they shipped a person picker. Instead:
+  
+  - `type: 'owner'` and `widget: 'field:owner'` both resolve to a registered
+    tombstone widget that renders a visible refusal naming the migration;
+  - the same prescription is written to the console once per spelling;
+  - the read/cell path degrades to the text cell deliberately and says so.
+  
+  Migration: write the record-owner field as `{ type: 'user', name: 'owner' }` —
+  the field NAME carries the ownership meaning, the type carries the widget.
+  `UserField` and `UserCellRenderer` are unchanged; only the synonym is gone.
+  
+  Also corrects the `dataSource` TSDoc in `@object-ui/fields`, which listed `grid`
+  among the widgets the form renderer wires a DataSource to. `GridField` never
+  read `dataSource` and no data-source table ever contained the key.
+- 2165d88: Rename four component-props types off the names `@objectstack/spec` starts owning in
+  17.0.0, keeping the old spellings as deprecated aliases. No behaviour changes and no
+  importer breaks.
+  
+  `@objectstack/spec/ui` exports `ObjectCalendarProps`, `ObjectFormProps`, `ObjectGridProps`
+  and `ObjectKanbanProps` from 17.0.0, where each is the AUTHORED props document of the
+  matching element — a serialisable authoring surface (`z.input< typeof
+  ObjectGridPropsSchema >`). The same-named interfaces here are the RENDERERS' props: a live
+  `dataSource`, records pre-fetched by a parent, and the host callbacks. Two different things
+  under one word, so the local ones are renamed rather than derived, following the split this
+  repo already made for `PageHeaderProps` -> `PageHeaderComponentProps` and the
+  `Record*ComponentProps` family in `@object-ui/types`:
+  
+  | package | new name | old name |
+  |---|---|---|
+  | `@object-ui/plugin-calendar` | `ObjectCalendarComponentProps` | `ObjectCalendarProps` |
+  | `@object-ui/plugin-form` | `ObjectFormComponentProps` | `ObjectFormProps` |
+  | `@object-ui/plugin-grid` | `ObjectGridComponentProps` | `ObjectGridProps` |
+  | `@object-ui/plugin-kanban` | `ObjectKanbanComponentProps` | `ObjectKanbanProps` |
+  
+  Every old name is still exported from its package barrel as a `@deprecated` alias denoting
+  the SAME type, pinned per package by `spec-symbol-4650.test.ts`, so existing imports keep
+  compiling. New code should use the `ComponentProps` spelling.
+  
+  `@object-ui/app-shell` carries no API change: its `SECRET_MASK` — the ADR-0100 credential
+  read mask, which 17.0.0 moves into `@objectstack/spec/data` — is renamed to
+  `OBJECTUI_SECRET_MASK` at its declaration in `views/metadata-admin/widgets.tsx`. That
+  constant is package-internal and is not re-exported from the barrel, so nothing published
+  changes; the rename exists so the local copy cannot be read as the spec's own definition
+  while this repo is still pinned below the release that exports it.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [a09bc33]
+- Updated dependencies [460c4d0]
+- Updated dependencies [0ae27f7]
+- Updated dependencies [2533ec5]
+- Updated dependencies [78c0f9a]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [40d3a33]
+- Updated dependencies [8b9dc62]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [65e88e6]
+- Updated dependencies [a1609a6]
+- Updated dependencies [53f23bc]
+- Updated dependencies [c4533dc]
+- Updated dependencies [be60815]
+- Updated dependencies [37f6844]
+- Updated dependencies [93de4f6]
+- Updated dependencies [2b50261]
+- Updated dependencies [384f30d]
+- Updated dependencies [ac600e5]
+- Updated dependencies [97fba31]
+- Updated dependencies [232f61a]
+- Updated dependencies [d374caf]
+- Updated dependencies [5673576]
+- Updated dependencies [c1ef923]
+- Updated dependencies [911ceaa]
+- Updated dependencies [98eab36]
+- Updated dependencies [af5e292]
+- Updated dependencies [3fbbea1]
+- Updated dependencies [0bffb18]
+- Updated dependencies [800f455]
+- Updated dependencies [5458414]
+- Updated dependencies [3241559]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [616a2a5]
+- Updated dependencies [6c68b13]
+- Updated dependencies [0046d8f]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [5607092]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [598c89a]
+- Updated dependencies [4a0bd17]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [d8b9259]
+- Updated dependencies [31676be]
+- Updated dependencies [8c0d52e]
+- Updated dependencies [aff10e2]
+- Updated dependencies [70a774b]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [7458a41]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [e7747f1]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [ac2f332]
+- Updated dependencies [a777058]
+- Updated dependencies [75444e3]
+- Updated dependencies [58b8346]
+- Updated dependencies [2d0bd16]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [dad51e5]
+- Updated dependencies [1c9c342]
+- Updated dependencies [787c738]
+- Updated dependencies [8396656]
+- Updated dependencies [dbbd38a]
+- Updated dependencies [61556dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [93fe362]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [144ef9b]
+- Updated dependencies [138ab04]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/fields@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/react@17.6.0
+  - @object-ui/components@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/permissions@17.6.0
+  - @object-ui/mobile@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

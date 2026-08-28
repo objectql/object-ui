@@ -157,22 +157,43 @@ pnpm publish
 
 ### Data Integration
 
-Connect to ObjectStack backends with the data adapter:
+Connect to ObjectStack backends with the data adapter. `@object-ui/data-objectstack`
+is **headless** — it exports no React components and no hooks. You create a plain
+`DataSource` with `createObjectStackAdapter` and inject it at the renderer boundary
+through `@object-ui/react`'s `SchemaRendererProvider`:
 
-```typescript
-import { ObjectStackProvider } from '@object-ui/data-objectstack'
+```tsx
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import type { ObjectGridSchema } from '@object-ui/types';
 
-function App() {
+const dataSource = createObjectStackAdapter({
+  baseUrl: 'https://api.example.com',
+  token: 'your-api-token', // optional when auth is handled elsewhere
+});
+
+const schema: ObjectGridSchema = {
+  type: 'object-grid',
+  objectName: 'account',
+  columns: ['name', 'owner', 'created'],
+};
+
+export function App() {
   return (
-    <ObjectStackProvider
-      apiUrl="https://api.example.com"
-      apiKey="your-api-key"
-    >
+    <SchemaRendererProvider dataSource={dataSource}>
       <SchemaRenderer schema={schema} />
-    </ObjectStackProvider>
-  )
+    </SchemaRendererProvider>
+  );
 }
 ```
+
+`new ObjectStackAdapter(config)` is the class form of the same factory, and
+`SchemaRenderer` also takes an explicit `dataSource` prop when you would rather
+inject per render than through context. See
+[ObjectStack Data Adapter](/docs/utilities/data-objectstack) for the full config,
+the API reference, and how a schema node's own `dataSource` key (the spec's
+per-element binding — *what* to query, not *how* to reach the backend) differs
+from the adapter above.
 
 ## Features
 

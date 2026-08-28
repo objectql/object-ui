@@ -1,7 +1,22 @@
 import React from 'react';
 import { Button, Badge, cn } from '@object-ui/components';
 import { Plus, X, ExternalLink } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
+import { FieldWidgetComponentProps } from './types.js';
+
+// TOMBSTONE (objectui#4811): this widget is NOT in `fieldWidgetMap`
+// (packages/fields/src/index.tsx) and is unreachable from any form path —
+// `registerField`/`registerAllFields` only walk `fieldWidgetMap`'s keys, and
+// the `master_detail` key there deliberately resolves to `LookupField`, not
+// this component (see the comment above that map entry: the child-side FK
+// must render as a single-value lookup picker, not the one-to-many list this
+// widget models). Its only in-repo consumer is its own test
+// (complex-widgets.test.tsx), which renders it directly and proves nothing
+// about form reachability. It remains solely because its named export
+// (`export * from './widgets/MasterDetailField'` in index.tsx) is a public
+// API surface, and removing it is a breaking change left to the maintainer
+// (see #4811). Auditors of `widgets/**` (the #3291 / #3318 / #4788 class of
+// sweep): skip this file — it is a known, deliberate orphan, not a gap in
+// your coverage.
 
 /**
  * Master-Detail relationship data structure

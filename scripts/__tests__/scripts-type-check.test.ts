@@ -33,6 +33,7 @@ import ts from 'typescript';
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const configPath = path.join(repoRoot, 'tsconfig.scripts.json');
+const consoleNodeConfigPath = path.join(repoRoot, 'apps/console/tsconfig.node.json');
 const scriptsDir = path.join(repoRoot, 'scripts');
 const ciWorkflowPath = path.join(repoRoot, '.github/workflows/ci.yml');
 
@@ -52,6 +53,71 @@ function parsedProject(): ts.ParsedCommandLine {
   ).toBeFalsy();
 
   return ts.parseJsonConfigFileContent(read.config, ts.sys, repoRoot, undefined, configPath);
+}
+
+/**
+ * `apps/console/tsconfig.node.json`, parsed the same way — the other program
+ * that compiles `scripts/vite-crypto-stub.ts` and
+ * `scripts/vite-maplibre-worker.ts` (see this file's header). Used only to
+ * read its `compilerOptions`; its own `include`/`fileNames` are irrelevant
+ * here.
+ */
+function parsedConsoleNodeProject(): ts.ParsedCommandLine {
+  const read = ts.readConfigFile(consoleNodeConfigPath, ts.sys.readFile);
+  expect(
+    read.error && ts.flattenDiagnosticMessageText(read.error.messageText, ' '),
+    'apps/console/tsconfig.node.json must parse as JSON with comments',
+  ).toBeFalsy();
+
+  return ts.parseJsonConfigFileContent(
+    read.config,
+    ts.sys,
+    path.dirname(consoleNodeConfigPath),
+    undefined,
+    consoleNodeConfigPath,
+  );
+}
+
+/**
+ * Every `@object-ui/*` module specifier a source file actually imports or
+ * re-exports, read from the AST rather than grepped from the file's text
+ * (objectui#4902). A textual `from\s+'...'` match cannot tell a real import
+ * edge apart from the same shape sitting inside a line comment, a block
+ * comment, or a JSDoc `@example` — this repo has hit that exact false
+ * positive (a comment explaining "there is no such import" was read as one
+ * by a sibling text-level gate). Walking
+ * `ImportDeclaration`/`ExportDeclaration`/`ImportEqualsDeclaration` nodes
+ * instead makes the check ask "is this a module edge" rather than "does this
+ * text look like one". The regex matched any `from '…'` token sequence, so
+ * it already caught `import type { … }` and `export { … } from '…'`
+ * incidentally, along with static imports — it did not understand statement
+ * kinds, only that shape. What it missed entirely was
+ * `import core = require('…')` (`ImportEqualsDeclaration`), which has no
+ * `from` token at all; this walk covers that form deliberately instead.
+ */
+function workspaceImportSpecifiers(fileName: string, sourceText: string): string[] {
+  const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, false);
+  const specifiers: string[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier !== undefined &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      specifiers.push(node.moduleReference.expression.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return specifiers.filter((specifier) => specifier.startsWith('@object-ui/'));
 }
 
 /** Every TypeScript source on disk under `scripts/`, repo-relative, POSIX-separated. */
@@ -106,6 +172,69 @@ describe('tsconfig.scripts.json — the project itself (objectui#3494)', () => {
     // on the symptom.
     expect(options.composite, 'a composite project may not set "noEmit" (TS6310)').toBeFalsy();
     expect(parsedProject().projectReferences ?? [], 'this project must stay standalone').toEqual([]);
+  });
+});
+
+describe('tsconfig.scripts.json — option parity with apps/console/tsconfig.node.json (objectui#4926)', () => {
+  /**
+   * `scripts/vite-crypto-stub.ts` and `scripts/vite-maplibre-worker.ts` are
+   * compiled by BOTH this project and `apps/console/tsconfig.node.json` (see
+   * this file's header, and that file's own header). This file's header
+   * states the invariant that makes sharing them safe: the two projects'
+   * option sets match on the axes that matter, "so a shared file cannot be
+   * green in one project and red in the other."
+   *
+   * objectui#4926 found that invariant asserted but not enforced:
+   * `allowImportingTsExtensions` diverged (present in the console project,
+   * absent here) with nothing to catch it — the gap stayed latent only
+   * because neither shared file happens to use a `.ts`-extension import
+   * today. This test is what the issue says would have caught it: it reads
+   * both parsed configs and asserts the specific options the header claims
+   * are matched, rather than trusting the prose.
+   *
+   * Scope, deliberately narrow: only the options this file's header names as
+   * matched (strict, module, moduleResolution, allowImportingTsExtensions,
+   * and the absence of noImplicitReturns). The two projects differ on plenty
+   * else by design (`composite`, `outDir`, `rootDir`, `allowJs`, `target`,
+   * emit) — those are NOT part of the stated invariant, and asserting them
+   * equal would just recreate the `extends` trap this file's header
+   * explains at length why it avoids.
+   */
+  it('matches the option set apps/console/tsconfig.node.json compiles the shared files with', () => {
+    const scripts = parsedProject().options;
+    const consoleNode = parsedConsoleNodeProject().options;
+
+    expect(scripts.strict, 'tsconfig.scripts.json').toBe(true);
+    expect(consoleNode.strict, 'apps/console/tsconfig.node.json').toBe(true);
+
+    expect(scripts.module, 'tsconfig.scripts.json "module"').toBe(consoleNode.module);
+    expect(
+      scripts.moduleResolution,
+      'tsconfig.scripts.json "moduleResolution"',
+    ).toBe(consoleNode.moduleResolution);
+
+    // The option objectui#4926 was filed over: `apps/console/vite.config.ts`
+    // imports `../../scripts/vite-crypto-stub.ts` and
+    // `../../scripts/vite-maplibre-worker.ts` with explicit `.ts` extensions
+    // (objectui#3384), which only `allowImportingTsExtensions` accepts.
+    expect(
+      consoleNode.allowImportingTsExtensions,
+      'apps/console/tsconfig.node.json must still set "allowImportingTsExtensions" — if this ' +
+        'assertion is what broke, the fix belongs in tsconfig.scripts.json below, not here.',
+    ).toBe(true);
+    expect(
+      scripts.allowImportingTsExtensions,
+      'tsconfig.scripts.json must set "allowImportingTsExtensions": true to match ' +
+        'apps/console/tsconfig.node.json — otherwise a `.ts`-extension import in a file shared ' +
+        'between the two programs (scripts/vite-crypto-stub.ts, scripts/vite-maplibre-worker.ts) ' +
+        'type-checks in one and not the other (objectui#4926).',
+    ).toBe(true);
+
+    // Both projects deliberately leave `noImplicitReturns` off — see this
+    // file's header. Asserted as an explicit falsy-equality, not just
+    // "both truthy", so a future divergence in either direction is caught.
+    expect(scripts.noImplicitReturns, 'tsconfig.scripts.json "noImplicitReturns"').toBeFalsy();
+    expect(consoleNode.noImplicitReturns, 'apps/console/tsconfig.node.json "noImplicitReturns"').toBeFalsy();
   });
 });
 
@@ -202,14 +331,65 @@ describe('the gate is actually wired up (objectui#3494)', () => {
     // an @object-ui/* package, so unlike `pnpm type-check` (which dependsOn
     // `^build`) it needs no built .d.ts files. If that stops being true the
     // step has to move below the build, so pin the premise.
-    const workspaceImports = parsedProject()
-      .fileNames.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/from\s+'(@object-ui\/[^']+)'/g)])
-      .map((m) => m[1]);
+    const workspaceImports = parsedProject().fileNames.flatMap((f) =>
+      workspaceImportSpecifiers(f, fs.readFileSync(f, 'utf8')),
+    );
 
     expect(
       [...new Set(workspaceImports)],
-      'tsconfig.scripts.json’s program now imports workspace packages, so it needs their built ' +
-        'declaration files. Move the ci.yml step below the build, or drop the import.',
+      'tsconfig.scripts.json’s program now imports a workspace package (found via the AST, not a ' +
+        'comment or example), so it needs their built declaration files. Move the ci.yml step below ' +
+        'the build, or drop the import.',
+    ).toEqual([]);
+  });
+});
+
+describe('workspaceImportSpecifiers() — the matcher behind the workspace-import check (objectui#4902)', () => {
+  // Non-vacuity first: prove the walk can find a real import edge at all,
+  // before trusting any test below that asserts it finds nothing. A matcher
+  // that always returns [] would make every "not caught" case beneath it
+  // pass for the wrong reason.
+  it('finds a real static import', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "import { widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  it('finds a real `import type` import', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "import type { Widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  it('finds a real `export … from` re-export', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "export { widget } from '@object-ui/core';\n"),
+    ).toEqual(['@object-ui/core']);
+  });
+
+  // The direction this file's fix is for: the same specifier text, but never
+  // reachable by the compiler, must not be reported.
+  it('does not find the specifier inside a line comment (objectui#4902)', () => {
+    expect(
+      workspaceImportSpecifiers(
+        'probe.ts',
+        "// rewrite of this gate breaks on a documented `import … from '@object-ui/core'`\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not find the specifier inside a block comment (objectui#4902)', () => {
+    expect(
+      workspaceImportSpecifiers(
+        'probe.ts',
+        "/**\n * @example\n * import { widget } from '@object-ui/core';\n */\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not find the specifier inside a string that is not a module specifier', () => {
+    expect(
+      workspaceImportSpecifiers('probe.ts', "const doc = \"see '@object-ui/core' for details\";\n"),
     ).toEqual([]);
   });
 });

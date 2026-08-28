@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { DataSourceProviderProps } from './types';
+import type { DataSourceProviderProps } from './types.js';
 
 const DataSourceContext = createContext<any>(null);
 

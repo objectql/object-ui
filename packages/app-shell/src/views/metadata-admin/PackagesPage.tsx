@@ -60,8 +60,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@object-ui/components';
-import { useMetadataLocale, t, tFormat } from './i18n';
-import { PackageFormDialog } from './PackageFormDialog';
+import { useMetadataLocale, t, tFormat } from './i18n.js';
+import { PackageFormDialog } from './PackageFormDialog.js';
 import { errorCodeIs } from '@object-ui/types';
 
 /* -------------------------------------------------------------------------- */

@@ -7,12 +7,80 @@ on:
       - 'packages/**'
       - 'apps/console/**'
       - 'pnpm-lock.yaml'
+      # This file itself (objectui#6245). Without it a change to this gate ships
+      # to `main` having never run once: the PR that edits it touches no
+      # `packages/**` path, so `Bundle Analysis` never appears on it, and a
+      # wiring bug surfaces on the NEXT `packages/**` PR — a required context
+      # turning red on someone else's diff, reading to them as a bundle problem
+      # of their own. Self-inclusion is this repo's convention for a
+      # path-filtered gate: measured on `origin/main`, 5 of the 7 workflows
+      # carrying a `paths:` filter list their own file, and this was one of the
+      # two that did not. The cost is honest and accepted — every edit of this
+      # file now pays a console build — and it is the same tax the other
+      # self-included gates already pay.
+      - '.github/workflows/performance-budget.yml'
+      # ...and the gate's RUNTIME CLOSURE: the files this job actually executes.
+      # Listing the YAML alone was still not enough — a PR touching only
+      # `check-eager-closure-budget.mjs`, the file that computes the verdict and
+      # the one this card is about, did not trigger this gate. The convention
+      # measured on `origin/main` is the closure, not just the workflow:
+      # `half-state-patrol.yml` lists its script AND `scripts/invoked-as.mjs`,
+      # the dependency of that script.
+      #
+      # `invoked-as.mjs` is here for the same reason it is there, and the reason
+      # is specific rather than tidy: `isEntrypoint` decides whether `main()`
+      # runs at all, so a regression in it makes this checker exit 0 having
+      # measured nothing — the exact silent-green failure the rest of this gate
+      # exists to prevent.
+      #
+      # NOT listed: `scripts/__tests__/*.test.ts`. This job never runs vitest —
+      # it runs two `node scripts/*.mjs` commands — so a test-only edit cannot
+      # change this gate's verdict, and those tests already run on every PR in
+      # the root vitest `unit` project. `published-dist-gate.yml` and
+      # `spec-range-floors.yml` draw the same line.
+      - 'scripts/check-eager-closure-budget.mjs'
+      - 'scripts/render-budget-comment.mjs'
+      - 'scripts/invoked-as.mjs'
   pull_request:
     branches: [main, develop]
     paths:
       - 'packages/**'
       - 'apps/console/**'
       - 'pnpm-lock.yaml'
+      # This file itself (objectui#6245). Without it a change to this gate ships
+      # to `main` having never run once: the PR that edits it touches no
+      # `packages/**` path, so `Bundle Analysis` never appears on it, and a
+      # wiring bug surfaces on the NEXT `packages/**` PR — a required context
+      # turning red on someone else's diff, reading to them as a bundle problem
+      # of their own. Self-inclusion is this repo's convention for a
+      # path-filtered gate: measured on `origin/main`, 5 of the 7 workflows
+      # carrying a `paths:` filter list their own file, and this was one of the
+      # two that did not. The cost is honest and accepted — every edit of this
+      # file now pays a console build — and it is the same tax the other
+      # self-included gates already pay.
+      - '.github/workflows/performance-budget.yml'
+      # ...and the gate's RUNTIME CLOSURE: the files this job actually executes.
+      # Listing the YAML alone was still not enough — a PR touching only
+      # `check-eager-closure-budget.mjs`, the file that computes the verdict and
+      # the one this card is about, did not trigger this gate. The convention
+      # measured on `origin/main` is the closure, not just the workflow:
+      # `half-state-patrol.yml` lists its script AND `scripts/invoked-as.mjs`,
+      # the dependency of that script.
+      #
+      # `invoked-as.mjs` is here for the same reason it is there, and the reason
+      # is specific rather than tidy: `isEntrypoint` decides whether `main()`
+      # runs at all, so a regression in it makes this checker exit 0 having
+      # measured nothing — the exact silent-green failure the rest of this gate
+      # exists to prevent.
+      #
+      # NOT listed: `scripts/__tests__/*.test.ts`. This job never runs vitest —
+      # it runs two `node scripts/*.mjs` commands — so a test-only edit cannot
+      # change this gate's verdict, and those tests already run on every PR in
+      # the root vitest `unit` project. `published-dist-gate.yml` and
+      # `spec-range-floors.yml` draw the same line.
+      - 'scripts/check-eager-closure-budget.mjs'
+      - 'scripts/render-budget-comment.mjs'
+      - 'scripts/invoked-as.mjs'
 
 concurrency:
   group: bundle-analysis-${{ github.event.pull_request.number || github.ref }}
@@ -31,6 +99,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           submodules: true
+          # Depth 2, not 1: on a `pull_request` run HEAD is the MERGE REF, whose
+          # first parent is the base commit this checkout was computed against.
+          # The ceiling-freshness half (objectui#6245) needs that commit's copy
+          # of the checker to tell a stale checkout from a PR that re-baselines
+          # on purpose, and one extra commit is cheaper than a second fetch.
+          fetch-depth: 2
 
       - name: Enable Corepack
         run: corepack enable
@@ -62,12 +136,110 @@ jobs:
       - name: Build Console
         run: pnpm --filter @object-ui/console build
 
+      # objectui#6245: `Bundle Analysis` is a required context, and GitHub does
+      # not re-run a PR's checks when the base branch moves — so a green verdict
+      # can be computed against ceiling constants `main` has since replaced, and
+      # the merge is then gated on a ceiling that no longer exists. Observed
+      # live: run 32804357171 started at 03:13:27Z, 6m50s after `0409b766d`
+      # lowered MAX_EAGER_CLOSURE_GZIP_BYTES from 4,086,000 to 3,345,000, and
+      # published `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — the retired ceiling — as a
+      # success.
+      #
+      # This step hands the checker THREE readings of the constants: the two
+      # below plus its own checkout. Two would not do — a re-baseline PR differs
+      # from the base branch deliberately and has to stay landable — so the
+      # verdict fires only when the base branch moved a ceiling AND this checkout
+      # does not carry the move. See `evaluateCeilingFreshness`.
+      #
+      # `continue-on-error` is deliberate and is NOT a fail-open: when this step
+      # cannot produce both files the checker finds the variables unset and
+      # reports a freshness ERROR (exit 2), which fails the job. Letting the step
+      # itself fail the job would kill it before the bundle is measured, and a
+      # run that hides its numbers is how this gate loses its readers
+      # (objectui#3152).
+      #
+      # The paths go out through `$GITHUB_ENV` rather than a step `env:` block:
+      # `render-budget-comment.test.ts` walks every `NAME: ${{ steps.* }}` line
+      # in this file and requires the COMMENT RENDERER to read it, which is the
+      # right rule for the comment's inputs and the wrong one for the checker's.
+      - name: Resolve the base-branch ceiling constants
+        id: base_ceilings
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          CHECKER='scripts/check-eager-closure-budget.mjs'
+          OUT="${RUNNER_TEMP}/eager-closure-ceilings"
+          mkdir -p "$OUT"
+
+          # The base commit the merge ref was computed against. `fetch-depth: 2`
+          # normally makes it a local object already; the fetch is the fallback
+          # for a merge ref GitHub recomputed against a different base.
+          if ! git cat-file -e "${PR_BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          fi
+          git cat-file -p "${PR_BASE_SHA}:${CHECKER}" > "$OUT/pr-base.partial"
+          mv "$OUT/pr-base.partial" "$OUT/pr-base.mjs"
+
+          # The base branch as it stands right now — what the merge would land on.
+          git fetch --no-tags --depth=1 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          BASE_SHA=$(git rev-parse "refs/remotes/origin/${BASE_REF}")
+          git cat-file -p "${BASE_SHA}:${CHECKER}" > "$OUT/base.partial"
+          mv "$OUT/base.partial" "$OUT/base.mjs"
+
+          # Written only after BOTH `mv`s: a half-populated pair would let the
+          # checker compare against a file it thinks is the base branch.
+          {
+            echo "EAGER_CLOSURE_PR_BASE_SOURCE=$OUT/pr-base.mjs"
+            echo "EAGER_CLOSURE_BASE_SOURCE=$OUT/base.mjs"
+            echo "EAGER_CLOSURE_PR_BASE_SHA=$PR_BASE_SHA"
+            echo "EAGER_CLOSURE_BASE_SHA=$BASE_SHA"
+            echo "EAGER_CLOSURE_BASE_REF=$BASE_REF"
+          } >> "$GITHUB_ENV"
+
+          echo "Ceilings resolved: ${PR_BASE_SHA} (this checkout's base) vs ${BASE_SHA} (${BASE_REF} now)"
+
       - name: Check console performance budget
         id: budget
         run: |
-          # Performance budget: main entry must be < 350 KB gzip
-          # This is a realistic threshold for a full-featured enterprise app
-          # with React, routing, UI components, and core business logic.
+          # TWO measurements, one verdict.
+          #
+          #  1. The `index-*.js` entry chunk against a 350 KB line. This is the
+          #     original budget and it stays: a fat entry chunk is still worth
+          #     its own signal, and replacing a gauge is not licence to weaken
+          #     the one already here.
+          #  2. The EAGER CLOSURE — every chunk the entry reaches through STATIC
+          #     imports, i.e. everything the browser must fetch and parse before
+          #     the app renders.
+          #
+          # Measurement 1 alone was the whole budget until objectui#5324. On
+          # `77f846a8b` the entry chunk gzips to 25.9 KB against the 350 KB line
+          # while the closure it pulls in is 3,881,609 bytes across 58 of 507
+          # chunks — so the gate passed on 0.67% of the payload it claimed to
+          # govern, and the 89 KiB regression of objectui#5266 landed in
+          # `vendor-objectstack-*.js` where nothing here could see it.
+          # `advancedChunks` routes vendor and workspace code into named chunks
+          # on purpose, so MOST regressions land outside `index-*.js`.
+          #
+          # The closure ceiling is NOT set here. It lives in
+          # `scripts/check-eager-closure-budget.mjs` next to the reasoning that
+          # produced it, so a re-baseline is one edit against a documented
+          # argument rather than a number in YAML: today's measured payload plus
+          # half the 89 KiB regression the gate exists to catch, which keeps the
+          # headroom NARROWER than that regression while leaving as much room for
+          # the payload to shrink as to grow. Since objectui#5924 the checker
+          # enforces that itself, against the report it just read rather than
+          # against a frozen constant, for the aggregate ceiling and each
+          # per-chunk one — a ceiling that has drifted out of range of the
+          # regression it must catch is exit 2, a verdict about the gauge. It is
+          # a truthful current-state ceiling, not a statement that 3.15 MB is fine.
+          #
+          # Both measurements run before either may fail the step: a run that
+          # reports one number and hides the other teaches readers to distrust
+          # the comment, which is how objectui#3152 nearly took this gate down.
           MAX_ENTRY_GZIP_KB=350
 
           DIST_DIR="apps/console/dist/assets"
@@ -110,18 +282,53 @@ jobs:
           echo "budget_kb=$MAX_ENTRY_GZIP_KB" >> "$GITHUB_OUTPUT"
           echo "entry_file=$(basename $ENTRY_FILE)" >> "$GITHUB_OUTPUT"
 
-          # Check budget
-          OVER=$(awk "BEGIN {print ($GZIP_KB > $MAX_ENTRY_GZIP_KB) ? 1 : 0}")
-          if [ "$OVER" -eq 1 ]; then
+          ENTRY_OVER=$(awk "BEGIN {print ($GZIP_KB > $MAX_ENTRY_GZIP_KB) ? 1 : 0}")
+          if [ "$ENTRY_OVER" -eq 1 ]; then
+            echo "❌ ENTRY BUDGET EXCEEDED: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+          else
+            echo "✅ Entry budget OK: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+          fi
+
+          echo ""
+          echo "📦 Eager closure (what a page load actually pays for):"
+          # Writes closure_status / closure_gzip_kb / closure_budget_kb /
+          # closure_chunks / closure_chunk_status / closure_headroom_status to
+          # $GITHUB_OUTPUT itself. EVERY key it publishes is passed into the
+          # comment step below and rendered there — a verdict published to
+          # $GITHUB_OUTPUT that no consumer reads is a verdict the PR comment
+          # cannot name, which is what objectui#6230 was (the per-chunk and
+          # sensitivity halves both went unread). A fourth half added here must
+          # be wired through too; `render-budget-comment.test.ts` fails if it is
+          # not. The fourth half — ceiling freshness, objectui#6245 — arrived
+          # through exactly that door: it publishes `closure_freshness_status`,
+          # and is wired into the comment step below.
+          #
+          # Exit codes are distinct on
+          # purpose: 1 = over budget (a verdict about the bundle), 2 = no
+          # trustworthy measurement (a verdict about the gauge). Reporting one as
+          # the other is how a broken gauge gets read as a size regression, and a
+          # size regression as a broken gauge.
+          set +e
+          node scripts/check-eager-closure-budget.mjs
+          CLOSURE_CODE=$?
+          set -e
+
+          if [ "$CLOSURE_CODE" -eq 2 ]; then
+            echo "budget_status=error" >> "$GITHUB_OUTPUT"
+            echo "budget_message=The entry chunk measured ${GZIP_KB} KB, but the eager-closure half of this gate returned no trustworthy VERDICT: the report could not be read, a ceiling has drifted out of range of the regression it must catch, or (objectui#6245) a ceiling was replaced on the base branch after this checkout was made. The step log says which. This is not a passing budget — and it is not a size regression either." >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          if [ "$ENTRY_OVER" -eq 1 ] || [ "$CLOSURE_CODE" -ne 0 ]; then
             echo ""
-            echo "❌ BUDGET EXCEEDED: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
+            echo "❌ BUDGET EXCEEDED"
             echo "budget_status=fail" >> "$GITHUB_OUTPUT"
             exit 1
-          else
-            echo ""
-            echo "✅ Budget OK: Main entry is ${GZIP_KB} KB gzip (limit: ${MAX_ENTRY_GZIP_KB} KB)"
-            echo "budget_status=pass" >> "$GITHUB_OUTPUT"
           fi
+
+          echo ""
+          echo "✅ Budget OK: entry chunk and eager closure are both within budget"
+          echo "budget_status=pass" >> "$GITHUB_OUTPUT"
 
       - name: Generate package size report
         id: size-report
@@ -183,6 +390,19 @@ jobs:
           BUDGET_GZIP_KB: ${{ steps.budget.outputs.gzip_kb }}
           BUDGET_LIMIT_KB: ${{ steps.budget.outputs.budget_kb }}
           BUDGET_ENTRY_FILE: ${{ steps.budget.outputs.entry_file }}
+          BUDGET_CLOSURE_STATUS: ${{ steps.budget.outputs.closure_status }}
+          BUDGET_CLOSURE_GZIP_KB: ${{ steps.budget.outputs.closure_gzip_kb }}
+          BUDGET_CLOSURE_BUDGET_KB: ${{ steps.budget.outputs.closure_budget_kb }}
+          BUDGET_CLOSURE_CHUNKS: ${{ steps.budget.outputs.closure_chunks }}
+          # The per-chunk (objectui#5490) and sensitivity (objectui#5924) halves.
+          # The step's exit code folds all three halves into one `budget_status`,
+          # so without these the comment can say a budget objected but not which
+          # half did — the reader has to open the job log to find out.
+          BUDGET_CLOSURE_CHUNK_STATUS: ${{ steps.budget.outputs.closure_chunk_status }}
+          BUDGET_CLOSURE_HEADROOM_STATUS: ${{ steps.budget.outputs.closure_headroom_status }}
+          # The freshness half (objectui#6245). Empty on a run it does not apply
+          # to; the renderer filters an empty half out rather than rendering it.
+          BUDGET_CLOSURE_FRESHNESS_STATUS: ${{ steps.budget.outputs.closure_freshness_status }}
           BUDGET_STEP_OUTCOME: ${{ steps.budget.outcome }}
           BUILD_PACKAGES_OUTCOME: ${{ steps.build_packages.outcome }}
         run: node scripts/render-budget-comment.mjs > budget-comment.md

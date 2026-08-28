@@ -31,11 +31,39 @@
  *
  * Visibility model
  * ----------------
- *   Reuses `useCondition` + `toPredicateInput` (same pipeline as every
- *   `<ActionButton>` / `<ActionBar>`), so the predicate evaluates against
- *   the same scope: `record`, `user`, `objectName`, `features`, plus
- *   `ctx.*` namespace mirror. Missing predicate → always visible.
- *   Empty `record` (loading) → hidden (no flash of stale alert).
+ *   `properties.visible` is normalized by `toPredicateInput` and evaluated by
+ *   `useCondition` against `usePredicateRecordContext(record)` — the repo's one
+ *   row-binding rule (objectui#4075 / #4077), shared with `<ActionButton>` /
+ *   `<ActionMenu>` / `<ActionGroup>` / `<ActionIcon>` and app-shell's
+ *   `DeclaredActionsBar`, so this banner cannot disagree with the buttons it
+ *   pairs with. The row therefore resolves the three ways objectui#5330 ruled
+ *   on (maintainer, 2026-08-20): `record.status` — the CANON, what an author
+ *   should write — plus the deprecated-but-kept row-action shorthand `status`
+ *   and legacy `data.status`.
+ *
+ *   Merged UNDER the row is whatever the host put in the ambient predicate
+ *   scope (`PredicateScopeProvider`; app-shell's `ExpressionProvider` supplies
+ *   `current_user` / `user` / `ctx.user` / `os.user` / `app` / `data` /
+ *   `features`). The row wins, so a host-supplied `record` / `data` cannot
+ *   shadow it. `objectName` is NOT in the predicate scope — it is read from
+ *   `useRecordContext()` for the metadata lookup and the dismiss key only.
+ *
+ *   Missing predicate → always visible. A predicate that cannot be evaluated →
+ *   also visible: this call site is FAIL-SOFT (it does not pass
+ *   `throwOnError`), which is why the unbound spellings above were a
+ *   user-visible defect rather than a console line — objectui#4807.
+ *   Empty `record` (loading) → hidden (no flash of stale alert), AND the
+ *   predicate is not evaluated at all in that frame — a bare/`${…}`
+ *   `record.*` reference against an unbound row faults, and evaluating a
+ *   verdict this component is about to discard anyway only produced a
+ *   permanently misleading `record is not defined` console line on every
+ *   load (objectui#5776).
+ *
+ *   A node-level `visibleWhen` is a SEPARATE gate one tier up, evaluated by
+ *   `SchemaRenderer` on its own bindings (notably `data` = the data-source
+ *   ADAPTER, not the row). The two compose as AND. Both facts are pinned in
+ *   `__tests__/record-alert.visibleWhen.evidence.test.tsx` (group 4) and
+ *   `__tests__/record-alert.rowBinding.test.tsx`.
  *
  * CTA wiring
  * ----------
@@ -51,33 +79,62 @@ import {
   useMetadataItem,
   useCondition,
   toPredicateInput,
+  usePredicateRecordContext,
   useActionEngine,
 } from '@object-ui/react';
 import { Alert, AlertTitle, AlertDescription, Button, cn, LazyIcon } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef } from '@object-ui/core';
+// The spec's INLINE locale-map form (`string | Record< string, string >`), bound
+// by reference rather than re-spelled — same import and same spelling as
+// `BaseSchema.label` / `.description` in `packages/types/src/base.ts`, which
+// carry this identical fact. NOT the KEYED `{ key, defaultValue }` vocabulary:
+// the read sites below resolve through `pickLocalized`, whose input is the
+// inline map.
+import type { I18nLabel } from '@objectstack/spec/ui';
 
 type Severity = 'info' | 'warning' | 'error' | 'success';
 
+/**
+ * Local (unexported) prop shape for the renderer below.
+ *
+ * `title` / `body` accept the inline locale map as well as a plain string
+ * (objectui#4970): both are read through `pickLocalized` further down, and the
+ * block's published authoring surface declares the two arms
+ * (`plugin-detail/src/index.tsx`, `type: ['string', 'object']` since
+ * objectui#3832), so while these two said `string` they were narrower than both
+ * the renderer and this block's own published surface — the
+ * declaration-narrower-than-the-renderer family of objectui#4581.
+ *
+ * The CTA's `action.label` below is the same slot one level down, widened here
+ * (objectui#4998) to match: it is read through the same `pickLocalized` call as
+ * `title` / `body` (`const ctaLabel = pickLocalized(props.action?.label, language)`
+ * further down), so a declaration of bare `string` was narrower than the
+ * renderer's own runtime behaviour, exactly as `title` / `body` were before
+ * objectui#4970. This widening is TYPE-only: the block's published surface still
+ * declares `action` as a bare `object` with the member shape in prose
+ * (`plugin-detail/src/index.tsx`), so there is no manifest arm to align — that
+ * half stays parked on the `ComponentInput` member-shape question (PR #3795).
+ */
 interface RecordAlertProps {
   schema?: {
     properties?: {
       severity?: Severity;
-      title?: string;
-      body?: string;
+      title?: string | I18nLabel;
+      body?: string | I18nLabel;
       visible?: any;
       icon?: string;
-      action?: { actionName: string; label?: string; variant?: string };
+      action?: { actionName: string; label?: string | I18nLabel; variant?: string };
       dismissible?: boolean;
       dismissKey?: string;
     };
     // Legacy: support flat properties too (mirrors element:text convention).
     severity?: Severity;
-    title?: string;
-    body?: string;
+    title?: string | I18nLabel;
+    body?: string | I18nLabel;
     visible?: any;
     icon?: string;
-    action?: { actionName: string; label?: string; variant?: string };
+    action?: { actionName: string; label?: string | I18nLabel; variant?: string };
     dismissible?: boolean;
     dismissKey?: string;
     className?: string;
@@ -133,12 +190,33 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   const styles = SEVERITY_STYLES[severity];
   const iconName = props.icon || styles.icon;
 
-  // Always-call hooks (Rules of Hooks). Evaluate the visibility predicate
-  // against the record / user / ctx scope using the same canonical helper
-  // every action button uses, so this banner can't disagree with the
-  // Salesforce Lightning-style buttons it commonly pairs with.
+  // Always-call hooks (Rules of Hooks). Bind the row through the shared
+  // helper — NOT a local `{ record }` bag (objectui#4807). A root-only bag
+  // resolves the canonical `record.*` spelling and nothing else, so the two
+  // spellings objectui#5330 kept never reached the row: the shorthand threw
+  // and this fail-soft site answered SHOWN, while `data.*` silently read the
+  // host's ambient `data` and answered a constant false. Either way the
+  // author's gate was never consulted. See `usePredicateRecordContext`.
+  const predicateRecord = usePredicateRecordContext(record);
   const predicateInput = toPredicateInput(props.visible);
-  const passesPredicate = useCondition(predicateInput, { record });
+  // `recordLoaded` is also the early-return condition below — deliberately
+  // the SAME expression, not a re-derived one, so the two can never drift
+  // apart (objectui#5776). While `record` hasn't loaded this hook still has
+  // to run (Rules of Hooks), but its verdict is provably moot: the early
+  // return a few lines down hides the banner unconditionally in that frame
+  // regardless of what the predicate says. Evaluating anyway made a bare/
+  // `${…}` predicate that references `record.*` fault with a bare
+  // `record is not defined` ReferenceError against `usePredicateRecordContext`'s
+  // empty loading-frame bag (its own doc: "No row → bind NOTHING") — logged
+  // via `console.warn` on EVERY load, including the correct, working ones,
+  // because the SAME predicate resolves fine one frame later once `record`
+  // populates. Skipping evaluation while unloaded removes that permanently
+  // misleading noise without touching the verdict once data arrives: a
+  // predicate that is genuinely broken (bad field, bad syntax) still faults —
+  // and still logs, via this same fail-soft `useCondition` call — on every
+  // frame from the first loaded one onward.
+  const recordLoaded = !!record && Object.keys(record).length > 0;
+  const passesPredicate = useCondition(recordLoaded ? predicateInput : undefined, predicateRecord);
 
   // Dismissed-state persistence. Keyed by `<objectName>:<recordId>:<key>`
   // so an admin viewing a different record sees the alert fresh, and so
@@ -186,10 +264,11 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   });
 
   // Hide if dismissed, if record hasn't loaded yet (avoids false alerts
-  // during the empty initial-render frame), or if the visibility predicate
-  // returns false.
+  // during the empty initial-render frame — same `recordLoaded` the
+  // predicate evaluation above is gated on, see its comment), or if the
+  // visibility predicate returns false.
   if (dismissed) return null;
-  if (!record || Object.keys(record).length === 0) return null;
+  if (!recordLoaded) return null;
   if (predicateInput !== undefined && !passesPredicate) return null;
 
   const handleDismiss = () => {

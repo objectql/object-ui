@@ -15,13 +15,13 @@ import { SchemaRenderer, useAdapter } from '@object-ui/react';
 import { Empty, EmptyTitle, EmptyDescription, Spinner } from '@object-ui/components';
 import { FileText, Pencil } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useIsWorkspaceAdmin } from '@object-ui/auth';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { preferLocal } from '../utils/preferLocal';
-import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime';
-import { InterfaceListPage } from './InterfaceListPage';
+import { useWorkspaceAdminStatus } from '@object-ui/auth';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { preferLocal } from '../utils/preferLocal.js';
+import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime.js';
+import { InterfaceListPage } from './InterfaceListPage.js';
 
 export function PageView() {
   const { t } = useObjectTranslation();
@@ -32,7 +32,7 @@ export function PageView() {
   const location = useLocation();
   // Editing a page mutates the shared metadata definition, so the entry point
   // is admin-only (mirrors the view/report/dashboard runtime editors).
-  const isAdmin = useIsWorkspaceAdmin();
+  const { isAdmin } = useWorkspaceAdminStatus();
 
   const { pages, objects, getTypeStatus } = useMetadata();
   // ADR-0048 Phase 2 — prefer the page owned by the current app's package so

@@ -4,7 +4,7 @@
   "header": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "className": "text-center",
       "children": [
         { "type": "text", "content": "Create an Account", "className": "text-2xl font-bold tracking-tight" },
@@ -15,7 +15,7 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 4,
+      "gap": 4,
       "children": [
         {
           "type": "grid",
@@ -24,7 +24,7 @@
           "children": [
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 { "type": "label", "htmlFor": "firstName", "label": "First Name" },
                 { "type": "input", "id": "firstName", "name": "firstName", "placeholder": "John", "required": true }
@@ -32,7 +32,7 @@
             },
             {
               "type": "stack",
-              "spacing": 2,
+              "gap": 2,
               "children": [
                 { "type": "label", "htmlFor": "lastName", "label": "Last Name" },
                 { "type": "input", "id": "lastName", "name": "lastName", "placeholder": "Doe", "required": true }
@@ -42,7 +42,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             { "type": "label", "htmlFor": "email", "label": "Email" },
             {
@@ -57,7 +57,7 @@
         },
         {
           "type": "stack",
-          "spacing": 2,
+          "gap": 2,
           "children": [
             { "type": "label", "htmlFor": "password", "label": "Password" },
             {
@@ -72,7 +72,8 @@
         },
         {
           "type": "flex",
-          "className": "items-start space-x-2",
+          "align": "start",
+          "gap": 2,
           "children": [
             { "type": "checkbox", "id": "terms", "name": "terms", "required": true },
             {

@@ -46,7 +46,7 @@ import {
   type CelSuggestion,
   type CelSuggestionKind,
   type CelValueType,
-} from './celAuthoring';
+} from './celAuthoring.js';
 
 const LINT_DEBOUNCE_MS = 250;
 

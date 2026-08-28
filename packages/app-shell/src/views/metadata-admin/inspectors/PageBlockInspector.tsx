@@ -12,9 +12,9 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
 import type { ExpressionInput } from '@objectstack/spec/shared';
-import { t, type SupportedLocale } from '../i18n';
+import { t, type SupportedLocale } from '../i18n.js';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -25,13 +25,13 @@ import {
   InspectorRemoveButton,
   InspectorEmptyState,
   moveArray,
-} from './_shared';
-import { BLOCK_CONFIG, blockHasConfig, type BlockPropField, type PlaceholderSpec } from '../previews/block-config';
-import { ColorVariantPicker } from '../color-variant-field';
-import { ConditionBuilder } from './ConditionBuilder';
-import { expressionSource, writeExpressionSource } from './expression-envelope';
-import { useObjectOptions } from '../previews/useObjectOptions';
-import { useObjectFields } from '../previews/useObjectFields';
+} from './_shared.js';
+import { BLOCK_CONFIG, blockHasConfig, type BlockPropField, type PlaceholderSpec } from '../previews/block-config.js';
+import { ColorVariantPicker } from '../color-variant-field.js';
+import { ConditionBuilder } from './ConditionBuilder.js';
+import { expressionSource, writeExpressionSource } from './expression-envelope.js';
+import { useObjectOptions } from '../previews/useObjectOptions.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
 import {
   Button, Input, Label,
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,

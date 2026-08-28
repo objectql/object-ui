@@ -34,6 +34,7 @@ const en = {
       setup_access: 'Setup Access',
       setup_write: 'Write Settings',
       studio_access: 'Studio Access',
+      manage_sharing: 'Manage Sharing',
     },
   },
   // objectui#3546 slice six — the read-only facet summary + Studio deep-link a
@@ -696,7 +697,7 @@ const en = {
     hideFieldsTitle: 'Hide Fields',
     dataLimitReached: 'Showing first {{limit}} records. More data may be available.',
     viewSettings: 'View settings',
-    viewSettingsHint: 'Grouping, color, density, and visible fields.',
+    viewSettingsHint: 'Grouping, color, density, and visible fields. Applies to everyone who uses this view.',
     addGroup: 'Add group field',
     collapsedByDefault: 'Collapsed by default',
     removeGroup: 'Remove',
@@ -943,6 +944,18 @@ const en = {
     cancelApprovalTooltipUnlocked: 'Recall the pending approval request',
     cancelApprovalFailed: 'Failed to recall approval',
     cancelApprovalUnavailable: 'Recalling approvals is not supported on this data source',
+    // objectui#5916 — `record:path` stage state in the ACCESSIBLE NAME.
+    // Each stage is a `role="listitem"`, which is name-from-AUTHOR only, so
+    // visually-hidden text inside it computes to an EMPTY name; these compose
+    // the stage's own (already picklist-localized) label with its state into the
+    // `aria-label`. The ✓/✗ glyphs stay `aria-hidden` decoration.
+    pathLabel: 'Record path',
+    pathStageCompleted: '{{stage}}, completed',
+    pathStageCurrent: '{{stage}}, current stage',
+    pathStageUpcoming: '{{stage}}, upcoming',
+    pathStageLostCurrent: '{{stage}}, closed lost, current stage',
+    pathStageLostUpcoming: '{{stage}}, closed lost, not reached',
+    pathStageWonUpcoming: '{{stage}}, goal stage, not reached',
     linkCopied: 'Link copied to clipboard',
     linkCopyFailed: 'Failed to copy link',
     cancel: 'Cancel',
@@ -1509,7 +1522,6 @@ const en = {
       defaultValue: 'Default Value',
       placeholder: 'Placeholder',
       referenceTo: 'Reference To',
-      formula: 'Formula',
       options: 'Options',
       addOption: 'Add Option',
       validationRules: 'Validation Rules',
@@ -1687,6 +1699,13 @@ const en = {
       createApp: 'Create New App',
     },
     ai: {
+      pendingDrafts: {
+        count: '{{count}} change(s) are not published yet — users cannot see them.',
+        publish: 'Publish',
+        published: 'All pending changes are live.',
+        failed: 'Publish failed.',
+        publishedWithFindings: 'Published, but the runtime probes reported problems: {{detail}}',
+      },
       usage: {
         title: 'AI usage',
         meterBuild: 'Build',
@@ -1798,6 +1817,11 @@ const en = {
       changesConfirmed: 'Confirmed',
       changesConfirm: 'Confirm',
       changesConfirmHint: 'Reply to confirm or adjust this change.',
+      changesApplying: 'Applying…',
+      changesApplied: 'Applied',
+      changesDrafted: 'Saved as draft',
+      changesFailed: 'Not applied',
+      discussing: 'Discussing: {{target}}',
       // Wording is load-bearing: this is SENT to the agent and must satisfy the
       // cloud confirm gate's English clause `apply (this|the) change`
       // (service-ai-studio confirm-gate.ts APPROVAL_RE). "apply what you just
@@ -1959,67 +1983,22 @@ const en = {
       // (rename / pin / set-as-default / configure), so the copy has to cover
       // any change to a built-in view rather than name one operation.
       cannotEditMetaView: 'This view is built in and defined in code — it cannot be changed.',
+      viewConfigPermissionDenied: 'View settings apply to everyone who uses this view, so changing them requires the Manage Metadata permission. Ask an administrator to make this change.',
       cannotDeleteMetaView: 'This view is built in and defined in code — it cannot be deleted.',
       expandToPage: 'Open as full page',
       allRecords: 'All Records',
-      exitDesignMode: 'Exit Design Mode',
-      enterDesignMode: 'Enter Design Mode',
-      metadataInspector: 'Metadata Inspector',
-      editView: 'Edit View',
-      addView: 'Add View',
-      designTools: 'Design tools',
       new: 'New',
       import: 'Import',
       importTitle: 'Import from CSV',
       importedToast: 'Imported {{count}} row(s).',
       importedWithSkipped: 'Imported {{ok}} row(s); skipped {{skipped}}.',
       configureView: 'Configure View',
-      closePanel: 'Close panel',
-      showAdvancedSettings: 'Show advanced settings',
-      showFewerSettings: 'Show fewer settings',
-      page: 'Page',
-      pageConfigHint: 'Toolbar, navigation & view shell settings',
-      listConfigHint: 'Data rendering, columns & appearance for this list type',
-      general: 'General',
-      generalHint: 'View title, description, and type',
       toolbar: 'Toolbar',
-      toolbarHint: 'Search, filter, sort, group, and density toggles',
       toolbarEnabledCount: '{{count}} of {{total}} enabled',
-      navigationSection: 'Navigation',
-      navigationHint: 'Row click behavior and detail view settings',
-      records: 'Records',
-      recordsHint: 'Selection mode, add record, and inline editing',
-      exportPrint: 'Export & Print',
-      exportPrintHint: 'Export formats, printing, and record count display',
-      showAllFields: 'Show All',
-      hideAllFields: 'Hide All',
       searchFields: 'Search fields…',
       title: 'Title',
-      description: 'Description',
-      data: 'Data',
-      source: 'Source',
-      columns: 'Columns',
-      filterBy: 'Filter by',
-      sortBy: 'Sort by',
-      appearance: 'Appearance',
-      showDescription: 'Show description',
       viewType: 'View type',
-      userFilters: 'User filters',
-      enableSearch: 'Enable search',
-      enableFilter: 'Enable filter',
-      enableSort: 'Enable sort',
-      enableHideFields: 'Enable hide fields',
-      enableGroup: 'Enable group',
-      enableColor: 'Enable color',
-      enableDensity: 'Enable density',
-      userActions: 'User actions',
-      addRecordViaForm: 'Add records through a form',
-      advanced: 'Advanced',
-      allowExport: 'Allow export',
       recordCount: '{{count}} records',
-      noDescription: 'No description',
-      none: 'None',
-      columnsConfigured: '{{count}} columns',
       save: 'Save',
       discard: 'Discard',
       createView: 'Create View',
@@ -2056,7 +2035,6 @@ const en = {
       viewNameHelp: 'Machine key (snake_case). Auto-filled from the title — edit if you like.',
       viewNameRequired: 'Enter a key (lowercase letters, numbers, underscore). Not auto-filled for non-Latin titles.',
       viewNameInvalid: 'Use lowercase letters, numbers and underscores; start with a letter or underscore.',
-      typeOptions: 'Type Options',
       groupByField: 'Group by field',
       groupByFieldHelp: 'The kanban groups records into columns by this field\'s values.',
       startDateField: 'Start date field',
@@ -2071,7 +2049,6 @@ const en = {
       longitudeFieldHelp: 'Field providing the longitude coordinate (geo fields only).',
       imageField: 'Image field',
       imageFieldHelp: 'The gallery cover comes from this image or attachment field.',
-      dateField: 'Date field',
       selectField: 'Select field…',
       selectOption: 'Select…',
       noEligibleFieldForType: 'No eligible field of this type. Add one to the object first.',
@@ -2088,79 +2065,11 @@ const en = {
       xAxisFieldHelp: 'The categorical or time dimension.',
       yAxisField: 'Y-axis field',
       yAxisFieldHelp: 'The numeric field to aggregate.',
-      gridOptionsHint: 'Grid view uses the columns configured above.',
       groupBy: 'Group by',
-      prefixField: 'Prefix field',
-      fields: 'Fields',
-      fieldsVisible: '{{count}} visible',
-      sortsCount: '{{count}} sorts',
-      filtersCount: '{{count}} filters',
       endDateField: 'End date field',
-      color: 'Color',
-      fieldTextColor: 'Field text color',
-      rowHeight: 'Row height',
-      wrapHeaders: 'Wrap headers',
-      showFieldDescriptions: 'Show field descriptions',
-      collapseAllByDefault: 'Collapse all by default',
-      inlineEdit: 'Edit records inline',
-      addDeleteRecordsInline: 'Add/delete records inline',
-      clickIntoRecordDetails: 'Click into record details',
-      navigationMode: 'Navigation mode',
-      navigationWidth: 'Navigation width',
-      navigationWidthHint: 'Available for drawer, modal, and split navigation modes',
-      openNewTab: 'Open in new tab',
-      openNewTabHint: 'Available for page and new window navigation modes',
-      selectionMode: 'Selection mode',
-      selectionNone: 'None',
-      selectionSingle: 'Single',
-      selectionMultiple: 'Multiple',
-      pageSize: 'Page size',
-      pageSizeOptions: 'Page size options',
-      exportFormats: 'Export formats',
-      exportMaxRecords: 'Max records',
-      exportIncludeHeaders: 'Include headers',
-      exportFileNamePrefix: 'File name prefix',
-      searchableFields: 'Searchable fields',
-      filterableFields: 'Filterable fields',
-      resizableColumns: 'Resizable columns',
-      densityCompact: 'Compact',
-      densityComfortable: 'Comfortable',
-      densitySpacious: 'Spacious',
-      densityMode: 'Density mode',
-      hiddenFields: 'Hidden fields',
-      rowActions: 'Row actions',
-      bulkActions: 'Bulk actions',
-      sharing: 'Sharing',
-      sharingEnabled: 'Enable sharing',
-      sharingVisibility: 'Visibility',
-      addRecordEnabled: 'Enable add record',
-      addRecordPosition: 'Position',
-      addRecordMode: 'Mode',
-      addRecordFormView: 'Form view',
-      conditionalFormatting: 'Conditional formatting',
-      addRule: 'Add rule',
-      quickFilters: 'Quick filters',
-      addQuickFilter: 'Add quick filter',
-      ufElements: 'Elements',
-      ufDropdown: 'Dropdown',
       ufTabs: 'Tabs',
-      ufToggle: 'Toggle',
       ufAddField: '+ Add filter field…',
-      ufNoFields: 'No fields available',
-      ufAddTab: '+ Add tab',
-      ufTabLabel: 'Label',
       ufShowAllRecords: 'Show "All records" tab',
-      ufAllowAddTab: 'Allow adding tabs',
-      showRecordCount: 'Show record count',
-      allowPrinting: 'Allow printing',
-      emptyStateTitle: 'Empty state title',
-      emptyStateMessage: 'Empty state message',
-      emptyStateIcon: 'Empty state icon',
-      ariaLabel: 'ARIA label',
-      ariaDescribedBy: 'ARIA described by',
-      ariaLive: 'ARIA live',
-      accessibility: 'Accessibility',
-      viewTabs: 'View Tabs',
     },
     localeSwitcher: {
       label: 'Language',
@@ -2576,6 +2485,7 @@ const en = {
     template: {
       title: 'Start with a template',
       subtitle: 'Install a template app from the marketplace and customize it.',
+      marketplaceDisabled: 'This runtime has no app marketplace configured, so there are no templates to install here.',
     },
     open: 'Open',
     stats: {
@@ -2634,7 +2544,9 @@ const en = {
         object: 'Object',
         dashboard: 'Dashboard',
         page: 'Page',
+        report: 'Report',
         record: 'Record',
+        metadata: 'Metadata',
       },
     },
     starredApps: {
@@ -2781,6 +2693,11 @@ const en = {
       detailChangedKeys: 'Also changed:',
       confirmNote: 'Publishing releases all {{count}} pending drafts of this package atomically.',
       publishConfirm: 'Publish all',
+      // [objectui#5418] Pre-publish security-posture findings, shown next to
+      // the confirm button so a refusal the door would issue is read BEFORE
+      // the click rather than as a toast after the batch rolled back.
+      securityBlockTitle: 'Publishing will be refused — {{count}} item(s) need a decision first',
+      securityBlockWhere: 'Fix it on the object under Settings → Record sharing, then publish again.',
     },
     // ADR-0045 — the materialized-but-unlisted app banner
     // (UnpublishedAppBar.tsx), sibling of draftBar above.
@@ -3041,6 +2958,9 @@ const en = {
       declined: 'Invitation declined',
       declineFailed: 'Failed to decline invitation',
     },
+    current: {
+      label: 'Current organization',
+    },
     switcher: {
       label: 'Switch organization',
       groupLabel: 'Working organization',
@@ -3209,6 +3129,7 @@ const en = {
     retry: 'Try again',
     errors: {
       expired: 'The request expired before it was approved. Start again.',
+      accessDenied: 'The connection request was denied. Start again.',
       bindFailed: 'Binding failed.',
       deviceCodeFailed: 'Device code request failed.',
     },
@@ -3265,9 +3186,15 @@ const en = {
       installedBadge: 'Installed v{{version}}',
       load: {
         failed: 'Failed to load marketplace',
-        failedHint: 'By default this runtime points at the public ObjectStack cloud. Check the runtime is online, or override <code>OS_CLOUD_URL</code> to point at a self-hosted control plane.',
+        failedHintConfigured: 'This runtime reaches the marketplace through the control plane at {{url}}. Check that it is online and reachable from here.',
+        failedHintSameOrigin: 'This runtime serves the marketplace catalog itself. Check that the runtime is online.',
         packageFailed: 'Failed to load package',
         notFound: 'Not found.',
+      },
+      disabled: {
+        title: 'App Marketplace is turned off',
+        description: 'This runtime has no marketplace configured, so there is nothing to browse or install from here.',
+        hint: 'That is the expected state when the runtime is started with <code>OS_CLOUD_URL=off</code> (or <code>none</code>, <code>local</code>, <code>disabled</code>). To turn the marketplace on, point <code>OS_CLOUD_URL</code> at a control plane and restart the runtime.',
       },
       detail: {
         homepage: 'Homepage',
@@ -3520,12 +3447,19 @@ const en = {
     submittedAgo: 'Submitted {{when}}',
     completedAt: 'Completed {{when}}',
     waitingOn: 'Waiting on',
+    approverNameSeparator: ', ',
+    approverUnstaffed: '{{seat}} (no current holder)',
     history: 'Activity',
     noActions: 'No actions yet.',
     actSubmit: 'Submitted',
     actApprove: 'Approved',
     actReject: 'Rejected',
     actRecall: 'Recalled',
+    overrideActionLabel: 'Override {{action}}',
+    overrideNotice: 'You hold no approver slot on this step. Continuing uses your admin override: it finalises the step immediately, bypassing any approver who has not acted. The decision is recorded as an admin override.',
+    overrideNoticeWho: 'You hold no approver slot on this step. Continuing uses your admin override: it finalises the step immediately and bypasses the approvers who have not acted — {{who}}. The decision is recorded as an admin override.',
+    viaOverrideChip: 'Admin override',
+    viaOverrideHint: 'The actor held no approver slot on this step — admitted by the admin-override path.',
     rawData: 'Raw data (JSON)',
     copy: 'Copy',
     copied: 'Copied',
@@ -3615,6 +3549,12 @@ const en = {
       between: 'Between',
       in: 'In',
       notIn: 'Not in',
+      startsWith: 'Starts with',
+      endsWith: 'Ends with',
+      isNull: 'Is null',
+      isNotNull: 'Is not null',
+      exists: 'Is set',
+      notExists: 'Is not set',
     },
   },
   sortBuilder: {
@@ -3708,6 +3648,30 @@ const en = {
   wizard: {
     missingRequired: 'Please complete the required fields: {{fields}}',
   },
+  // The screen-flow runner dialog (`app-shell/views/FlowRunner`) — the modal a
+  // `type: 'flow'` action opens when its run pauses at a `screen` node.
+  //
+  // What is deliberately NOT here: the sentence a refused resume shows. That is
+  // the ADR-0112 envelope's own `error.message`, prose the automation engine
+  // composed for a human ("Node 'create_quote' failed: … at most 2 decimal
+  // places"), so it has no fixed catalogue to key against and is passed through
+  // untranslated — the same division `appManagement` states above. The runner
+  // borrows `common.{loading,cancel,close,submit}` for its chrome and
+  // `wizard.missingRequired` for the pre-submit check, which is the same
+  // sentence `plugin-form`'s WizardForm raises.
+  flowRunner: {
+    // Fallback dialog title, used only when the `screen` node declares none.
+    title: 'Input',
+    submitting: 'Submitting…',
+    // The submit label of an `object-form` step: it saves a record AND advances
+    // the run, so it is not the plain `common.submit`.
+    saveAndContinue: 'Save & Continue',
+    // A multi-screen wizard advanced to the next step (not the end of the run).
+    nextStep: 'Saved — next step',
+    // Terminal success, used only when the flow declares no `successMessage`
+    // of its own.
+    completed: 'Flow "{{flow}}" completed',
+  },
   // Console › System › Applications (objectui#4307). The page's OWN chrome —
   // headings, controls, badges and the frames of its toasts.
   //
@@ -3785,6 +3749,76 @@ const en = {
       bulkFailureJoiner: '; ',
       bulkOperationFailed: 'Bulk operation failed: {{reason}}',
     },
+  },
+  // objectui#6301 — Setup › Packaged automation (ADR-0126 §7.4): the
+  // operational surface for the flows an installed package ships. Authoring
+  // stays in Studio, so this group has no editing vocabulary at all; it is
+  // on/off, clone, and the states those two produce.
+  //
+  // ⛔ No drift or ancestry wording anywhere in this group (ADR-0126 §9). There
+  // is deliberately no "customized", no "based on v3", no "out of date" — the
+  // platform does not track that lineage, and a translatable string for it is
+  // the cheapest way for the surface to grow one.
+  //
+  // ⛔ Server refusals are NOT in this group either. The posture gate, the
+  // subflow guard and the clone name conflict all arrive as server-authored
+  // prose and are rendered verbatim; the four `*Failed*` keys below are the
+  // last-resort fallbacks for a response that carried no message at all.
+  packagedAutomation: {
+    title: 'Packaged automation',
+    // Covers BOTH sections since ADR-0126 §8 item 2 put packaged actions on
+    // this page: only flows can be cloned, so the clone clause names them.
+    subtitle:
+      'Flows and actions shipped by installed packages. Turn one off for this deployment, or clone a flow under a new name to customize it. Editing happens in Studio.',
+    refresh: 'Refresh',
+    // Section headings — the page carries two tables.
+    flowsHeading: 'Packaged flows',
+    actionsHeading: 'Packaged actions',
+    colFlow: 'Flow',
+    colActivation: 'Activation',
+    colActions: 'Actions',
+    // The switch's accessible name — the only place a row's label is spoken.
+    toggleLabel: 'Activation for {{label}}',
+    on: 'On',
+    off: 'Off',
+    clone: 'Clone',
+    cloneTitle: 'Clone packaged flow',
+    cloneBody:
+      'The copy carries the whole definition and takes a new machine name and label. Edit the copy in Studio.',
+    cloneName: 'New machine name',
+    cloneLabel: 'New label',
+    cancel: 'Cancel',
+    cloneConfirm: 'Create clone',
+    cloneCreated: 'Created flow "{{name}}".',
+    emptyTitle: 'No packaged flows',
+    emptyBody:
+      'No installed package ships an automation flow on this deployment. Flows you author yourself live in Studio.',
+    loadFailed: 'Could not load packaged automation.',
+    // Two keys per action, not one: the response arm has an HTTP status to
+    // name and the transport-exception arm does not, and a single key cannot
+    // carry a hole only half its call sites can fill.
+    // Artifact-neutral by wording, and shared by BOTH sections' toggles: the
+    // sentence says nothing about flows, so the actions half reuses it rather
+    // than defining a second key with the same English in ten packs.
+    toggleFailedHttp: 'Could not change activation (HTTP {{status}}).',
+    toggleFailed: 'Could not change activation.',
+    cloneFailedHttp: 'Could not clone this flow (HTTP {{status}}).',
+    cloneFailed: 'Could not clone this flow.',
+
+    // ── Packaged ACTIONS section (ADR-0126 §8 item 2, ruling 3) ────────────
+    // ⛔ No clone key here on purpose: the action-clone half is unchartered,
+    // and a string is the cheapest way for an unchartered surface to appear.
+    actionsSubtitle:
+      'Actions shipped by installed packages. Turn one off for this deployment and it stops running everywhere it is offered. Authoring your own action alongside it stays open in Studio.',
+    colAction: 'Action',
+    colObject: 'Object',
+    // The object is part of the accessible name because it is part of the
+    // identity — two objects may declare the same action name.
+    actionToggleLabel: 'Activation for {{label}} on {{object}}',
+    actionsEmptyTitle: 'No packaged actions',
+    actionsEmptyBody:
+      'No installed package declares an action on this deployment. Actions you author yourself live in Studio.',
+    actionsLoadFailed: 'Could not load packaged actions.',
   },
 } as const;
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Textarea, cn, EmptyValue } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
 
 /**
  * Code field widget - provides a code editor with syntax highlighting

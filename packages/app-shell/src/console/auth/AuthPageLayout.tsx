@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { getProductName, getLogoUrl } from '../../runtime-config';
+import { getProductName, getLogoUrl } from '../../runtime-config.js';
 
 export function AuthPageLayout({ children }: { children: React.ReactNode }) {
   const { t } = useObjectTranslation();

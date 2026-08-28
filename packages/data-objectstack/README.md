@@ -71,6 +71,96 @@ const dataSource = createObjectStackAdapter({
 - ✅ **Auto-Reconnect**: Automatic reconnection with exponential backoff on connection failures.
 - ✅ **Batch Progress**: Progress events for tracking bulk operation status.
 
+## Query Translation
+
+`find()` accepts Object UI's OData-style `QueryParams` and translates them into
+ObjectStack's native query format, so a schema never has to be written in the
+protocol's own shape:
+
+```typescript
+// Query with filters (MongoDB-like operators)
+const result = await dataSource.find('tasks', {
+  $filter: {
+    status: 'active',
+    priority: { $gte: 2 },
+  },
+  $orderby: { createdAt: 'desc' },
+  $top: 20,
+  $skip: 0,
+});
+
+// Escape hatch: reach the underlying ObjectStack client for anything
+// the DataSource interface does not cover
+const client = dataSource.getClient();
+const metadata = await client.meta.getObject('task');
+```
+
+### Query Parameter Mapping
+
+| Object UI (`$`) | ObjectStack | Description |
+|--------------|-------------|-------------|
+| `$select` | `select` | Field selection |
+| `$filter` | `filters` (AST) | Filter conditions (converted to FilterNode AST) |
+| `$orderby` | `sort` | Sort order |
+| `$skip` | `skip` | Pagination offset |
+| `$top` | `top` | Limit records |
+
+### Filter Conversion
+
+The adapter converts MongoDB-like filter operators into **ObjectStack FilterNode
+AST format**. This is what keeps it compatible with the ObjectStack Protocol
+(v0.1.2+).
+
+#### Supported Filter Operators
+
+| MongoDB Operator | ObjectStack Operator | Example |
+|------------------|---------------------|---------|
+| `$eq` or simple value | `=` | `{ status: 'active' }` → `['status', '=', 'active']` |
+| `$ne` | `!=` | `{ status: { $ne: 'archived' } }` → `['status', '!=', 'archived']` |
+| `$gt` | `>` | `{ age: { $gt: 18 } }` → `['age', '>', 18]` |
+| `$gte` | `>=` | `{ age: { $gte: 18 } }` → `['age', '>=', 18]` |
+| `$lt` | `<` | `{ age: { $lt: 65 } }` → `['age', '<', 65]` |
+| `$lte` | `<=` | `{ age: { $lte: 65 } }` → `['age', '<=', 65]` |
+| `$in` | `in` | `{ status: { $in: ['active', 'pending'] } }` → `['status', 'in', ['active', 'pending']]` |
+| `$nin` / `$notin` | `notin` | `{ status: { $nin: ['archived'] } }` → `['status', 'notin', ['archived']]` |
+| `$contains` / `$regex` | `contains` | `{ name: { $contains: 'John' } }` → `['name', 'contains', 'John']` |
+| `$startswith` | `startswith` | `{ email: { $startswith: 'admin' } }` → `['email', 'startswith', 'admin']` |
+| `$between` | `between` | `{ age: { $between: [18, 65] } }` → `['age', 'between', [18, 65]]` |
+
+#### Complex Filter Examples
+
+**Multiple conditions** are combined with `'and'`:
+
+```typescript
+// Input
+const $filter = {
+  age: { $gte: 18, $lte: 65 },
+  status: 'active',
+};
+
+// Converted to AST
+const ast = [
+  'and',
+  ['age', '>=', 18],
+  ['age', '<=', 65],
+  ['status', '=', 'active'],
+];
+```
+
+### Sorting
+
+```typescript
+// OData-style
+await dataSource.find('users', {
+  $orderby: {
+    createdAt: 'desc',
+    name: 'asc',
+  },
+});
+
+// Converted to ObjectStack: ['-createdAt', 'name']
+```
+
 ## Metadata Caching
 
 The adapter includes built-in metadata caching to improve performance when fetching schemas:

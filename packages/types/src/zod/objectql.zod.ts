@@ -20,6 +20,7 @@ import { z } from 'zod';
 import {
   ListViewSchema as SpecListViewSchema,
   KanbanConfigSchema as SpecKanbanConfigSchema,
+  GanttConfigSchema as SpecGanttConfigSchema,
   CalendarConfigSchema as SpecCalendarConfigSchema,
   GalleryConfigSchema as SpecGalleryConfigSchema,
   TimelineConfigSchema as SpecTimelineConfigSchema,
@@ -31,6 +32,7 @@ import {
   PaginationConfigSchema as SpecPaginationConfigSchema,
   UserActionsConfigSchema as SpecUserActionsConfigSchema,
   AriaPropsSchema as SpecAriaPropsSchema,
+  NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 
@@ -160,7 +162,7 @@ export const ObjectFormSchema = BaseSchema.extend({
   showSubmit: z.boolean().optional().describe('Show submit button'),
   submitText: z.string().optional().describe('Submit button text'),
   successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
-  navigateOnSuccess: z.string().optional().describe('Navigate here after success ({id}/{recordId} interpolated, same-origin-guarded); precedes the toast'),
+  navigateOnSuccess: z.string().optional().describe('DEPRECATED, write submitBehavior instead: navigate here after success (relative path only; {id}/{recordId} interpolated and URL-escaped); precedes the toast'),
   resetOnSuccess: z.boolean().optional().describe('Reset the form after a successful create for another entry'),
   submitBehavior: z.union([
     z.object({ kind: z.literal('thank-you'), title: z.string().optional(), message: z.string().optional() }),
@@ -341,8 +343,9 @@ const KanbanConfig = SpecKanbanConfigSchema.partial().extend({
 
 const CalendarConfig = SpecCalendarConfigSchema.partial().extend({
   // objectui-only: the calendar renderer's initial view mode. No spec counterpart —
-  // promote it rather than growing this extension.
-  defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional().describe('Initial calendar view mode'),
+  // promote it rather than growing this extension. `'agenda'` was retired
+  // (objectui#5784, following #5740): `CalendarView` renders no agenda view.
+  defaultView: z.enum(['month', 'week', 'day']).optional().describe("Initial calendar view mode — 'month' | 'week' | 'day' ('agenda' was retired: objectui#5784)"),
 }).passthrough();
 
 const GalleryConfig = SpecGalleryConfigSchema.partial().extend({
@@ -531,13 +534,51 @@ export const ListViewSchema = BaseSchema
 export type ListViewInferred = z.input<typeof ListViewSchema>;
 
 /**
+ * Object Map Configuration Schema — the runtime half of `ObjectMapConfig`
+ * (`objectql.ts`).
+ *
+ * NOT named `MapConfigSchema`: `@objectstack/spec/automation` exports that name
+ * for an unrelated automation concept, and `check:spec-symbols` refuses a local
+ * declaration under a spec export's name.
+ *
+ * Lifted out of `plugin-map/src/ObjectMap.tsx`, where it was package-private,
+ * so the declared authoring face and the validation the renderer performs are
+ * ONE schema rather than two that can drift (objectui#5018). `ObjectMap`
+ * imports this exact object; it no longer declares its own.
+ */
+export const ObjectMapConfigSchema = z.object({
+  latitudeField: z.string().optional().describe('Field containing latitude'),
+  longitudeField: z.string().optional().describe('Field containing longitude'),
+  locationField: z.string().optional().describe('Field with a combined location value'),
+  titleField: z.string().optional().describe('Field used as the marker title'),
+  descriptionField: z.string().optional().describe('Field used as the marker description'),
+  zoom: z.number().optional().describe('Zoom level (1-20); declaring it opts out of the auto-fit'),
+  center: z.tuple([z.number(), z.number()]).optional().describe('Center [lat, lng]; declaring it opts out of the auto-fit'),
+  style: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
+});
+
+/**
  * ObjectMap Schema
+ *
+ * Mirrors the `ObjectMapSchema` interface in `objectql.ts` key for key. Every
+ * key has a read site in `plugin-map/src/ObjectMap.tsx`; the FLAT spelling of
+ * the `map` block's keys is the ObjectView/ListView flatten product and stays
+ * out of this declaration (maintainer ruling on objectui#5018, 2026-08-17) —
+ * except `locationField` / `titleField`, which were published before the
+ * ruling and stay for compatibility.
  */
 export const ObjectMapSchema = BaseSchema.extend({
   type: z.literal('object-map'),
   objectName: z.string().describe('ObjectQL object name'),
-  locationField: z.string().optional().describe('Location field'),
-  titleField: z.string().optional().describe('Title field'),
+  data: ViewDataSchema.optional().describe('Data source configuration'),
+  staticData: z.array(z.any()).optional().describe('Inline records'),
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded as $filter'),
+  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
+  map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
+  enableClustering: z.boolean().optional().describe('Group nearby markers into clusters'),
+  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  locationField: z.string().optional().describe('Location field (internal flat form; prefer map.locationField)'),
+  titleField: z.string().optional().describe('Title field (internal flat form; prefer map.titleField)'),
   mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
 });
 
@@ -554,6 +595,61 @@ export const ObjectTreeSchema = BaseSchema.extend({
 });
 
 /**
+ * objectui's own `GanttConfig` extensions — everything `../objectql.ts` declares
+ * on {@link GanttConfig} beyond the spec's `GanttConfigSchema` (objectui#6051
+ * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
+ * `timeSegments` was already there).
+ *
+ * Held as ONE field map rather than inlined, so the flattened top-level spelling
+ * below is built from a single source — the same way the TS side derives its
+ * flattened members from `GanttConfig`. It is deliberately the shape the nested
+ * `gantt` block would ALSO be built from, one line, if objectui#6475 rules that
+ * block in; today that entry is severed and this map has one consumer.
+ *
+ * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
+ * `^export const` out of this directory and would require a registered TS
+ * counterpart for it. It has none of its own — it is a fragment of `GanttConfig`,
+ * and `GanttConfig` is checked through the two faces that carry it.
+ */
+const GanttConfigExtensionFields = {
+  borderColorField: z.string().optional().describe('Record field carrying a per-task alert stroke colour'),
+  lockField: z.string().optional().describe('Record field marking a row view-only (truthy → locked)'),
+  objectField: z.string().optional().describe("Record field carrying the row's own object API name"),
+  summaryExtent: z.enum(['children', 'self']).optional().describe("How a summary bar's span is computed"),
+  defaultCollapsedDepth: z.number().optional().describe('Auto-collapse tree nodes at/below this 0-indexed depth'),
+  dependencyTypes: z.boolean().optional().describe('Whether the store persists dependency link TYPES (fs/ss/ff/sf)'),
+  timeZone: z.string().optional().describe("Business time zone (IANA name) the chart's calendar renders in"),
+  exportFileName: z.string().optional().describe('Base name for exported PNG/PDF files'),
+  interactions: z
+    .object({
+      move: z.boolean().optional().describe('Bar / subtree dragging'),
+      resize: z.boolean().optional().describe('Edge resize grips'),
+      progress: z.boolean().optional().describe('The progress drag handle'),
+      link: z.boolean().optional().describe('Dependency UI: drag-to-link dots and the create/delete menu'),
+    })
+    .optional()
+    .describe('Per-interaction switches, each defaulting to true'),
+  timeSegments: z
+    .object({
+      dayStart: z.string().optional().describe("Clock time the shift-day begins, 'HH:mm'"),
+      bands: z
+        .array(
+          z.object({
+            key: z.string().optional().describe('Stable band id'),
+            label: z.string().describe('Display label'),
+            start: z.string().describe("Band start, 'HH:mm'"),
+            end: z.string().describe("Band end, 'HH:mm'"),
+            color: z.string().optional().describe('Accent colour for the column tint'),
+          })
+        )
+        .describe('Ordered bands covering the 24h shift-day'),
+      showMidnight: z.boolean().optional().describe('Draw the dashed calendar-midnight cue'),
+    })
+    .optional()
+    .describe('Shift segmentation for the day-mode timeline'),
+};
+
+/**
  * ObjectGantt Schema
  */
 export const ObjectGanttSchema = BaseSchema.extend({
@@ -564,6 +660,85 @@ export const ObjectGanttSchema = BaseSchema.extend({
   titleField: z.string().optional().describe('Title field'),
   dependencyField: z.string().optional().describe('Dependency field'),
   progressField: z.string().optional().describe('Progress field'),
+  // DERIVED from the spec's `GanttConfigSchema.shape.viewMode` (an optional
+  // enum, deliberately WITHOUT a default) so the member list cannot drift
+  // (objectui#5074). Absence semantics are load-bearing: an omitted `viewMode`
+  // lets a persisted layout seed the timeline granularity before the
+  // renderer's 'day' fallback — do NOT add `.default('day')` here.
+  viewMode: SpecGanttConfigSchema.shape.viewMode.describe(
+    'Initial timeline granularity, honoured by both renderer branches; when omitted, a persisted layout may seed it'
+  ),
+  // objectui#5903 — ten keys `ObjectGantt` reads and this mirror did not
+  // declare. They were reachable only through `(schema as any).K`, so nothing
+  // connected the read to a declaration. Mirrored here at the SAME requiredness
+  // as `../objectql.ts` (all optional) so the zod-mirror-parity ratchet stays at
+  // zero drift for this pair. `label` is NOT among them: `BaseSchema` already
+  // declares it, so that read only needed its cast dropped.
+  //
+  // What declaring buys under `.passthrough()`: an undeclared key is still waved
+  // through (objectui#5155's structural ceiling), but a DECLARED key is now
+  // type-validated — `readOnly: 'yes'` is refused where it used to parse green.
+  skipWeekends: z.boolean().optional().describe('Skip weekends in duration / auto-schedule math (working calendar)'),
+  holidays: z.array(z.string()).optional().describe("Non-working dates for the working calendar, ISO 'yyyy-mm-dd' (UTC)"),
+  persistLayout: z.boolean().optional().describe('Opt OUT of layout persistence — only an explicit false disables it'),
+  viewName: z.string().optional().describe("Layout-persistence scope; storage key is `objectName:viewName` (default 'default')"),
+  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour on task click (drawer/dialog/page)'),
+  markers: z
+    .array(
+      z.object({
+        date: z.string().describe('Marker position, ISO date or datetime string'),
+        label: z.string().optional().describe('Text drawn against the line'),
+        color: z.string().optional().describe('Line colour — any CSS colour'),
+      })
+    )
+    .optional()
+    .describe('Extra vertical reference lines drawn like the Today marker'),
+  criticalPath: z.boolean().optional().describe('Seed the critical-path highlight ON (toolbar toggle stays available)'),
+  showBaselines: z.boolean().optional().describe('Render planned-vs-actual baseline bars — defaults ON, only an explicit false disables'),
+  readOnly: z.boolean().optional().describe('Disable every write path and lock the record drawer'),
+  mobileReadOnly: z.boolean().optional().describe('Auto read-only on narrow viewports — defaults ON, only an explicit false disables'),
+  // objectui#6051 — the FLATTENED `GanttConfig` face. `getGanttConfig` builds its
+  // config from these top-level keys when the node carries no `gantt` block and
+  // `startDateField` / `endDateField` are both present — the block OUTRANKS this
+  // face (objectui#6469); nothing declared them, on either side,
+  // because `BaseSchema`'s index signature admits them untyped. Mirrored at the
+  // SAME requiredness as `../objectql.ts` (all optional) so the zod-mirror-parity
+  // ratchet stays at zero drift for this pair.
+  //
+  // The spec-modelled members are taken from `SpecGanttConfigSchema.shape` by
+  // reference, exactly as `viewMode` above is, so the vocabulary cannot fork.
+  colorField: SpecGanttConfigSchema.shape.colorField,
+  dependenciesField: SpecGanttConfigSchema.shape.dependenciesField,
+  parentField: SpecGanttConfigSchema.shape.parentField,
+  typeField: SpecGanttConfigSchema.shape.typeField,
+  tooltipFields: SpecGanttConfigSchema.shape.tooltipFields,
+  baselineStartField: SpecGanttConfigSchema.shape.baselineStartField,
+  baselineEndField: SpecGanttConfigSchema.shape.baselineEndField,
+  groupByField: SpecGanttConfigSchema.shape.groupByField,
+  resourceView: SpecGanttConfigSchema.shape.resourceView,
+  assigneeField: SpecGanttConfigSchema.shape.assigneeField,
+  effortField: SpecGanttConfigSchema.shape.effortField,
+  capacity: SpecGanttConfigSchema.shape.capacity,
+  quickFilters: SpecGanttConfigSchema.shape.quickFilters,
+  autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
+  // …and objectui's own ten, from the one field map above.
+  ...GanttConfigExtensionFields,
+  // ⛔ `gantt` — the BLOCK face `getGanttConfig`'s second branch reads — is
+  // DELIBERATELY still unmirrored (objectui#6475). It would be one line here,
+  // `SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional()`, built
+  // from the same field map as the flat face above; the reason it is not is that
+  // it is the one entry that NARROWS. With no entry a block rides through
+  // `.passthrough()` unvalidated; with one it is parsed against the spec's
+  // `GanttConfigSchema`, which REQUIRES startDateField/endDateField/titleField —
+  // and this mirror reaches the CLI's `validate`/`check` through
+  // `AnyComponentSchema`, so that is a published refusal change. See the TS
+  // declaration's note in `../objectql.ts` and objectui#6475.
+  // The query/data keys the fetch path reads. They were declared on
+  // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
+  // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config'),
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
+  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
 });
 
 /**
@@ -575,7 +750,7 @@ export const ObjectCalendarSchema = BaseSchema.extend({
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
-  defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional().describe('Default view'),
+  defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
 });
 
 /**
@@ -619,7 +794,7 @@ export const ObjectChartSchema = BaseSchema.extend({
   // Legacy inline path (objectName + aggregate). Optional now that a chart may
   // instead bind to a semantic-layer dataset (ADR-0021, #1890).
   objectName: z.string().optional().describe('ObjectQL object name (legacy inline path)'),
-  chartType: z.enum(['bar', 'line', 'pie', 'area', 'scatter']).describe('Chart type'),
+  chartType: z.enum(['bar', 'column', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'scatter']).describe('Chart type'),
   xAxisField: z.string().optional().describe('X axis field (legacy inline path)'),
   yAxisFields: z.array(z.string()).optional().describe('Y axis fields (legacy)'),
   aggregation: z.enum(['cardinality', 'sum', 'avg', 'min', 'max']).optional().describe('Aggregation (legacy)'),

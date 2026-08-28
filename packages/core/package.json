@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/core",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@object-ui/types": "workspace:*",
     "@objectstack/formula": "^17.0.0",
-    "@objectstack/spec": "^17.0.0",
+    "@objectstack/spec": "^17.2.0",
     "lodash": "^4.18.1",
     "zod": "^4.4.3"
   },

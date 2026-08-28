@@ -1,65 +1,26 @@
 ---
 title: "Release Notes"
-description: "Release notes for ObjectUI — highlights, breaking changes and migration notes for each version."
+description: "Where to find what shipped in each ObjectUI release — the per-package changelogs and GitHub Releases."
 ---
 
 # Release Notes
 
-This page summarises every released version of ObjectUI. For the granular
-package-level changelog, see the monorepo
-[CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md).
+ObjectUI does not keep a hand-written release history on this page. Two sources carry
+it, both written as part of the release itself:
 
-## v3.3.0 — 2026-04-17 · First Official Release 🚀
+- **Each package's own `CHANGELOG.md`** — the source of truth for granular history.
+  Changesets writes an entry into every affected `@object-ui/*` package on each release
+  commit, so the changelog beside the package you depend on states exactly what changed
+  in it, including breaking changes and migration notes. Read it in the installed
+  package (`node_modules/@object-ui/<name>/CHANGELOG.md`), on that package's npm page,
+  or in this repository under
+  [`packages/<name>/CHANGELOG.md`](https://github.com/objectstack-ai/objectui/tree/main/packages).
+- **[GitHub Releases](https://github.com/objectstack-ai/objectui/releases)** — every
+  published version, newest first, with its tag and publication date. Start here to see
+  which version is current.
 
-v3.3.0 is the **first official release** of ObjectUI published for third-party
-consumption. All 39 packages under `packages/*` are now published to npm with
-complete release metadata and aligned with `@objectstack/spec` ^4.0.4 and
-`@objectstack/client` v3.3.0.
-
-### Highlights
-
-- **39 published packages** (`@object-ui/*`) with
-  standardized `package.json` metadata, per-package `LICENSE` and
-  `CHANGELOG.md`.
-- **Standard README template** applied across every package (Installation →
-  Quick Start → API → Compatibility → Links → License).
-- **Refreshed docs site** with up-to-date architecture overview, plugin
-  coverage and schema reference.
-- **Thin integration packages** — `@object-ui/app-shell` (~50 KB) and
-  `@object-ui/providers` (~10 KB) enable third-party integrations without
-  inheriting the full console.
-- **Spec v4 alignment** — plain-string `label` types across Navigation
-  schemas; Protocol bridges (`DndProtocol`, `KeyboardProtocol`,
-  `NotificationProtocol`) updated.
-- **Unified Copilot Skills** — single `skills/objectui/` tree aligned with
-  shadcn/ui best practices.
-
-### Upgrade Notes
-
-If you were pinning to the earlier `0.x` prerelease tags:
-
-1. Bump every `@object-ui/*` dependency to `^3.3.0`.
-2. Ensure peer dependencies match the new baselines
-   (`react ^18 || ^19`, `react-dom ^18 || ^19`, TypeScript `>=5.0`).
-3. Replace any `i18n` label objects (`{ key, defaultValue }`) on Navigation
-   schemas with plain strings — runtime `resolveI18nLabel()` still handles
-   both formats for backward compatibility.
-4. Remove imports of the deprecated `ViewDesigner` — its capabilities are now
-   delivered by `ViewConfigPanel`.
-
-### Compatibility Matrix
-
-| Package | Version |
-| --- | --- |
-| `@object-ui/*` | `3.3.0` |
-| `@objectstack/spec` | `^4.0.4` |
-| `@objectstack/client` | `3.3.0` |
-| React | `18.x` or `19.x` |
-| Node.js | `≥ 18` |
-| TypeScript | `≥ 5.0` (strict) |
-| Tailwind CSS | `≥ 3.4` |
-
-## Previous Versions
-
-See the [monorepo CHANGELOG](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md)
-for the full history, including the `0.x` development series.
+The monorepo
+[CHANGELOG.md](https://github.com/objectstack-ai/objectui/blob/main/CHANGELOG.md)
+is a periodically hand-curated summary, not an auto-maintained record, and can lag the
+latest releases. Treat each package's own `CHANGELOG.md` as authoritative where the two
+disagree.

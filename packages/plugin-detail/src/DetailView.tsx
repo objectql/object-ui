@@ -781,7 +781,15 @@ export const DetailView: React.FC<DetailViewProps> = ({
       items.push({
         name: 'sys_edit_mobile',
         label: t('detail.edit'),
-        icon: 'edit',
+        // objectui#5622 — `square-pen`, NOT `edit`. These items become an
+        // `action:bar` schema, and the action renderers resolve `icon` through
+        // lucide's runtime `icons` record (`resolve-icon.ts`). lucide retires a
+        // spelling by dropping it from that record while KEEPING it as a
+        // deprecated named export, so `edit` type-checks everywhere it is
+        // imported and resolves to NOTHING here — this entry drew a label with
+        // no icon. `Edit === SquarePen` is true on the installed lucide, so the
+        // glyph is unchanged; only the spelling was dead.
+        icon: 'square-pen',
         type: 'script',
         className: 'sm:hidden',
         // `edit.disabledWhen` greys this entry exactly as it greys the desktop
@@ -1272,8 +1280,31 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 </span>
               </span>
               {/* Recall belongs to the approval, not to the lock: an editable
-                  pending approval is just as recallable as a locked one. */}
-              {dataSource?.cancelPendingApproval && (
+                  pending approval is just as recallable as a locked one.
+
+                  It also belongs to the SUBMITTER (objectui#6464). The server
+                  authorizes recall on submitter identity and refuses everyone
+                  else, so rendering the button for every reader of a pending
+                  record offers a lever whose click must fail — the
+                  writability-feedback mismatch, not a permission question: what
+                  the server permits is unchanged by this gate, and nothing
+                  downstream treats `approvalIsSubmitter` as authorization.
+
+                  Withdrawn rather than disabled-with-reason, matching the
+                  sibling submitter levers (the approvals panel's Remind, the
+                  declared `approval_recall` action's `visible` predicate): for a
+                  non-submitter this control is never actionable on any pending
+                  record, so a permanently disabled button would be standing
+                  clutter on a band that already states the record is in
+                  approval. The band, its tally and the approvals timeline still
+                  explain the state to everyone; only the lever they can never
+                  pull is gone.
+
+                  `undefined` means the host resolves no approval identity, and
+                  then this renders exactly as it did before the signal existed
+                  — hiding on absent information would take the submitter's own
+                  unlock lever away (see InlineEditContextValue). */}
+              {dataSource?.cancelPendingApproval && inline?.approvalIsSubmitter !== false && (
                 <Button
                   variant="outline"
                   size="sm"

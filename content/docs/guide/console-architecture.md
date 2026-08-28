@@ -129,6 +129,8 @@ Navigation items can be conditionally hidden using expressions:
 Actions are typed with `ActionDef` from `@object-ui/core`:
 
 ```ts
+import { useActionRunner } from '@object-ui/react';
+
 const { execute } = useActionRunner({
   context: { objectName: 'contacts' },
 });
@@ -150,7 +152,7 @@ The `ActionRunner` supports:
 The shell's `ObjectView` — the one exported by `@object-ui/app-shell` and bound to the routes
 above — is a **thin wrapper** around `@object-ui/plugin-view`'s `ObjectView`:
 
-- Resolves views from the object definition's `list_views`
+- Resolves views from the object definition's `listViews`
 - Passes a `renderListView` callback for multi-view rendering (kanban, calendar, chart)
 - Handles shell-level concerns: URL routing, MetadataInspector, record detail overlay
 
@@ -176,12 +178,16 @@ builder**, and the menu entries that used to launch it are gone. Today:
 
 Do not re-document the old sidebar / command-palette entries: the "Add App" and "Edit App"
 items exist only in `AppSidebar`, which the console no longer mounts (`ConsoleLayout` renders
-`UnifiedSidebar`), and the command palette never registered a create-app command.
+`UnifiedSidebar`), and the command palette never registered a create-app command. `AppSidebar`
+is `@deprecated` as of objectui#5720 — it stays published (for any external consumer of the
+`@object-ui/app-shell` npm package) but is scheduled for removal once its deprecation window
+closes (objectui#5817). New work should target `UnifiedSidebar`.
 
 ### 5. Branding
 
 Per-app branding is applied via `AppShell`'s `branding` prop:
 
+<!-- doc-snippet: fragment — a bare JSX opening tag: the section is about the shape of the branding prop, and the element is never closed -->
 ```tsx
 <AppShell branding={{
   primaryColor: '#3B82F6',

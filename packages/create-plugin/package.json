@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/create-plugin",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "description": "CLI tool to scaffold ObjectUI plugins",
   "type": "module",
   "license": "MIT",
@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/prompts": "^2.4.9",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",

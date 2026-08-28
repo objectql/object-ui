@@ -1,8 +1,8 @@
 import React from 'react';
 import { Badge, Input, EmptyValue, cn } from '@object-ui/components';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { useFieldTranslation } from './useFieldTranslation';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * TagsField - free-form list of string tags. Type a value and press Enter (or

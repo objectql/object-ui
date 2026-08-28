@@ -29,9 +29,9 @@
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
 import { MetadataClient } from '@object-ui/data-objectstack';
-import { useMetadataClient } from '../useMetadata';
+import { useMetadataClient } from '../useMetadata.js';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -42,11 +42,11 @@ import {
   InspectorRemoveButton,
   InspectorEmptyState,
   moveArray,
-} from './_shared';
+} from './_shared.js';
 import { Button, Input, Label, Badge } from '@object-ui/components';
 import { Plus, X, ArrowUp, ArrowDown, Copy } from 'lucide-react';
-import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
-import { useObjectFields } from '../previews/useObjectFields';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
 import {
   readFields,
   writeFields,
@@ -54,15 +54,15 @@ import {
   indexOfField,
   type FieldsView,
   type FieldEntry,
-} from '../previews/object-fields-io';
+} from '../previews/object-fields-io.js';
 import {
   FIELD_TYPE_META,
   TYPES_BY_CATEGORY,
   type FieldTypeId,
-} from '../previews/field-types';
-import { CelPredicateField } from '../CelPredicateField';
-import type { CelLintIssue } from '../celAuthoring';
-import { t, tFormat } from '../i18n';
+} from '../previews/field-types.js';
+import { CelPredicateField } from '../CelPredicateField.js';
+import type { CelLintIssue } from '../celAuthoring.js';
+import { t, tFormat } from '../i18n.js';
 
 
 interface Option {

@@ -14,7 +14,7 @@ ObjectUI's action system has been significantly enhanced to support complex work
 The enhanced `ActionSchema` provides:
 - **New action types**: `ajax`, `confirm`, `dialog`
 - **Action chaining**: Execute multiple actions sequentially or in parallel
-- **Conditional logic**: If/then/else execution based on data
+- **Conditional execution**: a `condition` predicate gates whether an action runs
 - **Callbacks**: Success and failure handlers
 - **Tracking**: Event logging and analytics
 - **Retry logic**: Automatic retry with configurable backoff
@@ -39,7 +39,9 @@ The enhanced `ActionSchema` provides:
 
 Execute API calls with full request configuration:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const ajaxAction: ActionSchema = {
   type: 'action',
   label: 'Load Data',
@@ -75,35 +77,34 @@ const ajaxAction: ActionSchema = {
 
 Show confirmation dialog before executing:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const confirmAction: ActionSchema = {
   type: 'action',
   label: 'Delete Record',
   actionType: 'confirm',
-  confirm: {
-    title: 'Confirm Deletion',
-    message: 'Are you sure you want to delete this record?',
-    confirmText: 'Yes, Delete',
-    cancelText: 'Cancel',
-    confirmVariant: 'destructive'
-  },
+  confirmText: 'Are you sure you want to delete this record?',
   api: '/api/records/123',
   method: 'DELETE'
 };
 ```
 
 **Confirm Properties:**
-- `title` - Dialog title
-- `message` - Confirmation message
-- `confirmText` - Confirm button text
-- `cancelText` - Cancel button text
-- `confirmVariant` - Button style
+- `confirmText` - Confirmation message shown in the dialog. This is the one
+  confirm spelling — it is what the translation bundle addresses
+  (`{ns}.objects.{obj}._actions.{name}.confirmText`), matching
+  `@objectstack/spec`'s action surface. A structured `confirm` object
+  (`{ title, message, ... }`) was retired in objectui#4314: it had no
+  translation key, so its dialogs could never be localized.
 
 ### Dialog Actions
 
 Open a modal or dialog:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const dialogAction: ActionSchema = {
   type: 'action',
   label: 'Edit Details',
@@ -175,7 +176,9 @@ submitted before its uploaded fileId is ready.
 
 Execute multiple actions in sequence or parallel:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const chainedAction: ActionSchema = {
   type: 'action',
   label: 'Process Order',
@@ -217,46 +220,95 @@ const chainedAction: ActionSchema = {
 
 ## Conditional Execution
 
-Execute different actions based on conditions:
+`condition` is a **gate**, not a branch: the action executes only while the
+predicate holds.
 
-```plaintext
-const conditionalAction: ActionSchema = {
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
+const gatedAction: ActionSchema = {
   type: 'action',
-  label: 'Approve',
-  actionType: 'button',
-  
-  condition: {
-    expression: '${data.amount > 1000}',
-    then: {
-      type: 'action',
-      label: 'Require Manager Approval',
-      actionType: 'confirm',
-      confirm: {
-        title: 'Manager Approval Required',
-        message: 'Amount exceeds $1000. Manager approval needed.'
-      }
-    },
-    else: {
-      type: 'action',
-      label: 'Auto Approve',
-      actionType: 'ajax',
-      api: '/api/approve',
-      method: 'POST'
-    }
-  }
+  label: 'Require Manager Approval',
+  actionType: 'confirm',
+  confirmText: 'Amount exceeds $1000. Manager approval needed.',
+
+  // Offered only for amounts over 1000
+  condition: '${data.amount > 1000}'
 };
 ```
 
-**Condition Properties:**
-- `expression` - JavaScript expression to evaluate
-- `then` - Action(s) to execute if true
-- `else` - Action(s) to execute if false
+**How the gate is written** - four spellings, all read by the same evaluator:
+
+| Spelling | Example |
+|---|---|
+| Boolean | `condition: false` |
+| Bare CEL predicate | `condition: 'data.amount > 1000'` |
+| `${...}` template | `condition: '${data.amount > 1000}'` |
+| Normalized envelope | `condition: { dialect: 'cel', source: 'data.amount > 1000' }` |
+
+**How the gate is read:**
+- Declared and **false** - the action does not execute; the runner reports
+  `Action condition not met`.
+- Declared and **true** - the action executes normally.
+- **Not declared** (key absent, or an empty predicate) - the action executes.
+
+The envelope is what `objectstack build` emits for a compiled predicate, so
+authored metadata and built metadata both parse. This is the same predicate
+vocabulary `visible` and `disabled` carry.
+
+### Branching: one action per branch
+
+There is no `then` / `else` - a branch is expressed as **separate actions with
+mutually exclusive conditions**. Each action is gated on its own, so exactly one
+of them runs:
+
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
+const approvalActions: ActionSchema[] = [
+  {
+    type: 'action',
+    label: 'Require Manager Approval',
+    actionType: 'confirm',
+    confirmText: 'Amount exceeds $1000. Manager approval needed.',
+    condition: '${data.amount > 1000}'
+  },
+  {
+    type: 'action',
+    label: 'Auto Approve',
+    actionType: 'ajax',
+    api: '/api/approve',
+    method: 'POST',
+    condition: '${data.amount <= 1000}'
+  }
+];
+```
+
+Sibling actions - a toolbar's `actions`, a table's `rowActions` / `batchActions`,
+or an event's action list - are each dispatched through their own gate, which is
+what makes this an either/or.
+
+A `chain` step also carries its own `condition`, but a **sequential** chain stops
+at the first step whose condition does not hold (a blocked step reports
+`Action condition not met`, and sequential chaining stops on the first failure).
+So use a step `condition` to gate an **optional follow-up**, and sibling actions
+for an either/or.
+
+> **Retired (objectui#3917):** `condition` used to be documented here as
+> `{ expression, then, else }`. Nothing ever read `expression`, `then` or
+> `else`. The runner has always read this key as the predicate above, and an
+> object without a `source` reads as "no gate declared", so an action written
+> that way ran **unconditionally**, with no error at author time and no
+> diagnostic at runtime. The shape is now refused by `ActionSchema`'s zod schema
+> instead of being accepted and ignored.
 
 ## Callbacks
 
 Handle success and failure scenarios:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const actionWithCallbacks: ActionSchema = {
   type: 'action',
   label: 'Submit',
@@ -272,6 +324,7 @@ const actionWithCallbacks: ActionSchema = {
   onFailure: {
     type: 'dialog',
     dialog: {
+      type: 'dialog',
       title: 'Submission Failed',
       content: {
         type: 'text',
@@ -295,7 +348,9 @@ const actionWithCallbacks: ActionSchema = {
 
 Track actions for analytics:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const trackedAction: ActionSchema = {
   type: 'action',
   label: 'Download Report',
@@ -318,7 +373,9 @@ const trackedAction: ActionSchema = {
 
 Automatically retry failed requests:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const retryAction: ActionSchema = {
   type: 'action',
   label: 'Submit',
@@ -339,7 +396,9 @@ const retryAction: ActionSchema = {
 
 A comprehensive action combining multiple features:
 
-```plaintext
+```ts
+import type { ActionSchema } from '@object-ui/types';
+
 const complexAction: ActionSchema = {
   type: 'action',
   label: 'Process Order',
@@ -348,29 +407,11 @@ const complexAction: ActionSchema = {
   
   // Confirm before processing
   actionType: 'confirm',
-  confirm: {
-    title: 'Confirm Order',
-    message: 'Process this order for ${data.customerName}?',
-    confirmText: 'Process Order',
-    confirmVariant: 'default'
-  },
+  confirmText: 'Process this order for ${data.customerName}?',
   
-  // Conditional logic
-  condition: {
-    expression: '${data.totalAmount > 1000}',
-    then: {
-      type: 'action',
-      actionType: 'ajax',
-      api: '/api/orders/process-premium',
-      method: 'POST'
-    },
-    else: {
-      type: 'action',
-      actionType: 'ajax',
-      api: '/api/orders/process-standard',
-      method: 'POST'
-    }
-  },
+  // Execution gate - this action is the premium path; the standard path is a
+  // sibling action carrying the opposite predicate
+  condition: '${data.totalAmount > 1000}',
   
   // Action chain
   chain: [
@@ -413,6 +454,7 @@ const complexAction: ActionSchema = {
   onFailure: {
     type: 'dialog',
     dialog: {
+      type: 'dialog',
       title: 'Order Processing Failed',
       content: {
         type: 'text',
@@ -447,8 +489,15 @@ const complexAction: ActionSchema = {
 
 ## Runtime Validation
 
-```plaintext
+```ts
 import { ActionSchema } from '@object-ui/types/zod';
+
+const myAction = {
+  type: 'action',
+  label: 'Delete Record',
+  actionType: 'confirm',
+  confirmText: 'Are you sure?',
+};
 
 const result = ActionSchema.safeParse(myAction);
 

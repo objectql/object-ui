@@ -50,8 +50,8 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { t, tFormat, useMetadataLocale } from './i18n';
-import { useMetadataClient } from './useMetadata';
+import { t, tFormat, useMetadataLocale } from './i18n.js';
+import { useMetadataClient } from './useMetadata.js';
 
 /**
  * The explain-report vocabulary is OWNED by `@objectstack/spec/security` and

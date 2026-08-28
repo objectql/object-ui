@@ -125,7 +125,10 @@ describe('Basic Renderers - Display Issue Detection', () => {
     it('should render inline content', () => {
       const { container } = renderComponent({
         type: 'span',
-        body: [{ type: 'text', content: 'Inline text' }],
+        // Canonical child key — what `TextSpanSchema` declares and what the
+        // renderer reads (objectui#5027). This case used to spell `body`, the
+        // one key nothing produced, which is what kept the defect invisible.
+        children: [{ type: 'text', content: 'Inline text' }],
       });
 
       const span = container.querySelector('span');
@@ -180,26 +183,34 @@ describe('Basic Renderers - Display Issue Detection', () => {
       expect(validation.hasConfig).toBe(true);
     });
 
+    // objectui#5631: the glyph key is `icon`. These two cases authored `name`
+    // and asserted only that SOME `svg` rendered — an assertion that cannot
+    // fail here any more, because the UNRESOLVED placeholder is an `svg` too.
+    // So the key is renamed AND the assertion is given teeth: the absence of
+    // the placeholder marker is what separates "resolved the requested glyph"
+    // from "drew the dashed box that means it did not".
     it('should render icon without issues', () => {
       const { container } = renderComponent({
         type: 'icon',
-        name: 'star',
+        icon: 'star',
       });
 
       // Icon should render an SVG
       const svg = container.querySelector('svg');
       expect(svg).toBeTruthy();
+      expect(container.querySelector('[data-objectui-icon-unresolved]')).toBeNull();
     });
 
     it('should apply size classes correctly', () => {
       const { container } = renderComponent({
         type: 'icon',
-        name: 'heart',
+        icon: 'heart',
         size: 24,
       });
 
       const svg = container.querySelector('svg');
       expect(svg).toBeTruthy();
+      expect(container.querySelector('[data-objectui-icon-unresolved]')).toBeNull();
     });
   });
 

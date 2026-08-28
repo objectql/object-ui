@@ -39,6 +39,8 @@ subscribe to the provider. Placement is deliberately yours: a banner needs a
 slot in the content area and an inline notification belongs next to the thing
 that raised it, so neither can be positioned by a global overlay.
 
+<!-- doc-snippet: fragment — a mount tree for the reader's own app: `<Outlet />` is the host router's element and `sonner` is the toast library the host chooses, neither of which this repository depends on -->
+
 ```tsx
 import {
   NotificationAlerts,
@@ -87,6 +89,10 @@ provider above it renders no banners instead of throwing.
 ## Raising notifications
 
 ```tsx
+import { useNotifications } from '@object-ui/react';
+
+declare const undo: () => void;
+
 const { notify } = useNotifications();
 
 notify({ title: 'Saved', severity: 'success' });                    // toast (spec default)
@@ -101,6 +107,8 @@ notify({ title: 'Session expired', severity: 'error', displayType: 'alert' });
 An action's `variant` is the spec vocabulary — `primary` (default) / `secondary`
 / `link` — describing the action's **role**. Each surface maps it onto its own
 button styling; it is not the shadcn Button vocabulary, which is a look.
+
+<!-- doc-snippet: fragment — continues the `notify` block above: `notify` is the callback destructured there, and `upgrade` / `openDocs` are the reader's own handlers -->
 
 ```tsx
 notify({
@@ -122,6 +130,8 @@ An inline notification is rendered by the surface that raised it. `scope` is the
 routing key that pairs the two, so two forms on one page don't show each other's
 messages:
 
+<!-- doc-snippet: fragment — continues the `notify` block above, and closes on a bare `<NotificationInline />` tag that pairs with it rather than a mounted tree -->
+
 ```tsx
 notify({
   title: 'Fix 2 fields', severity: 'error',
@@ -140,6 +150,8 @@ not which React subtree hosts it.
 Every surface — including the console's sonner toast — resolves `icon` through
 the same rule: a declared Lucide name (kebab-case or PascalCase) replaces the
 severity icon; anything else falls back to it.
+
+<!-- doc-snippet: fragment — continues the `notify` block above: one call, shown for the `icon` key alone -->
 
 ```tsx
 notify({ title: 'Deploy finished', severity: 'success', displayType: 'banner', icon: 'rocket' });
@@ -171,7 +183,9 @@ would be the same "validates, then does nothing" shape this whole area is about.
 
 ## Configuring the system
 
-`NotificationProvider`'s `config` is the spec `NotificationConfigSchema`:
+`NotificationProvider`'s `config` is `NotificationSystemConfig`, declared by
+`@object-ui/react` (`packages/react/src/context/NotificationContext.tsx`) and
+normalized by `resolveNotificationConfig`:
 
 | Key | Default | Effect |
 |---|---|---|

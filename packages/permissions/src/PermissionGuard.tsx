@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { PermissionAction } from '@object-ui/types';
-import { usePermissions } from './usePermissions';
+import { usePermissions } from './usePermissions.js';
 
 export interface PermissionGuardProps {
   /** Target object name */

@@ -56,6 +56,13 @@ const { passthrough, stub } = vi.hoisted(() => ({
 vi.mock('@object-ui/app-shell', () => ({
   ConsoleShell: passthrough,
   ConsoleToaster: () => null,
+  // Suspense fallback for App.tsx's lazy /docs routes (objectui#5467).
+  // The route elements are built when App renders, so this export is
+  // read even by a test that never visits /docs.
+  LoadingScreen: stub('loading-screen'),
+  // App.tsx's catch-all route element (objectui#6378). Read for the same
+  // reason `LoadingScreen` is: the route table is built when App renders.
+  RedirectWithSplash: stub('redirect-with-splash'),
   RequireAiSurface: passthrough,
   SystemRedirect: () => null,
   DefaultHomeLayout: ({ children }: { children?: ReactNode }) => (
@@ -77,6 +84,15 @@ vi.mock('@object-ui/app-shell', () => ({
   // Consumed by InternalFormRoute to resolve the created-record target.
   useMetadata: () => ({ apps: [{ name: 'showcase_app', _packageId: 'ai.objectstack.showcase' }] }),
   useNavigationContext: () => ({ currentAppName: 'showcase_app' }),
+  // Consumed by InternalFormRoute to publish the session principal as the form
+  // route's predicate scope (objectui#6110). Stubbed, like every other entry in
+  // this factory: this file pins the #4109 SHELL NESTING and authors no
+  // `current_user` predicate, so a real provider would only slow it down. The
+  // BINDING itself is pinned in `components/FormPage.predicateScope.test.tsx`,
+  // whose `hop1SessionPrincipal` case mounts the real `InternalFormRoute` with
+  // the real provider and goes red the moment this mount is removed.
+  ExpressionProvider: passthrough,
+  buildExpressionUser: (user: unknown) => user,
 }));
 
 vi.mock('@object-ui/auth', () => ({

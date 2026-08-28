@@ -43,6 +43,14 @@
  * a small anchored reference survives upstream churn far better than an
  * inlined implementation, and the implementation itself stays reviewable and
  * unit-testable in a normal file.
+ *
+ * Write `find` from REGISTRY bytes, never from `src/ui/**`. The local file is
+ * the patched artefact, so any line an earlier local edit left there reads as a
+ * perfectly good anchor: it matches the file in front of you and matches
+ * nothing upstream, which makes the patch dead on arrival while looking
+ * correct. objectui#4976 is the worked example. The round-trip assertion in
+ * `scripts/__tests__/shadcn-local-patches.test.ts` is what holds a new anchor
+ * to this rule offline, without a network round-trip.
  */
 
 /**
@@ -160,6 +168,20 @@ const sidebarCookieReadPatches = [
 ];
 
 /**
+ * Upstream's thumb class list, spelled exactly once.
+ *
+ * The delivery patch below has to name it twice — the single-line element it
+ * matches and the expanded element it writes back — and a list this long is
+ * precisely the kind of string that drifts one character between two copies. One
+ * spelling means the anchor and its replacement cannot disagree, the same reason
+ * SIDEBAR_COOKIE_NAME is passed into the sidebar patch rather than retyped.
+ */
+const UPSTREAM_THUMB_CLASSNAME =
+  'block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background ' +
+  'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
+  'focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+
+/**
  * The slider thumb pass-through patch (objectui#3318).
  *
  * A Radix slider's focusable control is the THUMB (`span[role="slider"]`,
@@ -175,14 +197,29 @@ const sidebarCookieReadPatches = [
  * the same defect one step easier) a widget has NO handle on the element that
  * must carry those facts. Hence a declared `thumbProps`.
  *
- * Four one-liners, each anchored on a line upstream has carried across every
- * sync in this file's history. As with the families above, the payload stays
- * OUT of `src/ui/`: the routing and its reasoning live in
+ * Four patches. Three are one-liners; the delivery half expands upstream's
+ * single-line self-closing Thumb into the multi-line form that can carry the
+ * routed props. As with the families above, the payload stays OUT of
+ * `src/ui/`: the routing and its reasoning live in
  * `packages/components/src/lib/slider-thumb.ts`.
  *
  * The root half is patched too, and that is not optional: leaving `thumbProps`
  * in Root's spread would stringify it onto the wrapper (`thumbprops="[object
  * Object]"`), the exact leak objectui#3291 sweeps for.
+ *
+ * ## The delivery anchor was re-targeted once (objectui#4976)
+ *
+ * As first declared, the delivery patch anchored the line that forwarded the
+ * host's accessible name onto the thumb — a line objectui added by hand in
+ * commit a014bc00c ("fix Slider accessibility", 2026-04-13), NOT a line the
+ * registry has ever served. Upstream renders the thumb with a className and
+ * nothing else, and slider's own `localEdits` entry in `shadcn-components.json`
+ * said exactly that the whole time. So the anchor matched the file on disk and
+ * could never match upstream: the first `--check` after it landed reported the
+ * patch unappliable (`found 0x`) while the shipped file was perfectly correct.
+ *
+ * Re-targeting it moved the anchor only — the payload, and therefore every byte
+ * of the shipped primitive's behaviour, is untouched.
  *
  * @type {LocalPatch[]}
  */
@@ -230,12 +267,105 @@ const sliderThumbPassThroughPatches = [
     issue: 'objectui#3318',
     reason:
       'Delivers the host\'s control-channel facts to the element that can carry ' +
-      'them. Replaces (and preserves) the narrower hand-written `aria-label` ' +
-      'bridge upstream already needed here for the very same reason — proof the ' +
-      'thumb is unreachable from outside, not a new claim.',
-    find: '      aria-label={props["aria-label"]}\n',
-    replace: '      {...splitSliderThumbProps(props).thumb}\n',
+      'them. Upstream renders the thumb with a class list and nothing else, so ' +
+      'this is the only route to the focusable span — hence the anchor expands ' +
+      'the self-closing element instead of replacing an attribute on it. The ' +
+      'spread sits after `className`, the precedence the shipped primitive ' +
+      'already gives the routed props. Re-targeted in objectui#4976: the first ' +
+      'anchor named a local-only line, so it never matched a registry response.',
+    find: `    <SliderPrimitive.Thumb className="${UPSTREAM_THUMB_CLASSNAME}" />\n`,
+    replace:
+      '    <SliderPrimitive.Thumb\n' +
+      `      className="${UPSTREAM_THUMB_CLASSNAME}"\n` +
+      '      {...splitSliderThumbProps(props).thumb}\n' +
+      '    />\n',
     marker: 'splitSliderThumbProps(props).thumb',
+    occurrences: 1,
+  },
+];
+
+/**
+ * The sheet `hideOverlay` patch (objectui#6090).
+ *
+ * `SheetContent` renders `<SheetOverlay />` unconditionally upstream, which
+ * dims and pointer-blocks everything behind the drawer. A non-modal sheet —
+ * one whose host page must stay clickable while it is open — needs the
+ * backdrop suppressed, so objectui added an optional `hideOverlay` prop.
+ *
+ * ## Why this is declared rather than left as a documented hand edit
+ *
+ * It was a hand edit for months, recorded only in `shadcn-components.json`,
+ * and objectui#6090 measured what that actually bought: nothing. The
+ * protection it was credited with was a type error at the call sites a
+ * `--force` sync would break — and there are no call sites in this repo (still
+ * none, re-measured on `main` at 0c282d979). `hideOverlay` is OPTIONAL, so a
+ * sync that dropped it would type-check clean and the prop would vanish
+ * silently.
+ *
+ * `@object-ui/components` is PUBLISHED, though, so "no call sites" is a
+ * statement about this repository and not about the population that would
+ * break. Retiring the prop on the strength of an in-repo grep would be a
+ * breaking change to a published API justified by evidence that cannot see its
+ * own consumers. Declaring it instead makes the loss loud regardless of
+ * whether a consumer exists — which is the property the type-check gate was
+ * wrongly credited with, now held by `verifyLocalPatches` and by the round-trip
+ * assertion in `scripts/__tests__/shadcn-local-patches.test.ts`.
+ *
+ * ## Why the payload is inline here, unlike every family above
+ *
+ * The families above deliberately keep their payload out of `src/ui/**` and
+ * anchor a one-line reference to `src/lib/`. That is not available here and not
+ * being skipped: the payload IS the primitive's own prop surface — an optional
+ * member on `SheetContentProps`, its destructuring, and the conditional it
+ * guards. There is no implementation to host elsewhere. What the rule is really
+ * protecting against — a large inlined body that upstream churn will shred — is
+ * absent: three anchors, each one line, all of them structural lines of
+ * `SheetContent` rather than incidental formatting.
+ *
+ * All three `find` strings were written from the vendored registry bytes in
+ * `scripts/__tests__/fixtures/shadcn-registry/sheet.registry.txt`, not from the
+ * shipped file (objectui#4976 is what happens otherwise), and the round-trip
+ * assertion holds them to it.
+ *
+ * @type {LocalPatch[]}
+ */
+const sheetHideOverlayPatches = [
+  {
+    id: 'sheet-hide-overlay-prop',
+    issue: 'objectui#6090',
+    reason:
+      'Declares the optional `hideOverlay` prop on SheetContentProps. Anchored ' +
+      "on upstream's empty interface body `{}`, which is what makes the prop " +
+      'visible to consumers of the published package at all — drop it and every ' +
+      'external `hideOverlay` call site becomes a type error.',
+    find: '    VariantProps<typeof sheetVariants> {}',
+    replace: '    VariantProps<typeof sheetVariants> {\n  hideOverlay?: boolean\n}',
+    marker: 'hideOverlay?: boolean',
+    occurrences: 1,
+  },
+  {
+    id: 'sheet-hide-overlay-destructure',
+    issue: 'objectui#6090',
+    reason:
+      'Withholds `hideOverlay` from the `...props` spread that lands on ' +
+      'SheetPrimitive.Content. Without this half the prop is forwarded to the ' +
+      'DOM as `hideoverlay="true"` (React unknown-attribute leak) AND the ' +
+      'conditional below has nothing to read.',
+    find: '>(({ side = "right", className, children, ...props }, ref) => (',
+    replace: '>(({ side = "right", className, children, hideOverlay, ...props }, ref) => (',
+    marker: 'children, hideOverlay, ...props',
+    occurrences: 1,
+  },
+  {
+    id: 'sheet-hide-overlay-conditional',
+    issue: 'objectui#6090',
+    reason:
+      'The behaviour itself: skip the dimming, pointer-blocking backdrop when ' +
+      'the host asked for a non-modal sheet. Upstream renders SheetOverlay ' +
+      'unconditionally, so this is the only line that can honour the prop.',
+    find: '    <SheetOverlay />\n',
+    replace: '    {!hideOverlay && <SheetOverlay />}\n',
+    marker: '{!hideOverlay && <SheetOverlay />}',
     occurrences: 1,
   },
 ];
@@ -246,7 +376,7 @@ const sliderThumbPassThroughPatches = [
  * @type {Record<string, LocalPatch[]>}
  */
 export const LOCAL_PATCHES = {
-  sheet: i18nCloseLabelPatches('Sheet'),
+  sheet: [...i18nCloseLabelPatches('Sheet'), ...sheetHideOverlayPatches],
   dialog: i18nCloseLabelPatches('Dialog'),
   sidebar: sidebarCookieReadPatches,
   slider: sliderThumbPassThroughPatches,

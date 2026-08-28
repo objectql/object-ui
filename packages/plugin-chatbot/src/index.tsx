@@ -358,10 +358,20 @@ export {
   detectDraftResult,
   detectProposedPlan,
   detectBuilderHandoff,
+  detectRecordHandoff,
   detectProposedChanges,
+  detectReplayOutcome,
+  detectAuthoringVerdict,
+  detectBuiltAppPackage,
   buildProgressFromDraftReview,
 } from './mapMessages';
-export type { DraftReview, ProposedPlan, BuilderHandoff, ProposedChanges } from './mapMessages';
+export type {
+  DraftReview,
+  ProposedPlan,
+  BuilderHandoff,
+  ProposedChanges,
+  ReplayOutcome,
+} from './mapMessages';
 
 // `@object-ui/types` ChatMessage (the JSON/SDUI AUTHORING contract) → the
 // runtime `ChatMessage` above. Exported for the same reason as the mappers on

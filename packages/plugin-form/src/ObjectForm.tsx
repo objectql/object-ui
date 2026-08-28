@@ -19,10 +19,15 @@ import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
 import { resolveEffectiveCrudAffordances } from '@object-ui/core';
-import { resolveSuccessNavigate, isSameOriginUrl } from './successBehavior';
+import { resolveSuccessNavigate } from './successBehavior';
+import { resolveSubmitRedirect, submitRedirectScope } from './submitRedirect';
+import {
+  useSubmitRedirectNavigation,
+  type PendingSubmitRedirect,
+} from './submitRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
-import { WizardForm } from './WizardForm';
+import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
 import { SplitForm } from './SplitForm';
 import { DrawerForm } from './DrawerForm';
 import { ModalForm } from './ModalForm';
@@ -37,6 +42,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { noSubmitTargetError } from './submitTarget';
 import {
   schemaDefaultValues,
   isCreateFormMode,
@@ -294,6 +300,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // rebuilds each section key by key, so a key it doesn't copy is
             // silently dropped — exactly how `visibleOn` once vanished here.
             pane: s.pane,
+            // ADR-0089 section predicate (#6111) — same reason as `pane` above:
+            // a key this map does not copy never reaches the layout at all.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),
@@ -324,6 +333,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             fields: s.fields,
             collapsible: (s as any).collapsible,
             collapsed: (s as any).collapsed,
+            // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
+            // uncopied key is silently dropped before DrawerForm ever sees it.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
           })),
           open: schema.open,
@@ -352,6 +364,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
+            // uncopied key is silently dropped before ModalForm ever sees it.
+            visibleWhen: (s as any).visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),
@@ -417,7 +432,50 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // — without it the form stayed mounted and fully filled after a successful
   // submit, with nothing disabling re-submission (a second click created a
   // second record).
-  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
+  //
+  // `refusal` carries the second fact a REFUSED `redirect` destination has to
+  // report (objectui#4989): the write succeeded — hence the confirmation this
+  // state already renders — but the authored destination is out of contract, so
+  // nothing was navigated to and the author needs the reason. It rides on this
+  // state rather than on `error` because `error` is the load/submit FAILURE
+  // channel and a refused destination is not a failed submit; putting it there
+  // would tell the submitter their record was lost.
+  const [submitted, setSubmitted] = useState<
+    { title?: string; message?: string; refusal?: string } | null
+  >(null);
+
+  // The accepted destination of a `submitBehavior: { kind: 'redirect' }` submit,
+  // together with the delay declared for it, held from the moment the write
+  // succeeds until the wait below elapses (objectui#5033).
+  //
+  // The wait used to be a bare `setTimeout` armed inside the submit handler:
+  // nothing stored the handle and nothing cleared it, so for the whole of
+  // `delayMs` a full-page navigation was pending that OUTLIVED this component. A
+  // submitter who dismissed the modal/drawer variant, followed an in-app link, or
+  // whose host re-keyed the subtree was pulled away from wherever they had gone.
+  // Recording the destination here hands the wait to the effect below, which owns
+  // it for exactly as long as this component is mounted.
+  //
+  // The delay travels WITH the destination rather than being re-read from
+  // `schema.submitBehavior` at wait time: the value honoured is the one declared
+  // when the write was accepted, so a host re-rendering with a different
+  // `delayMs` mid-wait cannot restart the pause under the submitter.
+  const [pendingRedirect, setPendingRedirect] = useState<PendingSubmitRedirect | null>(null);
+
+  // The delayed leg of a `redirect` submit behaviour.
+  //
+  // `delayMs` semantics are unchanged: the pause is what makes the confirmation
+  // readable, and an unset value still means "go now" (a zero timer, exactly as
+  // the in-handler version scheduled it). The one thing that changed is who owns
+  // the wait — unmounting cancels it instead of leaving it to fire into a page
+  // the submitter has left.
+  //
+  // WHERE the wait lands is `submitRedirectNavigation.ts`'s question: the host's
+  // injected navigate when one was supplied (so a mounted host's basename is
+  // applied — objectui#4989 defect 4), else the `window.location.assign` this
+  // arm has always done. The wizard consumes the same hook, so a wizard and a
+  // flat form cannot travel to one authored destination differently.
+  useSubmitRedirectNavigation(pendingRedirect);
 
   // OCC-guarded edit save + its conflict dialog (see occSave.tsx).
   const { saveWithOcc, conflictDialog } = useOccSave();
@@ -724,16 +782,31 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       }
     }
 
-    // For inline fields without a dataSource, just call the success callback
-    if (hasInlineFields && !dataSource) {
+    // No submit TARGET: a declared `submitHandler` owns the write and needs no
+    // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+    // nor a `dataSource` is target-less. The one target-less form that is still
+    // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+    // This arm used to be `hasInlineFields && !dataSource` alone, checked BEFORE
+    // the persistence chain: a declared `submitHandler` was never reached, so a
+    // host that had said it owns the write got a success signal for a write it
+    // was never asked to perform (objectui#6388). Same rule and same precedence
+    // as the five variant renderers — see `submitTarget.ts` for the whole rule.
+    //
+    // The predicate stays this component's own `hasInlineFields` (non-empty
+    // `customFields`) rather than the shared `hasInlineFieldSource`. That
+    // helper's second limb — sections whose every field is an inline runtime
+    // `FormField` — is how the SECTIONED variants express an inline field
+    // source, and this renderer does not read it: here `sections[].fields` only
+    // SELECT (and override) fields already resolved from `customFields` or the
+    // object schema, so a sections-only form with no adapter resolves zero
+    // fields. Treating that as inline would widen the carve-out into a success
+    // signal for a form that collected nothing — this card's own defect class.
+    // Limb (a) is identical, and the refusal below is the shared one, verbatim.
+    if (!dataSource && !schema.submitHandler && hasInlineFields) {
       if (schema.onSuccess) {
         await schema.onSuccess(formData);
       }
       return formData;
-    }
-
-    if (!dataSource) {
-      throw new Error('DataSource is required for form submission (inline mode not configured)');
     }
 
     // Strip server-managed and computed / read-only fields from the payload
@@ -773,6 +846,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
         // + children into one atomic transaction). The form just validates and
         // hands over the values; it does NOT create/update itself.
         result = await schema.submitHandler(payload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of
+        // reporting success — the `catch` below hands this to `schema.onError`
+        // and rethrows. Expressing it here rather than in a pre-`try` guard is
+        // what lets the `submitHandler` branch above run first, and it is also
+        // what narrows `dataSource` for the routes below with no assertion.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
@@ -799,11 +879,46 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler && schema.submitBehavior) {
         const behavior = schema.submitBehavior;
         switch (behavior.kind) {
-          case 'redirect':
-            if (isSameOriginUrl(behavior.url)) {
-              setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+          case 'redirect': {
+            // objectstack#7496 ruled this url a RELATIVE in-app path with
+            // `{{record.field_name}}` interpolation, URL-escaped when the
+            // redirect is built. `resolveSubmitRedirect` asks the spec's own
+            // `FormViewSchema` for the shape verdict and performs the
+            // substitution — see that module for why the verdict is not
+            // restated here and what it deliberately does not fix.
+            //
+            // The old line asked `isSameOriginUrl`, which accepts a same-origin
+            // ABSOLUTE url the contract refuses at the authoring door, and
+            // dropped everything else in SILENCE: the write had already
+            // succeeded, so the submitter was left facing a still-filled form
+            // with no feedback, and the obvious next move — submit again — wrote
+            // a second record (objectui#4989 defects 2, 3 and 5).
+            const verdict = resolveSubmitRedirect(
+              behavior.url,
+              submitRedirectScope(payload, result),
+            );
+            if (!verdict.ok) {
+              // The write SUCCEEDED and only the destination is out of contract.
+              // So both facts are shown: the confirmation panel (which also
+              // removes the form, so there is nothing left to resubmit) and the
+              // spec's own prescription for the author. Following the value
+              // instead would be the spelling the contract refuses; dropping it
+              // is the silence the ruling rules out.
+              toast.error(verdict.refusal);
+              setSubmitted({
+                message: schema.successMessage
+                  || (schema.mode === 'create' ? 'Created' : 'Saved'),
+                refusal: verdict.refusal,
+              });
+              break;
             }
+            // Record the destination; the effect that owns the wait takes it
+            // from here (objectui#5033). Nothing about the verdict flow above
+            // changes — this arm still decides WHETHER to navigate, only no
+            // longer WHEN, because a timer armed here answered to nobody.
+            setPendingRedirect({ url: verdict.url, delayMs: behavior.delayMs ?? 0 });
             break;
+          }
           case 'continue':
             // Reset is driven declaratively by `resetOnSubmit` below (mirrors
             // `resetOnSuccess`) — nothing imperative to do here.
@@ -824,10 +939,64 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
         if (nav) {
-          window.location.assign(nav);
+          // An ACCEPTED `navigateOnSuccess` destination goes to the host —
+          // objectui#5034, points 1 and 3.
+          //
+          // A rooted path such as `/apps/x/o/record/r1` handed to
+          // `window.location.assign` resolves against the ORIGIN root, so under a
+          // host mounted at a sub-path (the framework CLI configures one for
+          // every embedded deployment; the console runs at basename `/_console`)
+          // an authored in-app destination left the application. Only the host
+          // knows its mount, and the seam that landed with PR #5111 is already
+          // wired into this component — the state below and the effect that owns
+          // it are 440 lines up. `delayMs: 0` reuses that one mechanism rather
+          // than minting a second: this key declares no delay, and an unset delay
+          // was already a zero timer, i.e. "go now". Reuse also hands this arm the
+          // property objectui#5033 bought for the other one — unmounting cancels
+          // the wait, so a navigation cannot fire into a form the submitter has
+          // left.
+          //
+          // Handed over UNCONDITIONALLY, which is point 3's consequence rather
+          // than a relaxation. `resolveSuccessNavigate` now admits relative
+          // references only (maintainer ruling 2026-08-17: this key runs under the
+          // objectstack#7496 semantics, so a same-origin ABSOLUTE is refused at
+          // the door like any other out-of-contract value). `HostNavigationValue`
+          // declares `to` to be "an already-resolved, application-relative path,
+          // never an absolute URL … It is the CALLER's job to have judged the
+          // destination" — and the caller has now judged it, once, at the
+          // admission door instead of twice.
+          //
+          // The `window.location.assign(nav)` arm that used to stand here was
+          // deleted as unreachable, not as unwanted: nothing can reach it once
+          // every accepted value is relative. That is proved rather than reasoned
+          // — `navigateOnSuccess.urlContract.test.tsx` pins, over a corpus,
+          // that every value this helper accepts satisfies the predicate the arm
+          // branched on. The absent-seam fallback is unchanged and still
+          // `window.location.assign`; it lives in `useSubmitRedirectNavigation`.
+          setPendingRedirect({ url: nav, delayMs: 0 });
           return result;
         }
-        toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+        if (schema.navigateOnSuccess) {
+          // Declared, and refused (objectui#5034 point 2). This is NOT the total
+          // silence objectui#4989 defect 2 described — the submitter does get a
+          // success toast, so they are not left facing a still-filled form and are
+          // not invited to resubmit. The injury is narrower and real: that toast
+          // was indistinguishable from the one a form with no `navigateOnSuccess`
+          // produces, so the declared navigation failed with nobody told. The
+          // write genuinely succeeded, so the fix is a note on the success — not
+          // an error, not a blocking panel. The template goes to the console for
+          // the author, where naming it cannot mislead the submitter.
+          console.warn(
+            '[ObjectForm] `navigateOnSuccess` was declared but produced no destination:',
+            schema.navigateOnSuccess,
+          );
+          toast.success(
+            schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+            { description: NAVIGATE_ON_SUCCESS_REFUSED_NOTE },
+          );
+        } else {
+          toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+        }
       }
 
       return result;
@@ -867,9 +1036,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   // the create-mode `required` suppression (#4069), so seeding and validation
   // cannot disagree about which mode this form is in.
   const isCreateForm = isCreateFormMode(schema);
+  // [#5683] `currentUserId` lets the one client-resolvable token
+  // (`current_user`) pre-fill with the id the server would stamp anyway;
+  // null/unloaded seeds nothing and keeps the omit-and-let-the-engine-resolve
+  // contract above.
   const schemaDefaults = React.useMemo(
-    () => (isCreateForm ? schemaDefaultValues(objectSchema) : {}),
-    [objectSchema, isCreateForm],
+    () => (isCreateForm ? schemaDefaultValues(objectSchema, { currentUserId: perms.userId }) : {}),
+    [objectSchema, isCreateForm, perms.userId],
   );
 
   const finalDefaultValues = {
@@ -937,12 +1110,28 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
   }
 
   if (submitted) {
-    return (
+    const confirmation = (
       <div className="rounded-md border bg-card p-6 sm:p-8 text-center">
         <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
         {submitted.message && (
           <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
         )}
+      </div>
+    );
+    // A refused `redirect` destination (objectui#4989) keeps the confirmation —
+    // the record WAS written — and adds the reason nothing was navigated to.
+    // `role="alert"` because this appears after the submit the user just made,
+    // so it has to reach a screen reader without a focus move.
+    if (!submitted.refusal) return confirmation;
+    return (
+      <div className="space-y-4">
+        {confirmation}
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+        >
+          {submitted.refusal}
+        </div>
       </div>
     );
   }
@@ -1030,6 +1219,18 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           name: `__section_${sectionKey}`,
           label,
           type: 'section-divider',
+          // ADR-0089 `FormSection.visibleWhen` (#6111). The renderer evaluates
+          // a `visibleWhen` on this pseudo-field with the host predicate scope
+          // bound (#6010), so copying it here is what makes the authored
+          // section predicate reach an evaluator at all.
+          visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): the RESOLVED member names — the same
+          // strings the renderer's flat list carries — so the section
+          // predicate gates the whole group, not just this heading. Resolved
+          // rather than authored on purpose: the authored `section.fields`
+          // entries can be spec field-defs, and a perms-filtered field is not
+          // in the form at all.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,

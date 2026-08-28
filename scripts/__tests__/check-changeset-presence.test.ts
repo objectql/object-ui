@@ -5,7 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { changedFiles, describeDeclaration, discoverPackages, readReleaseConfig, resolveBaseRef } from '../check-changeset-presence.mjs';
+import {
+  changedFiles,
+  classifyChangedPaths,
+  describeDeclaration,
+  discoverPackages,
+  isPublishedSource,
+  readReleaseConfig,
+  resolveBaseRef,
+} from '../check-changeset-presence.mjs';
 
 /**
  * objectui#3387 — a change to published source could ship with no changeset, and
@@ -29,6 +37,13 @@ import { changedFiles, describeDeclaration, discoverPackages, readReleaseConfig,
  *     `apps/console` and would have been missed — the most-edited published
  *     package in the repository, and the one the platform bump script writes a
  *     changeset for.
+ *  2b. **The POPULATION is published AND executable**, not `src/` alone
+ *     (objectui#5733). `apps/console/index.html` is compiled into the published
+ *     `dist/` and runs two inline classic scripts in every user's browser, and
+ *     the `src/`-only reading let it change with nothing said. The three legs
+ *     below keep the widening honest in both directions: red-naming-the-file,
+ *     green-when-declared, and green for a non-shipped neighbour in the same
+ *     package directory.
  *  3. **The verdicts**, against throwaway repositories rather than this one's
  *     history, so they stay decidable when the history moves.
  *  4. **Every missing input fails LOUD.** A diff gate that cannot compute its
@@ -112,8 +127,21 @@ function fixtureRepo(label: string, { classifyAll = true } = {}): Fixture {
   write('packages/alpha/README.md', 'alpha\n');
   write('packages/ignored-demo/package.json', JSON.stringify({ name: '@fixture/ignored-demo', version: '1.0.0' }));
   write('packages/ignored-demo/src/index.ts', 'export const demo = 1;\n');
-  write('apps/console/package.json', JSON.stringify({ name: '@fixture/console', version: '1.0.0' }));
+  // Shaped like the real `apps/console`: a `files` list that publishes a
+  // package-ROOT source file, an HTML build entry outside `src/`, and neighbours
+  // that live in the same directory and ship nothing executable. objectui#5733's
+  // population lives entirely in the gap between those two groups.
+  write(
+    'apps/console/package.json',
+    JSON.stringify({ name: '@fixture/console', version: '1.0.0', files: ['dist', 'plugin.ts', 'README.md'] }),
+  );
   write('apps/console/src/main.ts', 'export const main = 1;\n');
+  write('apps/console/index.html', '<!doctype html>\n<script>window.boot = 1;</script>\n');
+  write('apps/console/plugin.ts', 'export const ConsolePlugin = 1;\n');
+  write('apps/console/README.md', 'console\n');
+  write('apps/console/preview-gallery.html', '<!doctype html>\n<title>dev preview</title>\n');
+  write('apps/console/public/manifest.json', '{ "name": "Console" }\n');
+  write('apps/console/vitest.config.ts', 'export default {};\n');
   write('docs/guide.md', 'guide\n');
   if (!classifyAll) {
     // A package in NEITHER the fixed group nor `ignore` — the case the gate
@@ -280,6 +308,155 @@ describe('the guarded surface follows .changeset/config.json, not a hand-written
     const run = runGate(empty.root, lastCommitRange(empty));
     expect(run.status).toBe(1);
     expect(run.output).toMatch(/empty `fixed` group/);
+  });
+});
+
+// ── 2b. the POPULATION: published AND executable (objectui#5733) ─────────────
+
+describe("the population is a package's PUBLISHED, EXECUTABLE source — not `src/` alone", () => {
+  // objectui#5733 measured the hole on `a1c41c516`: a change confined to
+  // `apps/console/index.html` — compiled into the published `dist/`, carrying two
+  // inline classic scripts that run in every user's browser during parse — was
+  // reported as `0 of them under the src/ of a package the release covers` and
+  // passed. These are the three legs that keep the fix from being vacuous: a
+  // should-demand change goes red NAMING the file, the same change with a
+  // declaration goes green, and a genuinely non-shipped neighbour stays green so
+  // the widening did not become a blanket.
+
+  it('POSITIVE — an HTML entry outside src/ changes with no changeset, and the gate goes red naming it', () => {
+    const repo = fixtureRepo('html-entry');
+    repo.write('apps/console/index.html', '<!doctype html>\n<script>window.boot = 2;</script>\n');
+    repo.commit('fix(console): change shipped boot behaviour, undeclared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status, 'a shipped, executable file changed and nothing declared it').toBe(1);
+    expect(run.output).toMatch(/adds no changeset/);
+    expect(run.output).toMatch(/@fixture\/console/);
+    // Naming the file is the load-bearing half: a red that does not say WHICH
+    // file cannot be acted on, and would pass just as well if the matcher had
+    // caught something else entirely.
+    expect(run.output).toMatch(/apps\/console\/index\.html/);
+  });
+
+  it('NEGATIVE CONTROL 1 — the same change WITH a changeset is green', () => {
+    const repo = fixtureRepo('html-entry-declared');
+    repo.write('apps/console/index.html', '<!doctype html>\n<script>window.boot = 2;</script>\n');
+    repo.write('.changeset/quiet-otters-boot.md', '---\n"@fixture/console": patch\n---\n\nBoot script fix.\n');
+    repo.commit('fix(console): declared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/declares 1 changeset/);
+  });
+
+  it('NEGATIVE CONTROL 2 — non-shipped neighbours in the SAME package directory stay green', () => {
+    // Each of these lives inside a released package's directory and is published
+    // by nothing executable: `public/` is copied verbatim into `dist/` but is
+    // static, the preview page is a dev-server route Vite never builds, the
+    // README ships as documentation, and the vitest config ships not at all. If
+    // the widening had been "the whole package directory", every one of them
+    // would now demand a declaration — which is the failure mode that gets a
+    // gate answered with empty changesets nobody reads.
+    const repo = fixtureRepo('non-shipped');
+    repo.write('apps/console/public/manifest.json', '{ "name": "Console v2" }\n');
+    repo.write('apps/console/preview-gallery.html', '<!doctype html>\n<title>dev preview 2</title>\n');
+    repo.write('apps/console/README.md', 'console, revised\n');
+    repo.write('apps/console/vitest.config.ts', 'export default { test: {} };\n');
+    repo.commit('chore(console): touch four files that ship no behaviour');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status, 'none of these four is published executable source').toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+    expect(run.output).toMatch(/4 file\(s\) changed, 0 of them published source/);
+  });
+
+  it('a package-ROOT file the `files` list publishes verbatim counts — clause (c)', () => {
+    // `apps/console/plugin.ts` is the real package's `main`. It is source, it is
+    // published, and it is nowhere near `src/`.
+    const repo = fixtureRepo('published-root-file');
+    repo.write('apps/console/plugin.ts', 'export const ConsolePlugin = 2;\n');
+    repo.commit('fix(console): change the published plugin entry, undeclared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(1);
+    expect(run.output).toMatch(/apps\/console\/plugin\.ts/);
+  });
+
+  it('a `files` list that publishes documentation does not make documentation count', () => {
+    // The fixture's `files` names `README.md` explicitly, so clause (c) matches
+    // it and only the documentation subtraction keeps it out. Without that
+    // subtraction this test goes red — which is what makes the subtraction a
+    // subject here rather than an untested branch.
+    const repo = fixtureRepo('published-readme');
+    repo.write('apps/console/README.md', 'console, revised again\n');
+    repo.commit('docs(console): published, but not behaviour');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it('states the rule as a clause table `isPublishedSource` must satisfy', () => {
+    // The prose in the gate's header and this table are the same rule twice; if
+    // one is edited the other has to move with it.
+    const consoleLike = { files: ['dist', 'plugin.ts', 'README.md'] };
+    const bare = { files: [] };
+
+    // (a) under src/ — unconditional, and unchanged from before objectui#5733.
+    expect(isPublishedSource('src/main.ts', bare)).toBe(true);
+    expect(isPublishedSource('src/__tests__/main.test.ts', bare)).toBe(true);
+    // …including documentation, which (a) does NOT subtract: nothing that was
+    // guarded before this change may be guarded less now.
+    expect(isPublishedSource('src/notes.md', bare)).toBe(true);
+
+    // (b) the bundler's HTML entry, by exact name.
+    expect(isPublishedSource('index.html', bare)).toBe(true);
+    expect(isPublishedSource('preview-gallery.html', bare)).toBe(false);
+    expect(isPublishedSource('demo/index.html', bare)).toBe(false);
+
+    // (c) published verbatim by the package's own `files` list.
+    expect(isPublishedSource('plugin.ts', consoleLike)).toBe(true);
+    expect(isPublishedSource('plugin.ts', bare)).toBe(false);
+    expect(isPublishedSource('dist/plugin.js', consoleLike)).toBe(true);
+
+    // …minus documentation and licences, even when `files` names them.
+    expect(isPublishedSource('README.md', consoleLike)).toBe(false);
+    expect(isPublishedSource('CHANGELOG.md', consoleLike)).toBe(false);
+    expect(isPublishedSource('LICENSE', consoleLike)).toBe(false);
+
+    // Everything else in a package directory: still out.
+    expect(isPublishedSource('package.json', consoleLike)).toBe(false);
+    expect(isPublishedSource('vite.config.ts', consoleLike)).toBe(false);
+    expect(isPublishedSource('public/manifest.json', consoleLike)).toBe(false);
+    expect(isPublishedSource('tsconfig.json', consoleLike)).toBe(false);
+  });
+
+  it('answers THIS repository the same way — the three files the widening adds, and no fourth', () => {
+    // Read against the real tree rather than a fixture, because the fixture
+    // cannot show that the rule stayed narrow across 40 released packages. The
+    // assertion is per-file rather than a count, so it stays decidable as the
+    // tree grows.
+    const packages = discoverPackages(repoRoot, readReleaseConfig(repoRoot));
+    const guardedFiles = (paths: string[]): string[] =>
+      classifyChangedPaths(paths, packages).guarded.map((entry: { file: string }) => entry.file);
+
+    expect(
+      guardedFiles(['apps/console/index.html', 'apps/console/plugin.ts', 'packages/runner/index.html']),
+      'the shipped, executable files outside src/ that objectui#5733 measured as unguarded',
+    ).toEqual(['apps/console/index.html', 'apps/console/plugin.ts', 'packages/runner/index.html']);
+
+    expect(
+      guardedFiles([
+        'apps/console/public/manifest.json',
+        'apps/console/preview-gallery.html',
+        'apps/console/README.md',
+        'apps/console/package.json',
+        'apps/console/vite.config.ts',
+        'packages/plugin-grid/demo/index.html',
+        'packages/runner/tsconfig.json',
+      ]),
+      'the widening is not a blanket over the package directory',
+    ).toEqual([]);
   });
 });
 

@@ -23,6 +23,8 @@ import '@object-ui/plugin-grid';
 
 If you are using a custom component, register it explicitly:
 
+<!-- doc-snippet: fragment — `./MyCustomWidget` is the reader's own component module, so the import cannot resolve from this repository -->
+
 ```typescript
 import { ComponentRegistry } from '@object-ui/core';
 import { MyCustomWidget } from './MyCustomWidget';
@@ -55,7 +57,14 @@ npx objectui doctor
 @import '@object-ui/fields/style.css';
 ```
 
-Two packages publish a `style.css`: `@object-ui/components` (the base sheet — theme tokens, base layer, its own utilities) and `@object-ui/fields` (a supplement carrying only what the field widgets add). The fields sheet is built by subtracting everything the components sheet already ships, so it must come **after** it; on its own it styles almost nothing.
+`@object-ui/components` publishes the base sheet — theme tokens, base layer, its own utilities — and every other sheet is a supplement built by subtracting everything the base already ships, so each must come **after** it and none styles much on its own. `@object-ui/fields` carries what the field widgets add. `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` carry what those two plugins add; add a line for each plugin package you install:
+
+```css
+@import '@object-ui/plugin-grid/style.css';
+@import '@object-ui/plugin-kanban/style.css';
+```
+
+If a grid or a kanban board specifically looks wrong — column headers and card surfaces flat, drag feedback and selection rings missing — that plugin's sheet is the missing import. It did not exist before either: those packages emitted no CSS at all until [#4929](https://github.com/objectstack-ai/objectui/issues/4929), so on earlier versions the subpath does not resolve and upgrading is the fix, not a scanning path. The remaining `@object-ui/plugin-*` packages still publish no stylesheet.
 
 If field widgets specifically look wrong — tag and badge colours flat, the rating stars not reacting to hover, the signature pad showing the wrong cursor — the fields import is the one that is missing. Note that it genuinely did not exist before: every release up to and including 17.3.0 declared the `@object-ui/fields/style.css` subpath while shipping no stylesheet at all ([#4059](https://github.com/objectstack-ai/objectui/issues/4059)), so on those versions the import fails to resolve and breaks the build. Upgrade rather than adding scanning paths.
 
@@ -107,6 +116,8 @@ Available context variables:
 
 Debug expressions by enabling debug mode in `SchemaRendererContext`:
 
+<!-- doc-snippet: fragment — a bare `<SchemaRenderer />` tag shown for the `debug` prop alone; `schema` is the reader's own document -->
+
 ```tsx
 <SchemaRenderer schema={schema} debug={true} />
 ```
@@ -154,8 +165,9 @@ import type { FormSchema } from '@object-ui/types/form';
 import type { LayoutSchema } from '@object-ui/types/layout';
 import type { DataDisplaySchema } from '@object-ui/types/data-display';
 
-// Zod validation schemas
-import { componentSchema } from '@object-ui/types/zod';
+// Zod validation schemas — same PascalCase names as the types, so alias one of
+// the two when a module imports both.
+import { ComponentSchema as ComponentSchemaValidator } from '@object-ui/types/zod';
 ```
 
 The `@object-ui/types` package exports multiple entry points (`base`, `layout`, `form`, `data-display`, `feedback`, `overlay`, `navigation`, `complex`, `data`, `zod`). Check `packages/types/package.json` for the full list.
@@ -172,6 +184,9 @@ The `@object-ui/types` package exports multiple entry points (`base`, `layout`, 
 
 ```tsx
 import { ThemeProvider } from '@object-ui/react';
+import type { FC } from 'react';
+
+declare const YourApp: FC;
 
 function App() {
   return (
@@ -205,10 +220,16 @@ function App() {
 
 ```tsx
 import { I18nProvider } from '@object-ui/i18n';
+import type { FC } from 'react';
 
-<I18nProvider locale="en" messages={messages}>
+declare const App: FC;
+
+// The app's own packs are merged with the built-in locales.
+const resources = { en: { greeting: 'Hello' }, fr: { greeting: 'Bonjour' } };
+
+<I18nProvider config={{ defaultLanguage: 'en', resources }}>
   <App />
-</I18nProvider>
+</I18nProvider>;
 ```
 
 2. Check that locale files follow the expected structure. Each locale file should export a flat or nested object of key-value pairs.
@@ -231,7 +252,13 @@ For custom views, use the `usePerformance` hook from `@object-ui/react` to monit
 ```typescript
 import { usePerformance } from '@object-ui/react';
 
-const { startMeasure, endMeasure } = usePerformance('MyWidget');
+// Inside your component:
+const { metrics, markRenderStart } = usePerformance({
+  virtualScroll: { enabled: true, itemHeight: 40 },
+});
+
+const stopMeasure = markRenderStart(); // call stopMeasure() once the render settles
+console.log(metrics.lastRenderDuration);
 ```
 
 ## 10. Plugin Conflicts
@@ -243,6 +270,11 @@ const { startMeasure, endMeasure } = usePerformance('MyWidget');
 **Fix:** Always use namespaced registrations:
 
 ```typescript
+import { ComponentRegistry } from '@object-ui/core';
+import type { FC } from 'react';
+
+declare const MyGridComponent: FC;
+
 ComponentRegistry.register('grid', MyGridComponent, {
   namespace: 'my-plugin',  // ← prevents collision
   label: 'Custom Grid',
@@ -338,6 +370,8 @@ what the data layer requested:
 
 ```typescript
 import { columnIdentity } from '@object-ui/core';
+
+declare const column: unknown;
 
 const fieldName = columnIdentity(column); // string | undefined
 ```

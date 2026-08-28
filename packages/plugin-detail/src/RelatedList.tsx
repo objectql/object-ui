@@ -43,11 +43,15 @@ import type { ViewFilterRule } from '@objectstack/spec/ui';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog, deriveLookupColumns } from '@object-ui/fields';
 import {
   columnIdentity,
+  columnHeader,
   compareSortValues,
   getRecordDisplayName,
   getSortValue,
   isExpandableFieldType,
+  isPlatformSortableField,
+  isUnmaterializedFieldType,
   mergeFilterNodes,
+  readObjectSortability,
   toFilterNode,
   userActionPredicates,
   type FilterNode,
@@ -69,6 +73,17 @@ export interface RelatedListProps {
   objectName?: string;
   /** Callback when "New" button is clicked */
   onNew?: () => void;
+  /**
+   * [#4646] Render "New" GREYED rather than clickable. Supplied by the host
+   * alongside `onNew` when the create affordance exists for this list but its
+   * `userActions.create.disabledWhen` predicate answers true for the record in
+   * scope (the parent record, on a record page's related list).
+   *
+   * Deliberately distinct from omitting `onNew` — which HIDES the button. Same
+   * hidden-vs-disabled split the row Edit/Delete predicates have had since
+   * objectui#2614.
+   */
+  newDisabled?: boolean;
   /** Callback when "View All" button is clicked */
   onViewAll?: () => void;
   /** Callback when a row Edit action is clicked */
@@ -303,6 +318,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   dataSource,
   objectName,
   onNew,
+  newDisabled,
   onViewAll,
   onRowEdit,
   onRowDelete,
@@ -926,15 +942,61 @@ export const RelatedList: React.FC<RelatedListProps> = ({
      // would see raw values (e.g. `planned`, unformatted numbers).
      const normalizeColumn = (c: any): any => {
        if (typeof c !== 'string') {
-         // Object column: attach a cell renderer when it lacks one and we can
-         // resolve the field def — preserves any author-supplied cell/render.
+         // Object column: resolve the identity ONCE, then hand the table an
+         // entry that already speaks the table's own vocabulary.
+         //
+         // Every read in this file resolves identity canonical-first through
+         // the shared `columnIdentity` reader (objectui#3104), so
+         // `{ field: 'status' }` passes
+         // the FLS filter, the FK filter, `pruneEmpty` and the sort row. The
+         // data-table it feeds does NOT: it normalizes its accessor as
+         // `accessorKey: col.accessorKey || col.name` and never looks at
+         // `field`. An entry authored in the spec-canonical spelling therefore
+         // used to survive every metadata-aware filter and then render a header
+         // over `row[undefined]` — blank cells, no warning (objectui#5022; the
+         // objectui#3951 shape, one spelling over).
+         //
+         // The stamp goes HERE rather than in the table's normalization
+         // because `accessorKey` is the table LIBRARY's key, not metadata:
+         // `column-identity.ts` names it `TABLE_ADAPTER_COLUMN_KEY` and keeps
+         // the canonicalizing fold away from it on purpose. Resolving the
+         // metadata vocabulary inside the adapter would merge the two
+         // vocabularies in the one place that module says must stay separate;
+         // translating at the boundary keeps the adapter monolingual.
+         //
+         // Mirror, don't move: the authored spelling is left in place (a host
+         // reading `field`/`name` off these columns keeps working), and an
+         // author-supplied `accessorKey` is never overwritten — a deliberate
+         // divergence between the table slot and the metadata key belongs to
+         // the author. An entry with no resolvable identity is returned
+         // untouched, so nothing is invented for it.
          const key = c?.accessorKey || columnIdentity(c);
-         if (c && !c.cell && !c.render && key) {
+         if (!c || !key) return c;
+         const patch: Record<string, unknown> = {};
+         if (!c.accessorKey) patch.accessorKey = key;
+         // The display half of the SAME boundary (objectui#5351). The spec
+         // spells a column's text `ListColumnSchema.label`; the adapter spells
+         // it `TableColumn.header` and, since objectui#5120, reads only that.
+         // The alias it used to carry (`header: col.header || col.label`) is
+         // gone, so this producer translates instead — otherwise every
+         // `record_related_list` block whose columns are authored the spec way
+         // arrives headerless. An author-supplied `header` is never overwritten,
+         // for the same reason `accessorKey` isn't: it addresses the table
+         // directly.
+         if (!c.header) {
+           const text = columnHeader(c);
+           if (text) patch.header = text;
+         }
+         // Attach a cell renderer when it lacks one and we can resolve the
+         // field def — preserves any author-supplied cell/render.
+         if (!c.cell && !c.render) {
            const def = (objectSchema?.fields as any)?.[key];
            const cell = def ? makeCell(String(key), def) : undefined;
-           if (cell) return { ...c, cell };
+           if (cell) patch.cell = cell;
          }
-         return c;
+         // Nothing to add: return the INPUT entry by reference, so the
+         // downstream `useMemo`s keep a stable dependency on the common path.
+         return Object.keys(patch).length > 0 ? { ...c, ...patch } : c;
        }
        const fieldDef = objectSchema?.fields?.[c] as any;
        const header = fieldDef?.label || resolveFieldLabel(relatedObjectName, c, fieldDef) || c;
@@ -1058,28 +1120,91 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [columns, objectSchema, objectName, api, resolveFieldLabel, referenceField, relatedData, maxColumns, lookupLabels, perms]);
 
   /**
-   * The same columns, with the sort affordance withheld from relational ones
-   * while the sort is the server's.
+   * [#6108] The SERVED per-column sortability projection for this object —
+   * objectstack#10235's ruling A, consumed rather than re-derived, through
+   * #5729's landed spelling in `@object-ui/core`.
    *
-   * A windowed sort goes out as `$orderby` on the flat field name, and a
-   * relational column stores a foreign-key id — so "sort by Owner" would order
-   * the collection by `rec_7f3…` while the cells show names (objectui#3096;
-   * objectstack#4256 settled that no relation join is coming). This is the rule
-   * the sort-button row already applied; the headers inherit it rather than
-   * re-opening the same door.
+   * `undefined` means the metadata response carried no `sortability` key at
+   * all: a backend older than the upstream change, an inline/mock data source,
+   * or the schema fetch not yet landed. That is NOT "nothing is sortable" —
+   * see the branch in `withheldFromServerSort` below.
+   */
+  const platformSortability = readObjectSortability(objectSchema);
+
+  /**
+   * [#6108] Does a server `$orderby` on this flat field name have to be
+   * withheld? THE one predicate behind both of this list's sort entry points —
+   * the embedded table's column headers and the `data-list` sort-button row.
+   * They never shared a derivation before, which is how the same refused sort
+   * stayed reachable through whichever control the other one did not cover.
    *
-   * In client mode the sort keys off the resolved label, so those headers stay
-   * live — the same split `sortedData` makes.
+   * TWO reasons, kept separate on purpose — the same split the grid header
+   * makes (`ObjectGrid.withSortability`, #5729):
+   *
+   *  - RELATIONAL, and deliberately NOT delegated to the platform signal. The
+   *    projection answers `sortable: true` for a `lookup`: the platform's
+   *    question is whether it can order by the STORED foreign key, which it
+   *    can. Ours is whether that order means anything next to a column of
+   *    related-record names, and it does not (objectstack#4256 settled that no
+   *    relation join is coming). Two different questions; folding this one into
+   *    the signal would hand every relational column its sort back.
+   *  - PLATFORM. `isPlatformSortableField` is the contract: an entry must EXIST
+   *    in the served projection and say `sortable: true`. Absence is a refusal
+   *    — an unknown name, a dotted path (a caller may hand `columns` either),
+   *    an unprovisioned audit column — never a default of `true`.
+   *
+   * Both entry points used to read `isUnmaterializedFieldType` off the field's
+   * TYPE instead. That agrees with the projection about `formula` — the
+   * platform computes its own from the same `@objectstack/spec` storage fact —
+   * which is exactly why the drift went unnoticed. It parts company on
+   * everything the projection encodes as ABSENCE, and on any verdict the
+   * runtime doors add later; and it cannot follow the platform when it moves.
+   *
+   * NO SIGNAL SERVED keeps the type read as a compatibility floor: behaviour
+   * identical to before this card, unreachable the moment a backend serves the
+   * signal, and meant to be deleted when the supported floor passes that
+   * release.
+   */
+  const withheldFromServerSort = React.useCallback(
+    (field: string | undefined, fieldDef: unknown) => {
+      if (isExpandableFieldType(fieldDef)) return true;
+      if (platformSortability) return !isPlatformSortableField(platformSortability, field);
+      return isUnmaterializedFieldType(fieldDef);
+    },
+    [platformSortability],
+  );
+
+  /**
+   * The same columns, with the sort affordance withheld from the ones a server
+   * `$orderby` cannot honestly order by.
+   *
+   * A windowed sort goes out as `$orderby` on the flat field name, and two kinds
+   * of column cannot survive that trip (objectui#3096, #3950):
+   *
+   *  - a relational column stores a foreign-key id, so "sort by Owner" would
+   *    order the collection by `rec_7f3…` while the cells show names
+   *    (objectstack#4256 settled that no relation join is coming);
+   *  - a column the PLATFORM will not order by — a `formula` with no
+   *    materialised column behind it (silently unordered rows under a `200`
+   *    before objectstack#6994, a `400 INVALID_SORT` after it), and every
+   *    other name the served projection refuses. `withheldFromServerSort`
+   *    above is the whole judgement; this memo only applies it.
+   *
+   * This is the rule the sort-button row already applied; the headers inherit it
+   * rather than re-opening the same door.
+   *
+   * In client mode the sort keys off the value the cell shows — the resolved
+   * label, the hydrated formula result — so those headers stay live: the same
+   * split `sortedData` makes.
    */
   const sortableColumns = React.useMemo(() => {
     if (!windowed) return effectiveColumns;
     return effectiveColumns.map((col: any) => {
       const field = col.accessorKey || columnIdentity(col);
-      return field && isExpandableFieldType((objectSchema?.fields as any)?.[field])
-        ? { ...col, sortable: false }
-        : col;
+      const fieldDef = field ? (objectSchema?.fields as any)?.[field] : undefined;
+      return withheldFromServerSort(field, fieldDef) ? { ...col, sortable: false } : col;
     });
-  }, [effectiveColumns, windowed, objectSchema]);
+  }, [effectiveColumns, windowed, objectSchema, withheldFromServerSort]);
 
   // A `grid`/`table` list renders a real table, whose column headers carry the
   // sort. `list` renders `data-list`, which has none — so it keeps the button
@@ -1267,6 +1392,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
                 size="sm"
+                /* [#4646] `userActions.create.disabledWhen` for the record this
+                   list hangs off. `visibleWhen` never reaches here — a false
+                   one makes the host omit `onNew`, so the button is absent
+                   rather than greyed. */
+                disabled={newDisabled}
+                data-testid="related-list-new"
                 onClick={(e) => { e.stopPropagation(); onNew(); }}
                 className="gap-1 h-9 sm:h-7 text-xs shadow-none"
               >
@@ -1306,11 +1437,16 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               // A windowed sort goes out as a server `$orderby` on the flat
               // field name, so a relational column would order the collection by
               // its stored foreign-key id while the cells show related-record
-              // names — sorting looks broken (objectui#3096). No button rather
-              // than a button that sorts by something invisible. The client-mode
-              // branch keeps its button: there the sort key is the resolved
-              // label (see `sortedData`).
-              if (windowed && isExpandableFieldType((objectSchema?.fields as any)?.[field])) {
+              // names — sorting looks broken (objectui#3096) — and a name the
+              // PLATFORM refuses to order by has nothing behind it at all
+              // (objectstack#6994, objectui#3950, and #6108 for reading that
+              // verdict off the served projection instead of the field's type).
+              // No button rather than a button that sorts by something invisible
+              // or that cannot be answered. The client-mode branch keeps its
+              // button: there the sort key is the value the cell shows (see
+              // `sortedData`).
+              const fieldDef = (objectSchema?.fields as any)?.[field];
+              if (windowed && withheldFromServerSort(field, fieldDef)) {
                 return null;
               }
               const label = col.header || col.label || field;

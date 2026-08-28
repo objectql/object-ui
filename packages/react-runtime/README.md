@@ -14,8 +14,8 @@ lazy-load it behind a capability flag.
 > and everything in scope. It is not isolated, not restricted, and not
 > validated. Only run source you would run as first-party code.
 >
-> For untrusted authors use **`kind:'html'`** instead: constrained JSX/HTML +
-> Tailwind, parsed into a schema tree and never executed. See
+> For untrusted authors use **`kind:'html'`** instead: constrained JSX, parsed
+> into a schema tree and never executed. See
 > [React pages](../../content/docs/guide/react-pages.md).
 
 ## Installation
@@ -85,6 +85,23 @@ that reads `scope.import`:
 ```
 
 Anything not provided there throws `Module not found`.
+
+## Styling
+
+**Do not author Tailwind utility classes in page `source`** — on either tier. A
+page's `source` is *runtime metadata*: the console's Tailwind is compiled at
+build time by scanning the console's own `src`, and there is no safelist, so it
+never sees your page. An authored utility class produces CSS only by coincidence
+(when objectui already ships that exact class) and otherwise produces nothing,
+with no error anywhere. `os validate` reports it as
+`page-source-className-tailwind`, a warning on both tiers. (ADR-0065; ADR-0080's
+2026-06-30 amendment.)
+
+Style a `kind:'react'` page with inline `style` objects, and a `kind:'html'` page
+with the blocks' own structured props (`<flex direction gap>`, `<grid columns>`)
+plus a JSON `style` object. Colors on both tiers come from the theme as
+`hsl(var(--token))`, so a page follows light/dark and whatever theme the
+deployment installs.
 
 ## Stable scope identity matters
 

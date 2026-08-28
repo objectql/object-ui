@@ -1,5 +1,339 @@
 # @object-ui/react
 
+## 17.6.0
+
+### Minor Changes
+
+- f1d4748: Remove the retired `striped` / `bordered` / `virtualScroll` list-view surface
+  
+  objectstack#7176 retired `list.striped`, `list.bordered` and `list.virtualScroll`
+  from the spec after measuring every objectui reader as pass-through: each one
+  copied the key onward and no renderer ever applied it. objectui stops declaring,
+  typing and forwarding them.
+  
+  Off the chain: the `@objectstack/spec` list-view bridge in `@object-ui/react`,
+  `ListView`'s child-view props in `@object-ui/plugin-list`, both `ObjectView`
+  relays (`@object-ui/plugin-view` and `@object-ui/app-shell`), the `ObjectGridSchema`
+  and `NamedListView` declarations in `@object-ui/types` (interface and zod),
+  `ObjectGrid.component.yml` in `@object-ui/components`, and the page-block
+  inspector's `striped` / `bordered` toggles in the metadata-admin designer.
+  
+  Behaviour is unchanged: nothing read these keys, so nothing rendered differently
+  for them. Stored view metadata that still carries one keeps validating — the keys
+  are simply no longer relayed. `ListViewSchema` continues to take the spec's
+  list-view fields by reference, so the protocol's own retirement tombstones
+  arrive with the next `@objectstack/spec` bump and reject the keys at the
+  authoring boundary. Restoring any of the three as live surface requires an
+  implementation card filed first, per the ruling.
+- 8c0d52e: A form's ruled `submitBehavior.url` redirect can now be performed by the HOST, so a destination stays inside a console mounted at a sub-path (objectui#4989 defect 4).
+  
+  `ObjectForm` and `WizardForm` accept a relative in-app path and used to travel to it with `window.location.assign`. A rooted path resolves against the ORIGIN there, so under a mounted host — `<BrowserRouter basename="/_console">`, which the framework CLI configures for every embedded deployment — an authored `/thanks` left the application. The destination was correct and the navigation was wrong, and a published renderer cannot fix that alone: only the host knows its mount.
+  
+  **New: `HostNavigationContext` (`@object-ui/react`).** A host offers its own navigate; a renderer uses it when it is there:
+  
+  ```tsx
+  import { HostNavigationProvider } from '@object-ui/react';
+  import { useNavigate } from 'react-router-dom';
+  
+  function Bridge({ children }) {
+    const navigate = useNavigate();
+    return (
+      <HostNavigationProvider value={{ navigate: (to, o) => navigate(to, { replace: o?.replace ?? false }) }}>
+        {children}
+      </HostNavigationProvider>
+    );
+  }
+  ```
+  
+  `@object-ui/app-shell`'s `ConsoleShell` now mounts that bridge above every console route, so the console's own routes, and its basename, are what a post-submit redirect resolves against — and the redirect becomes an SPA transition instead of a full page load.
+  
+  **Nothing changes for a host that wires nothing.** With no provider the behaviour is byte-for-byte what it was: one `window.location.assign` of the resolved path after the declared `delayMs`. A host with no router has no basename, so origin-rooted resolution is already right there — the seam changes what a MOUNTED host gets and nothing else. `useHostNavigation()` outside a provider answers `{ navigate: undefined }` and never throws.
+  
+  Two mechanisms were weighed and rejected by the ruling, recorded so they are not re-proposed. **Reading React Router's context when a router happens to be present** is implicit, and unavailable anyway: a React context is a module-instance object, so reading the host's means importing `react-router` into the renderer — which `@object-ui/plugin-form` declares in none of its dependency fields, whose published build externalises every bare specifier, and which two real consumers (`apps/site`, `packages/plugin-view`) do not install. **Requiring `react-router` as a peer** is the honest version of the same thing and costs the package its property of dropping into any React application.
+  
+  What the host takes on by supplying a navigate: the destination becomes a client-side transition, so an in-app path with no matching route renders the host's not-found instead of a full page load. That is the host's routing table to answer for, which is why the choice is the host's. The contract verdict is unchanged either way — a destination `@objectstack/spec` refuses is refused identically with or without a seam, so an injected navigate can never launder a value the authoring door rejects.
+  
+  `navigateOnSuccess` is a different declared key with its own open contract question (objectui#5034) and is deliberately untouched here.
+- dbbd38a: fix(react): `bridgeListView` emits the column spelling the spec declares
+  
+  `mapColumn` took a spec-canonical `ListColumn` — whose columns are **already**
+  spelled `field` / `label` — and down-translated every one of them to
+  `{ accessorKey, header }` before emitting the `object-grid` node, which
+  `ObjectGrid` then translated back. A round trip through a spelling
+  `ListColumnSchema` refuses by name, on a value that arrived canonical. The
+  bridge now forwards the declared shape, and the tolerance branch on the other
+  side retires in the same release (see `@object-ui/plugin-grid`).
+  
+  **Output shape.** `bridgeListView` / `SpecBridge.transformListView` emit
+  `columns: [{ field, label?, … }]`. Code reading `node.columns[i].accessorKey`
+  off a bridged node reads `field` instead; `header` becomes `label`. The bare
+  string shorthand `columns: ['name']` now maps to `{ field: 'name' }`.
+  
+  **No label is invented any more.** `header: col.label ?? col.field` turned "the
+  author declared no label" into "the author declared the machine name", and that
+  synthesized value pre-empted `ObjectGrid`'s own header chain — the column's
+  label, then the **object field's** label, then the prettified machine name —
+  whose middle step exists so a localized field label wins on a non-English app.
+  A bridged view therefore rendered raw machine names where a directly authored
+  `object-grid` rendered the field's real label. A bare `{ field }` column now
+  reaches that chain intact.
+  
+  Speaking the declared spelling also routes bridged views through the renderer's
+  full ListColumn path rather than its type-inference-only one: object-schema
+  field enrichment, `hidden` filtering, primary-field auto-linking, and per-column
+  `link` / `action` handling now apply to a bridged `ListView` exactly as they do
+  to an authored grid.
+
+### Patch Changes
+
+- 516663d: RecordAttachmentsPanel no longer offers a Retry for an api-disabled `sys_attachment` read.
+  
+  `OBJECT_API_DISABLED` (404, `enable.apiEnabled: false`) and its sibling
+  `OBJECT_API_METHOD_NOT_ALLOWED` (405, the operation is absent from
+  `enable.apiMethods`) are pure functions of the object's metadata — no user, no
+  session, no request body — so every retry of every persona re-fetches the
+  identical refusal. Before this change both landed in `RecordAttachmentsPanel`'s
+  `unavailable` state and offered a Retry that was guaranteed to change nothing,
+  the same wrong advice `ListView`'s error panel already stops giving for list
+  reads.
+  
+  The panel gains a fifth status, `api-unavailable`: no Retry button, and honest
+  copy ("The attachments list is not available on this object.", new
+  `detail.attachmentsApiUnavailable` key in all ten locale packs) instead of
+  "We couldn't load the attachments for this record." The pre-existing `denied`
+  (authorization) and `unavailable` (network/5xx/expired-session) states and
+  their affordances are unchanged.
+  
+  `ListView.classifyLoadError` — the classifier that already separated this case
+  into its own `api-disabled` kind for list views — is lifted out of
+  `packages/plugin-list/src/ListView.tsx`'s module scope into
+  `@object-ui/react` (`classifyLoadError`, `LoadErrorKind`), so both surfaces
+  consume one classification instead of `RecordAttachmentsPanel` re-deriving it.
+  `ListView`'s own behavior is unchanged — it now imports the function it
+  previously defined locally. The classifier delegates its api-disabled check to
+  `isApiAccessDeniedError` (`@object-ui/data-objectstack`), removing a second,
+  independently-maintained copy of the same code list.
+- d374caf: SpecBridge's form-view bridge stops reading `defaultSort` and `aria`, two keys spec 17
+  retired on the FormView carrier (`retiredKey()` tombstones — authoring either is a parse
+  error). Both guards were unreachable for any FormView that passed validation, and both
+  ends were measured dead before removal: no form renderer reads either off the node
+  (`plugin-form` reads neither, and `SchemaRenderer`'s ARIA injection resolves flat
+  `ariaLabel`/`ariaDescribedBy`/`role`, never a nested `aria` object). Behaviour for
+  spec-valid metadata is unchanged; a host that fed the exported bridge a raw pre-17
+  document no longer gets these two keys copied onto a node slot nothing consumed. The
+  LIST view's `aria` pass-through is untouched — that carrier stayed live and is applied by
+  `ListView`.
+- af5e292: Emit explicit file extensions on relative import specifiers, so the published
+  entries can be imported by Node's own ESM resolver.
+  
+  `@object-ui/react`'s built entry re-exported through extensionless relative
+  specifiers (`export * from './SchemaRenderer'`). Node does not extension-search
+  relative specifiers, so `import('@object-ui/react')` under plain Node — an SSR
+  host, or any consumer without a bundler — failed with `ERR_MODULE_NOT_FOUND`.
+  Bundled consumers were never affected and are unchanged by this.
+  
+  `@object-ui/types`, `@object-ui/core` and `@object-ui/i18n` carried the same
+  emission; `@object-ui/react`'s entry stayed unloadable until they were fixed
+  too, because evaluation crosses into them. No exported API changed.
+- 0046d8f: Evaluate expressions written under a node's `properties`, not just under `props`
+  
+  `properties` is the spec spelling of a node's config bag and `props` is the
+  legacy alias, but `SchemaRenderer`'s evaluation memo only ran the expression
+  evaluator over `props`. Renderers in the `element:*` namespace read
+  `schema.properties` first, so a node written the canonical way handed the
+  renderer the raw `${…}` source and rendered it verbatim, while the same node
+  written with the alias evaluated correctly — writing the spec-compliant form
+  was the way to lose your expressions.
+  
+  `schema.properties` values are now evaluated per value, exactly as `props`
+  already was, and the evaluation runs before the existing
+  `properties`-to-top-level hoist so a key means the same thing whether it is read
+  as `schema.properties.x`, as `schema.x`, or as the spread `x` React prop.
+  Evaluation stays shallow on both spellings (nested objects and arrays are passed
+  through, not walked), and `properties` keeps its precedence over `props`.
+- 70a774b: A node writing both `properties` and `props` now gets ONE answer per key, and it is the canonical `properties` one — on both read channels.
+  
+  `properties` is the spec spelling of a node's config bag and `props` is the
+  annotated legacy alias, but which one actually reached the screen depended on
+  how the receiving renderer happened to read it — and the two channels disagreed
+  in opposite directions:
+  
+  - **config bag** (`schema.properties.x`) — the `element:*` family's
+    `readProps()` merges `{ ...schema.props, ...schema.properties }`, so
+    `properties` won.
+  - **React prop** (`x` arriving as a prop) — `SchemaRenderer`'s `createElement`
+    spread the hoisted `properties.*` values first and then
+    `...(evaluatedSchema.props || {})` last, which overwrote them, so `props` won.
+  
+  Measured on one render of one such node: the bag read `FROM_PROPERTIES` while
+  the same key read as a React prop gave `FROM_PROPS`. Which value rendered was
+  decided by nothing an author can see — only by whether their chosen component
+  belonged to the `readProps()` family.
+  
+  The React-prop channel now declines to let the legacy alias override a key the
+  canonical bag also declares; the config-bag order was already correct and is
+  unchanged. Scope is co-occurrence only: a key that only `props` declares still
+  works exactly as before, and a node that writes one spelling is untouched. The
+  `props` alias is not retired here — only its precedence against a co-present
+  canonical spelling is settled.
+- dfc6975: Related-list "+ New" now honours `userActions.create` predicates, and the grid
+  toolbar's inline-edit affordance is gated on `update` permission (objectui#4646,
+  objectui#4647).
+  
+  Two declared-but-unenforced gaps on the same toolbar surface.
+  
+  **#4646 — `createPredicates` had a producer and no consumer.**
+  `@objectstack/spec@17.0.0` widened `userActions.create` to
+  `z.union([z.boolean(), RowCrudActionOverrideSchema])`, so `resolveCrudAffordances`
+  emits `createPredicates` — and nothing in objectui read them, against roughly
+  fifteen consumption sites apiece for `editPredicates` / `deletePredicates`. The
+  symptom: a parent record entering a frozen state correctly greyed its children's
+  row Edit/Delete while the related list's "+ New" stayed fully live, so the user
+  filled in the whole child form to earn a server 409. The related-list toolbar now
+  evaluates `visibleWhen` / `disabledWhen` **once against the host parent record**,
+  per the spec docblock's binding for this key, on top of the existing
+  `o.create ∧ can(child, 'create')` check. `visibleWhen` hides "+ New" and fails
+  CLOSED; `disabledWhen` greys it and fails SOFT — the same evaluator, fail
+  directions and hidden-vs-disabled split the record header already uses for
+  edit/delete (objectui#4419 / PR #4515). A bare-boolean `userActions.create` is
+  untouched: with no predicates there is nothing to evaluate.
+  
+  **#4647 — the inline-edit toggle was the one ungated affordance on its toolbar.**
+  It rendered on "grid view ∧ the host wired `onInlineEditChange` ∧ not the compact
+  toolbar", and every host wires that callback unconditionally. New and Import are
+  hidden for an account without the grant and the bulk-delete entry on the same
+  toolbar ANDs `can(obj, 'delete')`, but a read-only principal could flip inline
+  edit, modify cells and press "Save all" to earn a server 403. It is now gated on
+  the object's resolved edit affordance ∧ `can(object, 'update')`, mirroring that
+  bulk-delete gate. The gate is applied at all three sites that carry this
+  affordance — the wide toolbar's toggle, the compact toolbar's settings-popover
+  entry (which previously had no gate at all, not even the callback), and the
+  `editable` mode handed to the grid, so a stored view carrying `inlineEdit: true`
+  can no longer drop a read-only principal into editable cells with no toggle to
+  press.
+  
+  `ListViewSchema.userActions.editInline` is also consumed now: an explicit `false`
+  withholds the affordance wholesale, which authors previously could not do.
+  
+  **Behaviour change for read-only users, stated plainly.** Where the UI used to
+  offer inline editing and let the server refuse it, it now declines to offer the
+  entry point at all. No data access changes — the server gate was and remains the
+  enforcement boundary; this only stops the UI walking users into round-trips
+  guaranteed to fail. Accounts *with* the grant see no change, and hosts with no
+  `PermissionProvider` mounted (standalone embeds, the Studio designer) keep
+  today's behaviour, since `can()` answers `true` there by design.
+  
+  One deliberate non-change: the absent case of `userActions.editInline` defers to
+  the host's existing `inlineEdit` channel rather than enforcing the spec's
+  `.default(false)`. Enforcing that default would remove the toggle from every
+  stored console list view in one release, since nothing folds a legacy key into
+  `editInline` and no existing view declares it. This follows the rule the
+  surrounding toolbar-flag block already states for itself — defaults chosen to
+  match what the flags have always done. `InterfaceListPage`, the key's other
+  consumer, reads the absent case as OFF, because the ADR-0047 interface page has
+  no such host channel to defer to.
+- 144ef9b: Dev builds now shout when an unevaluated `${…}` expression reaches the DOM.
+  
+  A value only reaches the user if `SchemaRenderer` EVALUATES it and the renderer
+  READS IT BACK, and those two sets do not fully overlap. Where they miss, the
+  failure was silent. Measured on a real render with `dataSource: { n: 99 }`:
+  `{ type: 'ui:statistic', value: '${data.n}' }` puts the literal text `${data.n}`
+  on screen, because the evaluation memo covers `content`, the `properties` /
+  `props` bags and the predicate keys and passes every other top-level key through
+  untouched. An author — increasingly, an AI authoring metadata — got no signal at
+  all: a literal `${data.n}` in front of a user reads like a data problem rather
+  than a contract violation.
+  
+  `SchemaRenderer` now reports such a value once per node via `console.error`,
+  naming the node type and id, the key the raw source survived on (spelled the way
+  it was authored — `properties.value`, not the hoisted top-level copy), the
+  expression source verbatim, and the channels that do work today. It also catches
+  the second, harder shape: an expression that WAS evaluated but THREW, which
+  `ExpressionEvaluator` returns as its source text — indistinguishable on screen
+  from a key that was never evaluated.
+  
+  Diagnostic only. No evaluation behaviour changes, no DOM attribute is added, and
+  the whole module is behind the module-load `NODE_ENV` constant a bundler folds
+  away, so production pays nothing.
+  
+  Two boundaries are deliberate. The scan is exactly as deep as evaluation is —
+  shallow — because a nested `aria: { label: '${…}' }` keeps its raw source today
+  by decision (objectui#4799 pinned that shallowness on both bags), and a deeper
+  scan would report a shape the engine has not yet decided to change. And schema
+  METADATA is never reported: `visible` / `visibleWhen` / `hidden` / `disabled` /
+  … hold raw predicate source by design, and the diagnostic reads the set of
+  values that actually leaves for the DOM, after those keys have been stripped.
+  
+  Part of objectui#4795 (Direction 3, per the maintainer's 2026-08-17 ruling).
+  Widening the set of evaluated text keys is Direction 1 and stays deferred behind
+  its named restart condition; this change deliberately does not pre-empt it.
+- Updated dependencies [88085e3]
+- Updated dependencies [69251bf]
+- Updated dependencies [57e668f]
+- Updated dependencies [516663d]
+- Updated dependencies [41ac1b7]
+- Updated dependencies [1eaf0a1]
+- Updated dependencies [2533ec5]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [2e82ab2]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [ef0d150]
+- Updated dependencies [1ef236e]
+- Updated dependencies [f34226e]
+- Updated dependencies [564b605]
+- Updated dependencies [e1d4251]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [a1609a6]
+- Updated dependencies [37f6844]
+- Updated dependencies [2b50261]
+- Updated dependencies [ac600e5]
+- Updated dependencies [c1ef923]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [cf4f8a6]
+- Updated dependencies [f1d4748]
+- Updated dependencies [bea374e]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [d109a4d]
+- Updated dependencies [3d053bb]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [ad13d63]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [9c60144]
+- Updated dependencies [d2ce342]
+- Updated dependencies [a8411ad]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [a9e17b4]
+- Updated dependencies [b8ce7dc]
+- Updated dependencies [8871c14]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [d871f8e]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+- Updated dependencies [21e4585]
+  - @object-ui/types@17.6.0
+  - @object-ui/i18n@17.6.0
+  - @object-ui/core@17.6.0
+  - @object-ui/data-objectstack@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

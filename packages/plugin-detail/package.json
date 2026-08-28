@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-detail",
-  "version": "17.5.0",
+  "version": "17.6.0",
   "type": "module",
   "license": "MIT",
   "description": "DetailView plugin for Object UI - comprehensive detail page with sections, tabs, and related lists",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@object-ui/i18n": "workspace:*",
-    "@objectstack/spec": "^17.0.0",
+    "@objectstack/spec": "^17.1.0",
     "lucide-react": "^1.31.0"
   },
   "peerDependencies": {
@@ -51,6 +51,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/fields": "workspace:*",
     "@object-ui/permissions": "workspace:*",
+    "@object-ui/test-support": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@types/react": "19.2.18",

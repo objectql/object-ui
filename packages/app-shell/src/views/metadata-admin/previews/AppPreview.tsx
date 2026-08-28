@@ -49,9 +49,9 @@ import {
   Puzzle,
 } from 'lucide-react';
 import { resolveHref } from '@object-ui/layout';
-import type { MetadataPreviewProps } from '../preview-registry';
-import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell';
-import { AppNavCanvas } from './AppNavCanvas';
+import type { MetadataPreviewProps } from '../preview-registry.js';
+import { PreviewShell, PreviewMessage, PreviewErrorBoundary } from './PreviewShell.js';
+import { AppNavCanvas } from './AppNavCanvas.js';
 
 /** The nine members of the spec's navigation union. */
 type NavKind =

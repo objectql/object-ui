@@ -3,7 +3,9 @@
   "children": [
     {
       "type": "flex",
-      "className": "items-center justify-between border-b pb-3 mb-4",
+      "align": "center",
+      "justify": "between",
+      "className": "border-b pb-3 mb-4",
       "children": [
         {
           "type": "text",
@@ -19,11 +21,12 @@
     },
     {
       "type": "stack",
-      "spacing": 3,
+      "gap": 3,
       "children": [
         {
           "type": "flex",
-          "className": "gap-2 items-center",
+          "gap": 2,
+          "align": "center",
           "children": [
             {
               "type": "text",
@@ -39,7 +42,8 @@
         },
         {
           "type": "flex",
-          "className": "gap-2 items-center",
+          "gap": 2,
+          "align": "center",
           "children": [
             {
               "type": "text",
@@ -57,7 +61,9 @@
     },
     {
       "type": "flex",
-      "className": "justify-end gap-2 pt-4 border-t mt-4",
+      "justify": "end",
+      "gap": 2,
+      "className": "pt-4 border-t mt-4",
       "children": [
         {
           "type": "button",

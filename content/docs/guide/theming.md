@@ -55,6 +55,7 @@ ObjectUI follows the Shadcn convention. Design tokens are defined as HSL channel
 
 Components reference these tokens through Tailwind:
 
+<!-- doc-snippet: fragment — two sibling elements shown without a parent: the fence deliberately holds two JSX roots because the point is the Tailwind class names, not a renderable tree -->
 ```tsx
 <div className="bg-background text-foreground border-border" />
 <button className="bg-primary text-primary-foreground" />
@@ -79,6 +80,15 @@ Each `style.css` is a real export, mapped to that package's `dist/index.css` and
 
 `@object-ui/fields/style.css` is a supplement, and the order matters: it is compiled against the components theme and then has every rule that sheet already ships subtracted from it, so it contains only the utilities the field widgets add — the tag colour map, the signature canvas cursor, the rating hover states, and 17 themed utilities such as `hover:bg-accent/30` and `ring-destructive/50` that no consumer-side configuration can generate, because the tokens they resolve live in unpublished package source. Import it before the components sheet, or alone, and those rules resolve against tokens that are not there yet.
 
+`@object-ui/plugin-grid/style.css` and `@object-ui/plugin-kanban/style.css` are the same shape again, one per plugin you install:
+
+```css
+@import "@object-ui/plugin-grid/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
+Each is compiled against the components theme and then has that sheet's rules subtracted, which is why they are ~16 kB and ~11 kB rather than another 170 each. Between them they carry the 25 themed utilities the two plugins use and neither base sheet contains — `bg-muted/10`, `bg-card/60`, `ring-primary/40` and friends — which nothing on your side can generate ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)). No other `@object-ui/plugin-*` package publishes a stylesheet yet.
+
 Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) the two sheets already contain, and it cannot produce the themed ones at all: the `@theme` block they come from lives in package source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
 
 To recolour ObjectUI, override the token values rather than the utilities — either the `:root` custom properties shown above, or a `Theme` object handed to `ThemeProvider` (see below). Both re-theme every component without any scanning.
@@ -87,6 +97,7 @@ To recolour ObjectUI, override the token values rather than the utilities — ei
 
 ObjectUI uses [class-variance-authority](https://cva.style) to define type-safe component variants. Each component exports a `*Variants` function alongside the component itself:
 
+<!-- doc-snippet: fragment — quotes the published Badge source: it imports class-variance-authority, which the reader installs in their own app but which is not a dependency of this repository's root, so the specifier does not resolve here -->
 ```tsx
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@object-ui/components";
@@ -119,6 +130,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
 
 To add a custom variant to an existing component, wrap it:
 
+<!-- doc-snippet: fragment — continues the block above — cva, Badge and cn are already imported there; this block shows only the wrapper -->
 ```tsx
 const statusVariants = cva("", {
   variants: {
@@ -139,6 +151,7 @@ function StatusBadge({ status, className, ...props }: { status: "active" | "pend
 
 The `cn()` utility from `@object-ui/components` combines `clsx` and `tailwind-merge` so that later classes win over earlier ones without producing duplicate utilities:
 
+<!-- doc-snippet: fragment — usage excerpt for cn(): isActive and className are the reader's own values, shown bare so the merge behaviour is the only thing on screen -->
 ```tsx
 import { cn } from "@object-ui/components";
 
@@ -152,6 +165,7 @@ cn("base-class", isActive && "bg-primary", className);
 
 Every ObjectUI component accepts a `className` prop that is merged via `cn()`, so consumers can always override styles:
 
+<!-- doc-snippet: fragment — prop excerpt: a single Button usage, shown to demonstrate that className is merged; Button comes from the reader's own import of @object-ui/components -->
 ```tsx
 <Button className="rounded-full px-8" variant="outline">
   Custom Shape
@@ -162,6 +176,7 @@ Every ObjectUI component accepts a `className` prop that is merged via `cn()`, s
 
 ObjectUI supports three modes: `light`, `dark`, and `auto` (follows system preference). The `ThemeProvider` applies a `light` or `dark` class to the root element and listens for `prefers-color-scheme` changes.
 
+<!-- doc-snippet: fragment — MyApp is the reader's own root component — the block shows where ThemeProvider goes, not what it wraps -->
 ```tsx
 import { ThemeProvider } from "@object-ui/react";
 
@@ -196,23 +211,33 @@ There is no `darkMode` option to set on your side. ObjectUI declares the class-b
 
 Register one or more theme definitions with `ThemeProvider`. Each theme is a plain JSON object:
 
+<!-- doc-snippet: fragment — App is the reader's own root component; the trailing ThemeProvider usage is shown in place so the theme object and its consumer read as one unit -->
 ```tsx
 import type { Theme } from "@object-ui/types";
 
 const corporateTheme: Theme = {
   name: "corporate",
+  label: "Corporate",
+  // `colors` keys are ColorPalette keys, NOT Shadcn variable names. The engine
+  // maps them: text → --foreground, surface → --card, error → --destructive,
+  // textSecondary → --muted-foreground. A key that is not on ColorPalette is
+  // dropped, so the *-foreground pairs go through `customVars` below.
   colors: {
     primary: "220 70% 50%",
-    "primary-foreground": "0 0% 100%",
     background: "0 0% 100%",
-    foreground: "220 20% 10%",
+    text: "220 20% 10%",
     accent: "200 80% 55%",
+  },
+  // Emitted verbatim as `--<key>: <value>` — the declared door for any custom
+  // property that has no ColorPalette key.
+  customVars: {
+    "primary-foreground": "0 0% 100%",
     "accent-foreground": "0 0% 100%",
   },
-  fonts: {
-    sans: "IBM Plex Sans, system-ui",
+  typography: {
+    fontFamily: { base: "IBM Plex Sans, system-ui" },
   },
-  radius: "0.375rem",
+  borderRadius: { base: "0.375rem" },
 };
 
 <ThemeProvider themes={[corporateTheme]} defaultTheme="corporate">
@@ -222,13 +247,16 @@ const corporateTheme: Theme = {
 
 Themes support **inheritance** via the `extends` field. A child theme only needs to declare its overrides:
 
+<!-- doc-snippet: fragment — continues the block above — corporateTheme is declared there; App is the reader's own root component -->
 ```tsx
 const darkCorporate: Theme = {
   name: "corporate-dark",
+  label: "Corporate Dark",
   extends: "corporate",
   colors: {
+    primary: "220 70% 50%",
     background: "220 20% 8%",
-    foreground: "0 0% 95%",
+    text: "0 0% 95%",
   },
 };
 
@@ -242,26 +270,36 @@ const darkCorporate: Theme = {
 Start from HSL values and define both light and dark variants:
 
 ```tsx
-const brand: Theme = {
+import type { Theme } from "@object-ui/types";
+
+export const brand: Theme = {
   name: "brand",
+  label: "Brand",
   colors: {
-    // Light palette
-    primary: "262 83% 58%",        // Purple
-    "primary-foreground": "0 0% 100%",
-    secondary: "262 30% 94%",
-    "secondary-foreground": "262 83% 30%",
-    accent: "160 84% 39%",          // Teal accent
-    "accent-foreground": "0 0% 100%",
-    background: "0 0% 100%",
-    foreground: "262 20% 10%",
-    muted: "262 20% 95%",
-    "muted-foreground": "262 10% 45%",
-    border: "262 20% 90%",
-    ring: "262 83% 58%",
-    destructive: "0 84% 60%",
-    "destructive-foreground": "0 0% 100%",
+    // Every key here is a ColorPalette key; the comment is the CSS variable
+    // the engine emits it as.
+    primary: "262 83% 58%",         // --primary          (Purple)
+    secondary: "262 30% 94%",       // --secondary
+    accent: "160 84% 39%",          // --accent           (Teal accent)
+    background: "0 0% 100%",        // --background
+    surface: "0 0% 100%",           // --card
+    text: "262 20% 10%",            // --foreground
+    textSecondary: "262 10% 45%",   // --muted-foreground
+    disabled: "262 20% 95%",        // --muted
+    border: "262 20% 90%",          // --border
+    error: "0 84% 60%",             // --destructive
   },
-  radius: "0.5rem",
+  // Shadcn pairs the palette with foreground/ring variables that have no
+  // ColorPalette key of their own. Author those here — they are emitted
+  // verbatim as `--<key>: <value>`.
+  customVars: {
+    "primary-foreground": "0 0% 100%",
+    "secondary-foreground": "262 83% 30%",
+    "accent-foreground": "0 0% 100%",
+    "destructive-foreground": "0 0% 100%",
+    ring: "262 83% 58%",
+  },
+  borderRadius: { base: "0.5rem" },  // --radius
 };
 ```
 
@@ -289,6 +327,7 @@ function ThemeSwitcher() {
 
 Enable **persistence** so the user's choice survives page reloads:
 
+<!-- doc-snippet: fragment — persistence excerpt: lightTheme, darkTheme and brandTheme are the reader's own theme objects and App is their root component -->
 ```tsx
 <ThemeProvider
   themes={[lightTheme, darkTheme, brandTheme]}
@@ -308,6 +347,7 @@ ObjectUI components use **logical CSS properties** (`ms-`, `me-`, `ps-`, `pe-`) 
 
 1. Set the `dir` attribute on your root element:
 
+<!-- doc-snippet: fragment — an opening tag on its own, shown to isolate the dir and lang attributes — it is deliberately unclosed because the reader's document supplies the rest -->
 ```tsx
 <html dir="rtl" lang="ar">
 ```

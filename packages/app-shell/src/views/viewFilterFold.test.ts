@@ -101,11 +101,21 @@ describe('foldFilterGroupToSpecRules — flat AND group → ViewFilterRule[]', (
             'greaterOrEqual', 'lessOrEqual', 'before', 'after', 'between',
             'in', 'notIn', 'startsWith', 'endsWith', 'isNull', 'isNotNull',
         ];
+        // `'x'` is filler for every operator whose value is a SCALAR, which is
+        // all of them but one: `between` takes a `[min, max]` pair, and since
+        // objectstack#8815 the fold drops a range that is not filled in — a bare
+        // scalar included. Giving it a real pair keeps this test asserting what
+        // it is named for (camelCase → canonical SPELLING) instead of quietly
+        // depending on a malformed range surviving the fold. Not a workaround
+        // for the guard: `ViewFilterRuleSchema` refuses `between: 'x'` outright,
+        // so the row this fixture used to produce was never spec-valid.
+        const valueFor = (operator: string) =>
+            operator === 'between' ? ['x', 'y'] : 'x';
         const result = foldFilterGroupToSpecRules({
             id: 'root',
             logic: 'and',
             conditions: builderOperators.map((operator, i) => ({
-                id: `c${i}`, field: 'f', operator, value: 'x',
+                id: `c${i}`, field: 'f', operator, value: valueFor(operator),
             })),
         });
         expect(result.ok).toBe(true);

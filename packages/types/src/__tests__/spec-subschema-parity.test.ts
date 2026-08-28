@@ -9,10 +9,12 @@
 /**
  * Sub-schema ↔ @objectstack/spec drift guard (issue #2231, phase 2).
  *
- * The former hand-written mirrors in `zod/objectql.zod.ts` and `zod/theme.zod.ts`
- * are now the spec's schemas **by reference** — re-forking one (replacing the
- * re-export with a local copy that can drift) is exactly the failure mode that
- * produced the original ListViewSchema divergence. These tests pin:
+ * The former hand-written mirrors in `zod/objectql.zod.ts` are now the spec's
+ * schemas **by reference** — re-forking one (replacing the re-export with a
+ * local copy that can drift) is exactly the failure mode that produced the
+ * original ListViewSchema divergence. (`zod/theme.zod.ts` carried six such
+ * re-exports too until the spec retired its whole theme module — see the
+ * retirement block below.) These tests pin:
  *
  *   1. Reference identity for every direct re-export. `toBe` — not structural
  *      equality — so a "faithful copy" fails too: a copy is a fork.
@@ -34,14 +36,8 @@ import {
   ColumnSummarySchema as SpecColumnSummarySchema,
   SelectionConfigSchema as SpecSelectionConfigSchema,
   PaginationConfigSchema as SpecPaginationConfigSchema,
-  ColorPaletteSchema as SpecColorPaletteSchema,
-  TypographySchema as SpecTypographySchema,
-  BorderRadiusSchema as SpecBorderRadiusSchema,
-  ShadowSchema as SpecShadowSchema,
-  ThemeModeSchema as SpecThemeModeSchema,
   ChartTypeSchema as SpecChartTypeSchema,
   PageTypeSchema as SpecPageTypeSchema,
-  ThemeSchema as SpecThemeSchema,
 } from '@objectstack/spec/ui';
 import {
   HttpMethodSchema,
@@ -51,14 +47,6 @@ import {
   SelectionConfigSchema,
   PaginationConfigSchema,
 } from '../zod/objectql.zod.js';
-import {
-  ColorPaletteSchema,
-  TypographySchema,
-  BorderRadiusSchema,
-  ShadowSchema,
-  ThemeModeSchema,
-  ThemeDefinitionSchema,
-} from '../zod/theme.zod.js';
 import { ChartTypeSchema } from '../zod/data-display.zod.js';
 import { PageTypeSchema } from '../zod/layout.zod.js';
 
@@ -75,17 +63,16 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
     ['ViewDataSchema', ViewDataSchema, SpecViewDataSchema],
     ['SelectionConfigSchema', SelectionConfigSchema, SpecSelectionConfigSchema],
     ['PaginationConfigSchema', PaginationConfigSchema, SpecPaginationConfigSchema],
-    ['ColorPaletteSchema', ColorPaletteSchema, SpecColorPaletteSchema],
-    ['TypographySchema', TypographySchema, SpecTypographySchema],
-    ['BorderRadiusSchema', BorderRadiusSchema, SpecBorderRadiusSchema],
-    ['ShadowSchema', ShadowSchema, SpecShadowSchema],
-    // `AnimationSchema` / `ZIndexSchema` pairs REMOVED, not re-pointed: the
-    // spec deleted both value schemas outright with the `theme.animation` /
-    // `theme.zIndex` tombstones (objectstack#5021, PR objectstack#5289), and
-    // this package's re-exports went with them. There is no longer a pair to
-    // compare on either side — `theme.customVars` is the declared door now.
-    ['ThemeModeSchema', ThemeModeSchema, SpecThemeModeSchema],
-    ['ThemeDefinitionSchema', ThemeDefinitionSchema, SpecThemeSchema],
+    // The six THEME pairs (`ColorPaletteSchema`, `TypographySchema`,
+    // `BorderRadiusSchema`, `ShadowSchema`, `ThemeModeSchema`,
+    // `ThemeDefinitionSchema`↔`ThemeSchema`) REMOVED, not re-pointed — the
+    // same shape as the earlier `AnimationSchema` / `ZIndexSchema` removal
+    // (objectstack#5021, PR objectstack#5289): objectstack#10485 (ADR-0049,
+    // PR objectstack#10695) retired the spec's whole `ui/theme.zod.ts`
+    // module, and the objectstack#10856 ruling had objectui remove its
+    // re-exports (objectui#5710). There is no longer a pair to compare on
+    // either side; the describe block at the bottom pins the names OUT of
+    // `zod/theme.zod.ts` instead.
     // #2944 — these two were forks that had already drifted, re-exported under
     // the spec's own symbol name so an importer could not tell them apart.
     // `ChartTypeSchema` carried 7 of the spec's 19 values and is why #2901 was
@@ -102,39 +89,44 @@ describe('spec sub-schema re-exports are the spec objects (by reference)', () =>
 });
 
 /**
- * spec v17 (#3494) pruned the never-enforced Theme keys. They were re-exported
- * here by reference, so they left with the spec rather than surviving as an
- * objectui-only mirror — the second de-facto contract AGENTS.md #0.1 forbids.
- * This guards both ends: the keys stay gone from the spec schema, and objectui
- * does not quietly grow its own replacements.
+ * The retired theme schemas stay retired. Two waves of the same shape:
+ * spec v17 (#3494) pruned the never-enforced Theme keys and their sub-schema
+ * re-exports left with it (`SpacingSchema` and friends); then
+ * objectstack#10485 (ADR-0049, PR objectstack#10695) retired the spec's whole
+ * `ui/theme.zod.ts` module, and the maintainer's ruling on objectstack#10856
+ * had objectui REMOVE its six re-exports rather than localize them
+ * (objectui#5710) — an objectui-only mirror would be the second de-facto
+ * contract AGENTS.md #0.1 forbids, one repo over from the compatibility
+ * surface (Option B) that ruling explicitly declined. The per-key
+ * `SpecThemeSchema.shape` assertions this block used to carry left with the
+ * spec schema itself — there is no upstream shape left to read.
+ *
+ * If a later ruling (e.g. on objectui#5647's theme component kinds) decides
+ * to localize a theme document schema DELIBERATELY, update this list in the
+ * PR that records that ruling.
  */
-describe('spec v17 pruned Theme keys stay pruned (#3494)', () => {
-  const PRUNED = [
-    'spacing',
-    'breakpoints',
-    'logo',
-    'density',
-    'wcagContrast',
-    'rtl',
-    'touchTarget',
-    'keyboardNavigation',
-  ];
-
-  it.each(PRUNED)('the spec Theme schema has no `%s` key', (key) => {
-    const shape = (SpecThemeSchema as unknown as { shape: Record<string, unknown> }).shape;
-    expect(
-      key in shape,
-      `spec v17 pruned Theme.${key}; if the spec brought it back, re-export it ` +
-        `by reference instead of hand-writing a mirror`,
-    ).toBe(false);
-  });
-
-  it('objectui does not re-add a mirror of the pruned sub-schemas', async () => {
+describe('retired theme schemas stay retired (#3494, objectstack#10485 / objectui#5710)', () => {
+  it('objectui does not re-add a local mirror of a retired theme schema', async () => {
     const themeZod = await import('../zod/theme.zod.js');
-    for (const name of ['SpacingSchema', 'SpacingScaleSchema', 'BreakpointsSchema', 'ThemeLogoSchema']) {
+    for (const name of [
+      // spec v17 pruning (#3494)
+      'SpacingSchema',
+      'SpacingScaleSchema',
+      'BreakpointsSchema',
+      'ThemeLogoSchema',
+      // whole-module retirement (objectstack#10485, removal executed as objectui#5710)
+      'ColorPaletteSchema',
+      'TypographySchema',
+      'BorderRadiusSchema',
+      'ShadowSchema',
+      'ThemeModeSchema',
+      'ThemeDefinitionSchema',
+      'ThemeSchema',
+    ]) {
       expect(
         name in themeZod,
-        `'${name}' is gone from @objectstack/spec/ui — do not reintroduce it as an objectui-local schema`,
+        `'${name}' is gone from @objectstack/spec/ui — do not reintroduce it as an ` +
+          `objectui-local schema without a maintainer ruling (objectui#5710)`,
       ).toBe(false);
     }
   });

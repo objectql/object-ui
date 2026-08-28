@@ -487,7 +487,7 @@ describe('ObjectView', () => {
 
       // Update with sort config — simulates live preview of sort changes
       const updatedViews = [
-        { id: 'all', label: 'All', type: 'grid' as const, columns: ['name'], sort: [{ field: 'name', direction: 'desc' as const }] },
+        { id: 'all', label: 'All', type: 'grid' as const, columns: ['name'], sort: [{ field: 'name', order: 'desc' as const }] },
       ];
 
       rerender(

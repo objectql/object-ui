@@ -1,9 +1,9 @@
 import React, { useId } from 'react';
 import { Input, Button, Label, EmptyValue } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
-import { FieldWidgetComponentProps } from './types';
-import { toDomProps } from './toDomProps';
-import { toHostGroupProps } from './toHostGroupProps';
+import { FieldWidgetComponentProps } from './types.js';
+import { toDomProps } from './toDomProps.js';
+import { toHostGroupProps } from './toHostGroupProps.js';
 
 /**
  * Geolocation data structure

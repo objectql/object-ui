@@ -4,12 +4,13 @@
   "children": [
     {
       "type": "stack",
-      "spacing": 2,
+      "gap": 2,
       "className": "p-4",
       "children": [
         {
           "type": "flex",
-          "className": "items-center justify-between",
+          "align": "center",
+          "justify": "between",
           "children": [
             {
               "type": "text",
@@ -18,7 +19,7 @@
             },
             {
               "type": "icon",
-              "name": "dollar-sign",
+              "icon": "dollar-sign",
               "className": "h-4 w-4 text-muted-foreground"
             }
           ]

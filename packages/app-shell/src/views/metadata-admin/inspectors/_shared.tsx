@@ -375,4 +375,4 @@ export function moveArray<T>(arr: T[] | undefined, from: number, to: number): T[
  * pulling the components barrel into their unit tests — see that file. Re-
  * exported here because every existing call site imports it from `_shared`.
  */
-export { uniqueId } from './unique-id';
+export { uniqueId } from './unique-id.js';

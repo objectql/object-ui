@@ -31,7 +31,24 @@ export type { ObjectCalendarComponentProps as ObjectCalendarProps } from './Obje
 
 // Export CalendarView component (merged from plugin-calendar-view)
 export { CalendarView } from './CalendarView';
-export type { CalendarViewProps, CalendarEvent } from './CalendarView';
+export type { CalendarViewProps, CalendarViewEvent } from './CalendarView';
+
+/**
+ * @deprecated Use `CalendarViewEvent`. Renamed in objectui#5044 because
+ * `@object-ui/types` owns `CalendarEvent`, where it means the AUTHORING event
+ * (`id: string`, `start` / `end` accepting ISO strings with `end` required,
+ * plus `description`) — not this component's runtime event, whose `start` is a
+ * real `Date` and whose `id` may be a number. The two are structurally
+ * incompatible in both directions, so IDE auto-import picking the wrong one
+ * failed as a remote `TS2322`. The alias denotes the SAME type and is kept only
+ * so existing importers keep compiling.
+ *
+ * Spelled with its `from` clause for the same reason the
+ * `ObjectCalendarProps` alias above is (objectui#4650): a re-export with no
+ * module specifier is judged as its own declaration by
+ * `scripts/check-spec-symbol-derivation.mjs`.
+ */
+export type { CalendarViewEvent as CalendarEvent } from './CalendarView';
 
 // Import and register calendar-view renderer
 import './calendar-view-renderer';

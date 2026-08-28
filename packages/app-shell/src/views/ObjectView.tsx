@@ -2,7 +2,7 @@
  * Console ObjectView
  *
  * Thin wrapper around the plugin-view ObjectView that adds:
- * - Multi-view resolution from objectDef.list_views
+ * - Multi-view resolution from objectDef.listViews
  * - MetadataInspector toggle
  * - Drawer for record detail preview
  * - useObjectActions for toolbar create button
@@ -12,9 +12,10 @@
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
-import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
-import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
-import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
+import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage.js';
+import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold.js';
+import { narrowPersonalizationOverlay, isViewConfigPermissionDeniedError } from '@object-ui/data-objectstack';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -24,7 +25,7 @@ const ImportWizard = lazy(() =>
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface, overlayWidthFor } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
-import { RECORD_DRAWER_PARAM } from '../urlParams';
+import { RECORD_DRAWER_PARAM } from '../urlParams.js';
 // Plugin registration is handled by the host app (e.g. apps/console/src/main.tsx
 // uses ComponentRegistry.registerLazy so heavy plugins stay code-split).
 // Do NOT add eager `import '@object-ui/plugin-*'` side-effect imports here.
@@ -34,48 +35,51 @@ import {
   EmptyTitle,
   EmptyDescription,
   NavigationOverlay,
+  isFilterValueComplete,
 } from '@object-ui/components';
 import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar, LayoutGrid, Activity, GanttChart, MapPin, BarChart3 } from 'lucide-react';
-import { useFavorites } from '../hooks/useFavorites';
-import { useTenancyPosture } from '../hooks/useTenancyPosture';
-import { getIcon } from '../utils/getIcon';
+import { useFavorites } from '../hooks/useFavorites.js';
+import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
+import { getIcon } from '../utils/getIcon.js';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
-import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
-import { ViewConfigPanel } from './ViewConfigPanel';
-import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata, createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence';
-import { CreateViewDialog } from './CreateViewDialog';
+import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
+import { ViewConfigPanel } from './ViewConfigPanel.js';
+import { useMetadataClient } from './metadata-admin/useMetadata.js';
+import { persistRuntimeMetadata, createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence.js';
+import { CreateViewDialog } from './CreateViewDialog.js';
 import {
   usePreviewDrafts,
   PREVIEW_QUERY_FLAG,
   PREVIEW_QUERY_VALUE,
-} from '../preview/PreviewModeContext';
-import { PageHeader } from '../layout/PageHeader';
-import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext';
-import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
-import { ManagedByBadge } from '../components/ManagedByBadge';
-import { RecordDetailView } from './RecordDetailView';
-import { resolveEffectiveCrudAffordances } from '../utils/crudAffordances';
-import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
-import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
-import { importTargetFields } from './importTargetFields';
-import { useExpressionContext } from '../providers/ExpressionProvider';
-import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
-import { resolveViewId } from '../utils/resolveViewId';
-import { defaultListViewId, viewRowId, isSavedViewId, viewEntry } from '../utils/viewIdentity';
-import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
-import { useObjectActions } from '../hooks/useObjectActions';
+} from '../preview/PreviewModeContext.js';
+import { PageHeader } from '../layout/PageHeader.js';
+import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext.js';
+import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext.js';
+import { ManagedByBadge } from '../components/ManagedByBadge.js';
+import { RecordDetailView } from './RecordDetailView.js';
+import { resolveEffectiveCrudAffordances, type RowCrudPredicates } from '../utils/crudAffordances.js';
+import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport.js';
+import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels.js';
+import { importTargetFields } from './importTargetFields.js';
+import { useExpressionContext } from '../providers/ExpressionProvider.js';
+import { resolveManagedByEmptyState } from '../utils/managedByEmptyState.js';
+import { resolveViewId } from '../utils/resolveViewId.js';
+import { defaultListViewId, viewRowId, isSavedViewId, viewEntry } from '../utils/viewIdentity.js';
+import { warnSuppressedListNav } from '../utils/warnSuppressedListNav.js';
+import { useObjectActions } from '../hooks/useObjectActions.js';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
-import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, RelatedRecordActionsProvider } from '@object-ui/react';
+import { ActionProvider, useNavigationOverlay, SchemaRenderer, useActionTextLocalizer, useRowPredicate, RelatedRecordActionsProvider } from '@object-ui/react';
 import type { RelatedRecordActionsValue, RelatedRecordHandlers } from '@object-ui/react';
 import { toast } from 'sonner';
-import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
-import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
-import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar';
+import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime.js';
+import { useNavRunAction } from '../hooks/useNavRunAction.js';
+import { actionRendersAt } from '@object-ui/types';
+import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements.js';
+import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar.js';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -144,12 +148,17 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  * fallback entirely. The result on a calendar-bound view was a Timeline the
  * switcher offered and the renderer bucketed wholly into "No date" (objectui#3129).
  *
- * What stays here is the one thing this layer knows and `ListView` does not: the
- * object's declared `titleField`.
+ * What stays here is the view's OWN declared config, floored at `'name'` — the
+ * same two-rung shape the calendar and gantt branches below already use. An
+ * object-level `objectDef.titleField` leg used to sit in the middle of that
+ * chain; it was removed in objectui#6557 because `@objectstack/spec`'s object
+ * schema is a `strictObject` that REJECTS the key with `unrecognized_keys`, so
+ * no legal object metadata could ever reach it (objectui#6531 established the
+ * measurement, and dropped the twin read inside `getRecordDisplayName`).
  *
  * Exported for the regression suite.
  */
-export function timelineViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+export function timelineViewOptions(viewDef: any): Record<string, unknown> {
     const declaredStart = viewDef?.timeline?.startDateField || viewDef?.timeline?.dateField;
     return {
         // Spread the full view-defined timeline config first so the spec fields
@@ -157,7 +166,7 @@ export function timelineViewOptions(viewDef: any, objectDef: any): Record<string
         ...(viewDef?.timeline || {}),
         // Only ever restate a binding the view actually declared.
         ...(declaredStart ? { startDateField: declaredStart } : {}),
-        titleField: viewDef?.timeline?.titleField || objectDef?.titleField || 'name',
+        titleField: viewDef?.timeline?.titleField || 'name',
         descriptionField: viewDef?.timeline?.descriptionField,
     };
 }
@@ -321,10 +330,49 @@ export function defaultListColumnsFromObject(
  * Filter entries are matched in both at-rest shapes: spec `ViewFilterRule`
  * objects (`{ field, operator, value }`, what the fold writes) and the legacy
  * runtime triple `[field, operator, value]` a source view may declare and which
- * `persistViewPatch` copies into the overlay along with the rest of the view.
+ * `persistViewPatch` USED TO copy into the overlay along with the rest of the
+ * view — it now stores the patch alone (objectui#5233,
+ * {@link buildPersistedViewBody}), so a triple can only reach this pass from a
+ * row written before that landed, or from a saved view's own body.
+ *
+ * Whether a matched entry's VALUE counts as supplied is asked of the builder's
+ * own {@link isFilterValueComplete}, not of a local predicate (objectstack#8815,
+ * objectui#5025). This pass used to spell the question out here:
+ *
+ * ```ts
+ * value == null || value === '' || (Array.isArray(value) && value.length === 0)
+ * ```
+ *
+ * — right for `scalar` and `list`, blind to `pair`. A `between` carrying one
+ * bound is `['2024-01-01', '']`, an array of length 2, so the recovery pass read
+ * it as a real condition and handed it back. That is the one shape this pass
+ * most needs to strip: `ViewFilterRuleSchema` ACCEPTS a half-filled range
+ * (measured on `@objectstack/spec` 17.1.0 — it counts the two slots, not what is
+ * in them), so authoring validation is green on it and it only dies at query
+ * time, where the server refuses the WHOLE view (`400 INVALID_FILTER`) for every
+ * user on every later read. The builder's two write paths were converted to the
+ * arity-aware reading; this is the read-path half, and it was the third verbatim
+ * copy of a predicate that had already been indicted twice.
+ *
+ * The split of duties is the helper's own: it answers the VALUE question only,
+ * while which operators want no value at all stays with
+ * {@link VALUELESS_FILTER_OPERATORS} above — this layer additionally sees the
+ * canonical spec spellings (`is_null`) that never reach the dropdown.
  */
 export function sanitizeViewOverride(override: any): any {
     if (!override || typeof override !== 'object') return override;
+    // objectui#5233 — a PERSONALIZATION overlay contributes only the keys it
+    // owns (density / sort / hiddenFields / columnState / inlineEdit). Every
+    // other key on such a row is a copy of the source view taken when the
+    // user last dragged a column, and the merge below hands it authority over
+    // the source declaration it was copied from. Narrowed FIRST and returned:
+    // a narrowed row can no longer carry a `filter` at all, so the
+    // recovery pass below has nothing left to do for it. The predicate is the
+    // adapter's (`@object-ui/data-objectstack` owns the row's shape and stamps
+    // its marker) so a saved view's OWN body — enumerated by the same batch
+    // read — is returned untouched, exactly as `listViews()` classifies it.
+    const narrowed = narrowPersonalizationOverlay(override);
+    if (narrowed !== override) return narrowed;
     if (!Array.isArray(override.filter)) return override;
 
     const kept = override.filter.filter((entry: any) => {
@@ -333,13 +381,13 @@ export function sanitizeViewOverride(override: any): any {
             if (entry.length < 2) return false;
             const [, operator, value] = entry;
             if (VALUELESS_FILTER_OPERATORS.has(String(operator))) return true;
-            return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+            return isFilterValueComplete(String(operator), value);
         }
         if (!entry || typeof entry !== 'object') return false;
         if (typeof entry.field !== 'string' || entry.field === '') return false;
         if (VALUELESS_FILTER_OPERATORS.has(String(entry.operator))) return true;
         const value = entry.value;
-        return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+        return isFilterValueComplete(String(entry.operator), value);
     });
 
     // The empty-array case is checked FIRST: `filter: []` (Clear all's write)
@@ -418,8 +466,11 @@ export async function loadViewOverrides(
  * They disagreed because the metadata side spelled identity `{ id: key,
  * ...body, ...override }` — `id` FIRST, so an `id` key inside the stored body
  * or the stored override silently replaced it. Both are stored documents that
- * really do carry one: `persistViewPatch` writes the whole tab object (its `id`
- * included) back through `updateViewConfig`, and a duplicated view copies its
+ * really do carry one: `persistViewPatch` WROTE the whole tab object (its `id`
+ * included) back through `updateViewConfig` — since objectui#5233 it writes the
+ * patch alone for an overlay ({@link buildPersistedViewBody}) but still the
+ * whole body for a saved view's own row, and every row written before that
+ * landed still carries an `id` — and a duplicated view copies its
  * source artifact's `id` verbatim. `viewEntry` stamps identity LAST at all
  * three sites, so the tab id is now a property of the key the caller looked the
  * view up by, and can never be a property of the data.
@@ -602,6 +653,88 @@ export function dispatchViewPatches(
     );
 }
 
+/**
+ * The body a toolbar toggle persists — **the patch only, for an overlay**
+ * (objectui#5233).
+ *
+ * `persistViewPatch` used to send `{ ...baseViewDef, ...patch }`, so an overlay
+ * written by a mere column drag copied the view's CURRENT effective `filter` —
+ * and its `columns`, `label`, `type`, `isDefault` … — into the stored row. The
+ * display merge is `{ ...source, ...override }`, so that copy then outranked
+ * the source view forever: an admin edited the view's filter and every user who
+ * had once resized a column kept the old one, with nothing reporting it.
+ *
+ * Ruled by the maintainer on 2026-08-12 (objectstack#7494, comment
+ * `5261754173`): 「**`persistViewPatch` 只存 patch,不存 merged base** —— 独立小
+ * 修,现在做:它把写入时的有效 filter 冻进 overlay,导致源视图后续的 filter 变更
+ * 到不了带 overlay 的用户,这与 per-user 之争无关,是纯粹的存储形状错误。」
+ *
+ * ## Why the two branches are not one
+ *
+ * `updateViewConfig` persists through `client.meta.saveItem`, which is a **PUT
+ * of the whole document** — the adapter's own `updateView` reads the current row
+ * and merges onto it precisely because `saveItem` does not ("there is nothing to
+ * merge onto. Fail loudly instead of emitting the partial write"). So what this
+ * function returns is what the row BECOMES, not what is layered onto it:
+ *
+ * - **`isSavedView: false`** — a code-defined *system* view. The row is a
+ *   personalization OVERLAY laid on top of a definition that lives elsewhere;
+ *   nothing in it but the patch is an opinion the user expressed. Store the
+ *   patch. The source view is then free to change under it, which is the card.
+ * - **`isSavedView: true`** — a genuinely user-created *saved* view. The row IS
+ *   the view; there is no source underneath it to shadow, so the ruled harm
+ *   cannot arise here. A patch-only PUT would not narrow this row, it would
+ *   **delete the user's view definition** — its `config`/`columns`/`filter`/
+ *   `label` are not a frozen copy of anything, they are the view. This branch
+ *   therefore still carries the body, byte-identical to the pre-fix write.
+ *
+ * The same `isSavedViewId` classification already decides the switcher's
+ * readonly flag, its five mutating handlers, and whether `updateViewConfig`
+ * stamps the overlay marker — so a row cannot be a saved view for one of them
+ * and an overlay for another.
+ *
+ * ## What the overlay branch keeps besides the patch
+ *
+ * `viewKind` only, and only when the active tab carries one — **identity, not
+ * content**, the same line `VIEW_OVERLAY_IDENTITY_KEYS`
+ * (`@object-ui/data-objectstack`) draws on the read side, so the write now
+ * produces exactly the shape the reader would keep. `object`, `name` and the
+ * overlay marker are stamped by `updateViewConfig` itself; `label` is
+ * deliberately NOT kept (the platform inherits it from the shadowed registry
+ * entry — a stored one is a snapshot of the source view's label at write time,
+ * which is the very class of frozen key this narrowing exists to stop).
+ *
+ * The patch is written verbatim rather than filtered through
+ * `VIEW_OVERLAY_OWNED_KEYS`: every call site passes exactly the one key the
+ * user just changed, and a filter here would SILENTLY drop a sixth key someone
+ * later persists. The ratchet in `ObjectView.overlayPatchOnly.test.ts` is what
+ * makes that drift loud instead.
+ *
+ * ## Consequence for rows written before this shipped
+ *
+ * They are fat at rest and stay that way until touched — already harmless on
+ * read since PR #5272 narrowed the merge (`sanitizeViewOverride` →
+ * `narrowPersonalizationOverlay`). Because this write is a full-document PUT,
+ * the next toolbar toggle on such a view **replaces** the fat row with the thin
+ * one. So the issue's three dispositions land as: tolerate on read (shipped),
+ * strip on next write (here), no migration — and both halves are pinned.
+ *
+ * Extracted from `persistViewPatch` so the write shape is assertable without
+ * mounting the view, the same reason `buildViewTabs`, `setDefaultViewPatches`
+ * and `reorderViewPatches` above are exported.
+ */
+export function buildPersistedViewBody(
+    baseViewDef: Record<string, any> | null | undefined,
+    patch: Record<string, any>,
+    opts: { isSavedView: boolean },
+): Record<string, any> {
+    if (opts.isSavedView) return { ...(baseViewDef || {}), ...patch };
+    const viewKind = (baseViewDef as any)?.viewKind;
+    // Identity is stamped LAST for the same reason `updateViewConfig` stamps
+    // `object`/`name`/the marker last: nothing in the payload can shadow it.
+    return viewKind === undefined ? { ...patch } : { ...patch, viewKind };
+}
+
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
     const { objectName } = useParams();
     const { t } = useObjectTranslation();
@@ -723,12 +856,33 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 // merely toggled its density (objectui#4227 follow-up,
                 // PM review on PR #4713).
                 const targetIsSavedView = isSavedViewId(savedViewsRef.current, viewIdLocal);
+                // objectui#5233 — for a system view's personalization overlay
+                // this is the PATCH ONLY: the row used to be written as
+                // `{ ...baseViewDef, ...merged }`, which froze the source
+                // view's effective `filter` (and `columns`, `label`, `type`,
+                // `isDefault` …) into it as of the drag. See
+                // `buildPersistedViewBody` for why the saved-view branch is
+                // deliberately NOT narrowed — its row IS the view, and
+                // `saveItem` is a whole-document PUT.
                 Promise.resolve(
-                    dataSource.updateViewConfig(objectName, viewIdLocal, {
-                        ...baseViewDef,
-                        ...merged,
-                    }, { isSavedView: targetIsSavedView })
+                    dataSource.updateViewConfig(
+                        objectName,
+                        viewIdLocal,
+                        buildPersistedViewBody(baseViewDef, merged, { isSavedView: targetIsSavedView }),
+                        { isSavedView: targetIsSavedView },
+                    )
                 ).catch((err: any) => {
+                    // objectstack#7494's ruling — the gate refuses ORG-WIDE
+                    // view-config writes for a session without the authoring
+                    // capability. The toggle that triggered this has ALREADY
+                    // moved on screen, so the refusal has to be SAID: swallowing
+                    // it into console.error leaves the operator with a density
+                    // they did not get and no way to learn why until a reload
+                    // silently puts it back.
+                    if (isViewConfigPermissionDeniedError(err)) {
+                        toast.error(t('console.objectView.viewConfigPermissionDenied'));
+                        return;
+                    }
                     console.error('[ObjectView] Failed to persist view config:', err);
                 });
             }, 300);
@@ -869,9 +1023,30 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     
     // Admin users automatically get design tools (no toggle needed)
     const { user, activeOrganization } = useAuth();
-    const isAdmin = useIsWorkspaceAdmin();
+    const { isAdmin } = useWorkspaceAdminStatus();
     const perms = usePermissions();
     const { can, getObjectApiOperations } = perms;
+
+    // [ADR-0066 / objectstack#7494] Hand the adapter the session's REPORTED
+    // system capabilities so its `updateViewConfig` gate has something to judge
+    // by. The adapter is constructed by the host long before `/me/permissions`
+    // resolves, so this is a push, not a constructor argument.
+    //
+    // `systemPermissions` is passed straight through, `undefined` included:
+    // "never reported" and "reported empty" are different answers and the
+    // adapter decides between them (unknown fails OPEN — the server enforces
+    // the capability on the metadata door either way). Collapsing them here
+    // would re-derive, badly, the one distinction `MePermissionsProvider` goes
+    // out of its way to preserve (objectui#4656).
+    //
+    // Wired at THIS component because `updateViewConfig` has exactly one
+    // production caller — the `persistViewPatch` below (see the adapter method's
+    // own docblock). The gate itself is on the write, so a future second caller
+    // is refused whether or not it remembers to do this.
+    const { systemPermissions } = perms;
+    useEffect(() => {
+        (dataSource as any)?.setSystemCapabilities?.(systemPermissions);
+    }, [dataSource, systemPermissions]);
     
     // Get Object Definition. The outer ObjectView wrapper already guards the
     // missing-object case, so this always resolves while this component is
@@ -915,6 +1090,35 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         [objectDef, localizeActionTexts],
     );
 
+    // [#5216] The DECLARED nav `runAction` slot, consumed generically.
+    // An object nav entry declaring `runAction: '<name>'` resolves (via
+    // `resolveHref`) to this list's href carrying `?runAction=`; landing here
+    // runs that action once, through the ordinary execute path.
+    //
+    // Arm only on an action THIS toolbar actually renders — `list_toolbar` is
+    // the slot's surface, so a name that only exists at `record_header` cannot
+    // be triggered from here and must not spend the one-shot intent (#4123).
+    // `sys_environment` is excluded because `EnvironmentListToolbar` owns the
+    // arming there: it must additionally wait for entitlements to resolve, and
+    // two consumers of one param would race to strip it.
+    const navRunAction = useNavRunAction((requested) =>
+        !isEnvironmentList &&
+        localizedToolbarActions.some(
+            (a: any) => a?.name === requested && actionRendersAt(a, 'list_toolbar'),
+        ),
+    );
+    // Mark exactly the requested action `autoTrigger`, leaving every other
+    // action's identity untouched so the bar's ordering/overflow is unchanged.
+    const toolbarActionsWithDeepLink = useMemo(
+        () =>
+            navRunAction === null
+                ? localizedToolbarActions
+                : localizedToolbarActions.map((a: any) =>
+                      a?.name === navRunAction ? { ...a, autoTrigger: true } : a,
+                  ),
+        [localizedToolbarActions, navRunAction],
+    );
+
     // Resolve which generic CRUD affordances belong in the toolbar for
     // this object's lifecycle bucket (`managedBy`).  config tables show
     // New/Edit/Delete but no CSV Import; system / append-only / better-auth
@@ -937,6 +1141,106 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         if (externalRefreshKey === undefined || externalRefreshKey === 0) return;
         setRefreshKey(k => k + 1);
     }, [externalRefreshKey]);
+
+    /**
+     * [#5153] The object-list toolbar's CREATE predicates — the `create` half
+     * of the toolbar-scope pair on THIS surface. #4646 (PR #5145) gave
+     * `createPredicates` a consumer on the **related list**
+     * (`RelatedRecordActionsBridge`); the standalone object-list page kept
+     * gating its "New" on the object-level verdict alone, so one
+     * `userActions.create` object form got two different verdicts depending on
+     * which surface rendered the button — honoured on a record page's related
+     * list, ignored here. `visibleWhen: false` (the objectui#3492 shape) did
+     * not hide this "New".
+     *
+     * BINDING, LAYERING and the fail-CLOSED / fail-SOFT split are the import
+     * half's, immediately below, verbatim — the spec types the two toolbar keys
+     * identically and binds them in one breath. See that docblock for the
+     * reasoning; the only thing that differs here is which affordance is gated.
+     *
+     * TWO RENDER POINTS, ONE VERDICT. The affordance surfaces twice on this
+     * page — the PageHeader button (desktop) and the phone-only floating "+"
+     * that stands in for it once the header is hidden. They are one affordance
+     * rendered twice, so both consume these SAME two values; computing the
+     * predicate once here is what keeps them from disagreeing with each other.
+     */
+    const objectCanCreate = affordances.create && can(objectDef.name, 'create');
+    const createPredicates: RowCrudPredicates | undefined = objectCanCreate
+      ? affordances.createPredicates
+      : undefined;
+    /** `visibleWhen` — fails CLOSED, declared-ness by `?? true`. As Import. */
+    const createVisible = useRowPredicate(createPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:visibleWhen',
+    });
+    /** `disabledWhen` — fails SOFT, `!= null` declared-ness OUTSIDE the eval. */
+    const createDisabledPred = useRowPredicate(createPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:create:disabledWhen',
+    });
+    const createDisabled = createPredicates?.disabledWhen != null && createDisabledPred;
+
+    /**
+     * [#5142] The object-list toolbar's IMPORT predicates — the `import` half
+     * of the toolbar-scope pair the spec resolver emits, mirroring what
+     * `RelatedRecordActionsBridge` does for `create` (objectui#4646).
+     *
+     * `@objectstack/spec@17.0.0` types `userActions.create` and
+     * `userActions.import` identically and `resolveCrudAffordances` emits a
+     * predicate envelope for each; the docblock binds them in one breath
+     * ("`importPredicates` — same binding as `createPredicates`"). #4646 gave
+     * `create` a consumer and left `import` declared-and-inert: an author could
+     * write `userActions.import.visibleWhen`, have the spec accept it and the
+     * resolver parse it, and watch this toolbar offer the CSV wizard anyway.
+     *
+     * BINDING (the spec docblock's, not an invention here). Unlike the ROW
+     * predicates, a toolbar predicate evaluates ONCE per toolbar against the
+     * record of the scope the toolbar sits in — the host parent record on a
+     * related list, and **no record at all on a standalone object list**, which
+     * is what this surface is. So `null` is passed deliberately below: a
+     * predicate reading `record.*` has nothing to bind, faults, and — per the
+     * fail-CLOSED rule — hides the button, exactly as the spec spells out.
+     * Predicates over the host scope (`os.user.*` / `features.*`) bind normally
+     * and are the meaningful shape here.
+     *
+     * LAYERING: surfaced only when the object-level verdict already passed —
+     * the same posture the related-list bridge takes, because a predicate may
+     * not RE-OPEN what the bucket, the effective API operations (#3391) or the
+     * principal's grant have closed. The identity-import bypass below is a
+     * different affordance entirely (it does not read `affordances.import`) and
+     * is deliberately left outside this layer.
+     */
+    const objectCanImport = affordances.import && can(objectDef.name, 'create');
+    const importPredicates: RowCrudPredicates | undefined = objectCanImport
+      ? affordances.importPredicates
+      : undefined;
+    /**
+     * `visibleWhen` — fails CLOSED, and counts as DECLARED by `?? true` rather
+     * than by truthiness, so `visibleWhen: false` hides Import instead of
+     * reading as "ungated" (the objectui#3492 invariant). The `true` default is
+     * a boolean, which the evaluator short-circuits without touching the engine
+     * — an object with no import predicates pays no evaluation at all.
+     */
+    const importVisible = useRowPredicate(importPredicates?.visibleWhen ?? true, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:visibleWhen',
+    });
+    /**
+     * `disabledWhen` — fails SOFT (an unevaluable predicate must not grey a
+     * button forever), with the `!= null` declared-ness gate OUTSIDE the
+     * evaluation so `disabledWhen: ''` reads as "no condition" rather than as
+     * "disable". Verbatim the posture of the record header (PR #4515), the
+     * row kebab, and the related-list toolbar.
+     */
+    const importDisabledPred = useRowPredicate(importPredicates?.disabledWhen, null, {
+      fallback: false,
+      warnOnError: true,
+      label: 'builtin:import:disabledWhen',
+    });
+    const importDisabled = importPredicates?.disabledWhen != null && importDisabledPred;
 
     // Import wizard open/close state — toolbar entry triggers it.
     const [showImport, setShowImport] = useState(false);
@@ -1031,6 +1335,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             setViewOverrides({});
             return;
         }
+        // `listViews` is canonical (#5362; @objectstack/spec declares only camelCase). The
+        // `list_views` leg is a compatibility READ for stored pre-settlement documents
+        // (that stock has never been censused: objectstack#7917). Never WRITE the snake key.
         const definedViews = (objectDef.listViews || objectDef.list_views || {}) as Record<string, any>;
         const ids = Object.keys(definedViews);
         // Include the primary view id so overrides apply to it too. Its identity
@@ -1411,16 +1718,31 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         }
     }, [realtimeMessage, hasConflicts, resolveAllConflicts]);
     
-    // Fetch record count for footer display
+    // Fetch record count for footer display.
+    //
+    // `$top: 0` IS the request: give me the total, send no rows. It was written
+    // `limit: 0`, which is not a `QueryParams` key — `convertQueryParams` copies
+    // exactly the `$`-prefixed keys the type declares — so the cap reached no
+    // branch and was dropped, and the platform's GET list route has no default
+    // page size. The effect therefore did the opposite of what it says: it
+    // downloaded EVERY row of the object, on every mount and every refresh of
+    // every list view, to read one integer off the envelope. The dead spelling
+    // type-checked because `QueryParams` carries `[key: string]: any` for
+    // adapter-specific params; `object-ui/no-unprefixed-query-params` rejects it
+    // at write time now (objectui#5458).
+    //
+    // `total` is the only field that can still answer the question, so the
+    // row-counting fallbacks are gone rather than repointed. Once we ask for
+    // zero rows an empty `data` means "you asked for none", not "the object is
+    // empty" — counting the response would report a confident `0` for any
+    // adapter that does not send a total. Leaving `recordCount` `undefined`
+    // omits the footer line instead of asserting a wrong number; the render is
+    // already guarded by `typeof recordCount === 'number'`.
     useEffect(() => {
         if (dataSource?.find && objectDef.name) {
-            dataSource.find(objectDef.name, { limit: 0 }).then((result: any) => {
+            dataSource.find(objectDef.name, { $top: 0 }).then((result: any) => {
                 if (typeof result?.total === 'number') {
                     setRecordCount(result.total);
-                } else if (Array.isArray(result?.data)) {
-                    setRecordCount(result.data.length);
-                } else if (Array.isArray(result)) {
-                    setRecordCount(result.length);
                 }
             }).catch(() => {
                 // Silently ignore — record count is non-critical
@@ -1891,7 +2213,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                             undefined;
                         return lane ? { groupBy: lane, groupField: lane } : {};
                     })(),
-                    titleField: viewDef.kanban?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.kanban?.titleField || 'name',
                     cardFields: viewDef.kanban?.columns,
                 },
                 calendar: {
@@ -1903,12 +2225,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     defaultView: viewDef.calendar?.defaultView,
                 },
                 // The date axis is resolved once, in ListView — this face only
-                // forwards what the view declared plus the object's title field
-                // (objectui#3129). See `timelineViewOptions`.
-                timeline: timelineViewOptions(viewDef, objectDef),
+                // forwards what the view declared, floored at 'name'
+                // (objectui#3129, objectui#6557). See `timelineViewOptions`.
+                timeline: timelineViewOptions(viewDef),
                 map: {
                     locationField: viewDef.map?.locationField,
-                    titleField: viewDef.map?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.map?.titleField || 'name',
                     latitudeField: viewDef.map?.latitudeField,
                     longitudeField: viewDef.map?.longitudeField,
                     zoom: viewDef.map?.zoom,
@@ -1922,7 +2244,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     ...(viewDef.gallery || {}),
                     imageField: viewDef.gallery?.imageField || viewDef.gallery?.coverField || 'image',
                     coverField: viewDef.gallery?.coverField || viewDef.gallery?.imageField,
-                    titleField: viewDef.gallery?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.gallery?.titleField || 'name',
                 },
                 gantt: {
                     // Spread the full view-defined gantt config first so the
@@ -1942,9 +2264,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     // Self-referencing tree-grid config (plugin-tree). Spread the
                     // full view-defined tree first so parentField/fields/
                     // defaultExpandedDepth survive; labelField falls back to the
-                    // object title. parentField auto-detects when omitted.
+                    // view's own `tree.titleField`, then to 'name'. parentField
+                    // auto-detects when omitted.
                     ...((viewDef as any).tree || {}),
-                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || objectDef.titleField || 'name',
+                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || 'name',
                 },
                 chart: {
                     chartType: viewDef.chart?.chartType,
@@ -2045,7 +2368,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         showFilters: activeView?.showFilters !== false,
         showSort: activeView?.showSort !== false,
         showCreate: false, // We render our own create button in the header
-        showRefresh: true,
         allowCreateView: isAdmin,
         viewActions: isAdmin ? [
             { type: 'settings' as const },
@@ -2097,7 +2419,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                      <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
                    </span>
                  }
-                 description={objectDef.description ? objectDesc(objectDef) : undefined}
+                 subtitle={objectDef.description ? objectDesc(objectDef) : undefined}
                  icon={(() => { const I = getIcon((objectDef as any)?.icon); return <I className="h-4 w-4" />; })()}
                  actions={
                    <>
@@ -2125,9 +2447,20 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                       </Button>
                     )}
 
-                    {/* Primary action - always visible */}
-                    {affordances.create && can(objectDef.name, 'create') && (
-                    <Button size="sm" onClick={actions.create} className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9">
+                    {/* Primary action.
+                        [#5153] `objectCanCreate && createVisible` — the
+                        object-level verdict, then the toolbar-scope
+                        `visibleWhen` layer on top of it. Greyed, not gone, is
+                        the `disabledWhen` case. Same pair drives the phone FAB
+                        below, so the two render points cannot disagree. */}
+                    {objectCanCreate && createVisible && (
+                    <Button
+                        size="sm"
+                        onClick={actions.create}
+                        disabled={createDisabled}
+                        className="shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
+                        data-testid="object-view-new-button"
+                    >
                         <Plus className="h-4 w-4" />
                         <span className="hidden sm:inline">{t('console.objectView.new')}</span>
                     </Button>
@@ -2137,11 +2470,15 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         are inherently a desk/laptop workflow; the button
                         was eating header space on mobile next to the
                         primary "+" action. */}
-                    {(identityImportEnabled || (affordances.import && can(objectDef.name, 'create'))) && (
+                    {/* [#5142] `objectCanImport && importVisible` — the object-level
+                        verdict, then the toolbar-scope `visibleWhen` layer on top of
+                        it. Greyed, not gone, is the `disabledWhen` case below. */}
+                    {(identityImportEnabled || (objectCanImport && importVisible)) && (
                     <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setShowImport(true)}
+                        disabled={importDisabled}
                         className="hidden sm:inline-flex shadow-none gap-1.5 sm:gap-2 h-8 sm:h-9"
                         title={t('console.objectView.importTitle')}
                         data-testid="object-view-import-button"
@@ -2163,7 +2500,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                       <SchemaRenderer schema={{
                         type: 'action:bar',
                         location: 'list_toolbar',
-                        actions: localizedToolbarActions,
+                        actions: toolbarActionsWithDeepLink,
                         size: 'sm',
                         variant: 'outline',
                         // On mobile, collapse all schema-driven toolbar actions
@@ -2190,12 +2527,30 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  PageHeader's primary create action we just hid. Positioned
                  above the bottom mobile-nav (h-12 + safe-area) so it
                  doesn't collide with it. Hidden on tablets/desktops
-                 because the inline header button is already visible. */}
-             {affordances.create && can(objectDef.name, 'create') && (
+                 because the inline header button is already visible.
+
+                 [#5153] Second render point of the SAME affordance, so it
+                 consumes the SAME `objectCanCreate && createVisible` /
+                 `createDisabled` pair as the header button — a phone user and a
+                 desktop user must not get different verdicts for one
+                 `userActions.create` declaration.
+
+                 DISABLED, on a control with no greyed form of its own: this is
+                 a bare `<button>`, not the design system's `Button`, so it
+                 carries none of the latter's `disabled:` treatment. Rather than
+                 collapse the three states to two (which would map
+                 `disabledWhen` onto "hidden" and lose the distinction the spec
+                 draws between hidden and greyed), it takes the native
+                 `disabled` — which is what conveys the state to assistive tech
+                 — plus the same `disabled:opacity-50
+                 disabled:pointer-events-none` utilities `Button` itself uses,
+                 so the visual affordance matches the header button's. */}
+             {objectCanCreate && createVisible && (
                <button
                  type="button"
                  onClick={actions.create}
-                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center"
+                 disabled={createDisabled}
+                 className="sm:hidden fixed right-4 bottom-36 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none"
                  aria-label={t('console.objectView.new')}
                  data-testid="mobile-fab-create"
                >

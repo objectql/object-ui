@@ -1,5 +1,224 @@
 # @object-ui/data-objectstack
 
+## 17.6.0
+
+### Minor Changes
+
+- a8411ad: data-objectstack: retire the four remaining `v3.0.0 Deep Integration` modules — `IntegrationManager`, `SecurityManager`, the studio canvas helpers (`createDefaultCanvasConfig` / `snapToGrid` / `calculateAutoLayout`), and the contract helpers (`validatePluginContract` / `generateContractManifest`) — for having zero code consumers outside this package
+  
+  `src/index.ts`'s `// v3.0.0 Deep Integration modules` banner introduced five
+  modules. objectui#4152 / PR #4239 already retired the first,
+  `CloudOperations`, for fabricating a plausible success against a client
+  namespace that does not exist. This closes out the other four:
+  `contracts.ts`, `integration.ts`, `security.ts`, `studio.ts`.
+  
+  **Not a repeat of #4152's urgency limb.** None of these four fabricated
+  anything — `SecurityManager.generateCSPHeader()` really composes a header,
+  `snapToGrid` really snaps, `validatePluginContract` really validates. What
+  they shared with `CloudOperations` was the other limb: published surface of
+  `@object-ui/data-objectstack` with a measured **zero** code consumers outside
+  this package, across `packages/`, `apps/` and `examples/` (`.ts`/`.tsx`,
+  excluding `node_modules`). The two apparent hits on re-measurement were
+  homonyms, not consumers — `packages/plugin-designer/src/PageDesigner.tsx`
+  declares its own local `snapToGrid` callback with no import from this
+  package, and the `SecurityManager` hits outside this file are prose in
+  `CHANGELOG.md`. Under the startup-focus principle a declared capability with
+  no producer, no consumer and no business pull is retired, not kept on the
+  chance it becomes useful.
+  
+  **Breaking, in FROM → TO form.** The following are no longer exported from
+  `@object-ui/data-objectstack`:
+  
+  - `IntegrationManager` and its types (`IntegrationConfig`, `IntegrationTrigger`,
+    `IntegrationProvider`, `SlackIntegrationConfig`, `EmailIntegrationConfig`,
+    `WebhookIntegrationConfig`)
+  - `SecurityManager` and its types (`SecurityManagerPolicy`, `CSPConfig`,
+    `AuditLogConfig`, `AuditEventType`, `DataMaskingConfig`, `DataMaskingRule`,
+    `AuditLogEntry`)
+  - `createDefaultCanvasConfig`, `snapToGrid`, `calculateAutoLayout` and their
+    types (`StudioCanvasConfig`, `StudioPropertyEditor`,
+    `StudioThemeBuilderConfig`, `StudioColorPalette`, `StudioTypographyPreset`,
+    `StudioShadowPreset`)
+  - `validatePluginContract`, `generateContractManifest` and their types
+    (`PluginContract`, `PluginExport`, `PluginAPIContract`,
+    `ContractValidationResult`, `ContractValidationError`)
+  
+  It is a `minor` under this repo's version policy (objectui's own breaking
+  changes never declare `major`). Nothing broke that was working: the only
+  in-repo construction sites were this package's own `v3-compat.test.ts` (which
+  exercised the modules directly) and `spec-symbol-batch6.test.ts` (which only
+  guarded `SecurityManagerPolicy`'s name against colliding with the spec's
+  unrelated `SecurityPolicy` — that guard is removed along with its subject).
+  
+  **No compile-compat stub was left**, for the same reason #4152 left none: with
+  no consumer to keep compiling, a stub would be a second phantom surface
+  guarding the first.
+  
+  **The banner and the compat-test title stop claiming a v3.** `index.ts`'s
+  `// v3.0.0 Deep Integration modules` banner had nothing left under it once
+  these four went, so it is removed rather than retitled.
+  `v3-compat.test.ts` — titled "v3.0.0 compatibility tests for @objectstack
+  dependencies" against a resolved `@objectstack` family of `17.0.0-rc.6` even
+  before this change — is not an empty shell (one block, `PaginatedResult API`,
+  never depended on any of the five retired modules), so it stays and is
+  retitled instead of deleted.
+  
+  A negative pin
+  (`src/v3-deep-integration-retired-4241.pin.test.ts`) replaces the retired
+  `v3-compat.test.ts` cases and fails if any of the thirty retired names
+  returns — reading both the runtime export list (which catches the seven
+  class/function exports) and `index.ts`'s source text (the only instrument
+  that can catch a returning `export type`).
+
+### Patch Changes
+
+- 1ef236e: `@object-ui/data-objectstack` stops publishing its `src/` tree
+  
+  The manifest's `files` array listed `src` alongside `dist`, so every published tarball carried all 43 source files — 38 of them `*.test.ts`. It had been that way since the package's first commit (`780a1b993`), never added for a consumer, and objectui#4006 recorded the same shape without acting on it: its scope was the `*.test.d.ts` half that the build program emitted into `dist`, and its own triage note graded this half as tarball weight rather than a break.
+  
+  Nothing in the published surface reached those files, which is why no consumer changes in either direction. Measured on a cleanly rebuilt `dist`, all four ways in are closed: the `exports` map has one entry (`.`) and every condition under it targets `dist`; `main` / `module` / `types` are `./dist/index.js`, `./dist/index.js`, `./dist/index.d.ts`; the repo and the docs teach only the root specifier, and no `@object-ui/data-objectstack/src/...` deep import exists anywhere (the `src` paths in sibling `vite.config.ts` / `vitest.config.mts` files are workspace aliases resolved through `path.resolve()` against the source tree, which no `files` array shapes); and the tarball holds no sourcemap that could point back at `src`, since `tsup.config.ts` sets `sourcemap: false` and its bundled `dts` writes no `.d.ts.map` — the built `dist` contains four files, zero `.map` among them, and zero occurrences of `sourceMappingURL` or `../src/`.
+  
+  `npm pack --dry-run` across the change, on the same `dist`:
+  
+  | | before | after |
+  | --- | --- | --- |
+  | entries | 51 | 8 |
+  | unpacked | 1356830 B | 719876 B |
+  | tarball | 393379 B | 222157 B |
+  
+  43 files leave, none arrives, and every surviving entry is byte-identical apart from the edited `package.json`: `dist/index.{js,cjs,d.ts,d.cts}`, `README.md`, `CHANGELOG.md`, `LICENSE`, `package.json`. The 43 are the 38 tests plus the five modules they cover (`index.ts`, `errors.ts`, `metadata-client.ts`, `userState.ts`, `cache/MetadataCache.ts`), whose published form remains the bundled `dist/index.js`.
+- cf4f8a6: `MetadataClient.layered()` now reads the three-layer view from its declared path,
+  `GET /meta/:type/:name/layers`, instead of flagging the ordinary item read.
+  
+  The consumer half of objectstack#5882 (ruled B by the maintainer; the server half
+  landed in objectstack#6596 and shipped in `@objectstack/spec@17.0.0`). The layered
+  projection — packaged baseline vs tenant overlay vs merged effective, which is
+  what the Studio metadata editor's comparison tabs render — used to be reached by
+  hanging a query flag on `GET /meta/:type/:name`. One route therefore answered two
+  unrelated representations chosen by a query parameter, while `packages/spec`
+  declared only the unflagged one: anything generating a client from the route
+  table produced a parser that was simply wrong for the flagged call. The
+  projection now has a path of its own and a response schema of its own
+  (`GetMetaItemLayeredResponseSchema`).
+  
+  Same body, same envelope, so nothing in the editor changes shape: `code`,
+  `overlay`, `overlayScope`, `effective`, the load-time `_diagnostics` and the full
+  ADR-0010 protection envelope all still arrive on one round trip, and `?package=`
+  (ADR-0048) is still threaded — the two entry points are served by ONE handler
+  upstream precisely so the deprecation window's promise holds. The retired
+  spelling still answers during that window, marked with RFC 9745 `Deprecation` and
+  an RFC 8288 `Link: rel="successor-version"` pointing here, so this migration is
+  safe against a lagging backend for as long as the window stays open, and it is
+  what lets the maintainer close it.
+  
+  One behaviour delta rides along, and it is the server's design rather than a
+  choice made here: the retired flag FELL THROUGH to the plain item read when the
+  backend's protocol implementation had no layered support, answering the
+  `{ type, name, item }` envelope. A dedicated path refuses to answer a different
+  resource under this one's declared shape and returns 501 `NOT_IMPLEMENTED`, which
+  surfaces as a failed read instead of a comparison view whose `code` and `overlay`
+  are silently blank.
+  
+  The request is built in this package rather than delegated to
+  `@objectstack/client` because the SDK expresses no layered read in either
+  spelling — the framework's REST route ledger records the route as `server-only`,
+  "consumed by objectui over plain HTTP", and whether the SDK should express it is
+  an open upstream product call. The new path expectation is derived from the
+  installed `@objectstack/spec` route table, and a ratchet keeps any shipped source
+  file or skills guide from reaching the projection by query flag again.
+- 3d053bb: The Studio's overlay-layer badge stops printing the producer's raw scope value
+  
+  objectui#4982. `MetadataLayered.overlayScope` was typed `string | null` under a comment naming its
+  vocabulary as `organization | environment | package` — three spellings the producer has never
+  emitted. The real vocabulary lives in `@objectstack/spec`'s `GetMetaItemLayeredResponseSchema`
+  (`z.enum(['org', 'env']).nullable()`), and the framework's two assignment sites write `'org'` /
+  `'env'`. Because the declared type was `string`, no compiler anywhere had an opinion, so the wrong
+  comment was the only description of the field a reader had.
+  
+  `overlayScope` is now the spec union, derived by indexing the published response type rather than
+  restated locally (a restatement is the fork `check:spec-symbol-derivation` rejects); the alias ships
+  as `MetadataOverlayScope`.
+  
+  User-visible half: `LayeredDiff`'s overlay badge rendered that value straight to screen while the
+  sibling artifact / none / merged badges all went through `translateConsoleValue`, and
+  `CONSOLE_VALUE_ZH.layer` had no entry for either value the field can hold. One badge therefore had
+  two languages depending on the data — a zh-CN admin opening any overlaid metadata item read `org` /
+  `env`, while an un-overlaid one read 「已设」. The badge now translates like its three siblings, with
+  「组织」/「环境」 added to the layer table. That table's overlay-scope half is keyed by the spec union,
+  so a scope the spec adds later fails `type-check` until it has a label instead of quietly reaching a
+  badge in English. `translateConsoleValue` remains zh-only for every group, as before — extending it
+  to the other locale packs is a separate decision and not part of this change.
+- d871f8e: A view personalization overlay no longer freezes the view it was laid over. `ObjectView`'s
+  `persistViewPatch` sends `{ ...baseViewDef, ...patch }`, so a row written by a mere column
+  drag or sort change stored the view's whole body — its effective `filter`, `columns`,
+  `label`, `type`, `isDefault` — as of that moment, and the display merge
+  (`{ ...source, ...override }`) then let that snapshot outrank the source view indefinitely:
+  an admin edited a view's filter and everyone who had ever resized a column silently kept the
+  old filter, with nothing reporting it.
+  
+  An overlay now contributes only the keys it owns — `rowHeight`, `sort`, `hiddenFields`,
+  `columnState`, `inlineEdit` (`VIEW_OVERLAY_OWNED_KEYS`, new export from
+  `@object-ui/data-objectstack` alongside `narrowPersonalizationOverlay`) — so a later change
+  to the source view reaches every user, including those whose stored row still carries the
+  old snapshot: rows written before this change stop shadowing the source on the next read,
+  with no migration to run and nothing rewritten at rest. A genuine saved view's own body is
+  untouched — it is classified by the same predicate `listViews()` already excludes overlay
+  rows by, so a row cannot be an overlay for one reader and a saved view for the other
+  (objectui#5233, ruled on objectstack#7494).
+- a0b9e91: A system (code-defined) view's personalization overlay row no longer masquerades as a user-created saved view.
+  
+  Toggling density / sort / hidden columns / column widths / inline-edit on a code-defined view persists a row under the same `type='view'` metadata namespace a genuinely saved view lives in, keyed by the same id (`ObjectStackAdapter.updateViewConfig`). `listViews()` previously returned that row indistinguishably from a real saved view, so `ObjectView`'s `isSystem = !saved` check flipped to `false` and the tab gained Rename / Delete / Set-default / Pin against a view that lives in code — `handleDeleteView` would even call `dataSource.deleteView` on it.
+  
+  Two layers now keep the two kinds of rows apart:
+  
+  - **Write side**: `updateViewConfig` — the only production writer of personalization overlays — stamps an explicit `_isOverride: true` discriminant on every row it saves, UNLESS the write targets an already-saved view's own row (see below).
+  - **Read side**: `listViews()` excludes any row carrying that marker, and (for rows already persisted before this fix shipped) a best-effort legacy shape: a flat body with a `viewKind` the platform can only have server-side-backfilled from a registry (code-defined) baseline — a genuine runtime-created saved view never has one.
+  
+  `listViewOverrides()` (the reader `ObjectView` uses to merge these settings back into the live view for display) is unchanged — it is supposed to keep seeing overlay rows.
+  
+  The overlay this stores is **org-wide shared view settings**, not a per-user preference (a true per-user scope is a parked platform-side v18 direction) — comments describing it as "personal" have been corrected to say so.
+  
+  **Follow-up fix (same card, post-review):** `updateViewConfig`'s ONE call site (`ObjectView`'s toolbar-driven toggle) fires for a toggle on EITHER a system view OR an already-saved view — a saved view whose own toolbar the user toggles writes to that same view's own row. Stamping the overlay marker unconditionally there would flag the user's own saved view as an overlay and make `listViews()` exclude it on the very next read, i.e. the saved view would vanish from the switcher the moment its density was adjusted. `updateViewConfig` gains an optional `opts.isSavedView` parameter (also added to the `DataSource` interface in `@object-ui/types`); `ObjectView` passes it from the same `isSavedViewId` classification its readonly gate and mutating handlers already use, and the marker is withheld when it's true.
+- Updated dependencies [88085e3]
+- Updated dependencies [2533ec5]
+- Updated dependencies [bbe8b86]
+- Updated dependencies [8477be5]
+- Updated dependencies [279fb13]
+- Updated dependencies [ad07b65]
+- Updated dependencies [41f498b]
+- Updated dependencies [e1d4251]
+- Updated dependencies [1184192]
+- Updated dependencies [a2a9747]
+- Updated dependencies [ac600e5]
+- Updated dependencies [c1ef923]
+- Updated dependencies [af5e292]
+- Updated dependencies [7f96b10]
+- Updated dependencies [167ec42]
+- Updated dependencies [f1d4748]
+- Updated dependencies [b1119ec]
+- Updated dependencies [9f23d2b]
+- Updated dependencies [578e025]
+- Updated dependencies [af025ee]
+- Updated dependencies [598c89a]
+- Updated dependencies [b8b9af4]
+- Updated dependencies [31676be]
+- Updated dependencies [9ce096f]
+- Updated dependencies [e05db88]
+- Updated dependencies [5ffcc14]
+- Updated dependencies [d971e51]
+- Updated dependencies [97abb24]
+- Updated dependencies [deb157a]
+- Updated dependencies [d2ce342]
+- Updated dependencies [9695da7]
+- Updated dependencies [58b8346]
+- Updated dependencies [dfc6975]
+- Updated dependencies [3cf4de0]
+- Updated dependencies [c9dc811]
+- Updated dependencies [a0b9e91]
+- Updated dependencies [99bd015]
+  - @object-ui/types@17.6.0
+  - @object-ui/core@17.6.0
+
 ## 17.5.0
 
 ### Minor Changes

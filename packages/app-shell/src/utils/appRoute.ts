@@ -241,3 +241,77 @@ function studioPackageId(app: AppLike | null | undefined): string | null {
   if (typeof packageId !== 'string' || !packageId || packageId === 'sys_metadata') return null;
   return packageId;
 }
+
+/**
+ * Where a notification's `action_url` should actually take the user
+ * (objectui#5179).
+ *
+ * ## The contract this reads
+ *
+ * `action_url` is **app-relative**, and the producer says so in as many words.
+ * `service-messaging`'s `actionUrlFor()` takes an explicit `payload.url` when
+ * one is given, and otherwise synthesizes `/{object}/{id}` from the emit's
+ * `source` "so the materialization is self-sufficient for navigation (the bell
+ * no longer has the L2 event's `source_object/source_id` to fall back on —
+ * ADR-0030 L5)". Its own pins carry that shape: `/showcase_task/t_42`,
+ * `/opportunities/42`.
+ *
+ * So the field names a RECORD, not a console route. Which app hosts it is the
+ * client's question — the same one {@link resolveHostAppSegment} answers for
+ * `sys_inbox_message` and `sys_activity`, and for the same reason: notifications
+ * are app-independent, so the app segment in the URL is a statement about WHERE
+ * THE USER IS.
+ *
+ * Navigating the field verbatim is what objectui#5179 reported. `/showcase_task/t_42`
+ * matches no route, so the console's catch-all (`<Route path="*" element={<Navigate
+ * to="/" replace />} />`) forwards it to `/`, and `RootLandingRedirect` resolves
+ * that to `/apps/<default app>` — the app landing page. Mark-as-read has already
+ * fired by then, so the user's pointer to the record is not misdirected but gone.
+ *
+ * ## Why a resolver rather than a prefix at each call site
+ *
+ * Both producers of this navigation — Home's action centre and the top-bar bell
+ * — had their own answer, and the two disagreed with each other AND with the
+ * two "see all" drills sitting in the same files. One resolver is what makes
+ * them incapable of drifting again; it is the same argument objectui#4074 made
+ * for `resolveHostAppSegment` one screen up.
+ *
+ * ## The three shapes, and why each is distinguished
+ *
+ * - **external** (`https://…`, or any other scheme) — a producer-supplied
+ *   `payload.url` pointing off-console. It must never be hosted: prefixing
+ *   would build `/apps/crm/https://…`, a route that does not exist. The caller
+ *   decides how to open it, because "new tab" is a UI decision, not a routing one.
+ * - **already a console route** (`/apps/…`) — an explicit `payload.url` that has
+ *   already named its app. Hosting it twice (`/apps/crm/apps/acme/…`) would
+ *   break the one case that worked before this fix.
+ * - **app-relative** (everything else) — the synthesized `/{object}/{id}`, and
+ *   the case this exists for. Hosted under `hostAppSegment`.
+ *
+ * Returns `null` for an absent or blank url, so callers keep their own fallback
+ * (Home opens the full inbox; the bell has no link to follow) rather than
+ * receiving a fabricated target. A protocol-relative `//host/path` counts as
+ * external — it is a URL to another origin, whatever the current scheme.
+ */
+export type NotificationTarget =
+  /** Off-console. Hand to `window.open`, never to the router. */
+  | { kind: 'external'; url: string }
+  /** An in-console path, ready for `navigate()`. */
+  | { kind: 'route'; path: string };
+
+export function resolveNotificationTarget(
+  actionUrl: string | null | undefined,
+  hostAppSegment: string,
+): NotificationTarget | null {
+  const url = (actionUrl ?? '').trim();
+  if (!url) return null;
+  // Any scheme (`https:`, `mailto:`, …) or a protocol-relative `//host` is off
+  // this console's router. Deliberately broader than an http(s) test: a
+  // `mailto:` link prefixed into `/apps/crm/mailto:…` is just as broken.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith('//')) return { kind: 'external', url };
+  const rel = url.startsWith('/') ? url : `/${url}`;
+  // Already addressed to an app — `/apps` alone included, which is the app
+  // launcher rather than a record, but still this console's own route.
+  if (rel === '/apps' || rel.startsWith('/apps/')) return { kind: 'route', path: rel };
+  return { kind: 'route', path: `/apps/${hostAppSegment}${rel}` };
+}

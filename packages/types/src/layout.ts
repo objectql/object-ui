@@ -17,7 +17,7 @@
  */
 
 import type { PageType as SpecPageType } from '@objectstack/spec/ui';
-import type { BaseSchema, SchemaNode } from './base';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Basic HTML div container
@@ -98,9 +98,40 @@ export interface ImageSchema extends BaseSchema {
 export interface IconSchema extends BaseSchema {
   type: 'icon';
   /**
-   * Icon name (lucide-react icon name)
+   * The lucide-react glyph to render, kebab-case (`check`, `arrow-right`).
+   *
+   * ## Why this key is `icon` and not `name` (objectui#5631)
+   *
+   * It used to be `name`, and `name` is not this node's private prop — it is
+   * the SDUI IDENTITY key every authored node carries from
+   * {@link BaseSchema.name}, alongside `id`. So an ordinary authored node like
+   * `{ type: 'icon', id: 'save_icon', name: 'save_icon' }` asked lucide for a
+   * glyph called `SaveIcon`, missed, and rendered NOTHING — silent at runtime
+   * and clean-looking to a DOM gate, because a renderer that renders nothing
+   * spreads no attributes to find.
+   *
+   * The maintainer ruled the contract question twice: 2026-08-22 (option A —
+   * "`icon` is the icon key; `name` is identity, always") and again 2026-08-24
+   * ("5631 A′，按一次正经的契约迁移立项。") at the full measured price,
+   * once it was established that the renderer alone could not carry it: the
+   * published mirror REQUIRED `name`, so the ruled shape was refused by the
+   * contract while the renderer read a key the contract never declared.
+   *
+   * `action:*` already reads `icon`, so this is the vocabulary's existing
+   * answer rather than a new one — and it leaves no node type on which the
+   * identity key is unavailable.
+   *
+   * ⚠️ REQUIRED, exactly as `name` was required before it. A stored node that
+   * still names its glyph with `name` is REFUSED by the zod mirror with a
+   * message that names the migration, and renders the visible placeholder from
+   * PR #5959 if it reaches the renderer unvalidated. Both are loud on purpose;
+   * ⛔ there is no tolerant `icon ?? name` read anywhere — that shape was ruled
+   * out explicitly, and it would make `name` mean two things depending on
+   * whether a lookup happened to hit. To convert stored metadata, see
+   * `migrateIconNodeKeys` in `./icon-key-migration.ts` — an explicit one-shot
+   * conversion, never a read-path fallback.
    */
-  name: string;
+  icon: string;
   /**
    * Icon size in pixels
    * @default 24
@@ -154,10 +185,45 @@ export interface ContainerSchema extends BaseSchema {
 }
 
 /**
- * Flexbox layout component
+ * The flex/stack layout members, declared ONCE and free of `BaseSchema`.
+ *
+ * This interface exists so that `StackSchema` can be "everything `FlexSchema`
+ * has, with a different `type`" WITHOUT crossing an `Omit` over a type that
+ * carries an index signature (objectui#6151).
+ *
+ * `StackSchema` used to be spelled `extends Omit<FlexSchema, 'type'>`. That
+ * erased every named member from the SHIPPED declaration, silently:
+ * `Omit<T, K>` is `Pick<T, Exclude<keyof T, K>>`, and `keyof T` on a type
+ * carrying a string index signature is `string | number` — the literal member
+ * names are absorbed. `FlexSchema` inherits `BaseSchema`'s `[key: string]: any`
+ * (objectui#5155), so `Exclude<string | number, 'type'>` is still
+ * `string | number`, and the `Pick` reconstructed a type with the index
+ * signature and NONE of the named members. Measured against the emitted
+ * `dist/layout.d.ts`: `FlexSchema` declared 25 properties, `StackSchema`
+ * declared 1 (`type`) — `gap`, `children`, `align`, `justify`, `direction` and
+ * `wrap` were all absent, along with all 19 of `BaseSchema`'s other named
+ * members.
+ *
+ * Nothing errored, which is why it survived: the index signature made every
+ * absent key still assignable and still readable as `any`. What it cost was
+ * every tool that reads the declaration — editor completion on a `stack` node
+ * offered `type` and nothing else, and a docs-vs-type sweep read `stack.mdx` as
+ * documenting keys that do not exist (objectui#6143 flagged `gap`, `children`
+ * and `className` as divergences; the docs were right and the type was wrong).
+ *
+ * Extending FlexSchema directly instead is not available: an interface may
+ * narrow an inherited property only to a subtype, and `'stack'` is not a
+ * subtype of `FlexSchema`'s `type: 'flex'` — measured, TS2430
+ * (`Interface 'StackSchema' incorrectly extends interface 'FlexSchema'.
+ * Types of property 'type' are incompatible.`). Lifting the shared members out
+ * of the inheritance path is what keeps them nameable from both sides.
+ *
+ * Pinned by `__tests__/stack-schema-emitted-members.test.ts`, which asserts
+ * against the EMITTED declaration rather than this source — a source-level
+ * assertion passes while the emitted declaration is empty, and that gap is
+ * exactly the defect.
  */
-export interface FlexSchema extends BaseSchema {
-  type: 'flex';
+export interface FlexLayoutProps {
   /**
    * Flex direction
    * @default 'row'
@@ -190,9 +256,20 @@ export interface FlexSchema extends BaseSchema {
 }
 
 /**
- * Stack layout component (Vertical Flex shortcut)
+ * Flexbox layout component
  */
-export interface StackSchema extends Omit<FlexSchema, 'type'> {
+export interface FlexSchema extends BaseSchema, FlexLayoutProps {
+  type: 'flex';
+}
+
+/**
+ * Stack layout component (Vertical Flex shortcut)
+ *
+ * Declares the same members as {@link FlexSchema} — see {@link FlexLayoutProps}
+ * for why they are shared through a third interface rather than derived with an
+ * `Omit` (objectui#6151).
+ */
+export interface StackSchema extends BaseSchema, FlexLayoutProps {
   type: 'stack';
 }
 
@@ -613,11 +690,25 @@ export interface PageNodeSchema extends BaseSchema {
    *
    * Source-authored (`source` carries the body; `regions` is unused) —
    * ADR-0080, see `content/docs/guide/react-pages.md`:
-   * - `"html"`: constrained JSX/HTML + Tailwind, PARSED into a SchemaNode
-   *   tree and rendered. Never executed — safe for untrusted authors.
-   *   `"jsx"` is a deprecated alias, still accepted.
+   * - `"html"`: constrained JSX, PARSED into a SchemaNode tree and
+   *   rendered. Never executed — safe for untrusted authors. Styled with
+   *   the blocks' own structured props (`<flex direction gap>`,
+   *   `<grid columns>`) plus a JSON `style` object. `"jsx"` is a
+   *   deprecated alias, still accepted.
    * - `"react"`: real React, transpiled and EVALUATED in the main tree.
-   *   No sandbox; gated behind the `react-pages` host capability.
+   *   No sandbox; gated behind the `react-pages` host capability. Styled
+   *   with inline `style` objects.
+   *
+   * Colors on both tiers come from the theme as `hsl(var(--token))`.
+   *
+   * Do NOT author Tailwind utility classes in page `source`, on either
+   * tier. `source` is *runtime metadata*: the console's Tailwind is
+   * compiled at build time by scanning the console's own `src`, and there
+   * is no safelist, so it never sees your page — an authored utility class
+   * produces CSS only by coincidence (when objectui already ships that
+   * exact class) and otherwise produces nothing, with no error anywhere.
+   * `os validate` reports it as `page-source-className-tailwind`.
+   * (ADR-0065; ADR-0080's 2026-06-30 amendment.)
    *
    * @default 'full'
    */

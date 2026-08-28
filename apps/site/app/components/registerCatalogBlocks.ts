@@ -36,9 +36,42 @@
  *   components-disclosure-toggle-group 1    core-schema-renderer 1
  *
  * The gallery page's PURPOSE is to render the whole catalog, so its baseline is
- * that every type an entry names is registered before the render. The nine
- * imports below are exactly the packages that census resolves to — not a
+ * that every type an entry names is registered before the render. Nine of the
+ * imports below are exactly the packages that census resolved to — not a
  * precautionary sweep of the workspace.
+ *
+ * ## The list is no longer ONLY that census (objectui#6167)
+ *
+ * `@object-ui/plugin-form` is here for a different reason, and the header has
+ * to say so rather than let the sentence above keep describing a property this
+ * file no longer has. The two `plugin-form` catalog entries are real
+ * `object-form` nodes as of objectui#6167, and `object-form` is registered by
+ * `@object-ui/plugin-form` — so the gallery depends on that package by name.
+ *
+ * What it did NOT do is change what resolves. Measured before adding it, with
+ * exactly the eleven imports this file used to carry: `object-form`,
+ * `plugin-form:object-form`, `embeddable-form`, `form-analytics`,
+ * `object-master-detail-form`, `record:line_items` and `view:form` all resolved
+ * already, because `@object-ui/plugin-view` — import #11 below — does
+ * `import { ObjectForm } from '@object-ui/plugin-form'`
+ * (`packages/plugin-view/src/ObjectView.tsx:38`), and importing that entry runs
+ * its `ComponentRegistry.register` calls. The package's graph was therefore
+ * ALREADY in this route's eager closure; the import below adds a declaration,
+ * not a payload. Registration is idempotent for the same reason: an ES module
+ * executes once, so naming it here does not re-run anything.
+ *
+ * `@object-ui/plugin-grid` joins on the same argument and with the same
+ * measured non-effect (objectui#6025). The `plugin-grid` entries have been real
+ * `object-grid` nodes since objectui#5856, and `object-grid` reached this
+ * registry only because `ObjectView.tsx:37` — the line above the one quoted
+ * above — imports `ObjectGrid`. That is a COMPONENT import, not a plugin
+ * dependency: a refactor that stopped `object-view` from drawing a grid itself
+ * would be entirely reasonable, would say nothing about the gallery, and would
+ * turn two catalog tiles into OBJUI-001 panels several files from the cause.
+ *
+ * So the list below is: the census (nine), plus objectui#4600's original two,
+ * plus two packages the gallery's own entries depend on BY NAME. What it is not
+ * is a sweep — nothing is here that the catalog does not render.
  *
  * ## The cost, measured before deciding (objectui#4616 ruling 1)
  *
@@ -102,18 +135,44 @@
  * page carrying a demo. The gallery page's own modal preview is unaffected — it
  * renders after `SchemaThumbnail` has already registered these on that page.
  *
- * IMPORT ORDER IS CONTRACT. Several packages register the same bare keyword
- * (`chart` is claimed by plugin-charts, plugin-dashboard and plugin-report;
- * `calendar` by plugin-calendar over `@object-ui/components`' `ui:calendar`),
- * and the last registration of a key wins. The first two lines keep the order
- * objectui#4600 established; the rest are appended, which is the order the
- * census above was measured in.
+ * IMPORT ORDER IS CONTRACT. The last registration of a bare keyword wins, so
+ * where two of the packages below claim one, the order decides what draws.
+ * Re-derived with `deriveRegistryKeys` (`scripts/check-doc-component-types.mjs`)
+ * on `origin/main` @ `e929c562a`, none of them do today (objectui#6442): bare
+ * `chart` is `plugin-charts`' alone — neither `plugin-dashboard` nor
+ * `plugin-report` registers it, and the two `apps/console` sites that also hold
+ * the key are `registerLazy` stubs whose loader is `plugin-charts` itself — and
+ * bare `calendar` is `plugin-calendar`'s alone, because `@object-ui/components`
+ * passes `skipFallback` on `ui:calendar` precisely to stay out of that keyword.
+ * The order stays fixed against the day that changes: the first two lines keep
+ * the order objectui#4600 established; the rest are appended, which is the
+ * order the census above was measured in.
  *
  * Guarded by two pins in `examples/schema-catalog/test/`:
  * `plugin-dashboard-gallery-render.test.tsx` (objectui#4600, the dashboard
  * category) and `catalog-gallery-render.test.tsx` (objectui#4616, every
  * category), both of which mirror this list and fail if it stops loading a
  * package.
+ *
+ * ## What weighs an ADDITION to this list (objectui#6316)
+ *
+ * Not `check:eager-closure`, whatever the cards that added to this list said:
+ * that gate reads `apps/console/dist/eager-closure.json` and weighs the CONSOLE.
+ * The figures above were taken by hand, once, and nothing re-takes them.
+ *
+ * `pnpm check:docs-route-closure`
+ * (`scripts/check-docs-route-eager-closure.mjs`) is what governs a new line
+ * here. It walks the `/docs/[[...slug]]` route's STATIC module graph — the
+ * entries, plus every compiled `content/docs/**\/*.mdx` module — and requires
+ * each package named below to be either already reachable without this file
+ * naming it (a declaration and no payload: measurably the case for the last two
+ * imports, through `@object-ui/plugin-view`) or recorded in that script's
+ * `MEASURED_PAYLOAD` with what it is for. A package that is neither is a
+ * genuinely new graph on a route all 181 docs pages share, and it fails there
+ * so that someone argues for it in review.
+ *
+ * It is structural, not byte-level, and deliberately so: it costs no docs
+ * build, and it does not re-take the measurement above or claim to.
  */
 import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-charts';
@@ -126,3 +185,5 @@ import '@object-ui/plugin-map';
 import '@object-ui/plugin-markdown';
 import '@object-ui/plugin-timeline';
 import '@object-ui/plugin-view';
+import '@object-ui/plugin-form';
+import '@object-ui/plugin-grid';

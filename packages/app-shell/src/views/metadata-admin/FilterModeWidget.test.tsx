@@ -2,17 +2,22 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { WIDGETS } from './widgets';
+import { WIDGETS, type WidgetContext } from './widgets';
+import { loaded } from './loadState';
 
 afterEach(cleanup);
 
 const FilterMode = WIDGETS['filter-mode'];
-const ctx = {
-  objectFields: [
+// A catalog that LOADED and holds three fields. `loaded(...)` rather than the
+// bare array since objectui#5228: the catalog is a `LoadState`, so a fixture has
+// to say which arm it is standing in — an empty list and a failed load are no
+// longer the same value.
+const ctx: WidgetContext = {
+  objectFields: loaded([
     { name: 'status', label: 'Status' },
     { name: 'priority', label: 'Priority' },
     { name: 'owner', label: 'Owner' },
-  ],
+  ]),
 };
 
 /**

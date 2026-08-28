@@ -29,19 +29,19 @@ import {
   InspectorCheckboxField,
   appendArray,
   spliceArray,
-} from './_shared';
-import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
-import { toFieldName } from '../previews/object-fields-io';
+} from './_shared.js';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField.js';
+import { toFieldName } from '../previews/object-fields-io.js';
 import { formatMeasure } from '@object-ui/core';
 import { useDisplayLocale } from '@object-ui/i18n';
-import { conditionToGroup, groupToCondition, type FilterCondition } from './datasetFilterCondition';
+import { conditionToGroup, groupToCondition, type FilterCondition } from './datasetFilterCondition.js';
 import {
   useObjectOptions,
   useDatasetFieldCatalog,
   useDatasetUsage,
   fieldTypeToDimensionType,
-} from './useDatasetFields';
-import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
+} from './useDatasetFields.js';
+import type { MetadataDefaultInspectorProps } from '../default-inspector-registry.js';
 
 // Closed to what the dataset compiler supports (no array_agg/string_agg in v1).
 const AGGREGATE_OPTIONS = [

@@ -14,8 +14,8 @@ import type {
   PermissionCheckResult,
   FieldLevelPermission,
 } from '@object-ui/types';
-import { PermCtx, type PermissionContextValue } from './PermissionContext';
-import { evaluatePermission } from './evaluator';
+import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
+import { evaluatePermission } from './evaluator.js';
 
 export interface PermissionProviderProps {
   /** Role definitions */
@@ -131,6 +131,10 @@ export function PermissionProvider({
       // operation set — return undefined so consumers keep current behavior.
       getObjectApiOperations: () => undefined,
       roles: userRoles,
+      // [objectui#5683] Role-based provider never learns who the user IS —
+      // unreported (`null`), so create-form current_user seeding stays
+      // server-side under this provider.
+      userId: null,
       // This role-based provider has no backend answer to give — it never
       // fetches /me/permissions — so ADR-0066 system capabilities are simply
       // unreported here: `undefined`, not `[]` (objectui#4656; a literal `[]`

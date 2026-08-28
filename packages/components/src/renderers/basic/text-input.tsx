@@ -97,6 +97,33 @@ function ElementTextInputRenderer({ schema }: { schema: any }) {
   const placeholder = pickLocalized(props.placeholder, language);
   const description = pickLocalized(props.description, language);
 
+  // The description paragraph's id is MINTED HERE, and deliberately NOT derived
+  // from `schema.id` — the two associations in this block need ids on opposite
+  // ends and therefore do not share a dependency:
+  //
+  //  - `label`'s `htmlFor` must name the INPUT, whose id is the author's
+  //    `schema.id` (the same key `usePageVariableBinding` binds on). Only the
+  //    author can supply it, so that wiring can only hold when they did.
+  //  - `aria-describedby` names the PARAGRAPH, an element this renderer wholly
+  //    owns and that no author ever addresses. Nothing about it depends on the
+  //    node carrying an `id`, so the association holds unconditionally.
+  //
+  // Reusing `schema.id` would have imported the label's dependency for no gain
+  // and added a failure the label wiring cannot have: two inputs sharing an id
+  // would publish two paragraphs sharing an id, and both fields'
+  // `aria-describedby` would resolve to whichever came first in the document —
+  // the WRONG helper text announced, which is worse than none. `React.useId()`
+  // is per instance and SSR-stable, and it is the same source `<FormItem>`
+  // mints the form renderer's `…-form-item-description` from (`ui/form.tsx`),
+  // so the standalone element and the form container now reach the same shape
+  // by the same route.
+  const instanceId = React.useId();
+  // Emitted ONLY when a paragraph is actually rendered. An `aria-describedby`
+  // that outlives an absent description is a DANGLING reference — worse than
+  // no attribute, because assistive tech reports the broken id rather than
+  // falling through to whatever else could describe the field.
+  const descriptionId = description ? `${instanceId}-description` : undefined;
+
   return (
     <div
       className={cn('grid w-full max-w-sm items-center gap-1.5', schema?.className)}
@@ -119,9 +146,14 @@ function ElementTextInputRenderer({ schema }: { schema: any }) {
         defaultValue={value === undefined ? (props.defaultValue as any) : undefined}
         required={props.required}
         disabled={props.disabled}
+        aria-describedby={descriptionId}
         onChange={handleChange}
       />
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      {description && (
+        <p id={descriptionId} className="text-sm text-muted-foreground">
+          {description}
+        </p>
+      )}
     </div>
   );
 }
@@ -143,8 +175,61 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
   // reverse half of the parity gate in
   // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`.
   inputs: [
-    { name: 'label', type: 'string', label: 'Label' },
-    { name: 'placeholder', type: 'string', label: 'Placeholder' },
+    // ── The `I18nLabel` trio — `label`, `placeholder` and `description` ──────
+    //
+    // TWO arms each, declared in the change that makes the gate agree with the
+    // contract (objectui#5717). The ORDER these were earned in is the inverse
+    // of the rest of the family, and that is the whole point of this block.
+    //
+    // `element:record_picker.emptyText` (objectui#5590) and that block's
+    // `label` / `placeholder` (objectui#5637) each held a single `'string'` arm
+    // while their render site passed the value straight into a text node, and
+    // gained the object arm in the very change that taught the render site to
+    // resolve it — the order `ComponentInput.type` prescribes: never declare an
+    // arm the renderer drops.
+    //
+    // Here the render site was NEVER behind. `pickLocalized(props.label,
+    // language)` and its two siblings above have resolved the inline locale map
+    // since this renderer was written, so the map has always reached the screen
+    // correctly in the viewer's language. Only the declaration stayed at one
+    // arm — which is the SAME rule's other half, and `ComponentInput.type`
+    // states it in those words: withholding an arm the renderer resolves makes
+    // the manifest gate report `type-mismatch` on a legal write, "one platform
+    // authority contradicting itself on the write it just recommended".
+    // Measured before this change, through the same `manifestFromConfigs` +
+    // `validateTree` pair the JSX-page compiler (`renderers/layout/page.tsx`)
+    // and the save gate use:
+    //
+    //     <element:text_input> prop "label" expected a string
+    //     <element:text_input> prop "placeholder" expected a string
+    //     <element:text_input> prop "description" expected a string
+    //
+    // …on `{ en: 'Owner', 'zh-CN': '负责人' }`, a value the contract accepts on
+    // all three keys.
+    //
+    // The arms are MEASURED, never copied from the card: the spec's own
+    // verdicts are what
+    // `packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts`
+    // compares this declaration against, per key, so a spec release that drops
+    // an arm and a declaration that grows one the spec rejects are both red.
+    // `defaultValue` below deliberately does NOT join this trio — its contract
+    // is `string | number` with no object arm, and the console specimen file
+    // keeps that separation as the control that makes this widening per-key
+    // rather than blanket.
+    {
+      name: 'label',
+      type: ['string', 'object'],
+      label: 'Label',
+      description:
+        'Caption rendered ABOVE the input, in a `<label>` element — tied to the field by `htmlFor` when the node carries an `id`, so clicking it focuses the input. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string; because the `required` asterisk is drawn on this element, a required input with no label shows no asterisk at all. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`) — the `I18nLabel` union the contract admits on this key — and the renderer resolves the map against the active language at the read site, falling back through base language, a region-qualified sibling, `default`, then `en`, and finally to any remaining entry.',
+    },
+    {
+      name: 'placeholder',
+      type: ['string', 'object'],
+      label: 'Placeholder',
+      description:
+        'Prompt shown INSIDE the field while it is empty, as the native input\'s `placeholder` attribute — it disappears as the user types and never becomes the input\'s value, so it is never what a bound page variable receives. Display-only, with no renderer default: an absent key means no placeholder, and an authored empty string (or a map no locale limb resolves) drops the attribute altogether rather than setting an empty one. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`.',
+    },
     {
       name: 'inputType',
       type: 'enum',
@@ -154,17 +239,19 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
     },
     {
       name: 'defaultValue',
-      // The spec's type is the union `string | number`, which `ComponentInput`
-      // has no way to spell — its `type` is one coarse control kind. `'string'`
-      // is the arm chosen here (a text input's ordinary case, and the DOM value
-      // is `String(...)`-coerced anyway) and the number arm is named in the
-      // description, following the same call made for the inline-translation
-      // shapes on `page:header.title` / `record:alert.title`. It is a real
-      // narrowing, not a free choice: `sdui-parser`'s `checkType` warns
-      // `type-mismatch` on `defaultValue={42}`, a value the spec accepts. The
-      // limit is `ComponentInput`'s, tracked separately — it is the union twin
-      // of the member-shape limit PR #3795 left open.
-      type: 'string',
+      // BOTH arms of the spec's union, declared (objectui#3832).
+      // `ElementTextInputPropsSchema.defaultValue` accepts `string | number` —
+      // measured in this block's spec-parity test — and until `ComponentInput`
+      // learned to carry more than one coarse kind, this entry had to pick one.
+      // It picked `'string'` and named the number arm in the description, which
+      // left the manifest gate warning `type-mismatch` on `defaultValue={42}`:
+      // a value the spec accepts, the renderer honours (the DOM value is
+      // `String(...)`-coerced anyway) and an author writing a numeric field
+      // reaches for first. Both arms are now declared, so the gate agrees with
+      // the contract. No `'object'` arm here — unlike its inline-translation
+      // neighbours the spec REJECTS a map on this key (measured), and the
+      // arms exist to match the contract, not to relax the gate.
+      type: ['string', 'number'],
       label: 'Default Value',
       // Description taken from what the renderer DOES with the key (the seeding
       // effect above, and the native `defaultValue` pass-through at the
@@ -178,7 +265,37 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
     },
     { name: 'required', type: 'boolean', label: 'Required' },
     { name: 'disabled', type: 'boolean', label: 'Disabled' },
-    { name: 'description', type: 'string', label: 'Description' },
+    {
+      name: 'description',
+      // The third arm-widening of the trio commented above `label`, and the one
+      // worth saying explicitly travels WITH the other two: its destination in
+      // the rendered output differs (a `<p>` below the field, not the `<label>`
+      // above it or the native attribute inside it), but destination is not
+      // what decides an arm. The two conditions `ComponentInput.type` names are
+      // "the contract accepts it" and "the renderer resolves it", and this key
+      // satisfies both identically to `label` — same `pickLocalized` call, same
+      // `string | Record<string, string>` contract, measured per key. A
+      // destination-based split would have declared an arm on one key and
+      // withheld it on another for a difference neither the gate nor the
+      // contract can see.
+      //
+      // The a11y sentence at the END of this description is PAIRED with the
+      // render site above and must move with it. It previously documented the
+      // gap ("does not tie it to the field with `aria-describedby`") because
+      // that was true; the wiring landed with objectui#5735 and the sentence
+      // was rewritten in the same change. The trailing "prefer `label`" advice
+      // was kept, not deleted: it was ORIGINALLY true because the text was not
+      // exposed at all, and it is STILL true for a different and weaker reason
+      // — a description is announced after the accessible name and is gated by
+      // AT verbosity settings a user can turn down. That reason is CITED, not
+      // measured here: the tests can prove the accessible description is
+      // computed and non-empty, and no test in this repo can prove what any
+      // screen reader speaks in any given verbosity mode.
+      type: ['string', 'object'],
+      label: 'Description',
+      description:
+        'Helper text rendered BELOW the input, in its own `<p>` — a different destination from `label` (above, in a `<label>`) and `placeholder` (inside the field), reached by the same read path. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`. The paragraph IS tied to the field with `aria-describedby`, so the resolved text is the input’s accessible DESCRIPTION and assistive tech announces it with the field rather than leaving it as unreachable decoration. That association does not depend on the node carrying an `id` (`label`’s `htmlFor` does): the id `aria-describedby` needs sits on the paragraph, which the renderer mints per instance, and it is emitted only when a paragraph is actually rendered — an absent or empty `description` leaves the input with no `aria-describedby` at all. Prefer `label` anyway for an instruction a user MUST NOT miss: a description is announced after the field’s name, and screen readers gate description text behind verbosity settings a user can turn down (NVDA’s “Report object descriptions”, VoiceOver hint verbosity), so it is the half of the announcement most likely to go unheard — the same advice as before, now resting on announcement order and verbosity rather than on the text being unwired.',
+    },
   ],
 });
 

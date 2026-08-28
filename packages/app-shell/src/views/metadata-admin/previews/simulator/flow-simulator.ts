@@ -24,9 +24,9 @@ import type {
   SimState,
   SimStep,
   SimStepStatus,
-} from './flow-sim-types';
-import { evalCondition, validateFlowDraft } from './flow-sim-validate';
-import { conditionText } from '../flow-canvas-layout';
+} from './flow-sim-types.js';
+import { evalCondition, validateFlowDraft } from './flow-sim-validate.js';
+import { conditionText } from '../flow-canvas-layout.js';
 
 const MAX_STEPS = 500;
 

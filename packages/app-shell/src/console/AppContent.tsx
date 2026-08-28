@@ -10,57 +10,62 @@
 
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback, useRef, lazy, Suspense, useMemo, type ReactNode } from 'react';
-import { useAssistant } from '../assistant/assistantBus';
+import { useAssistant } from '../assistant/assistantBus.js';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { toast } from 'sonner';
 import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged, FilterScopeProvider } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { AppAccessVerdict, ConnectionState } from '@object-ui/data-objectstack';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useMetadata } from '../providers/MetadataProvider';
-import { useAdapter } from '../providers/AdapterProvider';
-import { usePreviewDrafts } from '../preview/PreviewModeContext';
-import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
-import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
-import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation';
+import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
+import { useMetadata } from '../providers/MetadataProvider.js';
+import { useAdapter } from '../providers/AdapterProvider.js';
+import { usePreviewDrafts } from '../preview/PreviewModeContext.js';
+import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState.js';
+import {
+  ExpressionProvider,
+  createExpressionEvaluator,
+  evaluateVisibility,
+} from '../providers/ExpressionProvider.js';
+import { buildExpressionUser } from '../providers/expressionUser.js';
+import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent.js';
+import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation.js';
 import { deriveRecordSurface, deriveRecordFlowSurface } from '@object-ui/plugin-view';
-import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams';
-import { matchAppBySegment } from '../utils/appRoute';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams.js';
+import { matchAppBySegment } from '../utils/appRoute.js';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
-import { ExpressionEvaluator } from '@object-ui/core';
 
 // Components (eagerly loaded — always needed)
-import { ConsoleLayout } from '../layout/ConsoleLayout';
-import { CommandPalette } from '../chrome/CommandPalette';
-import { ErrorBoundary } from '../chrome/ErrorBoundary';
-import { LoadingScreen } from '../chrome/LoadingScreen';
-import { ObjectView } from '../views/ObjectView';
-import { KeyboardShortcutsDialog } from '../chrome/KeyboardShortcutsDialog';
-import { OnboardingWalkthrough } from '../chrome/OnboardingWalkthrough';
-import { RouteFader } from '../chrome/RouteFader';
-import { NavigationSyncEffect } from '../hooks/useNavigationSync';
+import { ConsoleLayout } from '../layout/ConsoleLayout.js';
+import { CommandPalette } from '../chrome/CommandPalette.js';
+import { ErrorBoundary } from '../chrome/ErrorBoundary.js';
+import { LoadingScreen } from '../chrome/LoadingScreen.js';
+import { RedirectWithSplash } from '../chrome/RedirectWithSplash.js';
+import { ObjectView } from '../views/ObjectView.js';
+import { KeyboardShortcutsDialog } from '../chrome/KeyboardShortcutsDialog.js';
+import { OnboardingWalkthrough } from '../chrome/OnboardingWalkthrough.js';
+import { RouteFader } from '../chrome/RouteFader.js';
+import { NavigationSyncEffect } from '../hooks/useNavigationSync.js';
 
 // Route-based code splitting — lazy-load less-frequently-used routes
-const RecordDetailView = lazy(() => import('../views/RecordDetailView').then(m => ({ default: m.RecordDetailView })));
-const DashboardView = lazy(() => import('../views/DashboardView').then(m => ({ default: m.DashboardView })));
-const PageView = lazy(() => import('../views/PageView').then(m => ({ default: m.PageView })));
-const ReportView = lazy(() => import('../views/ReportView').then(m => ({ default: m.ReportView })));
-const SearchResultsPage = lazy(() => import('../views/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
-const RecordFormPage = lazy(() => import('../views/RecordFormPage').then(m => ({ default: m.RecordFormPage })));
-const ComponentNavView = lazy(() => import('../views/ComponentNavView').then(m => ({ default: m.ComponentNavView })));
-const ObjectDataPage = lazy(() => import('../views/ObjectDataPage').then(m => ({ default: m.ObjectDataPage })));
+const RecordDetailView = lazy(() => import('../views/RecordDetailView.js').then(m => ({ default: m.RecordDetailView })));
+const DashboardView = lazy(() => import('../views/DashboardView.js').then(m => ({ default: m.DashboardView })));
+const PageView = lazy(() => import('../views/PageView.js').then(m => ({ default: m.PageView })));
+const ReportView = lazy(() => import('../views/ReportView.js').then(m => ({ default: m.ReportView })));
+const SearchResultsPage = lazy(() => import('../views/SearchResultsPage.js').then(m => ({ default: m.SearchResultsPage })));
+const RecordFormPage = lazy(() => import('../views/RecordFormPage.js').then(m => ({ default: m.RecordFormPage })));
+const ComponentNavView = lazy(() => import('../views/ComponentNavView.js').then(m => ({ default: m.ComponentNavView })));
+const ObjectDataPage = lazy(() => import('../views/ObjectDataPage.js').then(m => ({ default: m.ObjectDataPage })));
 
 // Metadata admin — mounted under /apps/:app/metadata. Lives at the top
 // level so URLs read like a normal nested resource (RFC-style) instead of
 // piggy-backing on the legacy ComponentRegistry fan-out.
-const MetadataDirectoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataDirectoryPage })));
-const StudioHomePage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.StudioHomePage })));
-const MetadataResourceListPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceListPage })));
-const MetadataResourceEditPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceEditPage })));
-const MetadataResourceHistoryPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataResourceHistoryPage })));
-const MetadataDiagnosticsPage = lazy(() => import('../views/metadata-admin').then(m => ({ default: m.MetadataDiagnosticsPage })));
+const MetadataDirectoryPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataDirectoryPage })));
+const StudioHomePage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.StudioHomePage })));
+const MetadataResourceListPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceListPage })));
+const MetadataResourceEditPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceEditPage })));
+const MetadataResourceHistoryPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataResourceHistoryPage })));
+const MetadataDiagnosticsPage = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.MetadataDiagnosticsPage })));
 
 // App authoring + dashboard editor pages — sourced from
 // @object-ui/plugin-designer so third-party hosts can opt out by not
@@ -71,9 +76,9 @@ const DashboardDesignPage = lazy(() => import('@object-ui/plugin-designer').then
 
 // Marketplace pages — first-class platform feature; mounted at `system/marketplace`
 // under any active app so admins can browse + install from inside the runtime.
-const MarketplacePage = lazy(() => import('./marketplace/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
-const MarketplacePackagePage = lazy(() => import('./marketplace/MarketplacePackagePage').then(m => ({ default: m.MarketplacePackagePage })));
-const MarketplaceInstalledPage = lazy(() => import('./marketplace/MarketplaceInstalledPage').then(m => ({ default: m.MarketplaceInstalledPage })));
+const MarketplacePage = lazy(() => import('./marketplace/MarketplacePage.js').then(m => ({ default: m.MarketplacePage })));
+const MarketplacePackagePage = lazy(() => import('./marketplace/MarketplacePackagePage.js').then(m => ({ default: m.MarketplacePackagePage })));
+const MarketplaceInstalledPage = lazy(() => import('./marketplace/MarketplaceInstalledPage.js').then(m => ({ default: m.MarketplaceInstalledPage })));
 
 interface AppContentProps {
   /**
@@ -112,12 +117,32 @@ function DraftReviewNavigator({ appName }: { appName: string | undefined }) {
   return null;
 }
 
+/**
+ * The predicate-evaluation identity `ExpressionProvider` binds as
+ * `current_user` / `ctx.user` / `os.user`.
+ *
+ * MOVED to `../providers/expressionUser.js` in objectui#6515 and re-exported
+ * here so the published name is unchanged. It moved because `AppContent`
+ * `lazy()`-loads `views/RecordFormPage.tsx`, which mounts an
+ * `ExpressionProvider` of its own: importing the normaliser from THIS module
+ * would put a static edge from that split chunk back into the module it was
+ * split out of — the edge `scripts/check-eager-closure-budget.mjs` weighs — so
+ * the view hand-rolled a narrower descriptor instead, and the `id` /
+ * `isPlatformAdmin` it dropped made every predicate naming them FAULT and fail
+ * OPEN. The new home is a leaf module beside the provider it feeds, which every
+ * mount site can import without dragging a chunk along.
+ *
+ * This re-export is the back-compat half of that move; the doc comment that
+ * explains the SHAPE lives with the function.
+ */
+export { buildExpressionUser };
+
 export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = {}) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const { user, getAuthConfig, activeOrganization } = useAuth();
   // objectui#4473 — read at the top (hooks are unconditional); consumed by the
   // no-app guard far below, where the comment explains what it decides.
-  const isWorkspaceAdmin = useIsWorkspaceAdmin();
+  const { isAdmin: isWorkspaceAdmin, isResolved: isWorkspaceAdminResolved } = useWorkspaceAdminStatus();
   const dataSource = useAdapter();
 
   // Deployment-level feature flags from `/api/v1/auth/config`. Used by
@@ -230,17 +255,53 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // re-check ONCE (the registry can lag a beat behind a publish) before
   // concluding it's absent — so a just-built app resolves on its own instead
   // of flashing "not available", while we still never render a foreign app.
-  const [missingRecheck, setMissingRecheck] = useState<'idle' | 'checking' | 'done'>('idle');
+  //
+  // objectui#4522 — the run is stored WITH the app it ran for and read back
+  // only for that app. Held loose from a name, it was a flag for "a re-check
+  // HAS run", reset on exactly one condition: `requestedAppMissing` going
+  // false. Two missing apps in a row never satisfy that — `requestedAppMissing`
+  // is true before the transition and true after it — so the state rode across
+  // as 'done' and the SECOND app got no re-check at all. An app reached second
+  // in one mount (launcher, then a typo'd URL, then the real freshly-published
+  // app; or two attempts while a build lands) was shown "not available" with no
+  // refresh behind it. Same keying as `accessProbe` below, deliberately: one
+  // pattern in this file, not two.
+  const [missingRecheckRun, setMissingRecheckRun] =
+    useState<{ app: string; phase: 'checking' | 'done' } | null>(null);
+  const missingRecheck: 'idle' | 'checking' | 'done' =
+    missingRecheckRun && missingRecheckRun.app === appName ? missingRecheckRun.phase : 'idle';
   useEffect(() => {
     if (!requestedAppMissing) {
-      if (missingRecheck !== 'idle') setMissingRecheck('idle');
+      // ⛔ The `if` is load-bearing — do not "simplify" it into an
+      // unconditional `setMissingRecheckRun(null)` (or the functional form
+      // `run => run === null ? run : null`, which reads as if React's bailout
+      // covers it). `refreshMetadata` is a dep of this effect and its identity
+      // comes from the HOST's metadata context: the shipped `MetadataProvider`
+      // memoizes it, but a host — or a test — that hands back a fresh function
+      // each render makes this effect run after every render. With no state
+      // update in the body that is a no-op; with one, it is an infinite render
+      // loop, and the surface it starves is the LAZY route inside
+      // `ConsoleLayout`, which then never mounts. Measured while landing
+      // objectui#4522: 4250 un-acted updates in one second and a permanently
+      // empty content area on `/apps/setup/system/record/workgroups`, pinned
+      // now by `apps/console/src/__tests__/AppContent.systemHubRoutes.test.tsx`
+      // and by the resolved-app case in this state's own test file.
+      if (missingRecheckRun !== null) setMissingRecheckRun(null);
       return;
     }
-    if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts) {
-      setMissingRecheck('checking');
-      Promise.resolve(refreshMetadata()).finally(() => setMissingRecheck('done'));
+    if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts && appName) {
+      const rechecked = appName;
+      setMissingRecheckRun({ app: rechecked, phase: 'checking' });
+      // Settled BY NAME rather than by the `cancelled` flag the probe below
+      // uses: this effect re-runs on its own state change, so a cleanup-based
+      // cancel would fire on the way out of 'checking' and strand the check
+      // there forever. A refresh landing late for a previous app leaves the
+      // current app's run untouched.
+      Promise.resolve(refreshMetadata()).finally(() =>
+        setMissingRecheckRun(run => (run?.app === rechecked ? { app: rechecked, phase: 'done' } : run)),
+      );
     }
-  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, refreshMetadata]);
+  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, missingRecheckRun, appName, refreshMetadata]);
 
   // objectui#4252 — WHY the app is missing, once the re-check above has settled
   // and it still is. The list this reads is the generic metadata list route
@@ -265,8 +326,9 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // whole way across, so nothing in this branch is reset by the transition — a
   // verdict held loose from its name would ride into the next URL and answer
   // for an app it never probed, telling a user their typo is a permission
-  // problem. (`missingRecheck` above has the same shape and is deliberately
-  // left alone: its staleness costs one skipped refresh, not a wrong screen.)
+  // problem. (`missingRecheck` above had the same shape and the same defect —
+  // costing one skipped refresh rather than a wrong screen, which is why it was
+  // filed separately; objectui#4522 keyed it the same way.)
   const [accessProbe, setAccessProbe] = useState<{ app: string; verdict: AppAccessVerdict } | null>(null);
   useEffect(() => {
     if (!requestedAppMissing || previewDrafts || missingRecheck !== 'done' || !appName) {
@@ -582,16 +644,47 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     navigate(`/apps/${newAppName}`);
   };
 
+  // Evaluator for the ModalForm's field-visibility gates below, over the SAME
+  // bag the `ExpressionProvider` this component mounts publishes — one builder,
+  // called with the same inputs (objectui#6493). This one sits ABOVE that
+  // provider in its own tree, so it cannot read it back through the hook; what
+  // it can do is stop hand-writing a second, narrower bag.
+  //
+  // Two roots the private bag dropped, both of which fail OPEN when named:
+  // `current_user` (and the `ctx.user` / `os.user` spellings of the same
+  // object) and `features`. Its `user` was hand-rolled too, without
+  // `positions` — so `'sales' in current_user.positions`, the gate the server
+  // enforces on write, faulted here rather than hiding the field.
   const expressionEvaluator = useMemo(
-    () => new ExpressionEvaluator({
-      user: user ? { name: user.name, email: user.email, role: user.role ?? 'user' } : {},
+    () => createExpressionEvaluator({
+      user: buildExpressionUser(user),
       app: activeApp || {},
       data: editingRecord || {},
+      features,
     }),
-    [user, activeApp, editingRecord],
+    [user, activeApp, editingRecord, features],
   );
 
-  if (!dataSource || metadataLoading || !scopeMetaReady) return <LoadingScreen />;
+  // objectui#5619 — `isWorkspaceAdminResolved` belongs in this readiness gate
+  // for the same reason `metadataLoading` does: everything below branches on
+  // the verdict. The guard at the "no active app" strand turns a `false` into a
+  // `<Navigate to="/home" replace>` that the later flip to `true` cannot undo,
+  // and the chrome this mounts (ConsoleLayout -> UnifiedSidebar / AppHeader)
+  // reads the same verdict to decide which navigation exists. Waiting for three
+  // of four inputs and acting on the fourth mid-flight is the defect itself.
+  //
+  // Deliberately NOT a mask over one page (objectui#5621 correctly removed the
+  // last of those): this is the ONE readiness gate this surface already has,
+  // and it withholds every consequence shape at once — the redirect, both
+  // marketplace refusals routed below, and the nav entries.
+  //
+  // Cost, measured: `useWorkspaceAdminStatus` reports `isResolved` the instant
+  // `isAdmin` is true, so any admin the session already identifies (the
+  // `positions[]` leg, which is every admin on a session minted with an active
+  // organization stamped) waits exactly zero extra frames. What does wait is
+  // the viewer whose verdict genuinely is not known yet — and for them a
+  // LoadingScreen is the honest frame, not a screen built on a guess.
+  if (!dataSource || metadataLoading || !scopeMetaReady || !isWorkspaceAdminResolved) return <LoadingScreen />;
 
   // ADR-0037 — preview mode renders its OWN empty/error states and never
   // falls through to the generic "No Apps Configured" guard below: inside a
@@ -666,7 +759,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
             })}
           </EmptyDescription>
           <div className="mt-4">
-            <Button onClick={() => setMissingRecheck('idle')} data-testid="app-not-available-retry">
+            <Button onClick={() => setMissingRecheckRun(null)} data-testid="app-not-available-retry">
               {t('common.retry', { defaultValue: 'Retry' })}
             </Button>
           </div>
@@ -713,7 +806,18 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // envelope (objectstack#8013 → objectui#4252). Nothing here waits on it: the
   // guard reads only the per-user-filtered list that ships today.
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute && !isWorkspaceAdmin) {
-    return <Navigate to="/home" replace />;
+    // `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378 / #6507).
+    // Every readiness gate above this branch renders `LoadingScreen`, and the
+    // branch returns ABOVE the single `ConsoleLayout` mount — so a bare
+    // redirect, which renders null, hands the WHOLE viewport back to the page
+    // background while `/home` renders at transition priority. Measured on the
+    // three sibling gates #6506 fixed: 41-147 ms of empty `#root`. This one is
+    // a boot-path gate on the same evidence rule and keeps the splash painted
+    // across the handoff; the URL-rewrite redirects further down this file
+    // (`LegacyMetadataRedirect`, `ShorthandRecordRedirect`) deliberately do NOT
+    // convert -- they fire INSIDE `ConsoleLayout`, with the console already on
+    // screen, and a splash there would cover a layout that never went away.
+    return <RedirectWithSplash to="/home" replace />;
   }
 
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute) return (
@@ -814,27 +918,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     );
   }
 
-  const expressionUser = user
-    ? {
-        id: (user as any).id,
-        name: user.name,
-        email: user.email,
-        role: user.role ?? 'user',
-        roles: (user as any).roles,
-        // Surface the platform-admin flag so action `visible` CEL predicates
-        // gated on `ctx.user.isPlatformAdmin == true` (e.g. sys_environment
-        // "Change Plan (admin)") evaluate correctly. Previously only
-        // name/email/role were forwarded → isPlatformAdmin-gated actions were
-        // hidden even for platform admins.
-        isPlatformAdmin: (user as any).isPlatformAdmin ?? false,
-        // Positions are what the SERVER binds as `current_user` for per-option
-        // `visibleWhen` authorization gating (ADR-0058; framework EvalUser —
-        // objectui#2284). Forwarding them lets a position-gated option
-        // (`'admin' in current_user.positions`) hide client-side too, instead
-        // of failing open as visible and only being rejected on submit.
-        positions: (user as any).positions ?? [],
-      }
-    : { name: 'Anonymous', email: '', role: 'guest', isPlatformAdmin: false, positions: [] };
+  const expressionUser = buildExpressionUser(user);
 
   return (
     <ExpressionProvider user={expressionUser} app={activeApp} data={{}} features={features}>
@@ -1014,8 +1098,8 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 showSubmit: true,
                 showCancel: true,
                 submitText: editingRecord
-                  ? t('form.update', { defaultValue: t('common.save', { defaultValue: 'Save' }) })
-                  : t('form.create', { defaultValue: t('common.create', { defaultValue: 'Create' }) }),
+                  ? t('form.update', { defaultValue: 'Update' })
+                  : t('form.create', { defaultValue: 'Create' }),
                 cancelText: t('common.cancel'),
               }}
               dataSource={dataSource}

@@ -17,7 +17,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base';
+import type { BaseSchema } from './base.js';
 
 // ============================================================================
 // Page Designer (Drag-and-Drop)
@@ -620,12 +620,29 @@ export interface DashboardConfig {
   }>;
 
   // -- Accessibility ---------------------------------------------------------
-
-  /** ARIA properties */
-  aria?: {
-    label?: string;
-    description?: string;
-  };
+  //
+  // `aria?: { label?, description? }` was DECLARED here until objectui#5852.
+  // It was never a contract: the spellings (`label`/`description`) match
+  // neither `@objectstack/spec`'s `AriaProps` (`ariaLabel` / `ariaDescribedBy`
+  // / `role`) nor anything a renderer maps, so no read point could have
+  // consumed it even in principle. Measured on `origin/main` at the retirement:
+  // zero `.aria` reads in `packages/plugin-designer/src`,
+  // `packages/plugin-dashboard/src` and `apps/console/src` (the same grep
+  // family finds the live `schema.aria` reads in `plugin-detail`'s
+  // `record-quick-actions.tsx` and `plugin-list`'s `ListView.tsx`), and zero
+  // occurrences of either name in the `objectstack` repo.
+  //
+  // `DashboardConfigPanel.tsx` — the panel this interface's own doc comment
+  // says it serves — imports `ConfigPanelSchema` from `@object-ui/components`
+  // and neither `DashboardConfig` nor `DashboardConfigSchema`, so the key
+  // documented an integration that does not exist.
+  //
+  // Note the `[key: string]: any` catch-all below still types an authored
+  // `aria` as `any`: this deletion removes the type-level SUGGESTION, not a
+  // key that ever rendered (same shape as objectui#5830 on
+  // `DashboardComponentSchema.aria`). The Zod twin does carry teeth — see the
+  // `z.never()` tombstone in `zod/complex.zod.ts`. Pinned by
+  // `__tests__/dashboard-config.test.ts`.
 
   /** Catch-all for additional properties */
   [key: string]: any;
@@ -694,9 +711,9 @@ export interface ObjectManagerSchema extends BaseSchema {
  * Single runtime source for every surface that enumerates the designer's
  * vocabulary: `FieldDesigner` renders its palette in exactly this order (its
  * `FIELD_TYPE_META` is a `Record<DesignerFieldType, …>`, so adding a member
- * here without presentation is a compile error), and app-shell's
- * `object-fields-bridge` derives its editable-subset check from it instead of
- * restating the list (objectui#3017).
+ * here without presentation is a compile error), and `MetadataFieldsPage`
+ * derives its editable-subset check from it instead of restating the list
+ * (objectui#3017).
  */
 export const DESIGNER_FIELD_TYPES = [
   'text',
@@ -763,8 +780,29 @@ export interface DesignerFieldDefinition {
   type: DesignerFieldType;
   /** Field group/section */
   group?: string;
-  /** Sort order within group */
-  sortOrder?: number;
+  /*
+   * There is deliberately no `sortOrder` here (objectui#6045). `FieldSchema`
+   * rejects the key by name and the spec has NO field-level ordering key at
+   * all — field order is DECLARATION ORDER in the object's `fields` record, so
+   * a designer that wants explicit ordering reorders that record rather than
+   * carrying an index. The near-spelling `sortable` is not a rename target: it
+   * is a boolean ("whether field is sortable in list views"), a different
+   * concept entirely.
+   *
+   * Nothing ever populated it. `MetadataService.toFieldPayload` copied it onto
+   * the wire shape, so the key was one reorder feature away from the hard 422
+   * `INVALID_METADATA` that blocks every later save of an object; it stayed
+   * latent only because `JSON.stringify` drops the `undefined`. That is
+   * objectui#4687's shape — a declaration with zero readers and zero writers —
+   * and the resolution is the same one: delete it, rather than leave a key
+   * declared here that no writer fills and no schema accepts.
+   *
+   * The object-level `sortOrder` on `ObjectDefinition` above is a DIFFERENT
+   * key on a different schema (objectui#6223 removed it from the object wire
+   * shape and deliberately kept it on that UI model, where it is the Object
+   * Manager's display order). So is the saved-view `sortOrder` in
+   * `app-shell`'s `ObjectView`. Neither is this one.
+   */
   /** Field description / help text */
   description?: string;
   /** Whether field is required */
@@ -798,8 +836,30 @@ export interface DesignerFieldDefinition {
    */
   /** Lookup reference object (for lookup type) */
   referenceTo?: string;
-  /** Formula expression (for formula type) */
-  formula?: string;
+  /*
+   * There is deliberately no `formula` here (objectui#6043). The spec spells a
+   * formula field's expression `expression` and it is CEL — `record.amount *
+   * 0.1`, rooted at `record`. `FieldSchema.safeParse` rejects `formula` by
+   * name, so authoring it produced a save-blocking 422.
+   *
+   * The key was NOT renamed to `expression`, and that is the whole finding of
+   * the card rather than a shortcut. `FieldSchema` does not parse CEL at the
+   * key level: measured on `@objectstack/spec` 17.2.0 it accepts
+   * `expression: 'price * quantity'` AND `expression: '!!!not cel at all!!!'`
+   * — only the empty string is refused. A rename therefore buys a green parse
+   * for arbitrary garbage. Worse, the control's own placeholder was
+   * `price * quantity`, whose BARE field refs `celAuthoring.ts` records as
+   * silently evaluating to null at runtime under the `record` scope formulas
+   * bind. Renaming alone converts a loud, immediate 422 into a silent wrong
+   * answer, which is strictly worse than the bug.
+   *
+   * Formula expressions are authored where they can be CHECKED: metadata-admin's
+   * `ObjectFieldInspector` edits `expression` through `CelPredicateField`,
+   * which lints against the real `@objectstack/formula` engine and stamps
+   * `returnType` from the inferred CEL type. The field TYPE `formula` remains a
+   * valid spec `FieldType` and stays in the designer's palette — only the
+   * unvalidatable expression textarea is gone.
+   */
 }
 
 /** Field Designer component schema */

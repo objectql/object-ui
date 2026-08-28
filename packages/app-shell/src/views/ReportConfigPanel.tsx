@@ -29,9 +29,9 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { X } from 'lucide-react';
-import { ReportDefaultInspector } from './metadata-admin/inspectors/ReportDefaultInspector';
-import { RuntimeDraftBar } from './RuntimeDraftBar';
-import { useMetadataLocale } from './metadata-admin/i18n';
+import { ReportDefaultInspector } from './metadata-admin/inspectors/ReportDefaultInspector.js';
+import { RuntimeDraftBar } from './RuntimeDraftBar.js';
+import { useMetadataLocale } from './metadata-admin/i18n.js';
 
 /** Field option shape the host (ReportView) already computes. */
 interface AvailableField {

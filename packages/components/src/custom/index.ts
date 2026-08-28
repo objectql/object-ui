@@ -1,4 +1,5 @@
 export * from './button-group';
+export * from './character-count';
 export * from './combobox';
 export * from './config-row';
 export * from './config-field-renderer';
@@ -18,7 +19,6 @@ export * from './section-header';
 export * from './spinner';
 export * from './sort-builder';
 export * from './grouping-editor';
-export * from './action-param-dialog';
 export * from './view-skeleton';
 export * from './shimmer-skeleton';
 export * from './RecordTitleChip';

@@ -88,8 +88,13 @@ ObjectStack server serves the console itself.
 
 | File | Value |
 |---|---|
-| [`.env.development`](./.env.development) | `http://localhost:3000` |
-| [`.env.production`](./.env.production) | `https://demo.objectstack.ai` |
+| [`.env.development`](./.env.development) | empty (same-origin) |
+| [`.env.production`](./.env.production) | empty (same-origin) |
+
+Both files ship empty. In dev, the Vite server proxies `/api/*` to
+`http://localhost:3000` by default; to point dev at a different backend while
+keeping one origin, set `DEV_PROXY_TARGET`, e.g.
+`DEV_PROXY_TARGET=https://demo.objectstack.ai pnpm dev`.
 
 Point it at any ObjectStack server. If you need one locally, this repo's live-e2e
 helper [`e2e/live/ci/start-backend.sh`](../../e2e/live/ci/start-backend.sh) boots a

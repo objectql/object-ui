@@ -19,6 +19,7 @@ value must clear before it reaches the screen.
 | `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
 | `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
 | `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
+| `properties.*` | Template (`${}`) | Preserves original type | Evaluated, then **hoisted onto the node** (`type` / `id` excepted), so the result lands where every renderer reads. See "Rule: Keys Live on the Node" below. |
 | `props.*` | Template (`${}`) | Preserves original type | Evaluated, then spread as **React props** — a `ui:*` / `page:*` renderer reads `schema.*` and never sees the result. Consumed only by `element:*` components. |
 
 **Precedence rule:** `visible` takes priority over `hidden`.
@@ -46,6 +47,8 @@ Every UI component node MUST follow this shape:
 interface UIComponent {
   type: string;              // Required: component type identifier
   id?: string;               // Optional: unique identifier
+  properties?: Record<string, any>; // Optional: spec config bag, hoisted onto
+                                    // the node. See "Rule: Keys Live on the Node".
   props?: Record<string, any>; // Optional: element:* config envelope — NOT a
                                // general bag. See "Rule: Keys Live on the Node".
   bind?: string;             // Optional: data binding path
@@ -83,12 +86,34 @@ attribute `props="[object Object]"`.
 }
 ```
 
-**The one exception is the `element:*` namespace.** Those components read their
-config out of `properties` / `props` by design (`readProps` in
+**`props` and `properties` are two different envelopes, and only one of them is
+dropped.** The rule above is about `props`. `properties` is the spec spelling of
+the same bag, and `SchemaRenderer` evaluates it and then **hoists every key onto
+the node** (`type` / `id` excepted) before the renderer runs — so it is read by
+every namespace, not just `element:*`. Measured on `origin/main` `f1c27f037`
+with `dataSource = { label: "Evaluated Title" }`:
+
+| node | rendered card header |
+|---|---|
+| `{ "type": "card", "title": "Customer Summary" }` | `Customer Summary` |
+| `{ "type": "card", "props": { "title": "Customer Summary" } }` | *no header element at all* |
+| `{ "type": "card", "properties": { "title": "Customer Summary" } }` | `Customer Summary` |
+| `{ "type": "card", "title": "${data.label}" }` | `${data.label}` — read, never evaluated |
+| `{ "type": "card", "properties": { "title": "${data.label}" } }` | `Evaluated Title` |
+
+The `element:*` namespace is where `props` is *also* read: those components take
+their config from `properties` / `props` by design (`readProps` in
 `packages/components/src/renderers/basic/elements.tsx`), so
-`{ "type": "element:text", "properties": { "content": "Hi" } }` is correct and
-the same keys on the node would be ignored. Match the envelope to the
-namespace; do not apply either shape everywhere.
+`{ "type": "element:text", "properties": { "content": "Hi" } }` is correct there.
+
+**What to write.** Keep keys on the node and let the host resolve values before
+it hands the schema to `SchemaRenderer` — that is the supported route and the
+one this skill teaches. The last row above is real and is the only spelling that
+carries an expression into a key a `ui:*` / `page:*` renderer reads, but whether
+`properties` is an official authoring channel for those namespaces is an open
+contract question (objectui#4795), so it is recorded here rather than
+recommended. What is *not* open: a `${...}` on the node is never evaluated, and a
+key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 
 ## Rule: No Schema Property Invention
 
@@ -123,17 +148,37 @@ When the entire string is a single `${expression}`, the result preserves its typ
 
 ## Rule: Data Binding Path Resolution
 
-The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:
+The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`, and only a component that calls that hook reads it:
 
 ```json
 {
-  "type": "data-table",
-  "bind": "customers",  // Resolved as dataSource.customers
-  "columns": [...]
+  "type": "list",
+  "bind": "customerNames"  // Resolved as dataSource.customerNames
 }
 ```
 
 **Nested paths work:** `"bind": "app.settings.users"` resolves `dataSource.app.settings.users`.
+
+**Readers only.** `list` and `tree-view` (`@object-ui/components`) and the `object-*` plugin widgets call `useDataScope`. `data-table` does NOT: it reads its rows from an inline `data` array on the node, so a `bind` on it is ignored and the table renders its header over an empty body — no error, no warning.
+
+**Provider rows into a `data-table`.** Measured on `origin/main` `f1c27f037`,
+real `SchemaRenderer` inside a `SchemaRendererProvider` holding
+`{ customers: [ 2 records ] }`, identical `columns` in every leg, reading
+`tbody td`:
+
+| node | rendered body cells |
+|---|---|
+| `{ "type": "data-table", "data": "${data.customers}", "columns": [...] }` | `No results found` |
+| `{ "type": "data-table", "props": { "data": "${data.customers}" }, ... }` | `No results found` |
+| `{ "type": "data-table", "properties": { "data": "${data.customers}" }, ... }` | the two rows |
+| `{ "type": "data-table", "data": [ 2 literal records ], ... }` | the two rows |
+
+Both failing legs fail the same way this file keeps warning about: a correct
+header over the empty state, nothing thrown, nothing logged. **Do not read that
+empty table as "the provider has no data."** The route this skill teaches is the
+last row — the host resolves the array and puts it on the node — for the reason
+given under "Rule: Keys Live on the Node": the third row works today, but its
+channel is objectui#4795's open question, not a taught surface.
 
 ## Rule: Action Event Structure
 

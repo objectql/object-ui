@@ -68,10 +68,67 @@ export const ImageSchema = BaseSchema.extend({
 
 /**
  * Icon Schema - Icon component (Lucide icons)
+ *
+ * ## `icon`, not `name` — and why the rejection message carries a migration
+ *
+ * The glyph key on this node is `icon` (objectui#5631, maintainer rulings
+ * 2026-08-22 option A and 2026-08-24 「5631 A′，按一次正经的契约迁移立项。」).
+ * `name` reverts to the SDUI identity key it always was, inherited optional
+ * from {@link BaseSchema}. The declaration in `../layout.ts` carries the full
+ * reasoning; this mirror carries the enforcement.
+ *
+ * This mirror is the half that had to move for the ruling to be landable at
+ * all. It previously declared `name: z.string()` REQUIRED, which measured as:
+ *
+ * ```text
+ * REJECT  { type:'icon', icon:'check' }  -> invalid_type at [name]
+ * ACCEPT  { type:'icon', name:'check' }
+ * ```
+ *
+ * i.e. the published contract refused the ruled shape and required the broken
+ * one — contract-first exactly backwards, and the reason the renderer could
+ * not be migrated on its own.
+ *
+ * `icon` is REQUIRED here, exactly as `name` was: this is a key rename at
+ * constant strictness, not a loosening. Keeping the same requiredness is also
+ * what keeps the `__tests__/zod-mirror-parity.test.ts` ledger silent — an
+ * optional mirror key against a required declaration is drift that guard
+ * measures and would demand a `KnownDrift` entry for.
+ *
+ * ## The rejection message IS the conversion story's first half
+ *
+ * A stored node authored before this migration reaches here as
+ * `{ type:'icon', name:'check' }` and is refused. Zod's default message for
+ * that is `invalid_type at [icon]: expected string, received undefined`, which
+ * is true and tells the author nothing about what happened to their metadata.
+ * The custom `error` below replaces it, for the ABSENT case only, with the
+ * rename and where to convert in bulk. Deliberate mechanics:
+ *
+ *  - it fires only when `icon` is `undefined`, so a genuine type error
+ *    (`icon: 42`) still gets zod's own precise message — returning `undefined`
+ *    from the callback falls back to the default;
+ *  - it is a MESSAGE, not an accept. ⛔ There is no `icon ?? name` read here
+ *    or in the renderer; the legacy shape is refused, loudly, by design. That
+ *    tolerant shape was ruled out by name on 2026-08-22 and the ruling of
+ *    2026-08-24 restates it;
+ *  - it lives on the FIELD rather than in an object-level `.check()`, because
+ *    zod 4 skips object-level checks once a field issue exists — an
+ *    object-level diagnostic for a missing key would never run. Measured.
  */
 export const IconSchema = BaseSchema.extend({
   type: z.literal('icon'),
-  name: z.string().describe('Icon name (lucide-react)'),
+  icon: z
+    .string({
+      error: (issue) =>
+        issue.input === undefined
+          ? "ui:icon names its glyph with `icon` (e.g. `icon: 'check'`). If this node still "
+            + 'names it with `name`, that key moved: `name` is the SDUI identity key on every '
+            + 'node and is no longer read as a glyph name (objectui#5631). Rename `name` to '
+            + '`icon`, or convert stored metadata in bulk with `migrateIconNodeKeys` from '
+            + '`@object-ui/types`.'
+          : undefined,
+    })
+    .describe('Lucide glyph name, kebab-case (objectui#5631: was `name`)'),
   size: z.number().optional().default(24).describe('Icon size in pixels'),
   color: z.string().optional().describe('Icon color'),
 });

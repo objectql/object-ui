@@ -2,8 +2,8 @@ import React from 'react';
 import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
-import { FieldWidgetComponentProps } from './types';
-import { useFieldTranslation } from './useFieldTranslation';
+import { FieldWidgetComponentProps } from './types.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * CapabilityMultiSelectField — structured picker for a permission set's
@@ -73,20 +73,73 @@ export function parseCapabilityNames(value: unknown): string[] {
 const SCOPE_ORDER = ['platform', 'org', 'other'] as const;
 
 /**
- * objectui#2600 B5 — the curated platform capabilities are a FIXED, known set
- * whose labels the sys_capability registry serves in English. Localize just
- * these client-side via `capability.label.<name>` (dots → underscores);
- * package- and admin-authored capabilities keep their authored registry label.
- * (Mirrors @objectstack/spec/security `PLATFORM_CAPABILITIES`.)
+ * objectui#2600 B5 — the curated platform capabilities whose labels this picker
+ * localizes client-side via `capability.label.<name>`; package- and
+ * admin-authored capabilities keep their authored `sys_capability` label.
+ *
+ * ## This IS `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`, and the
+ * ## equality is CHECKED rather than claimed (objectui#6285)
+ *
+ * The names below are the spec's, with the dot spellings written as underscores
+ * (see the transform note under the declaration). It used to say that in prose
+ * and nothing held it: the spec grew `manage_sharing`, this list did not follow,
+ * and that capability fell through to the English label the `sys_capability`
+ * registry serves — untranslated in all ten packs, beside seven siblings that
+ * localize, with every gate green.
+ *
+ * What holds it now is `CapabilityMultiSelectField.specParity-6285.test.tsx`,
+ * which imports `PLATFORM_CAPABILITIES` and fails on ANY difference in either
+ * direction — a member the spec added and this list lacks, or one this list
+ * keeps after the spec dropped it. A spec bump that moves the vocabulary turns
+ * CI red here before it can reach a screen.
+ *
+ * ## Why a repo-local list rather than a runtime derivation
+ *
+ * `new Set(PLATFORM_CAPABILITIES.map(…))` was built and measured (objectui#6285,
+ * and the branch history carries the numbers). It costs nothing in bundle terms
+ * — +0.3 KB gzipped on the console's eager closure, because the console's graph
+ * already reaches those modules — so bundle size is NOT the reason, and the
+ * `useTenancyPosture.ts` precedent's reason does not apply here.
+ *
+ * The reason is instrument coverage. `scripts/check-i18n-call-site-keys.mjs`
+ * reads this declaration as the `capability.label.` family's vocabulary and
+ * expands it into exact `en` key checks; its reader parses source and needs a
+ * literal `new Set([…])`, so a computed initialiser is `unreadable-vocabulary`
+ * and the family would have to fall back to `enumerable: false`, dropping the
+ * gate from 18 vocabularies / 113 exactly-checked members to 17 / 105. The gate
+ * documents one bridge for a vocabulary living in a dependency — "a repo-local
+ * exhaustive `Record<Union, …>` this reader can read" — and it is unavailable:
+ * `PlatformCapability.name` is typed `string`, so the spec publishes no union to
+ * key a `Record` by.
+ *
+ * And the benefit a derivation would have bought is not real. A capability the
+ * spec adds cannot "arrive automatically": its `capability.label.*` key still
+ * has to be authored by a human in ten packs, or it renders the registry English
+ * (this card's exact defect) or a raw key. `manage_sharing` is the proof — it
+ * had no key anywhere. Deriving does not remove the human step; it only chooses
+ * which instrument reports it. So the shape that keeps BOTH instruments — this
+ * list read by the gate, and the parity test read by CI — wins on the only axis
+ * that separates them.
+ *
+ * ⛔ Do not hand-edit this list to match a new spec release without also
+ * authoring `capability.label.<name>` in all ten packs and in
+ * `useFieldTranslation.ts`; the parity test fails on the first, and
+ * `all-locales-key-parity.test.ts` on the second.
  */
 const CURATED_CAPABILITY_LABELS = new Set([
   'manage_users',
   'manage_org_users',
   'manage_metadata',
   'manage_platform_settings',
+  // The spec spells these three with a dot (`setup.access`, `setup.write`,
+  // `studio.access`). `labelFor` normalises dots to underscores before building
+  // the key, so membership is written in the key's alphabet, not the spec's.
+  // The parity test applies the same transform and would fail if either side
+  // stopped agreeing.
   'setup_access',
   'setup_write',
   'studio_access',
+  'manage_sharing',
 ]);
 
 export function CapabilityMultiSelectField({
@@ -153,9 +206,19 @@ export function CapabilityMultiSelectField({
   // Curated platform caps get a localized label (objectui#2600 B5); everything
   // else keeps the registry-served label.
   const labelFor = (name: string) => {
+    const registryLabel = byName.get(name)?.label || name;
     const norm = name.replace(/\./g, '_');
-    if (CURATED_CAPABILITY_LABELS.has(norm)) return t(`capability.label.${norm}`);
-    return byName.get(name)?.label || name;
+    if (!CURATED_CAPABILITY_LABELS.has(norm)) return registryLabel;
+    // objectui#6285 — the membership is now open-ended: a capability the spec
+    // adds joins this set the moment the pin is bumped, which is the point, but
+    // its `capability.label.*` key still has to be authored by a human in the
+    // ten packs. `defaultValue` makes that window degrade to the registry's
+    // English label — exactly what this picker did for `manage_sharing` before
+    // this change — instead of rendering a raw i18n key at the user, which
+    // would be strictly worse than the defect being fixed. It is a fallback of
+    // last resort, not the mechanism: the spec-derivation test fails in CI on
+    // the same event, so the window should never reach a screen.
+    return t(`capability.label.${norm}`, { defaultValue: registryLabel });
   };
 
   // Group options by scope for the editable grid. Computed BEFORE the readonly

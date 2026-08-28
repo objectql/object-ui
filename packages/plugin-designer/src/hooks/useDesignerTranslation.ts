@@ -190,7 +190,6 @@ export const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.fieldDesigner.defaultValue': 'Default Value',
   'appDesigner.fieldDesigner.placeholder': 'Placeholder',
   'appDesigner.fieldDesigner.referenceTo': 'Reference To',
-  'appDesigner.fieldDesigner.formula': 'Formula',
   'appDesigner.fieldDesigner.options': 'Options',
   'appDesigner.fieldDesigner.addOption': 'Add Option',
   'appDesigner.fieldDesigner.validationRules': 'Validation Rules',

@@ -21,7 +21,7 @@ import {
   SheetDescription,
 } from '@object-ui/components';
 import { Bug, CheckCircle2, AlertTriangle, XCircle, Loader2, CircleSlash } from 'lucide-react';
-import { fetchBuildDebug, type BuildDebugReport, type MutationFinding } from './buildDebugApi';
+import { fetchBuildDebug, type BuildDebugReport, type MutationFinding } from './buildDebugApi.js';
 
 interface BuildDebugDrawerProps {
   apiBase: string;

@@ -1,0 +1,132 @@
+name: Doc Snippet Types
+
+# Compiles every fenced `ts` / `tsx` snippet in the documents this gate covers,
+# `--strict`, against the packages' BUILT `dist/*.d.ts`. The gate itself, the
+# fragment rule, the three self-controls and the coverage ledger are documented
+# at length in `scripts/check-doc-snippet-types.mjs`.
+#
+# ── Why this is its own workflow ────────────────────────────────────────────
+#
+# Same reason `doc-component-types.yml`, `docs-links.yml` and `control-bytes.yml`
+# are theirs, and it is worth restating because it is the whole point: the change
+# that breaks a documentation snippet is a DOCS-ONLY change, and that is exactly
+# the shape `ci.yml`'s expensive jobs short-circuit (their `git diff` excludes
+# `content/**` and `'**/*.md'`). A snippet gate wired in there would be blind to
+# every pull request most likely to introduce a defect. Hence: no `paths` and no
+# `paths-ignore` here, deliberately, and
+# `scripts/__tests__/check-doc-snippet-types.test.ts` fails if either is added,
+# or if a second workflow starts running the same script.
+#
+# ── Why it builds, and why that is NOT the build a ruling rejected ──────────
+#
+# Unlike its install-free sibling `doc-component-types.yml`, this gate cannot
+# read the checkout alone: its whole criterion is the PUBLISHED type surface, so
+# the packages the covered snippets import have to exist as `dist/*.d.ts` first.
+# Resolving against `src/` instead would be a different and weaker check — the
+# root `tsconfig.json` maps the workspace to source, so that mistake is one
+# inherited config away, and the script's RESOLUTION control fails the run rather
+# than letting it pass quietly.
+#
+# The 2026-08-16 ruling on objectui#4846 (recorded in
+# `.github/workflows/published-dist-gate.yml`) rejected a per-PR FULL-REPO build
+# — all 39 published packages, on every pull request. This is not that, and the
+# difference is mechanical rather than a matter of opinion: the build is filtered
+# to the packages the COVERED documents actually import, and that list is emitted
+# by the gate itself (`--build-filter`) rather than hand-maintained here. Today
+# it is a minority of the workspace. It grows only when coverage grows, and when
+# it does, the growth is visible in this job's log rather than hidden in a
+# workflow edit.
+#
+# ⛔ Do not replace the filtered build with `pnpm build`. The filter is the reason
+# this job is allowed to run on every pull request at all.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — `ci.yml`'s trigger block carries the full note).
+  # A required check that does not report on a queue build stalls the queue until
+  # the ruleset times it out, so an unfiltered gate subscribes from the start.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: doc-snippet-types-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  doc-snippet-types:
+    name: Doc Snippet Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The filter comes from the gate, so it can never drift from what the
+      # covered documents import. A package the snippets need but nothing built
+      # is reported by the gate as `unbuilt-package` — its own failure reason,
+      # never as a page full of broken imports.
+      #
+      # ⛔ Do not fold this back into `echo "args=$(node …)" >> "$GITHUB_OUTPUT"`
+      # (objectui#6221). A command substitution contributes its STDOUT to the
+      # surrounding word and nothing else — the step's status is `echo`'s — so a
+      # gate that failed reads as a gate that named no packages, `args` is
+      # silently empty, and the step below expands to a bare `turbo run build`
+      # over the whole workspace: the one thing this workflow's header forbids,
+      # with no signal anywhere. `set -o pipefail` is not the remedy and would
+      # not help; there is no pipe here. Capture the status, then write the
+      # output.
+      - name: Derive the packages the covered snippets import
+        id: filter
+        run: |
+          status=0
+          args="$(node scripts/check-doc-snippet-types.mjs --build-filter)" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Could not derive the build filter: \`node scripts/check-doc-snippet-types.mjs --build-filter\` exited $status. Refusing to continue — carrying on would build every package in the workspace instead of the ones the covered snippets import." >&2
+            exit "$status"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
+      # The empty-filter refusal is the second half, deliberately kept HERE
+      # rather than beside the status check above: it holds for every route to
+      # an empty filter, including a gate that exits 0 while naming nothing.
+      # An empty filter can only ever mean something went wrong — the covered
+      # document population is never zero and the gate's own floors already
+      # refuse that — and an unfiltered `turbo run build` is a far worse answer
+      # than a red step. `args` arrives through the environment so the check has
+      # a value to test; it stays unquoted on the `turbo` line because it is a
+      # LIST of `--filter=` words that must word-split.
+      - name: Build those packages
+        env:
+          FILTER_ARGS: ${{ steps.filter.outputs.args }}
+        run: |
+          case "$FILTER_ARGS" in
+            *--filter=*) ;;
+            *)
+              echo "::error::The derived build filter names no package (got: '$FILTER_ARGS'). Refusing to run an unfiltered build — see this workflow's header." >&2
+              exit 1
+              ;;
+          esac
+          pnpm exec turbo run build $FILTER_ARGS --concurrency=2
+
+      - name: Compile documentation snippets against the built types
+        run: node scripts/check-doc-snippet-types.mjs

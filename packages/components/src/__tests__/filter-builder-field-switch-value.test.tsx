@@ -47,7 +47,8 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { FilterBuilder, retypeFilterValue } from '../custom/filter-builder';
+import { FilterBuilder, retypeFilterValue, operatorsForFieldType } from '../custom/filter-builder';
+import { RETIRED_FIELD_TYPES, resetRetiredFieldTypeReports } from '@object-ui/core';
 
 /**
  * One column per value family the builder can draw — and a SECOND text, numeric
@@ -448,7 +449,13 @@ describe('`retypeFilterValue` — the convertibility judgement, one family at a 
   });
 
   it('text-shaped families hold everything, typed as text', () => {
-    for (const type of ['text', 'select', 'status', 'lookup', 'master_detail', 'user', 'owner']) {
+    // `owner` left this list with objectui#4914. It is no longer a LIVE member
+    // of any family — the retirement gate refuses it ahead of every bucket
+    // test — so asserting it here alongside `user` and `lookup` would have gone
+    // on claiming it is live. Its own pin is the next test, and it is the
+    // INVERTED one: what a retired spelling loses, and the one thing it must
+    // not lose.
+    for (const type of ['text', 'select', 'status', 'lookup', 'master_detail', 'user']) {
       expect(scalar('acme', type)).toBe('acme');
       expect(scalar(42, type)).toBe('42');
       expect(scalar(true, type)).toBe('true');
@@ -457,6 +464,33 @@ describe('`retypeFilterValue` — the convertibility judgement, one family at a 
     // a column this builder cannot classify must not eat the user's value.
     expect(scalar('acme', 'something_new')).toBe('acme');
     expect(retypeFilterValue('acme', undefined, 'equals')).toBe('acme');
+  });
+
+  it('a RETIRED type loses the relational bucket but never the value', () => {
+    // objectui#4914, the inversion of the member that used to sit in the list
+    // above. Two halves, and both matter:
+    const retired = Object.keys(RETIRED_FIELD_TYPES)[0];
+    resetRetiredFieldTypeReports();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      // (1) REFUSED — it no longer answers with the lookup family's operators,
+      // which is what its membership above used to imply, and it says so.
+      expect(operatorsForFieldType(retired).map((op) => op.value))
+        .toEqual(operatorsForFieldType('something_new').map((op) => op.value));
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(RETIRED_FIELD_TYPES[retired]);
+
+      // (2) NOT EATEN — `retypeFilterValue` is deliberately NOT gated. It
+      // answers "what shape can this column hold", and a refusal that cleared
+      // the row would destroy a stored filter value on the way to showing the
+      // author their prescription. A refusal is loud, not destructive.
+      expect(scalar('acme', retired)).toBe('acme');
+      expect(scalar(42, retired)).toBe('42');
+      expect(scalar(true, retired)).toBe('true');
+    } finally {
+      errorSpy.mockRestore();
+      resetRetiredFieldTypeReports();
+    }
   });
 
   it('the empty scalar is returned unchanged by every family', () => {

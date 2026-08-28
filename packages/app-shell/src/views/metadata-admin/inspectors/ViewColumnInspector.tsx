@@ -11,15 +11,21 @@
  * list. New ListColumn props in `@objectstack/spec` appear automatically.
  *
  * A thin curated layer stays on top for the column IDENTITY (field key +
- * label) because those round-trip through two shapes: the ObjectStack
- * canonical `{ field, label }` and the legacy TanStack `{ accessorKey,
- * header }`. A column that is a bare string (e.g. a kanban card field) is
- * kept as a string until the author edits a detail prop.
+ * label), and it reads that identity in the ObjectStack canonical spelling
+ * `{ field, label }` ONLY. The legacy TanStack spelling `{ accessorKey,
+ * header }` is not an identity this editor understands: `ListColumn` refuses
+ * both keys by name, so a column carrying them has no field key as far as the
+ * spec is concerned — and the inspector now shows exactly that (an empty field
+ * key) rather than dressing a refused key up as a valid identity. Retiring
+ * that read is objectui#5344; the WRITE path is deliberately untouched, so
+ * editing such a column still re-saves the spelling it was handed and no
+ * stored document is rewritten. A column that is a bare string (e.g. a kanban
+ * card field) is kept as a string until the author edits a detail prop.
  */
 
 import * as React from 'react';
-import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
+import type { MetadataInspectorProps } from '../inspector-registry.js';
+import { t } from '../i18n.js';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -29,23 +35,39 @@ import {
   InspectorEmptyState,
   spliceArray,
   moveArray,
-} from './_shared';
-import { SchemaForm } from '../SchemaForm';
-import { getListColumnSchema } from '../view-schema';
-import { useObjectFields } from '../previews/useObjectFields';
-import { FieldsListEditor } from '../previews/FieldsListEditor';
+} from './_shared.js';
+import { SchemaForm } from '../SchemaForm.js';
+import { getListColumnSchema } from '../view-schema.js';
+import { useObjectFields } from '../previews/useObjectFields.js';
+import { FieldsListEditor } from '../previews/FieldsListEditor.js';
 
 interface ViewColumn {
   // ObjectStack canonical shape
   field?: string;
   label?: string;
-  // TanStack-style shape (legacy/imported tables)
+  // TanStack-style shape (legacy/imported tables). Preserved on write by
+  // `patchIdentity`, never read as the column's identity — see `colFieldKey`.
   accessorKey?: string;
   header?: string;
   [k: string]: unknown;
 }
 
-/** Identity keys owned by the curated layer — hidden from the spec form. */
+/**
+ * Keys the curated layer owns — hidden from the spec form, and not counted as
+ * detail props by {@link hasDetailProps}.
+ *
+ * `accessorKey` / `header` stay listed even though the identity read below no
+ * longer consults them, because neither reader of this list asks "what is this
+ * column's identity?":
+ *
+ *   - {@link hasDetailProps} asks whether collapsing an object back to a bare
+ *     string would lose anything. Listing the legacy keys keeps that guard
+ *     conservative, and dropping them would change what {@link writeColumns}
+ *     serializes — the write path objectui#5344 rules out of scope.
+ *   - `hiddenFields` asks which SPEC-DECLARED properties the curated layer
+ *     already renders, and `ListColumn` declares neither key, so those two
+ *     entries can never match anything there.
+ */
 const IDENTITY_KEYS = ['field', 'label', 'accessorKey', 'header'];
 
 function parseId(id: string): { variant: string; index: number } | null {
@@ -61,12 +83,25 @@ function readColumn(raw: unknown): ViewColumn {
   return {};
 }
 
+/**
+ * The column's field key, read in the canonical spelling ONLY.
+ *
+ * `c.accessorKey` is deliberately not consulted. `ListColumn` refuses that key
+ * by name (`unrecognized_keys`), so a column carrying it has no field key the
+ * spec recognises; reading it here would present a refused spelling as a valid
+ * identity — the same consumer-side tolerance alias `ObjectGrid` retired in
+ * objectui#5068, surviving one layer up in the authoring tool, which is the
+ * surface that is supposed to teach the correct shape. A legacy column
+ * therefore shows an EMPTY field key and the author re-authors it
+ * (objectui#5344; objectui#5349's renderer diagnostic does the telling).
+ */
 function colFieldKey(c: ViewColumn): string {
-  return c.field ?? c.accessorKey ?? '';
+  return c.field ?? '';
 }
 
+/** The column's display label — canonical `label` only, same rule as above. */
 function colDisplayLabel(c: ViewColumn): string {
-  return c.label ?? c.header ?? colFieldKey(c);
+  return c.label ?? colFieldKey(c);
 }
 
 /** Does the object carry any detail prop beyond its identity keys? */

@@ -101,7 +101,12 @@ type RuntimeOnlyMessageKeys = Pick<
  */
 type RuntimeOnlyToolInvocationKeys = Pick<
   RuntimeToolInvocation,
-  'pendingActionId' | 'draftReview' | 'proposedPlan' | 'proposedChanges' | 'builderHandoff'
+  | 'pendingActionId'
+  | 'draftReview'
+  | 'proposedPlan'
+  | 'proposedChanges'
+  | 'builderHandoff'
+  | 'replayOutcome'
 >;
 
 /**

@@ -23,10 +23,11 @@
 
 import type { RunnableActionType, UIActionSchema } from '@object-ui/types';
 import type { Action as SpecActionInput } from '@objectstack/spec/ui';
-import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
-import { hasDeclaredPredicate } from '../evaluator/declaredPredicate';
-import { globalUndoManager, type UndoableOperation } from './UndoManager';
-import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys';
+import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator.js';
+import { hasDeclaredPredicate } from '../evaluator/declaredPredicate.js';
+import { globalUndoManager, type UndoableOperation } from './UndoManager.js';
+import { warnOnDeprecatedObjectParams, warnOnUnknownActionKeys } from './actionKeys.js';
+import { readActionPayload } from './actionResponse.js';
 
 export interface ActionResult {
   success: boolean;
@@ -142,10 +143,22 @@ export interface ActionDef {
    * it — the two TS2353s the deletion produced repo-wide were both this key.
    */
   description?: UIActionSchema['description'];
-  /** Confirmation text — shows a confirm dialog before executing */
+  /**
+   * Confirmation text — shows a confirm dialog before executing. The ONE
+   * confirm spelling: `@objectstack/spec`'s action surface and the
+   * TranslationBundle key (`{ns}.objects.{obj}._actions.{name}.confirmText`)
+   * both stand on it.
+   */
   confirmText?: string;
-  /** Structured confirmation (from crud.ts) */
-  confirm?: { title?: string; message?: string; confirmText?: string; cancelText?: string };
+  /**
+   * RETIRED (objectui#4314): the structured confirm object used to sit here
+   * and its `message` OUTRANKED `confirmText` — untranslated, since no bundle
+   * key exists for it. `?: never` so constructing an action with it is a tsc
+   * error rather than a silently-ignored key; the authorable twin
+   * (`@object-ui/types` `crud.ts`) carries the same tombstone.
+   * @deprecated Retired — author `confirmText` instead.
+   */
+  confirm?: never;
   /**
    * Condition predicate — the action executes only while it holds.
    *
@@ -446,6 +459,29 @@ export type ActionRunnerHandler = (
 /**
  * Confirmation handler — replaces window.confirm.
  * Consumers can provide an async implementation (e.g., Shadcn AlertDialog).
+ *
+ * `options` is LIVE, and its producer is not in this file — searching the
+ * runner alone will tell you otherwise. The only call site here passes one
+ * argument (the structured `confirm` arm that used to forward a bag was
+ * retired, objectui#4314), so a runner-scoped sweep reads this parameter as
+ * declared-but-never-produced and files it for removal. That has already
+ * happened once: objectui#5205, ruled KEEP on 2026-08-22.
+ *
+ * The producer bypasses the runner entirely. `handleDeleteView` in
+ * `packages/app-shell/src/views/ObjectView.tsx` — the admin "delete saved
+ * view" confirmation — invokes a `ConfirmationHandler` with all three fields
+ * populated and localized (`console.objectView.deleteViewTitle` / `.delete` /
+ * `.cancel`), and `app-shell`'s `ActionConfirmDialog.tsx` renders them in
+ * place of its generic `actionConfirm.*` fallbacks. Line numbers are left out
+ * on purpose: #5205's pointer had already drifted by the time it was executed.
+ *
+ * So re-measure across the repo, not this package: grep for two-argument
+ * calls of `ConfirmationHandler`-typed values (`confirmHandler(`, `onConfirm(`)
+ * in `app-shell` as well as here. Dropping `options` costs that dialog its
+ * title and both button labels, and narrows a published `.d.ts` against the
+ * natural `(message, options) => …` spelling — which TypeScript rejects
+ * against a one-parameter target unless the second parameter is written
+ * optional.
  */
 export type ConfirmationHandler = (message: string, options?: {
   title?: string;
@@ -967,16 +1003,14 @@ export class ActionRunner {
         }
       }
 
-      // Confirmation (structured or simple)
-      const confirmMessage = action.confirm?.message || action.confirmText;
-      if (confirmMessage) {
+      // Confirmation. One spelling: `confirmText` — the only one the
+      // translation bundle can address (`…._actions.{name}.confirmText`). The
+      // structured `confirm.message` read that used to OUTRANK it is retired
+      // (objectui#4314): it had zero producers and no bundle key, so a dialog
+      // authored that way silently lost localization.
+      if (action.confirmText) {
         const confirmed = await this.confirmHandler(
-          this.evaluator.evaluate(confirmMessage) as string,
-          action.confirm ? {
-            title: action.confirm.title,
-            confirmText: action.confirm.confirmText,
-            cancelText: action.confirm.cancelText,
-          } : undefined,
+          this.evaluator.evaluate(action.confirmText) as string,
         );
         if (!confirmed) {
           return { success: false, error: 'Action cancelled by user' };
@@ -1183,14 +1217,101 @@ export class ActionRunner {
       if (chainResult.reload) result.reload = true;
     }
 
-    // Execute onSuccess/onFailure callbacks
+    // ── ActionSchema.onSuccess — post-success navigation ────────────────────
+    //
+    // objectui#5221, the console half of objectstack#9566/#9474. The spec
+    // declares `onSuccess` as a CLOSED STRICT object
+    // `{ navigate: string, openIn: 'self' | 'newTab' }`, refine-scoped to
+    // `type: 'api'` and `type: 'script'` — the two types whose success event
+    // carries a server response for `${result.*}` to read.
+    //
+    // This runner's OWN `ActionDef.onSuccess` predates that key and means
+    // something else entirely: `ActionDef | ActionDef[]`, chained callbacks.
+    // The two are told apart by the spec's own declaration — a non-array object
+    // whose `navigate` is a STRING is the spec block and nothing else can be:
+    // `navigate` on a callback ActionDef is the deprecated nested navigation
+    // ENVELOPE (`executeNavigation` reads `navigate.to`), so a string there has
+    // never been runnable. This is a NARROWING to the declared contract, not a
+    // lenient fallback: a shape the spec refuses gets no new reading here.
+    //
+    // Before this branch existed, the ruled shape fell into the callback path,
+    // dispatched `{ navigate: '<string>' }` as an action, and failed inside
+    // `executeNavigation` with "No URL provided for navigation action" — the
+    // author got a red toast and no hop.
     if (result.success && action.onSuccess) {
-      const callbacks = Array.isArray(action.onSuccess) ? action.onSuccess : [action.onSuccess];
-      await this.executeChain(callbacks, 'sequential');
+      const navigation = readOnSuccessNavigation(action.onSuccess);
+      if (navigation) {
+        this.navigateOnSuccess(navigation, action, result);
+      } else {
+        const callbacks = Array.isArray(action.onSuccess) ? action.onSuccess : [action.onSuccess];
+        await this.executeChain(callbacks, 'sequential');
+      }
     }
     if (!result.success && action.onFailure) {
       const callbacks = Array.isArray(action.onFailure) ? action.onFailure : [action.onFailure];
       await this.executeChain(callbacks, 'sequential');
+    }
+  }
+
+  /**
+   * Perform the `ActionSchema.onSuccess` hop for an action that just succeeded.
+   *
+   * **The router is the app's own.** `navigationHandler` is the seam every
+   * navigator in this file already goes through, and the console wires it to
+   * react-router's `navigate` — so `openIn: 'self'` is a real SPA route hop,
+   * in place, immune to popup blocking. No `window.location` / `window.open`
+   * mechanism is introduced here; the no-handler fallback is the same
+   * `result.redirect` hand-off `navigateTo` already uses.
+   *
+   * **No default is written here.** `openIn` is a materialised
+   * `.default('self')` in the spec, so parse output always carries a resolved
+   * member; this reads the ONE member that changes the branch and leaves the
+   * other implicit. A `?? 'self'` would be a second source of truth for a
+   * default the producer already resolved.
+   *
+   * **The two `openIn` spellings never cross.** This reads
+   * `onSuccess.openIn` (`'self' | 'newTab'`) and nothing else — never the
+   * top-level `type: 'url'` switch, which spells its new-tab member
+   * `'new-tab'`. Spec refuses each crossover spelling with a keyed error; a
+   * renderer that accepted either would be a second, looser contract than the
+   * one authors are validated against.
+   */
+  private navigateOnSuccess(
+    block: OnSuccessNavigation,
+    action: ActionDef,
+    result: ActionResult,
+  ): void {
+    // `${result.*}` reads the HANDLER's return value, one level below the
+    // action envelope — the same level `readActionPayload` hands the
+    // `redirectUrl` convention. Reading `result.data` raw would see the
+    // `{ success, data }` envelope on pre-objectstack#3962 servers, which is
+    // the "one level too shallow" bug (#2904) in a new place.
+    const url = this.interpolateTarget(block.navigate, action, readActionPayload(result.data));
+
+    // `navigate` is author-supplied metadata and lands in a URL position, so
+    // it goes through the same scheme guard as every other navigator here.
+    if (!this.isValidUrl(url)) {
+      console.warn(
+        '[ActionRunner] onSuccess.navigate resolved to a URL this runner refuses to open '
+        + '(only http://, https:// and relative URLs are allowed) — no navigation performed.',
+        { action: action.name, navigate: block.navigate, resolved: url },
+      );
+      return;
+    }
+
+    const newTab = block.openIn === 'newTab';
+    // Same external-URL convention `navigateTo` hands the handler; `newTab`
+    // stays the declared choice alone, never `?? isExternal`.
+    const external = url.startsWith('http://') || url.startsWith('https://');
+
+    if (this.navigationHandler) {
+      this.navigationHandler(url, { external, newTab });
+      return;
+    }
+    if (newTab) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      result.redirect = url;
     }
   }
 
@@ -1744,7 +1865,7 @@ export class ActionRunner {
    * param. Consumers can extend by stuffing extra keys under
    * `context.ctx = {...}` before calling `runner.execute()`.
    */
-  private interpolateTarget(target: string, action: ActionDef): string {
+  private interpolateTarget(target: string, action: ActionDef, resultScope?: unknown): string {
     if (typeof target !== 'string' || target.indexOf('${') === -1) return target;
     // ── The `${param.X}` scope is an INTERNAL runtime value bag, not an
     //    authoring surface (objectui#4097 ruling B, 2026-08-11) ──────────────
@@ -1780,10 +1901,20 @@ export class ActionRunner {
     const params = (action.params && typeof action.params === 'object' && !Array.isArray(action.params))
       ? (action.params as Record<string, unknown>)
       : {};
-    const ctx = this.buildInterpolationContext();
-    return target.replace(/\$\{(param|ctx)\.([\w.]+)\}/g, (_match, scope: string, path: string) => {
-      const root = scope === 'param' ? params : ctx;
-      const value = readPath(root, path);
+    // The scope MAP defines the vocabulary — the pattern is built from its
+    // keys, so a scope that is not in play is not a scope this call recognizes.
+    //
+    // `result` (the handler's own return value) is passed by exactly one caller:
+    // the `ActionSchema.onSuccess` post-success hop, where a response exists.
+    // Every other caller — `executeUrl`, `executeAPI` — interpolates a target
+    // BEFORE the request, so there is no result to read; admitting `${result.*}`
+    // there would widen the authorable surface with nothing behind it and
+    // silently blank the token instead of leaving the author's mistake visible.
+    const scopes: Record<string, unknown> = { param: params, ctx: this.buildInterpolationContext() };
+    if (resultScope !== undefined) scopes.result = resultScope;
+    const pattern = new RegExp(`\\$\\{(${Object.keys(scopes).join('|')})\\.([\\w.]+)\\}`, 'g');
+    return target.replace(pattern, (_match, scope: string, path: string) => {
+      const value = readPath(scopes[scope], path);
       if (value == null) return '';
       return encodeURIComponent(String(value));
     });
@@ -1858,6 +1989,31 @@ export async function executeAction(
 ): Promise<ActionResult> {
   const runner = new ActionRunner(context);
   return await runner.execute(action);
+}
+
+/** The `ActionSchema.onSuccess` block, as the pinned spec declares it. */
+export interface OnSuccessNavigation {
+  navigate: string;
+  /** `'self' | 'newTab'` — read as data, so an off-contract value cannot widen the branch. */
+  openIn?: unknown;
+}
+
+/**
+ * Is this `onSuccess` the SPEC's navigation block, or this runner's older
+ * chained-callback channel (`ActionDef | ActionDef[]`)?
+ *
+ * The test IS the spec's declaration: a non-array object carrying a STRING
+ * `navigate`. Nothing else can produce that shape — the spec object is strict
+ * with `navigate: z.string()` required, and on a callback `ActionDef`,
+ * `navigate` is the deprecated nested navigation ENVELOPE that
+ * `executeNavigation` reads `to`/`target`/`redirect` off, so a bare string
+ * there has never been runnable.
+ */
+export function readOnSuccessNavigation(value: unknown): OnSuccessNavigation | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const navigate = (value as { navigate?: unknown }).navigate;
+  if (typeof navigate !== 'string' || navigate === '') return null;
+  return value as OnSuccessNavigation;
 }
 
 /**

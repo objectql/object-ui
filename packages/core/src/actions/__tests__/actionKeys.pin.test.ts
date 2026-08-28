@@ -5,9 +5,9 @@
  *
  * Why a test rather than a comment: a hand-maintained list that silently drifts
  * from the interface it claims to mirror is the exact "declared ≠ enforced"
- * failure this work is about. `ActionDef` cannot be enumerated at runtime — its
- * `[key: string]: any` widens `keyof` to `string | number` — so the list is data,
- * and this file is what makes the data true. Adding a field to `ActionDef`
+ * failure this work is about. `ActionDef` cannot be enumerated at runtime — the
+ * interface and its `keyof` are both erased before anything runs — so the list is
+ * data, and this file is what makes the data true. Adding a field to `ActionDef`
  * without adding it here fails, by name.
  *
  * Discrimination proof for the guard below: with `ACTION_DEF_KEYS` complete these
@@ -24,6 +24,7 @@ import {
   ACTION_DEF_KEYS,
   SPEC_ACTION_KEYS,
   NAVIGATION_ALIAS_KEYS,
+  HOST_DISPATCH_ACTION_KEYS,
   RETIRED_ACTION_KEYS,
   KNOWN_ACTION_KEYS,
   classifyActionKeys,
@@ -136,6 +137,38 @@ describe('action key inventory (objectstack#4075 step 1)', () => {
     expect(KNOWN_ACTION_KEYS.has('execute')).toBe(false);
   });
 
+  it('pins the host-dispatch list EXACTLY, because its set is the ruling', () => {
+    // Exact contents, not `toContain`. The maintainer ruling of 2026-08-22
+    // authorized ONE key here, and the danger this list carries is growth: a
+    // key in it is a key the unknown-key warning stops asking about, so a
+    // silent addition is a silent hole in the diagnostic. `toEqual` on the whole
+    // array is what makes adding a second member a red test that names it,
+    // rather than an edit nobody reads.
+    expect([...HOST_DISPATCH_ACTION_KEYS]).toEqual(['overrideNotice']);
+  });
+
+  it('counts the host-dispatch key as known, so the dev warning stops crying wolf', () => {
+    // The defect item 4 closes: `DeclaredActionsBar` composes `overrideNotice`
+    // on the dispatch, `useConsoleActionRuntime` and `RecordDetailView` read
+    // it, and the runner — which classifies the DISPATCH, not the stored row —
+    // called it a key "no reader recognizes".
+    expect(KNOWN_ACTION_KEYS.has('overrideNotice')).toBe(true);
+  });
+
+  it('does NOT let the host-dispatch key onto the authored surface', () => {
+    // The other half of the same ruling, and the half that has to stay true
+    // while the half above changes: ⛔ not declared on `ActionDef`, ⛔ not in
+    // `ACTION_DEF_KEYS`. Membership in `KNOWN_ACTION_KEYS` widens what the
+    // dev-mode WARNING tolerates; it must not widen what an author may WRITE.
+    // Read off the interface's AST, so re-declaring the key on `ActionDef` to
+    // "make it consistent" fails here by name.
+    expect({
+      declaredOnActionDef: declaredActionDefKeys().includes('overrideNotice'),
+      inActionDefKeys: (ACTION_DEF_KEYS as readonly string[]).includes('overrideNotice'),
+      inSpecActionKeys: (SPEC_ACTION_KEYS as readonly string[]).includes('overrideNotice'),
+    }).toEqual({ declaredOnActionDef: false, inActionDefKeys: false, inSpecActionKeys: false });
+  });
+
   it('keeps the navigation alias out of the spec vocabulary it is not part of', () => {
     // If the spec ever adopts one of these, it stops being objectui dialect and
     // this fails — naming the alias to retire, the same tripwire shape as
@@ -160,11 +193,51 @@ describe('unknown-key warning', () => {
   });
 
   it('names a typo that the compiler cannot see', () => {
-    // `targt` type-checks today: ActionDef's index signature accepts it. Nothing
-    // reads it, so the action runs and does nothing — #2169's shape.
+    // `targt` no longer type-checks in an action literal — `actionDef-closed-surface.test.ts`
+    // pins that rejection. It is still invisible to the compiler in the population
+    // THIS warning serves: an action rehydrated from a stored row, which reaches
+    // the runner unparsed (objectstack#3903). Nothing reads it, so the action runs
+    // and does nothing — #2169's shape.
     warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toContain('`targt`');
+  });
+
+  it('sends the author to the interface, and drops the reason step 3 retired', () => {
+    // The message is author-facing prose that PRESCRIBES AN EDIT, and both halves
+    // of it rotted unnoticed (objectui#5642): it claimed `ActionDef` "still
+    // carries `[key: string]: any`" after step 3 deleted it, and it named the
+    // INVENTORY as the place to declare a field that lives on the INTERFACE —
+    // which is exactly the half-change the `missing`/`stale` pins above go red on.
+    // Unpinned prose is how that survived; this is the pin.
+    warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
+    const message = String(warn.mock.calls[0][0]);
+    expect({
+      pointsAtTheInterfaceFile: message.includes('packages/core/src/actions/ActionRunner.ts'),
+      namesTheSecondEdit: message.includes('`ACTION_DEF_KEYS`'),
+      repeatsTheRetiredIndexSignature: message.includes('[key: string]: any'),
+    }).toEqual({
+      pointsAtTheInterfaceFile: true,
+      namesTheSecondEdit: true,
+      repeatsTheRetiredIndexSignature: false,
+    });
+  });
+
+  it('the file path it prints really declares the interface it prescribes', () => {
+    // A fix for a wrong pointer that quietly installs another wrong pointer is
+    // the same defect. So resolve the path OFF THE PRINTED MESSAGE and read the
+    // file: a rename or a move of `ActionRunner.ts` reddens here by name instead
+    // of shipping a second dead prescription.
+    warnOnUnknownActionKeys({ name: 'save', type: 'script', targt: 'saveRecord' });
+    const message = String(warn.mock.calls[0][0]);
+    const printed = [...(message.match(/packages\/core\/src\/actions\/[A-Za-z.]+\.ts(?=\))/g) ?? [])];
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
+    const declaringPaths = printed.filter((p) =>
+      readFileSync(join(repoRoot, p), 'utf8').includes('export interface ActionDef {'));
+    expect({ printed, declaringPaths }).toEqual({
+      printed: ['packages/core/src/actions/ActionRunner.ts', 'packages/core/src/actions/actionKeys.ts'],
+      declaringPaths: ['packages/core/src/actions/ActionRunner.ts'],
+    });
   });
 
   it('gives a retired key its rename prescription, not a bare "unknown"', () => {
@@ -185,6 +258,38 @@ describe('unknown-key warning', () => {
     warnOnUnknownActionKeys({ name: 'remove', type: 'script', targt: 'y' });
     expect(warn).toHaveBeenCalledTimes(2);
     expect(warn.mock.calls[1][0]).toContain('"remove"');
+  });
+
+  it('says nothing about the dispatch a console host actually composes', () => {
+    // The exact object literal at `DeclaredActionsBar.tsx`'s override branch,
+    // reduced to the keys that decide the verdict. Before item 4 this produced
+    // one warning naming `overrideNotice`, on the one privileged path that
+    // finalises an approval over approvers who have not acted.
+    warnOnUnknownActionKeys({
+      name: 'approval_reject',
+      type: 'api',
+      target: '/api/v1/approvals/{id}/reject',
+      label: 'Reject (override)',
+      objectName: 'approval_request',
+      params: { _rowRecord: { id: 'a1' } },
+      overrideNotice: 'You are overriding 2 approvers who have not acted.',
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('still names a typo riding the SAME host dispatch', () => {
+    // The discrimination half: the fix must silence one key, not the check.
+    // Without this, replacing `classifyActionKeys` with `() => ({unknown: [],
+    // retired: []})` would pass the test above.
+    warnOnUnknownActionKeys({
+      name: 'approval_reject',
+      type: 'api',
+      overrideNotice: 'You are overriding 2 approvers who have not acted.',
+      targt: '/api/v1/approvals/{id}/reject',
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('`targt`');
+    expect(warn.mock.calls[0][0]).not.toContain('overrideNotice');
   });
 
   it('is silent in production', () => {

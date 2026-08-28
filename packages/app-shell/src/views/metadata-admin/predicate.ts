@@ -52,8 +52,9 @@
  * ### The boundary this draws — read before widening it
  *
  * "Unresolvable" means **the path's root identifier is not a name this scope
- * declares** (`type`, `record.status`, `page.selectedId` against a scope whose
- * only name is `data`). It does NOT mean "the value came out undefined":
+ * declares** (`type`, `record.status`, `page.selectedId` against a scope that
+ * declares `data` plus the identity roots of {@link IDENTITY_ROOTS}). It does
+ * NOT mean "the value came out undefined":
  *
  *   - `data.type == 'text'` on a draft that has no `type` yet → the root `data`
  *     resolves, the draft simply has no value there. That is a legitimate
@@ -104,11 +105,157 @@
  * header says, this file is an interim stand-in for `@objectstack/formula`, so
  * **this diagnostic retires with the file** when ROADMAP M9 lands CEL. Do not
  * grow it into a second evaluator.
+ *
+ * ## An unparseable element inside `in [...]` also fails silently (objectui#4266)
+ *
+ * `path in [...]` hands the bracketed text to `parseLiteral`'s array branch,
+ * which JSON-parses it after normalising quotes. An element that is not a JSON
+ * literal — a path, a bare identifier, a trailing comma — makes that
+ * `JSON.parse` throw, and the `catch` returned `[]` with nothing in the
+ * console. `[].includes(anything)` is `false`, so the predicate silently reads
+ * FALSE FOR EVERY ROW, and — because the parse is whole-set, not per-element —
+ * one bad element discards every good literal sitting next to it too:
+ * `data.type in ['text', data.a]` collapsed exactly as hard as `data.type in
+ * [data.a]` alone.
+ *
+ * Same family as objectui#4049 (silently wrong verdict, zero warning) and the
+ * same ruling: **diagnose only, zero semantic change.** The `catch` still
+ * returns `[]` — an `in` set that fails to parse is still, and remains, the
+ * empty set — this file does not gain the ability to resolve a path inside
+ * `in [...]` (that stays outside the declared subset; #4049 already draws
+ * that boundary for the right side of `==`/`!=` and it is not reopened here).
+ * All that changes is that the console names the predicate and, best-effort,
+ * the element that broke the parse, instead of staying silent. Verdicts are
+ * pinned identical before and after in `predicate.test.ts` §8.3, the same
+ * shape as #4049's §7.3.
+ *
+ * A louder option — making the whole predicate throw so the top-level
+ * fail-open in {@link evaluatePredicate} turns it `true`, mirroring
+ * objectstack#6936's unresolved-path ruling — was considered and rejected:
+ * #6936's `true` verdict corrects a fail-CLOSED bug (a hidden field is worse
+ * than a shown one), but here the existing verdict (`false`, i.e. hidden) is
+ * not a bug — it is the documented behaviour for a set this evaluator cannot
+ * parse, same as `#4049`'s tail returning the right-hand text verbatim
+ * instead of resolving it. Flipping it to fail-open `true` would be a
+ * semantic change with no ruling behind it, and would make an authoring
+ * mistake (a stray non-literal element) MORE visible than a correctly
+ * authored predicate that legitimately evaluates false — exactly backwards.
+ *
+ * This diagnostic retires with the file at ROADMAP M9, same as #4049's.
  */
+
+/**
+ * The evaluation scope this surface publishes.
+ *
+ * `data` is ALWAYS the current draft. The index signature carries the extra
+ * roots {@link buildPredicateCtx} binds — today exactly {@link IDENTITY_ROOTS}.
+ *
+ * ⚠️ Read {@link buildPredicateCtx} before adding a root here. A root that is
+ * bound is a root that no longer warns, so widening this bag silently converts
+ * a loud diagnostic into a silent `undefined`-compares-false.
+ */
+export interface PredicateCtx {
+  /** The current draft. Never the host provider's own `data` scope. */
+  data: Record<string, unknown>;
+  [root: string]: unknown;
+}
+
+/**
+ * The identity spellings this surface binds, ADR-0068 D1 (objectui#6247).
+ *
+ * ONE user object under four names: the canonical `current_user`, the
+ * back-compat `user`, the server-RLS-parity `ctx.user` and the server-CEL-parity
+ * `os.user`. They are not four dialects — they are the four spellings
+ * `buildExpressionScope` (`providers/ExpressionProvider.tsx`) already publishes
+ * for the same object, restated here as a SELECTION from that bag rather than a
+ * copy of it, so the alias set cannot drift from the one builder.
+ *
+ * ## What is deliberately NOT here — the whole of Fork A's ruling
+ *
+ * - ⛔ `data`. The host provider's bag also carries a `data` key, and it means
+ *   the provider's data scope, NOT this form's draft. Adopting it head-on would
+ *   be objectui#5926 gap 2's "same key, opposite meanings" — one authored
+ *   `data.viewKind` reaching two different objects one nesting level apart. The
+ *   2026-08-25/27 maintainer ruling (A2, affirmed three times on objectui#6247)
+ *   binds the identity roots ALONGSIDE `data` and keeps `data` = the draft.
+ * - ⛔ `record`. The sibling runtime surface binds it because it edits a data
+ *   RECORD; metadata-admin edits source metadata and has no record. Leaving it
+ *   unbound is what keeps `record.status` a loud diagnostic here instead of a
+ *   silent false — `predicate.test.ts` pins that.
+ * - ⛔ `app` / `features`. Renderer-tier, not ADR-0068 identity, and not named
+ *   by the ruling. Binding them as empty objects would turn `app.x` from a loud
+ *   unresolved-root warning into a silent `undefined`.
+ */
+export const IDENTITY_ROOTS = ['current_user', 'user', 'ctx', 'os'] as const;
+
+/**
+ * Build the scope a metadata-admin predicate evaluates against: the draft under
+ * `data`, plus whichever of {@link IDENTITY_ROOTS} the host shell published.
+ *
+ * `hostScope` is `usePredicateScope()` (`@object-ui/react`) — the SAME bag the
+ * sibling runtime form surface reads, so one authored `visibleWhen` text names
+ * the same identity object on both. Roots the host did not publish stay ABSENT
+ * rather than being bound to `{}`: absent is what raises
+ * {@link UnresolvedPathError} and produces the loud diagnostic, and a gate that
+ * cannot resolve its identity must say so, not quietly answer "no".
+ *
+ * `data` is assigned LAST and unconditionally, so no host key can displace the
+ * draft even if the provider's bag grows one.
+ */
+export function buildPredicateCtx(
+  draft: Record<string, unknown> | undefined,
+  hostScope?: Record<string, unknown>,
+): PredicateCtx {
+  const ctx: PredicateCtx = { data: draft ?? {} };
+  if (hostScope) {
+    for (const root of IDENTITY_ROOTS) {
+      if (Object.prototype.hasOwnProperty.call(hostScope, root)) ctx[root] = hostScope[root];
+    }
+  }
+  ctx.data = draft ?? {};
+  return ctx;
+}
+
+/**
+ * Is this select option offered? — the ONE reader of
+ * `SelectOptionSchema.visibleWhen` on this surface (objectui#6247).
+ *
+ * Routes through {@link evaluatePredicate}, the same evaluator the section,
+ * field and repeater-row gates use. Deliberately NOT a local predicate check
+ * bolted onto each option mapping: objectui#5926 gap 2 is the record of what a
+ * second dialect costs, and this surface is already the third evaluator in the
+ * platform — a fourth was ruled out.
+ *
+ * No predicate → offered, which is the same "absent means yes" every other gate
+ * on this surface uses.
+ */
+export function isOptionVisible(
+  opt: { visibleWhen?: string | { dialect?: string; source: string } },
+  ctx: PredicateCtx,
+): boolean {
+  return evaluatePredicate(opt.visibleWhen, ctx);
+}
+
+/**
+ * The rendered subset of an authored option list.
+ *
+ * ⚠️ This is the CONTENT half only. Per the Fork B ruling (B1) the control's
+ * FACE — `resolveFieldFace`'s `hasOptions`, `resolveColorWidgetKey`, and each
+ * `options.length > 0` branch condition — keeps reading the RAW list, so
+ * withdrawing every option renders an EMPTY PICKER rather than flipping the
+ * field to a free-text input or to a different widget registration. Call this
+ * where the list is mapped to items, never where the branch is chosen.
+ */
+export function visibleOptions<T extends { visibleWhen?: string | { dialect?: string; source: string } }>(
+  options: readonly T[],
+  ctx: PredicateCtx,
+): T[] {
+  return options.filter((o) => isOptionVisible(o, ctx));
+}
 
 export function evaluatePredicate(
   expr: string | { dialect?: string; source: string } | null | undefined,
-  ctx: { data: Record<string, unknown> },
+  ctx: PredicateCtx,
 ): boolean {
   if (expr == null) return true;
   const source = typeof expr === 'string' ? expr : expr.source;
@@ -117,7 +264,7 @@ export function evaluatePredicate(
     return evalExpr(source.trim(), ctx, source);
   } catch (err) {
     // Fail-open either way; an unresolvable path additionally gets a name.
-    if (err instanceof UnresolvedPathError) warnUnresolvedPath(err.path, source);
+    if (err instanceof UnresolvedPathError) warnUnresolvedPath(err.path, source, ctx);
     return true;
   }
 }
@@ -151,28 +298,47 @@ const warnedUnresolvedPaths = new Set<string>();
  */
 const warnedPathShapedLiterals = new Set<string>();
 
+/**
+ * The same warn-once discipline for the `in`-array parse-failure diagnostic
+ * (objectui#4266), keyed on (raw set text, predicate) for the same reason as
+ * the two Sets above: keying on the set text alone would report the first
+ * predicate carrying it and stay silent about a sibling predicate that
+ * happens to spell the same broken set.
+ */
+const warnedUnparseableInSets = new Set<string>();
+
 /** Reset the warn-once memos. Exported for tests. */
 export function resetPredicateWarnings(): void {
   warnedUnresolvedPaths.clear();
   warnedPathShapedLiterals.clear();
+  warnedUnparseableInSets.clear();
 }
 
 const isDev = (): boolean =>
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_ENV !==
   'production';
 
-function warnUnresolvedPath(path: string, source: string): void {
+function warnUnresolvedPath(path: string, source: string, ctx: PredicateCtx): void {
   if (!isDev()) return;
   const memo = `${path}::${source}`;
   if (warnedUnresolvedPaths.has(memo)) return;
   warnedUnresolvedPaths.add(memo);
   const root = path.split('.')[0];
+  // The bound names are READ OFF THE ACTUAL SCOPE, never restated as a literal.
+  // They differ between call sites — the identity roots are present only where a
+  // host `ExpressionProvider` published them (objectui#6247) — and a hardcoded
+  // list would be a diagnostic that lies in whichever world it was not written
+  // for. A wrong "the only name is X" is worse than no diagnostic: it sends the
+  // author to un-write a spelling that is in fact correct.
+  const bound = Object.keys(ctx).sort().map((n) => `\`${n}\``).join(', ');
   console.warn(
     `[metadata-admin] visibility predicate \`${source}\` references \`${path}\`, but \`${root}\` ` +
-      'is not a name in this form\'s evaluation scope — the only name is `data` (the current draft). ' +
-      'The predicate was treated as TRUE (fail-open) so the field stays visible instead of ' +
-      'disappearing without a trace; check the spelling — draft values are addressed as `data.<field>` ' +
-      '(e.g. `data.type in [...]`). A predicate served by an older backend is the usual cause ' +
+      `is not a name in this form's evaluation scope — the names here are ${bound} ` +
+      '(`data` is the current draft; the identity roots are bound only under a host ' +
+      '`ExpressionProvider`). The predicate was treated as TRUE (fail-open) so the field stays ' +
+      'visible instead of disappearing without a trace; check the spelling — draft values are ' +
+      'addressed as `data.<field>` (e.g. `data.type in [...]`) and the signed-in user as ' +
+      '`current_user.<field>`. A predicate served by an older backend is the usual cause ' +
       '(objectstack#6254 re-spelled the bare `objectForm` predicates; objectstack#6936).',
   );
 }
@@ -210,9 +376,59 @@ function warnPathShapedLiteral(text: string, source: string): void {
   );
 }
 
+/**
+ * Best-effort identification of WHICH element inside an unparseable `in [...]`
+ * set actually broke the parse — for the warning text only, never to change
+ * the return value. Splits on top-level commas (reusing `splitTopLevel`,
+ * which already tracks bracket depth and quotes for the `&&`/`||` splitters
+ * above) and re-runs the exact same quote-normalising `JSON.parse` the array
+ * branch itself uses, one element at a time, so the reported culprit is
+ * judged by literally the same rule that judged the whole set. Returns `null`
+ * when every individual element parses fine on its own (e.g. a stray trailing
+ * comma broke the whole-string parse but no single element is at fault) —
+ * the warning then falls back to naming the whole set.
+ */
+function findUnparseableSetElement(raw: string): string | null {
+  const inner = raw.slice(1, -1);
+  if (!inner.trim()) return null;
+  for (const part of splitTopLevel(inner, ',')) {
+    const el = part.trim();
+    if (!el) continue;
+    try {
+      const json = el.replace(/'([^']*)'/g, (_, innerStr) => JSON.stringify(innerStr));
+      JSON.parse(json);
+    } catch {
+      return el;
+    }
+  }
+  return null;
+}
+
+function warnUnparseableInSet(raw: string, source: string): void {
+  if (!isDev()) return;
+  const memo = `${raw}::${source}`;
+  if (warnedUnparseableInSets.has(memo)) return;
+  warnedUnparseableInSets.add(memo);
+  const element = findUnparseableSetElement(raw);
+  console.warn(
+    `[metadata-admin] visibility predicate \`${source}\` has an \`in\` set \`${raw}\`` +
+      (element != null
+        ? ` containing \`${element}\`, which is not a literal this evaluator can parse — `
+        : ', which this evaluator could not parse — ') +
+      'the WHOLE set was treated as EMPTY, so the predicate is FALSE for every row (not just the ' +
+      'element that failed — one bad element discards the good literals next to it too). This ' +
+      "evaluator only supports literal elements inside `in [...]` (supported subset: `path in " +
+      "['a','b']`); it does not resolve paths there — paths resolve only on the LEFT of an operator " +
+      '(objectui#4049). If you meant a literal, quote it. If you meant to test membership against ' +
+      "another field, that is outside this evaluator's subset: it is an interim stand-in for " +
+      '`@objectstack/formula` until CEL lands (ROADMAP M9), and predicate expressions are validated ' +
+      'at publish time (objectstack#7010). objectui#4266.',
+  );
+}
+
 function evalExpr(
   expr: string,
-  ctx: { data: Record<string, unknown> },
+  ctx: PredicateCtx,
   // The WHOLE predicate, threaded down unchanged so a diagnostic raised deep in
   // a sub-expression can name the predicate the author actually wrote — the
   // same pairing objectstack#6936's warning makes via UnresolvedPathError.
@@ -290,7 +506,7 @@ function splitTopLevel(expr: string, op: string): string[] {
 
 function resolveValue(
   path: string,
-  ctx: { data: Record<string, unknown> },
+  ctx: PredicateCtx,
   source: string,
 ): unknown {
   // Allow literals on the left side too.
@@ -334,6 +550,11 @@ function parseLiteral(raw: string, source: string): unknown {
       const json = s.replace(/'([^']*)'/g, (_, inner) => JSON.stringify(inner));
       return JSON.parse(json);
     } catch {
+      // Whole-set parse failure (a non-literal element, a trailing comma, …).
+      // Diagnose only (objectui#4266) — the verdict is UNTOUCHED: the set is
+      // still `[]`, `in` is still false for every row. See the header section
+      // "An unparseable element inside `in [...]` also fails silently".
+      warnUnparseableInSet(s, source);
       return [];
     }
   }
