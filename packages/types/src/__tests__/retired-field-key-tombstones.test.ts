@@ -36,6 +36,10 @@
  * the derived lists is the consolidation's parity measurement.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 import { FieldSchema } from '@objectstack/spec/data';
 
@@ -45,13 +49,25 @@ import {
   retiredFieldKeysFor,
   type RetiredFieldKey,
 } from '../internal/retired-field-keys.js';
-// The bare-specifier subpath, exercised the way the three real consuming
-// sites reach the registry — objectui#6527 option B (maintainer ruling,
-// 2026-08-28): the registry is DELIBERATELY off the package's main barrel.
-import {
-  RETIRED_FIELD_KEY_TOMBSTONES as fromSubpath,
-  retiredFieldKeysFor as retiredFieldKeysForFromSubpath,
-} from '@object-ui/types/internal/retired-field-keys';
+
+// `package.json` is read the same way `package-exports-manifest.test.ts`
+// reads it (createRequire + readFileSync), NOT by importing the bare
+// specifier `@object-ui/types/internal/retired-field-keys` from inside this
+// package's own `src/` — objectui#4801 / scripts/check-package-self-import.mjs:
+// that specifier resolves through the package's OWN `exports` map to `dist/`,
+// and neither `type-check` nor `test` has a build-order dependency on this
+// package's own build (turbo's `^build` reaches only DEPENDENCIES), so on a
+// cold CI cache the self-import fails with TS2307 -- green only on a machine
+// that happened to have built `dist/` already. It also would not have proven
+// what it looked like it proved: this repo's vitest config aliases the bare
+// package name straight to `src/` (vitest.config.mts), so even a passing
+// self-import here would be resolving through that alias, never through the
+// real `exports` map a genuine external consumer uses.
+const require = createRequire(import.meta.url);
+const packageJsonPath = require.resolve('../../package.json');
+const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
+  exports?: Record<string, Record<string, string> | string>;
+};
 
 /** An otherwise-green field — the positive control every probe rides on. */
 const BASE_FIELD = { name: 'amount', type: 'number', label: 'Amount' } as const;
@@ -230,13 +246,49 @@ describe('retired-field-key registry · hygiene', () => {
     }
   });
 
-  it('the registry and its derivation are exported from the dedicated internal subpath', () => {
+  it('package.json declares the internal subpath, pointed at this module\'s own dist output', () => {
     // The three strip sites import `@object-ui/types/internal/retired-field-keys`
     // directly; a registry whose wiring fell off that subpath would break them
     // at build time, but this pin makes the wiring a stated fact rather than
     // an accident.
-    expect(fromSubpath).toBe(RETIRED_FIELD_KEY_TOMBSTONES);
-    expect(retiredFieldKeysForFromSubpath).toBe(retiredFieldKeysFor);
+    //
+    // This reads the DECLARATION rather than round-tripping an import of the
+    // bare specifier from inside the package's own `src/` (objectui#4801 /
+    // scripts/check-package-self-import.mjs — see the import block above for
+    // why that form is both a cold-CI-cache TS2307 hazard AND, separately,
+    // not actually a wiring test: vitest's own alias config resolves the bare
+    // package name straight to `src/`, so a self-import here would never
+    // exercise the real `exports` map a genuine external consumer resolves
+    // through).
+    const entry = pkg.exports?.['./internal/retired-field-keys'];
+    expect(entry).toEqual({
+      types: './dist/internal/retired-field-keys.d.ts',
+      import: './dist/internal/retired-field-keys.js',
+    });
+
+    // The declared `dist/` target is NOT checked for existence: `test` has no
+    // build-order dependency on this package's OWN build (the same gap
+    // check-package-self-import.mjs polices for `type-check`), so a fresh CI
+    // cache has no `dist/` yet and asserting it existed would reintroduce the
+    // exact hazard this pin replaces — see `package-exports-manifest.test.ts`'s
+    // header for the same reasoning applied to the root export.
+    //
+    // What IS available unconditionally is the SOURCE the declared target is
+    // generated from — and it is DERIVED FROM THE DECLARATION rather than
+    // restated as a second constant. That derivation is what keeps this half a
+    // WIRING assertion: two independent literals that happen to agree would
+    // still pass if the `exports` entry were re-pointed at a module that does
+    // not exist. `tsc` mirrors the package's `src` tree to `dist` one-to-one
+    // (rootDir: ./src, outDir: ./dist — packages/types/tsconfig.json), so
+    // inverting that mapping over the declared target proves the subpath
+    // resolves to a real module, with no build required first.
+    const declaredImport = (entry as Record<string, string>).import;
+    const srcRelative = declaredImport.replace(/^\.\/dist\//, 'src/').replace(/\.js$/, '.ts');
+    const srcPath = resolve(dirname(packageJsonPath), srcRelative);
+    expect({ srcRelative, exists: existsSync(srcPath) }).toEqual({
+      srcRelative: 'src/internal/retired-field-keys.ts',
+      exists: true,
+    });
   });
 
   it('the registry is NOT exported from the main package barrel', async () => {
