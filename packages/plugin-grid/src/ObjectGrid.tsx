@@ -641,6 +641,107 @@ export type ObjectGridColumn =
   & ObjectGridRetiredOptionsTombstone
   & { [K in RetiredListColumnKey]?: never };
 
+/**
+ * ⭐ THE SCHEMA SLOT THIS GRID FILLS (objectui#6459) — the receiver half of the
+ * seam whose producer half #6004 typed. `dataTableSchema` below was
+ * `const dataTableSchema: any`, so the ~46 keys assembled there were checked
+ * against nothing, while the `DataTableSchema` this file imports went unused as
+ * that object's annotation.
+ *
+ * ## Why the fix is not `: DataTableSchema` — measured before choosing this shape
+ *
+ * objectui#6459's sizing note predicted a bare annotation would be inert
+ * because `buildGroupTableSchema` re-emits the value through a spread and
+ * excess-property checking is a freshness check. Measured here (on
+ * `38a123cac`), the truth is stronger and the spread is not even needed:
+ *
+ *   1. `const dataTableSchema: DataTableSchema = {`, everything else unchanged,
+ *      PLUS an undeclared `bogusKeyForProbe6459: true` WRITTEN OUT LONGHAND in
+ *      the (fresh) literal  →  `tsc --noEmit` exit 0, ZERO diagnostics.
+ *
+ * The reason is `BaseSchema`'s `[key: string]: any` index signature, which
+ * `DataTableSchema` inherits: under an index signature EVERY key is a member,
+ * so excess-property checking never has a non-member to refuse — at a fresh
+ * literal, through a spread, anywhere. It is the terminal case of the rule the
+ * `options` tombstone above records ("a pin enforced by a key's non-membership
+ * silently stops enforcing the moment the key becomes a member"): with an
+ * index signature there is no non-membership to enforce with, ever.
+ *
+ * `RemoveIndexSignature` strips it — DERIVED from `DataTableSchema`, never a
+ * hand-copied member list, so a member added there tomorrow flows in on its
+ * own and two enumerations of one vocabulary never exist. With the signature
+ * gone, the same probe goes red (TS2353 naming the key), measured at both
+ * annotated literals — the flat one and `buildGroupTableSchema`'s return.
+ *
+ * ## What the instrument is, and is not (pinned in dataTableSchemaSlot-6459.test.ts)
+ *
+ * Both writers of this type are object literals sitting DIRECTLY in annotated
+ * positions (a `const` initializer; an annotated arrow's parenthesized return),
+ * so unlike `generateColumns()` — where `.map()` laundered freshness away and
+ * only `?: never` tombstones could bite — excess-property checking is live
+ * here for longhand keys, and the group literal's spread source is itself the
+ * checked `const`, so every key entering that spread was already refused or
+ * admitted at ITS literal. What this shape does NOT do is refuse an undeclared
+ * key riding a NON-FRESH value assigned into the slot (assignability admits
+ * extra keys; that is structural typing, not a bug here) — per-key `?: never`
+ * tombstones remain the instrument for a key RETIRED by ruling, but an open
+ * census cannot be tombstoned, because a tombstone needs the key's name.
+ *
+ * ## The census this annotation surfaced (the substance, per the card)
+ *
+ * Diffing the 46 keys the flat literal writes (plus the 8 the group literal
+ * re-writes) against `DataTableSchema` + `BaseSchema` declared members leaves
+ * exactly TWO undeclared keys — the card's speculative list (`pagination`,
+ * `manualPagination`, `rowCount`, `frozenColumns`, `singleClickEdit`,
+ * `selectionResetKey`, `disableInnerScroll`, `borderless`) has since been
+ * declared on `DataTableSchema`, and only these survive:
+ *
+ *   - `renderCellEditor` — HELD. Live: `data-table.tsx` reads it via its own
+ *     `(schema as any).renderCellEditor` cast and hands cell editing to the
+ *     returned widget; absent, cells fall back to the built-in text/number/date
+ *     inputs. Undocumented at schema level. Whether `DataTableSchema` should
+ *     declare it is a `packages/types` (human-floor) ruling, not this card's —
+ *     declared here at the seam meanwhile, so the hold is visible.
+ *   - `cellClassName` — HELD. Live: `data-table.tsx` destructures it off the
+ *     schema and folds it into every body cell's `className` (this is the
+ *     SCHEMA-level key; the column-level twin IS declared, on `TableColumn`).
+ *     Absent, the grid's row-height density styling stops reaching cells.
+ *     Undocumented at schema level; same pending ruling as above.
+ *
+ * ⛔ Do not "fix" either hold by declaring the key on `DataTableSchema` as a
+ * rider — that package is published surface with its own review floor, and the
+ * census above is filed for a ruling on exactly that question.
+ */
+type RemoveIndexSignature<T> = {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/** `DataTableSchema`'s DECLARED members only — the index signature stripped. */
+export type DeclaredDataTableSchema = RemoveIndexSignature<DataTableSchema>;
+
+/**
+ * The undeclared-but-live SCHEMA-level keys this grid holds at the seam — the
+ * schema-slot sibling of `ObjectGridColumnHolds`. Shapes mirror the CONSUMER's
+ * reads in `data-table.tsx`, not what this file happens to pass.
+ */
+export type ObjectGridDataTableSchemaHolds = {
+  /** HELD (objectui#6459) — `data-table` calls it to render a host cell editor. */
+  renderCellEditor?: (ctx: {
+    column: any;
+    row: any;
+    value: any;
+    stage: (v: any) => void;
+    commit: (v?: any) => void;
+    cancel: () => void;
+  }) => React.ReactNode;
+  /** HELD (objectui#6459) — `data-table` folds it into every body cell's class. */
+  cellClassName?: string;
+};
+
+/** What this grid is allowed to write into the `data-table` schema slot. */
+export type ObjectGridDataTableSchema =
+  DeclaredDataTableSchema & ObjectGridDataTableSchemaHolds;
+
 /** The row heights this grid styles — the five `RowHeight` values the spec admits. */
 type RowHeightMode = 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
 
@@ -3288,7 +3389,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     ? hostOnSearchChange
     : setSearchTerm;
 
-  const dataTableSchema: any = {
+  const dataTableSchema: ObjectGridDataTableSchema = {
     type: 'data-table',
     caption: schema.label || schema.title,
     columns: orderedColumns,
@@ -3487,7 +3588,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   }
 
   /** Build a per-group data-table schema (inherits everything except data & pagination). */
-  const buildGroupTableSchema = (groupRows: any[]) => ({
+  const buildGroupTableSchema = (groupRows: any[]): ObjectGridDataTableSchema => ({
     ...dataTableSchema,
     caption: undefined,
     data: groupRows,
@@ -3504,8 +3605,10 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // Frozen columns rely on per-table sticky offsets that don't compose with
     // the shared scroll container; disable them in grouped mode.
     frozenColumns: 0,
-    // Pin explicit, shared widths so columns align across all groups.
-    columns: (dataTableSchema.columns as any[]).map((c: any) => ({
+    // Pin explicit, shared widths so columns align across all groups. No cast:
+    // `dataTableSchema` is typed now, so `.columns` is `TableColumn[]` (the
+    // `as any[]` existed only because the surrounding value was `any`, #6459).
+    columns: dataTableSchema.columns.map((c) => ({
       ...c,
       width: groupedColumnWidths[c.accessorKey] ?? c.width,
     })),
