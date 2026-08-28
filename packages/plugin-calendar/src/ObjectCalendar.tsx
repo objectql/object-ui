@@ -241,6 +241,20 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     (schema as any).colorField
   ]);
   const hasInlineData = dataConfig?.provider === 'value';
+  /**
+   * The record-fetch effect below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic
+   * guarantee (React may discard its cache and recompute), and
+   * `getDataConfig(schema)` builds a fresh wrapper object on every call
+   * even when its own deps haven't changed, so a discard alone was enough
+   * to re-run the effect and refetch. `dataProvider` and `dataItems` are
+   * the remaining primitive fields that effect reads off `dataConfig` —
+   * `schemaObjectName` below already covers the `object` field for the
+   * same purpose. Keying on all three instead of the container object
+   * makes a cache discard a no-op (objectui#6592).
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
   // ⭐ objectui#6453 — this replaces a `useRef` written in the render body
   // (`objectSchemaRef.current = objectSchema`), which existed so the fetch
@@ -303,17 +317,17 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     // set has no expand set to derive and issues no metadata read at all, so
     // gating it would hold a query open on a resolution nothing was going to
     // produce.
-    if (dataConfig?.provider === 'object' && !objectSchemaReady) return;
+    if (dataProvider === 'object' && !objectSchemaReady) return;
 
     let isMounted = true;
     const fetchData = async () => {
       try {
         if (!isMounted) return;
         setLoading(true);
-        
-        if (hasInlineData && dataConfig?.provider === 'value') {
+
+        if (hasInlineData && dataProvider === 'value') {
           if (isMounted) {
-            setData(dataConfig.items as any[]);
+            setData(dataItems as any[]);
             setLoading(false);
           }
           return;
@@ -323,8 +337,11 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           throw new Error('DataSource required for object/api providers');
         }
 
-        if (dataConfig?.provider === 'object') {
-          const objectName = dataConfig.object;
+        if (dataProvider === 'object') {
+          // `schemaObjectName` already resolves this same 'object' branch's
+          // `dataConfig.object` (required on that discriminated-union
+          // variant), computed once above for the schema-fetch gate too.
+          const objectName = schemaObjectName as string;
           // Auto-inject $expand for lookup/master_detail fields
           // Reached only with the schema resolved (the gate above), so a
           // calendar whose object declares relations queries WITH its
@@ -336,13 +353,13 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
             $orderby: convertSortToQueryParams(schema.sort),
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
-          
+
           const items: any[] = extractRecords(result);
-          
+
           if (isMounted) {
             setData(items);
           }
-        } else if (dataConfig?.provider === 'api') {
+        } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectCalendar');
           if (isMounted) setData([]);
         }
@@ -359,8 +376,8 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [hasExternalData, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort,
-      refreshKey, objectSchemaReady, objectSchema]);
+  }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
+      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema]);
 
   // Fetch object schema for field metadata.
   //

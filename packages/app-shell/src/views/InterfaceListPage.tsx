@@ -204,14 +204,25 @@ export function defaultGanttFromObject(objectDef: any): { startDateField: string
  *
  * What the binding left behind once the forge was gone was not redundancy but
  * an INVERSION. It reaches the resolver as `options.titleField`, which is
- * precedence **step 0** — ahead of `objectDef.titleField`, ahead of the
- * declared `nameField` pointer (step 1/2), and ahead of the legacy
- * `titleFormat` template (step 3). Measured against that ladder, a field name
+ * precedence **step 0** — ahead of every OBJECT-level rung beneath it: the
+ * declared `nameField` pointer and its `displayNameField` alias (step 1/2),
+ * the legacy `titleFormat` template (step 3), and the type-aware derivation
+ * from `objectDef.fields` (step 4). Measured against that ladder, a field name
  * derived HERE can only ever change the answer by out-ranking something the
  * object itself declared; in every other case it reproduces, at step 0, the
  * string the resolver already computes further down. So the binding's entire
  * live effect was to let a per-view guess outrank declared metadata — the
  * governed-authority default says the declared side wins, and it now does.
+ *
+ * That ladder has NO object-level `titleField` rung — the middle term this
+ * passage used to name. It was never a step of its own: it was a second `??`
+ * leg inside step 0, deleted in objectui#6531 because `@objectstack/spec`'s
+ * object schema is a `strictObject` that REJECTS the key with
+ * `unrecognized_keys` — the same issue code a nonsense key gets — so no
+ * spec-compliant object metadata can ever supply it. Step 0 is
+ * `options.titleField` alone, and the OBJECT-level ladder starts at the
+ * declared `nameField` — see the `getRecordDisplayName` docblock in
+ * `@object-ui/core`'s `record-title.ts`.
  *
  * The async window `ObjectMap` has before its `getObjectSchema` fetch lands is
  * NOT an argument for keeping a static binding here: `ObjectKanban` fetches its

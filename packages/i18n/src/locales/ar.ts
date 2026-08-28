@@ -341,7 +341,6 @@ const ar = {
       undo: "تراجع",
       undoing: "جارٍ التراجع…",
       done: "تم",
-      selectPlaceholder: "اختر…",
       loading: "جارٍ التحميل…",
     },
     actions: "إجراءات",
@@ -349,10 +348,10 @@ const ar = {
     delete: "حذف",
     export: "تصدير",
     exportAs: "تصدير كـ {{format}}",
-    loading: "جاري تحميل الشبكة…",
+    loading: "جارٍ تحميل الشبكة…",
     errorLoading: "خطأ في تحميل الشبكة",
     pullToRefresh: "اسحب للتحديث",
-    refreshing: "جاري التحديث…",
+    refreshing: "جارٍ التحديث…",
     openRecord: "فتح السجل",
     rowHeight: "ارتفاع الصف: {{mode}}",
     openMenu: "فتح القائمة",
@@ -535,9 +534,7 @@ const ar = {
     month: "شهر",
     week: "أسبوع",
     day: "يوم",
-    agenda: "جدول أعمال",
     allDay: "طوال اليوم",
-    noEvents: "لا توجد أحداث",
     newEvent: "حدث جديد",
     moreEvents: "+{{count}} المزيد",
   },
@@ -1034,16 +1031,8 @@ const ar = {
     noValue: "لا قيمة",
   },
   chart: {
-    noData: "لا تتوفر بيانات للرسم البياني",
-    loading: "جاري تحميل الرسم البياني…",
+    loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
-  },
-  map: {
-    searchLocations: "البحث عن المواقع…",
-    locationDetails: "تفاصيل الموقع",
-    markersCount: "{{count}} علامة",
-    invalidCoordinates: "{{count}} سجل بإحداثيات مفقودة أو غير صالحة مستبعد من الخريطة.",
-    invalidCoordinatesPlural: "{{count}} سجلات بإحداثيات مفقودة أو غير صالحة مستبعدة من الخريطة.",
   },
   dashboard: {
     noRows: "لا توجد صفوف",
@@ -1637,7 +1626,7 @@ const ar = {
       },
     },
     title: "وحدة تحكم ObjectStack",
-    initializing: "جاري تهيئة التطبيق…",
+    initializing: "جارٍ تهيئة التطبيق…",
     loadingHint: "قد يستغرق إعداد بيئة جديدة بعض الوقت.",
     breadcrumb: {
       dashboards: "لوحات المعلومات",
@@ -1671,9 +1660,9 @@ const ar = {
       cryptoRefusalToastNoSubject: "تعذّر تشفير الأسرار",
     },
     loadingSteps: {
-      connecting: "جاري الاتصال بمصدر البيانات",
-      loadingConfig: "جاري تحميل الإعدادات",
-      preparingWorkspace: "جاري تجهيز مساحة العمل",
+      connecting: "جارٍ الاتصال بمصدر البيانات",
+      loadingConfig: "جارٍ تحميل الإعدادات",
+      preparingWorkspace: "جارٍ تجهيز مساحة العمل",
     },
     error: {
       connectionFailed: "تعذّر الاتصال بالخادم",
@@ -1683,7 +1672,7 @@ const ar = {
     },
     actions: {
       retry: "إعادة المحاولة",
-      retrying: "جاري إعادة المحاولة…",
+      retrying: "جارٍ إعادة المحاولة…",
     },
     serverAction: {
       openingTitle: "جارٍ الفتح…",
@@ -2282,8 +2271,6 @@ const ar = {
     browseMarketplace: "تصفح متجر التطبيقات",
     quickActions: {
       title: "إجراءات سريعة",
-      createApp: "إنشاء تطبيق",
-      createAppDesc: "ابدأ بتطبيق جديد",
       manageObjects: "إدارة الكائنات",
       manageObjectsDesc: "تكوين نماذج البيانات",
       systemSettings: "إعدادات النظام",
@@ -2299,11 +2286,6 @@ const ar = {
     greetingNight: "وردية الليل",
     heroTagline: "استمر من حيث توقفت أو اكتشف شيئاً جديداً.",
     open: "فتح",
-    stats: {
-      apps: "التطبيقات",
-      starred: "المميزة",
-      recent: "الأخيرة",
-    },
     recentApps: {
       title: "فُتح مؤخراً",
       itemType: {
@@ -2334,7 +2316,6 @@ const ar = {
       organizations: "المؤسسات",
       roles: "الأدوار",
       configuration: "التهيئة",
-      createApp: "إنشاء تطبيق",
       administration: "الإدارة",
       datasources: "مصادر البيانات",
       documentation: "الوثائق",
@@ -2424,8 +2405,6 @@ const ar = {
     cancel: "إلغاء",
     confirm: "تأكيد",
     uploading: "جارٍ الرفع…",
-    defaultActionTitle: "إجراء",
-    ok: "موافق",
     lookupPlaceholder: "معرف السجل لـ {{label}}",
     lookupHelpText: "لم يتم تكوين كائن مرجعي لهذه المعلمة، لذا فإن أداة اختيار السجلات غير متاحة. أدخل معرف السجل، أو اطلب من المسؤول تصحيح معلمة الإجراء.",
   },
@@ -2433,11 +2412,6 @@ const ar = {
     title: "تأكيد الإجراء",
     confirm: "متابعة",
     cancel: "إلغاء",
-  },
-  rowAction: {
-    openMenu: "فتح القائمة",
-    edit: "تعديل",
-    delete: "حذف",
   },
   navigationSync: {
     addedPage: "تم تحديث التنقل: تمت إضافة الصفحة \"{{name}}\"",
@@ -2469,15 +2443,6 @@ const ar = {
     printDialogOpening: "جارٍ فتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
     exportFailed: "فشل التصدير: {{message}}",
     forecastSoon: "عرض التوقعات قادم قريباً",
-  },
-  recordDetail: {
-    viewersTooltip: "المستخدمون يشاهدون هذا السجل الآن",
-  },
-  cellRender: {
-    empty: "فارغ",
-    yes: "نعم",
-    no: "لا",
-    systemFields: "النظام",
   },
   user: {
     profile: "الملف الشخصي",

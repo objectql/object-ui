@@ -217,7 +217,24 @@ describe('objectui#6240 · saveObject PUTs `fields` as a name-keyed map', () => 
     // caller that simply did not pass `existingFields` would delete every field
     // of the object. The body stays refused instead — unchanged from before
     // this card, and deliberately so.
+    //
+    // objectui#6490 made `existingFields` REQUIRED, and this control MOVED with
+    // the signature rather than being deleted as newly-unreachable. Both halves
+    // of it are still live, and they measure different things:
+    //
+    //   1. The `@ts-expect-error` below is the COMPILE-TIME half of #6490. This
+    //      project (`tsconfig.test.json`) compiles this file, and an unused
+    //      `@ts-expect-error` is itself an error — so the line reds if the
+    //      argument ever goes back to optional. That is the only direction the
+    //      narrowing can regress in, and this is what pins it.
+    //   2. The RUNTIME half is unchanged and still reachable. `MetadataService`
+    //      is public API (app-shell exports `useMetadataService`), so a
+    //      JavaScript consumer — or a TypeScript one that casts past the types —
+    //      can still arrive here with no field list. What it must get is the
+    //      loud, harmless 422 below, never the silent wipe.
     const { adapter, puts } = makeCapturingAdapter();
+    // @ts-expect-error objectui#6490 — `existingFields` is required. This call is
+    // exactly what the new signature refuses, and it is compiled to prove it does.
     await new MetadataService(adapter).saveObject(ACCOUNT);
 
     expect(puts).toHaveLength(1);
@@ -225,6 +242,24 @@ describe('objectui#6240 · saveObject PUTs `fields` as a name-keyed map', () => 
     expect(issuesOf(ObjectSchema.safeParse(puts[0]))).toEqual(['invalid_type @ fields']);
     // Positive control: the rest of the object still went out.
     expect(puts[0]).toMatchObject({ name: 'account', label: 'Account', pluralLabel: 'Accounts' });
+  });
+
+  it('objectui#6490 · an EMPTY list is a STATEMENT, not a missing argument — it writes `{}`', async () => {
+    // The cell the required parameter makes canonical: with the argument no
+    // longer omittable, `[]` is the only spelling left for "no fields", and it
+    // means what it says. Unchanged behaviour — `[]` is truthy, so it has always
+    // converted to `{}` — pinned now because the signature change is what routes
+    // callers to it. The two readings must stay distinguishable: the control
+    // above is about a MISSING argument and never about an empty one, and
+    // `saveFields` reads its own empty list the same authoritative way.
+    const { adapter, puts } = makeCapturingAdapter();
+    await new MetadataService(adapter).saveObject(ACCOUNT, []);
+
+    expect(puts).toHaveLength(1);
+    expect(puts[0].fields).toEqual({});
+    // And unlike the missing-argument body, this one is one the server ACCEPTS —
+    // which is the whole hazard, and why it may only ever happen on request.
+    expect(issuesOf(ObjectSchema.safeParse(puts[0]))).toEqual([]);
   });
 });
 

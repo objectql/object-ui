@@ -544,19 +544,32 @@ function normalizeColumns(
  *
  * Verdicts, each with the read-count behind it:
  *
- *   - `headerIcon` — HELD. Live: `data-table.tsx` renders it into the header
- *     cell (2 reads). Whether `TableColumn` should DECLARE it is objectui#6424's
- *     call, not this card's; declared here at the seam meanwhile, so the hold is
- *     visible instead of anonymous.
+ *   - `headerIcon` — DECLARED by `TableColumn`, so NOT held. Live:
+ *     `data-table.tsx` renders it into the header cell (1 render site, 2
+ *     syntactic reads), forwarded verbatim and never re-expressed. It WAS held
+ *     here, on the "undeclared by `TableColumn`" premise; objectui#6615
+ *     declared it and that premise expired with nothing going red at the moment
+ *     of loss. objectui#6424 then removed the hold, MEASURED rather than
+ *     derived: with the member deleted both emit types below are byte-identical
+ *     (27 members, every member's resolved type unchanged), against a positive
+ *     control that deleting `pinned` instead moves them to 26. Pinned in
+ *     `columnHoldsExpiry-6424.test.ts` — which now also carries the claim the
+ *     hold used to carry implicitly, that `TableColumn` DECLARES the key.
  *   - `pinned` — HELD. Live, and consumed BEFORE the slot: the reorder pass
  *     below reads it (5 reads in this file) and re-expresses it as the sticky
  *     `className` that `data-table` actually reads. `data-table` never reads
  *     `pinned` itself, and does not need to.
- *   - `wrap` — HELD, and deliberately NOT retired here. Nothing anywhere reads
- *     it, so this card's rule would retire it — but objectui#5453 already owns
- *     that key and is `pm:blocked` on objectui#5415, whose outcome decides
- *     implement-vs-remove. Retiring it here would settle a blocked card from
- *     the outside. It is declared, inert, and stays exactly as it was.
+ *   - `wrap` — RETIRED (objectui#5453, 2026-08-28). Held here only because that
+ *     card was `pm:blocked` at the time; triage unblocked it and it took the
+ *     measurement this hold was waiting for. `data-table.tsx` offers NO clamp /
+ *     expand / wrap affordance for long cell text: its cell wrapper is a
+ *     two-way switch, `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`,
+ *     with a `title` tooltip as the only concession to overflow, and it does
+ *     not read `density` or `rowHeight` at all. So there is nothing for a
+ *     per-column `wrap` to turn on, and the enforce-or-remove default applies:
+ *     the forward is deleted rather than declared-and-maintained. ⚠️ Unlike
+ *     `pinned`, `wrap` had NO second road to a consumer — that is the check
+ *     this card's rule demands before retiring, and it came back empty.
  *   - `options` — RETIRED (see the enrichment pass below).
  *   - `type` — not adjudicated here; objectui#5853 owns its VALUE set and its
  *     fold still stands. It is the one member whose vocabulary differs between
@@ -565,8 +578,11 @@ function normalizeColumns(
  *     needs no hold here. Tombstoned only in the sense that nothing writes it.
  *
  * `essential` is absent from both types on purpose: objectui#6004's suggested
- * key list named it, but it is READ off the authored column and turned into a
- * `className` — it is never emitted, and it is not a `ListColumn` member either.
+ * key list named it, but it was READ off the authored column and turned into a
+ * `className` — never emitted, and not a `ListColumn` member either. That read
+ * is now RETIRED too (objectui#6458), so mobile visibility is decided purely
+ * positionally (`colIndex === 0`) and nothing on either side of this producer
+ * carries the key.
  */
 
 /**
@@ -576,19 +592,44 @@ function normalizeColumns(
  *
  * `ListColumn` is the right derivation source because it is where this
  * producer's drift comes from: every key the emit could wrongly grow is a key
- * the author wrote on the input and someone forwarded. `wrap` and `pinned` are
- * the two that already escaped, both adjudicated HELD above.
+ * the author wrote on the input and someone forwarded. `pinned` is the one that
+ * escaped and stayed — adjudicated HELD above. `wrap` escaped too and has since
+ * been RETIRED (objectui#5453), so it is no longer carved out of the Exclude
+ * and the derived band now tombstones it: re-adding the forward is a compile
+ * error naming `wrap`, which is the whole point of retiring it here rather than
+ * just deleting a line the next edit could put back for free.
  */
-export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'wrap' | 'pinned'>;
+export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>;
 
-/** The undeclared-but-live keys this producer holds. See the docblock above. */
+/**
+ * The undeclared-but-live keys this producer holds. See the docblock above.
+ *
+ * ⚠️ "Undeclared by `TableColumn`" is this interface's ENTRY CONDITION, and it
+ * is a claim about ANOTHER package that can stop being true with nothing going
+ * red here. So it is re-checked per key when the card owning that key closes,
+ * never inherited: `headerIcon` sat here on exactly that premise until
+ * objectui#6615 declared it on `TableColumn`, at which point the hold was
+ * redundant rather than load-bearing, and objectui#6424 removed it.
+ *
+ * ⛔ A key whose ONLY declaration on the emit types is this interface is not in
+ * that position — deleting it deletes the key from the emit. `pinned` is that
+ * key today, which is why the two verdicts differ.
+ */
 export interface ObjectGridColumnHolds {
-  /** HELD, objectui#6424 — `data-table` renders it; `TableColumn` does not declare it. */
-  headerIcon?: React.ReactNode;
-  /** HELD — consumed by this file's own reorder pass before the array reaches the slot. */
+  /**
+   * HELD, load-bearing on BOTH counts — the pair that has to hold for a hold to
+   * be real, and the contrast that made `headerIcon`'s removal safe:
+   *
+   *   1. `TableColumn` does NOT declare it, and `RetiredListColumnKey` carves it
+   *      out of the derived tombstone band, so this member is its ONLY
+   *      declaration on both emit types. Deleting it drops the key from them
+   *      (measured: 27 members → 26).
+   *   2. It has a live consumer BEFORE the slot — this file's own reorder pass
+   *      reads it and re-expresses it as the sticky `className` that
+   *      `data-table` actually reads. That is the "second road" the emit rule
+   *      demands before a key may be retired, and `wrap` failed it.
+   */
   pinned?: 'left' | 'right';
-  /** HELD, objectui#5453 (blocked on objectui#5415) — inert, and not this card's to retire. */
-  wrap?: boolean;
 }
 
 /**
@@ -599,17 +640,148 @@ export interface ObjectGridColumnHolds {
  * separate from the enrichment map — so the pre-fold shape needs a name, and
  * this is it.
  */
+/**
+ * ⭐ `options` — RETIRED at this emit (objectui#6004), and this explicit
+ * tombstone is now the ONLY enforcement of that verdict. ⛔ Do not "tidy" it
+ * away as redundant.
+ *
+ * Until objectui#6425 the key needed no tombstone: it was a member of NO part
+ * of the emit types below, so TypeScript's excess-property check refused a
+ * fresh literal writing it — refusal by non-membership. #6425's maintainer
+ * ruling (2026-08-27) then declared `options` on `TableColumn` itself (the
+ * `object-data-table` cell pipeline reads it off the AUTHORED column), which
+ * made the key a member here through `Omit<TableColumn, …>` / `TableColumn`
+ * and silently ended that enforcement. Nothing went red at the moment of
+ * loss — the emit-boundary suite's directive merely turned TS2578-unused,
+ * which is luck, not design. The general rule, recorded so the next seam can
+ * check itself: **a pin enforced by a key's non-membership silently stops
+ * enforcing the moment the key becomes a member.**
+ *
+ * objectui#6004's verdict itself is unchanged — nothing on either side of
+ * THIS seam reads a column-level `options` (`data-table.tsx` has no such
+ * read; `renderCellEditor` rebuilds the field from the object schema) — only
+ * the refusal's mechanism moves, from freshness to assignability. It is
+ * intersected into BOTH the pre-fold draft and the post-fold column, because
+ * the retirement belongs to the seam, not to one of its two types; the key
+ * cannot land in the DERIVED band (`RetiredListColumnKey`) because `options`
+ * is not a `ListColumn` member, which is why this one is hand-written.
+ */
+type ObjectGridRetiredOptionsTombstone = { options?: never };
+
 export type ObjectGridColumnDraft =
   Omit<TableColumn, 'type'>
   & { type?: string }
   & ObjectGridColumnHolds
+  & ObjectGridRetiredOptionsTombstone
   & { [K in RetiredListColumnKey]?: never };
 
 /** Post-fold: what actually reaches `DataTableSchema.columns: TableColumn[]`. */
 export type ObjectGridColumn =
   TableColumn
   & ObjectGridColumnHolds
+  & ObjectGridRetiredOptionsTombstone
   & { [K in RetiredListColumnKey]?: never };
+
+/**
+ * ⭐ THE SCHEMA SLOT THIS GRID FILLS (objectui#6459) — the receiver half of the
+ * seam whose producer half #6004 typed. `dataTableSchema` below was
+ * `const dataTableSchema: any`, so the ~46 keys assembled there were checked
+ * against nothing, while the `DataTableSchema` this file imports went unused as
+ * that object's annotation.
+ *
+ * ## Why the fix is not `: DataTableSchema` — measured before choosing this shape
+ *
+ * objectui#6459's sizing note predicted a bare annotation would be inert
+ * because `buildGroupTableSchema` re-emits the value through a spread and
+ * excess-property checking is a freshness check. Measured here (on
+ * `38a123cac`), the truth is stronger and the spread is not even needed:
+ *
+ *   1. `const dataTableSchema: DataTableSchema = {`, everything else unchanged,
+ *      PLUS an undeclared `bogusKeyForProbe6459: true` WRITTEN OUT LONGHAND in
+ *      the (fresh) literal  →  `tsc --noEmit` exit 0, ZERO diagnostics.
+ *
+ * The reason is `BaseSchema`'s `[key: string]: any` index signature, which
+ * `DataTableSchema` inherits: under an index signature EVERY key is a member,
+ * so excess-property checking never has a non-member to refuse — at a fresh
+ * literal, through a spread, anywhere. It is the terminal case of the rule the
+ * `options` tombstone above records ("a pin enforced by a key's non-membership
+ * silently stops enforcing the moment the key becomes a member"): with an
+ * index signature there is no non-membership to enforce with, ever.
+ *
+ * `RemoveIndexSignature` strips it — DERIVED from `DataTableSchema`, never a
+ * hand-copied member list, so a member added there tomorrow flows in on its
+ * own and two enumerations of one vocabulary never exist. With the signature
+ * gone, the same probe goes red (TS2353 naming the key), measured at both
+ * annotated literals — the flat one and `buildGroupTableSchema`'s return.
+ *
+ * ## What the instrument is, and is not (pinned in dataTableSchemaSlot-6459.test.ts)
+ *
+ * Both writers of this type are object literals sitting DIRECTLY in annotated
+ * positions (a `const` initializer; an annotated arrow's parenthesized return),
+ * so unlike `generateColumns()` — where `.map()` laundered freshness away and
+ * only `?: never` tombstones could bite — excess-property checking is live
+ * here for longhand keys, and the group literal's spread source is itself the
+ * checked `const`, so every key entering that spread was already refused or
+ * admitted at ITS literal. What this shape does NOT do is refuse an undeclared
+ * key riding a NON-FRESH value assigned into the slot (assignability admits
+ * extra keys; that is structural typing, not a bug here) — per-key `?: never`
+ * tombstones remain the instrument for a key RETIRED by ruling, but an open
+ * census cannot be tombstoned, because a tombstone needs the key's name.
+ *
+ * ## The census this annotation surfaced (the substance, per the card)
+ *
+ * Diffing the 46 keys the flat literal writes (plus the 8 the group literal
+ * re-writes) against `DataTableSchema` + `BaseSchema` declared members leaves
+ * exactly TWO undeclared keys — the card's speculative list (`pagination`,
+ * `manualPagination`, `rowCount`, `frozenColumns`, `singleClickEdit`,
+ * `selectionResetKey`, `disableInnerScroll`, `borderless`) has since been
+ * declared on `DataTableSchema`, and only these survive:
+ *
+ *   - `renderCellEditor` — HELD. Live: `data-table.tsx` reads it via its own
+ *     `(schema as any).renderCellEditor` cast and hands cell editing to the
+ *     returned widget; absent, cells fall back to the built-in text/number/date
+ *     inputs. Undocumented at schema level. Whether `DataTableSchema` should
+ *     declare it is a `packages/types` (human-floor) ruling, not this card's —
+ *     declared here at the seam meanwhile, so the hold is visible.
+ *   - `cellClassName` — HELD. Live: `data-table.tsx` destructures it off the
+ *     schema and folds it into every body cell's `className` (this is the
+ *     SCHEMA-level key; the column-level twin IS declared, on `TableColumn`).
+ *     Absent, the grid's row-height density styling stops reaching cells.
+ *     Undocumented at schema level; same pending ruling as above.
+ *
+ * ⛔ Do not "fix" either hold by declaring the key on `DataTableSchema` as a
+ * rider — that package is published surface with its own review floor, and the
+ * census above is filed for a ruling on exactly that question.
+ */
+type RemoveIndexSignature<T> = {
+  [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
+};
+
+/** `DataTableSchema`'s DECLARED members only — the index signature stripped. */
+export type DeclaredDataTableSchema = RemoveIndexSignature<DataTableSchema>;
+
+/**
+ * The undeclared-but-live SCHEMA-level keys this grid holds at the seam — the
+ * schema-slot sibling of `ObjectGridColumnHolds`. Shapes mirror the CONSUMER's
+ * reads in `data-table.tsx`, not what this file happens to pass.
+ */
+export type ObjectGridDataTableSchemaHolds = {
+  /** HELD (objectui#6459) — `data-table` calls it to render a host cell editor. */
+  renderCellEditor?: (ctx: {
+    column: any;
+    row: any;
+    value: any;
+    stage: (v: any) => void;
+    commit: (v?: any) => void;
+    cancel: () => void;
+  }) => React.ReactNode;
+  /** HELD (objectui#6459) — `data-table` folds it into every body cell's class. */
+  cellClassName?: string;
+};
+
+/** What this grid is allowed to write into the `data-table` schema slot. */
+export type ObjectGridDataTableSchema =
+  DeclaredDataTableSchema & ObjectGridDataTableSchemaHolds;
 
 /** The row heights this grid styles — the five `RowHeight` values the spec admits. */
 type RowHeightMode = 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
@@ -1812,7 +1984,10 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // `any[]`, and `ObjectGridColumnDraft` cannot bite on any member. Naming
             // the producer vocabulary here stops `any` at this one boundary.
             const baseInferredType: string | null = col.type || objectDefField?.type || inferColumnType({ field: col.field }) || null;
-            const formatHint = (col as any).format ?? objectDefField?.format;
+            // objectui#6458 — the column-level `format` read is RETIRED. The
+            // object-field fallback below is now the only road, which is what
+            // every measured author already used.
+            const formatHint = objectDefField?.format;
             const inferredType: string | null = baseInferredType
               ? resolveCellRendererType({ type: baseInferredType, format: formatHint })
               : null;
@@ -1837,13 +2012,11 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               const uniqueValues = Array.from(new Set(data.map(row => row[col.field]).filter(Boolean)));
               fieldMeta.options = uniqueValues.map(v => ({ value: v, label: humanizeLabel(String(v)) }));
             }
-            if ((col as any).options) {
-              fieldMeta.options = translateOptions(schema.objectName, col.field, (col as any).options);
-            }
-            // Honor metadata-defined appearance only (col.appearance or
-            // objectDef field.appearance). When unset, the cell renders
-            // its default badge style — same as detail / form views.
-            const explicitAppearance = (col as any).appearance ?? objectDefField?.appearance;
+            // Honor metadata-defined appearance only — the objectDef FIELD's
+            // `appearance`, which since objectui#6458 is the only road (the
+            // column-level read is retired). When unset, the cell renders its
+            // default badge style — same as detail / form views.
+            const explicitAppearance = objectDefField?.appearance;
             if (explicitAppearance != null) {
               fieldMeta.appearance = explicitAppearance;
             }
@@ -1928,11 +2101,26 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             // reads around it, and it threw away `ColumnPrefix`'s own typing, so
             // `prefixConfig.field` was `any` at every use below.
             //
-            // The four undeclared reads in this branch — `format`, `options`,
-            // `appearance`, `essential` — are deliberately NOT touched here. Each
-            // needs a declare-on-spec vs stop-reading verdict (objectui#6458
-            // escalates them), the declare leg is `@objectstack/spec` surface, and
-            // AGENTS.md #0.1 forbids answering either one renderer-side.
+            // ⭐ The four undeclared reads that used to sit in this branch —
+            // `format`, `options`, `appearance`, `essential` — are RETIRED
+            // (objectui#6458, maintainer ruling 2026-08-28, "B on all four").
+            // `ListColumnSchema` is a strict object that refuses all four at
+            // publish, so honouring them here was the `declared != enforced`
+            // split AGENTS.md #0.1 exists to stop. The retirement route (rather
+            // than declaring them on `@objectstack/spec`) follows the standing
+            // zero-authors rule: a key with no measured authors is retired at
+            // once, with no deprecation window. Re-measured on this ref before
+            // the deletion — zero authored occurrences of any of the four on a
+            // column across `examples/` and `apps/`.
+            //
+            // ⚠️ Retired for want of authors, NOT forbidden forever. If a real
+            // request for semantic mobile-column control arrives, the declare
+            // route reopens — objectstack#12715 is the precedent (removed while
+            // unenforced, re-introduced once demand and enforcement met). What
+            // is forbidden is the third road: a renderer-side tolerance for a
+            // key the schema refuses. `columnReadBoundary-6458.test.ts` now
+            // bounds this branch's undeclared cast reads to the EMPTY SET, so a
+            // new one goes red on arrival instead of accreting quietly.
             const prefixConfig = col.prefix;
             if (prefixConfig?.field) {
               const baseCellRenderer = cellRenderer;
@@ -1959,7 +2147,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             const inferredAlign = col.align || (effectiveType && numericTypes.includes(effectiveType) ? 'right' as const : undefined);
 
             // Determine if column should be hidden on mobile
-            const isEssential = colIndex === 0 || (col as any).essential === true;
+            const isEssential = colIndex === 0;
 
             return {
               header,
@@ -1974,7 +2162,6 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               ...(inferredAlign && { align: inferredAlign }),
               sortable: col.sortable !== false,
               ...(col.resizable !== undefined && { resizable: col.resizable }),
-              ...(col.wrap !== undefined && { wrap: col.wrap }),
               ...(cellRenderer && { cell: cellRenderer }),
               ...(col.pinned && { pinned: col.pinned }),
             };
@@ -3258,7 +3445,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     ? hostOnSearchChange
     : setSearchTerm;
 
-  const dataTableSchema: any = {
+  const dataTableSchema: ObjectGridDataTableSchema = {
     type: 'data-table',
     caption: schema.label || schema.title,
     columns: orderedColumns,
@@ -3457,7 +3644,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   }
 
   /** Build a per-group data-table schema (inherits everything except data & pagination). */
-  const buildGroupTableSchema = (groupRows: any[]) => ({
+  const buildGroupTableSchema = (groupRows: any[]): ObjectGridDataTableSchema => ({
     ...dataTableSchema,
     caption: undefined,
     data: groupRows,
@@ -3474,8 +3661,10 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // Frozen columns rely on per-table sticky offsets that don't compose with
     // the shared scroll container; disable them in grouped mode.
     frozenColumns: 0,
-    // Pin explicit, shared widths so columns align across all groups.
-    columns: (dataTableSchema.columns as any[]).map((c: any) => ({
+    // Pin explicit, shared widths so columns align across all groups. No cast:
+    // `dataTableSchema` is typed now, so `.columns` is `TableColumn[]` (the
+    // `as any[]` existed only because the surrounding value was `any`, #6459).
+    columns: dataTableSchema.columns.map((c) => ({
       ...c,
       width: groupedColumnWidths[c.accessorKey] ?? c.width,
     })),

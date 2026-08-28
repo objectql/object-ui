@@ -129,18 +129,29 @@ vi.mock('../providers/AdapterProvider', () => ({ useAdapter: () => null }));
 /** The served shape: `ExpressionInputSchema` normalises authored strings into this. */
 const cel = (source: string) => ({ dialect: 'cel', source });
 
+/*
+ * ⚠️ FIXTURE SPELLING, objectui#6514. These gates were authored on `visible`,
+ * the key the page read when this file was written; `FieldSchema` refuses that
+ * spelling and objectui#6514 moved the call site onto the declared
+ * `visibleWhen`. Only the carrier key moved — the predicate texts are still the
+ * `sys_environment` / `sys_user` gates verbatim in shape, and every assertion
+ * below is objectui#6515's and objectui#6534's, unweakened. This file measures
+ * the SHAPE of the identity a mount site publishes; which key carries the
+ * predicate is not part of that claim.
+ */
+
 const CONTACTS = {
   name: 'contacts',
   label: 'Contacts',
   fields: {
     name: { type: 'text' },
     // The `sys_environment` "Change Plan (admin)" gate, verbatim in shape.
-    plan: { type: 'text', visible: cel('ctx.user.isPlatformAdmin == true') },
+    plan: { type: 'text', visibleWhen: cel('ctx.user.isPlatformAdmin == true') },
     // The same gate under the canonical spelling.
-    plan_canonical: { type: 'text', visible: cel('current_user.isPlatformAdmin == true') },
+    plan_canonical: { type: 'text', visibleWhen: cel('current_user.isPlatformAdmin == true') },
     // `sys_user`'s own gates compare a record id against `ctx.user.id`; this is
     // the reachable half of that shape on a page with no `record` root.
-    self_note: { type: 'text', visible: cel("ctx.user.id == 'u_admin'") },
+    self_note: { type: 'text', visibleWhen: cel("ctx.user.id == 'u_admin'") },
   },
 };
 

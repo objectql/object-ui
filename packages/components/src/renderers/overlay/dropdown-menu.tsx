@@ -7,7 +7,7 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { DropdownMenuSchema } from '@object-ui/types';
+import type { DropdownMenuSchema, MenuItem } from '@object-ui/types';
 import { useDisplayLocale } from '@object-ui/i18n';
 // Aliased on import, following PR #4169's convention: this repo has its OWN
 // `resolveKeyedI18nLabel` over a DIFFERENT vocabulary, and neither resolver
@@ -39,12 +39,18 @@ import { renderChildren } from '../../lib/utils';
 // as ruled out for authored icon fields by objectui#5622 and #5633.
 import { resolveIcon } from '../action/resolve-icon';
 
-// Helper for recursive menu items
-const renderMenuItems = (items: any[]) => {
+// Helper for recursive menu items. `items` is the DECLARED `MenuItem[]`
+// (objectui#6346 tightened this from `any[]`, which is what let a renderer
+// that read an undeclared spelling type-check in the first place).
+const renderMenuItems = (items: MenuItem[] | undefined) => {
   if (!items) return null;
-  return items.map((item: any, i: number) => {
-    if (item.type === 'separator') return <DropdownMenuSeparator key={i} />;
-    if (item.type === 'label') return <DropdownMenuLabel key={i}>{item.label}</DropdownMenuLabel>;
+  return items.map((item, i) => {
+    // The declared divider spelling (objectui#6523) — `dropdown-menu` used to
+    // branch on an undeclared `item.type === 'separator'` instead, which is
+    // now a tombstoned key on `MenuItem` (`type?: never`) rather than a
+    // second accepted dialect. `item.separator` narrows `item` to the
+    // command arm for the remainder of this iteration.
+    if (item.separator) return <DropdownMenuSeparator key={i} />;
     // Resolved once per item and read by BOTH arms below. The submenu-trigger
     // arm carried the identical defect; repairing only the leaf would be a
     // narrower version of the same bug (objectui#5930).
@@ -52,7 +58,7 @@ const renderMenuItems = (items: any[]) => {
     if (item.children) {
         return (
             <DropdownMenuSub key={i}>
-                <DropdownMenuSubTrigger inset={item.inset}>
+                <DropdownMenuSubTrigger>
                     {Icon && <Icon className="mr-2 h-4 w-4" />}
                     {item.label}
                 </DropdownMenuSubTrigger>
@@ -62,9 +68,13 @@ const renderMenuItems = (items: any[]) => {
             </DropdownMenuSub>
         )
     }
-    
+
     return (
-      <DropdownMenuItem key={i} disabled={item.disabled} inset={item.inset} onSelect={item.onSelect}>
+      // `onSelect` is Radix's callback prop name on `DropdownMenuItem`; it
+      // fires the DECLARED `item.onClick` (objectui#6346 — this renderer used
+      // to read an undeclared `item.onSelect` on the schema item instead, so
+      // an authored `onClick` validated, published, and never fired).
+      <DropdownMenuItem key={i} disabled={item.disabled} onSelect={() => item.onClick?.()}>
         {Icon && <Icon className="mr-2 h-4 w-4" />}
         {item.label}
         {item.shortcut && <span className="ml-auto text-xs tracking-widest opacity-60">{item.shortcut}</span>}
@@ -108,11 +118,11 @@ ComponentRegistry.register('dropdown-menu',
         type: 'slot', 
         label: 'Trigger' 
       },
-      { 
-        name: 'items', 
-        type: 'array', 
+      {
+        name: 'items',
+        type: 'array',
         label: 'Items',
-        description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, disabled, children: [] }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
+        description: 'Recursive structure: a command item { label, icon, shortcut, disabled, onClick, children: [] } or a divider { separator: true }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
     ],
@@ -121,7 +131,7 @@ ComponentRegistry.register('dropdown-menu',
       items: [
         { label: 'Item 1' },
         { label: 'Item 2' },
-        { type: 'separator' },
+        { separator: true },
         { label: 'Item 3' }
       ],
       align: 'start',

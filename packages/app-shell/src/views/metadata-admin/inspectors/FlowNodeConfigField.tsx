@@ -22,7 +22,28 @@ import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceFi
 import { validateExpressionClient } from './expression-validate.js';
 import { VariableTextInput } from './VariableTextInput.js';
 import type { ScopeGroup } from './useFlowScope.js';
+import type { TriggerScope } from './flow-scope.js';
+import { ConditionBuilder } from './ConditionBuilder.js';
 import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check.js';
+
+/**
+ * The context subjects a flow trigger condition binds — none (objectui#6226).
+ *
+ * ConditionBuilder's default context list is `record.id` / `user.*` / `org.*`,
+ * which is right for its five record-scoped consumers and wrong here: at a
+ * record-trigger gate the evaluation context is the changed record FLATTENED to
+ * top level plus `previous`, and `record` is exactly the root `flow-scope.ts`
+ * withholds on the start node. Inheriting the default would make this editor
+ * emit `record.id` — the one spelling the `findUnknownRefs` note rendered a few
+ * lines below, reading the SAME scope, flags as out of scope. One panel
+ * contradicting its own generated output.
+ *
+ * So the vocabulary offered here is exactly what `TriggerScope` declares: the
+ * trigger record's fields (bare) and `previous` / `previous.FIELD`. Roots this
+ * surface has not been shown to bind are not guessed into the list; an author
+ * who needs one still has the raw CEL escape hatch.
+ */
+const FLOW_TRIGGER_CONTEXT_SUBJECTS: ReadonlyArray<{ value: string; label?: string }> = [];
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;
@@ -36,12 +57,44 @@ export interface FlowNodeConfigFieldProps {
   scopeGroups?: ScopeGroup[];
   /** #3447: approval-expression picker groups (current/trigger/vars roots). */
   approvalScopeGroups?: ScopeGroup[];
+  /**
+   * The trigger record's declared subject vocabulary at this node, when one is
+   * in scope (objectui#6226) — supplied by `useFlowScope`, resolved by
+   * `flow-scope.ts`. Required before a `conditionBuilder` field may render the
+   * row builder: the vocabulary is declared by the site, never inferred from
+   * the value.
+   */
+  triggerScope?: TriggerScope;
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups, triggerScope }: FlowNodeConfigFieldProps) {
   const refMode: 'expression' | 'template' =
     field.refMode ?? (field.kind === 'expression' ? 'expression' : 'template');
+  // objectui#6226 — the row-based condition builder, on the fields that opted in
+  // AND at a site that declares the vocabulary. All three conjuncts are load
+  // bearing: `conditionBuilder` keeps `expression` from meaning "predicate"
+  // everywhere it appears; `triggerScope` is the declared vocabulary, absent on
+  // a trigger that binds no record; `refMode !== 'template'` keeps an
+  // `interpolate()` field (a loop `collection`) out even if one ever opts in.
+  const asConditionBuilder =
+    field.kind === 'expression' && !!field.conditionBuilder && !!triggerScope && refMode !== 'template';
   const control = (() => {
+    if (asConditionBuilder && triggerScope) {
+      return (
+        <ConditionBuilder
+          label={field.label}
+          value={value != null ? String(value) : ''}
+          onCommit={(cel) => onCommit(cel)}
+          objectName={triggerScope.objectName}
+          disabled={disabled}
+          subjects={{
+            fieldPrefix: triggerScope.fieldPrefix,
+            includePrevious: triggerScope.includePrevious,
+            context: FLOW_TRIGGER_CONTEXT_SUBJECTS,
+          }}
+        />
+      );
+    }
     switch (field.kind) {
       case 'reference':
         return (

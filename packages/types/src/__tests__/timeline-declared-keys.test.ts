@@ -78,13 +78,25 @@ function unwrap(schema: any): any {
   return cur;
 }
 
-/** The eight keys this card declared, each with a value its declared type refuses. */
+/**
+ * The keys this card declared, each with a value its declared type refuses.
+ *
+ * `timeScale` was the eighth. objectui#6355 RETIRED it, so it is no longer a
+ * declared key carrying a vocabulary — it is a `?: never` / `z.never()`
+ * tombstone, for which "refuses a wrong-typed value" and "accepts a well-typed
+ * value" are the wrong assertions in both directions: the first would pass for
+ * a reason that has nothing to do with this card, and the second cannot pass at
+ * all. Its retirement has its own pin, `timeline-timescale-retired.test.ts`,
+ * which also
+ * carries the counter-probes. Removing it here rather than editing its value in
+ * place is deliberate: it is the fixture that pinned the branch that was
+ * deleted.
+ */
 const DECLARED: ReadonlyArray<readonly [string, unknown]> = [
   ['variant', 'diagonal'],
   ['items', 'not-an-array'],
   ['dateFormat', 'medieval'],
   ['scale', 'fortnight'],
-  ['timeScale', 'fortnight'],
   ['rowLabel', 5],
   ['minDate', 20240101],
   ['maxDate', 20241231],
@@ -134,7 +146,6 @@ describe('TimelineSchema — the eight presentational keys are declared (objectu
       items: [{ label: 'Backend', items: [{ title: 'API', startDate: '2024-01-01', endDate: '2024-01-31' }] }],
       dateFormat: 'iso',
       scale: 'quarter',
-      timeScale: 'month',
       rowLabel: 'Projects',
       minDate: '2024-01-01',
       maxDate: '2024-12-31',
@@ -154,9 +165,10 @@ describe('TimelineSchema — the eight presentational keys are declared (objectu
 });
 
 describe('TimelineSchema — `scale` is canonical and shares the spec vocabulary', () => {
-  // The renderer resolves `scale ?? timeScale` and accepts six values on either
-  // (`resolveTimelineScale`, pinned against the spec by
-  // `plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`). This is
+  // The renderer resolves `scale` and accepts six values (`resolveTimelineScale`,
+  // pinned against the spec by
+  // `plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`; the
+  // `timeScale` alias it used to also read is retired, objectui#6355). This is
   // the third leg of that agreement: the exported TYPE offers the same six.
   const specScales: string[] = unwrap(TimelineConfigSchema.shape.scale).options;
 
@@ -164,19 +176,22 @@ describe('TimelineSchema — `scale` is canonical and shares the spec vocabulary
     expect(specScales, 'could not read TimelineConfigSchema.shape.scale options').not.toEqual([]);
   });
 
-  it('`scale` and the deprecated `timeScale` alias accept exactly the spec vocabulary', () => {
-    for (const key of ['scale', 'timeScale'] as const) {
-      for (const value of specScales) {
-        const result = TimelineSchema.safeParse({ ...MINIMAL, [key]: value });
-        expect(result.success, `${key} refused spec scale '${value}'`).toBe(true);
-      }
+  it('`scale` accepts exactly the spec vocabulary — and is the only key that does', () => {
+    // It used to loop over `['scale', 'timeScale']`. The alias is RETIRED
+    // (objectui#6355) and now refuses every one of these values; that half is
+    // pinned in `timeline-timescale-retired.test.ts`.
+    for (const value of specScales) {
+      const result = TimelineSchema.safeParse({ ...MINIMAL, scale: value });
+      expect(result.success, `scale refused spec scale '${value}'`).toBe(true);
     }
   });
 
   it('the registry `inputs` three-value timeScale enum is NOT the contract', () => {
-    // Before this card the designer offered `timeScale: day | week | month` and
-    // the type offered neither key. `hour` / `quarter` / `year` were authorable,
-    // rendered correctly, and were undiscoverable from both surfaces.
+    // Before objectui#6170 the designer offered `timeScale: day | week | month`
+    // and the type offered neither key. `hour` / `quarter` / `year` were
+    // authorable, rendered correctly, and were undiscoverable from both
+    // surfaces. That designer input is gone entirely now — objectui#6355 retired
+    // the alias and dropped its control; `scale` offers all six.
     for (const value of ['hour', 'quarter', 'year']) {
       expect(TimelineSchema.safeParse({ ...MINIMAL, scale: value }).success, value).toBe(true);
     }
@@ -233,8 +248,12 @@ describe('TimelineSchema (TS) — compile-time pin on the same keys', () => {
     const dateFormat: TimelineSchemaTS['dateFormat'] = 'medieval';
     // @ts-expect-error — `scale` is declared `TimelineScale | undefined`.
     const scale: TimelineSchemaTS['scale'] = 'fortnight';
-    // @ts-expect-error — `timeScale` is the deprecated alias, same six values.
-    const timeScale: TimelineSchemaTS['timeScale'] = 'fortnight';
+    // `timeScale` used to sit here as the deprecated alias with the same six
+    // values. It is RETIRED (objectui#6355) and its directive would now hold for
+    // a different reason — `never` refuses `'fortnight'` the way it refuses
+    // every value — so keeping it here would read as vocabulary enforcement
+    // while measuring the tombstone. The tombstone has its own pin, with its own
+    // counter-probe: `timeline-timescale-retired.test.ts`.
     // @ts-expect-error — `rowLabel` is declared `string | undefined`.
     const rowLabel: TimelineSchemaTS['rowLabel'] = 5;
     // @ts-expect-error — `minDate` is declared `string | undefined` (schemas are JSON).
@@ -247,8 +266,8 @@ describe('TimelineSchema (TS) — compile-time pin on the same keys', () => {
     const position: TimelineSchemaTS['position'] = 'centre';
 
     expect([
-      variant, dateFormat, scale, timeScale, rowLabel, minDate, maxDate, orientation, position,
-    ]).toHaveLength(9);
+      variant, dateFormat, scale, rowLabel, minDate, maxDate, orientation, position,
+    ]).toHaveLength(8);
   });
 
   it('accepts the well-typed value on every declared key', () => {
@@ -260,7 +279,6 @@ describe('TimelineSchema (TS) — compile-time pin on the same keys', () => {
       items: [{ label: 'Backend', items: [{ title: 'API', startDate: '2024-01-01', endDate: '2024-01-31' }] }],
       dateFormat: 'iso',
       scale: 'quarter',
-      timeScale: 'month',
       rowLabel: 'Projects',
       minDate: '2024-01-01',
       maxDate: '2024-12-31',

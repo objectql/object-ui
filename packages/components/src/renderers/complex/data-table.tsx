@@ -11,6 +11,7 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 're
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
+import { describeIgnoredBind } from './dataTableBindDiagnostic';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
@@ -729,6 +730,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     showAddRow = false,
     borderless = false,
     disableInnerScroll = false,
+    // Read ONLY to diagnose it. `data-table` does not resolve `bind` and the
+    // objectui#6575 ruling is explicit that it must not start — see
+    // `dataTableBindDiagnostic.ts`.
+    bind: authoredBind,
   } = schema;
 
   // 'single' caps the selection at one row (replace-on-select) and drops the
@@ -777,6 +782,24 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // fallback is the shared empty, so a provider-config schema does not re-key
   // every downstream memo on each render (objectui#4618).
   const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
+
+  // objectui#6575 — say out loud that an authored `bind` was ignored.
+  //
+  // Channel: the one `plugin-grid` already uses for "you declared it, the
+  // renderer dropped it" — a `useEffect` keyed on the schema slice and one
+  // `console.warn` (see `columnSpellingDiagnostics.ts`) — rather than a second,
+  // differently-shaped one. `data` is in the key because the message's
+  // consequence clause is measured against the rows actually resolved.
+  const bindDiagnosticBlockType = (schema as { type?: unknown }).type;
+  const bindDiagnosticId = (schema as { id?: unknown }).id;
+  useEffect(() => {
+    const message = describeIgnoredBind(authoredBind, data, {
+      blockType: bindDiagnosticBlockType,
+      id: bindDiagnosticId,
+      caption,
+    });
+    if (message) console.warn(message);
+  }, [authoredBind, data, bindDiagnosticBlockType, bindDiagnosticId, caption]);
 
   // The adapter reads the column keys `TableColumn` DECLARES. The `label`
   // alias is gone (objectui#5351); the `name` alias is HELD, and the hold is
@@ -1858,7 +1881,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               {columns.map((col, index) => {
                 // `fitContent` columns hug their content (no fixed width /
                 // char-estimate) so inline row-action buttons never get clipped.
-                const isFit = (col as any).fitContent === true
+                const isFit = col.fitContent === true
                   && !columnWidths[col.accessorKey] && !col.width;
                 const columnWidth = isFit
                   ? '1%'
@@ -2127,7 +2150,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
-                        const isFit = (col as any).fitContent === true
+                        const isFit = col.fitContent === true
                           && !columnWidths[col.accessorKey] && !col.width;
                         const columnWidth = isFit
                           ? '1%'

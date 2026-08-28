@@ -19,6 +19,7 @@ import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
 import { resolveClientDistInjection } from '../../scripts/vite-objectstack-client-dist.ts';
 import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
 import { viteIneffectiveDynamicImports } from '../../scripts/vite-ineffective-dynamic-imports.ts';
+import { viteDeclaredLazyViews } from '../../scripts/vite-declared-lazy-views.ts';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -645,6 +646,15 @@ export default defineConfig({
     // firing — the counter-probe, because a build that dies before chunk
     // assignment reports zero of these and that reads exactly like "fixed".
     viteIneffectiveDynamicImports(),
+    // Keeps `AppContent`'s `lazy()` view declarations and the eager closure in
+    // agreement (objectui#6535). Two halves, one parsed list: it declares the
+    // pure route-view modules `moduleSideEffects: false` — without which the
+    // `@object-ui/app-shell` barrel's named re-exports hold five of them in the
+    // eager closure, since that package publishes no `sideEffects` field — and
+    // it then FAILS the build if a declared-lazy view is eager anyway and not
+    // pinned, or if a pinned one has quietly become lazy. Runs before
+    // `emitEagerClosureReport` reads the same graph.
+    viteDeclaredLazyViews(),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s

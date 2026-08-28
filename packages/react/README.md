@@ -158,6 +158,34 @@ falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
 the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
 a block cannot be wrapped — a renderer whose hooks must run before the panels.
 
+### useSettledSchema
+
+The settled-schema RESOLUTION half shared by `ObjectKanban` / `ObjectView` /
+`ObjectCalendar`'s fetch-gate hand copies (objectui#6482). Tracks whether an
+object's definition has finished resolving FOR THE KEY THE CURRENT RENDER IS
+ASKING ABOUT — `ready` and `def` are two views of one piece of state, so a
+stale key can never read as ready. GATE PLACEMENT — which effect actually
+waits on `ready` — stays a per-component decision; this hook only owns the
+resolution.
+
+```tsx
+import { useSettledSchema } from '@object-ui/react'
+
+function ObjectSomething({ schema, dataSource }) {
+  const key = schema.objectName ?? ''
+  const { ready, def } = useSettledSchema(key, dataSource)
+
+  useEffect(() => {
+    if (!ready) return // gate placement is local to this component
+    // issue the record query, e.g. buildExpandFields(def?.fields)
+  }, [ready, def])
+}
+```
+
+Pass `dataSource: undefined` for a render that should settle immediately with
+no definition (e.g. a provider that issues no metadata read at all) instead of
+adding a separate enable flag.
+
 ### ComponentRegistry
 
 There is no registry hook: the registry is a process-level singleton exported

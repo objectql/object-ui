@@ -126,18 +126,33 @@ export const HoverCardSchema = BaseSchema.extend({
 });
 
 /**
- * Menu Item Schema
+ * Menu Item Schema — a discriminated union (objectui#6523): a command item
+ * (label required) or a divider (`separator: true`, no label). Mirrors the
+ * TS union `MenuItem = MenuCommandItem | MenuDividerItem` in `../overlay.ts`;
+ * see that file's doc comment for why this is a union rather than an
+ * optional `label`, and why `type` is tombstoned on both arms.
  */
 export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
-  z.object({
-    label: z.string().describe('Menu item label'),
-    icon: z.string().optional().describe('Menu item icon'),
-    disabled: z.boolean().optional().describe('Whether item is disabled'),
-    onClick: z.function().optional().describe('Click handler'),
-    shortcut: z.string().optional().describe('Keyboard shortcut'),
-    children: z.array(MenuItemSchema).optional().describe('Submenu items'),
-    separator: z.boolean().optional().describe('Whether this is a separator'),
-  })
+  z.union([
+    z.object({
+      label: z.string().describe('Menu item label'),
+      icon: z.string().optional().describe('Menu item icon'),
+      disabled: z.boolean().optional().describe('Whether item is disabled'),
+      onClick: z.function().optional().describe('Click handler'),
+      shortcut: z.string().optional().describe('Keyboard shortcut'),
+      children: z.array(MenuItemSchema).optional().describe('Submenu items'),
+      separator: z.literal(false).optional().describe('Not a divider'),
+      type: z.never().optional().describe(
+        'RETIRED (objectui#6523) — dividers are `{ separator: true }`; ' +
+        '`type` (\'separator\' or \'label\') was an undeclared spelling two ' +
+        'renderers used to read and is now a declared refusal, not a strip.'
+      ),
+    }),
+    z.object({
+      separator: z.literal(true).describe('Renders as a divider between items — no label'),
+      type: z.never().optional().describe('RETIRED (objectui#6523) — see the command-item arm above.'),
+    }),
+  ])
 );
 
 /**

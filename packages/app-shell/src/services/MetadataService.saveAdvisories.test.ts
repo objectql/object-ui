@@ -34,7 +34,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ObjectStackAdapter, type MetadataSaveAdvisoryEvent } from '@object-ui/data-objectstack';
 import type { ObjectDefinition } from '@object-ui/types';
-import { MetadataService } from './MetadataService';
+import { MetadataService, type FieldMetadataPayload } from './MetadataService';
 import { emitSaveAdvisories, type TranslateFn } from '../providers/saveAdvisoryToast';
 
 const PURGE_ADVISORY = {
@@ -100,6 +100,15 @@ function makeWiredAdapter(body: unknown) {
 // (objectui#4040). Declared properly instead of widening the cast.
 const ACCOUNT: ObjectDefinition = { id: 'account', name: 'account', label: 'Account' };
 
+// objectui#6490 made that second parameter REQUIRED. `ObjectSchema.fields` is a
+// required record, so a `saveObject` call that omitted the list built a body the
+// server refused `422 INVALID_METADATA` every time it ran — these suites were
+// asserting the advisory channel on top of a save that could never have
+// succeeded against a real backend. The field list is not this file's subject,
+// so it hands over the smallest well-formed one; nothing else about these
+// assertions changes.
+const ACCOUNT_FIELDS: FieldMetadataPayload[] = [{ name: 'name', type: 'text', label: 'Name' }];
+
 describe('MetadataService saves reach the shell advisory surface (#4237)', () => {
   it('renders the gate findings for a save that succeeded', async () => {
     const { adapter, sink, events } = makeWiredAdapter({
@@ -107,7 +116,7 @@ describe('MetadataService saves reach the shell advisory surface (#4237)', () =>
       advisories: [PURGE_ADVISORY],
     });
 
-    await new MetadataService(adapter).saveObject(ACCOUNT);
+    await new MetadataService(adapter).saveObject(ACCOUNT, ACCOUNT_FIELDS);
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ type: 'object', name: 'account', mode: 'publish' });
@@ -117,7 +126,7 @@ describe('MetadataService saves reach the shell advisory surface (#4237)', () =>
   it('lands on the WARNING tier and says "Saved" first — the write succeeded', async () => {
     const { adapter, sink } = makeWiredAdapter({ ...CLEAN_BODY, advisories: [PURGE_ADVISORY] });
 
-    await new MetadataService(adapter).saveObject(ACCOUNT);
+    await new MetadataService(adapter).saveObject(ACCOUNT, ACCOUNT_FIELDS);
 
     const [title, opts] = sink.warning.mock.calls[0]!;
     expect(title).toMatch(/^Saved/);
@@ -130,7 +139,7 @@ describe('MetadataService saves reach the shell advisory surface (#4237)', () =>
   it('a clean save renders no new UI', async () => {
     const { adapter, sink, events } = makeWiredAdapter(CLEAN_BODY);
 
-    await new MetadataService(adapter).saveObject(ACCOUNT);
+    await new MetadataService(adapter).saveObject(ACCOUNT, ACCOUNT_FIELDS);
 
     expect(events).toEqual([]);
     expect(sink.warning).not.toHaveBeenCalled();
@@ -152,7 +161,7 @@ describe('MetadataService saves reach the shell advisory surface (#4237)', () =>
     const { adapter } = makeWiredAdapter({ ...CLEAN_BODY, advisories: [PURGE_ADVISORY] });
     const invalidate = vi.spyOn(adapter, 'invalidateCache');
 
-    await expect(new MetadataService(adapter).saveObject(ACCOUNT)).resolves.toBeUndefined();
+    await expect(new MetadataService(adapter).saveObject(ACCOUNT, ACCOUNT_FIELDS)).resolves.toBeUndefined();
 
     // The service's own post-save step still runs.
     expect(invalidate).toHaveBeenCalledWith('object:account');

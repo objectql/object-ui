@@ -73,12 +73,53 @@ export function resolveLabel(label: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Read a lookup/master_detail field's target object from its raw def. */
+/**
+ * Read a lookup/master_detail field's target object from its raw def.
+ *
+ * `reference` is the ONLY spelling this reads, and that is a measurement rather
+ * than a preference (objectui#6528). The four-spelling fallback chain this
+ * replaces (`reference ?? reference_to ?? referenceTo ?? reference_to_object`)
+ * was censused against every producer that can reach this helper:
+ *
+ *   reference             ACCEPTED by `ObjectSchema.safeParse` (spec 17.2.0) and
+ *                         emitted by both designer writers today
+ *                         (`MetadataService.toFieldPayload`,
+ *                         `MetadataFieldsPage.fromDesignerField`, each
+ *                         `reference: <target>`). 445 of the 565 lookup /
+ *                         master_detail defs in the framework tree spell it
+ *                         this way. This is the positive control every zero
+ *                         below is measured against.
+ *   reference_to          REFUSED BY NAME — "Did you mean `reference_to` ->
+ *                         `reference`?". Zero producers on THIS surface. It is
+ *                         a live key only on ObjectUI's own view/field schema
+ *                         (`@object-ui/types` `views.zod.ts`), a different
+ *                         contract that `plugin-detail` translates INTO from
+ *                         `reference`; an object metadata document never
+ *                         carries it.
+ *   referenceTo           REFUSED BY NAME. Its two historical producers were
+ *                         retired at the producer by objectui#6041, and
+ *                         objectui#6519 added it to `RETIRED_FIELD_KEYS` so the
+ *                         read door strips it — `normalizeObject` builds every
+ *                         def through `readFields`, so this branch could not
+ *                         receive a value here even from a stored pre-#6041 row.
+ *   reference_to_object   REFUSED, and not even a recognised alias (the spec's
+ *                         alias table folds `relatedTo` / `referenceTo` /
+ *                         `target` / `targetObject` / `lookupObject` onto
+ *                         `reference` — never this one). Zero occurrences
+ *                         anywhere in either tree except this chain and the unit
+ *                         test that called it: it was only ever produced by its
+ *                         own test.
+ *
+ * Keeping the chain would be the shape AGENTS.md #0.1 forbids — a lenient
+ * consumer is where a wrong producer hides. A doc that reaches here spelling the
+ * target any other way is a PRODUCER defect, and must fail visibly here so it is
+ * fixed there.
+ *
+ * The string / array / `{ object }` CARRIERS are untouched: they are a separate
+ * axis from the spelling, and narrowing them needs its own census.
+ */
 export function resolveReferenceTo(def: Record<string, unknown>): string | undefined {
-  // Framework lookup/master_detail fields carry the target object in `reference`;
-  // older / spec shapes use `reference_to` / `referenceTo` / `reference_to_object`.
-  const raw =
-    def.reference ?? def.reference_to ?? (def as any).referenceTo ?? (def as any).reference_to_object;
+  const raw = def.reference;
   if (typeof raw === 'string' && raw) return raw;
   if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
   if (raw && typeof raw === 'object') {

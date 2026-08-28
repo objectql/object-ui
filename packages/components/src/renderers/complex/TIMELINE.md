@@ -113,7 +113,7 @@ Perfect for project management, resource planning, and multi-track timelines.
   "type": "timeline",
   "variant": "gantt",
   "dateFormat": "short",
-  "timeScale": "month",
+  "scale": "month",
   "rowLabel": "Project Tasks",
   "items": [
     {
@@ -216,7 +216,7 @@ Perfect for project management, resource planning, and multi-track timelines.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `timeScale` | `'day' \| 'week' \| 'month'` | `'month'` | Time scale for the timeline header |
+| `scale` | `'hour' \| 'day' \| 'week' \| 'month' \| 'quarter' \| 'year'` | `'month'` | Time scale for the timeline header. The pre-spec `timeScale` spelling is retired (objectui#6355) |
 | `rowLabel` | `string` | `'Items'` | Label for the row header column |
 | `minDate` | `string` | Auto-calculated | Override minimum date (YYYY-MM-DD) |
 | `maxDate` | `string` | Auto-calculated | Override maximum date (YYYY-MM-DD) |

@@ -129,6 +129,11 @@ const schema = {
 
 ## Properties
 
+`showTimestamp` through `onSend` below are declared on [`ChatbotSchema`](https://github.com/objectstack-ai/objectui/blob/main/packages/types/src/complex.ts)
+(`@object-ui/types`) — previously they existed only in an anonymous type local
+to the renderer, referenceable, validatable and documentable by nothing
+outside that one file (objectui#6169).
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `messages` | array | `[]` | Initial chat messages |

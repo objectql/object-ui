@@ -4,8 +4,8 @@
   "showCancel": false,
   "defaultValues": {
     "store_location": {
-      "latitude": 37.7749,
-      "longitude": -122.4194
+      "lat": 37.7749,
+      "lng": -122.4194
     }
   },
   "fields": [

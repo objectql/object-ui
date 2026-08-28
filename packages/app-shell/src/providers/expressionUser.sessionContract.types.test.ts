@@ -56,6 +56,16 @@
  * three of the cases below are in that position deliberately, because "the
  * narrowing did not overshoot" is a claim that needs its own controls.
  *
+ * ## The limit this file recorded is closed (objectui#6559)
+ *
+ * The last case below used to be ACCEPTED, pinning that the parameter was
+ * `unknown` and so the narrowed cast bound no call site. objectui#6559 moved
+ * the declaration onto the parameter (maintainer ruling 2026-08-27), and that
+ * case is now a REJECTION. The parameter's own discrimination — the leg that
+ * shows a re-widened parameter turning it green again — lives in
+ * `expressionUser.parameterContract.types.test.ts`, because the reverted
+ * preamble here can only re-widen the local type alias.
+ *
  * ## Fenced boundary
  *
  * `id: u.id ?? null` is the REJECTED shape (triage ruling, 2026-08-26): a
@@ -69,7 +79,7 @@ import ts from 'typescript';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { buildExpressionUser } from './expressionUser';
+import { buildExpressionUser, type ExpressionUserSession } from './expressionUser';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODULE_IMPORT = join(HERE, 'expressionUser').replace(/\\/g, '/');
@@ -154,13 +164,18 @@ const CASES: readonly Case[] = [
     code: `const i: ExpressionUserSession = { id: 'u_1', name: 'Ada', email: 'a@e.d', role: 'user', positions: ['user'], isPlatformAdmin: true, department__c: 'sales' }; void i;`,
   },
   {
-    // The honest limit of this change, pinned so no reader has to infer it: the
-    // PARAMETER is `unknown`, so narrowing the CAST does not make any producer
-    // loud at compile time. It makes the module stop declaring the broken input
-    // legitimate. Widening the parameter is a different question and a
-    // different card.
-    what: 'the exported function still accepts an unchecked input — the cast is not a parameter check',
-    rejected: false,
+    // objectui#6551's honest limit — and objectui#6559 CLOSED it. While the
+    // PARAMETER was `unknown`, narrowing the cast made no producer loud at
+    // compile time: the module merely stopped declaring the broken input
+    // legitimate, and this case recorded that by being ACCEPTED. The parameter
+    // now IS `ExpressionUserSession | null | undefined` (maintainer ruling
+    // 2026-08-27, option A), so the same call is refused and this case is the
+    // seam between the two cards. It is rejected on BOTH legs below: the
+    // reverted preamble re-widens the local type ALIAS, while the parameter
+    // reads the real module's. What discriminates the parameter is
+    // `expressionUser.parameterContract.types.test.ts`.
+    what: 'the exported function refuses an unchecked input — the parameter is a call-site check',
+    rejected: true,
     code: `buildExpressionUser({ name: 'B', email: 'b@c.d' });`,
   },
 ];
@@ -278,8 +293,11 @@ describe('objectui#6551 — the signed-in cast is no wider than the contract it 
  *           not move. It pins that the anonymous answer is not an input,
  *           which is a different claim from this card's.
  *   5     — the spec-derived incomplete principal.
- *   6-9   — the overshoot controls and the `unknown`-parameter limit; green on
- *           both legs by construction.
+ *   6-8   — the overshoot controls; green on both legs by construction.
+ *   9     — NOT here either, and for the OPPOSITE reason: since objectui#6559
+ *           the parameter carries the contract, so that call is refused on
+ *           both legs. This leg re-widens the local type alias only, and the
+ *           parameter reads the real module's declaration.
  */
 const EXPECTED_FLIPS = [0, 1, 2, 3, 5];
 
@@ -330,7 +348,14 @@ describe('objectui#6551 — the runtime the narrowed declaration now describes',
     // input never arrives; the type is where that is now said, and this asserts
     // nothing was quietly added below it. Re-deciding this is a card, not a
     // test edit.
-    const built = buildExpressionUser({ name: 'B', email: 'b@c.d' } as unknown);
+    // Since objectui#6559 the PARAMETER refuses this input, so reaching the
+    // runtime with it takes a deliberate double assertion — which is the
+    // honest spelling: no producer can arrive here by accident any more, and
+    // this case is only asking what the code does if one is forced through.
+    const built = buildExpressionUser({
+      name: 'B',
+      email: 'b@c.d',
+    } as unknown as ExpressionUserSession);
 
     expect(built.id).toBeUndefined();
     expect(built.id).not.toBeNull();

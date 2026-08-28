@@ -337,7 +337,6 @@ const fr = {
       undo: "Annuler",
       undoing: "Annulation…",
       done: "Terminé",
-      selectPlaceholder: "Sélectionner…",
       loading: "Chargement…",
     },
     actions: "Actions",
@@ -531,9 +530,7 @@ const fr = {
     month: "Mois",
     week: "Semaine",
     day: "Jour",
-    agenda: "Agenda",
     allDay: "Toute la journée",
-    noEvents: "Aucun événement",
     newEvent: "Nouvel événement",
     moreEvents: "+{{count}} de plus",
   },
@@ -1029,16 +1026,8 @@ const fr = {
     noValue: "Aucune valeur",
   },
   chart: {
-    noData: "Aucune donnée de graphique disponible",
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
-  },
-  map: {
-    searchLocations: "Rechercher des lieux…",
-    locationDetails: "Détails du lieu",
-    markersCount: "{{count}} marqueurs",
-    invalidCoordinates: "{{count}} enregistrement avec des coordonnées manquantes ou invalides exclu de la carte.",
-    invalidCoordinatesPlural: "{{count}} enregistrements avec des coordonnées manquantes ou invalides exclus de la carte.",
   },
   dashboard: {
     noRows: "Aucune ligne",
@@ -2277,8 +2266,6 @@ const fr = {
     browseMarketplace: "Parcourir la marketplace d'apps",
     quickActions: {
       title: "Actions rapides",
-      createApp: "Créer une app",
-      createAppDesc: "Commencez avec une nouvelle application",
       manageObjects: "Gérer les objets",
       manageObjectsDesc: "Configurer les modèles de données",
       systemSettings: "Paramètres système",
@@ -2294,11 +2281,6 @@ const fr = {
     greetingNight: "Travail de nuit",
     heroTagline: "Reprenez là où vous vous êtes arrêté ou découvrez quelque chose de nouveau.",
     open: "Ouvrir",
-    stats: {
-      apps: "Applications",
-      starred: "Étoilés",
-      recent: "Récents",
-    },
     recentApps: {
       title: "Récemment ouverts",
       itemType: {
@@ -2329,7 +2311,6 @@ const fr = {
       organizations: "Organisations",
       roles: "Rôles",
       configuration: "Configuration",
-      createApp: "Créer une application",
       administration: "Administration",
       datasources: "Sources de données",
       documentation: "Documentation",
@@ -2419,8 +2400,6 @@ const fr = {
     cancel: "Annuler",
     confirm: "Confirmer",
     uploading: "Téléversement…",
-    defaultActionTitle: "Action",
-    ok: "OK",
     lookupPlaceholder: "ID d'enregistrement pour {{label}}",
     lookupHelpText: "Aucun objet de référence n'est configuré pour ce paramètre, le sélecteur d'enregistrement est donc indisponible. Saisissez un ID d'enregistrement ou demandez à un administrateur de corriger le paramètre d'action.",
   },
@@ -2428,11 +2407,6 @@ const fr = {
     title: "Confirmer l’action",
     confirm: "Continuer",
     cancel: "Annuler",
-  },
-  rowAction: {
-    openMenu: "Ouvrir le menu",
-    edit: "Modifier",
-    delete: "Supprimer",
   },
   navigationSync: {
     addedPage: "Navigation mise à jour : page \"{{name}}\" ajoutée",
@@ -2464,15 +2438,6 @@ const fr = {
     printDialogOpening: "Ouverture de la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
     exportFailed: "Échec de l'export : {{message}}",
     forecastSoon: "La vue de prévision arrive bientôt",
-  },
-  recordDetail: {
-    viewersTooltip: "Utilisateurs consultant cet enregistrement en ce moment",
-  },
-  cellRender: {
-    empty: "Vide",
-    yes: "Oui",
-    no: "Non",
-    systemFields: "Système",
   },
   user: {
     profile: "Profil",

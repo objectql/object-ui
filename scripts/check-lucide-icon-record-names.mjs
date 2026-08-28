@@ -72,7 +72,10 @@
  *    was low by 53. Re-measured, by reading each renderer (objectui#5992):
  *
  *      61 untyped `icon` names, across SEVEN containers. Exactly ONE of them
- *      reaches a record-reading resolver:
+ *      reached a record-reading resolver AT THAT COMMIT — four do today, and
+ *      each line below carries the card that moved it. A row's verdict is a
+ *      fact about a renderer, so it expires when that renderer is repaired;
+ *      "which containers reach the record" is re-read here, not remembered.
  *
  *        dropdown-menu   3  RECORD — `resolveIcon(item.icon)` in
  *                           `renderers/overlay/dropdown-menu.tsx` (objectui#5930).
@@ -82,11 +85,23 @@
  *                           same call — a depth no single-level `items[].icon`
  *                           path can express.
  *        button-group    8  `renderers/basic/button-group.tsx` never reads
- *                           `button.icon` at all; the names render nothing
- *        breadcrumb      3  renderer never reads `icon`
- *        command         9  renderer never reads `icon`
- *        context-menu    4  renderer never reads `icon` — dropdown-menu's twin,
- *                           and NOT routed by objectui#5930
+ *                           `button.icon` at all; the names render nothing.
+ *                           STILL TRUE at objectui#5931, and deliberately so:
+ *                           `icon` is absent from `ButtonGroupButton` in
+ *                           `packages/types` AND from its zod mirror, so
+ *                           declaring it here would be censusing a key that is
+ *                           not authorable. Routed for a decision, not guessed.
+ *        breadcrumb      3  RECORD, since objectui#5931 — `resolveIcon(item.icon)`
+ *                           in `renderers/data-display/breadcrumb.tsx`, resolved
+ *                           once per item ABOVE the page/link split so BOTH arms
+ *                           read it. JUDGED HERE.
+ *        command         9  RECORD, since objectui#5931 — `resolveIcon(item.icon)`
+ *                           in `renderers/form/command.tsx`. JUDGED HERE, and
+ *                           necessarily by descent: the names sit at
+ *                           `groups[].items[].icon`, a depth no single-level
+ *                           `paths` entry can express.
+ *        context-menu    4  RECORD, since objectui#6278 — dropdown-menu's twin,
+ *                           and NOT routed by objectui#5930. JUDGED HERE.
  *        timeline        4  rendered as RAW TEXT, `<span>{item.icon}</span>`;
  *                           the four authored names are emoji, not lucide names
  *        tree-view      30  read, but as a TWO-VALUED literal switch
@@ -96,6 +111,9 @@
  *    imports `resolveIcon`, not `icons`, so the record read happens in
  *    `renderers/action/resolve-icon.ts`, which is already declared. Part 1
  *    stays at eight resolvers; this is a part-2 rule, not a census change.
+ *    `context-menu.tsx`, `breadcrumb.tsx` and `command.tsx` route the same way
+ *    and are absent from part 1 for the same reason — part 1 knowing a MODULE
+ *    and part 2 knowing a `type` are two independent facts.
  *
  *    ── Re-taken at objectui@e3784607f, and UNCHANGED ──────────────────────
  *    objectui#6009 censused the `icon` TYPE, which looks like it should move
@@ -212,6 +230,35 @@ export const RECORD_READING_TYPES = {
   'action:group': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
   'action:menu': { paths: ['icon', 'actions[].icon'], resolver: 'packages/components/src/renderers/action/resolve-icon.ts' },
+  // objectui#5931. The container's OWN `icon` is never read (`paths: []`); its
+  // item icons sit on untyped children at `items[].icon`, and the renderer
+  // resolves each ONCE and renders the glyph ABOVE the `BreadcrumbPage` /
+  // `BreadcrumbLink` split, so both arms read the same call. Declared by
+  // `descendants` rather than `paths: ['items[].icon']`, which this walk can
+  // also express: only the descent form carries `min`, and a declaration that
+  // silently stops reaching its nodes is the failure this gate exists for.
+  // `min` is the MEASURED count (the three names `with-icons.json` authors),
+  // not the weaker `1` its two siblings below carry — a descent that reached
+  // only one of three would be as blind as one that reached none.
+  'breadcrumb': {
+    paths: [],
+    descendants: true,
+    min: 3,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/data-display/breadcrumb.tsx)',
+  },
+  // objectui#5931, and the same shape one level deeper: the names sit at
+  // `groups[].items[].icon`, which `ARRAY_PATH` cannot express at all — it
+  // matches ONE level (`/^(\w+)\[\]\.icon$/`), so a `paths` entry here would
+  // extract nothing, report no violations and read exactly like a clean tree.
+  // Descent reaches them because an untyped node passes descent through to its
+  // own children. `min` is the measured count: six names in `command-menu.json`
+  // plus three in `command-palette-with-shortcuts.json`.
+  'command': {
+    paths: [],
+    descendants: true,
+    min: 9,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/form/command.tsx)',
+  },
   // The twin of the `dropdown-menu` entry below, and it earns its own line for
   // the same reason: the container's OWN `icon` is never read (`paths: []`),
   // while its item icons sit on untyped children, recursively, and every one of

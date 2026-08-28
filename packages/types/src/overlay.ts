@@ -325,9 +325,31 @@ export interface HoverCardSchema extends BaseSchema {
 }
 
 /**
- * Menu item
+ * Menu item — a clickable command, or a divider between groups of commands.
+ *
+ * A discriminated union (objectui#6523): a divider has no label and a command
+ * item always has one, so a single object with an optional `label` cannot
+ * express "this is a divider" without leaving the divider arm unrepresentable
+ * — the shipped renderers' own `defaultProps` for a divider
+ * (`{ separator: true }`, no `label`) failed a strict parse against the old
+ * shape. `label` stays REQUIRED on the command arm rather than becoming
+ * optional, which would have weakened every command item's label protection
+ * to solve a problem only the divider arm has.
+ *
+ * `type` is TOMBSTONED (`?: never`) on both arms. It is not merely
+ * undeclared: `dropdown-menu`/`context-menu` used to branch on an undeclared
+ * `item.type === 'separator'` (and `=== 'label'`) instead of the declared
+ * `separator` key, and a bare (non-strict) zod object silently stripped that
+ * key on parse, so no gate ever caught the two renderers reading a spelling
+ * the type never declared. Declaring `type?: never` makes authoring it a
+ * refusal at parse/type-check time instead of a silent no-op (ADR-0049).
  */
-export interface MenuItem {
+export type MenuItem = MenuCommandItem | MenuDividerItem;
+
+/**
+ * The command arm of {@link MenuItem} — a clickable, labelled entry.
+ */
+export interface MenuCommandItem {
   /**
    * Menu item label
    */
@@ -353,9 +375,36 @@ export interface MenuItem {
    */
   children?: MenuItem[];
   /**
-   * Separator (renders as divider)
+   * Not a divider — present (typed `false`) only so the union can discriminate
+   * on this key without every command item needing to omit it.
    */
-  separator?: boolean;
+  separator?: false;
+  /**
+   * RETIRED (objectui#6523) — dividers are spelled `{ separator: true }`.
+   * `dropdown-menu`/`context-menu` used to read an undeclared `type` key
+   * instead (`'separator'` for a divider, `'label'` for a section heading);
+   * neither spelling is part of the contract, so authoring `type` is refused
+   * rather than silently stripped.
+   */
+  type?: never;
+}
+
+/**
+ * The divider arm of {@link MenuItem} — renders as a separator between
+ * groups of commands. Deliberately carries no label and no other command
+ * fields: a divider is not a command with blank details, it is a different
+ * kind of row.
+ */
+export interface MenuDividerItem {
+  /**
+   * Renders as a divider (see {@link MenuItem}'s doc comment for why this is
+   * a separate arm rather than an optional flag on a single shape).
+   */
+  separator: true;
+  /**
+   * RETIRED (objectui#6523) — see {@link MenuCommandItem.type}.
+   */
+  type?: never;
 }
 
 /**

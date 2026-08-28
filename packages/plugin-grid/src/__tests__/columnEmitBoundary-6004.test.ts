@@ -120,7 +120,7 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
 
   /**
    * ⭐ DERIVED, NEVER HAND-LISTED. The tombstone set is
-   * `Exclude<keyof ListColumn, keyof TableColumn | 'wrap' | 'pinned'>`, so a
+   * `Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>`, so a
    * key ADDED to the spec's `ListColumn` tomorrow is refused by default and has
    * to be adjudicated to escape. These two pin both halves of that rule: a
    * `ListColumn` key that `TableColumn` does not declare is `never` on the
@@ -139,15 +139,75 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
   });
 
   /**
-   * The three HELD keys. Each is undeclared by `TableColumn` and each has a
-   * measured live reader (or, for `wrap`, an open card that owns it), so the
-   * emit type must ACCEPT them — a tombstone set that swallowed these would be
-   * a behaviour change wearing a type change's clothes.
+   * Both keys the emit type must ACCEPT: a tombstone set that swallowed either
+   * would be a behaviour change wearing a type change's clothes.
+   *
+   * ⚠️ They no longer arrive by the same route, and objectui#6424 settled
+   * that. `pinned` is still HELD: undeclared by `TableColumn`, so
+   * `ObjectGridColumnHolds` is its only declaration on the emit types, AND it
+   * has a measured live reader — `ObjectGrid`'s own reorder pass, which
+   * consumes it before the array reaches the slot. `headerIcon` reaches the
+   * emit types through `TableColumn` itself: it was held on the same
+   * "undeclared by `TableColumn`" premise, objectui#6615 declared it
+   * (`packages/types/src/data-display.ts`) and the premise expired with nothing
+   * going red, so objectui#6424 removed the hold after measuring that both emit
+   * types are unchanged without it. So `ObjectGridColumnHolds` declares ONE key
+   * today, not two. This test pins only that both keys are accepted, which is
+   * true either way; the routes themselves are pinned in
+   * `columnHoldsExpiry-6424.test.ts`.
+   *
+   * ⚠️ There were three until objectui#5453. `wrap` was the third, and it was
+   * held for a reason that was never "a live reader": the card that owned it
+   * was blocked, so it had "an open card" standing in for a measurement. That
+   * card has since taken the measurement and RETIRED the key, so it moved to
+   * the tombstone pin below. The lesson worth keeping: a hold justified by an
+   * open card is a hold with no evidence under it yet, and it should be
+   * re-checked the moment the card closes rather than aging into a fact.
    */
-  it('accepts the three held keys — headerIcon, pinned, wrap', () => {
-    const held = { header: 'H', accessorKey: 'a', headerIcon: null, pinned: 'left' as const, wrap: true };
+  it('accepts headerIcon (via TableColumn) and pinned (via the hold)', () => {
+    const held = { header: 'H', accessorKey: 'a', headerIcon: null, pinned: 'left' as const };
     const accepted: ObjectGridColumnDraft = held;
     expect(accepted.pinned).toBe('left');
+  });
+
+  /**
+   * ⭐ THE RETIRED KEY (`wrap`, objectui#5453).
+   *
+   * `ObjectGrid` forwarded a per-column `wrap` into the `TableColumn[]` slot and
+   * `data-table.tsx` never read it. Measured on the current ref, comments
+   * stripped, in the same query shape that finds the keys that ARE consumed —
+   * `accessorKey` 34, `align` 5, `header` 4, `className` 4, `fitContent` 2 —
+   * a column-level `wrap` scores 0. The raw string `wrap` does occur in that
+   * file, but every occurrence is `flex-wrap`, `whitespace-nowrap` or a
+   * variable named `wrapper`; the sibling counts are the positive control that
+   * makes the zero a measurement rather than a mis-aimed grep.
+   *
+   * Nor is there anything for it to switch on: `data-table`'s cell wrapper is a
+   * two-way `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`, and the
+   * file does not read `density` or `rowHeight` at all. No clamp, no expand, no
+   * wrap affordance ⇒ enforce-or-remove resolves to remove.
+   *
+   * ⚠️ Unlike `pinned` — which `data-table` also never reads, and which is HELD
+   * anyway because THIS file consumes it first and re-expresses it as a sticky
+   * `className` — `wrap` had no second road to any consumer. That check is what
+   * separates the two verdicts, and it is the check the emit rule demands
+   * before retiring.
+   *
+   * Refused by the DERIVED band: `wrap` is a `ListColumn` key that
+   * `TableColumn` does not declare, and it is no longer carved out of
+   * `RetiredListColumnKey`'s Exclude. Routed through a non-fresh value like the
+   * other tombstone pins, so the tombstone is the single cause — freshness
+   * cannot refuse a non-fresh source.
+   */
+  it('the emit type refuses the retired `wrap` key', () => {
+    // The derived band covers it, so the member itself is `never`.
+    type _WrapTombstoned = Expect<ObjectGridColumnDraft['wrap'] extends undefined ? true : false>;
+
+    const emitted: { header: string; accessorKey: string; wrap?: boolean } =
+      { header: 'Notes', accessorKey: 'notes', wrap: true };
+    // @ts-expect-error objectui#5453 — `wrap` retired from this producer's emit, refused by the derived tombstone band.
+    const refused: ObjectGridColumnDraft = emitted;
+    expect(refused.accessorKey).toBe('notes');
   });
 
   /**
@@ -157,15 +217,28 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    * it means the emit type must now REFUSE it — otherwise "retired" is just a
    * deleted line that the next edit can put back for free.
    *
-   * `options` is not a `ListColumn` key, so it is not covered by the derived
-   * tombstone above; it is refused because it is not a member of any of the
-   * emit type's parts. Freshness is deliberately left in play here — that is
-   * genuinely the only reason a non-member is refused, so this directive still
-   * has exactly one cause.
+   * ⚠️ THE MECHANISM MOVED, and the history is the warning. As first written,
+   * this refusal rested on NON-MEMBERSHIP: `options` is not a `ListColumn`
+   * key (so the derived tombstone could never cover it), and it belonged to
+   * no part of the emit type, so excess-property freshness was "genuinely the
+   * only reason a non-member is refused". objectui#6425's maintainer ruling
+   * (2026-08-27) declared `options` on `TableColumn`, the key became a member
+   * here, and that enforcement ended SILENTLY — this directive turned
+   * TS2578-unused, which is luck, not design: a pin enforced by a key's
+   * non-membership stops enforcing the moment the key becomes a member.
+   * The refusal below is now caused by `ObjectGridRetiredOptionsTombstone`
+   * (`ObjectGrid.tsx`), an explicit `?: never` that bites by ASSIGNABILITY —
+   * one cause again, just a different one. #6004's verdict is unchanged.
    */
   it('the emit type refuses the retired `options` key', () => {
-    // @ts-expect-error objectui#6004 — `options` retired from this producer's emit.
-    const refused: ObjectGridColumnDraft = { header: 'S', accessorKey: 'stage', options: [] };
+    // Routed through a non-fresh value like the other tombstone pins, so the
+    // tombstone is the single cause — freshness cannot refuse a non-fresh
+    // source, and before the tombstone existed this exact assignment was the
+    // silent hole (a fresh literal still failed; the spread road was open).
+    const emitted: { header: string; accessorKey: string; options?: unknown[] } =
+      { header: 'S', accessorKey: 'stage', options: [] };
+    // @ts-expect-error objectui#6004/#6425 — `options` retired from this producer's emit, refused by the explicit tombstone.
+    const refused: ObjectGridColumnDraft = emitted;
     expect(refused.accessorKey).toBe('stage');
   });
 

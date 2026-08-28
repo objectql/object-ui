@@ -267,32 +267,55 @@ describe('objectui#3878 — the ten packs spell the ellipsis U+2026 and only U+2
  * first word, and the fix is a normalization rather than a choice of words.
  *
  * That matters because the split does NOT respect this group's boundary: pack
- * wide, the standalone participle is `جارٍ` ×90 against `جاري` ×10, and only 2 of
- * those 10 are in this group. Converging the 2 is what the ruling asks for and
- * is what this pin can hold; the other 8 (`grid.loading`, `grid.refreshing`,
- * `chart.loading`, `console.initializing`, `console.loadingSteps.*` ×3,
- * `console.actions.retrying`) are a wider normalization filed separately rather
- * than smuggled in here, the same way #3878 fenced off the per-package fallback
- * tables. Read this block's green as a statement about this group only.
+ * wide at the time of this pass, the standalone participle was `جارٍ` ×90 against
+ * `جاري` ×10, and only 2 of those 10 were in this group. Converging the 2 is
+ * what the ruling asks for and is what this pin can hold; the other 8
+ * (`grid.loading`, `grid.refreshing`, `chart.loading`, `console.initializing`,
+ * `console.loadingSteps.*` ×3, `console.actions.retrying`) were a wider
+ * normalization filed separately rather than smuggled in here, the same way
+ * #3878 fenced off the per-package fallback tables. Read this block's green as a
+ * statement about this group only.
  *
- * ## The `de` fork, and why it is exempted BY NAME
+ * objectui#6610 has since taken those 8, and the reason it could not simply
+ * widen this pin is worth recording next to it: this block *derives* its
+ * population from `en` (`value === LOADING_GROUP_EN`) and asserts the derived
+ * set is exactly `LOADING_GROUP`. None of the 8 has `Loading…` as its `en`
+ * value, so adding them here would have broken the derivation check that is this
+ * block's own anti-vacuity guard. The orthography split is a property of one
+ * pack's spelling rather than of a group of shared `en` strings, so it became a
+ * pack-wide invariant of its own in
+ * `ar-participle-orthography-6610.test.ts` — which also pins the three `ar`
+ * values where the yāʾ is grammatically CORRECT and must not be swept.
  *
- * `auth.device.loading` is `Lade…` and stays `Lade…`. It is not an oversight and
- * it is not this pass's to settle: it is the one member of the group whose
- * outlier spelling is coherent with its own screen. `apps/console`'s
- * `DeviceAuthPage.tsx` renders all three of that namespace's in-flight states,
- * and de writes all three in the same first-person voice — `Genehmige…`,
- * `Ablehne…`, `Lade…` — while `approving`/`denying` are OUTSIDE this group (their
- * `en` is `Approving…`/`Denying…`). Converging `loading` alone would leave that
- * one screen reading `Genehmige… / Ablehne… / Wird geladen…`: a new same-screen
- * inconsistency manufactured by the very pass meant to remove one. Resolving it
- * the other way — moving the whole namespace to the passive — is a copy-voice
- * decision over keys this card does not fence in.
+ * ## The `de` fork, and why it WAS exempted BY NAME (resolved by objectui#6611)
  *
- * So it is reported as a fork and pinned as an exemption. The pin asserts both
- * halves: the value, and that it still DIFFERS from the converged rendering. If
- * someone later converges it, this block goes red and the exemption row has to
- * be deleted — a deliberate act, which is the point.
+ * `auth.device.loading` used to be `Lade…`, held out of the group by name. It
+ * was not an oversight and was not this pass's to settle: it was the one
+ * member of the group whose outlier spelling was coherent with its own
+ * screen. `apps/console`'s `DeviceAuthPage.tsx` renders all three of that
+ * namespace's in-flight states, and de wrote all three in the same
+ * first-person voice — `Genehmige…`, `Ablehne…`, `Lade…` — while
+ * `approving`/`denying` are OUTSIDE this group (their `en` is
+ * `Approving…`/`Denying…`). Converging `loading` alone would have left that
+ * one screen reading `Genehmige… / Ablehne… / Wird geladen…`: a new
+ * same-screen inconsistency manufactured by the very pass meant to remove
+ * one. The alternative — moving the whole namespace to the passive — was a
+ * copy-voice decision over keys the #5972 card did not fence in, so #5972
+ * reported the fork instead of picking, and pinned it as a named exemption.
+ *
+ * objectui#6611 is that later decision: triage ruled toward the passive,
+ * measuring it as the pack's dominant in-flight register (roughly 37 of the
+ * pack's bare-gerund-`en` keys render `Wird …`, against the namespace's three
+ * first-person outliers). It also carried a second, independent defect —
+ * `Ablehne…` was not a grammatical German form at all (`ablehnen` is a
+ * separable-prefix verb; the first-person singular is *ich lehne ab*, not
+ * *ablehne*) — which meant either resolution direction had to touch it. The
+ * namespace converged (`Genehmige…` → `Wird genehmigt…`, `Ablehne…` →
+ * `Wird abgelehnt…`, `Lade…` → `Wird geladen…`), `auth.device.loading` is no
+ * longer an outlier, and the `LOADING_GROUP_FORKS` row above is gone. If a
+ * future edit reintroduces a per-language split in this group, this block
+ * goes red again, and a new named exemption is the deliberate way out — same
+ * as before.
  *
  * Contrast `approvalsInbox.loadingMore`, which the card floated as a possible
  * second fork (de `Lädt…`, ko `불러오는 중…`, on the theory that a *continuation*
@@ -331,10 +354,13 @@ const LOADING_GROUP = [
  * Members held OUT of the uniformity rule, with the reason. See the fork note
  * above. Exempting by name — rather than by loosening the rule — keeps the
  * waiver countable and makes removing it a visible edit.
+ *
+ * Empty as of objectui#6611, which resolved the one row this array ever held
+ * (`de`/`auth.device.loading`) by converging the whole `auth.device.*`
+ * namespace to the passive rather than by keeping the carve-out. See the
+ * resolved fork note above for why.
  */
-const LOADING_GROUP_FORKS: ReadonlyArray<{ lang: Lang; key: string; value: string }> = [
-  { lang: 'de', key: 'auth.device.loading', value: 'Lade…' },
-];
+const LOADING_GROUP_FORKS: ReadonlyArray<{ lang: Lang; key: string; value: string }> = [];
 
 describe('objectui#5972 — each pack renders the merged `Loading…` group exactly one way', () => {
   it('derives the group from en and finds exactly the ten keys pinned above', () => {
@@ -397,10 +423,19 @@ describe('objectui#5972 — each pack renders the merged `Loading…` group exac
   });
 
   it('pins the forked values so keeping them stays a deliberate act', () => {
-    // Both halves matter. The value pins what the fork actually says; the
-    // inequality pins that it is still a fork. Converge it later and this goes
-    // red until the row is removed, so the waiver cannot outlive its reason.
-    expect(LOADING_GROUP_FORKS).toHaveLength(1);
+    // Both halves matter, for whatever rows exist. The value pins what the
+    // fork actually says; the inequality pins that it is still a fork.
+    // Converge a row later and this goes red until it is removed, so a
+    // waiver cannot outlive its reason.
+    //
+    // Zero as of objectui#6611: the one row this array ever held (`de` /
+    // `auth.device.loading`) was resolved by converging the whole
+    // `auth.device.*` namespace to the passive rather than by keeping the
+    // carve-out — see the resolved fork note above LOADING_GROUP_FORKS.
+    // Pinning the count, rather than leaving this an unchecked no-op loop,
+    // means a row silently reappearing here still gets caught by name the
+    // next time this test is read, not just by the uniformity test above.
+    expect(LOADING_GROUP_FORKS).toHaveLength(0);
 
     for (const { lang, key, value } of LOADING_GROUP_FORKS) {
       const byKey = new Map(PACKS[lang]);
@@ -412,12 +447,5 @@ describe('objectui#5972 — each pack renders the merged `Loading…` group exac
         `${lang} ${key} now matches the converged rendering — delete its LOADING_GROUP_FORKS row`,
       ).not.toBe(converged);
     }
-
-    // The de first-person voice this fork is coherent with. Both keys are
-    // outside the group (their `en` is not `Loading…`), so nothing in this file
-    // rules on them; they are asserted because they are the fork's whole reason,
-    // and if they ever move to the passive the fork stops being justified.
-    expect(builtInLocales.de.auth.device.approving).toBe('Genehmige…');
-    expect(builtInLocales.de.auth.device.denying).toBe('Ablehne…');
   });
 });
