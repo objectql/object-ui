@@ -486,10 +486,12 @@ object schema once and infers the renderer from the bound field:
 | `percent` | `0%` / `0.0%` formatted (honour `format`) |
 
 Author overrides always win — pass `type`, `format`, `options`,
-`currency`, `referenceTo`, or your own `cell` function on a column to
-bypass auto-detection. An explicit `currency` (ISO 4217 code, e.g.
-`"EUR"`) wins over both the symbol inferred from `format` and the tenant
-default currency.
+`currency`, or your own `cell` function on a column to bypass
+auto-detection. An explicit `currency` (ISO 4217 code, e.g. `"EUR"`)
+wins over both the symbol inferred from `format` and the tenant default
+currency. A lookup column's related-object target always comes from the
+object schema's own field definition — there is no column-level override
+for it (objectui#6597: measured no authoring story for one).
 
 ```jsonc
 {

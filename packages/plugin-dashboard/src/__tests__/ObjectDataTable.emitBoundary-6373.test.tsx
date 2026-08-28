@@ -112,7 +112,13 @@ const HELD_ALIAS = 'name';
  * `TableColumn` itself (an authored value passes through `{ ...col }` as
  * declared metadata; the producer still never writes them out of
  * `fieldMeta`), three remain undeclared (`decimals` retired outright,
- * `referenceTo` held for objectui#6597, `label` objectui#5351's).
+ * `referenceTo` held for objectui#6597 at the time this ruling landed — that
+ * card has since measured no authoring story and retired it too, the same
+ * verdict as `decimals` — `label` objectui#5351's). The EMIT verdict for all
+ * three was already "retired" either way, so this array is unchanged by
+ * either later card: `decimals` and `referenceTo` moving from HELD/adjudicated
+ * to fully RETIRED `FieldMeta` members doesn't touch what this producer WRITES
+ * — it never wrote either from `fieldMeta` in the first place.
  */
 const RETIRED_FROM_EMIT_UNDECLARED = ['label', 'referenceTo', 'decimals'] as const;
 const RETIRED_FROM_EMIT_DECLARED = ['options', 'format', 'currency'] as const;
@@ -132,7 +138,12 @@ const accountSchema = {
       ],
     },
     amount: { type: 'currency', label: 'Amount', currency: 'USD', scale: 2 },
-    owner: { type: 'lookup', label: 'Owner', referenceTo: 'user' },
+    // Canonical spec spelling (`reference`, not the retired `referenceTo` —
+    // objectui#6597) — this field's `type: 'lookup'` is what drives
+    // `computeLookupExpand` and the render below; `reference` documents the
+    // target for a reader, but nothing in this package's `FieldMeta` pipeline
+    // consumes it (retired end to end by this card).
+    owner: { type: 'lookup', label: 'Owner', reference: 'user' },
   },
 };
 
@@ -214,10 +225,11 @@ describe('ObjectDataTable emits only what the columns slot declares (#6373)', ()
       // members unconditionally, so before this card every one of these keys
       // EXISTED on every emitted column — carrying `undefined` where the schema
       // said nothing, which is its own small lie about the shape. (It returned
-      // eight then and returns seven now: objectui#6625 retired `decimals` from
-      // `FieldMeta` itself, so that key can no longer be written from here even
-      // by accident. The verdict below is unchanged — it was already retired
-      // from the EMIT by this card.)
+      // eight originally, seven after objectui#6625 retired `decimals` from
+      // `FieldMeta` itself, and returns six now: objectui#6597 retired
+      // `referenceTo` from `FieldMeta` the same way. Neither key can be
+      // written from here even by accident any more. The verdict below is
+      // unchanged — both were already retired from the EMIT by this card.)
       for (const key of RETIRED) {
         expect(Object.keys(col), `${col.accessorKey}.${key}`).not.toContain(key);
       }
@@ -236,8 +248,17 @@ describe('ObjectDataTable emits only what the columns slot declares (#6373)', ()
     await waitFor(() => expect(screen.getByText('Acme')).toBeInTheDocument(), { timeout: 2000 });
     expect(screen.getByText('Technology')).toBeInTheDocument();
     expect(screen.queryByText('tech')).not.toBeInTheDocument();
-    // `referenceTo` / the lookup road: the expanded record renders its display
-    // name, not the raw FK id.
+    // The lookup road: the expanded record renders its display name, not the
+    // raw FK id. Note this does NOT exercise `referenceTo` — retired end to
+    // end by objectui#6597, and never read on this path even before the
+    // retirement (`ObjectDataTable.overrideSource-6425.test.tsx` measured
+    // that). `computeLookupExpand` expands `owner` off the schema field's
+    // `type: 'lookup'` alone, and the value arrives pre-expanded as
+    // `{ id, name }`; `resolveLookupRecordName` falls back to
+    // `pickRecordDisplayName`'s generic `.name`/`.title` heuristic when no
+    // `refSchema` is available (`useRefObjectSchema(referenceTo)` needs the
+    // reference target, which this producer never supplies) — no
+    // `reference_to` / `reference` needed for that fallback to resolve `Ada`.
     expect(screen.getByText('Ada')).toBeInTheDocument();
     expect(screen.queryByText('u1')).not.toBeInTheDocument();
   });
@@ -303,13 +324,14 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     // `Omit<FieldMeta, 'name' | 'type'>` spans the retired members: `name` is
     // the held alias, `type` carries #5853's own refusal. Since the #6425
     // ruling declared `format` / `options` / `currency` on `TableColumn`, the
-    // members still refused by the DERIVED tombstones are `label` and
-    // `referenceTo` — enough to keep this spread an error, and nothing but the
-    // tombstones refuses it. (`decimals` used to be a third; objectui#6625
-    // retired the `FieldMeta` member, so it is no longer spanned by this
-    // `Omit` at all. Its own refusal is pinned separately below, because a
-    // hand-written tombstone is now what carries it.)
-    // @ts-expect-error objectui#6373 — the still-tombstoned members are refused by the tombstones alone.
+    // member still refused by the DERIVED tombstone is `label` alone —
+    // enough to keep this spread an error, and nothing but the tombstone
+    // refuses it. (`decimals` and `referenceTo` used to widen this list too;
+    // objectui#6625 and objectui#6597 each retired the `FieldMeta` member, so
+    // neither is spanned by this `Omit` at all any more — `FieldMeta` itself
+    // no longer declares them. Their own refusals are pinned separately below,
+    // because hand-written tombstones are now what carry them.)
+    // @ts-expect-error objectui#6373 — the still-tombstoned member is refused by the tombstone alone.
     const retiredRefused: EnrichedColumn = { header: 'h', accessorKey: 'a', ...({} as Omit<FieldMeta, 'name' | 'type'>) };
     expect(retiredRefused.accessorKey).toBe('a');
   });
@@ -337,6 +359,17 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     // @ts-expect-error objectui#6373/#6425/#6625 — `decimals` refused by the explicit retired-key tombstone.
     const writtenRefused: EnrichedColumn = carriesDecimals;
     expect(writtenRefused.accessorKey).toBe('a');
+
+    // objectui#6597's sibling pin, same shape: `referenceTo` was HELD (via
+    // `ObjectDataTableColumnHolds`) at the time this file's `decimals` pin was
+    // written, so it could not carry a tombstone yet. It measured no
+    // authoring story and retired the `FieldMeta` member too, so it now needs
+    // the identical hand-written-source treatment `decimals` gets above.
+    const carriesReferenceTo: { header: string; accessorKey: string; referenceTo?: unknown } =
+      { header: 'h', accessorKey: 'a', referenceTo: 'account' };
+    // @ts-expect-error objectui#6373/#6597 — `referenceTo` refused by the explicit retired-key tombstone.
+    const referenceToWrittenRefused: EnrichedColumn = carriesReferenceTo;
+    expect(referenceToWrittenRefused.accessorKey).toBe('a');
   });
 
   it('the TOMBSTONE is what refuses the retired `decimals` at this emit', () => {
@@ -350,6 +383,21 @@ describe("the emit type can FAIL — otherwise the annotation is decoration (#63
     const carriesDecimals: { header: string; accessorKey: string; decimals?: number } =
       { header: 'h', accessorKey: 'a', decimals: 2 };
     const untombstoned: Omit<EnrichedColumn, 'decimals'> = carriesDecimals;
+    expect(untombstoned.accessorKey).toBe('a');
+  });
+
+  it('the TOMBSTONE is what refuses the retired `referenceTo` at this emit', () => {
+    // ⭐ objectui#6597's counter-control, built the same way as `decimals`'s
+    // above. `EnrichedColumn` minus the retired-key tombstone and nothing else
+    // ACCEPTS the very source the directive refuses — so the refusal is the
+    // tombstone's, not the derived band's (which no longer reaches
+    // `referenceTo`, since the key left `keyof FieldMeta`), not the
+    // excess-property check's (the source is not fresh), and not weak-type
+    // detection's (`header` / `accessorKey` are in common, and both are
+    // required here).
+    const carriesReferenceTo: { header: string; accessorKey: string; referenceTo?: unknown } =
+      { header: 'h', accessorKey: 'a', referenceTo: 'account' };
+    const untombstoned: Omit<EnrichedColumn, 'referenceTo'> = carriesReferenceTo;
     expect(untombstoned.accessorKey).toBe('a');
   });
 });

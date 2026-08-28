@@ -87,13 +87,34 @@ export const NUMERIC_FIELD_TYPES = new Set([
  * key, which is what the retired write resolved to anyway and what
  * `NumberCellRenderer` already reads (`precision` is the total digit count, a
  * different question — objectui#2131). ⛔ Do not resurrect `decimals`.
+ *
+ * ⛔ `referenceTo` was RETIRED from this type by objectui#6597 (enforce-or-remove,
+ * withdraw branch — maintainer's standing startup-stage rule, 2026-08-27: no
+ * measured demand retires immediately). It was documented by this package's
+ * README as an author-facing column override, but the promise was never kept:
+ * `LookupCellRenderer` (`@object-ui/fields`) resolves its lookup target from
+ * `field.reference_to` / `field.reference` — never `field.referenceTo` — and
+ * `computeLookupExpand` (`ObjectDataTable.tsx`) builds `$expand` from the OBJECT
+ * SCHEMA's field types, never from an authored override. Measured with the
+ * `referenceTo`-vs-`options` positive control in
+ * `ObjectDataTable.overrideSource-6425.test.tsx`: `options` (a live override)
+ * separates two equal-valued columns, `referenceTo` does not — an authored
+ * override renders byte-identical to its absence. No authoring story survived
+ * the search either: the sibling `ObjectGrid` producer's own relational-meta
+ * pass-through (`applyRelationalMeta`, `plugin-grid/src/ObjectGrid.tsx`) copies
+ * `reference_to` / `reference` from the SCHEMA field def only, never from an
+ * authored column override, and no example/doc/fixture in this repo shows a
+ * table column pinning a lookup's target to something other than what its
+ * schema field already says. If a reader for the resolved reference target is
+ * ever wanted here, it reads `reference_to` / `reference` off the schema field
+ * def directly — the spelling `LookupCellRenderer` and `computeLookupExpand`
+ * actually use. ⛔ Do not resurrect `referenceTo`.
  */
 export interface FieldMeta {
   name: string;
   label: string;
   type?: string;
   options?: Array<{ value: any; label: string; color?: string }>;
-  referenceTo?: unknown;
   format?: string;
   currency?: string;
 }
@@ -132,29 +153,25 @@ export interface BuildFieldMetaParams {
    * member (objectui#6625): its last feeder went when objectui#6425's ruling
    * removed the authored read from `ObjectDataTable.enrich()`, and
    * `RecordDetailDrawer` — the only other caller — passes no overrides at all.
+   * `referenceTo` left the same way (objectui#6597): `ObjectDataTable.enrich()`
+   * no longer reads it off the authored column, and `RecordDetailDrawer` never
+   * did.
    */
   overrides?: {
     type?: string;
     format?: string;
     options?: any;
-    referenceTo?: unknown;
     currency?: string;
   };
 }
 
 /**
- * Build the `FieldMeta` for a single field, resolving `referenceTo` and
- * currency from the schema field def and translating select options.
- * Column-level overrides win over schema-derived values.
+ * Build the `FieldMeta` for a single field, resolving currency from the
+ * schema field def and translating select options. Column-level overrides
+ * win over schema-derived values.
  */
 export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
   const { accessorKey, label, def: meta, objectName, fieldOptionLabel, overrides = {} } = params;
-
-  const referenceTo =
-    overrides.referenceTo ??
-    meta?.referenceTo ??
-    (typeof meta?.reference === 'string' ? meta.reference : meta?.reference?.to) ??
-    meta?.target;
 
   let options: Array<{ value: any; label: string; color?: string }> | undefined =
     overrides.options ?? meta?.options;
@@ -177,13 +194,19 @@ export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
     label,
     type: overrides.type ?? meta?.type,
     options,
-    referenceTo,
     format: overrides.format ?? meta?.format,
     currency: overrides.currency ?? meta?.currency ?? meta?.defaultCurrency,
     // ⛔ No `decimals` — RETIRED by objectui#6625. It resolved
     // `meta?.decimals ?? meta?.scale` on every call and reached no reader; the
     // `overrides.decimals ??` head of that chain had already lost its only
     // feeder to objectui#6425's ruling. A future reader reads `scale`.
+    //
+    // ⛔ No `referenceTo` — RETIRED by objectui#6597 (enforce-or-remove,
+    // withdraw). It resolved `overrides.referenceTo ?? meta?.referenceTo ??
+    // meta?.reference(.to) ?? meta?.target` on every call and reached no
+    // reader: `LookupCellRenderer` resolves its target from
+    // `reference_to` / `reference`, never this spelling. A future reader
+    // reads `reference_to` / `reference` off the schema field def.
   };
 }
 
