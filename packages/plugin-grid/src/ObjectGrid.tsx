@@ -544,10 +544,17 @@ function normalizeColumns(
  *
  * Verdicts, each with the read-count behind it:
  *
- *   - `headerIcon` — HELD. Live: `data-table.tsx` renders it into the header
- *     cell (2 reads). Whether `TableColumn` should DECLARE it is objectui#6424's
- *     call, not this card's; declared here at the seam meanwhile, so the hold is
- *     visible instead of anonymous.
+ *   - `headerIcon` — DECLARED by `TableColumn`, so NOT held. Live:
+ *     `data-table.tsx` renders it into the header cell (1 render site, 2
+ *     syntactic reads), forwarded verbatim and never re-expressed. It WAS held
+ *     here, on the "undeclared by `TableColumn`" premise; objectui#6615
+ *     declared it and that premise expired with nothing going red at the moment
+ *     of loss. objectui#6424 then removed the hold, MEASURED rather than
+ *     derived: with the member deleted both emit types below are byte-identical
+ *     (27 members, every member's resolved type unchanged), against a positive
+ *     control that deleting `pinned` instead moves them to 26. Pinned in
+ *     `columnHoldsExpiry-6424.test.ts` — which now also carries the claim the
+ *     hold used to carry implicitly, that `TableColumn` DECLARES the key.
  *   - `pinned` — HELD. Live, and consumed BEFORE the slot: the reorder pass
  *     below reads it (5 reads in this file) and re-expresses it as the sticky
  *     `className` that `data-table` actually reads. `data-table` never reads
@@ -594,11 +601,34 @@ function normalizeColumns(
  */
 export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>;
 
-/** The undeclared-but-live keys this producer holds. See the docblock above. */
+/**
+ * The undeclared-but-live keys this producer holds. See the docblock above.
+ *
+ * ⚠️ "Undeclared by `TableColumn`" is this interface's ENTRY CONDITION, and it
+ * is a claim about ANOTHER package that can stop being true with nothing going
+ * red here. So it is re-checked per key when the card owning that key closes,
+ * never inherited: `headerIcon` sat here on exactly that premise until
+ * objectui#6615 declared it on `TableColumn`, at which point the hold was
+ * redundant rather than load-bearing, and objectui#6424 removed it.
+ *
+ * ⛔ A key whose ONLY declaration on the emit types is this interface is not in
+ * that position — deleting it deletes the key from the emit. `pinned` is that
+ * key today, which is why the two verdicts differ.
+ */
 export interface ObjectGridColumnHolds {
-  /** HELD, objectui#6424 — `data-table` renders it; `TableColumn` does not declare it. */
-  headerIcon?: React.ReactNode;
-  /** HELD — consumed by this file's own reorder pass before the array reaches the slot. */
+  /**
+   * HELD, load-bearing on BOTH counts — the pair that has to hold for a hold to
+   * be real, and the contrast that made `headerIcon`'s removal safe:
+   *
+   *   1. `TableColumn` does NOT declare it, and `RetiredListColumnKey` carves it
+   *      out of the derived tombstone band, so this member is its ONLY
+   *      declaration on both emit types. Deleting it drops the key from them
+   *      (measured: 27 members → 26).
+   *   2. It has a live consumer BEFORE the slot — this file's own reorder pass
+   *      reads it and re-expresses it as the sticky `className` that
+   *      `data-table` actually reads. That is the "second road" the emit rule
+   *      demands before a key may be retired, and `wrap` failed it.
+   */
   pinned?: 'left' | 'right';
 }
 

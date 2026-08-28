@@ -139,19 +139,22 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
   });
 
   /**
-   * The HELD keys — the two `ObjectGridColumnHolds` still declares, which the
-   * emit type must therefore ACCEPT: a tombstone set that swallowed either
+   * Both keys the emit type must ACCEPT: a tombstone set that swallowed either
    * would be a behaviour change wearing a type change's clothes.
    *
-   * ⚠️ Their two holds no longer rest on the same footing, and that is
-   * objectui#6424's to settle rather than this pin's. `pinned` is undeclared by
-   * `TableColumn` and has a measured live reader — `ObjectGrid`'s own reorder
-   * pass, which consumes it before the array reaches the slot. `headerIcon` was
-   * held on the same "undeclared by `TableColumn`" premise, and that premise has
-   * since expired: `TableColumn` DOES declare it today
-   * (`packages/types/src/data-display.ts`), so its entry in
-   * `ObjectGridColumnHolds` is redundant rather than load-bearing. This test
-   * pins only that both are accepted, which is true either way.
+   * ⚠️ They no longer arrive by the same route, and objectui#6424 settled
+   * that. `pinned` is still HELD: undeclared by `TableColumn`, so
+   * `ObjectGridColumnHolds` is its only declaration on the emit types, AND it
+   * has a measured live reader — `ObjectGrid`'s own reorder pass, which
+   * consumes it before the array reaches the slot. `headerIcon` reaches the
+   * emit types through `TableColumn` itself: it was held on the same
+   * "undeclared by `TableColumn`" premise, objectui#6615 declared it
+   * (`packages/types/src/data-display.ts`) and the premise expired with nothing
+   * going red, so objectui#6424 removed the hold after measuring that both emit
+   * types are unchanged without it. So `ObjectGridColumnHolds` declares ONE key
+   * today, not two. This test pins only that both keys are accepted, which is
+   * true either way; the routes themselves are pinned in
+   * `columnHoldsExpiry-6424.test.ts`.
    *
    * ⚠️ There were three until objectui#5453. `wrap` was the third, and it was
    * held for a reason that was never "a live reader": the card that owned it
@@ -161,7 +164,7 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
    * open card is a hold with no evidence under it yet, and it should be
    * re-checked the moment the card closes rather than aging into a fact.
    */
-  it('accepts the two held keys — headerIcon, pinned', () => {
+  it('accepts headerIcon (via TableColumn) and pinned (via the hold)', () => {
     const held = { header: 'H', accessorKey: 'a', headerIcon: null, pinned: 'left' as const };
     const accepted: ObjectGridColumnDraft = held;
     expect(accepted.pinned).toBe('left');
