@@ -1,15 +1,16 @@
 ---
 '@object-ui/plugin-map': patch
-'@object-ui/plugin-tree': patch
 '@object-ui/plugin-calendar': patch
 '@object-ui/plugin-gantt': patch
 ---
 
-Re-key the load-bearing fetch effects in `ObjectMap`, `ObjectTree`,
-`ObjectCalendar` and `ObjectGantt` onto the primitive fields they actually
-read off `dataConfig` (`provider` / `object` / `items`) instead of the whole
-memoised `dataConfig` object (objectui#6592, the deferred half of
-objectui#6270/PR #6591).
+Re-key the load-bearing fetch effects in `ObjectMap`, `ObjectCalendar` and
+`ObjectGantt` onto the primitive fields they actually read off `dataConfig`
+(`provider` / `object` / `items`) instead of the whole memoised `dataConfig`
+object (objectui#6592, the deferred half of objectui#6270/PR #6591).
+`ObjectTree` is a census member too but is deferred out of this change — see
+the PR body — because its own fetch effects are the surface of PR #6696
+(objectui#6481), open at the same time.
 
 `useMemo` carries no semantic guarantee — React is permitted to discard a
 memo cache and recompute even when its dependency array compares equal to
