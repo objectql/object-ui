@@ -685,20 +685,15 @@ export {
   DESIGNER_FIELD_TYPES,
 } from './designer.js';
 
-// Retired-field-key tombstone registry — the single source for the designer
-// seam's per-site strip lists (objectui#6527).
-export type {
-  RetiredFieldKeySite,
-  RetiredFieldKeyTombstone,
-  RetiredFieldKey,
-  RetiredFieldKeysAt,
-} from './retired-field-keys.js';
-
-export {
-  RETIRED_FIELD_KEY_SITES,
-  RETIRED_FIELD_KEY_TOMBSTONES,
-  retiredFieldKeysFor,
-} from './retired-field-keys.js';
+// Retired-field-key tombstone registry (objectui#6527) is DELIBERATELY not
+// re-exported from this main barrel — ruled objectui#6527 option B
+// (maintainer, 2026-08-28). It lives at the dedicated internal subpath
+// `@object-ui/types/internal/retired-field-keys` instead: importing this
+// barrel eagerly evaluates every other module it re-exports (including
+// `spec-report.ts`'s read of `@objectstack/spec/ui`), and a registry export
+// added here widened that evaluation graph enough to break an unrelated
+// consumer's partial spec mock. A subpath import never pulls this barrel in.
+// See `packages/types/src/internal/retired-field-keys.ts` for the registry.
 
 // ============================================================================
 // API and Events - API Integration and Event Handling

@@ -31,8 +31,13 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { DESIGNER_FIELD_TYPES, retiredFieldKeysFor } from '@object-ui/types';
+import { DESIGNER_FIELD_TYPES } from '@object-ui/types';
 import type { DesignerFieldDefinition, DesignerFieldType } from '@object-ui/types';
+// The retired-field-key tombstone registry lives at a dedicated internal
+// subpath, not the main barrel — objectui#6527 option B (maintainer ruling,
+// 2026-08-28): a barrel import eagerly evaluates every other barrel member,
+// which widened an unrelated consumer's module graph under the prior shape.
+import { retiredFieldKeysFor } from '@object-ui/types/internal/retired-field-keys';
 import { MetadataClient, type MetadataClientConfig } from '@object-ui/data-objectstack';
 import { FieldDesigner } from './FieldDesigner';
 

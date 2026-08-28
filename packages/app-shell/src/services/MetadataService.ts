@@ -18,8 +18,12 @@
 
 import { stripReadDecorations } from '@objectstack/spec/kernel';
 import { viewItemObjectName, type ObjectStackAdapter } from '@object-ui/data-objectstack';
-import { retiredFieldKeysFor } from '@object-ui/types';
 import type { ObjectDefinition, DesignerFieldDefinition } from '@object-ui/types';
+// The retired-field-key tombstone registry lives at a dedicated internal
+// subpath, not the main barrel — objectui#6527 option B (maintainer ruling,
+// 2026-08-28): a barrel import eagerly evaluates every other barrel member,
+// which widened an unrelated consumer's module graph under the prior shape.
+import { retiredFieldKeysFor } from '@object-ui/types/internal/retired-field-keys';
 
 // ---------------------------------------------------------------------------
 // Types

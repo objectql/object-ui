@@ -17,7 +17,13 @@
  * {@link RETIRED_FIELD_KEYS} — see the note on that constant.
  */
 
-import { retiredFieldKeysFor } from '@object-ui/types';
+// The retired-field-key tombstone registry lives at a dedicated internal
+// subpath, not the main barrel — objectui#6527 option B (maintainer ruling,
+// 2026-08-28): a barrel import eagerly evaluates every other barrel member
+// (including `spec-report.ts`'s read of `@objectstack/spec/ui`), which is
+// what widened an unrelated test's partial mock into a suite failure under
+// the prior shape. A subpath import never pulls the barrel in.
+import { retiredFieldKeysFor } from '@object-ui/types/internal/retired-field-keys';
 
 import type { FieldTypeId } from './field-types.js';
 

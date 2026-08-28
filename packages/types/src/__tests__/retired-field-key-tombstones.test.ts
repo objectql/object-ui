@@ -44,11 +44,14 @@ import {
   RETIRED_FIELD_KEY_TOMBSTONES,
   retiredFieldKeysFor,
   type RetiredFieldKey,
-} from '../retired-field-keys.js';
+} from '../internal/retired-field-keys.js';
+// The bare-specifier subpath, exercised the way the three real consuming
+// sites reach the registry — objectui#6527 option B (maintainer ruling,
+// 2026-08-28): the registry is DELIBERATELY off the package's main barrel.
 import {
-  RETIRED_FIELD_KEY_TOMBSTONES as fromBarrel,
-  retiredFieldKeysFor as retiredFieldKeysForFromBarrel,
-} from '../index.js';
+  RETIRED_FIELD_KEY_TOMBSTONES as fromSubpath,
+  retiredFieldKeysFor as retiredFieldKeysForFromSubpath,
+} from '@object-ui/types/internal/retired-field-keys';
 
 /** An otherwise-green field — the positive control every probe rides on. */
 const BASE_FIELD = { name: 'amount', type: 'number', label: 'Amount' } as const;
@@ -227,11 +230,29 @@ describe('retired-field-key registry · hygiene', () => {
     }
   });
 
-  it('the registry and its derivation are exported from the package barrel', () => {
-    // The three strip sites import from `@object-ui/types`; a registry that
-    // fell out of the barrel would break them at build time, but this pin
-    // makes the wiring a stated fact rather than an accident.
-    expect(fromBarrel).toBe(RETIRED_FIELD_KEY_TOMBSTONES);
-    expect(retiredFieldKeysForFromBarrel).toBe(retiredFieldKeysFor);
+  it('the registry and its derivation are exported from the dedicated internal subpath', () => {
+    // The three strip sites import `@object-ui/types/internal/retired-field-keys`
+    // directly; a registry whose wiring fell off that subpath would break them
+    // at build time, but this pin makes the wiring a stated fact rather than
+    // an accident.
+    expect(fromSubpath).toBe(RETIRED_FIELD_KEY_TOMBSTONES);
+    expect(retiredFieldKeysForFromSubpath).toBe(retiredFieldKeysFor);
+  });
+
+  it('the registry is NOT exported from the main package barrel', async () => {
+    // objectui#6527 option B (maintainer ruling, 2026-08-28): the registry was
+    // deliberately un-exported from `@object-ui/types`'s main barrel. Importing
+    // that barrel eagerly evaluates every other module it re-exports —
+    // including `spec-report.ts`'s read of `@objectstack/spec/ui` — which is
+    // what widened an unrelated consumer's partial spec mock into a failed
+    // suite under the prior (option A) shape. This pin guards the regression:
+    // re-adding the re-export to `index.ts` turns it red.
+    // Type-only exports (`RetiredFieldKeySite` etc.) erase at runtime and
+    // cannot be probed this way; the compile-time half of this guard is the
+    // three consuming sites' own subpath imports failing to typecheck if the
+    // subpath's types ever moved, which is not this pin's job to duplicate.
+    const barrel: Record<string, unknown> = await import('../index.js');
+    expect('RETIRED_FIELD_KEY_TOMBSTONES' in barrel).toBe(false);
+    expect('retiredFieldKeysFor' in barrel).toBe(false);
   });
 });

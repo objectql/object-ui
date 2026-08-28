@@ -51,6 +51,10 @@
     "./zod": {
       "types": "./dist/zod/index.zod.d.ts",
       "import": "./dist/zod/index.zod.js"
+    },
+    "./internal/retired-field-keys": {
+      "types": "./dist/internal/retired-field-keys.d.ts",
+      "import": "./dist/internal/retired-field-keys.js"
     }
   },
   "files": [
