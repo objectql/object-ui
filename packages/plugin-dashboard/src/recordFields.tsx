@@ -65,6 +65,29 @@ export const NUMERIC_FIELD_TYPES = new Set([
   'currency', 'money', 'number', 'integer', 'decimal', 'float', 'percent', 'percentage',
 ]);
 
+/**
+ * The override vocabulary this package's two field surfaces share.
+ *
+ * ⚠️ This type is a DERIVATION SOURCE, not only a shape: `ObjectDataTable`'s
+ * two column bands are both `Exclude<keyof FieldMeta, …>` — `EnrichedColumn`'s
+ * write-side tombstones (objectui#6373) and `AuthoredColumnOverrides`' read-side
+ * refusal band (objectui#6425). So a member REMOVED here silently leaves both
+ * bands, and any refusal that rode on its membership stops enforcing with
+ * nothing going red. A member being retired must therefore be re-refused
+ * explicitly at that seam before it leaves this type — see
+ * `ObjectDataTableRetiredDecimalsTombstone` in `ObjectDataTable.tsx`, which is
+ * what `decimals` left behind.
+ *
+ * ⛔ `decimals` was RETIRED from this type by objectui#6625 — written from the
+ * schema def on every call and read by nothing (zero `.decimals` member reads
+ * across `@object-ui/fields`, `@object-ui/i18n`, `@object-ui/components`,
+ * `@object-ui/core` and this package, measured against a `.scale` positive
+ * control that hits `NumberField.tsx` / `GridField.tsx` / `index.tsx`). If a
+ * reader is ever wanted here it reads `scale` — the field def's decimal-places
+ * key, which is what the retired write resolved to anyway and what
+ * `NumberCellRenderer` already reads (`precision` is the total digit count, a
+ * different question — objectui#2131). ⛔ Do not resurrect `decimals`.
+ */
 export interface FieldMeta {
   name: string;
   label: string;
@@ -73,7 +96,6 @@ export interface FieldMeta {
   referenceTo?: unknown;
   format?: string;
   currency?: string;
-  decimals?: number;
 }
 
 /**
@@ -102,20 +124,27 @@ export interface BuildFieldMetaParams {
   objectName?: string;
   /** Translator for per-option labels (from `useSafeFieldLabel`). */
   fieldOptionLabel?: (objectName: string, field: string, value: string, fallback: string) => string;
-  /** Per-column overrides (table columns may pin type/format/options). */
+  /**
+   * Per-column overrides (table columns may pin type/format/options).
+   *
+   * A subset of {@link FieldMeta}, which is what makes that type the pool
+   * `ObjectDataTable`'s refusal band derives from. `decimals` left with the
+   * member (objectui#6625): its last feeder went when objectui#6425's ruling
+   * removed the authored read from `ObjectDataTable.enrich()`, and
+   * `RecordDetailDrawer` — the only other caller — passes no overrides at all.
+   */
   overrides?: {
     type?: string;
     format?: string;
     options?: any;
     referenceTo?: unknown;
     currency?: string;
-    decimals?: number;
   };
 }
 
 /**
- * Build the `FieldMeta` for a single field, resolving `referenceTo`, currency
- * and decimals from the schema field def and translating select options.
+ * Build the `FieldMeta` for a single field, resolving `referenceTo` and
+ * currency from the schema field def and translating select options.
  * Column-level overrides win over schema-derived values.
  */
 export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
@@ -151,8 +180,10 @@ export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
     referenceTo,
     format: overrides.format ?? meta?.format,
     currency: overrides.currency ?? meta?.currency ?? meta?.defaultCurrency,
-    // `scale` (decimal places), not `precision` (total digit count) — see #2131.
-    decimals: overrides.decimals ?? meta?.decimals ?? meta?.scale,
+    // ⛔ No `decimals` — RETIRED by objectui#6625. It resolved
+    // `meta?.decimals ?? meta?.scale` on every call and reached no reader; the
+    // `overrides.decimals ??` head of that chain had already lost its only
+    // feeder to objectui#6425's ruling. A future reader reads `scale`.
   };
 }
 

@@ -27,7 +27,9 @@
  * anything at all, so the ruling could be made on evidence. The maintainer
  * ruled per key on 2026-08-27 (objectui#6425): `format` / `options` /
  * `currency` DECLARED on `TableColumn` + its zod mirror; `decimals` RETIRED
- * immediately (the authored read is gone; the derived band refuses the key);
+ * immediately (the authored read is gone; the key is refused — since
+ * objectui#6625 by an explicit tombstone rather than by the derived band,
+ * because that card retired the `FieldMeta` member the band derived it from);
  * `referenceTo` ⛔ NOT declared as spelled — still HELD, owned by
  * objectui#6597. The measurements below are unchanged because the ruling did
  * not change behaviour; what changed is which artefact answers for each key.
@@ -137,6 +139,11 @@ describe('per-key liveness of the five undeclared overrides (#6425)', () => {
     // key — and this same pin now proves the retire itself changed nothing:
     // an authored `decimals` renders byte-identical to its absence, before
     // the read was removed and after.
+    //
+    // objectui#6625 extends what this same unchanged assertion covers: the
+    // `FieldMeta` MEMBER and `buildFieldMeta`'s schema-derived write are gone
+    // too, so this now also measures that removing the write changed no render
+    // — which is the whole behaviour claim of that card.
     const { a, b } = await renderPair(
       { a: { type: 'number' }, b: { type: 'number' } },
       { a: 3.14159, b: 3.14159 },
@@ -205,6 +212,9 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
     const bagCurrencyIsAny: IsAny<AuthoredBag['currency']> = true;
     const bagDecimalsIsAny: IsAny<AuthoredBag['decimals']> = true;
     const heldCurrencyIsAny: IsAny<AuthoredColumnOverrides['currency']> = false;
+    // Still INDEXABLE after objectui#6625 retired the `FieldMeta` member: the
+    // key is carried by the explicit tombstone now, so this stays a real
+    // measurement instead of becoming TS2339 on a key that stopped existing.
     const heldDecimalsIsAny: IsAny<AuthoredColumnOverrides['decimals']> = false;
     const heldReferenceToIsAny: IsAny<AuthoredColumnOverrides['referenceTo']> = false;
 
@@ -250,13 +260,38 @@ describe('the override reads are typed, and the band can FAIL (#6425)', () => {
     const nameRefused: AuthoredColumnOverrides = carriesName;
     expect(nameRefused.accessorKey).toBe('amount');
 
-    // `decimals` used to be HELD here; the ruling (2026-08-27) RETIRED it, so
-    // it fell into the derived band with no hand-edit to the band itself —
-    // removing the hold member IS the flip. This directive is the pin.
+    // `decimals` used to be HELD here; the ruling (2026-08-27) RETIRED it into
+    // the derived band. objectui#6625 then retired the `FieldMeta` MEMBER the
+    // band derived it from, so the key left the band's POOL — and the refusal
+    // is carried by `ObjectDataTableRetiredDecimalsTombstone` instead. ⚠️ The
+    // verdict and this directive are BOTH unchanged; only the artefact that
+    // enforces them moved. Without that tombstone this directive would have
+    // turned TS2578-unused — the pin going green because its subject stopped
+    // existing. The test below is the control that proves it did not.
     const carriesDecimals: { accessorKey: string; decimals?: number } = { accessorKey: 'amount' };
-    // @ts-expect-error objectui#6425 — `decimals` RETIRED into the derived refusal band.
+    // @ts-expect-error objectui#6425/#6625 — `decimals` refused by the explicit retired-key tombstone.
     const decimalsRefused: AuthoredColumnOverrides = carriesDecimals;
     expect(decimalsRefused.accessorKey).toBe('amount');
+  });
+
+  it('the TOMBSTONE is what refuses `decimals` — not the band, not freshness', () => {
+    // ⭐ objectui#6625's counter-control, built the same way as the band's
+    // control below. `Omit<…, 'decimals'>` is `AuthoredColumnOverrides` minus
+    // the retired-key tombstone and nothing else, and it ACCEPTS the very
+    // source the directive above refuses. So the refusal comes from the
+    // tombstone:
+    //  - not from the DERIVED band, which cannot reach `decimals` any more —
+    //    the key is no longer a `FieldMeta` member, so it is out of the pool
+    //    `UnheldFieldMetaOverrideKey` excludes from;
+    //  - not from the excess-property check, because the source is a VARIABLE,
+    //    not a fresh literal;
+    //  - not from weak-type detection, because `accessorKey` is in common.
+    // Delete the tombstone and this assignment still compiles while the
+    // directive above turns TS2578 — which is exactly the blindness this card
+    // existed to prevent, made observable in one file.
+    const carriesDecimals: { accessorKey: string; decimals?: number } = { accessorKey: 'amount' };
+    const untombstoned: Omit<AuthoredColumnOverrides, 'decimals'> = carriesDecimals;
+    expect(untombstoned.accessorKey).toBe('amount');
   });
 
   it('the same source is ACCEPTED by the holds without the band', () => {

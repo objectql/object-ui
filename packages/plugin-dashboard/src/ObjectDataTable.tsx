@@ -131,6 +131,43 @@ interface NormalizedColumn {
  * seam instead of arriving anonymously inside a spread. When #5120 retires the
  * consumer alias, this member becomes a tombstone with it.
  */
+/**
+ * ⭐ `decimals` — RETIRED from `FieldMeta` ITSELF (objectui#6625), and this
+ * hand-written tombstone is now the ONLY enforcement of that key's refusal at
+ * BOTH halves of this seam. ⛔ Do not "tidy" it away as redundant.
+ *
+ * Until objectui#6625 the key needed no tombstone: it was a `FieldMeta` member,
+ * so BOTH bands below — {@link EnrichedColumn}'s write-side tombstones
+ * (objectui#6373) and {@link UnheldFieldMetaOverrideKey}'s read-side refusal
+ * (objectui#6425) — derived it for free. Refusal by MEMBERSHIP. #6625 then
+ * retired the member (written from the schema def, read by nothing), which
+ * removed it from `keyof FieldMeta` and silently ended that enforcement at both
+ * ends. Nothing would have gone red at the moment of loss: on the read side the
+ * suite's `@ts-expect-error` would merely have turned TS2578-unused, and on the
+ * write side the hand-written pin would have gone on passing on the
+ * excess-property check alone — a pin passing because its subject stopped
+ * existing.
+ *
+ * This is the exact mirror of the rule `ObjectGrid`'s sibling tombstone
+ * records (`ObjectGridRetiredOptionsTombstone`, objectui#6425): *a pin enforced
+ * by a key's non-membership silently stops enforcing the moment the key becomes
+ * a member.* Read from this end: **a refusal DERIVED from a key's membership
+ * silently stops enforcing the moment that member is deleted.** Same seam, same
+ * blindness, opposite direction — which is why the retirement had to be
+ * re-stated by hand rather than inherited.
+ *
+ * objectui#6425's verdict is unchanged — no reader for an authored `decimals`
+ * existed then and none exists now — and so is the runtime behaviour: the value
+ * the retired `buildFieldMeta` write resolved reached nothing. Only the
+ * refusal's mechanism moves, from derived to hand-written. It is intersected
+ * into BOTH types below, because the retirement belongs to the SEAM, not to one
+ * of its two halves — the same reason `ObjectGrid` intersects its own tombstone
+ * into both its draft and its post-fold column. ⭐ A future reader for decimal
+ * places reads `scale`, never this key (objectui#6625; `NumberCellRenderer`
+ * already does).
+ */
+type ObjectDataTableRetiredDecimalsTombstone = { decimals?: never };
+
 export type EnrichedColumn =
   TableColumn
   /** HELD alias, objectui#5120 — see above. Not declared by `TableColumn`. */
@@ -138,7 +175,8 @@ export type EnrichedColumn =
   /** RETIRED at this emit seam, objectui#6373 — derived, never hand-listed, so
    *  a future `FieldMeta` member is tombstoned by default and has to be
    *  adjudicated to escape. */
-  & { [K in Exclude<keyof FieldMeta, keyof TableColumn | 'name'>]?: never };
+  & { [K in Exclude<keyof FieldMeta, keyof TableColumn | 'name'>]?: never }
+  & ObjectDataTableRetiredDecimalsTombstone;
 
 /**
  * What this widget's column producer is allowed to READ off the AUTHORED
@@ -167,8 +205,10 @@ export type EnrichedColumn =
  *  - `currency` — DECLARED (kept in production, never promised before;
  *    declaring makes the existing behaviour honest). Same `Pick`.
  *  - `decimals` — RETIRED, immediately (neither promised nor kept: zero
- *    readers measured, and the authored read below is gone). The derived
- *    band now refuses it like any other unadjudicated `FieldMeta` member.
+ *    readers measured, and the authored read below is gone). Refused by
+ *    {@link ObjectDataTableRetiredDecimalsTombstone} since objectui#6625
+ *    retired the `FieldMeta` member itself and took the key out of the derived
+ *    band's pool; the verdict is unchanged, only its mechanism moved.
  *  - `referenceTo` — ⛔ NOT declared as spelled; still HELD, owned by
  *    objectui#6597 (the enforce-or-remove channel: fix the spelling chain so
  *    the promise becomes real, or withdraw the README line).
@@ -182,8 +222,12 @@ export type EnrichedColumn =
  * `FieldMeta` is the override vocabulary — `buildFieldMeta`'s `overrides` is a
  * subset of it — so it is the pool a new tolerance would come from, and the
  * same pool {@link EnrichedColumn}'s tombstones derive from. Deriving means a
- * seventh `FieldMeta` member is refused here on the day it is added, without
- * anyone remembering to extend a hand-written list.
+ * NEW `FieldMeta` member is refused here on the day it is added, without
+ * anyone remembering to extend a hand-written list. (Stated without a count on
+ * purpose: it read "a seventh" while the type had eight members, and
+ * objectui#6625 has since retired one. The property is that ADDING is covered
+ * by derivation — ⚠️ REMOVING is not, which is why that card had to leave
+ * {@link ObjectDataTableRetiredDecimalsTombstone} behind by hand.)
  *
  * ⚠️ It derives from the OVERRIDE VOCABULARY, not from the authored input
  * type, and that difference is forced rather than stylistic. `plugin-grid`'s
@@ -230,7 +274,9 @@ export type EnrichedColumn =
  * left: objectui#6425's ruling (maintainer, 2026-08-27) declared `format` /
  * `options` / `currency` on `TableColumn` itself (they are read via
  * `Pick<TableColumn, …>` below, no hold needed) and retired `decimals`
- * outright (the derived band refuses it now).
+ * outright — refused by {@link ObjectDataTableRetiredDecimalsTombstone} since
+ * objectui#6625 retired the `FieldMeta` member that used to carry it into the
+ * derived band.
  */
 export interface ObjectDataTableColumnHolds {
   /**
@@ -253,9 +299,20 @@ export interface ObjectDataTableColumnHolds {
  * {@link ObjectDataTableColumnHolds} to escape. Keys `TableColumn` declares
  * leave the pool by declaration: `type` (objectui#5853 owns its VALUE set,
  * folded below by `normalizeTableColumnType`) and, since objectui#6425's
- * ruling, `format` / `options` / `currency`. `decimals` is the member the
- * same ruling RETIRED — it lands here, refused at the read site, which is
- * exactly the "held-band verdict flips to RETIRED" the ruling asked for.
+ * ruling, `format` / `options` / `currency`.
+ *
+ * ⚠️ `decimals` USED TO land here — that is how objectui#6425's ruling was
+ * enforced at the read site. It no longer can: objectui#6625 retired the
+ * `FieldMeta` member itself, so the key is out of this Exclude's POOL rather
+ * than out of its exclusion list, and a derived band cannot refuse a key that
+ * is not in what it derives from. The refusal is carried by
+ * {@link ObjectDataTableRetiredDecimalsTombstone} instead, intersected below.
+ * ⛔ Do not read this band's silence about `decimals` as a softening — the two
+ * artefacts together are the same verdict, unchanged since 2026-08-27.
+ *
+ * The pool is what shrank, so what THIS band still refuses is `name` and
+ * `label` — both of them `FieldMeta` members with answers this seam already
+ * has (see the docblock above).
  */
 export type UnheldFieldMetaOverrideKey =
   Exclude<keyof FieldMeta, keyof TableColumn | keyof ObjectDataTableColumnHolds>;
@@ -271,7 +328,10 @@ export type AuthoredColumnOverrides =
    *  their published types, straight off the declaration. */
   & Pick<TableColumn, 'format' | 'options' | 'currency'>
   & ObjectDataTableColumnHolds
-  & { [K in UnheldFieldMetaOverrideKey]?: never };
+  & { [K in UnheldFieldMetaOverrideKey]?: never }
+  /** RETIRED, objectui#6425's verdict — re-stated by hand because objectui#6625
+   *  took the key out of the derived band's pool. See the tombstone's docblock. */
+  & ObjectDataTableRetiredDecimalsTombstone;
 
 /**
  * Shared empty fallback for the resolved row list (objectui#4629).
