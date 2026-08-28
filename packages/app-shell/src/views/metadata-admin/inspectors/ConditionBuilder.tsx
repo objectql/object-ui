@@ -28,7 +28,12 @@ import { t, useMetadataLocale } from '../i18n.js';
 
 type Op = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'truthy' | 'falsy';
 
-interface Row { subject: string; op: Op; value: string }
+/** The quote character a string literal was authored with. Remembered per row
+ *  so the builder re-emits the author's own spelling instead of normalising it
+ *  (objectui#6296) — see {@link fmtValue}. */
+type Quote = '"' | "'";
+
+interface Row { subject: string; op: Op; value: string; quote?: Quote }
 
 const COMPARE_OPS: Array<{ value: Op; label: string }> = [
   { value: '==', label: 'equals' },
@@ -41,6 +46,11 @@ const COMPARE_OPS: Array<{ value: Op; label: string }> = [
   { value: 'falsy', label: 'is empty / false' },
 ];
 
+/**
+ * The context subjects a record-scoped mount site binds. This is the DEFAULT
+ * vocabulary — a caller that binds something else declares it via
+ * {@link ConditionSubjectVocabulary.context}.
+ */
 const CONTEXT_SUBJECTS = [
   { value: 'record.id', label: 'record.id' },
   { value: 'user.id', label: 'user.id' },
@@ -51,6 +61,44 @@ const CONTEXT_SUBJECTS = [
 ];
 
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/**
+ * The subject vocabulary a mount site binds (objectui#6296).
+ *
+ * The builder used to hardcode one: `record.` + field name, plus `record.id` /
+ * `user.*` / `org.*`. That is right for every RECORD-scoped site — which is
+ * all five that mount it today — and wrong for a FLATTENED-scoped one such as
+ * the flow designer's entry condition, where the trigger record's fields ARE
+ * the top-level evaluation context (bare `status`) and the prior values arrive
+ * as `previous.FIELD`. See `flow-scope.ts`, which already computes exactly
+ * this shape (`fieldPrefix: onStart ? '' : 'record.'`, `includePrevious`), and
+ * objectstack's `packages/formula/src/validate.ts` for the two scopes.
+ *
+ * Declared, not inferred: the component never guesses a site's scope from the
+ * value it is handed. A caller that declares nothing gets the record-scoped
+ * default, unchanged.
+ */
+export interface ConditionSubjectVocabulary {
+  /**
+   * Prefix put in front of each catalog field name. Defaults to `'record.'`.
+   * Pass `''` to declare a flattened scope, where bare `status` is the subject.
+   */
+  fieldPrefix?: string;
+  /**
+   * Also offer `previous.FIELD` for each catalog field, plus the whole-record
+   * `previous` token — which is what makes the create-path idiom
+   * `previous == null` selectable rather than something the author has to
+   * recall from help text. Defaults to `false`.
+   */
+  includePrevious?: boolean;
+  /**
+   * Replace the context subjects. Defaults to {@link CONTEXT_SUBJECTS}. A
+   * flattened site passes its own list rather than inheriting `record.id`,
+   * whose root that site does not bind — offering it would make this editor
+   * emit the one spelling its own sibling ref-check flags as out of scope.
+   */
+  context?: ReadonlyArray<{ value: string; label?: string }>;
+}
 
 /**
  * Scope roots a value typed into the value box may plainly REFERENCE, rather
@@ -105,12 +153,18 @@ const REFERENCE_RE = new RegExp(
  * any layer. Emitting the reference is also what makes it CHECKABLE: it is now
  * an identifier those existing checkers can see.
  */
-function fmtValue(v: string): string {
+function fmtValue(v: string, quote: Quote = "'"): string {
   const t = v.trim();
   if (t === 'true' || t === 'false' || t === 'null') return t;
   if (t !== '' && !Number.isNaN(Number(t))) return t;
   if (REFERENCE_RE.test(t)) return t;
-  return `'${t.replace(/'/g, "\\'")}'`;
+  // `quote` defaults to the single quote this function has always emitted, so
+  // a row the author built here — and every row parsed from single-quoted CEL
+  // — is byte-for-byte what it was before objectui#6296. Only a row parsed
+  // from a DOUBLE-quoted literal carries `"`, and those did not reach row mode
+  // at all until this change.
+  const esc = quote === "'" ? t.replace(/'/g, "\\'") : t.replace(/"/g, '\\"');
+  return `${quote}${esc}${quote}`;
 }
 
 /**
@@ -118,11 +172,17 @@ function fmtValue(v: string): string {
  * quotes to strip and passes through unchanged, which is what keeps an emitted
  * `previous == previous.status` round-tripping back into the row builder.
  */
-function unfmtValue(raw: string): string {
+function unfmtValue(raw: string): { value: string; quote?: Quote } {
   const t = raw.trim();
-  const m = /^'(.*)'$/.exec(t);
-  if (m) return m[1].replace(/\\'/g, "'");
-  return t;
+  const sq = /^'(.*)'$/.exec(t);
+  if (sq) return { value: sq[1].replace(/\\'/g, "'"), quote: "'" };
+  // Double-quoted literals are the spelling every shipped flow-entry condition
+  // uses, and the field's own placeholder teaches. Stripping only single
+  // quotes while re-emitting only single quotes meant they could never
+  // round-trip, so they were handed to the raw editor (objectui#6296).
+  const dq = /^"(.*)"$/.exec(t);
+  if (dq) return { value: dq[1].replace(/\\"/g, '"'), quote: '"' };
+  return { value: t };
 }
 
 /** Compile rows → CEL. Rows without a subject are skipped (in-progress). */
@@ -132,7 +192,7 @@ function compile(rows: Row[], join: '&&' | '||'): string {
     .map((r) => {
       if (r.op === 'truthy') return r.subject;
       if (r.op === 'falsy') return `!${r.subject}`;
-      return `${r.subject} ${r.op} ${fmtValue(r.value)}`;
+      return `${r.subject} ${r.op} ${fmtValue(r.value, r.quote)}`;
     })
     .join(` ${join} `);
 }
@@ -149,7 +209,11 @@ function parse(expr: string): { rows: Row[]; join: '&&' | '||' } | null {
   const rows: Row[] = [];
   for (const p of parts) {
     const cmp = /^([a-zA-Z_][\w.]*)\s*(==|!=|>=|<=|>|<)\s*(.+)$/.exec(p);
-    if (cmp) { rows.push({ subject: cmp[1], op: cmp[2] as Op, value: unfmtValue(cmp[3]) }); continue; }
+    if (cmp) {
+      const v = unfmtValue(cmp[3]);
+      rows.push({ subject: cmp[1], op: cmp[2] as Op, value: v.value, quote: v.quote });
+      continue;
+    }
     const neg = /^!\s*([a-zA-Z_][\w.]*)$/.exec(p);
     if (neg) { rows.push({ subject: neg[1], op: 'falsy', value: '' }); continue; }
     const truthy = /^([a-zA-Z_][\w.]*)$/.exec(p);
@@ -167,7 +231,7 @@ function initFrom(value: string): { rows: Row[]; join: '&&' | '||'; raw: boolean
   return { rows: [], join: '&&', raw: !!value };
 }
 
-export function ConditionBuilder({ label, value, onCommit, objectName, fields: fieldsProp, disabled, onBlockingIssuesChange }: {
+export function ConditionBuilder({ label, value, onCommit, objectName, fields: fieldsProp, disabled, onBlockingIssuesChange, subjects }: {
   label?: string;
   value: string;
   onCommit: (cel: string) => void;
@@ -187,15 +251,35 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
    * the aggregate changes, `0` when everything is clean.
    */
   onBlockingIssuesChange?: (count: number) => void;
+  /**
+   * What this mount site's subjects are called (objectui#6296). Omit for the
+   * record-scoped default every existing consumer relies on.
+   */
+  subjects?: ConditionSubjectVocabulary;
 }) {
   const { fields: hookFields } = useObjectFields(objectName);
   const fields = fieldsProp ?? hookFields;
+  const fieldPrefix = subjects?.fieldPrefix ?? 'record.';
+  const includePrevious = subjects?.includePrevious ?? false;
+  const contextSubjects = subjects?.context ?? CONTEXT_SUBJECTS;
   const subjectOptions = React.useMemo(() => {
-    const fieldOpts = fields
-      .filter((f) => !f.hidden)
-      .map((f) => ({ value: `record.${f.name}`, label: `record.${f.name}` }));
-    return [...fieldOpts, ...CONTEXT_SUBJECTS];
-  }, [fields]);
+    const visible = fields.filter((f) => !f.hidden);
+    const fieldOpts = visible.map((f) => ({
+      value: `${fieldPrefix}${f.name}`,
+      label: `${fieldPrefix}${f.name}`,
+    }));
+    // The whole-record `previous` comes first: `previous == null` is how an
+    // author branches on the create leg of a create-or-update trigger, and it
+    // reads as the head of the group rather than as one more field.
+    const previousOpts = includePrevious
+      ? [
+          { value: 'previous', label: 'previous' },
+          ...visible.map((f) => ({ value: `previous.${f.name}`, label: `previous.${f.name}` })),
+        ]
+      : [];
+    const contextOpts = contextSubjects.map((c) => ({ value: c.value, label: c.label ?? c.value }));
+    return [...fieldOpts, ...previousOpts, ...contextOpts];
+  }, [fields, fieldPrefix, includePrevious, contextSubjects]);
   // The raw-expression editor's CEL assists (#1582): field-existence lint +
   // autocomplete need the bare field-name catalog and a locale-bound `t`.
   const locale = useMetadataLocale();
