@@ -71,6 +71,7 @@ const domTsTests = [
   'packages/react/src/hooks/__tests__/useDataRefresh.test.ts',
   'packages/react/src/hooks/__tests__/useExpression.test.ts',
   'packages/react/src/hooks/__tests__/useRecordSearch.test.ts',
+  'packages/react/src/hooks/__tests__/useSettledSchema.test.ts',
 ];
 
 // Test files that render through the ComponentRegistry and therefore need the

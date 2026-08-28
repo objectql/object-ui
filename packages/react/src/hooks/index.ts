@@ -49,3 +49,7 @@ export * from './useDatasetDimensionLabels.js';
 export * from './useDataRefresh.js';
 export * from './usePageAssignment.js';
 export * from './useRecordSearch.js';
+// The settled-schema RESOLUTION half shared across ObjectKanban / ObjectView /
+// ObjectCalendar's hand copies (objectui#6482, maintainer ruling Option A).
+// Gate PLACEMENT stays per-component — see the hook's own doc comment.
+export * from './useSettledSchema.js';
