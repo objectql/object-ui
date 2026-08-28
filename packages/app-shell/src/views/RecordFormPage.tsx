@@ -40,7 +40,7 @@ import { useAdapter } from '../providers/AdapterProvider.js';
 import {
   ExpressionProvider,
   createExpressionEvaluator,
-  isFieldVisible,
+  isObjectFieldVisible,
 } from '../providers/ExpressionProvider.js';
 import { buildExpressionUser } from '../providers/expressionUser.js';
 import { SkeletonDetail } from '../skeletons/index.js';
@@ -223,7 +223,7 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   // not an alias). The gate was therefore unreachable through the authoring
   // surface: metadata carrying a field-level `visible` never validates, and a
   // census over the framework's 113 `*.object.*` files found zero of them.
-  // `isFieldVisible` reads the DECLARED keys instead — the static `hidden`
+  // `isObjectFieldVisible` reads the DECLARED keys instead — the static `hidden`
   // (INVERTED: `visible: false` is `hidden: true`) and the `visibleWhen`
   // predicate — and the dead read is gone rather than kept alongside.
   const fields = useMemo(() => {
@@ -232,12 +232,12 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
       return (objectDef.fields as any[])
         .filter((f: any) => {
           if (typeof f === 'string') return true;
-          return isFieldVisible(f, expressionEvaluator);
+          return isObjectFieldVisible(f, expressionEvaluator);
         })
         .map((f: any) => (typeof f === 'string' ? f : f.name));
     }
     return Object.entries(objectDef.fields as Record<string, any>)
-      .filter(([, f]) => isFieldVisible(f, expressionEvaluator))
+      .filter(([, f]) => isObjectFieldVisible(f, expressionEvaluator))
       .map(([key]) => key);
   }, [objectDef, expressionEvaluator]);
 

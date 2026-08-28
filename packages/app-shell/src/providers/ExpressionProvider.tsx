@@ -319,6 +319,16 @@ export interface FieldVisibilityDeclaration {
 /**
  * Should this object field be rendered? — the app-shell's field-list gate.
  *
+ * The name is `isObjectFieldVisible` and not the shorter `isFieldVisible`,
+ * because that shorter name is twice taken in this repo by functions answering
+ * different questions: `views/metadata-admin/inspectors/flow-node-config.ts`
+ * gates a flow node's CONFIG inputs on the node's type, and `apps/console`'s
+ * `FormPage` evaluates the VIEW-level field predicate — "different authoring
+ * slots with different owners", in that file's own words. Neither reads an
+ * object field's declared metadata keys, which is the only thing this one does;
+ * one shared name across the three would blur exactly the distinction those
+ * files keep.
+ *
  * ## The keys, and the one that is NOT read
  *
  * Both call sites (`RecordFormPage`, and `AppContent`'s global record-form
@@ -348,7 +358,7 @@ export interface FieldVisibilityDeclaration {
  * this tier (objectui#6443 / #6487) — unchanged. Per-user field hiding is the
  * option/form layers' job, because those bind the user.
  */
-export function isFieldVisible(
+export function isObjectFieldVisible(
   field: FieldVisibilityDeclaration | undefined,
   evaluator: ExpressionEvaluator,
 ): boolean {

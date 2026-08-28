@@ -25,7 +25,7 @@ import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState.js';
 import {
   ExpressionProvider,
   createExpressionEvaluator,
-  isFieldVisible,
+  isObjectFieldVisible,
 } from '../providers/ExpressionProvider.js';
 import { buildExpressionUser } from '../providers/expressionUser.js';
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent.js';
@@ -1084,7 +1084,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 // objectui#6514 — the same declared-key gate `RecordFormPage`
                 // runs, through the same helper. This read `f.visible`, a key
                 // `FieldSchema` refuses by name, so nothing an author could
-                // legally write ever reached it; `isFieldVisible` reads the
+                // legally write ever reached it; `isObjectFieldVisible` reads the
                 // static `hidden` (INVERTED) and the `visibleWhen` predicate,
                 // and the dead read is deleted rather than kept beside them.
                 fields: formObjectDef.fields
@@ -1092,11 +1092,11 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                       ? formObjectDef.fields
                           .filter((f: any) => {
                             if (typeof f === 'string') return true;
-                            return isFieldVisible(f, expressionEvaluator);
+                            return isObjectFieldVisible(f, expressionEvaluator);
                           })
                           .map((f: any) => typeof f === 'string' ? f : f.name)
                       : Object.entries(formObjectDef.fields)
-                          .filter(([_, f]: [string, any]) => isFieldVisible(f, expressionEvaluator))
+                          .filter(([_, f]: [string, any]) => isObjectFieldVisible(f, expressionEvaluator))
                           .map(([key]: [string, any]) => key))
                   : [],
                 onSuccess: handleRecordFormSuccess,
