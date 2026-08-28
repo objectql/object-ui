@@ -98,7 +98,7 @@ const field: LocationFieldMetadata = {
 };
 
 export function StoreLocationInput() {
-  const [value, setValue] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [value, setValue] = useState<{ lat: number; lng: number } | null>(null);
   return <LocationField field={field} value={value} onChange={setValue} />;
 }
 ```

@@ -163,11 +163,19 @@ describe('InlineFieldInput — structured composite values (objectui#4216)', () 
   });
 
   describe('location', () => {
+  // ⚠️ `location` values here are the SPEC spelling `{ lat, lng }`
+  // (objectui#6272). `@objectstack/spec/data` exports `LocationValue = { lat,
+  // lng, altitude?, accuracy? }` as canonical and `valueSchemaFor({ type:
+  // 'location' })` REJECTS `{ latitude, longitude }`, so these assertions used
+  // to pin — on both the read and the produce side — a shape the platform's own
+  // contract refuses. `geolocation` below is deliberately NOT the same case: it
+  // is not a member of the spec's closed `FieldType` union, so it keeps its own
+  // `{ latitude, longitude }` value shape.
     it('renders the coordinate pair, never "[Object]"', () => {
       render(
         <InlineFieldInput
           field={{ name: 'site', type: 'location' }}
-          value={{ latitude: 37.7749, longitude: -122.4194 }}
+          value={{ lat: 37.7749, lng: -122.4194 }}
           onChange={vi.fn()}
         />,
       );
@@ -180,7 +188,7 @@ describe('InlineFieldInput — structured composite values (objectui#4216)', () 
       render(
         <InlineFieldInput
           field={{ name: 'site', type: 'location' }}
-          value={{ latitude: 37.7749, longitude: -122.4194 }}
+          value={{ lat: 37.7749, lng: -122.4194 }}
           onChange={onChange}
         />,
       );
@@ -190,7 +198,7 @@ describe('InlineFieldInput — structured composite values (objectui#4216)', () 
       expect(onChange).toHaveBeenCalledTimes(1);
       const next = onChange.mock.calls[0][0];
       expect(typeof next).toBe('object');
-      expect(next).toEqual({ latitude: 40.7128, longitude: -74.006 });
+      expect(next).toEqual({ lat: 40.7128, lng: -74.006 });
     });
 
     it('never emits a bare STRING that replaces the whole object', () => {
@@ -198,7 +206,7 @@ describe('InlineFieldInput — structured composite values (objectui#4216)', () 
       const { container } = render(
         <InlineFieldInput
           field={{ name: 'site', type: 'location' }}
-          value={{ latitude: 37.7749, longitude: -122.4194 }}
+          value={{ lat: 37.7749, lng: -122.4194 }}
           onChange={onChange}
         />,
       );
