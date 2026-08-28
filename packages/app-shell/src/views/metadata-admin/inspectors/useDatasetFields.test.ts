@@ -23,16 +23,45 @@ describe('resolveLabel', () => {
 });
 
 describe('resolveReferenceTo', () => {
-  it('reads string / camel / snake variants', () => {
-    expect(resolveReferenceTo({ reference: 'account' })).toBe('account'); // framework lookup shape
-    expect(resolveReferenceTo({ reference_to: 'account' })).toBe('account');
-    expect(resolveReferenceTo({ referenceTo: 'account' })).toBe('account');
-    expect(resolveReferenceTo({ reference_to_object: 'account' })).toBe('account');
+  it('reads the spec spelling `reference`', () => {
+    expect(resolveReferenceTo({ reference: 'account' })).toBe('account');
   });
-  it('reads array + object shapes', () => {
-    expect(resolveReferenceTo({ reference_to: ['account', 'lead'] })).toBe('account');
-    expect(resolveReferenceTo({ reference_to: { object: 'account' } })).toBe('account');
+
+  it('reads array + object carriers off `reference`', () => {
+    // The CARRIER (bare name / one-element array / `{ object }`) is a separate
+    // axis from the SPELLING, and objectui#6528 narrowed only the latter.
+    expect(resolveReferenceTo({ reference: ['account', 'lead'] })).toBe('account');
+    expect(resolveReferenceTo({ reference: { object: 'account' } })).toBe('account');
   });
+
+  /**
+   * objectui#6528 — the refusal is the point, so it is pinned rather than left
+   * as the absence of a test.
+   *
+   * These three spellings were a tolerant fallback chain here until the census
+   * measured them against every producer that can reach this helper and found
+   * none: `ObjectSchema.safeParse` (spec 17.2.0) REFUSES all three BY NAME while
+   * ACCEPTING `reference` (the positive control asserted above), `referenceTo`'s
+   * producers were retired by objectui#6041 and are stripped by the read door
+   * (objectui#6519), `reference_to` is live only on ObjectUI's own view/field
+   * schema — a different contract — and `reference_to_object` never had a
+   * producer at all.
+   *
+   * A def that reaches here spelling the target any of these ways is a PRODUCER
+   * defect (AGENTS.md #0.1). Resolving it would re-hide that producer, so this
+   * asserts it stays unresolved — deleting the narrowing turns this RED.
+   */
+  it.each(['reference_to', 'referenceTo', 'reference_to_object'])(
+    'refuses the legacy spelling `%s` — a producer emitting it is the bug',
+    (spelling) => {
+      expect(resolveReferenceTo({ [spelling]: 'account' })).toBeUndefined();
+    },
+  );
+
+  it('prefers `reference` on a partially-migrated def carrying both', () => {
+    expect(resolveReferenceTo({ reference: 'account', referenceTo: 'stale_legacy' })).toBe('account');
+  });
+
   it('returns undefined when absent', () => expect(resolveReferenceTo({ type: 'text' })).toBeUndefined());
 });
 
@@ -60,7 +89,7 @@ describe('normalizeObject', () => {
         label: 'Opportunity',
         fields: {
           amount: { type: 'currency', label: 'Amount' },
-          account: { type: 'lookup', label: 'Account', reference_to: 'account' },
+          account: { type: 'lookup', label: 'Account', reference: 'account' },
           stage: { type: 'text' },
         },
       },
@@ -73,7 +102,7 @@ describe('normalizeObject', () => {
 
   it('reads array-shaped fields too', () => {
     const norm = normalizeObject(
-      { fields: [{ name: 'owner', type: 'master_detail', reference_to: 'user' }] },
+      { fields: [{ name: 'owner', type: 'master_detail', reference: 'user' }] },
       'task',
     );
     expect(norm.relationships).toEqual([{ name: 'owner', label: 'owner', referenceTo: 'user' }]);

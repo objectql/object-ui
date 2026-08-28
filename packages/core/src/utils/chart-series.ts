@@ -940,10 +940,32 @@ function fieldDefsOf(schema: unknown): Record<string, unknown> | null {
  * The object a relationship field points at, or `undefined` when the field is
  * not a relationship (or names no target).
  *
- * The target lives under `reference` on framework-served field defs; older /
- * spec shapes spell it `reference_to` / `referenceTo` / `reference_to_object`,
- * and any of them may carry a bare name, a one-element array, or `{ object }`.
- * Same canonicalization as the dataset designer's `resolveReferenceTo`.
+ * The target lives under `reference` — the ONLY spelling read here, and the same
+ * canonicalization as the dataset designer's `resolveReferenceTo`, which is
+ * narrowed to match in the same pass (objectui#6528). The value may still carry
+ * a bare name, a one-element array, or `{ object }`.
+ *
+ * The three legacy spellings this dropped (`reference_to` / `referenceTo` /
+ * `reference_to_object`) were censused against every producer, with `reference`
+ * itself as the positive control (445 of 565 lookup / master_detail defs in the
+ * framework tree; ACCEPTED by `ObjectSchema.safeParse` on spec 17.2.0, which
+ * REFUSES all three others BY NAME). No producer emits any of them onto an
+ * object metadata document: `reference_to` is live only on ObjectUI's own
+ * view/field schema (a different contract, translated INTO from `reference`),
+ * `referenceTo`'s two producers were retired by objectui#6041, and
+ * `reference_to_object` occurs nowhere in either tree outside this chain and the
+ * test that called it.
+ *
+ * ⚠ Unlike `resolveReferenceTo`, this helper reads the `GET /meta/object/:name`
+ * document DIRECTLY — no `readFields` door strips retired keys on this path. So
+ * the narrowing is load-bearing rather than cosmetic: a stored pre-objectui#6041
+ * row spelling the target `referenceTo` now resolves to `undefined` here, the
+ * walk yields no entry, and the caller keeps the raw value (best-effort by
+ * construction — see {@link resolveDimensionFieldMeta}). That is the intended
+ * outcome: per AGENTS.md #0.1 such a row is a PRODUCER-side defect, and a
+ * lenient consumer here is exactly where it would have stayed hidden. Note
+ * `reference` was already HEAD of the old chain, so any doc carrying both is
+ * unaffected.
  *
  * The **type gate is deliberate**: only a declared relationship is walked, so a
  * path segment naming a plain field can never be turned into an object name and
@@ -954,13 +976,10 @@ export function resolveRelationshipTarget(fieldDef: unknown): string | undefined
   const def = fieldDef as {
     type?: unknown;
     reference?: unknown;
-    reference_to?: unknown;
-    referenceTo?: unknown;
-    reference_to_object?: unknown;
   };
   const type = typeof def.type === 'string' ? def.type.toLowerCase() : '';
   if (!RELATIONSHIP_FIELD_TYPES.has(type)) return undefined;
-  const raw = def.reference ?? def.reference_to ?? def.referenceTo ?? def.reference_to_object;
+  const raw = def.reference;
   if (typeof raw === 'string' && raw) return raw;
   if (Array.isArray(raw) && typeof raw[0] === 'string' && raw[0]) return raw[0];
   if (raw && typeof raw === 'object') {

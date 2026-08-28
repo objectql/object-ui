@@ -44,14 +44,14 @@ const DOCS: Record<string, Record<string, unknown>> = {
     label: 'Opportunity',
     fields: {
       amount: { type: 'currency', label: 'Amount' },
-      account: { type: 'lookup', reference_to: 'account', label: 'Account' },
+      account: { type: 'lookup', reference: 'account', label: 'Account' },
     },
   },
   account: {
     label: 'Account',
     fields: {
       name: { type: 'text', label: 'Account Name' },
-      region: { type: 'lookup', reference_to: 'region', label: 'Region' },
+      region: { type: 'lookup', reference: 'region', label: 'Region' },
     },
   },
   region: {
@@ -150,7 +150,7 @@ describe('useDatasetFieldCatalog — the include round-trip', () => {
       ...DOCS,
       opportunity: {
         label: 'Opportunity',
-        fields: { 'odd,name': { type: 'lookup', reference_to: 'account', label: 'Odd' } },
+        fields: { 'odd,name': { type: 'lookup', reference: 'account', label: 'Odd' } },
       },
     };
     get.mockImplementation(async (_t: string, name: string) => docs[name as keyof typeof docs] ?? null);
