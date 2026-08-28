@@ -131,10 +131,13 @@ describe('timeScale is RETIRED — the TS half of the tombstone (objectui#6355)'
     // `[key: string]: any`: if the index signature won, `timeScale` would widen
     // back to `any` here and the directive would go unused (TS2578).
 
-    // @ts-expect-error — `timeScale` is RETIRED (objectui#6355); the document must name `scale`.
     const retiredDocument: TimelineSchemaTS = {
       type: 'timeline',
       variant: 'gantt',
+      // The directive belongs on the PROPERTY, not on the `const`: excess-property
+      // checking reports the error at the member, so a directive one line up
+      // suppresses nothing and goes unused (TS2578) while the real error stands.
+      // @ts-expect-error — `timeScale` is RETIRED (objectui#6355); the document must name `scale`.
       timeScale: 'month',
     };
 
