@@ -240,8 +240,17 @@ describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', 
     expect(admitted.success).toBe(true);
 
     // And the renderer side of the split is gone: mobile visibility is decided
-    // positionally now, with no key behind it.
-    expect(guardedRegion()).toContain('const isEssential = colIndex === 0;');
+    // positionally now, with no key behind it. Asserted as a BOOLEAN rather
+    // than `expect(region).toContain(...)`: the region is ~200 lines, and a
+    // string-containment failure prints all of it, burying the one line that
+    // matters under a diff nobody reads.
+    const POSITIONAL_ONLY = 'const isEssential = colIndex === 0;';
+    expect(
+      guardedRegion().includes(POSITIONAL_ONLY),
+      'Mobile visibility must be decided positionally, with no key behind it: ' +
+        'expected the region to contain exactly `' + POSITIONAL_ONLY + '`. ' +
+        'objectui#6458 retired the `essential` read (maintainer, 2026-08-28).'
+    ).toBe(true);
   });
 
   it('the surviving reads are typed — `ListColumn["prefix"]` is not `any`', () => {
