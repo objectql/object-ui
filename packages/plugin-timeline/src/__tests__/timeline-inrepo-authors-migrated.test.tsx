@@ -15,8 +15,9 @@
  * existed on `origin/main`:
  *
  *   1. the schema-catalog fixture `gantt-style-timeline.json` — pinned in
- *      `scripts/__tests__/timeline-catalog-scale-migrated-6355.test.ts`, which
- *      is where the repo's file-reading tests live (this package's test
+ *      `@object-ui/types`'
+ *      `__tests__/timeline-catalog-fixture-migrated.test.ts`, which is where
+ *      node types and the Zod validator are both available (this package's test
  *      tsconfig carries no node types);
  *   2. the registration's own `examples.gantt` block (`../renderer`);
  *   3. `ObjectTimeline`, which COMPOSES a schema for `TimelineRenderer` and

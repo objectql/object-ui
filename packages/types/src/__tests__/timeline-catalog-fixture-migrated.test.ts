@@ -14,9 +14,13 @@
  * this repo must not keep shipping a catalog entry spelling the key it just made
  * unauthorable — that entry is a worked example users copy.
  *
- * Lives here, next to the repo's other catalog test, because it reads the
- * fixture off disk and `packages/plugin-timeline`'s test tsconfig carries no
- * node types. Its siblings — the registration's `examples.gantt` block and the
+ * Lives in `@object-ui/types` because it needs both halves at once: node types
+ * to read the fixture off disk (`tsconfig.test.json` declares them, and other
+ * tests here already read files) and the published Zod validator to judge it.
+ * `packages/plugin-timeline`'s test tsconfig carries no node types, and
+ * `scripts/__tests__` — the repo's other file-reading test home — cannot resolve
+ * `@object-ui/types/zod` at all, since `scripts/` is not a workspace package and
+ * has no dependency edge to it. Its siblings — the registration's `examples.gantt` block and the
  * designer inputs — are pinned in
  * `packages/plugin-timeline/src/__tests__/timeline-inrepo-authors-migrated.test.tsx`,
  * and the refusal that makes the retirement audible is pinned in
@@ -31,9 +35,9 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TimelineSchema } from '@object-ui/types/zod';
+import { TimelineSchema } from '../zod/data-display.zod.js';
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const FIXTURE = path.join(
   REPO_ROOT,
   'examples/schema-catalog/src/schemas/plugin-timeline/gantt-style-timeline.json',
