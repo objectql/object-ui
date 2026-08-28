@@ -228,6 +228,7 @@ const APP_SHELL_VISIBLE_SURFACE = 'app-shell:visible';
 export function evaluateVisibility(
   expression: string | boolean | { dialect?: string; source?: string } | undefined,
   evaluator: ExpressionEvaluator,
+  authoredKey: string = 'visible',
 ): boolean {
   if (expression === undefined || expression === null) return true;
   if (expression === true || expression === 'true') return true;
@@ -253,7 +254,11 @@ export function evaluateVisibility(
     reportUnresolvableVisibilityPredicate(
       APP_SHELL_VISIBLE_SURFACE,
       undefined,
-      'visible',
+      // The key the AUTHOR wrote, which is what the printed line tells them to
+      // grep for. Nav and area items carry `visible`, the default; an object
+      // field's predicate is `visibleWhen` (objectui#6514), and naming it
+      // `visible` there would send an author to a key `FieldSchema` REFUSES.
+      authoredKey,
       expression,
       reason,
       // objectui#6487. Until this argument existed the line closed with the
@@ -273,4 +278,76 @@ export function evaluateVisibility(
     report(err);
     return true; // Default to visible on error
   }
+}
+
+/**
+ * The two field-visibility keys `@objectstack/spec`'s `FieldSchema` DECLARES.
+ *
+ * There is deliberately no `visible` here (objectui#6514). `FieldSchema` is a
+ * `strictObject` and `visible` is not one of its keys: it appears in
+ * `FIELD_KEY_GUIDANCE` as prose that REFUSES the spelling, and deliberately not
+ * as an alias, because — quoting the guidance's own comment — "this surface
+ * declares BOTH forms and the two answers have opposite polarity: renaming onto
+ * `visibleWhen` sends `visible: false` to a slot that wants a CEL string, and
+ * renaming onto `hidden` silently inverts the value the author already wrote."
+ * Reading the refused key here would be a second, renderer-side contract for a
+ * spelling the platform tells authors not to write (AGENTS.md #0.1).
+ */
+export interface FieldVisibilityDeclaration {
+  /**
+   * Static, and INVERTED relative to the `visible` it replaces: `visible: false`
+   * is `hidden: true`. Declared `z.boolean().default(false)`, so validated
+   * metadata carries an explicit `false` on every field that is not hidden.
+   *
+   * `=== true` is the whole read, and no coercion belongs here: a string
+   * `'true'` is not spec-valid field metadata, and making it work would
+   * fossilize a second dialect for the one key whose polarity is already the
+   * easiest thing on this surface to get backwards.
+   */
+  hidden?: boolean;
+  /** Per-record CEL predicate — the field is shown only when TRUE, else hidden. */
+  visibleWhen?: string | boolean | { dialect?: string; source?: string };
+}
+
+/**
+ * Should this object field be rendered? — the app-shell's field-list gate.
+ *
+ * ## The keys, and the one that is NOT read
+ *
+ * Both call sites (`RecordFormPage`, and `AppContent`'s global record-form
+ * modal) used to gate on `evaluateVisibility(f.visible, …)`. That key is
+ * refused by `FieldSchema`, so the gate was unreachable through the authoring
+ * surface — a field `visible` never survives validation, and a census over the
+ * framework's 113 `*.object.*` files found zero of them. Maintainer ruling,
+ * 2026-08-27 (objectui#6514, Option A): read the DECLARED keys instead and
+ * DELETE the dead read. `visible` is not consulted, in either polarity.
+ *
+ * ## Why the two keys compose as AND
+ *
+ * `hidden` is the static gate; `visibleWhen` is documented as "shown only when
+ * TRUE (else hidden)" — a NECESSARY condition, never a licence to un-hide a
+ * statically hidden field. So a field shows only when it is not `hidden` AND
+ * its predicate holds. This is the same shape `@object-ui/core`'s
+ * `resolveFieldRuleState` already uses one tier down, where the static and the
+ * predicate OR into the restrictive verdict (`readonly || readonlyWhen`,
+ * `required || requiredWhen`).
+ *
+ * ## Scope: no `current_user` binding is ADDED here
+ *
+ * Field-level visibility keeps the contract's current scope (ruling
+ * sub-clause, 2026-08-27). This helper adds no roots: it hands `visibleWhen` to
+ * `evaluateVisibility` over whatever evaluator the caller already built, and
+ * the fail-open on a faulting predicate is the shipped, documented behaviour of
+ * this tier (objectui#6443 / #6487) — unchanged. Per-user field hiding is the
+ * option/form layers' job, because those bind the user.
+ */
+export function isFieldVisible(
+  field: FieldVisibilityDeclaration | undefined,
+  evaluator: ExpressionEvaluator,
+): boolean {
+  // INVERTED. `hidden: true` means "do not render"; `false` and absent both
+  // mean "render". Read it backwards and nothing goes red — a field either
+  // vanishes with no diagnostic, or leaks to a principal it was hidden from.
+  if (field?.hidden === true) return false;
+  return evaluateVisibility(field?.visibleWhen, evaluator, 'visibleWhen');
 }
