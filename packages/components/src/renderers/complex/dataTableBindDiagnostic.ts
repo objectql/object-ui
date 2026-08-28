@@ -7,11 +7,25 @@
  */
 
 /**
- * The diagnostic that says out loud what `data-table` has always done silently
- * with an authored `bind` — nothing (objectui#6575, maintainer ruling
- * 2026-08-27, option A: 「同意」).
+ * The diagnostics that say out loud what `data-table` has always done silently
+ * with a key the AUTHOR wrote.
  *
- * ## The defect this names
+ * TWO questions, one channel. The file is named for the first because it came
+ * first (objectui#6575); it was never limited to it.
+ *
+ *   1. `bind` was authored — and `data-table` does not read `bind` at all
+ *      (objectui#6575, maintainer ruling 2026-08-27, option A: 「同意」).
+ *   2. `data` was authored and is NOT an array — so the renderer dropped it to
+ *      zero rows at `data-table.tsx`'s
+ *      `Array.isArray(rawData) ? rawData : EMPTY_ROWS` (objectui#6665).
+ *
+ * They are deliberately two predicates asking two questions, not one widened
+ * predicate. The nodes that trip #2 carry no `bind` AT ALL, so #6575 staying
+ * silent on them is correct behaviour rather than a gap — the triage ruling on
+ * objectui#6665 is explicit about that, and widening #6575's question would
+ * have made its silence look like the defect. See {@link describeNonArrayData}.
+ *
+ * ## The first defect this names
  *
  * `bind` is the data-scope binding vocabulary: a path string resolved by
  * `useDataScope()`. `list`, `tree-view` and the `object-*` plugin widgets read
@@ -68,14 +82,14 @@
  * looking at the rows the renderer actually resolved.
  */
 
-/** Prefix for every line this module emits — the handle tests and greps hold. */
+/** Prefix for every `bind` line — the handle tests and greps hold. */
 export const DATA_TABLE_BIND_DIAGNOSTIC_PREFIX = '[ObjectUI] DataTable bind:';
 
 /** The key `data-table` really reads its rows from. */
 export const DECLARED_ROWS_KEY = 'data';
 
-/** Where the offending node lives, for the first line of the message. */
-export interface DataTableBindAddress {
+/** Where the offending node lives, for the first line of either message. */
+export interface DataTableNodeAddress {
   /** The schema node's `type` — `data-table`, or an alias that routes here. */
   blockType?: unknown;
   /** The node's `id`, when it has one. */
@@ -88,7 +102,7 @@ function quote(value: unknown): string {
   return typeof value === 'string' ? `'${value}'` : String(value);
 }
 
-function describeAddress({ blockType, id, caption }: DataTableBindAddress): string {
+function describeAddress({ blockType, id, caption }: DataTableNodeAddress): string {
   const block = typeof blockType === 'string' && blockType.length > 0 ? blockType : 'data-table';
   const parts: string[] = [];
   if (typeof id === 'string' && id.length > 0) parts.push(`id: '${id}'`);
@@ -124,7 +138,7 @@ export function hasAuthoredBind(bind: unknown): boolean {
 export function describeIgnoredBind(
   bind: unknown,
   rows: unknown,
-  address: DataTableBindAddress,
+  address: DataTableNodeAddress,
 ): string | null {
   if (!hasAuthoredBind(bind)) return null;
 
@@ -141,4 +155,126 @@ export function describeIgnoredBind(
     + `from the inline \`${DECLARED_ROWS_KEY}\` array on the node. ${consequence}.\n`
     + `  Put the rows in \`${DECLARED_ROWS_KEY}\`, or author a component that does read \`bind\` `
     + '(`list`, `tree-view`, or an `object-*` widget — they call `useDataScope`). (objectui#6575)';
+}
+
+/* ------------------------------------------------------------------------- *
+ * objectui#6665 — `data` was authored, and it is not an array.
+ * ------------------------------------------------------------------------- */
+
+/** Prefix for every non-array `data` line — the handle tests and greps hold. */
+export const DATA_TABLE_DATA_DIAGNOSTIC_PREFIX = '[ObjectUI] DataTable data:';
+
+/**
+ * Does this string carry a `${...}` template?
+ *
+ * Used ONLY to sharpen the wording. {@link describeNonArrayData} fires on ANY
+ * non-array `data`; this test decides which sentence it gets, never whether it
+ * speaks. That is why a local spelling is tolerable where an imported one would
+ * normally be required: a miss here costs a less specific message, never a
+ * missed warning, so the failure direction is the safe one. The shape is the
+ * one `ExpressionEvaluator` itself looks for before taking its template path
+ * (`@object-ui/core`), tightened with a closing brace so a lone `${` in prose
+ * does not get to claim it was an expression.
+ */
+const TEMPLATE_SHAPE = /\$\{[\s\S]*?\}/;
+
+/** Keep one bad value from turning a console line into a wall of text. */
+function truncate(value: string, max = 80): string {
+  return value.length <= max ? value : `${value.slice(0, max)}…`;
+}
+
+/** Name the thing the author actually wrote, without dumping it. */
+function describeAuthoredValue(value: unknown): string {
+  if (value === null) return '`null`';
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'string') return `the string ${quote(truncate(value))}`;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return `the ${typeof value} \`${String(value)}\``;
+  }
+  if (typeof value === 'object') return 'an object';
+  return `a ${typeof value}`;
+}
+
+/**
+ * Was `data` authored as something that is not an array?
+ *
+ * `undefined` is absence — an omitted key, or the renderer's destructuring
+ * default. Everything else the author WROTE, and `data-table.tsx` reduces every
+ * non-array value of it to `EMPTY_ROWS` without a word.
+ *
+ * ## Why this is not {@link hasAuthoredBind}'s question
+ *
+ * That one asks "was a `bind` authored?" — a key `data-table` does not read at
+ * all. This asks about `data`, the key it genuinely does read, and asks a
+ * SHAPE question about it rather than a presence one. The nodes that trip this
+ * carry no `bind`, so #6575's predicate is correctly silent on them; that
+ * silence is precisely why a second question had to be asked here instead of
+ * the first one being widened.
+ *
+ * ## Why the predicate is not keyed on the `${...}` shape
+ *
+ * The expression string is the spelling that was REPORTED, but it is not the
+ * defect. `Array.isArray(rawData) ? rawData : EMPTY_ROWS` swallows a number, an
+ * object, a `null` and a plain string exactly as silently, so a predicate that
+ * only caught `${...}` would leave the next non-array spelling to arrive as a
+ * fresh card. The shape only chooses the wording (see {@link TEMPLATE_SHAPE}).
+ *
+ * Exported so the renderer and this judgement cannot drift apart: one
+ * predicate, two readers.
+ */
+export function hasNonArrayAuthoredData(rawData: unknown): boolean {
+  return rawData !== undefined && !Array.isArray(rawData);
+}
+
+/**
+ * The message for a `data-table` node whose `data` is not an array, or `null`
+ * when there is nothing to say.
+ *
+ * ## Why no measured-consequence clause, unlike {@link describeIgnoredBind}
+ *
+ * That one has to look at the rows the renderer resolved, because a node can
+ * carry BOTH a `bind` and a real inline `data` array — "header over an empty
+ * body" would be false there. Here it cannot be: `data` is the ONLY row source
+ * `data-table` has, and this function is called exactly when that source is not
+ * an array, so the body is `EMPTY_ROWS` by construction. The consequence is
+ * stated because the predicate already established it, not asserted on faith.
+ *
+ * ## What it deliberately does NOT say
+ *
+ * It does not tell the author to move the expression under `properties`. The
+ * same expression IS evaluated there — that contrast is what makes this a
+ * defect rather than a design — but whether `properties` is an authoring
+ * channel for the `ui:*` / `page:*` namespaces is an open contract question,
+ * recorded in `skills/objectui/rules/protocol.md` rather than recommended by
+ * it. A console line is the wrong place to settle that, so the message teaches
+ * the one route the guides do teach: the host resolves the rows.
+ *
+ * It also changes NO behaviour. Making node-level `data` evaluate expressions
+ * is a behaviour change on a published component; the objectui#6665 triage
+ * ruling put that arm on the maintainer floor and dispatched only this one.
+ * The trap stops being silent; it does not stop being a trap.
+ */
+export function describeNonArrayData(
+  rawData: unknown,
+  address: DataTableNodeAddress,
+): string | null {
+  if (!hasNonArrayAuthoredData(rawData)) return null;
+
+  const where = describeAddress(address);
+  const wayOut =
+    '  Resolve the rows in the host and put the array on the node as '
+    + `\`${DECLARED_ROWS_KEY}\`. (objectui#6665)`;
+
+  if (typeof rawData === 'string' && TEMPLATE_SHAPE.test(rawData)) {
+    return `${DATA_TABLE_DATA_DIAGNOSTIC_PREFIX} ${where} — `
+      + `\`${DECLARED_ROWS_KEY}: ${quote(truncate(rawData))}\` was never evaluated: a `
+      + `\`\${...}\` expression written into \`${DECLARED_ROWS_KEY}\` at node level is read as `
+      + `a literal string, so \`${DECLARED_ROWS_KEY}\` is a string rather than an array and the `
+      + `table renders its header over an empty body.\n${wayOut}`;
+  }
+
+  return `${DATA_TABLE_DATA_DIAGNOSTIC_PREFIX} ${where} — `
+    + `\`${DECLARED_ROWS_KEY}\` was authored as ${describeAuthoredValue(rawData)}, and data-table `
+    + 'takes its rows only from an array: every non-array value is dropped to zero rows, so the '
+    + `table renders its header over an empty body.\n${wayOut}`;
 }

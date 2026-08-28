@@ -11,7 +11,7 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 're
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
-import { describeIgnoredBind } from './dataTableBindDiagnostic';
+import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
@@ -781,6 +781,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // must not reach array operations like .filter() / .some(). The non-array
   // fallback is the shared empty, so a provider-config schema does not re-key
   // every downstream memo on each render (objectui#4618).
+  //
+  // This branch is ALSO the objectui#6665 defect: it swallows an AUTHORED
+  // non-array as quietly as an absent key — a `${...}` expression string, a
+  // number, an object, a `null`. The behaviour is deliberate and unchanged
+  // here; the second effect below is what stops it being silent.
   const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
 
   // objectui#6575 — say out loud that an authored `bind` was ignored.
@@ -800,6 +805,32 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     });
     if (message) console.warn(message);
   }, [authoredBind, data, bindDiagnosticBlockType, bindDiagnosticId, caption]);
+
+  // objectui#6665 — say out loud that a non-array `data` was dropped.
+  //
+  // The SAME channel as the effect above (one module, one `console.warn`, an
+  // effect key as the rate limit) asking a DIFFERENT question: these nodes
+  // carry no `bind` at all, so the #6575 predicate is correctly silent on them.
+  // A second effect rather than a wider key on that one, because the two
+  // judgements are independent and #6575's key is pinned by its own tests.
+  //
+  // The message is computed in render and IS the effect key, rather than the
+  // effect being keyed on `rawData`. Two reasons, and neither is style:
+  //   - `data` (the collapsed value) cannot be the key — it is already
+  //     `EMPTY_ROWS` for every value this diagnostic fires on, so one bad value
+  //     replaced by another would not re-key and the second would go unsaid.
+  //   - `rawData` cannot be the key either — an authored OBJECT is a fresh
+  //     reference on every render that rebuilds the node, which would print the
+  //     same line again and again. Keying on the message keeps the ceiling this
+  //     module documents: one line per distinct authoring bug.
+  const nonArrayDataMessage = describeNonArrayData(rawData, {
+    blockType: bindDiagnosticBlockType,
+    id: bindDiagnosticId,
+    caption,
+  });
+  useEffect(() => {
+    if (nonArrayDataMessage) console.warn(nonArrayDataMessage);
+  }, [nonArrayDataMessage]);
 
   // The adapter reads the column keys `TableColumn` DECLARES. The `label`
   // alias is gone (objectui#5351); the `name` alias is HELD, and the hold is
