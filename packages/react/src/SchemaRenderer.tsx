@@ -802,24 +802,46 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * is PRESERVED deliberately — flipping it is a shipped-behaviour change on
      * a live surface and is not this card's to make.
      *
-     * ## One engine call, both builds — no `__DEV__` split here
+     * ## One engine call, both builds — still true after objectui#6504
      *
-     * The visibility helper keeps a `__DEV__` branch because its dev leg needs
-     * a CLEANLY-evaluated verdict to run objectui#5687's adapter-only reporter
-     * on. This gate reports faults only, so `onFault` alone covers both builds:
-     * one engine call, one code path, and dev and production print the same
-     * line by construction rather than by keeping two branches in step.
+     * The FAULT report above is unconditional either way: `onFault` alone
+     * covers both builds, one engine call, one code path, dev and production
+     * print the same line by construction. objectui#6504 adds a SECOND,
+     * dev-only check after that same call returns — not a second evaluation,
+     * a lexical scan of the already-available predicate source and the
+     * already-available `dataSource` — so production keeps its one-call,
+     * one-path shape exactly as this docblock described before this leg
+     * existed; only development pays for the extra check, and only after a
+     * clean (non-faulting) evaluation.
      *
-     * objectui#5687's `reportAdapterOnlyDataPredicate` is deliberately NOT
-     * called here. Its ruling (2026-08-22, option A) is scoped to the
-     * visibility gate and its message text is written about one — "a constant
-     * `false` hides the node on every row" is not what a constant does to a
-     * `disabled` gate. Wiring it would need its own copy decision and its own
-     * ruling; filed rather than smuggled in (objectui#6504).
+     * ## objectui#5687's diagnostic, extended (objectui#6504, maintainer
+     * ruling 2026-08-27 option A)
+     *
+     * Was deliberately NOT called here — see the card this replaces filed at
+     * objectui#6504: the 2026-08-22 ruling was scoped to the visibility gate,
+     * and its message text ("a constant `false` hides the node on every row")
+     * is not what a constant does to a `disabled` gate. The 2026-08-27 ruling
+     * answers both gaps: extend to `disabled` / `disabledOn`, dev-only exactly
+     * as the visibility leg is (⛔ always-on was excluded, outside the #5687
+     * precedent), with its OWN copy — the constant-`true` direction, since on
+     * THIS gate that is the polarity that greys the control out in silence.
+     * `ADAPTER_ONLY_GATE_COPY['enablement']` (`visibilityDiagnostic.ts`) is
+     * that copy, and it carries the same #5330 dissolution pointer #5687's
+     * entry does: both legs retire together when that window closes.
+     *
+     * Reachable only on the branch where the predicate evaluated CLEANLY —
+     * `faulted` mirrors {@link evaluateVisibilityPredicate}'s try/catch split
+     * without paying for a second (`throwOnError`) engine call: `onFault` is
+     * already told exactly when the single call it wraps did not produce a
+     * clean verdict, so a local flag reuses that same signal instead of
+     * re-deriving it. A predicate that faults is the OTHER reporter's case,
+     * immediately above, in the same way it already is on the visibility leg.
      */
-    const evaluateEnablementPredicate = (raw: VisibilityPredicate, key: string): boolean =>
-      evaluator.evaluateCondition(raw, {
-        onFault: (reason) =>
+    const evaluateEnablementPredicate = (raw: VisibilityPredicate, key: string): boolean => {
+      let faulted = false;
+      const verdict = evaluator.evaluateCondition(raw, {
+        onFault: (reason) => {
+          faulted = true;
           reportUnresolvableVisibilityPredicate(
             newSchema.type,
             newSchema.id,
@@ -831,8 +853,14 @@ export const SchemaRenderer: ForwardRefExoticComponent<
             // declares, and the gate whose safe default disables the control.
             'page-component',
             'enablement',
-          ),
+          );
+        },
       });
+      if (__DEV__ && !faulted) {
+        reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource, 'enablement');
+      }
+      return verdict;
+    };
 
     // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
     // which `props` (evaluated below) is the legacy alias.

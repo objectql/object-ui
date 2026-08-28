@@ -64,6 +64,7 @@ import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import {
   ADAPTER_ONLY_DATA_PREDICATE_PREFIX,
+  ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX,
   UNRESOLVABLE_ENABLEMENT_PREFIX,
   UNRESOLVABLE_VISIBILITY_PREFIX,
 } from '../utils/visibilityDiagnostic';
@@ -137,6 +138,17 @@ const reports = (warn: WarnSpy): string[] =>
 /** The sibling gate's view, for the cross-gate cases. */
 const visibilityReports = (warn: WarnSpy): string[] =>
   warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX));
+/**
+ * The objectui#6504 leg's view — the enablement-gate extension of #5687's
+ * adapter-only constant-predicate diagnostic. A DIFFERENT fault class than
+ * `reports` above: this one names a predicate that evaluated PERFECTLY,
+ * against the wrong object, not one that could not be evaluated at all.
+ */
+const adapterOnlyReports = (warn: WarnSpy): string[] =>
+  warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes(ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX));
+/** The sibling (objectui#5687, visibility-gate) leg's view of the SAME diagnostic family. */
+const adapterOnlyVisibilityReports = (warn: WarnSpy): string[] =>
+  warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes(ADAPTER_ONLY_DATA_PREDICATE_PREFIX));
 /** Everything the console was asked to print, filtered by nothing. */
 const allWarnings = (warn: WarnSpy): string[] => warn.mock.calls.map((c) => String(c[0]));
 
@@ -539,28 +551,178 @@ describe('#6445 group 3 — nothing else became loud', () => {
     });
   });
 
-  it('objectui#5687 is NOT extended to this gate: an adapter-only `data.*` `disabled` predicate stays silent (filed as objectui#6504)', async () => {
-    // Deliberately out of scope. That leg reports a predicate that evaluated
-    // PERFECTLY against the wrong object — not a fault — and its ruling
-    // (2026-08-22 option A) is scoped to the visibility gate, with copy written
-    // about hiding. Pinned so the boundary is a stated decision rather than
-    // something a later reader discovers by surprise.
+  it('SUPERSEDED by objectui#6504: an adapter-only `data.*` `disabled` predicate now reports, on the enablement leg — not this fault one', async () => {
+    // Was pinned SILENT until the 2026-08-27 ruling (option A) extended
+    // objectui#5687's diagnostic to this gate. This predicate never FAULTS —
+    // it evaluates perfectly, against the wrong object — so it must never
+    // appear on THIS file's `reports()` (the #6445 fault leg); see group 6
+    // below for the positive coverage of the new leg.
     await inDevelopment((mount) => {
       const warn = spyWarn();
       mount([{ id: 'n1', disabled: "data.status == 'locked'" }]);
-      // The verdict is the documented one: a constant, here constant-false.
       expect(disabledProp()).toBe('absent');
-      // No predicate diagnostic of ANY kind: not this card's (the predicate
-      // did not fault), not objectui#5687's (not wired to this gate), not the
-      // visibility one.
       expect(reports(warn)).toHaveLength(0);
       expect(visibilityReports(warn)).toHaveLength(0);
+      // It DOES now report — on its own leg and its own prefix.
+      expect(adapterOnlyReports(warn)).toHaveLength(1);
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- *
+ * Group 6 — objectui#6504: the enablement leg of #5687's adapter-only
+ * constant-predicate diagnostic. A DIFFERENT fault class than groups 0-5
+ * above: nothing here FAULTS (the predicate evaluates perfectly, against the
+ * wrong object), so none of it belongs on `reports()` / `UNRESOLVABLE_ENABLEMENT_PREFIX`.
+ * -------------------------------------------------------------------------- */
+
+describe('#6504 group 6 — the adapter-only diagnostic, extended to `disabled` / `disabledOn`', () => {
+  it('THE acceptance criterion: the card\'s repro shape reports, dev-only, and the verdict is untouched (constant-FALSE direction)', async () => {
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: "data.status == 'locked'" }]);
+      // Verdict UNCHANGED — `undefined == 'locked'` is `false`, so the control
+      // is NOT disabled here. This diagnostic never moves a verdict.
+      expect(disabledProp()).toBe('absent');
+      const lines = adapterOnlyReports(warn);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain(TYPE);
+      expect(lines[0]).toContain('n1');
+      expect(lines[0]).toContain('disabled');
+      expect(lines[0]).toContain("data.status == 'locked'");
+      expect(lines[0]).toContain('data.status');
+      expect(lines[0]).toContain('CONSTANT');
+      // No fault of any kind was reported alongside it.
+      expect(reports(warn)).toHaveLength(0);
+    });
+  });
+
+  it('the DANGEROUS direction the ruling named: a constant `true` greys the control out, silently, on every row', async () => {
+    // `data.locked` is undefined on the adapter — one of the deliberate-absence
+    // idioms `unresolvedDataPaths`'s own docblock names — so `== null` is
+    // `true`: the exact "hands the gate a constant `true`" shape objectui#6504
+    // was filed about. This is the case that was previously unreported in
+    // EVERY build, with nothing on the console.
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: 'data.locked == null' }]);
+      expect(disabledProp()).toBe('true');
+      expect(adapterOnlyReports(warn)).toHaveLength(1);
+    });
+  });
+
+  it('the copy is the constant-`true` sentence, NOT a reuse of the visibility copy', async () => {
+    // The card's whole design content. "A constant `false` hides the node" is
+    // written about a different gate and would be false here; the correct
+    // sentence for THIS gate is about a constant `true` greying it out.
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: 'data.locked == null' }]);
+      const line = adapterOnlyReports(warn)[0];
+      expect(line).toContain('constant `true`');
+      expect(line).toContain('DISABLED');
+      expect(line).toContain('greyed out');
+      expect(line).not.toContain('hides the');
+      expect(line).not.toContain(ADAPTER_ONLY_DATA_PREDICATE_PREFIX);
+      // Still names the deprecated spelling and the fix, same as the sibling.
+      expect(line).toContain('record.status');
+      expect(line).toContain('objectui#5330');
+    });
+  });
+
+  it('and the sibling (visibility) leg still prints ITS OWN copy, unchanged — the SAME source, two gates, two different sentences', async () => {
+    // The card's other correctness requirement, restated as a same-mount
+    // control: `evaluateVisibilityPredicate`'s call site (objectui#5687,
+    // untouched by this card) and `evaluateEnablementPredicate`'s (new) fire
+    // side by side on the literal same predicate TEXT, and must not cross-talk
+    // — each keeps its own prefix and its own consequence sentence.
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([
+        { id: 'nA', visibleWhen: "data.status == 'locked'" },
+        { id: 'nB', disabled: "data.status == 'locked'" },
+      ]);
+      const visLine = adapterOnlyVisibilityReports(warn);
+      const enLine = adapterOnlyReports(warn);
+      expect(visLine).toHaveLength(1);
+      expect(enLine).toHaveLength(1);
+      expect(visLine[0]).toContain('nA');
+      expect(visLine[0]).toContain('hides the');
+      expect(visLine[0]).not.toContain('DISABLED');
+      expect(enLine[0]).toContain('nB');
+      expect(enLine[0]).toContain('DISABLED');
+      expect(enLine[0]).not.toContain('hides the');
+    });
+  });
+
+  it('FALSE-POSITIVE CONTROL: a genuinely row-dependent `record.*` predicate on `disabled` never fires this leg', async () => {
+    // The direction the ruling refuses: a diagnostic that accuses correct
+    // usage is worse than none. `record.status` is BOUND at this tier
+    // (unlike `data.*`), so this reaches opposite verdicts on the two rows —
+    // structurally incapable of being a `data.*` constant.
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: HEALTHY_DISABLING }]);
+      expect(disabledProp()).toBe('true'); // ROW.status === 'open'
+      expect(adapterOnlyReports(warn)).toHaveLength(0);
+      expect(reports(warn)).toHaveLength(0);
+    });
+  });
+
+  it('a GENUINE adapter read on `disabled` stays silent — the half that makes the noise mean something', async () => {
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: 'data.total > 0' }]); // ADAPTER.total === 99
+      expect(disabledProp()).toBe('true'); // a REAL verdict, from a real read
+      expect(adapterOnlyReports(warn)).toHaveLength(0);
+    });
+  });
+
+  it('`disabledOn` reports too — the same wiring as `disabled`, not a copy of it', async () => {
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabledOn: "data.status == 'locked'" }]);
+      expect(adapterOnlyReports(warn)[0]).toContain('disabledOn');
+    });
+  });
+
+  it('⛔ C excluded: a PRODUCTION build reaches the SAME verdict and stays silent — this leg is dev-only, exactly as its sibling is', async () => {
+    await inProduction((mount) => {
+      const warn = spyWarn();
+      mount([{ id: 'n1', disabled: 'data.locked == null' }]);
+      // Same verdict as the dev case above — this diagnostic never moves one.
+      expect(disabledProp()).toBe('true');
+      expect(adapterOnlyReports(warn)).toHaveLength(0);
       expect(
-        allWarnings(warn).filter((m) => m.includes(ADAPTER_ONLY_DATA_PREDICATE_PREFIX)),
+        allWarnings(warn).filter((m) => m.includes(ADAPTER_ONLY_ENABLEMENT_PREDICATE_PREFIX)),
       ).toHaveLength(0);
-      // The only thing the console saw is the dev validator's pre-existing
-      // false positive on a string-valued `disabled` (objectui#6505).
-      expect(nonValidatorWarnings(warn)).toHaveLength(0);
+    });
+  });
+
+  it('COLLAPSING HALF: two nodes with different ids and the SAME source produce exactly ONE line', async () => {
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([
+        { id: 'n1', disabled: "data.status == 'locked'" },
+        { id: 'n2', disabled: "data.status == 'locked'" },
+      ]);
+      expect(adapterOnlyReports(warn)).toHaveLength(1);
+    });
+  });
+
+  it('SEPARATING HALF, across GATES: the SAME source on `disabled` and on `visibleWhen` is two lines, one per gate', async () => {
+    // `key` is part of the dedupe tuple, so the two legs of this diagnostic
+    // family cannot silence each other for the identical predicate source —
+    // the direction objectui#6445's own dedupe suite pins for the FAULT
+    // diagnostic, restated here for the adapter-only one this card adds.
+    await inDevelopment((mount) => {
+      const warn = spyWarn();
+      mount([
+        { id: 'n1', disabled: "data.status == 'locked'" },
+        { id: 'n2', visibleWhen: "data.status == 'locked'" },
+      ]);
+      expect(adapterOnlyReports(warn)).toHaveLength(1);
+      expect(adapterOnlyVisibilityReports(warn)).toHaveLength(1);
     });
   });
 });
