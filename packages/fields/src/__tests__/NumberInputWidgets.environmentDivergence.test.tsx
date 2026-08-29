@@ -74,18 +74,15 @@ import { CurrencyField } from '../widgets/CurrencyField';
 import { PercentField } from '../widgets/PercentField';
 
 /**
- * Every non-empty string a real Chromium was observed to place in
- * `e.target.value` for a `type="number"` input, across all three delivery
- * routes and all the inputs this card drove. MEASURED, not enumerated from the
- * spec.
+ * The measured record moved to `numberInputBrowserReadings.ts` (objectui#6780)
+ * so this suite and the announcement suite read ONE set of numbers. Nothing
+ * about the readings changed; they are the same values this file pinned.
  */
-const BROWSER_READINGS = ['12', '1.23', '010', '15', '1', '12.345'] as const;
-
-/**
- * Strings only the TEST environment can produce, because happy-dom skips the
- * sanitization. These are exactly the inputs the filing card measured.
- */
-const HAPPY_DOM_FABRICATIONS = ['12abc', '1.2.3', '0x10', '1e'] as const;
+import {
+  BROWSER_READINGS,
+  HAPPY_DOM_FABRICATIONS,
+  BAD_INPUT_DISAGREEMENTS,
+} from './numberInputBrowserReadings.js';
 
 /**
  * A host that ECHOES the emission back into `value`, the way a real form does.
@@ -135,9 +132,16 @@ describe('objectui#6765 — happy-dom does not sanitize a type="number" input', 
   });
 
   it('still reports validity.badInput, so it half-implements the algorithm', () => {
-    // Load-bearing, not trivia: `validity.badInput` is the ONE signal about
-    // unreadable text that agrees between this environment and the browser, so
-    // it is the only guard on this surface a unit test could honestly oracle.
+    // Load-bearing, not trivia: `validity.badInput` is the signal objectui#6780
+    // built its guard on, because it is the PLATFORM's own predicate rather
+    // than a renderer-side dialect.
+    //
+    // ⚠️ This file used to add "the ONE signal that agrees between this
+    // environment and the browser". objectui#6780 measured that and it is too
+    // strong — see `BAD_INPUT_DISAGREEMENTS` and the matrix above it. The
+    // agreement is between happy-dom's PROGRAMMATIC verdict and Chromium's
+    // TYPED verdict, it holds for a subset, and in Chromium `badInput` is never
+    // true for a script write at all. The corrected statement is pinned below.
     const input = document.createElement('input');
     input.type = 'number';
     for (const text of HAPPY_DOM_FABRICATIONS) {
@@ -146,6 +150,23 @@ describe('objectui#6765 — happy-dom does not sanitize a type="number" input', 
     }
     input.value = '';
     expect(input.validity.badInput).toBe(false);
+  });
+
+  it('does NOT agree with Chromium on badInput for eight measured inputs', () => {
+    // objectui#6780's correction, pinned so the overstated one-liner cannot
+    // come back. Each row is this environment's own reading; `chromiumTyped` is
+    // the browser's, measured by typing the string key by key.
+    const input = document.createElement('input');
+    input.type = 'number';
+    for (const row of BAD_INPUT_DISAGREEMENTS) {
+      input.value = row.input;
+      expect(
+        input.validity.badInput,
+        `happy-dom's reading of ${JSON.stringify(row.input)} moved; the ` +
+          'agreement matrix in numberInputBrowserReadings.ts is now stale',
+      ).toBe(row.happyDom);
+      expect(row.happyDom).not.toBe(row.chromiumTyped);
+    }
   });
 });
 
@@ -157,8 +178,10 @@ describe('objectui#6765 — a whole-string guard has nothing left to reject here
    * file to export it; copying its source here would create exactly the second
    * dialect of "what a number is" that AGENTS.md #0.1 forbids. `badInput` is
    * the better oracle anyway — it is the browser stating, in its own words,
-   * whether it can read the text — and it is the ONE signal on this surface
-   * that happy-dom and Chromium were both measured to agree on.
+   * whether it can read the text. ⚠️ objectui#6780 narrowed the claim that used
+   * to end this paragraph ("the ONE signal happy-dom and Chromium agree on"):
+   * they agree on a measured SUBSET, and in Chromium `badInput` is never true
+   * for a programmatic write at all. See `BAD_INPUT_DISAGREEMENTS`.
    */
   it('the platform already reads every measured browser value as a whole number', () => {
     const input = document.createElement('input');
@@ -245,10 +268,14 @@ describe('objectui#6765 — the oracle and the product disagree, per widget', ()
     // the empty string is the browser's only channel for "text I am showing but
     // cannot read", and these widgets answer it silently.
     //
-    // ⚠️ This pins that the drop IS silent so that a fix goes red here and its
-    // author reads this file. It is NOT an endorsement — objectui#6765 escalated
-    // whether to announce it, because the same drop belongs to every
-    // `type="number"` widget in this package, not to these two.
+    // ⚠️ objectui#6780 landed the announcement and this pin deliberately did
+    // NOT go red, which is itself the finding: it drives `''`, and an empty box
+    // is `badInput === false` in BOTH engines. Clearing a field is a CLEARED
+    // field, not unreadable text, and it must stay silent — announcing here
+    // would fire on every deletion. The route that is now announced is the one
+    // this environment cannot reach: in Chromium the user types `1e`, the box
+    // keeps DISPLAYING it, `.value` reads `''` AND `badInput` is true. See
+    // `NumberInputWidgets.badInputAnnounce.test.tsx`.
     for (const widget of ['currency', 'percent'] as const) {
       const { input: el, onChange } = renderHost(widget);
       fireEvent.change(el, { target: { value: '5' } });

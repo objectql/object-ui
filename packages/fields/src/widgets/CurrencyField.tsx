@@ -1,9 +1,10 @@
 import React from 'react';
-import { Input, EmptyValue } from '@object-ui/components';
+import { Input, EmptyValue, cn } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { resolveFieldCurrency, currencyFractionDigits, currencySymbol } from '../currency.js';
+import { useBadInputRefusal, BadInputMessage, BAD_INPUT_BORDER } from './numberBadInput.js';
 
 /**
  * Format currency value for display. When `currency` is undefined the value
@@ -75,6 +76,9 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
   const precision =
     currencyField?.precision ?? (currency ? currencyFractionDigits(currency) : 2);
 
+  // Before the readonly return: hooks are unconditional (objectui#6780).
+  const { refusal, readBadInput } = useBadInputRefusal('1234.56');
+
   if (readonly) {
     if (value == null) return <EmptyValue />;
     return (
@@ -116,17 +120,36 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
    * truncation no user reaches. The oracle-vs-product table is pinned in
    * `__tests__/NumberInputWidgets.environmentDivergence.test.tsx`.
    *
-   * ⚠️ OPEN (objectui#6765): the last row is a SILENT drop. The box still
-   * DISPLAYS `1e` while `.value` reads `''`, so this widget emits `null`,
-   * `aria-invalid` stays `false` and no diagnostic is drawn — objectui#6716's
-   * class, measured here rather than assumed. It is NOT fixed here: the same
-   * drop belongs to every `type="number"` widget in this package
-   * (`NumberField`, `GeolocationField`), and the truncating rows above cannot
-   * be refused by any widget-side guard at all, so the route out was escalated
-   * rather than applied to two widgets of the four.
+   * ⭐ CLOSED for the last row (objectui#6780, ruled 2026-08-29): the silent
+   * drop is now ANNOUNCED, through `validity.badInput` — the platform's own
+   * predicate — across all four `type="number"` widgets of this package as one
+   * change. See `numberBadInput.tsx` for the measurement and for why the
+   * emission itself is deliberately unchanged.
+   *
+   * ⛔ STILL SILENT, and deliberately so: the TRUNCATING rows above. `1.2.3`
+   * stores `1.23` and `0x10` stores `10`, and no widget-side guard can refuse
+   * them — the browser filtered the keystrokes before `handleChange` ran, so
+   * the information is gone before any code here can see it. Only abandoning
+   * `type="number"` would recover it, which the same ruling declined (it would
+   * reverse objectui#2572's min/max/step and mobile-keyboard affordances).
+   * ⚠️ This asymmetry is documented for USERS, not just here — a control that
+   * warns about `1e` but silently truncates `1.2.3` teaches people that no
+   * warning means the value is right. See `content/docs/guide/fields.md`.
    */
   // Parse and format on blur to ensure valid currency format
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // objectui#6780: the blur arm. React delivers no `onChange` when `.value`
+    // never leaves `''` — the measured shape of PASTING `1e` into an empty box
+    // — and `badInput` is still true at blur time, so this is the only arm that
+    // sees that route.
+    //
+    // ⚠️ This widget's `onBlur` has ALWAYS overridden the host's (it is written
+    // after the `toDomProps` spread), and that is left exactly as it was: no
+    // host in this repo passes `onBlur` to a field widget today (the data-table
+    // inline editor uses a document-level pointerdown listener instead), so
+    // composing it here would be an unmeasured behaviour change outside this
+    // card's ruling. Filed separately.
+    readBadInput(e.target);
     const val = parseFloat(e.target.value);
     if (!isNaN(val)) {
       onChange(parseFloat(val.toFixed(precision)));
@@ -145,36 +168,44 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
   const symbol = currency ? currencySymbol(currency, locale) : '';
 
   return (
-    <div className="relative">
-      {symbol && (
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-          {symbol}
-        </span>
-      )}
-      <Input
-        {...toDomProps(props)}
-        type="number"
-        value={value ?? ''}
-        onChange={(e) => {
-          // Bare `parseFloat`, deliberately — see the measured note on
-          // `handleBlur` above (objectui#6765). The empty string is the
-          // browser's ONLY refusal channel on a number input, and it is also
-          // how it reports text it is still displaying but cannot read.
-          const val = e.target.value === '' ? null : parseFloat(e.target.value);
-          onChange(val as any);
-        }}
-        onBlur={handleBlur}
-        placeholder={currencyField?.placeholder || '0.00'}
-        disabled={readonly || props.disabled}
-        className={`${symbol ? 'pl-8' : ''} ${className || ''}`}
-        // Surface the field's declared range (e.g. `min: 0` on a budget) so the
-        // browser's spinner/keyboard affordances respect it (objectui#2572);
-        // server-side validation still owns enforcement.
-        min={typeof currencyField?.min === 'number' ? currencyField.min : undefined}
-        max={typeof currencyField?.max === 'number' ? currencyField.max : undefined}
-        step={Math.pow(10, -precision).toFixed(precision)}
-        aria-invalid={!!error}
-      />
+    <div className="space-y-1">
+      <div className="relative">
+        {symbol && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+            {symbol}
+          </span>
+        )}
+        <Input
+          {...toDomProps(props)}
+          type="number"
+          value={value ?? ''}
+          onChange={(e) => {
+            // Bare `parseFloat`, deliberately — see the measured note on
+            // `handleBlur` above (objectui#6765). The empty string is the
+            // browser's ONLY refusal channel on a number input, and it is also
+            // how it reports text it is still displaying but cannot read — which
+            // is why objectui#6780 asks the browser directly instead, and why the
+            // emission below is unchanged by that reading.
+            readBadInput(e.target);
+            const val = e.target.value === '' ? null : parseFloat(e.target.value);
+            onChange(val as any);
+          }}
+          onBlur={handleBlur}
+          placeholder={currencyField?.placeholder || '0.00'}
+          disabled={readonly || props.disabled}
+          className={cn(symbol ? 'pl-8' : '', refusal ? BAD_INPUT_BORDER : '', className)}
+          // Surface the field's declared range (e.g. `min: 0` on a budget) so the
+          // browser's spinner/keyboard affordances respect it (objectui#2572);
+          // server-side validation still owns enforcement.
+          min={typeof currencyField?.min === 'number' ? currencyField.min : undefined}
+          max={typeof currencyField?.max === 'number' ? currencyField.max : undefined}
+          step={Math.pow(10, -precision).toFixed(precision)}
+          // `refusal` is this widget's OWN reading and no host can produce it;
+          // `error` keeps its single author (objectui#3222 / objectui#6716).
+          aria-invalid={!!error || !!refusal}
+        />
+      </div>
+      <BadInputMessage refusal={refusal} />
     </div>
   );
 }
