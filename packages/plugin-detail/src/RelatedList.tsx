@@ -597,7 +597,19 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortSpec, listFilterNode]);
+    // objectui#6697 — keyed on the two CONTENT strings, not on the memoised
+    // objects they produce. `useMemo` is a pure optimisation, not a
+    // correctness dependency: React may discard a cache and recompute even
+    // when the deps compare equal, and `normalizeSortSpec`/`toFilterNode`
+    // both hand back a FRESH value on every call (a new array; a freshly
+    // lowered AST). Naming `defaultSortSpec`/`listFilterNode` here therefore
+    // re-ran this effect — and re-fetched the whole collection — on a discard
+    // alone, with nothing an author or a caller controls having changed. The
+    // body still reads the memoised values; only the re-run condition moves,
+    // onto the very keys the memos are already keyed on, so a content change
+    // still refetches exactly as before.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortKey, filterKey]);
 
   // Windowed mode: a page beyond the (shrunken) collection — e.g. the last
   // row of the last page was just deleted — comes back empty. Step back one

@@ -531,6 +531,19 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     });
     return out;
   }, [items, recordObject]);
+  // objectui#6697 — the probe effect below keys on THIS string, not on the
+  // `Map` above. `useMemo` is a pure optimisation, not a correctness
+  // dependency: React may discard the cache and recompute even when
+  // `[items, recordObject]` compare equal, and the factory builds a brand new
+  // `Map` every time, so naming `probeTargets` in the effect re-probed every
+  // tab on a discard alone. A string cannot carry that identity churn — it
+  // compares by VALUE — so the effect now re-runs only when the probe set
+  // really differs. Derived inside a memo of its own so the walk is paid once
+  // per genuine recompute rather than once per render.
+  const probeKey = React.useMemo(
+    () => JSON.stringify(Array.from(probeTargets.entries())),
+    [probeTargets],
+  );
 
   React.useEffect(() => {
     if (!ds || typeof ds.find !== 'function') return;
@@ -563,7 +576,8 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     return () => {
       cancelled = true;
     };
-  }, [ds, probeTargets, parentId, countsVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ds, probeKey, parentId, countsVersion]);
 
   // Compute the displayed count by reading the store for every probe target.
   // useRelatedCountVersion above subscribed us to changes, so any store update —

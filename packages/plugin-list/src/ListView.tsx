@@ -1487,6 +1487,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     (schema as any).gantt,
     (schema as any).options,
   ]);
+  // objectui#6697 — the data-fetch effect keys on THIS string, not on the
+  // `expandFields` array. `useMemo` is a pure optimisation, not a correctness
+  // dependency: React may discard the cache and recompute even when the deps
+  // above compare equal, and `buildExpandFields` returns a FRESH array on
+  // every call (`[]`, a fresh collection, or a fresh `.filter()` result), so
+  // naming `expandFields` in the effect re-issued the whole `dataSource.find`
+  // on a discard alone. A string compares by value, so the effect now re-runs
+  // only when the set of expanded fields really differs; the body still reads
+  // `expandFields` itself.
+  const expandKey = React.useMemo(() => JSON.stringify(expandFields), [expandFields]);
 
   // Permissions context — must be read before the data-fetch effect so
   // the effect can FLS-gate the `$select` projection (preventing the
@@ -1843,7 +1853,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
 
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandKey, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
 
   // Any change to the result-defining inputs (object, filters, sort, search,
   // grouping, page size) invalidates the current page number — snap back to
