@@ -43,8 +43,11 @@
  *   - 0 failed to render, so nothing was scored on an exception.
  *
  * This file pins the 8 that this change declares. The other 45 are reported on
- * the card: they are NOT swept in here, because two of the four populations
- * below prove the predicate has real exceptions.
+ * the card: they are NOT swept in here, because the three exception populations
+ * below prove the predicate has real exceptions -- `tabs` (renders
+ * `items[].content`), the void tags out of the same loop factory as 34 that do
+ * render children, and the `schema.body` readers the containment check never
+ * inspects.
  */
 
 import { describe, it, expect } from 'vitest';
