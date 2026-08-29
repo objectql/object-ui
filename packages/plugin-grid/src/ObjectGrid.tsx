@@ -2299,7 +2299,42 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     if (hasInlineData && !rowKeysWouldOutrankSchemaPolicy) {
       const inlineData = dataConfig?.provider === 'value' ? dataConfig.items as any[] : [];
       if (inlineData.length > 0) {
-        const fieldsToShow = schemaFields || Object.keys(inlineData[0]);
+        // FLS on the inline-data path (objectui#6723 — maintainer ruling
+        // 2026-08-29: the NARROW defence-in-depth fix, not a convergence).
+        //
+        // The object-schema path below re-applies field-level security to the
+        // columns it derives; this path did not. So whether an object-bound
+        // grid re-checked FLS depended on WHO FETCHED THE ROWS: same object,
+        // same authored projection, rows the grid fetched went through the
+        // gate and rows a host handed down did not. That is the asymmetry, and
+        // a security invariant may not be decided by the data's provenance.
+        //
+        // ⭐ THE LIMIT IS LOAD-BEARING, NOT AN OPTIMISATION. Only keys the
+        // OBJECT DECLARES are judged; everything else passes through
+        // untouched. A host may legitimately join or derive columns
+        // (`computed_score`, a flattened `account.name`), and keeping those is
+        // this path's whole reason to exist — the object-schema path drops
+        // them outright (`if (!field) return;`). Judging an undeclared key
+        // would silently drop derived columns, which is the failure
+        // objectui#6723's own analysis warned about and which the ruling
+        // refuses by name. `checkField` answers `false` for a field the
+        // policy has never heard of, so asking it about a derived key is not
+        // a stricter reading of the same rule — it is a different, wrong one.
+        //
+        // Redundant through `ListView`, which filters its own `effectiveFields`
+        // through this same gate before forwarding (its source says so), and
+        // that redundancy IS the point: the invariant must not rest on every
+        // future host having read the docs. Pinned as a byte-for-byte no-op on
+        // that path in `inlineDataFls-6723.test.tsx`.
+        const fieldsToShow = (schemaFields || Object.keys(inlineData[0])).filter((fieldName) => {
+          if (!perms?.isLoaded || !schema.objectName) return true;
+          // Undeclared ⇒ host-joined / derived ⇒ not this gate's business.
+          // `hasOwnProperty` rather than a truthiness read so an inherited
+          // name (`constructor`, `toString`) cannot be mistaken for a declared
+          // field and dropped.
+          if (!Object.prototype.hasOwnProperty.call(objectSchema?.fields ?? {}, fieldName)) return true;
+          return perms.checkField(schema.objectName, fieldName, 'read');
+        });
         return fieldsToShow.map((fieldName) => {
           const fieldDef = objectSchema?.fields?.[fieldName];
           // Annotated for the same reason as paths A and B (objectui#6004).

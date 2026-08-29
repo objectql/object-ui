@@ -139,6 +139,12 @@ const heavyDomTests = [
   // all eight at once, and a stub grid stands in for one side of the
   // ListView/ObjectGrid disagreement it has to observe.
   'packages/plugin-list/src/__tests__/htmlTierColumnSpellings-6598.test.tsx',
+  // objectui#6723 — PIN 4: the grid's new inline-data FLS gate must be a
+  // no-op through this host, which pre-filters its own fields. "No-op"
+  // is a claim about the REAL grid's rendered headers, so a stub grid
+  // (what the sibling handoff pins register) cannot observe it. Same
+  // reason and same route as the three entries above.
+  'packages/plugin-list/src/__tests__/ListView.inlineFlsNoop-6723.test.tsx',
 ];
 
 export default defineConfig({
