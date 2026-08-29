@@ -678,6 +678,9 @@ const es = {
     gantt: {
       rowLabel: "Elementos",
     },
+    unsupported: {
+      objectBoundGantt: "Variante \"gantt\" no admitida: una línea de tiempo vinculada a un objeto representa las variantes de feed ({{variants}}). Gantt necesita filas literales, cada una con sus propios items anidados, por lo que el eje gantt (scale) no tiene efecto aquí.",
+    },
   },
   gantt: {
     viewMode: {

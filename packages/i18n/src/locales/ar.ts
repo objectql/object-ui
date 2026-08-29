@@ -678,6 +678,9 @@ const ar = {
     gantt: {
       rowLabel: "العناصر",
     },
+    unsupported: {
+      objectBoundGantt: "النوع \"gantt\" غير مدعوم — المخطط الزمني المرتبط بكائن يعرض أنواع التغذية ({{variants}}). يحتاج مخطط جانت إلى صفوف صريحة، لكل منها عناصر items متداخلة خاصة به، لذلك لا يؤثر محور جانت (scale) هنا.",
+    },
   },
   gantt: {
     viewMode: {

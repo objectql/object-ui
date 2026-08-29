@@ -673,6 +673,9 @@ const pt = {
     gantt: {
       rowLabel: "Itens",
     },
+    unsupported: {
+      objectBoundGantt: "Variante \"gantt\" não suportada: uma linha do tempo vinculada a um objeto renderiza as variantes de feed ({{variants}}). O gantt precisa de linhas literais, cada uma com os seus próprios items aninhados, por isso o eixo gantt (scale) não tem efeito aqui.",
+    },
   },
   gantt: {
     viewMode: {

@@ -674,6 +674,9 @@ const de = {
     gantt: {
       rowLabel: "Elemente",
     },
+    unsupported: {
+      objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",
+    },
   },
   gantt: {
     viewMode: {

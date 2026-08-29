@@ -698,6 +698,9 @@ const zh = {
     gantt: {
       rowLabel: '条目',
     },
+    unsupported: {
+      objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',
+    },
   },
   gantt: {
     column: {

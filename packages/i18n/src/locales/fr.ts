@@ -674,6 +674,9 @@ const fr = {
     gantt: {
       rowLabel: "Éléments",
     },
+    unsupported: {
+      objectBoundGantt: "Variante « gantt » non prise en charge — une timeline liée à un objet affiche les variantes de flux ({{variants}}). Gantt nécessite des lignes littérales, chacune avec ses propres items imbriqués ; l'axe gantt (scale) est donc sans effet ici.",
+    },
   },
   gantt: {
     viewMode: {

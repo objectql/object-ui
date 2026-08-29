@@ -674,6 +674,9 @@ const ko = {
     gantt: {
       rowLabel: "항목",
     },
+    unsupported: {
+      objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",
+    },
   },
   gantt: {
     viewMode: {

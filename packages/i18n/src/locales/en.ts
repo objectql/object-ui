@@ -760,6 +760,9 @@ const en = {
     gantt: {
       rowLabel: 'Items',
     },
+    unsupported: {
+      objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
+    },
   },
   gantt: {
     column: {

@@ -37,6 +37,20 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'timeline.scale.week': 'Week {{n}}',
   'timeline.scale.quarter': 'Q{{quarter}} {{year}}',
   'timeline.gantt.rowLabel': 'Items',
+  // objectui#6655 — the object-bound path REFUSES `variant: 'gantt'`.
+  //
+  // It composes one flat FEED item per record; the renderer's gantt branch
+  // reads gantt ROWS (`row.items[].startDate`), so `calculateDateRange` used to
+  // reduce an empty list and throw `RangeError: Invalid time value` mid-render.
+  // The maintainer ruling (2026-08-29) chose to refuse loudly rather than to
+  // compose rows from records, so this string IS the feature on that path and
+  // has to name the limitation, not just report a failure.
+  //
+  // `{{variants}}` is a hole rather than prose because the list is derived from
+  // the component's own declaration of what it can render — see
+  // `OBJECT_BOUND_TIMELINE_VARIANTS` in `ObjectTimeline.tsx`.
+  'timeline.unsupported.objectBoundGantt':
+    'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
 };
 
 const TEST_KEY = 'timeline.bucket.today';

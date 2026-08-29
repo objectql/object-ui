@@ -674,6 +674,9 @@ const ja = {
     gantt: {
       rowLabel: "項目",
     },
+    unsupported: {
+      objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",
+    },
   },
   gantt: {
     viewMode: {
