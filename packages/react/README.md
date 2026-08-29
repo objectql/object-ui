@@ -204,7 +204,7 @@ function MyComponent(props: Record<string, unknown>) {
 
 ### useDiscovery
 
-Access server discovery information including preview mode detection:
+Access server discovery information — service availability and server identity:
 
 ```tsx
 import { useDiscovery } from '@object-ui/react'
@@ -212,11 +212,6 @@ import { useDiscovery } from '@object-ui/react'
 function MyComponent() {
   const { discovery, isLoading, isAuthEnabled, isAiEnabled } = useDiscovery()
   
-  // Check if the server is in preview mode
-  if (discovery?.mode === 'preview') {
-    console.log('Preview mode active:', discovery.previewMode)
-  }
-
   // Check if AI service is available
   if (isAiEnabled) {
     console.log('AI service route:', discovery?.services?.ai?.route)
@@ -232,21 +227,17 @@ function MyComponent() {
 | --- | --- | --- |
 | `name` | `string` | Server name |
 | `version` | `string` | Server version |
-| `mode` | `string` | Runtime mode (e.g. `'development'`, `'production'`, `'preview'`) |
-| `previewMode` | `object` | Preview mode configuration (present when mode is `'preview'`) |
+| `mode` | `string` | Runtime mode the server reports (`RuntimeMode` in `@objectstack/spec`) |
 | `services` | `object` | Service availability status (auth, data, metadata, ai) |
 | `capabilities` | `string[]` | API capabilities |
 
-The `previewMode` object contains:
-
-| Property | Type | Default | Description |
-| --- | --- | --- | --- |
-| `autoLogin` | `boolean` | `true` | Skip login/registration pages |
-| `simulatedRole` | `'admin' \| 'user' \| 'viewer'` | `'admin'` | Simulated user role |
-| `simulatedUserName` | `string` | `'Preview User'` | Display name |
-| `readOnly` | `boolean` | `false` | Read-only mode |
-| `expiresInSeconds` | `number` | `0` | Session duration (0 = no expiry) |
-| `bannerMessage` | `string` | — | UI banner message |
+> The `previewMode` block and the `'preview'` runtime mode were retired in
+> objectui#6654, following their retirement in `@objectstack/spec`
+> (objectstack#11846). A server that still sends them is read as any other
+> payload: authentication follows `services.auth` alone, so a preview
+> deployment requires login rather than silently running with auth off.
+> `AuthProvider`'s `previewMode` **prop** in `@object-ui/auth` is a separate,
+> host-supplied capability and is unaffected.
 
 ### useNotifications / useNotificationsByPresentation
 

@@ -19,7 +19,8 @@ dead, and its removal was ruled deliberately (2026-08-29).
   reading (`isServiceUsable(discovery.services.auth)`), exactly as for any other
   mode.
 - `DiscoveryInfo` (`@object-ui/react`) drops the `previewMode` block and stops
-  documenting `'preview'` as a runtime mode.
+  documenting `'preview'` as a runtime mode; the package README's discovery
+  section is updated to match.
 
 **Accepted failure direction:** a deployment that still emits `mode: 'preview'`
 or a `previewMode` block now falls back to the ordinary auth reading — it
