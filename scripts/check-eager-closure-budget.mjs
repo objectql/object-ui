@@ -210,7 +210,7 @@ import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,254,004 on `SHA_PLACEHOLDER`.
+ * how this number was chosen; measured 3,254,004 on `bd2a7ec50`.
  *
  * Re-baselined DOWNWARD twice, each time toward a measurement the payload had
  * already fallen to:
@@ -237,11 +237,20 @@ export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_300_000;
  * test instead of quietly becoming decorative.
  */
 export const BASELINE = Object.freeze({
-  /** `emitEagerClosureReport`'s `eagerGzipBytes` on this commit. */
+  /**
+   * `emitEagerClosureReport`'s `eagerGzipBytes` on this commit.
+   *
+   * `bd2a7ec50` is the commit that carries the array and the gates; this
+   * constant was written one commit later, and the two trees differ ONLY by
+   * this recorded identifier. That is safe to state rather than hope: the
+   * console build's turbo `inputs` cover `scripts/vite-*.ts`, not
+   * `scripts/check-*.mjs`, so nothing in this file reaches the bundler. The
+   * figure was re-measured on the later commit and came back identical.
+   */
   gzipBytes: 3_254_004,
   chunks: 48,
   totalChunks: 513,
-  commit: 'SHA_PLACEHOLDER',
+  commit: 'bd2a7ec50',
 });
 
 /**
