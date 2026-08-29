@@ -97,19 +97,22 @@ function discardNow(): void {
 const ROWS = [{ id: 'c1', name: 'Alice' }];
 const SORT = [{ field: 'name', order: 'asc' as const }];
 /**
- * A MongoDB-style object, on purpose: `toFilterNode` hands an ARRAY source
- * straight back by identity, so an array `filter` would survive a discard by
- * accident and blunt the trigger. An object goes through
- * `convertFiltersToAST`, which builds a fresh value on every call — the
- * identity churn a real discard produces.
+ * The spec's own `ViewFilterRule[]` vocabulary, chosen for what
+ * `toFilterNode` does with it: an array holding rule OBJECTS goes through
+ * `source.map(viewFilterRuleToNode)`, which builds a fresh array on every
+ * call — the identity churn a real discard produces. An array of bare AST
+ * nodes would NOT do: `toFilterNode` hands that straight back by identity, so
+ * the memo would survive a discard by accident and blunt the trigger.
  */
-const FILTER = { stage: 'won' };
+const FILTER = [{ field: 'stage', operator: 'equals' as const, value: 'won' }];
 /** The exact strings `RelatedList` keys the two memos on. */
 const SORT_KEY = JSON.stringify(SORT);
 const FILTER_KEY = JSON.stringify(FILTER);
 
 const makeDS = () => ({
-  find: vi.fn(async () => ROWS),
+  // Params are declared so `find.mock.calls[n][1]` is typed as the query
+  // object rather than as an out-of-range index on an empty tuple.
+  find: vi.fn(async (_object: string, _params: Record<string, any>) => ROWS),
   getObjectSchema: vi.fn(async (name: string) => ({ name, fields: {} })),
 });
 
@@ -185,7 +188,7 @@ describe('RelatedList — the collection fetch survives a discarded memo (object
     const { rerender } = render(listElement(ds));
     await waitFor(() => expect(ds.find).toHaveBeenCalledTimes(1));
 
-    rerender(listElement(ds, { filter: { stage: 'lost' } }));
+    rerender(listElement(ds, { filter: [{ field: 'stage', operator: 'equals' as const, value: 'lost' }] }));
 
     await waitFor(() => expect(ds.find).toHaveBeenCalledTimes(2));
   });
