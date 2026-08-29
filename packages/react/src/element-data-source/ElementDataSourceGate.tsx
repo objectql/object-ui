@@ -82,7 +82,6 @@
 import * as React from 'react';
 import {
   isElementDataSourceConfig,
-  markElementDataSourceBlock,
   mergeFilterNodes,
   type ElementDataSourceConfig,
 } from '@object-ui/core';
@@ -432,10 +431,16 @@ export function NoDataSourcePanel({
  * Returns the renderer UNCHANGED (the mark is held in a `WeakSet`), so it is safe
  * over a `React.forwardRef` object, over `React.memo`, and over a component that
  * something else already re-exports by reference.
+ *
+ * Re-exported from `@object-ui/core`, where the marker and the declaration live,
+ * rather than wrapped here — ONE function under ONE name, reachable from either
+ * package. Import it from there instead when the call is at MODULE SCOPE inside a
+ * widely-imported package: 101 suites hand-list the `@object-ui/react` exports
+ * their partial mocks return, and a module-scope read of a name absent from such
+ * a list throws at COLLECTION time. `@object-ui/core` is not mocked anywhere in
+ * this repo. The core declaration carries the measurement.
  */
-export function elementDataSourceBlock<C>(renderer: C): C {
-  return markElementDataSourceBlock(renderer);
-}
+export { elementDataSourceBlock } from '@object-ui/core';
 
 export interface ElementDataSourceGateProps<S> {
   /** The block's schema node. */

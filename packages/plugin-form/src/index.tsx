@@ -7,10 +7,9 @@
  */
 
 import React, { useContext } from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
-  elementDataSourceBlock,
   SchemaRendererContext,
   noDataSourceMessage,
   useResolvedDataSource,

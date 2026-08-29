@@ -7,8 +7,8 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
-import { ElementDataSourceGate, elementDataSourceBlock, type ElementDataSourceMapping } from '@object-ui/react';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
+import { ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardGridLayout } from './DashboardGridLayout';
 import { MetricWidget } from './MetricWidget';

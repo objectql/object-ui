@@ -356,20 +356,36 @@ const elementDataSourceBlocks = new WeakSet<object>();
  *
  * This is the SEAM, and it is deliberately the only way in: `Registry.register`
  * injects the declaration for exactly the renderers marked here, so the key is
- * published by whatever wraps the gate and by nothing else — which is what keeps
- * the `flex` / `card` direction of the ruling true. `@object-ui/react` re-exports
- * it as `elementDataSourceBlock` beside the gate itself, and
+ * published by whatever consumes the gate and by nothing else — which is what
+ * keeps the `flex` / `card` direction of the ruling true.
  * `scripts/check-element-data-source-declaration.mjs` fails any source that
- * renders the gate without passing through it, so a tenth block cannot forget.
+ * consumes the gate without passing through it, so a new block cannot forget.
+ *
+ * ## Two import paths, ONE name and ONE function
+ *
+ * `@object-ui/react` re-exports this beside `ElementDataSourceGate`, which is
+ * where a block that renders the gate should import it from — the seam reads
+ * best next to the thing it is about.
+ *
+ * Import it from HERE instead when the calling module is in a widely-imported
+ * package and the call is at MODULE SCOPE, as `element:record_picker`'s
+ * registration in `@object-ui/components` is. 101 suites in this repo partially
+ * mock `@object-ui/react` by hand-listing the exports they return, and a
+ * module-scope read of a name those lists do not carry throws at COLLECTION
+ * time — the importing test file fails before it runs a single assertion.
+ * Measured: 17 files, all four CI shards, zero failed assertions among them.
+ * Nothing mocks `@object-ui/core`, and `@object-ui/components` already imports
+ * `ComponentRegistry` from it at module scope, so this path adds no coupling
+ * that was not already there.
  */
-export function markElementDataSourceBlock<C>(renderer: C): C {
+export function elementDataSourceBlock<C>(renderer: C): C {
   if (renderer && (typeof renderer === 'object' || typeof renderer === 'function')) {
     elementDataSourceBlocks.add(renderer as unknown as object);
   }
   return renderer;
 }
 
-/** Whether `renderer` was marked by {@link markElementDataSourceBlock}. */
+/** Whether `renderer` was marked by {@link elementDataSourceBlock}. */
 export function isElementDataSourceBlock(renderer: unknown): boolean {
   return (
     !!renderer

@@ -14,7 +14,6 @@
 import React from 'react';
 import {
   ElementDataSourceGate,
-  elementDataSourceBlock,
   useRecordContext,
   useSafeFieldLabel,
   useRelatedRecordActions,
@@ -23,7 +22,7 @@ import {
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { humanizeLabel } from '@object-ui/fields';
-import { columnIdentity } from '@object-ui/core';
+import { columnIdentity, elementDataSourceBlock } from '@object-ui/core';
 import type { RecordRelatedListComponentProps } from '@object-ui/types';
 import { RelatedList } from '../RelatedList';
 

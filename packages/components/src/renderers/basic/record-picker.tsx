@@ -32,9 +32,8 @@
  */
 
 import * as React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
-  elementDataSourceBlock,
   ElementDataSourceErrorPanel,
   ElementDataSourceLoadingPanel,
   useAdapter,
@@ -305,10 +304,21 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
 // the two status panels — because its object lives under `properties` rather
 // than on a schema key the gate could write. It reads `dataSource` exactly as
 // the wrapping blocks do, so it declares it from the same seam: the marker is
-// applied to the renderer at its registration rather than at a `<gate>` tag it
-// does not have. Found by the render probe in
+// applied to the renderer at its registration rather than at a gate tag it does
+// not have. Found by the render probe in
 // `apps/console/src/__tests__/element-data-source-input-injection.test.tsx`,
 // which detects the gate's own panels and does not care how they got there.
+//
+// ⚠️ The seam is imported from `@object-ui/core`, NOT from `@object-ui/react`
+// where the sibling blocks take it — the ONE function under the ONE name, by a
+// second path. This is the only site in the family that calls it at MODULE
+// SCOPE inside a package this widely imported, and that combination is a real
+// hazard here: 101 suites partially mock `@object-ui/react` by hand-listing the
+// exports they return, so a module-scope read of a name those lists do not carry
+// throws at COLLECTION time — the whole test file fails before it runs an
+// assertion. Measured on this change: 17 files, all four CI shards, and not one
+// failed assertion among them. Nothing in this repo mocks `@object-ui/core`, and
+// this module already imports `ComponentRegistry` from it at module scope.
 ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecordPickerRenderer), {
   namespace: 'element',
   skipFallback: true,

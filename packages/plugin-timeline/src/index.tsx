@@ -303,11 +303,10 @@ export * from './renderer';
 export { ObjectTimeline } from './ObjectTimeline';
 export type { ObjectTimelineProps } from './ObjectTimeline';
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import { ObjectTimeline } from './ObjectTimeline';
 import {
   ElementDataSourceGate,
-  elementDataSourceBlock,
   useSchemaContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';

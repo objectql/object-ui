@@ -130,7 +130,9 @@ views so `view` can be matched); these two apply the composed result to the
 block's schema and render the two non-final states.
 
 ```tsx
-import { ElementDataSourceGate, elementDataSourceBlock } from '@object-ui/react'
+import { ElementDataSourceGate } from '@object-ui/react'
+// The seam is imported from CORE, not from here — see the note below.
+import { elementDataSourceBlock } from '@object-ui/core'
 
 // `mapping` names ONLY the keys this block reads. A composed value written onto
 // a key the block ignores would be accepted and silently dropped — the defect
@@ -161,6 +163,17 @@ emitted from this one seam, so never hand-write a `dataSource` entry in a block'
 `inputs`. `pnpm check:element-data-source-declaration` fails any source that
 consumes the gate without reaching the seam.
 
+⚠️ **Import the seam from `@object-ui/core`, not from this package** — it is one
+function under one name, re-exported here for discoverability, and the check
+above enforces the core import at call sites. The reason is measured, not
+stylistic: a registration runs at MODULE SCOPE, 101 suites in this repo partially
+mock `@object-ui/react` by hand-listing the exports they return, and a
+module-scope read of a name absent from such a list throws at COLLECTION time —
+the importing test file dies before running a single assertion. Taking the seam
+from `@object-ui/react` reddened 17 files across all four CI shards with zero
+failed assertions among them. Nothing mocks `@object-ui/core`, and every
+registration module already imports `ComponentRegistry` from it.
+
 `object` lands on `objectName` by default (pass `object: 'apiName'` for another
 key, or `object: false` for a block that reads the composed binding itself).
 Precedence: binding keys beat the component's own, view-sourced values are only a
@@ -170,7 +183,8 @@ falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
 the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
 a block cannot be wrapped — a renderer whose hooks must run before the panels.
 That form still reads `dataSource`, so it still owes the seam: mark the renderer
-at its registration, `register('x', elementDataSourceBlock(XRenderer), { … })`.
+at its registration, `register('x', elementDataSourceBlock(XRenderer), { … })` —
+again importing `elementDataSourceBlock` from `@object-ui/core`.
 
 ### useSettledSchema
 

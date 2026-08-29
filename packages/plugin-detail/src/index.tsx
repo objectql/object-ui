@@ -7,10 +7,9 @@
  */
 
 import * as React from 'react';
-import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
-  elementDataSourceBlock,
   noDataSourceMessage,
   useResolvedDataSource,
 } from '@object-ui/react';

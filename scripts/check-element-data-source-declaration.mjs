@@ -94,8 +94,27 @@ const PACKAGES = path.join(ROOT, 'packages');
  * status panels a block renders when it drives the resolution itself.
  */
 const CONSUMES_GATE = /<ElementDataSourceGate[\s>]|\buseElementDataSourceSchema\b|\buseElementDataSource\b|\bElementDataSource(Error|Loading)Panel\b/;
-/** The seam that makes a wrapped renderer declare the key. */
+/** The seam that makes a consuming renderer declare the key. */
 const REACHES_SEAM = /\belementDataSourceBlock\s*[(<]/;
+
+/**
+ * Where the seam must be imported FROM at a call site.
+ *
+ * It is one function under one name, exported by `@object-ui/core` (where the
+ * marker and the declaration live) and re-exported by `@object-ui/react` beside
+ * the gate for discoverability. Call sites must take the CORE one, and that is a
+ * measured rule rather than a stylistic one: a registration runs at MODULE
+ * SCOPE, 101 suites in this repo partially mock `@object-ui/react` by
+ * hand-listing the exports they return, and a module-scope read of a name absent
+ * from such a list throws at COLLECTION time -- the importing test file dies
+ * before running a single assertion, so the failure arrives as an unexplained
+ * red suite rather than as a failed expectation. Taking the seam from
+ * `@object-ui/react` reddened 17 files across all four CI shards, with zero
+ * failed assertions among them. Nothing in this repo mocks `@object-ui/core`,
+ * and every registration module already imports `ComponentRegistry` from it, so
+ * the core path adds no coupling that was not already there.
+ */
+const SEAM_FROM_CORE = /import\s*\{[^}]*\belementDataSourceBlock\b[^}]*\}\s*from\s*['"]@object-ui\/core['"]/;
 
 /**
  * The package that DEFINES the gate, its hook and its panels, and exports the
@@ -129,12 +148,19 @@ for (const full of sources(PACKAGES)) {
     excluded.push({ rel, registers: findComponentRegistrations(text).calls });
     continue;
   }
-  wrapping.push({ rel, reachesSeam: REACHES_SEAM.test(text) });
+  const reachesSeam = REACHES_SEAM.test(text);
+  wrapping.push({
+    rel,
+    reachesSeam,
+    // Only meaningful for a file that actually calls the seam.
+    seamFromCore: !reachesSeam || SEAM_FROM_CORE.test(text),
+  });
 }
 
 if (process.argv.includes('--list')) {
   for (const site of wrapping.sort((a, b) => a.rel.localeCompare(b.rel))) {
-    console.log(`${site.reachesSeam ? 'ok  ' : 'MISS'} ${site.rel}`);
+    const verdict = !site.reachesSeam ? 'MISS' : !site.seamFromCore ? 'FROM-REACT' : 'ok  ';
+    console.log(`${verdict} ${site.rel}`);
   }
 }
 
@@ -187,7 +213,25 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+const fromReact = wrapping.filter((s) => s.reachesSeam && !s.seamFromCore);
+if (fromReact.length > 0) {
+  console.error(
+    `check-element-data-source-declaration: ${fromReact.length} file(s) import the seam from\n` +
+      '@object-ui/react instead of @object-ui/core:\n' +
+      fromReact.map((s) => `  ${s.rel}`).join('\n') +
+      '\n\n' +
+      'It is the same function under the same name, so this is not a naming preference. A\n' +
+      'registration runs at MODULE SCOPE, and 101 suites here partially mock @object-ui/react by\n' +
+      'hand-listing the exports they return: a module-scope read of a name absent from such a list\n' +
+      'throws at COLLECTION time, so the importing test file dies before running one assertion.\n' +
+      'Measured on objectui#6678: 17 files red across all four CI shards, zero failed assertions.\n\n' +
+      "Fix: import { elementDataSourceBlock } from '@object-ui/core'. Nothing mocks that package,\n" +
+      'and every registration module already imports ComponentRegistry from it.',
+  );
+  process.exit(1);
+}
+
 console.log(
   `check-element-data-source-declaration: OK — ${wrapping.length} gate-consuming file(s) checked, `
-    + `${excluded.length} definition file(s) excluded; all consumers reach the seam.`,
+    + `${excluded.length} definition file(s) excluded; all reach the seam and take it from core.`,
 );

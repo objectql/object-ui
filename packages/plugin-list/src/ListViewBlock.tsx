@@ -7,10 +7,9 @@
  */
 
 import React, { useContext } from 'react';
-import { isElementDataSourceConfig } from '@object-ui/core';
+import { elementDataSourceBlock, isElementDataSourceConfig } from '@object-ui/core';
 import {
   ElementDataSourceGate,
-  elementDataSourceBlock,
   SchemaRendererContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
