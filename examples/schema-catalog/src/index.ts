@@ -108,6 +108,8 @@ import components_data_display_avatar_avatar_with_fallback from './schemas/compo
 import components_data_display_avatar_avatar_with_image from './schemas/components-data-display-avatar/avatar-with-image.json' with { type: 'json' };
 import components_data_display_badge_badge_variants from './schemas/components-data-display-badge/badge-variants.json' with { type: 'json' };
 import components_data_display_breadcrumb_basic_breadcrumb from './schemas/components-data-display-breadcrumb/basic-breadcrumb.json' with { type: 'json' };
+import components_data_display_breadcrumb_collapsed_trail from './schemas/components-data-display-breadcrumb/collapsed-trail.json' with { type: 'json' };
+import components_data_display_breadcrumb_custom_separator from './schemas/components-data-display-breadcrumb/custom-separator.json' with { type: 'json' };
 import components_data_display_breadcrumb_with_icons from './schemas/components-data-display-breadcrumb/with-icons.json' with { type: 'json' };
 import components_data_display_kbd_command_palette from './schemas/components-data-display-kbd/command-palette.json' with { type: 'json' };
 import components_data_display_kbd_copy_shortcut from './schemas/components-data-display-kbd/copy-shortcut.json' with { type: 'json' };
@@ -279,6 +281,7 @@ import components_layout_stack_basic_stack from './schemas/components-layout-sta
 import components_layout_tabs_basic_tabs from './schemas/components-layout-tabs/basic-tabs.json' with { type: 'json' };
 import components_navigation_header_bar_admin_breadcrumbs from './schemas/components-navigation-header-bar/admin-breadcrumbs.json' with { type: 'json' };
 import components_navigation_header_bar_app_navigation from './schemas/components-navigation-header-bar/app-navigation.json' with { type: 'json' };
+import components_navigation_header_bar_crumbs_with_icons from './schemas/components-navigation-header-bar/crumbs-with-icons.json' with { type: 'json' };
 import components_navigation_header_bar_deep_navigation from './schemas/components-navigation-header-bar/deep-navigation.json' with { type: 'json' };
 import components_navigation_header_bar_settings_path from './schemas/components-navigation-header-bar/settings-path.json' with { type: 'json' };
 import components_navigation_header_bar_simple_header from './schemas/components-navigation-header-bar/simple-header.json' with { type: 'json' };
@@ -1319,6 +1322,26 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-data-display-breadcrumb',
     },
     schema: components_data_display_breadcrumb_basic_breadcrumb,
+  },
+  'components-data-display-breadcrumb/collapsed-trail': {
+    id: 'components-data-display-breadcrumb/collapsed-trail',
+    meta: {
+      title: "Collapsed Trail",
+      description: "`maxItems: 3` over a five-crumb trail: the root, an elision marker, and the last two crumbs.",
+      category: 'components-data-display-breadcrumb',
+      tags: ["breadcrumb", "maxItems", "collapse"],
+    },
+    schema: components_data_display_breadcrumb_collapsed_trail,
+  },
+  'components-data-display-breadcrumb/custom-separator': {
+    id: 'components-data-display-breadcrumb/custom-separator',
+    meta: {
+      title: "Custom Separator",
+      description: "The declared `separator` key, authored as \">\". Left unauthored, the trail separates with the declared default \"/\".",
+      category: 'components-data-display-breadcrumb',
+      tags: ["breadcrumb", "separator", "navigation"],
+    },
+    schema: components_data_display_breadcrumb_custom_separator,
   },
   'components-data-display-breadcrumb/with-icons': {
     id: 'components-data-display-breadcrumb/with-icons',
@@ -2869,6 +2892,16 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-navigation-header-bar',
     },
     schema: components_navigation_header_bar_app_navigation,
+  },
+  'components-navigation-header-bar/crumbs-with-icons': {
+    id: 'components-navigation-header-bar/crumbs-with-icons',
+    meta: {
+      title: "Crumbs With Icons",
+      description: "`crumbs[].icon` — kebab-case Lucide names resolved to glyphs, the same declared key a `ui:breadcrumb` item carries.",
+      category: 'components-navigation-header-bar',
+      tags: ["header", "breadcrumb", "icon"],
+    },
+    schema: components_navigation_header_bar_crumbs_with_icons,
   },
   'components-navigation-header-bar/deep-navigation': {
     id: 'components-navigation-header-bar/deep-navigation',

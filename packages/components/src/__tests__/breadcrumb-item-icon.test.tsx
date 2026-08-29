@@ -53,14 +53,22 @@
  *
  * ## The instrument's positive control
  *
- * `BreadcrumbSeparator` always draws a `ChevronRight`, in a SIBLING `<li>`. A
- * bare `container.querySelector('svg')` would therefore be green in both worlds
- * — the blind instrument this suite must not use. Every row scopes to the
- * crumb's own `<li>` and names the glyph by the class lucide derives from the
- * icon's own identity (`svg.lucide-<key>`), while the chevron is asserted at
- * container level as a control ON THE INSTRUMENT: if a `lucide-book` row is red
- * while the chevron row is green, the query works and the authored icon is
+ * Every row scopes to the crumb's own `<li>` and names the glyph by the class
+ * lucide derives from the icon's own identity (`svg.lucide-<key>`). A bare
+ * `container.querySelector('svg')` would be green in both worlds — the blind
+ * instrument this suite must not use — so a separate control establishes that
+ * the selector finds a glyph when one IS present: if a `lucide-book` row is red
+ * while the control is green, the query works and the authored icon is
  * genuinely absent.
+ *
+ * ⚠️ That control used to be asserted on THIS renderer's output, because
+ * `BreadcrumbSeparator` fell through to a `ChevronRight` in a sibling `<li>`.
+ * objectui#6646 aligned the renderer's default separator to the `@default '/'`
+ * its declaration has always carried, so no chevron is drawn here any more and
+ * the control would have been RED for a reason that has nothing to do with
+ * icons. It is preserved by rendering the shadcn PRIMITIVE directly — still a
+ * positive control on the selector, and now green in both worlds by
+ * construction rather than by a renderer default that was free to change.
  *
  * ## Why lucide is NOT mocked
  *
@@ -95,6 +103,7 @@ import { ComponentRegistry } from '@object-ui/core';
 // cold transform is billed to `hookTimeout`. See
 // object-ui/no-dynamic-import-in-test-hook (objectui#3010/#3021).
 import '../renderers';
+import { BreadcrumbSeparator } from '../ui/breadcrumb';
 
 afterEach(() => cleanup());
 
@@ -131,14 +140,21 @@ describe('ui:breadcrumb item icon resolution (objectui#5931)', () => {
       expect(screen.getByText('Docs').closest('[aria-current="page"]')).not.toBeNull();
     });
 
-    it('positive control on the instrument — a queryable svg IS present', () => {
-      // Green in both worlds BY DESIGN: `BreadcrumbSeparator` always draws a
-      // chevron. It exists so a red `lucide-*` row cannot be misread as a
-      // broken query.
-      const { container } = renderCrumbs(TWO());
+    it('positive control on the instrument — a queryable svg IS findable', () => {
+      // Green in both worlds BY DESIGN, and independent of what `ui:breadcrumb`
+      // chooses to draw: the shadcn primitive is rendered DIRECTLY, so this
+      // proves the `svg.lucide-*` selector works and a red `lucide-*` row below
+      // cannot be misread as a broken query. See the header for why it no
+      // longer reads the renderer's own separator (objectui#6646).
+      const { container } = render(<BreadcrumbSeparator />);
       expect(container.querySelector('svg.lucide-chevron-right')).not.toBeNull();
-      // …and it is NOT inside either crumb, which is why the rows below can
-      // scope to the crumb's own <li> and stay discriminating.
+    });
+
+    it('…and no glyph leaks into a crumb that authored none', () => {
+      // The other half of the old control: the rows below can scope to the
+      // crumb's own <li> and stay discriminating because nothing else puts an
+      // svg there.
+      renderCrumbs(TWO());
       expect(crumbFor('Home').querySelector('svg')).toBeNull();
     });
   });

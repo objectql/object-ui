@@ -243,5 +243,32 @@
       "drawer",
       "crud"
     ]
+  },
+  "components-data-display-breadcrumb/custom-separator": {
+    "title": "Custom Separator",
+    "description": "The declared `separator` key, authored as \">\". Left unauthored, the trail separates with the declared default \"/\".",
+    "tags": [
+      "breadcrumb",
+      "separator",
+      "navigation"
+    ]
+  },
+  "components-data-display-breadcrumb/collapsed-trail": {
+    "title": "Collapsed Trail",
+    "description": "`maxItems: 3` over a five-crumb trail: the root, an elision marker, and the last two crumbs.",
+    "tags": [
+      "breadcrumb",
+      "maxItems",
+      "collapse"
+    ]
+  },
+  "components-navigation-header-bar/crumbs-with-icons": {
+    "title": "Crumbs With Icons",
+    "description": "`crumbs[].icon` — kebab-case Lucide names resolved to glyphs, the same declared key a `ui:breadcrumb` item carries.",
+    "tags": [
+      "header",
+      "breadcrumb",
+      "icon"
+    ]
   }
 }

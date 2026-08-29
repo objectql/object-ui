@@ -107,6 +107,29 @@
  *        tree-view      30  read, but as a TWO-VALUED literal switch
  *                           (`node.icon === 'folder'`) — never a record lookup
  *
+ *    ── An EIGHTH container, added by objectui#6645 ─────────────────────────
+ *    The row above is what this table's own rule predicts: a verdict is a fact
+ *    about a renderer, so it expires when that renderer is repaired.
+ *
+ *        header-bar      3  RECORD, since objectui#6645 — `resolveIcon(crumb.icon)`
+ *                           in `renderers/navigation/header-bar.tsx`, resolved
+ *                           once per crumb ABOVE all three arms of its
+ *                           `BreadcrumbLabel` helper. JUDGED HERE.
+ *
+ *    Until that repair this container reached NO resolver and declining its
+ *    names was right — the same sequence `context-menu` went through in
+ *    objectui#6278, and for the same reason: a census entry declares that a
+ *    type's names REACH a vocabulary, and until the repair landed they reached
+ *    nothing. ⚠️ It is NOT objectui#5992's blind spot, which is this gate
+ *    GUESSING at containers nobody read off a renderer; this row was read off
+ *    the renderer, like every other row here.
+ *
+ *    The three names are the ones `crumbs-with-icons.json` authors, which the
+ *    same card added — before it the container authored none. Re-measured over
+ *    `examples/schema-catalog/` with the walk described above: 64 untyped names
+ *    across EIGHT containers, and the seven figures above re-measure
+ *    IDENTICALLY (61 + 3). The scan-root figure below moves by the same 3.
+ *
  *    `dropdown-menu.tsx` itself is correctly ABSENT from part 1's census: it
  *    imports `resolveIcon`, not `icons`, so the record read happens in
  *    `renderers/action/resolve-icon.ts`, which is already declared. Part 1
@@ -126,7 +149,8 @@
  *    ⚠️ SCOPE, which the count above does not carry on its face: it is
  *    measured over `examples/schema-catalog/`, while this gate SCANS
  *    `packages/`, `apps/` and `examples/`. Over the full scan roots the same
- *    walk finds 76 untyped names across NINE containers — the extra 15 all in
+ *    walk found 76 untyped names across NINE containers (79 across TEN since
+ *    objectui#6645 — the same +3 in the same one container) — the extra 15 all in
  *    `packages/types/examples/` (`tree-view` +6, `timeline` +3, plus `list` 3
  *    and `sidebar` 3, two containers this table does not name at all). Both
  *    extra containers were read: `data-display/list.tsx` and
@@ -283,6 +307,31 @@ export const RECORD_READING_TYPES = {
     descendants: true,
     min: 1,
     resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/dropdown-menu.tsx)',
+  },
+  // objectui#6645 — `header-bar` crumbs, and the same shape and route as the
+  // `context-menu` entry above. The container's OWN `icon` is never read
+  // (`paths: []`); the names sit on untyped children at `crumbs[].icon`, and
+  // every one of them goes through the single `resolveIcon(crumb.icon)` call in
+  // `CrumbIcon`, which renders ABOVE all three arms of `BreadcrumbLabel` (the
+  // siblings dropdown, the last crumb's `BreadcrumbPage`, and every earlier
+  // `BreadcrumbLink`) — so no arm can be forgotten and no arm needs its own
+  // path.
+  //
+  // This entry could not have existed before that repair: until it landed the
+  // renderer contained ZERO occurrences of `icon`, so the names reached nothing
+  // and DECLINING them was correct — which is exactly what objectui#6645's
+  // triage recorded, and exactly the sequence `context-menu` went through in
+  // objectui#6278. ⚠️ Adding it is therefore not objectui#5992's blind spot
+  // (this gate GUESSING at a container nobody read off a renderer); it is this
+  // table's own rule, that a row's verdict expires when its renderer changes.
+  //
+  // `min` is the MEASURED count — the three names `crumbs-with-icons.json`
+  // authors, the fixture the same card added.
+  'header-bar': {
+    paths: [],
+    descendants: true,
+    min: 3,
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/navigation/header-bar.tsx)',
   },
   // `ui:icon` — the node type whose WHOLE job is naming a glyph. It could not
   // have been censused before objectui#5631: that renderer named its glyph with

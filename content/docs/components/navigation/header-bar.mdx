@@ -13,19 +13,35 @@ The Header Bar component provides a standard application header with sidebar tri
 
 <SchemaExample id="components-navigation-header-bar/deep-navigation" />
 
+## Crumb Icons
+
+A crumb's `icon` is a **kebab-case Lucide icon name**, resolved against lucide's
+runtime `icons` record — the same surface `ui:breadcrumb`, `ui:button` and the
+`action:*` family resolve against, reached through the same shared resolver. A
+name that is not a live key of that record (an unknown, or a retired spelling
+such as `layout`) renders **no glyph**, never a fallback glyph and never the
+literal name as text.
+
+<SchemaExample id="components-navigation-header-bar/crumbs-with-icons" />
+
+`crumbs` and a `ui:breadcrumb`'s `items` are the **same** declared item shape,
+so an icon authored on either draws the same glyph.
+
 ## Schema
 
 ```plaintext
-interface Breadcrumb {
+interface BreadcrumbItem {
   label: string;                         // Breadcrumb text
   href?: string;                         // Link URL (optional for last item)
+  icon?: string;                         // kebab-case Lucide icon name (e.g. "panels-top-left")
+  siblings?: Array<{ label: string; href: string }>;  // Quick-switch dropdown
 }
 
 interface HeaderBarSchema {
   type: 'header-bar';
   
   // Breadcrumbs
-  crumbs?: Breadcrumb[];                 // Breadcrumb items
+  crumbs?: BreadcrumbItem[];             // Breadcrumb items
   
   // Styling
   className?: string;                    // Tailwind CSS classes
@@ -55,6 +71,7 @@ interface HeaderBarSchema {
 
 - The Header Bar component includes a sidebar trigger button that works with the Sidebar component
 - The last breadcrumb item is typically rendered as plain text (current page)
+- A crumb may carry an `icon` (see [Crumb Icons](#crumb-icons)) and `siblings`, which turns it into a quick-switch dropdown
 - All other breadcrumb items should have an `href` to enable navigation
 - The component has a fixed height of 64px (`h-16`)
 - Includes a vertical separator between the sidebar trigger and breadcrumbs
