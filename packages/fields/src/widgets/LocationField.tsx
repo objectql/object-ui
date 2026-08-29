@@ -1,5 +1,6 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
+import { LocationValueSchema } from '@objectstack/spec/data';
 import type { LocationValue } from '@objectstack/spec/data';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
@@ -51,6 +52,52 @@ function isLocationValue(value: unknown): value is LocationValue {
  */
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n);
+}
+
+/**
+ * Is this candidate emission one the platform's own validator ACCEPTS?
+ *
+ * The guard above tests that a coordinate is a real number; the spec also
+ * constrains its RANGE, and nothing in this widget used to (objectui#6714):
+ *
+ * ```ts
+ * // @objectstack/spec, LocationValueSchema
+ * lat: z.number().min(-90).max(90)
+ * lng: z.number().min(-180).max(180)
+ * ```
+ *
+ * So typing `999, 999` emitted `{ lat: 999, lng: 999 }` — a value
+ * `valueSchemaFor({ type: 'location' })` refuses with `too_big` at BOTH keys.
+ * That is the producer direction of the contract-first failure class
+ * (AGENTS.md #0.1): a renderer writing what the contract rejects. It is also
+ * open to every user who edits a location field, since typing the coordinates
+ * is this field's only interaction.
+ *
+ * ⛔ The bounds are NOT restated here as `-90`/`90` literals. A hand-copied
+ * range is a SECOND contract that can drift from the spec silently — the exact
+ * shape #0.1 bans — so the spec's own schema is asked instead. It is a
+ * memoized lazy schema, so this costs one `safeParse` of a 2–4 key object.
+ *
+ * Two deliberate consequences of asking the schema rather than testing two
+ * bounds by hand:
+ *
+ *  - The check is on the WHOLE emitted object, so `altitude`/`accuracy` carried
+ *    across the edit are held to the contract too. {@link carryOptionalKeys}
+ *    already narrows them to finite numbers, so this is a no-op today — it is
+ *    the guard that keeps it one.
+ *  - `Infinity` is refused as well. `parseFloat('Infinity')` is `Infinity` and
+ *    `!isNaN(Infinity)` is `true`, so the format gate alone let it through;
+ *    `z.number()` rejects it. Same defect class, same fix, no extra branch.
+ *
+ * ⚠️ Deliberately NOT wired into {@link isLocationValue}, which is the READ
+ * guard. A record that already holds an out-of-range pair keeps RENDERING here,
+ * so the person who can correct it can still see it — blanking it would hide
+ * the dirty data from its only fixer. objectui#6272's empty render was for a
+ * value whose SHAPE this widget cannot read; this shape is readable, it is just
+ * not writable. This card is the producer direction only.
+ */
+function isSpecAcceptedLocation(candidate: LocationValue): boolean {
+  return LocationValueSchema.safeParse(candidate).success;
 }
 
 /**
@@ -127,9 +174,19 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
       if (!isNaN(lat) && !isNaN(lng)) {
         // The typed pair replaces `lat`/`lng`; `altitude`/`accuracy` survive
         // the edit (objectui#6664). Key-by-key, never a spread — see above.
-        onChange(carryOptionalKeys(lat, lng, value));
+        const emitted = carryOptionalKeys(lat, lng, value);
+        // objectui#6714: the SAME refusal the line below already applies to
+        // text that isn't a coordinate pair, extended from format to RANGE.
+        // Measured before choosing this: nothing downstream rejects or repairs
+        // the value — a real `ObjectForm` submit hands `{ lat: 999, lng: 999 }`
+        // straight to `dataSource.create`, with no error raised anywhere — so
+        // refusing HERE is the only thing standing between a typo and storage.
+        if (isSpecAcceptedLocation(emitted)) {
+          onChange(emitted);
+        }
       }
-      // If invalid, don't update the value
+      // If the text is not a coordinate pair, or the pair is one the spec
+      // refuses, don't update the value — the prior value stands.
     }
   };
 
