@@ -106,10 +106,12 @@ const MAX_REPORTED_CALLABLE_PATHS = 20;
  *
  * Walks own enumerable properties — the same set `JSON.stringify` serializes —
  * so what this finds is exactly what `JSON.stringify` would fail to preserve.
- * It fails in TWO different ways, and neither says a word:
+ * It fails in TWO different ways, and neither says a word. Both are visible in
+ * a single document:
  *
- *     JSON.stringify({ cell: fn })        // => {}                  key DROPPED
- *     JSON.stringify({ columns: [fn] })   // => {"columns":[null]}  COERCED to null
+ *     JSON.stringify({ columns: [{ name: 'c', cell: fn }, fn] })
+ *     // => {"columns":[{"name":"c"},null]}
+ *     //    the object key `cell` is DROPPED; the array element is COERCED to null
  *
  * The array case is arguably the worse of the two. A dropped key at least
  * disappears, so a reader of the stored document can see something is missing;
@@ -184,8 +186,8 @@ function callableRefusalMessage(id: string, paths: string[]): string {
   const plural = paths.length === 1 ? 'key is' : 'keys are';
   return (
     `useSchemaPersistence: refusing to save schema "${id}" — ` +
-    `${paths.length} function-valued ${plural} not serializable, and JSON.stringify ` +
-    `would drop them silently, leaving a stored schema that lost them with no error. ` +
+    `${paths.length} function-valued ${plural} not serializable: JSON.stringify ` +
+    `silently drops an object key, or coerces an array element to null. ` +
     `Offending paths: ${listed}${elided}. ` +
     'Two ways forward: strip the callables before saving (persist only the serializable ' +
     'data and re-attach the handlers after load), or express the behaviour in the ' +

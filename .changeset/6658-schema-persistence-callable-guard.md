@@ -6,7 +6,9 @@
 (objectui#6658).
 
 The designer save door handed the schema straight to `JSON.stringify`, which
-drops a function-valued property **silently** — no throw, no warning. `save()`
+does not preserve a function value and says nothing about it: an object key is
+**dropped**, an array element is **coerced to `null`**. No throw, no warning.
+`save()`
 resolved with the id, `error` stayed null and `lastSavedAt` advanced, so every
 observable signal reported success while the stored schema had quietly lost the
 handler. The failure ordering was the bad one: loss at save, symptom at render
