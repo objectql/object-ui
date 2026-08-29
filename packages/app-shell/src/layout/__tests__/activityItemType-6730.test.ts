@@ -37,6 +37,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ACTIVITY_TYPE_TO_FEED_TYPE } from '@object-ui/plugin-detail';
+import type { SysActivityRow } from '@object-ui/plugin-detail';
 import { activityTimestamp } from '../../../../plugin-detail/src/renderers/recordActivityFeed';
 import {
   ACTIVITY_TYPE_TO_ACTIVITY_ITEM_TYPE,
@@ -204,7 +205,7 @@ describe('the `"NOW()"` quirk agrees with the copy objectui#5896 folded', () => 
    * column" for both a widget plugin and the shell's chrome, so this pin is the
    * instrument until there is one.
    */
-  const CASES: ReadonlyArray<{ timestamp?: unknown; created_at?: unknown }> = [
+  const CASES: readonly SysActivityRow[] = [
     { timestamp: '2026-08-20T10:00:00Z', created_at: '2026-01-01T00:00:00Z' },
     { timestamp: 'NOW()', created_at: '2026-01-01T00:00:00Z' },
     { timestamp: 'NOW()', created_at: null },

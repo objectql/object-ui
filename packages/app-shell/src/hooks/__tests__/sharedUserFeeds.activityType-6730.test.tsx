@@ -68,13 +68,18 @@ import { resetUnmappedActivityTypeWarnings } from '../../layout/activityItemType
 
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-let warn: ReturnType<typeof vi.spyOn>;
+/** Every `console.warn` this suite provokes, as text — a typed array rather
+ *  than a spy handle so the assertions read as the messages they are. */
+const warnings: string[] = [];
 
 beforeEach(() => {
   vi.useFakeTimers();
   __resetSharedUserFeeds();
   resetUnmappedActivityTypeWarnings();
-  warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  warnings.length = 0;
+  vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+    warnings.push(args.map((a) => String(a)).join(' '));
+  });
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('{}', { status: 404 }))));
 });
 
@@ -121,8 +126,7 @@ describe('objectui#6730 — the shared activity feed no longer calls everything 
 
     // One diagnostic, for the one value nobody has ruled on — not for
     // `scheduled` or `system`, which the table maps on purpose.
-    const messages = warn.mock.calls.map((c) => String(c[0]));
-    const named = messages.filter((m) => m.includes('sys_activity row with type'));
+    const named = warnings.filter((m) => m.includes('sys_activity row with type'));
     expect(named).toHaveLength(1);
     expect(named[0]).toContain('contract_countersigned');
     expect(named[0]).not.toContain('"scheduled"');
