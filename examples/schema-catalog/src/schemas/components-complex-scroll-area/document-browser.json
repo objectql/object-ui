@@ -2,7 +2,7 @@
   "type": "scroll-area",
   "height": "250px",
   "className": "rounded-md border",
-  "content": [
+  "children": [
     {
       "type": "div",
       "className": "divide-y",

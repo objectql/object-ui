@@ -4,7 +4,7 @@
   "width": "100%",
   "orientation": "both",
   "className": "rounded-md border bg-slate-950 text-slate-50",
-  "content": [
+  "children": [
     {
       "type": "div",
       "className": "p-4 font-mono text-sm",
