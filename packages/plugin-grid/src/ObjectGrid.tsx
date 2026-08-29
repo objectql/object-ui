@@ -3672,7 +3672,17 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // `fitContent` columns (row actions) hug their content — leave them out so
     // they aren't pinned to the 80px char-estimate floor and clipped in
     // grouped mode the same way they were in the flat list.
-    if ((col as any).fitContent) continue;
+    //
+    // Read WITHOUT a cast since objectui#6424 (maintainer ruling 2026-08-29,
+    // option 甲): `TableColumn` declares `fitContent` now, so the key this
+    // renderer honours is the key the published type admits. ⚠️ Read the
+    // narrowness of that claim: the cast was already buying ZERO type safety
+    // here, because `col` is `any` either way — `applyColumnChrome` is
+    // `(col: any)`, so `orderedColumns` is `any[]` and the loop above widens it
+    // a second time. This read is unchecked for that reason, not for want of a
+    // declaration, and typing it is the separate question the `as any[]` on the
+    // loop belongs to (objectui#6459). Removing the cast changed no type.
+    if (col.fitContent) continue;
     let maxLen = String(col.header ?? '').length;
     for (const row of data.slice(0, 50)) {
       const v = row?.[key];

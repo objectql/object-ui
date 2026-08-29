@@ -72,7 +72,11 @@
  *      answer is known;
  *   3. the regex proved able to find a cast read in THIS REAL FILE, at real
  *      scale — necessarily from OUTSIDE the guarded region, since inside it
- *      the whole point is that there is nothing left to find.
+ *      the whole point is that there is nothing left to find. Its anchor is a
+ *      cast on a DIFFERENT receiver than the bound assertions scan for, which
+ *      is why the scanner takes the receiver as a parameter — objectui#6424
+ *      dismantled the `col` cast this control used to observe, and the file has
+ *      no other `col` cast outside the region to move to.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -97,9 +101,12 @@ const gridSource = readFileSync(GRID_SOURCE, 'utf8');
 /**
  * The bounds of the `ListColumn` branch of `generateColumns()`. The scan is
  * scoped to it on purpose: `col` names a DIFFERENT thing further down the file
- * (a generated column, in the grouped-width pass), and a cast read there is a
- * separate question owned by objectui#6424 — pulling it in here would make this
- * guard fail for a reason it has no verdict on.
+ * (a generated column, in the grouped-width pass), and what is read off it
+ * there is a separate question owned by objectui#6424 — pulling it in here
+ * would make this guard fail for a reason it has no verdict on. That read went
+ * through `(col as any).fitContent` until objectui#6424's 2026-08-29 ruling
+ * dismantled the cast; the READ is unchanged and still outside this guard's
+ * remit, and the emitted column it reads is still not the authored input.
  */
 const REGION_START = '(cols as ListColumn[])';
 const REGION_END = '// String array format - enrich with objectDef field metadata';
@@ -108,11 +115,22 @@ const REGION_END = '// String array format - enrich with objectDef field metadat
  * Any cast spelling, not just `as any` — `(col as unknown as X).k` and
  * `(col as ListColumn & { k })` would dodge a narrower pattern while doing the
  * same thing.
+ *
+ * The RECEIVER is a parameter (objectui#6424). It was hard-coded to `col` while
+ * anti-vacuity control 3's anchor happened to be a `col` cast; the 2026-08-29
+ * ruling dismantled that cast and left the file with ZERO `col` casts outside
+ * the guarded region, so the control had to re-point at a cast on a different
+ * receiver — which a hard-coded pattern cannot express. ⚠️ The parameter is the
+ * WHOLE of that change and it defaults to `col`: every BOUND assertion below
+ * still scans for `col`, over the same region, and still means exactly what it
+ * meant. Control 2 pins that the parameter is honoured rather than ignored, so
+ * this cannot quietly become a pattern that matches any receiver at all.
  */
-const CAST_READ = /\(\s*col\s+as\s+[^)]*\)\s*\.\s*([A-Za-z_$][\w$]*)/g;
+const castReadRe = (receiver: string) =>
+  new RegExp(String.raw`\(\s*${receiver}\s+as\s+[^)]*\)\s*\.\s*([A-Za-z_$][\w$]*)`, 'g');
 
-function castReadKeys(source: string): string[] {
-  return [...source.matchAll(CAST_READ)].map((m) => m[1]);
+function castReadKeys(source: string, receiver = 'col'): string[] {
+  return [...source.matchAll(castReadRe(receiver))].map((m) => m[1]);
 }
 
 function guardedRegion(): string {
@@ -133,6 +151,30 @@ const DECLARED_KEYS = Object.keys(
  */
 const RETIRED_UNDECLARED_READS = ['format', 'options', 'appearance', 'essential'];
 
+/**
+ * Anti-vacuity control 3's anchor in the REAL file — re-pointed by objectui#6424
+ * (maintainer ruling 2026-08-29), which dismantled the `(col as any).fitContent`
+ * read in the grouped-width pass that used to serve as it. Per this control's
+ * own standing instruction the control was RE-POINTED, never deleted.
+ *
+ * Why this cast and not one of the twelve others outside the region: it is the
+ * only kind here that cannot expire SILENTLY. `hideRowHeightToggle` is a
+ * deliberately held non-authoring key (objectui#5091) — a host-written switch
+ * that `ComponentPropsMap['object-grid']`'s `strictObject` refuses by name, so
+ * `(schema as any)` is the only way to read it and the cast is load-bearing
+ * rather than incidental — and it is INDEPENDENTLY PINNED by
+ * `gridNonAuthorKeys.test.tsx`, in that file's key table and in a behavioural
+ * test. If it is ever retired, that guard goes red in the same run and names it,
+ * instead of leaving this control to fail alone against a stale anchor.
+ *
+ * ⭐ That is precisely the failure the previous anchor had, and the reason this
+ * one is chosen on a different principle rather than merely moved: `fitContent`
+ * was nothing else's premise, so dismantling it broke this control with no other
+ * signal — the silent-expiry shape this card family keeps recording.
+ */
+const CONTROL_RECEIVER = 'schema';
+const CONTROL_KEY = 'hideRowHeightToggle';
+
 describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', () => {
   it('the scan region is anchored — both bounds present exactly once', () => {
     // Anti-vacuity control 1. Every "no such key" claim below is worthless if
@@ -151,21 +193,38 @@ describe('objectui#6458 — the read boundary of ObjectGrid.generateColumns()', 
     expect(castReadKeys('const x = (col as any).someKey;')).toEqual(['someKey']);
     expect(castReadKeys('const y = (col as unknown as Foo).other;')).toEqual(['other']);
     expect(castReadKeys('const z = col.declaredKey;')).toEqual([]);
+    // …and the RECEIVER parameter is HONOURED rather than ignored. Without this
+    // pair, `castReadRe` could degrade into a pattern that matches any receiver
+    // whatsoever: control 3 below would still pass, and the two bound
+    // assertions' scoping to `col` would silently become a fiction that admits
+    // every cast in the region. Both directions asserted, so neither a stuck
+    // receiver nor an ignored one survives.
+    expect(castReadKeys('const w = (schema as any).someKey;')).toEqual([]);
+    expect(castReadKeys('const w = (schema as any).someKey;', 'schema')).toEqual(['someKey']);
   });
 
   it('the scanner finds a cast read in the REAL file, outside the guarded region', () => {
-    // Anti-vacuity control 3, and the one that had to move. It used to draw its
-    // control from INSIDE the region — which worked only while the region still
-    // contained cast reads to find. Now that the region's correct answer is
-    // zero, a control drawn from inside it would be the very thing it is meant
-    // to rule out. So it is drawn from the grouped-width pass further down the
-    // file, where `(col as any).fitContent` iterates EMITTED columns rather
-    // than the authored input (objectui#6424's question, deliberately outside
-    // this guard). If that read is ever retired too, this control must be
-    // re-pointed at another real cast — never deleted, and never re-pointed
-    // back inside the region.
+    // Anti-vacuity control 3, and the one that has now had to move twice. It
+    // first drew its control from INSIDE the region — which worked only while
+    // the region still contained cast reads to find. Now that the region's
+    // correct answer is zero, a control drawn from inside it would be the very
+    // thing it is meant to rule out. It then drew on `(col as any).fitContent`
+    // in the grouped-width pass, until objectui#6424's 2026-08-29 ruling
+    // dismantled that cast; measured on that ref, the file then had ZERO `col`
+    // casts anywhere outside the region, so the anchor moved to a different
+    // RECEIVER (see CONTROL_RECEIVER above) rather than being deleted.
+    // ⛔ If this anchor is ever retired too, re-point it at another real cast —
+    // never delete this control, and never re-point it back inside the region.
     const outside = gridSource.slice(gridSource.indexOf(REGION_END));
-    expect(castReadKeys(outside)).toContain('fitContent');
+    expect(
+      castReadKeys(outside, CONTROL_RECEIVER),
+      `Anti-vacuity control 3 has lost its anchor: no \`(${CONTROL_RECEIVER} as ...).` +
+        `${CONTROL_KEY}\` cast read remains outside the guarded region, so this scanner ` +
+        'is no longer proved able to find anything at real scale — and every "no such ' +
+        'key" claim in this file becomes a green no-op. ⛔ Re-point this control at ' +
+        'another real cast in this file; never delete it, and never re-point it back ' +
+        'inside the region (objectui#6458).'
+    ).toContain(CONTROL_KEY);
   });
 
   it('⭐ no key `ListColumn` DECLARES is read through a cast', () => {
