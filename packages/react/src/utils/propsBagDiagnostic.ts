@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { isConfigBag } from './configBag.js';
+
 /**
  * Dev-build diagnostic: a `props` CONFIG BAG on a node whose renderer reads its
  * config from `schema` — so the keys inside it are evaluated, spread as React
@@ -183,11 +185,6 @@ const _warnedPropsBags = new Set<string>();
  */
 export function __resetDroppedPropsBagWarnings(): void {
   _warnedPropsBags.clear();
-}
-
-/** A real config bag: an object, and not an array pretending to be one. */
-function isConfigBag(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**

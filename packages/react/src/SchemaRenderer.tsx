@@ -29,6 +29,7 @@ import { useRecordContext } from './context/RecordContext.js';
 import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
+import { isConfigBag } from './utils/configBag.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
 import { reportDroppedPropsBag } from './utils/propsBagDiagnostic.js';
 import {
@@ -138,27 +139,6 @@ function resolveAriaProps(schema: Record<string, any>): Record<string, string | 
  * component descriptor. See the hoist in the evaluation memo below.
  */
 const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
-
-/**
- * A real config bag: an object, and not an array pretending to be one
- * (objectui#6752).
- *
- * One predicate for BOTH bags. It existed only as the `properties` branch's
- * inline guard in the evaluation memo, spelled again inline in
- * {@link propsWithoutCanonicalKeys}; `props` had no equivalent at either site,
- * which is the whole of objectui#6752. `typeof null === 'object'` is covered by
- * the truthiness test.
- *
- * ⚠️ This is the FOURTH spelling of this one question in this package —
- * `propsBagDiagnostic.ts` and `unevaluatedExpression.ts` each carry their own,
- * and the visibility block below carries a fifth inline. Only the two in THIS
- * file are unified here: the other two live in objectui#6708's and
- * objectui#4795's modules, and merging them is a refactor across cards rather
- * than this one's to make. Filed rather than smuggled in.
- */
-function isConfigBag(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 /**
  * The legacy `props` bag, minus every key the canonical `properties` bag also
@@ -356,8 +336,7 @@ const visibilityGateKind = (key: VisibilityChainKey): PredicateGateKind =>
  */
 function winningVisibilityKey(node: Record<string, unknown>): VisibilityChainKey | undefined {
   const propertiesBag = node.properties;
-  const hasPropertiesBag =
-    propertiesBag != null && typeof propertiesBag === 'object' && !Array.isArray(propertiesBag);
+  const hasPropertiesBag = isConfigBag(propertiesBag);
   const effective = (key: string): unknown =>
     hasPropertiesBag && Object.prototype.hasOwnProperty.call(propertiesBag, key)
       ? (propertiesBag as Record<string, unknown>)[key]
