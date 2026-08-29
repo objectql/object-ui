@@ -6,8 +6,10 @@ import {
   DECLARED_LAZY_VIEWS_STILL_EAGER,
   EAGER_WALK_CONTROL,
   bareSideEffectImport,
+  declaredSideEffectful,
   diffDeclaredLazyViews,
   formatDeclaredLazyViewFailure,
+  nearestPackage,
   parseDeclaredLazyViews,
 } from '../vite-declared-lazy-views.ts';
 
@@ -51,33 +53,62 @@ describe('DECLARED_LAZY_VIEWS_STILL_EAGER', () => {
 });
 
 describe('parseDeclaredLazyViews', () => {
-  it('finds the eight route views AppContent declares, resolved to real files', () => {
+  it('finds every relative module AppContent declares, resolved to real files', () => {
     const declared = parseDeclaredLazyViews(read(APP_CONTENT_PATH));
-    // The count is the measurement objectui#6535 was filed on. It is asserted
-    // rather than merely observed because a matcher that silently finds fewer
-    // makes every check downstream of it pass vacuously.
-    expect(declared).toHaveLength(8);
+    // The count is a measurement, asserted rather than merely observed because a
+    // matcher that silently finds fewer makes every check downstream of it pass
+    // vacuously. Eight single-file route views (objectui#6535), the
+    // metadata-admin directory barrel that six declarations share, and the three
+    // marketplace pages (objectui#6681) = twelve distinct files.
+    expect(declared).toHaveLength(12);
     for (const view of declared) {
       expect(fs.existsSync(path.join(REPO_ROOT, view)), view).toBe(true);
     }
     expect(declared).toContain('packages/app-shell/src/views/ObjectDataPage.tsx');
     expect(declared).toContain('packages/app-shell/src/views/ComponentNavView.tsx');
+    // The three surfaces objectui#6535 deliberately looked away from and
+    // objectui#6681 measured. Named individually: a bare length assertion goes
+    // on passing if the widened matcher swaps one surface for another.
+    expect(declared).toContain('packages/app-shell/src/views/metadata-admin/index.ts');
+    expect(declared).toContain('packages/app-shell/src/console/marketplace/MarketplacePage.tsx');
+    expect(declared).toContain(
+      'packages/app-shell/src/console/marketplace/MarketplacePackagePage.tsx',
+    );
+    expect(declared).toContain(
+      'packages/app-shell/src/console/marketplace/MarketplaceInstalledPage.tsx',
+    );
   });
 
-  it('ignores the lazy() declarations that are not single-file route views', () => {
-    // AppContent also lazily imports a directory barrel, a sibling directory
-    // and a package. Sweeping those in would widen the ledger to modules whose
-    // eager-closure story nobody has measured.
+  it('sweeps in the directory barrel and the sibling directory, and dedupes the barrel', () => {
     const declared = parseDeclaredLazyViews(
       [
         "const A = lazy(() => import('../views/Alpha.js').then(m => ({ default: m.Alpha })));",
         "const B = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.B })));",
+        "const B2 = lazy(() => import('../views/metadata-admin/index.js').then(m => ({ default: m.B2 })));",
         "const C = lazy(() => import('./marketplace/MarketplacePage.js').then(m => ({ default: m.C })));",
-        "const D = lazy(() => import('@object-ui/plugin-designer').then(m => ({ default: m.D })));",
       ].join('\n'),
-      (p) => p === 'packages/app-shell/src/views/Alpha.tsx',
+      (p) =>
+        p === 'packages/app-shell/src/views/Alpha.tsx' ||
+        p === 'packages/app-shell/src/views/metadata-admin/index.ts' ||
+        p === 'packages/app-shell/src/console/marketplace/MarketplacePage.tsx',
     );
-    expect(declared).toEqual(['packages/app-shell/src/views/Alpha.tsx']);
+    expect(declared).toEqual([
+      'packages/app-shell/src/console/marketplace/MarketplacePage.tsx',
+      'packages/app-shell/src/views/Alpha.tsx',
+      'packages/app-shell/src/views/metadata-admin/index.ts',
+    ]);
+  });
+
+  it('still ignores a PACKAGE specifier, which has no repo-relative source file', () => {
+    // `@object-ui/plugin-designer` needs a resolver to become a path, and this
+    // parser runs in `buildStart` before any module is loaded. Its chunk was
+    // measured NOT eager on `b98352a15`, so this is a recorded blind spot rather
+    // than a live one.
+    const declared = parseDeclaredLazyViews(
+      "const D = lazy(() => import('@object-ui/plugin-designer').then(m => ({ default: m.D })));",
+      () => true,
+    );
+    expect(declared).toEqual([]);
   });
 
   it('resolves the NodeNext .js specifier to the real .tsx file rather than guessing', () => {
@@ -134,6 +165,68 @@ describe('bareSideEffectImport', () => {
   });
 });
 
+describe('declaredSideEffectful', () => {
+  it('matches an exact `./path` entry, with or without the leading dot-slash', () => {
+    const array = ['./src/index.ts', './src/views/metadata-admin/index.ts'];
+    expect(declaredSideEffectful(array, 'src/views/metadata-admin/index.ts')).toBe(
+      './src/views/metadata-admin/index.ts',
+    );
+    expect(declaredSideEffectful(array, 'src/views/RecordDetailView.tsx')).toBeNull();
+  });
+
+  it('reads `false` as "nothing is side-effectful" and `true`/absent the other way', () => {
+    expect(declaredSideEffectful(false, 'src/anything.ts')).toBeNull();
+    // Absent is not a refusal: it is the state this whole plugin was written
+    // for, and the per-module declaration is what it replaces.
+    expect(declaredSideEffectful(undefined, 'src/anything.ts')).toBeNull();
+    expect(declaredSideEffectful(true, 'src/anything.ts')).toContain('sideEffects');
+  });
+
+  it('refuses on a glob rather than under-matching it', () => {
+    // A guard that silently fails to match is the failure this function exists
+    // to prevent, so the ambiguous case fails LOUD.
+    expect(declaredSideEffectful(['./src/**/*.css'], 'src/views/Alpha.tsx')).toContain('glob');
+  });
+
+  it('agrees with the real package: metadata-admin/index.ts is declared side-effectful', () => {
+    // The subject. This is the file whose FIVE top-level registration calls
+    // `bareSideEffectImport` cannot see, so without this guard the plugin would
+    // declare it pure the moment someone deleted its ledger line
+    // (objectui#6681).
+    const owner = nearestPackage('packages/app-shell/src/views/metadata-admin/index.ts', REPO_ROOT);
+    expect(owner?.packageJsonPath).toBe('packages/app-shell/package.json');
+    expect(owner?.packageRelative).toBe('src/views/metadata-admin/index.ts');
+    const manifest = JSON.parse(read(owner!.packageJsonPath)) as { sideEffects?: unknown };
+    expect(declaredSideEffectful(manifest.sideEffects, owner!.packageRelative)).toBe(
+      './src/views/metadata-admin/index.ts',
+    );
+    // The positive control in the same query shape: a declared-lazy module the
+    // array does NOT name, so a matcher that answered "side-effectful" to
+    // everything could not pass both.
+    expect(
+      declaredSideEffectful(manifest.sideEffects, 'src/console/marketplace/MarketplacePage.tsx'),
+    ).toBeNull();
+  });
+
+  it('the source-reading guard is blind to it, which is why this one exists', () => {
+    // Stated as a test rather than a comment: if `bareSideEffectImport` ever
+    // learns to see top-level calls, this expectation flips and the reader is
+    // told, instead of two guards silently overlapping.
+    expect(
+      bareSideEffectImport(read('packages/app-shell/src/views/metadata-admin/index.ts')),
+    ).toBeNull();
+  });
+});
+
+describe('nearestPackage', () => {
+  it('walks up to the owning package, not the repo root', () => {
+    expect(nearestPackage('packages/app-shell/src/views/ObjectView.tsx', REPO_ROOT)).toEqual({
+      packageJsonPath: 'packages/app-shell/package.json',
+      packageRelative: 'src/views/ObjectView.tsx',
+    });
+  });
+});
+
 describe('EAGER_WALK_CONTROL', () => {
   it('is a real file that AppContent imports STATICALLY', () => {
     // The plugin's counter-probe 2 asserts this module is eager. That only
@@ -146,7 +239,10 @@ describe('EAGER_WALK_CONTROL', () => {
 });
 
 describe('diffDeclaredLazyViews', () => {
-  const pinned = ['packages/app-shell/src/views/RecordDetailView.tsx'];
+  const pinned = [
+    'packages/app-shell/src/views/RecordDetailView.tsx',
+    'packages/app-shell/src/views/metadata-admin/index.ts',
+  ];
 
   it('is clean when the eager set is exactly the ledger', () => {
     const diff = diffDeclaredLazyViews(pinned, pinned);

@@ -91,6 +91,46 @@ import type { Plugin, Rollup } from 'vite';
  * chunk is eager and the view's bytes ride along even with no import edge to the
  * view itself. Both are pinned with the co-tenant named.
  *
+ * ## Defect 3 — the surfaces this file used to look away from (objectui#6681)
+ *
+ * AppContent declares `lazy()` for more than the eight single-file views, and
+ * objectui#6535 deliberately parsed only those: a directory barrel
+ * (`../views/metadata-admin/index.js`, six declarations), a sibling directory
+ * (`./marketplace/*.js`, three) and a package (`@object-ui/plugin-designer`,
+ * three). Measured on `b98352a15` from `apps/console/dist/eager-closure.json`
+ * and the emitted chunks' own module lists, three of those four surfaces were
+ * eager and worth 182,134 bytes gzipped — 5.6% of a 3180.2 KB closure, and more
+ * than four times its 42.5 KB of headroom:
+ *
+ * | chunk                      | gz eager | mechanism                          |
+ * |----------------------------|----------|------------------------------------|
+ * | `metadata-admin`           | 172,651  | real static edges — PINNED below   |
+ * | `MarketplacePackagePage`   |    7,647 | chunk co-tenancy — FIXED           |
+ * | `MarketplaceInstalledPage` |    1,836 | chunk co-tenancy — FIXED           |
+ * | `MarketplacePage`          |        0 | already lazy (the control)         |
+ *
+ * The two marketplace chunks were held by objectui#6680's mechanism, not by an
+ * import of the page: rolldown had put `MarketplacePackagePage.tsx` in a chunk
+ * with `components/SuggestedBindingsPanel.tsx` (which eager
+ * `views/studio-design/StudioDesignSurface.tsx` imports statically) and
+ * `MarketplaceInstalledPage.tsx` in a chunk with
+ * `console/marketplace/InstalledListWidget.tsx` (which the package barrel
+ * bare-imports for its SDUI registration). `MarketplacePage.tsx` had no eager
+ * co-tenant and was already lazy — the control that makes the mechanism legible.
+ * The repair is the `app-shell-eager-leaves` group in
+ * `apps/console/vite.config.ts`, which isolates the co-tenants; the eager
+ * closure moved 3180.2 KB -> 3171.5 KB (-8,888 bytes, 48 -> 45 eager chunks).
+ *
+ * ⚠️ The opposite grouping was tried FIRST and measured WORSE, which is why the
+ * group names the leaves and not the pages: a `marketplace-routes` group over
+ * the three declared-lazy pages became an attractor for 47 modules — including
+ * `runtime-config.ts`, `providers/MetadataProvider.tsx` and
+ * `@object-ui/plugin-form` — and emitted a 44 KB EAGER chunk, because the same
+ * bare-imported `InstalledListWidget.tsx` got swept into it. Net -1,697 bytes
+ * against -8,888, and three other lazy boundaries destroyed. A chunk group is
+ * not a laziness declaration; it decides co-tenancy, and co-tenancy runs both
+ * ways.
+ *
  * ## Why a ledger, and why drift fails in BOTH directions
  *
  * A one-off measurement does not stop the next barrel re-export from undoing
@@ -133,18 +173,55 @@ export const APP_CONTENT_PATH = 'packages/app-shell/src/console/AppContent.tsx';
 export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
 
 /**
- * Declared-`lazy()` views that are in the eager closure anyway, with the reason
- * each stands. Kept sorted and deduplicated
+ * Declared-`lazy()` modules that are in the eager closure anyway, with the
+ * reason each stands. Kept sorted and deduplicated
  * (`scripts/__tests__/vite-declared-lazy-views.test.ts` checks that, and that
  * every entry still names a file that exists).
  *
- * One entry stands, and it stands for a reason that is NOT the barrel
- * re-export objectui#6535 removed:
+ * Two entries stand, and neither stands for the barrel re-export objectui#6535
+ * removed:
  *
  *  - `RecordDetailView` — a real static edge.
  *    `packages/app-shell/src/views/ObjectView.tsx` imports it by name, and
  *    `ObjectView` sits in AppContent's own "eagerly loaded — always needed"
  *    block. Splitting it would mean giving `ObjectView` a lazy boundary.
+ *
+ *  - `views/metadata-admin/index.ts` — the LARGEST single entry this ledger has
+ *    ever carried (172,651 bytes gzipped, 144 modules, 5.3% of the whole eager
+ *    closure) and the one most likely to be "fixed" by someone who has not read
+ *    why it stands. It is the target of SIX `lazy()` declarations in AppContent
+ *    and it is statically imported by two modules that are eager by
+ *    construction, both measured from the emitted chunk's module list on
+ *    `b98352a15` (objectui#6681):
+ *
+ *      1. `packages/app-shell/src/index.ts` — the package barrel, which
+ *         re-exports eleven runtime values from it (`registerMetadataPreview`,
+ *         `useMetadataClient`, …). The console's entry imports that barrel.
+ *      2. `packages/app-shell/src/services/builtinComponents.tsx` — which the
+ *         barrel BARE-imports (`import './services/builtinComponents.js';`) for
+ *         its ComponentRegistry registrations, and which imports
+ *         `MetadataDirectoryPage` and `MetadataResourceRouter` from this module
+ *         BY VALUE. A registry entry that names a component must hold the
+ *         component.
+ *
+ *    Neither edge is removable inside a bundling change, and the module cannot
+ *    be declared pure: it performs FIVE top-level registrations at module load
+ *    (`registerBuiltinAnchors`, `registerDefaultMetadataSchemas`,
+ *    `registerDatasourceResource`, `registerBuiltinPreviews`,
+ *    `registerBuiltinInspectors`), which is why
+ *    `@object-ui/app-shell`'s own `sideEffects` array names it (objectui#6683).
+ *    ⚠️ Those five are CALLS, not bare imports, so {@link bareSideEffectImport}
+ *    returns `null` for this file — the guard that actually refuses to declare
+ *    it pure is {@link declaredSideEffectful}, reading the package's own array.
+ *
+ *    The six pages the declarations name (`DirectoryPage`, `StudioHomePage`,
+ *    `ResourceListPage`, `ResourceEditPage`, `ResourceHistoryPage`,
+ *    `DiagnosticsPage`) have NO dynamic importer of their own in the emitted
+ *    graph — they are reached only through this barrel's static re-exports —
+ *    so no chunking policy separates them from it. Making this lazy means
+ *    changing what `registerAppComponent` accepts (a component VALUE today) and
+ *    what the package barrel re-exports; that is a published-contract decision,
+ *    not a bundling one, and it is recorded as such rather than attempted here.
  *
  * ## Two entries were REMOVED here, and that removal is a recorded win
  *
@@ -169,22 +246,35 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  */
 export const DECLARED_LAZY_VIEWS_STILL_EAGER: readonly string[] = Object.freeze([
   'packages/app-shell/src/views/RecordDetailView.tsx',
+  'packages/app-shell/src/views/metadata-admin/index.ts',
 ]);
 
 /**
- * Pull the single-file view modules out of AppContent's `lazy()` declarations.
+ * Pull the modules out of AppContent's `lazy()` declarations.
  *
- * Deliberately narrow: only relative specifiers of the shape `../views/<Name>.js`
- * — the eight route views objectui#6535 measured. AppContent also declares
- * `lazy()` for `../views/metadata-admin/index.js`, `./marketplace/*.js` and
- * `@object-ui/plugin-designer`; those are directory barrels and a package, they
- * have their own eager-closure story, and sweeping them in here would silently
- * widen a ledger nobody has measured.
+ * Every RELATIVE specifier, not just `../views/<Name>.js`. objectui#6535 kept
+ * this to the eight single-file route views on purpose — the directory barrel
+ * (`../views/metadata-admin/index.js`) and the sibling directory
+ * (`./marketplace/*.js`) had their own eager-closure story and nobody had
+ * measured it. objectui#6681 measured it, so they are in the subject now: on
+ * `b98352a15` this parses TWELVE distinct files, and three of the four surfaces
+ * it adds were eager (see the header table).
+ *
+ * The PACKAGE specifier stays out. AppContent also declares
+ * `lazy(() => import('@object-ui/plugin-designer'))` for three pages, and
+ * `@object-ui/plugin-designer` is a bare specifier with no repo-relative source
+ * file until a resolver has run — this parser reads a string and checks the
+ * filesystem, which is the property that lets it run in `buildStart` before any
+ * module is loaded. Measured on the same build, the chunk holding
+ * `packages/plugin-designer/src/**` is NOT in the eager closure, so the ledger
+ * is not currently blind to a live defect; it IS blind to a future one, which
+ * is recorded rather than papered over.
  *
  * Returns repo-relative POSIX paths to the REAL source files, resolved on disk
  * through `exists` — the specifier says `.js` (NodeNext spelling) and the file
- * is `.tsx`, and guessing that mapping instead of checking it is how a ledger
- * ends up naming a path that no longer exists.
+ * is `.tsx` (or, for a directory barrel, `index.ts`), and guessing that mapping
+ * instead of checking it is how a ledger ends up naming a path that no longer
+ * exists.
  */
 export function parseDeclaredLazyViews(
   source: string,
@@ -193,7 +283,10 @@ export function parseDeclaredLazyViews(
 ): string[] {
   const dir = path.posix.dirname(appContentPath);
   const found = new Set<string>();
-  const pattern = /lazy\(\s*\(\s*\)\s*=>\s*import\(\s*['"](\.\.\/views\/[A-Za-z0-9_$]+)\.js['"]\s*\)/g;
+  // Any relative specifier: `./x.js`, `../views/x.js`, `../views/dir/index.js`.
+  // A bare/package specifier (no leading `.`) is deliberately not matched — see
+  // the note above.
+  const pattern = /lazy\(\s*\(\s*\)\s*=>\s*import\(\s*['"](\.[^'"]*?)\.js['"]\s*\)/g;
   for (const match of source.matchAll(pattern)) {
     const base = path.posix.normalize(path.posix.join(dir, match[1] as string));
     const resolved = ['.tsx', '.ts'].map((ext) => `${base}${ext}`).find(exists);
@@ -215,6 +308,88 @@ export function parseDeclaredLazyViews(
 export function bareSideEffectImport(source: string): string | null {
   const match = /^\s*import\s+['"][^'"]+['"]\s*;?\s*$/m.exec(source);
   return match ? (match[0].trim() as string) : null;
+}
+
+/**
+ * Whether the OWNING PACKAGE has already declared this module side-effectful.
+ *
+ * {@link bareSideEffectImport} reads the module's own source for a bare
+ * `import './x.js';`. That catches one shape of side effect and misses the
+ * shape that costs the most here: a top-level CALL. Measured on `b98352a15`,
+ * `packages/app-shell/src/views/metadata-admin/index.ts` performs five of them
+ * (`registerBuiltinAnchors()`, `registerDefaultMetadataSchemas()`,
+ * `registerDatasourceResource()`, `registerBuiltinPreviews()`,
+ * `registerBuiltinInspectors()`) and `bareSideEffectImport` returns `null` for
+ * it — so on that file alone, the source-reading guard would have let this
+ * plugin declare `moduleSideEffects: false` and silently drop every built-in
+ * preview and inspector registration in the console. That is the exact failure
+ * objectui#6683 measured when `"sideEffects": false` was tried on the package.
+ *
+ * So the second guard does not re-derive the answer from the source at all. It
+ * reads the package's OWN published claim — the `sideEffects` array that
+ * objectui#6683 landed and `scripts/check-side-effects-array.mjs` keeps honest
+ * — and refuses any module that array names. One producer of the fact, two
+ * consumers; a module cannot be side-effectful for npm and pure for this build.
+ *
+ * `sideEffects` is matched the way bundlers match it: `false` claims nothing is
+ * side-effectful, `true` (or absent) claims everything might be, and an array
+ * names paths relative to the package root. Only exact `./path` entries are
+ * honoured here — glob entries are reported as a match for the whole package,
+ * because a guard that silently under-matches a glob is the failure this
+ * function exists to prevent.
+ *
+ * @param sideEffects the package.json `sideEffects` field, as parsed.
+ * @param packageRelative the module's path relative to the package root, POSIX,
+ *   WITHOUT a leading `./` (e.g. `src/views/metadata-admin/index.ts`).
+ * @returns the entry that names it (or a description of the claim), else `null`.
+ */
+export function declaredSideEffectful(
+  sideEffects: unknown,
+  packageRelative: string,
+): string | null {
+  if (sideEffects === false) return null;
+  if (sideEffects === undefined) {
+    // No claim at all. This plugin exists precisely because that is the state
+    // `@object-ui/app-shell` was in before objectui#6683, and the narrow
+    // per-module declaration below is what it replaced. Not a refusal.
+    return null;
+  }
+  if (sideEffects === true) return 'the package declares `"sideEffects": true`';
+  if (!Array.isArray(sideEffects)) {
+    return `the package declares a \`sideEffects\` of an unrecognised shape (${JSON.stringify(sideEffects)})`;
+  }
+  for (const raw of sideEffects) {
+    if (typeof raw !== 'string') continue;
+    const entry = raw.startsWith('./') ? raw.slice(2) : raw;
+    if (entry === packageRelative) return raw;
+    if (entry.includes('*')) {
+      return `${raw} (a glob — this guard refuses rather than under-match it)`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The nearest `package.json` at or above `repoRelative`, and the module's path
+ * relative to it. Returns `null` above the repo root — a source file outside any
+ * package has no published `sideEffects` claim to read.
+ */
+export function nearestPackage(
+  repoRelative: string,
+  repoRoot: string,
+): { packageJsonPath: string; packageRelative: string } | null {
+  let dir = path.posix.dirname(repoRelative);
+  while (dir !== '.' && dir !== '' && dir !== '/') {
+    const candidate = path.posix.join(dir, 'package.json');
+    if (fs.existsSync(path.join(repoRoot, candidate))) {
+      return {
+        packageJsonPath: candidate,
+        packageRelative: path.posix.relative(dir, repoRelative),
+      };
+    }
+    dir = path.posix.dirname(dir);
+  }
+  return null;
 }
 
 /** The two directions of drift a build can show against the ledger. */
@@ -261,10 +436,15 @@ export function formatDeclaredLazyViewFailure(
         `EAGER closure, so the browser fetches and parses them before first render whatever ` +
         `the route — the \`lazy()\` + \`<Suspense>\` around them buys nothing (objectui#6535):`,
       ...diff.unpinned.map((id) => `  + ${id}${why.has(id) ? ` -- ${why.get(id)}` : ''}`),
-      `Find the static edge — usually a named re-export from ` +
-        `\`packages/app-shell/src/index.ts\` that the console's entry pulls in, or a static ` +
-        `import from a module that is eager by construction. Either remove the edge, or pin ` +
-        `the view in DECLARED_LAZY_VIEWS_STILL_EAGER with the reason it stands.`,
+      `Find the edge in the EMITTED chunk's own module list, never by grepping the source: ` +
+        `the \`--\` note above names the chunk and its eager importers, and the edge is often ` +
+        `not an import of the view at all but CHUNK CO-TENANCY (objectui#6680) — an eagerly ` +
+        `reached leaf that rolldown parked in the same chunk. Three repairs, in order of ` +
+        `preference: remove the static edge (usually a named re-export from ` +
+        `\`packages/app-shell/src/index.ts\` that the console's entry pulls in); isolate the ` +
+        `eager co-tenant with an \`advancedChunks\` group in \`apps/console/vite.config.ts\` ` +
+        `(objectui#6681 — group the CO-TENANT, not the lazy page: the other way round measured ` +
+        `worse); or pin the view in DECLARED_LAZY_VIEWS_STILL_EAGER with the reason it stands.`,
     );
   }
   if (diff.missing.length > 0) {
@@ -339,8 +519,10 @@ export function viteDeclaredLazyViews(options: DeclaredLazyViewsOptions = {}): P
       // (no win, silently) and nothing weighed (no guard, silently).
       if (declared.length === 0) {
         this.error(
-          `[declared-lazy-views] counter-probe failed: no \`lazy(() => import('../views/*.js'))\` ` +
-            `declaration found in \`${appContentPath}\`. objectui#6535 measured eight. Either the ` +
+          `[declared-lazy-views] counter-probe failed: no \`lazy(() => import('<relative>.js'))\` ` +
+            `declaration found in \`${appContentPath}\`. objectui#6535 measured eight single-file ` +
+            `route views and objectui#6681 widened the subject to every relative specifier, ` +
+            `twelve distinct files on \`b98352a15\`. Either the ` +
             `route views stopped being declared lazy — in which case retire this plugin ` +
             `deliberately rather than leaving a guard with no subject — or the declarations were ` +
             `re-spelled and this matcher no longer sees them. Do not read this as "all views are ` +
@@ -352,6 +534,37 @@ export function viteDeclaredLazyViews(options: DeclaredLazyViewsOptions = {}): P
       const next = new Set<string>();
       for (const view of declared) {
         if (pinnedSet.has(view)) continue;
+
+        // Guard 1 — the package's own published claim. Checked FIRST because it
+        // is the one that catches a top-level registration CALL, which the
+        // source-reading guard below cannot see (objectui#6681).
+        const owner = nearestPackage(view, repoRoot);
+        if (owner) {
+          const manifest = JSON.parse(fs.readFileSync(abs(owner.packageJsonPath), 'utf8')) as {
+            sideEffects?: unknown;
+          };
+          const claim = declaredSideEffectful(manifest.sideEffects, owner.packageRelative);
+          if (claim) {
+            this.error(
+              `[declared-lazy-views] refusing to declare \`${view}\` side-effect-free: its own ` +
+                `package says otherwise — \`${owner.packageJsonPath}\` names it in ` +
+                `\`sideEffects\` (\`${claim}\`). A module cannot be side-effectful for every ` +
+                `npm consumer and pure for this one build; the array is the published claim and ` +
+                `this plugin is not entitled to a second opinion about it. Measured on ` +
+                `objectui#6683, declaring \`@object-ui/app-shell\` side-effect-free silently ` +
+                `dropped three SDUI widget registrations, and on objectui#6681 the module this ` +
+                `guard first fired for performs FIVE top-level registrations that ` +
+                `\`bareSideEffectImport\` cannot see — it has no bare import at all. Either ` +
+                `pin \`${view}\` in DECLARED_LAZY_VIEWS_STILL_EAGER with the reason it stands, ` +
+                `or move the side effect out of it and drop the \`sideEffects\` entry ` +
+                `(\`pnpm check:side-effects-array\` weighs that edit).`,
+            );
+          }
+        }
+
+        // Guard 2 — the module's own source. Narrower, and still needed: a
+        // module absent from the array can carry a bare side-effect import that
+        // nobody has noticed yet, which is how `RecordDetailView` was caught.
         const offending = bareSideEffectImport(fs.readFileSync(abs(view), 'utf8'));
         if (offending) {
           this.error(
@@ -477,8 +690,9 @@ export function viteDeclaredLazyViews(options: DeclaredLazyViewsOptions = {}): P
 
       const lazyCount = declared.length - eagerViews.length;
       this.info(
-        `${lazyCount}/${declared.length} views AppContent declares lazy are genuinely lazy; ` +
-          `${eagerViews.length} eager, all pinned (objectui#6535). Ledger + why they stand: ` +
+        `${lazyCount}/${declared.length} modules AppContent declares lazy are genuinely lazy; ` +
+          `${eagerViews.length} eager, all pinned (objectui#6535, widened to the directory ` +
+          `barrel and the marketplace routes by objectui#6681). Ledger + why they stand: ` +
           `scripts/vite-declared-lazy-views.ts`,
       );
     },
