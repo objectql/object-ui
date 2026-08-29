@@ -28,14 +28,33 @@
  *     and walks `content/docs` and nothing else (`DOCS_ROOT = 'content/docs'`),
  *     so `examples/**` is outside its scan surface entirely.
  *
- * It is worse than the usual declared-but-unenforced shape: the deprecation is
- * not declared anywhere MACHINE-READABLE. `RegistryComponentMetaExtras` carries
- * `tier` / `namespace` / `skipFallback` / `labelAssociation` and has no
- * `deprecated` field, so the only statements of it are a `console.warn` string
- * literal in `div.tsx` / `span.tsx` and the human-readable label
- * `'Container (Deprecated)'`. `DEPRECATED_TYPES` below is therefore a hand-kept
- * mirror, and `the deprecation this ratchet mirrors is still declared` is the
- * arm that stops the mirror from outliving the thing it mirrors.
+ * It was worse than the usual declared-but-unenforced shape: when this file
+ * landed, the deprecation was not declared anywhere MACHINE-READABLE.
+ * `RegistryComponentMetaExtras` carried `tier` / `namespace` / `skipFallback` /
+ * `labelling` and no `deprecated` field, so the only statements of it were a
+ * `console.warn` string literal in `div.tsx` / `span.tsx` and the
+ * human-readable label `'Container (Deprecated)'`. This file was therefore
+ * built on a hand-kept mirror whose premise arm READ THE RENDERER'S SOURCE and
+ * regex-matched that console literal — the closest thing to asking "is this
+ * type deprecated?" that existed.
+ *
+ * ## What objectui#6674 changed, and what it did not
+ *
+ * The registration now DECLARES it: `deprecated: { surfaces: ['json'],
+ * replacement: … }`, read back through `ComponentRegistry.deprecationFor(type,
+ * surface)`. So `the deprecation this ratchet mirrors is still declared` asks
+ * the registry instead of grepping a `.tsx` for a console string, and
+ * `no LOADED registration declares a deprecation this list omits` is the new
+ * arm that direction makes possible at all.
+ *
+ * ⚠️ `DEPRECATED_TYPES` stays HAND-KEPT on purpose, and deriving it wholesale
+ * from the registry would be a regression rather than the obvious next step.
+ * This file loads `@object-ui/components` and nothing else; a type declared
+ * deprecated by a plugin package it does not import would silently drop out of
+ * a derived list, and the census would shrink to green. The list is the
+ * ratchet's authority precisely because it is complete by construction. What
+ * the declaration buys is that the list can now be CHECKED — in both directions
+ * — against something a machine can read.
  *
  * ## Why this ratchet freezes the stock instead of demanding zero
  *
@@ -114,17 +133,30 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+// Registers `div` / `span` (and the rest of the basic set) at module scope, so
+// the two arms below can ASK the registry what is deprecated instead of reading
+// a renderer's source. Module scope, not a hook — objectui#3010/#3021.
+import '@object-ui/components';
+import { ComponentRegistry } from '@object-ui/core';
 
 /** Resolved off this module, so the gate does not depend on the process cwd. */
 const SCHEMAS_ROOT = fileURLToPath(new URL('../src/schemas', import.meta.url));
-const COMPONENTS_SRC = fileURLToPath(
-  new URL('../../../packages/components/src/renderers/basic', import.meta.url),
-);
 
 /**
- * The deprecated JSON-authored component types, mirrored by hand from the
- * renderers' notices because the registry carries no `deprecated` flag. Kept
- * honest by `the deprecation this ratchet mirrors is still declared`.
+ * The surface this corpus is authored on. Every fixture under `SCHEMAS_ROOT` is
+ * JSON metadata, so the question this ratchet asks the registry is scoped to
+ * it: `div` and `span` are ALSO permanent vocabulary of the `kind:'html'` tier
+ * (objectui#4000), where the parser compiles the plain tag straight through and
+ * no other spelling exists to migrate to. A gate that dropped the scope would
+ * be refusing a spelling that is correct on the other surface.
+ */
+const CORPUS_SURFACE = 'json' as const;
+
+/**
+ * The deprecated JSON-authored component types this ratchet refuses. Hand-kept
+ * — see the header for why deriving it from the registry would shrink the
+ * census silently — and now checked in BOTH directions against the
+ * machine-readable declaration the registrations carry (objectui#6674).
  */
 const DEPRECATED_TYPES = ['div', 'span'] as const;
 
@@ -293,19 +325,60 @@ describe('deprecated component types in the catalog are ratcheted (#3965)', () =
 
   it('the deprecation this ratchet mirrors is still declared', () => {
     // The mirror's premise. If a type is UN-deprecated, this file must die
-    // loudly rather than keep refusing a spelling that became legal again;
-    // `DEPRECATED_TYPES` is hand-kept precisely because the registry carries no
-    // machine-readable flag to derive it from.
-    for (const type of DEPRECATED_TYPES) {
-      const source = readFileSync(`${COMPONENTS_SRC}/${type}.tsx`, 'utf8');
-      expect(
-        source,
-        `renderers/basic/${type}.tsx no longer declares its deprecation notice. ` +
-          `Either the type was un-deprecated — in which case drop it from ` +
-          `DEPRECATED_TYPES and retire the matching baseline — or the notice ` +
-          `moved and this mirror needs re-pointing.`,
-      ).toContain(`The "${type}" component is deprecated`);
-    }
+    // loudly rather than keep refusing a spelling that became legal again.
+    //
+    // This arm used to `readFileSync` the renderer and regex-match its
+    // `console.warn` literal, because that string was one of only two places a
+    // deprecation was stated and the only one a test could reach. It now asks
+    // the registry, which is objectui#6674's whole delivery: the question "is
+    // this type deprecated?" has an asker.
+    const undeclared = DEPRECATED_TYPES.filter(
+      (type) => ComponentRegistry.deprecationFor(type, CORPUS_SURFACE) === undefined,
+    );
+
+    expect(
+      undeclared,
+      'A type this ratchet refuses no longer DECLARES a deprecation for the ' +
+        'json authoring surface. Either it was un-deprecated — in which case ' +
+        'drop it from DEPRECATED_TYPES and retire the matching baseline — or ' +
+        'the declaration moved and this mirror needs re-pointing. (A type ' +
+        'whose `surfaces` no longer lists `json` reads as un-deprecated HERE ' +
+        'and is still deprecated elsewhere; that is the objectui#4000 scope ' +
+        'working, not a bug in this arm.)',
+    ).toEqual([]);
+  });
+
+  it('no LOADED registration declares a deprecation this list omits', () => {
+    // The direction the hand-kept mirror could never check. Before the
+    // declaration existed there was nothing to enumerate: a third deprecated
+    // type could have been added to `@object-ui/components` with a console
+    // string and a label, and this file would have gone on refusing exactly two.
+    //
+    // Scoped honestly to what this file LOADS — `@object-ui/components`. A
+    // plugin package's declaration is out of range here, which is the reason
+    // DEPRECATED_TYPES stays the authority rather than being derived.
+    //
+    // Non-vacuity is the arm ABOVE: an empty result here would also be produced
+    // by a registry that answered `undefined` for everything, and that state
+    // turns the premise arm red first. The two hold each other up.
+    const listed = new Set<string>(DEPRECATED_TYPES);
+    // A namespaced registration answers under BOTH spellings (`ui:div` and
+    // `div`); the corpus authors the bare one and the baseline is keyed on it.
+    // Either spelling being listed counts, and the raw key is what gets
+    // reported so the message names something that exists in the registry.
+    const bare = (key: string) => (key.includes(':') ? key.slice(key.indexOf(':') + 1) : key);
+    const missing = ComponentRegistry.getKnownTypes()
+      .filter((type) => ComponentRegistry.deprecationFor(type, CORPUS_SURFACE))
+      .filter((type) => !listed.has(type) && !listed.has(bare(type)))
+      .sort();
+
+    expect(
+      missing,
+      'A loaded registration declares a json-surface deprecation that this ' +
+        'ratchet does not refuse. Add it to DEPRECATED_TYPES — and if the ' +
+        'corpus already authors it, baseline the existing stock in the same PR ' +
+        'rather than leaving the type unguarded.',
+    ).toEqual([]);
   });
 
   it('the stock is exactly what this card measured, and the exemption is not a hole', () => {
