@@ -53,6 +53,7 @@ import { errorCodeIs } from '@object-ui/types';
 import { useAdapter } from '../providers/AdapterProvider.js';
 import { bearerAuthHeaders } from '../utils/authToken.js';
 import type { ActivityItem } from '../layout/ActivityFeed.js';
+import { activityRowToActivityItem } from '../layout/activityItemType.js';
 import type { InboxNotification } from '../layout/inboxGrouping.js';
 
 /** Approvals poll cadence — the bell's original 30s (M11.C15). */
@@ -566,45 +567,30 @@ function adapterKey(adapter: unknown): string | null {
 }
 
 /**
- * Raw `sys_activity` rows carry plugin-audit's column names
- * (`summary` / `actor_name` / `object_name` / `timestamp`); casting them
- * straight through leaves every `ActivityItem` field undefined, which is what
- * once rendered the Activity tab as blank rows showing only a relative time.
+ * Raw `sys_activity` rows -> `ActivityItem`s: rows that name an action and say
+ * something. Home narrows it further (human actors only) at its own call site.
  *
- * This is the shared superset: rows that name an action and say something.
- * Home narrows it further (human actors only) at its own call site.
+ * The reading itself moved to `layout/activityItemType.ts` (objectui#6730).
+ * What lived here was the THIRD hand-written reading of `sys_activity.type` in
+ * this repo — objectui#5878 shared the table between the `record:activity`
+ * block and `RecordDetailView`, objectui#5896 shared the constructor around it,
+ * and this copy survived both — plus its own copy of the `"NOW()"` timestamp
+ * quirk whose two others #5896 folded into one.
+ *
+ * ⛔ It did NOT become a call to `activityRowToFeedItem`, and the module it
+ * moved to explains at length why not: the target types CROSS. `FeedItem`
+ * collapses create/update/delete into one `field_change`, and drops
+ * `commented` / `mentioned` outright — so routing this surface through the
+ * shared constructor would cost the bell every comment row and every
+ * distinction between a create and a delete. What is shared instead is a PIN,
+ * not an import: `activityItemType-6730.test.ts` reads plugin-detail's real
+ * table (devDependency, no runtime edge) and fails when the column's declared
+ * vocabulary grows an entry this side has not read.
  */
 function mapActivityRows(rows: unknown[]): ActivityItem[] {
   return rows
-    .filter((row): row is Record<string, unknown> => {
-      if (!row || typeof row !== 'object') return false;
-      const r = row as Record<string, unknown>;
-      return typeof r.type === 'string' && String(r.summary ?? '').trim().length > 0;
-    })
-    .map((r) => {
-      let when = r.timestamp as string | undefined;
-      if (!when || when === 'NOW()' || Number.isNaN(Date.parse(when))) {
-        when = r.created_at as string | undefined;
-      }
-      const raw = String(r.type);
-      const type: ActivityItem['type'] =
-        raw === 'commented' || raw === 'mentioned'
-          ? 'comment'
-          : raw === 'deleted'
-            ? 'delete'
-            : raw === 'created'
-              ? 'create'
-              : 'update';
-      return {
-        id: String(r.id),
-        type,
-        objectName: String(r.object_name ?? ''),
-        recordId: r.record_id != null ? String(r.record_id) : undefined,
-        user: String(r.actor_name ?? ''),
-        description: String(r.summary ?? ''),
-        timestamp: when ?? '',
-      };
-    });
+    .map((row) => activityRowToActivityItem(row))
+    .filter((item): item is ActivityItem => item !== null);
 }
 
 /**

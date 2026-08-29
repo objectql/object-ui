@@ -2344,6 +2344,7 @@ const fr = {
       typeUpdate: "Mettre à jour",
       typeDelete: "Supprimer",
       typeComment: "Commentaire",
+      typeSystem: "Système",
       relativeJustNow: "à l'instant",
       relativeSecondsAgo: "il y a {{count}}s",
       relativeMinutesAgo: "il y a {{count}}m",

@@ -2344,6 +2344,7 @@ const ja = {
       typeUpdate: "更新",
       typeDelete: "削除",
       typeComment: "コメント",
+      typeSystem: "システム",
       relativeJustNow: "たった今",
       relativeSecondsAgo: "{{count}}秒前",
       relativeMinutesAgo: "{{count}}分前",

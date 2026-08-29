@@ -2341,6 +2341,7 @@ const ko = {
       typeUpdate: "업데이트",
       typeDelete: "삭제",
       typeComment: "댓글",
+      typeSystem: "시스템",
       relativeJustNow: "방금 전",
       relativeSecondsAgo: "{{count}}초 전",
       relativeMinutesAgo: "{{count}}분 전",

@@ -2341,6 +2341,7 @@ const pt = {
       typeUpdate: "Atualizar",
       typeDelete: "Excluir",
       typeComment: "Comentário",
+      typeSystem: "Sistema",
       relativeJustNow: "agora mesmo",
       relativeSecondsAgo: "há {{count}}s",
       relativeMinutesAgo: "há {{count}}m",

@@ -2355,6 +2355,7 @@ const ru = {
       typeUpdate: "Обновление",
       typeDelete: "Удаление",
       typeComment: "Комментарий",
+      typeSystem: "Система",
       relativeJustNow: "только что",
       relativeSecondsAgo: "{{count}} с назад",
       relativeMinutesAgo: "{{count}} м назад",
