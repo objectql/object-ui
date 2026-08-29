@@ -16,6 +16,16 @@
  * durationMs, hostnameAssignment? } }` — the created row is nested under
  * `environment`, NOT flat on `data`.
  *
+ * That shape is CONFIRMED producer-side, not inferred from this consumer —
+ * the distinction matters, because the only in-repo artifact that ever pinned
+ * this payload before objectui#6629 was a hand-written mock pinning the BUG
+ * shape. Two independent producer-side sources, both in `objectstack-ai/
+ * objectstack`: `packages/client/src/index.ts` (`environments.create`) records
+ * the key set as measured against the cloud repo's `main` on 2026-08-28, naming
+ * the handler `packages/service-cloud/src/routes/environment-lifecycle.ts`;
+ * and `@objectstack/spec`'s `ProvisionEnvironmentResponseSchema`
+ * (`src/cloud/environment.zod.ts`) declares `environment` REQUIRED.
+ *
  * Idempotent + best-effort by contract:
  *   - Some control planes auto-provision the production env on org create (the
  *     `auto-default-environment` plugin). This call then races that plugin and
@@ -53,8 +63,9 @@ export interface ProvisionedEnvironment {
  * born-with-env convention used by the signup org.
  *
  * @throws on a genuine control-plane failure (5xx / network), or on a 2xx whose
- *   body doesn't carry the contractual `{ success, data }` envelope. A 403/409
- *   "already has its production env" is NOT an error — it resolves to
+ *   body doesn't carry the contractual `{ success, data: { environment } }`
+ *   shape — a wrong-shaped `data` is refused, not absorbed (objectui#6707). A
+ *   403/409 "already has its production env" is NOT an error — it resolves to
  *   `{ alreadyProvisioned: true }`.
  */
 export async function provisionProductionEnvironment(opts: {
@@ -103,10 +114,21 @@ export async function provisionProductionEnvironment(opts: {
   // into a value typed `ProvisionedEnvironment`.
   //
   // Read ONE dialect (AGENTS.md #0.1): no `data.environment ?? data` alias — a
-  // flat payload is a producer contract violation, not a second spelling. It
-  // still RESOLVES rather than throws, because rejecting a wrong-shaped `data`
-  // would change behaviour on the best-effort path the caller relies on
-  // swallowing; that is a separate decision, not part of this fix.
+  // flat payload is a producer contract violation, not a second spelling — and
+  // the violation is REFUSED rather than absorbed (objectui#6707). The envelope
+  // check above only catches a MISSING `data`; it says nothing about `data`'s
+  // shape, so a producer that regressed to a flat payload would once again
+  // resolve successfully with `id` and `hostname` `undefined` — the same silent
+  // outcome #6629 fixed, reachable again by a producer change alone. Throwing
+  // routes it to the caller's documented failure path instead: the sole caller
+  // (`CreateWorkspaceDialog`) logs the warning and the onboarding gate
+  // re-provisions lazily on first navigation, so a producer regression becomes
+  // loud-ish and recoverable rather than a successful-looking no-op.
   const environment = data.environment;
-  return { id: environment?.id, hostname: environment?.hostname };
+  if (!environment || typeof environment !== 'object') {
+    throw new Error(
+      'Malformed control-plane response: `data.environment` is missing from POST /cloud/environments',
+    );
+  }
+  return { id: environment.id, hostname: environment.hostname };
 }
