@@ -51,7 +51,7 @@ import {
   Hammer,
 } from 'lucide-react';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './ModeToggle.js';
@@ -70,18 +70,14 @@ import { useAuth, getUserInitials, useWorkspaceAdminStatus } from '@object-ui/au
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { resolveKeyedI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils/index.js';
 import { getIcon } from '../utils/getIcon.js';
-import { bearerAuthHeaders } from '../utils/authToken.js';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext.js';
 import { useNavigationContext } from '../context/NavigationContext.js';
 import { useCommandPalette } from '../context/CommandPaletteProvider.js';
 import { useUrlOverlay } from '../hooks/useUrlOverlay.js';
 import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams.js';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
-import {
-  useSharedActivityFeed,
-  useSharedInboxFeed,
-  useSharedPendingApprovalsCount,
-} from '../hooks/sharedUserFeeds.js';
+import { useSharedActivityFeed } from '../hooks/sharedUserFeeds.js';
+import { useInboxBell } from '../hooks/useInboxBell.js';
 import { getProductName, getLogoUrl } from '../runtime-config.js';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger.js';
 import { PreviewBadge } from './PreviewBadge.js';
@@ -103,10 +99,6 @@ function PathSep() {
 // No fake fallback presence — render nothing when the API has no data so the
 // header doesn't ship phantom collaborators in production.
 const EMPTY_PRESENCE_USERS: PresenceUser[] = [];
-
-// Same stable-reference rule, for the optimistic mark-read overlay: a fresh
-// empty Set per render would re-run every memo that depends on it.
-const EMPTY_READ_IDS: ReadonlySet<string> = new Set<string>();
 
 export type AppHeaderVariant = 'app' | 'home' | 'orgs';
 
@@ -215,51 +207,31 @@ export function AppHeader({
    */
   const apiActivities = useSharedActivityFeed();
   /**
-   * In-header notifications (ADR-0030), from the shared user feed (#4225).
+   * The bell's inbox — rows, badge addends and the three mark-read paths — now
+   * comes from `useInboxBell`, the ONE wiring of `sharedUserFeeds` onto an
+   * `InboxPopover` (#4225 / #4316). The `global:notifications` page block
+   * (objectui#6757) mounts the SAME hook, so a bell in the header and a bell an
+   * author declared on a page cannot disagree about a row's read-state: there
+   * is no second read and no second optimistic overlay left to drift.
    *
    * The rows are `sys_inbox_message` (the L5 in-app materialization, `mine`
-   * scope) joined with `sys_notification_receipt` for read-state — the bell
-   * does not read the re-modeled `sys_notification` L2 event (which carries no
-   * recipient/read columns). That query, its 10s cadence, its hidden-tab
-   * throttle, its visibility refetch and its failure backoff all moved into
-   * `sharedUserFeeds` unchanged; what was lost is only the SECOND copy of it.
+   * scope) joined with `sys_notification_receipt` for read-state (ADR-0030) —
+   * the bell does not read the re-modeled `sys_notification` L2 event. Home's
+   * action centre cuts from the same feed. `pendingApprovalsCount` is the
+   * badge's second addend, shared with Home's To-do card (#4197).
    *
-   * Home's action centre reads the same feed, so the two surfaces can no
-   * longer disagree about whether a message is read — the #4316 defect, where
-   * this bell showed zero unread while the card below listed five already-read
-   * messages as needing attention, has no representable state to occur in.
+   * Deliberately NOT gated on `isApp` (#4110): the read is scoped to the USER,
+   * not to the app in the URL — unlike the presence avatars and the connection
+   * dot below, which are app-shell chrome and are the reason that flag exists.
    */
-  const { value: inboxMessages } = useSharedInboxFeed();
-
-  /**
-   * Optimistic read-state, layered over the shared rows.
-   *
-   * Mark-read used to mutate this component's own `notifications` state; the
-   * rows are shared now, so a consumer may not write to them — one surface's
-   * optimistic flip must not become another's fact before the server agrees.
-   * Holding the flipped ids locally keeps the click instant while the next
-   * poll (which reads the persisted receipt) supersedes it.
-   */
-  const [locallyRead, setLocallyRead] = useState<ReadonlySet<string>>(EMPTY_READ_IDS);
-  const notifications = useMemo(
-    () =>
-      locallyRead.size === 0
-        ? inboxMessages
-        : inboxMessages.map((n) => (locallyRead.has(n.id) ? { ...n, is_read: true } : n)),
-    [inboxMessages, locallyRead],
-  );
-
-  /**
-   * M11.C15: pending approvals count — the topbar shortcut, and the second
-   * addend of the bell badge (`unreadTopics + pendingApprovalsCount`).
-   *
-   * Shared with Home's To-do card (#4197): one polled request serves both, so
-   * the badge and the card can no longer disagree. Formerly a local effect
-   * gated on `isApp`, which meant the badge silently dropped this addend
-   * everywhere outside an app — the same user with the same data read 1 on
-   * Home and 3 inside an app.
-   */
-  const pendingApprovalsCount = useSharedPendingApprovalsCount();
+  const {
+    notifications,
+    unreadCount,
+    pendingApprovalsCount,
+    markAllRead,
+    markRead: markNotificationRead,
+    markManyRead,
+  } = useInboxBell();
 
   /**
    * Presence is the OTHER half of what this component used to fetch here, and
@@ -271,84 +243,6 @@ export function AppHeader({
    * above does not drag app-shell chrome off-app with them: the boundary is
    * data scope, not surface.
    */
-
-  /**
-   * ⚠️ The bell's inbox is deliberately NOT gated on `isApp` (#4110), and the
-   * shared feed keeps it that way: the read is scoped to the *user*, not to the
-   * app in the URL — unlike the presence avatars and the connection dot, which
-   * are app-shell chrome and are the reason that flag exists. While this poll
-   * was gated the popover held `[]` on Home / Organizations / the full-page AI
-   * screen forever: the "Unread" sub-filter read "You're all caught up" and
-   * "All" — which applies no predicate at all — read "No notifications", on the
-   * very page whose To-do card was listing the same `sys_inbox_message` row.
-   *
-   * Full server-push (SSE / WebSocket) is tracked separately; the shared feed's
-   * adaptive poll keeps perceived latency ~5s and is sufficient for pilots up
-   * to ~50 concurrent users.
-   */
-
-  const unreadCount = notifications.reduce((n, x) => n + (x.is_read ? 0 : 1), 0);
-
-  // Read-state lives in `sys_notification_receipt`, keyed
-  // (notification_id, user_id, channel) — ADR-0030. That object is
-  // engine-owned (ADR-0103: `enable.apiMethods` = get/list), so the generic
-  // data API REJECTS receipt writes — the previous direct create/update here
-  // silently failed and the next poll flipped rows back to unread. Mark-read
-  // goes through the framework's dedicated REST surface instead
-  // (`POST /api/v1/notifications/read[/all]`), which upserts the receipt
-  // server-side keyed by the notification EVENT id. Rows without a
-  // `notification_id` (legacy/synthetic) can't be keyed, so they update
-  // optimistically but don't persist.
-  const postMarkRead = useCallback(async (subPath: 'read' | 'read/all', ids?: string[]) => {
-    const serverUrl = (import.meta.env?.VITE_SERVER_URL || '').replace(/\/$/, '');
-    await fetch(`${serverUrl}/api/v1/notifications/${subPath}`, {
-      method: 'POST',
-      credentials: 'include',
-      // Bearer too — see utils/authToken (#2548 split-origin fix).
-      headers: { 'Content-Type': 'application/json', ...bearerAuthHeaders() },
-      body: JSON.stringify(ids ? { ids } : {}),
-    });
-  }, []);
-
-  /** Flip rows read in the local overlay — never in the shared feed's rows. */
-  const markLocallyRead = useCallback((ids: readonly string[]) => {
-    if (ids.length === 0) return;
-    setLocallyRead((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.add(id);
-      return next;
-    });
-  }, []);
-
-  const markNotificationRead = useCallback(async (id: string) => {
-    const target = notifications.find(n => n.id === id);
-    markLocallyRead([id]);
-    if (!target?.notification_id) return;
-    try { await postMarkRead('read', [target.notification_id]); } catch { /* best-effort */ }
-  }, [notifications, markLocallyRead, postMarkRead]);
-
-  const markAllRead = useCallback(async () => {
-    const unread = notifications.filter(n => !n.is_read);
-    if (!unread.length) return;
-    markLocallyRead(notifications.map(n => n.id));
-    try { await postMarkRead('read/all'); } catch { /* best-effort */ }
-  }, [notifications, markLocallyRead, postMarkRead]);
-
-  // Per-group "mark all of this type read" (#2765): the inbox coalesces
-  // repeats of the same (topic, title) into one expandable row, and this marks
-  // every member read in a SINGLE request instead of one POST per row (a
-  // scheduled-digest group can hold 20). Rows without a `notification_id`
-  // (legacy/synthetic) still flip optimistically but can't be keyed server-side.
-  const markManyRead = useCallback(async (ids: string[]) => {
-    const idSet = new Set(ids);
-    const notifIds = notifications
-      .filter(n => idSet.has(n.id) && !n.is_read)
-      .map(n => n.notification_id)
-      .filter((v): v is string => !!v);
-    markLocallyRead(ids);
-    if (!notifIds.length) return;
-    try { await postMarkRead('read', notifIds); } catch { /* best-effort */ }
-  }, [notifications, markLocallyRead, postMarkRead]);
 
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);
