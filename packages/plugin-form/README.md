@@ -59,8 +59,10 @@ whoever else claims it.
 
 ### Public exports
 
-The package entry exports these — components, their prop/schema types, and the
-layout helpers. There is no aggregate map among them:
+The package entry exports these — components, their prop/schema types, the
+layout helpers, and the two create-payload rules a second form renderer needs
+(see [`required` + a runtime default](#required-or-requiredwhen--a-runtime-default)).
+There is no aggregate map among them:
 
 ```typescript
 import {
@@ -90,6 +92,8 @@ import {
   deriveFormFields,
   findRelationshipField,
   resolveInlineMode,
+  omitServerResolvedDefaults,
+  isRequiredInForm,
 } from '@object-ui/plugin-form';
 
 import type {
@@ -322,6 +326,25 @@ The required marker and `aria-required` go with the rule in the create case,
 since one verdict drives all three — in that mode the user genuinely is not
 required to provide the value. Showing what the server *will* supply, as a
 non-authoritative preview, is a separate follow-up.
+
+The two halves of that verdict are importable, so a host with its own form
+renderer applies the same rule rather than re-deriving it (objectui#6059):
+
+```typescript
+import { isRequiredInForm, omitServerResolvedDefaults } from '@object-ui/plugin-form';
+
+// Should this create form enforce `required` on the field?
+const required = isRequiredInForm(field, isCreateForm);
+
+// Drop the keys the producer must resolve, immediately before the insert.
+const payload = isCreateForm ? omitServerResolvedDefaults(values, objectSchema) : values;
+```
+
+They are published as a pair on purpose: excusing a server-owned field from
+`required` and then submitting the key anyway is not half a fix, it is no fix.
+Both are pure functions over plain data — no React, no registry — and
+`omitServerResolvedDefaults` is **create-only**, so the caller keeps the mode
+gate, as the example shows.
 
 Every consumer reads one predicate, `isRuntimeDefault` in `@object-ui/core`
 (re-exported for this package's own use by `src/schemaDefaults.ts`, not from the
