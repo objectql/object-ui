@@ -272,3 +272,45 @@ describe('the AuthProvider exemption rests on the spec symbol being an id enum',
     expect(typeof local.AuthProvider).toBe('function');
   });
 });
+
+/**
+ * `PreviewModeConfig` — the doc-provenance ratchet (objectui#6748).
+ *
+ * `packages/auth/README.md:328` tells readers that this package's preview-mode
+ * prop "aligns with the `PreviewModeConfig` from `@objectstack/spec/kernel`".
+ * That sentence is TRUE on the spec this package resolves today — 17.2.0 still
+ * exports `PreviewModeConfig`, `PreviewModeConfigParsed` and
+ * `PreviewModeConfigSchema` from its `./kernel` barrel — which is why this
+ * assertion ships green rather than skipped.
+ *
+ * Upstream has already retired the symbol in SOURCE: objectstack#11846, landed
+ * as objectstack PR #12718 on 2026-08-28, removed the whole `PreviewModeConfig`
+ * block together with the `RuntimeMode` value `'preview'`, and registered it as
+ * `kernel/PreviewModeConfig` in `RETIRED_DEFS_BY_MAJOR[18]`. So it leaves the
+ * PUBLISHED set at spec major 18 — not during 17.x. That is why the README line
+ * was deliberately NOT rewritten when this was found: editing it now would make
+ * it wrong in the opposite direction for the rest of 17.x, telling readers there
+ * is no upstream anchor while the import still resolves.
+ *
+ * Nothing else in this repo would notice the moment that flips. This is the
+ * signal. When this package bumps to a spec without the symbol, THIS TEST GOES
+ * RED, and the fix is to correct `packages/auth/README.md:328` — drop the
+ * alignment claim, or repoint it at whatever succeeds it — and then delete this
+ * guard, which has no reason to outlive the sentence it protects.
+ *
+ * The capability itself is NOT in question. `AuthProvider`'s `previewMode` prop
+ * is host-supplied and stays (objectui#6654's ruling leaves it intact); only the
+ * provenance sentence is at stake here.
+ */
+describe('the README preview-mode provenance claim still has an upstream anchor', () => {
+  it('the spec still exports `PreviewModeConfig`', () => {
+    expect(
+      SPEC_NAMES.has('PreviewModeConfig'),
+      '@objectstack/spec no longer exports `PreviewModeConfig`, so ' +
+        '`packages/auth/README.md:328` now points readers at a symbol that does not ' +
+        'exist — it was retired for major 18 (objectstack#11846, PR #12718). Correct ' +
+        'that line, then delete this guard. Do NOT remove the `previewMode` prop: the ' +
+        'capability is host-supplied and unaffected (objectui#6654, objectui#6748).',
+    ).toBe(true);
+  });
+});
