@@ -182,9 +182,13 @@ const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
  *   - `type`/`id` are skipped, because the hoist never copied a canonical value
  *     up for them, so dropping the alias would DELETE the prop rather than
  *     replace it;
- *   - a degenerate (non-object) `properties` is left alone — the hoist and
- *     `readProps()` both merely object-spread it, and there is no canonical bag
- *     to prefer.
+ *   - a degenerate (non-object) `properties` is left alone — there is no
+ *     canonical bag to prefer, because a degenerate bag declares no key for
+ *     either spelling to win. (This bullet used to explain the carve-out by
+ *     saying "the hoist and `readProps()` both merely object-spread it". Half
+ *     of that stopped being true at objectui#6760, which stopped the hoist from
+ *     enumerating a degenerate bag; the carve-out itself is unaffected, since
+ *     it never rested on what the hoist does with the value.)
  *
  * Adjacent but NOT decided here: objectui#4795's pending question ② (whether
  * the `properties` envelope is an official `ui:*` authoring channel at all).
@@ -899,19 +903,30 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     //
     // Guarded by {@link isConfigBag}: a degenerate value must not have its shape
     // reinterpreted by an object spread. Non-objects skip evaluation and reach
-    // the hoist exactly as they do today.
+    // the hoist — which, since objectui#6760, refuses them on its own.
     //
     // ⚠️ This guard used to say it was wider than the `props` branch BECAUSE
-    // this value feeds the hoist. That reason does not survive measurement
+    // this value feeds the hoist. That reason did not survive measurement
     // (objectui#6752). Ablating this guard to bare truthiness and re-rendering
-    // `{ type, properties: 'not-a-bag' }` on `b76ca6764` leaves the indexed
+    // `{ type, properties: 'not-a-bag' }` on `b76ca6764` left the indexed
     // keys the hoist puts on the node completely UNCHANGED — `0` … `8` either
-    // way, because the hoist's own `Object.entries` walk enumerates a string's
-    // character indices whatever this line did — and moves exactly one thing:
+    // way, because the hoist's own `Object.entries` walk enumerated a string's
+    // character indices whatever this line did — and moved exactly one thing:
     // whether `schema.properties` still holds the value the author wrote
     // (`'not-a-bag'` guarded, `{ '0': 'n', … }` ablated). So what this buys is
     // the AUTHORED value's shape, which is channel-independent, and the `props`
-    // branch below now carries the same guard for the same reason.
+    // branch below carries the same guard for the same reason.
+    //
+    // ⭐ That measurement is also why objectui#6760 gave the HOIST its own
+    // guard instead of widening this one: this line never reached the indexed
+    // keys, so nothing written here could have removed them. With both guards
+    // in place the two are in SERIES, not redundant, and re-running the same
+    // ablation now reads the opposite way — measured on this card's branch,
+    // ablating THIS line to bare truthiness brings `0` … `8` BACK, because the
+    // bare spread manufactures a real `{ '0': 'n', … }` bag out of the string
+    // and the hoist below then enumerates it legitimately. Each guard is load
+    // bearing for a different half: this one keeps the authored value's shape,
+    // the hoist's one declines to enumerate a value that never had keys.
     // Snapshotted BEFORE evaluation — objectui#5756's diagnostic below reads
     // the RAW (pre-collapse) text from this reference, since `newSchema.properties`
     // is about to be replaced with the evaluated copy.
@@ -986,7 +1001,59 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // (e.g. tab visual style: 'line' | 'card' | 'pill'). Keep `properties`
     // intact on the schema so renderers can still read these collision-prone
     // keys via `schema.properties.<key>`.
-    if (newSchema.properties) {
+    //
+    // Guarded by {@link isConfigBag}: a DEGENERATE `properties` contributes no
+    // node keys at all (objectui#6760). Measured on `c6732825d`, this branch's
+    // base, with no part of that card in the tree: `properties: 'not-a-bag'`
+    // reached the element as nine React props named `0` … `8`, and
+    // `properties: ['x', 'y']` as `0`, `1`. Nobody authored those keys — they
+    // are `Object.entries`' reading of a string's character indices, and the
+    // values this loop writes onto the node are spread as React props at the
+    // `createElement` below.
+    //
+    // ## Which arm, and why this one
+    //
+    // objectui#6760 left two open, both cheap, both reversible, neither on the
+    // manual floor (the objectui#6708 census walked every JSON document, every
+    // `json` doc fence and every TypeScript object literal and found ZERO
+    // authored degenerate config bags):
+    //
+    //   (a) guard the hoist the way the evaluation memo above is guarded;
+    //   (b) rule that the hoist may enumerate whatever it is handed, and say
+    //       so here.
+    //
+    // Arm (a), for three reasons, in the order they were weighed:
+    //
+    //  1. **One answer per key, whichever channel reads it.** That is
+    //     objectui#5123's ruling (maintainer, 2026-08-18), and arm (b) breaks
+    //     it in the loudest available place: after objectui#6752,
+    //     `props: 'not-a-bag'` contributes no keys, so arm (b) would answer the
+    //     SAME authored mistake two ways depending on which of two spellings of
+    //     ONE bag the author used — and the reinterpreting half would be
+    //     `properties`, the SPEC spelling, while the quiet half is `props`, the
+    //     annotated legacy alias. A rule that punishes the canonical spelling
+    //     is not a rule anyone can teach.
+    //  2. **The reason for the guard was measured, and it is channel-**
+    //     **independent.** objectui#6752 established it by ablation rather than
+    //     by reading a comment (see the evaluation memo above): what a config-bag
+    //     guard buys is the AUTHORED value's shape, which has nothing to do with
+    //     which bag or which site is asking. The hoist is a third site asking the
+    //     same question about the same authored value; a third answer would be
+    //     drift, which is what {@link isConfigBag} exists to end (objectui#6761).
+    //  3. **The failure it prevents is silent and lands on generated metadata.**
+    //     A degenerate bag is a mistake an author (increasingly, an AI writing
+    //     metadata) makes by writing `properties: 'text'` where a bag belongs.
+    //     Arm (b) turns that into nine plausible-looking props with no warning
+    //     anywhere; arm (a) makes it inert, so the mistake stays legible as the
+    //     `properties` value the author actually wrote.
+    //
+    // What arm (a) does NOT change, measured rather than assumed: a real object
+    // bag hoists exactly as before (`type`/`id` still protected above), and
+    // `properties: 42` / `properties: true` were already contributing nothing
+    // — `Object.entries` yields no entries for them, so this guard only ever
+    // moves the string and array cases. Pinned in
+    // `__tests__/SchemaRenderer.degeneratePropertiesHoist.test.tsx`.
+    if (isConfigBag(newSchema.properties)) {
         const outerType = newSchema.type;
         const outerId = newSchema.id;
         const props = newSchema.properties;

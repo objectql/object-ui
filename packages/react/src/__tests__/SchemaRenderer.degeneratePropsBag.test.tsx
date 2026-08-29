@@ -212,16 +212,39 @@ describe('objectui#6752 — a degenerate `props` bag is no longer spread into in
     });
   });
 
-  it('the `properties` channel is untouched — this card changed one bag', () => {
-    expect(captured.propertiesString).toEqual(BASE_READING.propertiesString);
-    expect(captured.propertiesArray).toEqual(BASE_READING.propertiesArray);
-    // Recorded, not fixed: the hoist still enumerates a degenerate `properties`
-    // into `0`…`8`. That is the hoist's own `Object.entries` walk, out of this
-    // card's scope (which forbids changing hoist behaviour) and filed
-    // separately. Pinned so the asymmetry is visible rather than forgotten.
-    expect(captured.propertiesString.indexedPropKeys).toEqual([
+  it('the `properties` channel: this card changed one bag, and the other half is now closed too', () => {
+    // The leg objectui#6752 owns, unchanged: the AUTHORED `properties` value
+    // still reaches both channels exactly as BASE_READING recorded it. This
+    // card changed one bag, and that is still true.
+    expect(captured.propertiesString.propertiesReactProp).toEqual(
+      BASE_READING.propertiesString.propertiesReactProp,
+    );
+    expect(captured.propertiesString.schemaProperties).toEqual(
+      BASE_READING.propertiesString.schemaProperties,
+    );
+    expect(captured.propertiesArray.propertiesReactProp).toEqual(
+      BASE_READING.propertiesArray.propertiesReactProp,
+    );
+    expect(captured.propertiesArray.schemaProperties).toEqual(
+      BASE_READING.propertiesArray.schemaProperties,
+    );
+
+    // ⬆ RATCHET, not a weakening (objectui#6760). This leg used to assert the
+    // WHOLE `properties` reading still equalled BASE_READING, and said so
+    // explicitly as "recorded, not fixed": the hoist's own `Object.entries`
+    // walk still put `0`…`8` on the node, out of this card's scope (which
+    // forbids changing hoist behaviour) and filed as objectui#6760. That card
+    // guarded the hoist, so the equality is now false in the direction of LESS
+    // leakage, and the assertion tightens with it — from "nine indexed props,
+    // exactly as before" to "none at all". Nothing this file asserted about
+    // the `props` bag moved; the pre-fix shape it used to pin lives on as
+    // history in `SchemaRenderer.degeneratePropertiesHoist.test.tsx`, which
+    // owns the hoist half from here.
+    expect(BASE_READING.propertiesString.indexedPropKeys).toEqual([
       '0', '1', '2', '3', '4', '5', '6', '7', '8',
     ]);
+    expect(captured.propertiesString.indexedPropKeys).toEqual([]);
+    expect(captured.propertiesArray.indexedPropKeys).toEqual([]);
   });
 
   /* ---------------------------------------------------------------- *
