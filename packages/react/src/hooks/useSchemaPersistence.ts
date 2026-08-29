@@ -105,11 +105,24 @@ const MAX_REPORTED_CALLABLE_PATHS = 20;
  * Collect the path of every function-valued property reachable in `value`.
  *
  * Walks own enumerable properties — the same set `JSON.stringify` serializes —
- * so a key this finds is exactly a key that would have been dropped. Arrays are
- * walked by index (`columns[2].cell`), which is the realistic shape: handlers
- * live on column/field entries, not only at the top level. A `seen` set keeps a
- * cyclic schema from recursing forever (`JSON.stringify` throws on those; this
- * guard runs first and must not hang before it can).
+ * so what this finds is exactly what `JSON.stringify` would fail to preserve.
+ * It fails in TWO different ways, and neither says a word:
+ *
+ *     JSON.stringify({ cell: fn })        // => {}                  key DROPPED
+ *     JSON.stringify({ columns: [fn] })   // => {"columns":[null]}  COERCED to null
+ *
+ * The array case is arguably the worse of the two. A dropped key at least
+ * disappears, so a reader of the stored document can see something is missing;
+ * a coerced `null` survives as a plausible-looking value and reads as real data
+ * on reload. That is why arrays are walked by index (`columns[2].cell`) rather
+ * than skipped — and it is the realistic shape besides, since handlers live on
+ * column/field entries, not only at the top level.
+ *
+ * A `seen` set keeps a cyclic schema from recursing forever (`JSON.stringify`
+ * throws on those; this guard runs first and must not hang before it can). It
+ * also means a subtree reachable by two paths is reported at the first one
+ * only — the refusal is still correct, the path list is just not exhaustive for
+ * shared references.
  */
 function collectCallablePaths(
   value: unknown,
@@ -135,8 +148,19 @@ function collectCallablePaths(
 }
 
 /**
- * The paths of every function-valued key anywhere in a schema, in walk order.
+ * The paths of the function-valued keys anywhere in a schema, in walk order.
  * Empty means the schema is fully declarative and serializes without loss.
+ *
+ * Two corners worth knowing, both measured, neither a reason to loosen this:
+ *
+ * - `Object.entries` INVOKES getters. A schema with a throwing getter therefore
+ *   throws inside this guard rather than inside the adapter's `JSON.stringify`.
+ *   Different call site, same outcome: `save()` refuses and surfaces the
+ *   getter's own error.
+ * - A schema carrying its own `toJSON` method is refused, even though
+ *   `JSON.stringify` would have serialized it THROUGH that method. That is a
+ *   deliberate false positive: the method itself cannot survive the round trip,
+ *   so what `load()` hands back would not be the object that was saved.
  */
 function findCallablePaths(schema: Record<string, unknown>): string[] {
   const out: string[] = [];
