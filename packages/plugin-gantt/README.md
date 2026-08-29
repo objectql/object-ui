@@ -670,9 +670,14 @@ const gantt: ObjectGanttSchema = {
   startDateField: 'start_date',
   endDateField: 'end_date',
   progressField: 'completion_percentage',
-  dependencyField: 'dependent_task_ids',
+  dependenciesField: 'dependent_task_ids',
 };
 ```
+
+`dependenciesField` (plural) is the spec's spelling and the one to author. The
+singular `dependencyField` is a `@deprecated` legacy alias: `ObjectGantt` still
+reads it (`dependenciesField || dependencyField`), so existing metadata keeps
+working, but new metadata should not use it.
 
 For a list view served under the `gantt` view type, the same configuration is a
 `gantt` block on `ListViewSchema` (typed by `GanttConfig`, also from

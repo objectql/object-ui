@@ -2285,7 +2285,25 @@ export interface ObjectGanttSchema extends BaseSchema {
   endDateField?: string;
   /** Field for task title/name */
   titleField?: string;
-  /** Field for task dependencies */
+  /**
+   * Field for task dependencies.
+   *
+   * @deprecated Legacy alias — author {@link ObjectGanttSchema.dependenciesField}
+   * instead. The plural is the spec's spelling (`@objectstack/spec`
+   * `GanttConfigSchema.dependenciesField`); this singular has NO spec
+   * counterpart. It is pre-spec objectui vocabulary, and until objectui#6051 it
+   * was the ONLY dependencies spelling this interface declared — so for the whole
+   * time the alias existed the published type taught the non-spec key and hid the
+   * canonical one. That is what this tag exists to correct: the two were declared
+   * as equals, and a reader had no way to learn which one to write.
+   *
+   * Still accepted, deliberately. `getGanttConfig`'s flat branch reads
+   * `dependenciesField || dependencyField`, so metadata already written against
+   * this key renders unchanged and the canonical key wins wherever both carry a
+   * value. Deprecating is NOT removing: dropping the alias would narrow the
+   * accept set of a published surface, which is a separate enforce-or-remove
+   * decision (objectui#6470) and not something this marker takes.
+   */
   dependencyField?: string;
   /** Field for progress (0-100) */
   progressField?: string;
@@ -2440,7 +2458,8 @@ export interface ObjectGanttSchema extends BaseSchema {
    * Record field holding this task's predecessors. The CANONICAL spelling — the
    * flat branch reads `dependenciesField || dependencyField`, so the singular
    * {@link ObjectGanttSchema.dependencyField} above stays accepted as the legacy
-   * alias and this one wins.
+   * alias and this one wins. That alias is `@deprecated` (objectui#6470): still
+   * read, no longer taught.
    */
   dependenciesField?: GanttConfig['dependenciesField'];
   /**

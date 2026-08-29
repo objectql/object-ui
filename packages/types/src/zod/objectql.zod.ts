@@ -666,7 +666,14 @@ export const ObjectGanttSchema = BaseSchema.extend({
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
-  dependencyField: z.string().optional().describe('Dependency field'),
+  // The legacy singular alias. Kept accepted — `getGanttConfig`'s flat branch
+  // reads `dependenciesField || dependencyField` — but no longer declared as an
+  // equal of the canonical key: same treatment `KanbanConfig` above gives
+  // `groupField`/`cardFields`, so this adopts the ruled idiom rather than a
+  // second spelling of "deprecated". The canonical `dependenciesField` is
+  // declared below, BY REFERENCE to the spec (objectui#6470).
+  /** @deprecated legacy alias for the spec's `dependenciesField` */
+  dependencyField: z.string().optional().describe('Deprecated alias for dependenciesField'),
   progressField: z.string().optional().describe('Progress field'),
   // DERIVED from the spec's `GanttConfigSchema.shape.viewMode` (an optional
   // enum, deliberately WITHOUT a default) so the member list cannot drift
