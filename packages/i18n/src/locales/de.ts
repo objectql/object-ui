@@ -673,6 +673,12 @@ const de = {
     },
     gantt: {
       rowLabel: "Elemente",
+      unusableRange: {
+        malformedDate:
+          "Unbrauchbarer Gantt-Datumsbereich — {{path}} ist {{value}} und damit kein gültiges Datum. Jedes Gantt-Datum muss parsebar sein: startDate und endDate jedes Zeilenelements sowie ein am Schema gesetztes minDate / maxDate.",
+        inverted:
+          "Unbrauchbarer Gantt-Datumsbereich — minDate {{minDate}} liegt nach maxDate {{maxDate}}. Ein gesetztes minDate / maxDate überschreibt den aus den Zeilen berechneten Bereich, daher hat diese Achse keine Spalten und es kann kein Balken platziert werden; vertauschen Sie die beiden Werte.",
+      },
     },
     unsupported: {
       objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",

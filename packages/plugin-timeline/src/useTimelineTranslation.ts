@@ -37,6 +37,18 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'timeline.scale.week': 'Week {{n}}',
   'timeline.scale.quarter': 'Q{{quarter}} {{year}}',
   'timeline.gantt.rowLabel': 'Items',
+  // objectui#6759 — an UNUSABLE gantt date range refuses loudly, in the shape
+  // objectui#6655 established one file away. Two strings rather than one
+  // because they state two different facts and each has to name ITS OWN
+  // offending value: a date that does not parse, and a range whose ends are
+  // the wrong way round. `{{path}}` is the authored location
+  // (`items[0].items[1].endDate`, or the pinned key), `{{value}}` the value
+  // spelled as the author wrote it — both holes rather than concatenation,
+  // for the same word-order reason `timeline.scale.*` above gives.
+  'timeline.gantt.unusableRange.malformedDate':
+    'Unusable gantt date range — {{path}} is {{value}}, which is not a valid date. Every gantt date has to parse: the startDate and endDate on every row item, plus any minDate / maxDate pinned on the schema.',
+  'timeline.gantt.unusableRange.inverted':
+    'Unusable gantt date range — minDate {{minDate}} is after maxDate {{maxDate}}. A pinned minDate / maxDate overrides the range computed from the rows, so this axis has no columns and no bar can be placed on it; swap the two values.',
   // objectui#6655 — the object-bound path REFUSES `variant: 'gantt'`.
   //
   // It composes one flat FEED item per record; the renderer's gantt branch

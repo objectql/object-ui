@@ -697,6 +697,12 @@ const zh = {
     },
     gantt: {
       rowLabel: '条目',
+      unusableRange: {
+        malformedDate:
+          '甘特图日期区间不可用 —— {{path}} 的值是 {{value}}，无法解析为日期。每个甘特图日期都必须能被解析：每行条目的 startDate 与 endDate，以及 schema 上钉住的 minDate / maxDate。',
+        inverted:
+          '甘特图日期区间不可用 —— minDate {{minDate}} 晚于 maxDate {{maxDate}}。钉住的 minDate / maxDate 会覆盖由行数据算出的区间，因此该坐标轴没有任何列，也无法放置任何条形；请对调这两个值。',
+      },
     },
     unsupported: {
       objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',

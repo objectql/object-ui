@@ -672,6 +672,12 @@ const pt = {
     },
     gantt: {
       rowLabel: "Itens",
+      unusableRange: {
+        malformedDate:
+          "Intervalo de datas do gantt inutilizável: {{path}} é {{value}}, que não é uma data válida. Todas as datas do gantt têm de ser analisáveis: startDate e endDate de cada item de linha, além de qualquer minDate / maxDate fixado no esquema.",
+        inverted:
+          "Intervalo de datas do gantt inutilizável: minDate {{minDate}} é posterior a maxDate {{maxDate}}. Um minDate / maxDate fixado prevalece sobre o intervalo calculado a partir das linhas, pelo que este eixo não tem colunas e nenhuma barra pode ser colocada; troque os dois valores.",
+      },
     },
     unsupported: {
       objectBoundGantt: "Variante \"gantt\" não suportada: uma linha do tempo vinculada a um objeto renderiza as variantes de feed ({{variants}}). O gantt precisa de linhas literais, cada uma com os seus próprios items aninhados, por isso o eixo gantt (scale) não tem efeito aqui.",

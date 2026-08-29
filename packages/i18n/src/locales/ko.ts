@@ -673,6 +673,12 @@ const ko = {
     },
     gantt: {
       rowLabel: "항목",
+      unusableRange: {
+        malformedDate:
+          "사용할 수 없는 간트 날짜 범위 — {{path}}은(는) {{value}}이며 유효한 날짜가 아닙니다. 모든 간트 날짜는 파싱할 수 있어야 합니다: 각 행 항목의 startDate와 endDate, 그리고 스키마에 고정한 minDate / maxDate.",
+        inverted:
+          "사용할 수 없는 간트 날짜 범위 — minDate {{minDate}}이(가) maxDate {{maxDate}}보다 뒤입니다. 고정한 minDate / maxDate는 행에서 계산한 범위보다 우선하므로 이 축에는 열이 없고 막대를 배치할 수 없습니다. 두 값을 서로 바꾸세요.",
+      },
     },
     unsupported: {
       objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",

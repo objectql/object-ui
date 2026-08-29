@@ -673,6 +673,12 @@ const fr = {
     },
     gantt: {
       rowLabel: "Éléments",
+      unusableRange: {
+        malformedDate:
+          "Plage de dates du gantt inutilisable — {{path}} vaut {{value}}, ce qui n'est pas une date valide. Toutes les dates du gantt doivent être analysables : startDate et endDate de chaque élément de ligne, ainsi que tout minDate / maxDate fixé sur le schéma.",
+        inverted:
+          "Plage de dates du gantt inutilisable — minDate {{minDate}} est postérieur à maxDate {{maxDate}}. Un minDate / maxDate fixé l'emporte sur la plage calculée à partir des lignes ; cet axe n'a donc aucune colonne et aucune barre ne peut y être placée. Intervertissez les deux valeurs.",
+      },
     },
     unsupported: {
       objectBoundGantt: "Variante « gantt » non prise en charge — une timeline liée à un objet affiche les variantes de flux ({{variants}}). Gantt nécessite des lignes littérales, chacune avec ses propres items imbriqués ; l'axe gantt (scale) est donc sans effet ici.",

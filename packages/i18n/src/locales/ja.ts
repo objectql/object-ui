@@ -673,6 +673,12 @@ const ja = {
     },
     gantt: {
       rowLabel: "項目",
+      unusableRange: {
+        malformedDate:
+          "ガントの日付範囲が使用できません — {{path}} が {{value}} で、有効な日付として解析できません。ガントのすべての日付は解析可能である必要があります: 各行アイテムの startDate と endDate、およびスキーマで固定した minDate / maxDate。",
+        inverted:
+          "ガントの日付範囲が使用できません — minDate {{minDate}} が maxDate {{maxDate}} より後です。固定した minDate / maxDate は行から計算した範囲より優先されるため、この軸には列がなくバーを配置できません。2 つの値を入れ替えてください。",
+      },
     },
     unsupported: {
       objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",

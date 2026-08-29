@@ -115,6 +115,22 @@ export function resolveTimelineScale(schema: { scale?: unknown }): string {
  * `./__tests__/timeline-gantt-empty-items.test.tsx` pins — separately from the
  * other two sites, so a later change that fixes one and not the others goes
  * red.
+ *
+ * ## The refusal on the next line is NOT dead code (objectui#6759)
+ *
+ * #6759 put a guard in the gantt branch that refuses an unparseable or inverted
+ * range before this function is ever called, so the `return headers` below can
+ * no longer be reached FROM THERE. It was reached before: a `zero-column axis`
+ * is exactly what case 2 rendered its negative-width bar under, and the fix was
+ * to refuse above rather than to relax the guard here — this function's verdict
+ * is still "needed no change".
+ *
+ * Two reasons it stays. It is EXPORTED and called directly, including by
+ * `timeline-gantt-empty-items.test.tsx`'s pin 5a, which holds these exact
+ * inputs (`'2030-01-01'` / `'2026-03-15'`, and `''` / `''`) returning `[]`. And
+ * it is the reason the caller's guard is allowed to be the only one: an axis
+ * that silently drew nothing is what let the row loop below it keep running, so
+ * the two guards are one invariant read from both ends, not a duplicate.
  */
 export function generateTimeScaleHeaders(
   scale: string,
@@ -236,6 +252,13 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
   // there are no rows to draw bars for. See `emptyGanttDateRange` above.
   if (allDates.length === 0) return emptyGanttDateRange();
 
+  // objectui#6759 — a list whose dates do not PARSE is a different input class
+  // and is refused by the caller, above this function, naming the offending
+  // value. So by the time control reaches the reduce below, every entry parses
+  // and `Math.min` / `Math.max` are finite. Do NOT add a second guard here: a
+  // sentinel substituted for a value the author got wrong is the consumer-side
+  // tolerance both #6750 and #6759 rejected — see `findUnusableGanttDate`.
+
   const minTimestamp = Math.min(...allDates.map((d: string) => new Date(d).getTime()));
   const maxTimestamp = Math.max(...allDates.map((d: string) => new Date(d).getTime()));
 
@@ -243,6 +266,112 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
     minDate: new Date(minTimestamp).toISOString().split('T')[0],
     maxDate: new Date(maxTimestamp).toISOString().split('T')[0],
   };
+}
+
+/**
+ * How a gantt date value is SPELLED inside a diagnostic (objectui#6759).
+ *
+ * The diagnostic's whole job is to name the value the author actually wrote, so
+ * the three spellings that would blur it are all avoided: a string is quoted
+ * (`"not-a-date"`), so an empty or space-padded value is visible rather than
+ * vanishing into the sentence; `undefined` and `null` are spelled as
+ * themselves, which is how an author reads a key they forgot to write versus
+ * one they wrote as empty; and everything else falls back to `String`.
+ *
+ * Total by construction, including the `symbol` branch that looks like padding:
+ * `String(Symbol())` THROWS, and a helper that crashes while reporting an
+ * author error would replace a named diagnostic with an unexplained blank
+ * render — the exact failure mode this card exists to remove.
+ */
+function spellGanttDateValue(value: unknown): string {
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (typeof value === 'symbol') return value.toString();
+  return String(value);
+}
+
+/** A gantt date that does not parse, with the authored path that names it. */
+type UnusableGanttDate = { path: string; value: unknown };
+
+/**
+ * The first gantt date that does not parse — objectui#6759 case 1.
+ *
+ * ## What was wrong
+ *
+ * objectui#6750 taught `calculateDateRange` about the EMPTY list and nothing
+ * else. A list whose dates do not PARSE reduced exactly as before:
+ * `new Date('not-a-date').getTime()` is `NaN`, `Math.min(NaN)` is `NaN`, and
+ * `new Date(NaN).toISOString()` throws `RangeError: Invalid time value`
+ * mid-render — the same crash site and the same signature as #6750, on a
+ * different input class. Measured on this card's base b98352a15, with a
+ * throwaway probe before any change:
+ *
+ *     CASE-1  malformed startDate + endDate -> RangeError: Invalid time value
+ *     CASE-1b one date parses, one does not -> RangeError: Invalid time value
+ *     CASE-1c endDate absent entirely       -> RangeError: Invalid time value
+ *
+ * 1c is the one worth reading twice. `new Date(undefined)` is also an invalid
+ * date, so a row item that simply OMITS `endDate` crashed the render too — it
+ * arrives at the same reduce through the same `[item.startDate, item.endDate]`
+ * flatMap. It is not a separate defect and it is not a widening: any guard
+ * phrased as "every date in the list must parse" necessarily covers it, and
+ * deliberately excluding it would mean writing extra code to keep one input
+ * class crashing.
+ *
+ * ## Why the PINS are scanned here too
+ *
+ * `schema.minDate` / `schema.maxDate` never reach `calculateDateRange` — the
+ * caller resolves `schema.minDate || dateRange.minDate` afterwards — so an
+ * author who pins an unparseable value does not crash. They fail the OTHER
+ * way, which is worse and is case 2's disease: measured on the same base,
+ * `minDate: 'whenever'` rendered an axis with zero columns and a bar carrying
+ * NO `style` attribute at all (`CASE-2b ... bars: [null]`), because
+ * `calculateBarDimensions` divided by `NaN` and the CSSOM rejects
+ * `left: NaN%`. One scan covers both origins because they are one question:
+ * does every date this chart is about to be drawn from parse?
+ *
+ * Only a TRUTHY pin is judged. `schema.minDate: ''` is falsy, so the caller's
+ * `||` discards it and the computed range is used instead; judging a value the
+ * render will never read would refuse a chart that draws correctly.
+ *
+ * Rows before pins, which is the order the caller resolves them in — compute
+ * from the rows, then let a pin override. When both are wrong the diagnostic
+ * names the one a reader tracing the render reaches first.
+ *
+ * ⚠️ `null` is deliberately NOT a fault here. `new Date(null).getTime()` is
+ * `0`, not `NaN` — the epoch, not an invalid date — so a `null` date has always
+ * drawn a bar anchored at 1970 rather than crashing. Refusing it would be a
+ * behaviour change on an input class this card did not measure or adjudicate;
+ * it is filed separately instead.
+ */
+function findUnusableGanttDate(
+  items: any[],
+  pinnedMinDate: unknown,
+  pinnedMaxDate: unknown,
+): UnusableGanttDate | undefined {
+  const doesNotParse = (value: unknown) => Number.isNaN(new Date(value as any).getTime());
+
+  for (let rowIndex = 0; rowIndex < items.length; rowIndex++) {
+    const rowItems = (items[rowIndex]?.items || []) as any[];
+    for (let itemIndex = 0; itemIndex < rowItems.length; itemIndex++) {
+      for (const key of ['startDate', 'endDate'] as const) {
+        const value = rowItems[itemIndex]?.[key];
+        if (doesNotParse(value)) {
+          return { path: `items[${rowIndex}].items[${itemIndex}].${key}`, value };
+        }
+      }
+    }
+  }
+
+  for (const [path, value] of [
+    ['minDate', pinnedMinDate],
+    ['maxDate', pinnedMaxDate],
+  ] as const) {
+    if (value && doesNotParse(value)) return { path, value };
+  }
+
+  return undefined;
 }
 
 // Helper function to calculate bar position and width based on dates
@@ -513,10 +642,93 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
 
     // Gantt/Airtable-style Timeline
     if (variant === 'gantt') {
+      /**
+       * objectui#6759 — an UNUSABLE date range refuses loudly, naming the value
+       * that made it unusable.
+       *
+       * ## The policy, and why it is not a new adjudication
+       *
+       * Two defects arrived together because a fixer has to decide ONE policy
+       * for both, and they failed in OPPOSITE directions, which is itself the
+       * evidence that no policy existed yet: a malformed date crashed the
+       * render (`RangeError: Invalid time value`), while an inverted
+       * author-pinned range drew a bar at `left: 157.9%; width: -4.3%` under a
+       * header row with zero cells and said nothing. The 2026-08-29 triage
+       * ruled both are ordinary defects rather than policy questions, and that
+       * the WORDING — the only genuinely open question — already has a
+       * precedent one file away: objectui#6655 refuses the object-bound gantt
+       * with a `role="alert"` diagnostic. So this is that neighbour's shape,
+       * copied rather than invented.
+       *
+       * ## Why HERE, above everything
+       *
+       * Placed before `calculateDateRange` and before
+       * `generateTimeScaleHeaders`, and it establishes an invariant for both:
+       * every date reaching them parses, and the resolved range is not
+       * inverted. That matters most for `generateTimeScaleHeaders`, whose own
+       * guard already refuses an unparseable or inverted range by returning NO
+       * headers — the zero-column axis case 2 rendered under. That guard is
+       * pinned by objectui#6750 as "a different input class, left exactly as it
+       * was", and it stays untouched: it is now simply unreachable from this
+       * branch, rather than being widened or relaxed. Downstream,
+       * `calculateBarDimensions` can no longer see a `NaN` or negative
+       * `totalDuration` at all, so #6750's `totalDuration === 0` guard keeps
+       * covering exactly the degenerate case it was written for.
+       *
+       * ## What this deliberately does NOT do
+       *
+       * It does not widen #6750's `emptyGanttDateRange` sentinel to absorb
+       * these. The card and its triage both rejected that path for the same
+       * reason: substituting a plausible range for a value the author got wrong
+       * is consumer-side tolerance, and hiding an author error behind a
+       * believable render is precisely case 2's disease. An EMPTY list stays an
+       * ordinary state with a sentinel; an UNPARSEABLE value is refused.
+       */
+      const unusableDate = findUnusableGanttDate(items, schema.minDate, schema.maxDate);
+      if (unusableDate) {
+        return (
+          <div className="p-4 text-destructive" data-testid="timeline-unusable-date-range" role="alert">
+            {t('timeline.gantt.unusableRange.malformedDate', {
+              path: unusableDate.path,
+              value: spellGanttDateValue(unusableDate.value),
+            })}
+          </div>
+        );
+      }
+
       // Calculate date range from all items
       const dateRange = calculateDateRange(items);
       const minDate = schema.minDate || dateRange.minDate;
       const maxDate = schema.maxDate || dateRange.maxDate;
+
+      /**
+       * objectui#6759 case 2 — the INVERTED range, refused on the same policy.
+       *
+       * Only a pin can invert it: `calculateDateRange` builds its pair with
+       * `Math.min` / `Math.max`, so the computed range is ordered by
+       * construction, and the sentinel is a single day. It is the caller's
+       * `schema.minDate || dateRange.minDate` resolution — one pinned end, or
+       * both — that can put the start after the end.
+       *
+       * The comparison is `>` on timestamps, deliberately the same test
+       * `generateTimeScaleHeaders` makes (`start > end` on two `Date`s, which
+       * compares by `valueOf`). Equal is NOT inverted: a degenerate
+       * `minDate === maxDate` range is objectui#6750's one-bucket axis and must
+       * keep rendering. Measured on this card's base b98352a15:
+       *
+       *     CASE-2 minDate 2030-01-01 / maxDate 2026-03-15
+       *            -> axis: [] bars: ["left: 157.9250720461095%; width: -4.322766570605188%;"]
+       */
+      if (new Date(minDate).getTime() > new Date(maxDate).getTime()) {
+        return (
+          <div className="p-4 text-destructive" data-testid="timeline-unusable-date-range" role="alert">
+            {t('timeline.gantt.unusableRange.inverted', {
+              minDate: spellGanttDateValue(minDate),
+              maxDate: spellGanttDateValue(maxDate),
+            })}
+          </div>
+        );
+      }
 
       // Generate time scale headers — the spec `scale` key is the only axis
       // spelling (the `timeScale` alias is retired, objectui#6355); every spec
