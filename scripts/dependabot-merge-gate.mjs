@@ -131,6 +131,19 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   shell-escape-residue.yml      Shell Escape Residue Scan
  *   readme-exports.yml            README Export Check
  *   docs-route-eager-closure.yml   Docs Route Eager Closure Check
+ *   governed-surface-guard.yml     Governed Surface Queue Guard
+ *
+ * `Governed Surface Queue Guard` is the newest and the one whose reading here
+ * differs from every other row, so it is worth a sentence. On a PULL REQUEST it
+ * is deliberately green whatever it finds — a governed pull request parked as a
+ * draft for the maintainer is the healthy case, and a check red on the healthy
+ * case is a permanently red check (objectui#6596). Its refusal lives on the
+ * `merge_group` leg. Listing it here is still correct and still load-bearing:
+ * this list is what `merge-queue-reporting.test.ts` derives the `merge_group`
+ * subscription floor from, and a guard whose whole point is the queue build must
+ * be inside that floor. It also costs a Dependabot bump nothing — such a diff
+ * touches no governed path, so the check reports CLEAR without making a single
+ * API call.
  *
  * The four shards are spelled out individually on purpose. A single `Test`
  * entry, or any pattern match, would be satisfied by whichever shard happened
@@ -158,6 +171,7 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Shell Escape Residue Scan',
   'README Export Check',
   'Docs Route Eager Closure Check',
+  'Governed Surface Queue Guard',
 ]);
 
 /**

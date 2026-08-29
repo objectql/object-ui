@@ -38,6 +38,7 @@ one has its own section below.
 | `shell-escape-residue.yml` | Shell Escape Residue Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a fenced block in `AGENTS.md`, `CLAUDE.md`, `skills/**` or `content/docs/**` carries the enumerated machine-produced shell escape, or a scan root fails to resolve |
 | `readme-exports.yml` | README Export Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `packages/**/README.md` imports a name from its own package that the package does not export, or the scan's population collapses |
 | `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
+| `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval pinned to the PR's current head is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -1052,6 +1053,60 @@ reach the code through a package the route already carries, or argue for the pay
 record it in `MEASURED_PAYLOAD` with what it is for. Run it locally with
 `pnpm check:docs-route-closure`; a green run prints the full classification, including which file
 each *free* package is already imported by.
+
+## Governed Surface Guard (`governed-surface-guard.yml`)
+
+**Trigger:** Pull request to `main` / `develop` (`opened`, `synchronize`, `reopened`,
+`ready_for_review`) and merge-queue builds — **no path filter** on either leg.
+**Appears as:** **Governed Surface Queue Guard**.
+**Blocks a PR?** Not on the pull request, by design. On a merge-queue build it refuses.
+
+The **governed surface** is a fixed list — `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `skills/**`,
+`docs/adr/**` — and the rule about it is that a change to any of them is merged by a human, not by
+the queue. That rule used to live only in prose. On
+[#6183](https://github.com/objectstack-ai/objectui/pull/6183) an `AGENTS.md` change was correctly
+parked as a draft; a GitHub MCP `update_pull_request` call passing only `reviewers` silently also
+set `draft: false`; the pull request entered the merge queue and landed with no human approval, and
+converting it back to a draft did not dequeue it. Nothing in CI could have refused that. This
+workflow is the refusal ([#6596](https://github.com/objectstack-ai/objectui/issues/6596)).
+
+**The two legs mean different things, and that is the whole design.** On a **pull request** the
+check is deliberately green whatever it finds, and prints an early warning naming the governed paths
+and the sequence not to start. A governed pull request sitting as a draft for the maintainer to
+merge by hand is the *healthy* end state, so a check that reddened on it would be red on the healthy
+case forever — and a permanently red check is one everybody learns to ignore. On a **merge-queue
+build** the same finding is a refusal: that is a state a governed pull request should never be in at
+all, so red there is red on the anomaly.
+
+**What clears the queue leg** is an `APPROVED` review by an account in `GOVERNED_APPROVERS` whose
+`commit_id` equals the pull request's *current* head sha. The sha pin is what makes the approval an
+approval *of something*: a push after the approval goes stale and reopens the refusal, so a
+clearance cannot outlive the bytes it was given for. Dismissed and superseded approvals never count.
+The remedy the refusal prints **first** is not approval at all — convert the pull request back to a
+draft and leave the merge to the maintainer.
+
+**What it costs when nothing is governed:** nothing. The path test runs before any request is
+constructed, so an ordinary pull request produces a `CLEAR` verdict and **zero** GitHub API calls;
+an API outage cannot block a diff that touches no governed path. The mirrored requirement is that an
+API error on a diff that *is* governed is a refusal with its own exit code (4, distinct from 3 for
+"nobody approved"), never a pass — this gate exists because every other layer in the chain failed
+open.
+
+**What it deliberately does not do.** It does not govern its own workflow or CI configuration
+generally: that would be a larger rule than the one that was ruled. It cannot stop a maintainer
+merging a governed pull request by hand, and does not try — under this regime the human merge *is*
+the review record. And it does not make itself required: that is a branch-protection setting only
+the maintainer can flip. Until it is flipped, the queue leg reports without stopping anything. What
+this repository can write down, and has, is `REQUIRED_CONTEXTS` in `scripts/dependabot-merge-gate.mjs`.
+
+**If it fails:** read the verdict — it names every governed path that matched, the pull request each
+belongs to, and the two ways out. To ask the same question about a file list before pushing, run
+`pnpm governed -- AGENTS.md packages/core/src/index.ts` (or
+`node scripts/check-governed-queue-guard.mjs --test <paths>`); it exits 0 when nothing is governed.
+The predicates are covered by `node scripts/check-governed-queue-guard.mjs --self-test`, which the
+workflow runs as its own first step because a rotted predicate must redden rather than wave a
+governed diff through, and the wiring is pinned by
+`scripts/__tests__/check-governed-queue-guard.test.ts`.
 
 ## Link Checking (`check-links.yml`)
 
