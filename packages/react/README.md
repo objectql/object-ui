@@ -130,7 +130,7 @@ views so `view` can be matched); these two apply the composed result to the
 block's schema and render the two non-final states.
 
 ```tsx
-import { ElementDataSourceGate } from '@object-ui/react'
+import { ElementDataSourceGate, elementDataSourceBlock } from '@object-ui/react'
 
 // `mapping` names ONLY the keys this block reads. A composed value written onto
 // a key the block ignores would be accepted and silently dropped — the defect
@@ -142,12 +142,24 @@ const OBJECT_GRID_BINDING = {
   limit: 'pagination.pageSize' as const,
 }
 
-const ObjectGridRenderer = ({ schema, ...props }) => (
+// `elementDataSourceBlock` is not optional decoration — see below.
+const ObjectGridRenderer = elementDataSourceBlock(({ schema, ...props }) => (
   <ElementDataSourceGate schema={schema} mapping={OBJECT_GRID_BINDING} testId="object-grid">
     {(bound) => <ObjectGrid schema={bound} {...props} />}
   </ElementDataSourceGate>
-)
+))
 ```
+
+**Wrap the registered renderer in `elementDataSourceBlock`.** It is what makes
+`ComponentRegistry.register` emit the `dataSource` input on that block's
+authoring surface, so the key the gate READS is also the key the manifest, the
+save gate, the generated JSX types and the designer DECLARE. Skip it and the
+binding still works at runtime while the html tier reports `dataSource` as a prop
+that does not exist — the one spelling that resolves a saved view, reported
+exactly like the spellings that do nothing (objectui#6678). The declaration is
+emitted from this one seam, so never hand-write a `dataSource` entry in a block's
+`inputs`. `pnpm check:element-data-source-declaration` fails any source that
+consumes the gate without reaching the seam.
 
 `object` lands on `objectName` by default (pass `object: 'apiName'` for another
 key, or `object: false` for a block that reads the composed binding itself).
@@ -157,6 +169,8 @@ A `view` name that does not resolve renders a configuration error rather than
 falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
 the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
 a block cannot be wrapped — a renderer whose hooks must run before the panels.
+That form still reads `dataSource`, so it still owes the seam: mark the renderer
+at its registration, `register('x', elementDataSourceBlock(XRenderer), { … })`.
 
 ### useSettledSchema
 
