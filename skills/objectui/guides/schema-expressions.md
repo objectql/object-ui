@@ -499,14 +499,14 @@ never against a current element:
   its `children` **once** and lays them out in columns. A `bind` on a `grid` is
   inert.
 - **`table`** renders rows from an inline `data` array against `columns`
-  accessors (`accessorKey`, falling back to `name`). Cell values are plain
-  property lookups — never expressions — and `table` does not read `bind`.
+  accessors (`accessorKey`). Cell values are plain property lookups — never
+  expressions — and `table` does not read `bind`.
 
 ```json
 // ✅ `table`: inline rows + column accessors, no per-row scope
 {
   "type": "table",
-  "columns": [{ "label": "Name", "accessorKey": "name" }],
+  "columns": [{ "header": "Name", "accessorKey": "name" }],
   "data": [{ "name": "Ada" }, { "name": "Linus" }]
 }
 ```
