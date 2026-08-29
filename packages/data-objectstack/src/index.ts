@@ -4598,7 +4598,30 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // spec/ui/dashboard.zod.ts). Send via the canonical `where`
         // field of the analytics endpoint, matching the unified Query
         // DSL (spec/data/query.zod.ts).
-        payload.where = params.filter;
+        //
+        // An ARRAY filter goes through the same `translateFilterArray` the
+        // `find()` path runs in `convertQueryParams`, because an authored
+        // `ViewFilterRule[]` reaches this method exactly as it reaches that
+        // one. It used to ship RAW from here, and the analytics door is
+        // stricter than the data door: `lowerAnalyticsWhere`
+        // (`@objectstack/service-analytics`, shared by both aggregation
+        // strategies) THROWS "[analytics] received a 'where' array that is
+        // not a filter" on an array of rule objects, while accepting AST
+        // tuples. So a stored filter that a list renders correctly rendered
+        // `element:number` into its error state on every analytics-capable
+        // deployment — and analytics is the default one, since the CLI always
+        // loads it (objectui#6302).
+        //
+        // One lowering, not two: the same function, so the analytics path and
+        // the `find()` path cannot disagree about one stored filter — which is
+        // the whole reason `translateFilterArray` was made a single definition
+        // (see its header). Non-array filters keep passing through untouched:
+        // the MongoDB-style object this branch was written for is what
+        // `/analytics/query` already accepts, and translating it here would be
+        // a semantic change this fix is expressly not making.
+        payload.where = Array.isArray(params.filter)
+          ? translateFilterArray(params.filter)
+          : params.filter;
       }
 
       const data = await this.client.analytics.query(payload);
