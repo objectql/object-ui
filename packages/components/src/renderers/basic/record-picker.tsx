@@ -34,6 +34,7 @@
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import {
+  elementDataSourceBlock,
   ElementDataSourceErrorPanel,
   ElementDataSourceLoadingPanel,
   useAdapter,
@@ -300,7 +301,15 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
+// This block CONSUMES the gate's family without the JSX wrapper — the hook plus
+// the two status panels — because its object lives under `properties` rather
+// than on a schema key the gate could write. It reads `dataSource` exactly as
+// the wrapping blocks do, so it declares it from the same seam: the marker is
+// applied to the renderer at its registration rather than at a `<gate>` tag it
+// does not have. Found by the render probe in
+// `apps/console/src/__tests__/element-data-source-input-injection.test.tsx`,
+// which detects the gate's own panels and does not care how they got there.
+ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecordPickerRenderer), {
   namespace: 'element',
   skipFallback: true,
   label: 'Record Picker',

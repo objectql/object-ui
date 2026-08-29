@@ -7,6 +7,10 @@
  */
 
 import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
+import {
+  ELEMENT_DATA_SOURCE_INPUT,
+  isElementDataSourceBlock,
+} from '../data-scope/element-data-source.js';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
@@ -176,6 +180,48 @@ type LazyEntry = {
   pending?: Promise<unknown>;
 };
 
+/**
+ * Emit the spec's `dataSource` input for a registration whose renderer wraps
+ * `ElementDataSourceGate` (objectui#6678).
+ *
+ * ## The one place, and why it is this one
+ *
+ * The maintainer ruling of 2026-08-29 adopted option B **in the injection
+ * form**: the declaration is emitted mechanically at the wrapping seam so every
+ * gate-wrapping registration declares the key from the same place that reads it
+ * — one mechanism rather than nine hand-kept copies across nine packages, which
+ * drift and which a tenth block would simply forget. `register()` is where every
+ * one of those registrations passes through, so it is where the emission lands;
+ * the DECLARATION itself is `ELEMENT_DATA_SOURCE_INPUT`, which lives beside the
+ * binding's own semantics in `data-scope/element-data-source.ts`.
+ *
+ * ## What it must NOT do, which is half the ruling
+ *
+ * Widening this to every registration is option A wearing a different hat: it
+ * would silence `dataSource` on `flex` and `card`, which do not read it, and the
+ * diagnostic would lie in the other direction instead of the one it lied in
+ * before. So the condition is the marker and nothing else — no heuristic over
+ * `objectName`, no "looks object-bound".
+ *
+ * ## Idempotent, and it never overwrites
+ *
+ * A registration that declares `dataSource` ITSELF keeps its own entry: the
+ * emission fills a gap, it does not own the key. (Nothing declares it today —
+ * that is the defect — but a block whose binding needs a narrower description
+ * later must be able to say so without fighting this function.) Re-registering
+ * the same component, which the registry allows and tests do constantly, is
+ * likewise a no-op rather than a growing `inputs` array.
+ */
+export function withElementDataSourceInput<T>(
+  component: ComponentRenderer<T>,
+  meta?: ComponentMeta,
+): ComponentMeta | undefined {
+  if (!isElementDataSourceBlock(component)) return meta;
+  const inputs: NonNullable<ComponentMeta['inputs']> = meta?.inputs ?? [];
+  if (inputs.some((input) => input?.name === ELEMENT_DATA_SOURCE_INPUT.name)) return meta;
+  return { ...(meta ?? {}), inputs: [...inputs, { ...ELEMENT_DATA_SOURCE_INPUT }] } as ComponentMeta;
+}
+
 export class Registry<T = any> {
   private components = new Map<string, ComponentConfig<T>>();
   private lazyEntries = new Map<string, LazyEntry>();
@@ -214,6 +260,9 @@ export class Registry<T = any> {
    */
   register(type: string, component: ComponentRenderer<T>, meta?: ComponentMeta) {
     const fullType = meta?.namespace ? `${meta.namespace}:${type}` : type;
+    // The `dataSource` declaration is EMITTED here, not written by the blocks
+    // (objectui#6678). See `withElementDataSourceInput`.
+    const resolvedMeta = withElementDataSourceInput(component, meta);
     
     // Warn if registering without namespace (deprecated pattern)
     if (!meta?.namespace) {
@@ -236,7 +285,7 @@ export class Registry<T = any> {
     this.components.set(fullType, {
       type: fullType,
       component,
-      ...meta
+      ...resolvedMeta
     });
     
     // Also register without namespace for backward compatibility
@@ -261,7 +310,7 @@ export class Registry<T = any> {
       this.components.set(type, {
         type: fullType, // Keep reference to namespaced type
         component,
-        ...meta
+        ...resolvedMeta
       });
     }
 

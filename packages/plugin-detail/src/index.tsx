@@ -10,6 +10,7 @@ import * as React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   noDataSourceMessage,
   useResolvedDataSource,
 } from '@object-ui/react';
@@ -241,7 +242,7 @@ export const DetailViewRenderer: React.FC<{
   schema: any;
   dataSource?: unknown;
   [key: string]: any;
-}> = ({ schema, dataSource: dataSourceProp, ...props }) => {
+}> = elementDataSourceBlock(({ schema, dataSource: dataSourceProp, ...props }) => {
   // The family's ONE resolution rule (`@object-ui/react`): explicit adapter
   // first, `SchemaRendererProvider` context second, and the spec BINDING never
   // mistaken for an adapter. Sharing the hook is what keeps the three blocks
@@ -274,7 +275,7 @@ export const DetailViewRenderer: React.FC<{
       {(bound) => <DetailView schema={bound as DetailViewSchema} dataSource={dataSource} {...props} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 // Register detail-view through the wrapper above, NOT the raw component: the
 // registry entry is what a `SchemaRenderer` reaches, and the wrapper is what

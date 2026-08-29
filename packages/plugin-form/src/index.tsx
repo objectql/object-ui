@@ -10,6 +10,7 @@ import React, { useContext } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   SchemaRendererContext,
   noDataSourceMessage,
   useResolvedDataSource,
@@ -102,7 +103,7 @@ export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
 export { omitServerResolvedDefaults, isRequiredInForm } from './schemaDefaults';
 
 // Register object-form component
-const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
+const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = elementDataSourceBlock(({
   schema,
   dataSource: dataSourceProp,
 }) => {
@@ -153,7 +154,7 @@ const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
       {(bound) => <ObjectForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-form', ObjectFormRenderer, {
   namespace: 'plugin-form',
@@ -233,7 +234,7 @@ ComponentRegistry.register('form', ObjectFormRenderer, {
 // Register embeddable-form component for standalone public forms
 import { EmbeddableForm } from './EmbeddableForm';
 
-const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+const EmbeddableFormRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => {
   // Same bridge `object-form` above does, and for the same reason (#3144):
   // `EmbeddableForm` needs a dataSource to fetch the object schema — its own
   // comment says so — and `SchemaRenderer` only ever puts one on the context,
@@ -264,7 +265,7 @@ const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       {(bound) => <EmbeddableForm config={bound} dataSource={ctx?.dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
   namespace: 'plugin-form',
@@ -302,7 +303,7 @@ ComponentRegistry.register('form-analytics', FormAnalyticsRenderer, {
 // together — see ADR-0001).
 import { MasterDetailForm } from './MasterDetailForm';
 
-const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+const MasterDetailFormRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => {
   const ctx = useContext(SchemaRendererContext as React.Context<any>);
   const dataSource = ctx?.dataSource ?? undefined;
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121).
@@ -329,7 +330,7 @@ const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       {(bound) => <MasterDetailForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer, {
   namespace: 'plugin-form',
@@ -412,7 +413,7 @@ const RECORD_LINE_ITEMS_DATA_SOURCE: ElementDataSourceMapping = {
   limit: 'limit',
 };
 
-const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
+const LineItemsPanelRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => (
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121). No
   // `dataSource` is passed: the gate falls back to `SchemaRendererContext`, which
   // is the very adapter `LineItemsPanel` loads its rows through — resolving `view`
@@ -426,7 +427,7 @@ const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
   >
     {(bound) => <LineItemsPanel schema={bound} />}
   </ElementDataSourceGate>
-);
+));
 
 ComponentRegistry.register('line_items', LineItemsPanelRenderer, {
   namespace: 'record',

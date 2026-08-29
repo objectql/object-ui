@@ -14,6 +14,7 @@
 import React from 'react';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   useRecordContext,
   useSafeFieldLabel,
   useRelatedRecordActions,
@@ -315,7 +316,7 @@ const NO_SCHEMA = {} as RecordRelatedListRendererProps['schema'];
  * block bound under one entry point and unbound under another is the same
  * "declared but not reached" shape in miniature.
  */
-export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = (props) => {
+export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps> = elementDataSourceBlock((props) => {
   // The record context's adapter, not the schema-renderer context's: this list
   // reads its rows through `ctx.dataSource`, and resolving `view` against a
   // different source than the rows come from could report a view as missing on
@@ -332,6 +333,6 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
       {(bound) => <RecordRelatedListBody {...props} schema={bound as any} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 export default RecordRelatedListRenderer;

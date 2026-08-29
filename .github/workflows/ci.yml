@@ -284,6 +284,20 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:side-effects-array
 
+      # A block that WRAPS `ElementDataSourceGate` reads the spec's
+      # `PageComponentSchema.dataSource`; the input declaration for that key is
+      # emitted mechanically at the wrapping seam (`elementDataSourceBlock` ->
+      # `Registry.register`), per the maintainer ruling of 2026-08-29, so no
+      # block hand-writes it. This gate is the other half of "and cannot forget
+      # it": a file that starts rendering the gate without reaching the seam
+      # would publish an authoring surface missing the one key its own runtime
+      # honours, and the html tier would go back to reporting the only spelling
+      # that works as `unknown-prop` (objectui#6678). Source-only — it needs the
+      # install and nothing built.
+      - name: Verify every ElementDataSourceGate wrapper reaches the declaration seam
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:element-data-source-declaration
+
       # Node's ESM resolver does not extension-search relative specifiers, so an
       # extensionless `./SchemaRenderer` in a published `dist/` is unloadable
       # under plain Node — `@object-ui/react`'s entry died with

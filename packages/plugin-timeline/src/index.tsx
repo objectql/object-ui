@@ -307,6 +307,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import { ObjectTimeline } from './ObjectTimeline';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   useSchemaContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
@@ -334,7 +335,7 @@ const OBJECT_TIMELINE_DATA_SOURCE: ElementDataSourceMapping = {
 };
 
 // Register object-timeline component
-export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {
+export const ObjectTimelineRenderer: React.FC<any> = elementDataSourceBlock(({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121): a
   // timeline authored with the binding and no flat `objectName` never fetched —
@@ -351,7 +352,7 @@ export const ObjectTimelineRenderer: React.FC<any> = ({ schema, ...props }) => {
       {(bound) => <ObjectTimeline schema={bound} dataSource={dataSource} {...props} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-timeline', ObjectTimelineRenderer, {
   namespace: 'plugin-timeline',

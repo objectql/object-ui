@@ -10,6 +10,7 @@ import React from 'react';
 import { ComponentRegistry, type ComponentInput } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   noDataSourceMessage,
   useResolvedDataSource,
   useSchemaContext,
@@ -110,7 +111,7 @@ const gridNeedsDataSource = (schema: any, hostRows: unknown): boolean => {
 };
 
 // Register object-grid component
-export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> = elementDataSourceBlock(({ schema, ...props }) => {
   // ONE resolution rule for the whole family (objectui#5378): an explicit
   // adapter first, the `SchemaRendererProvider` context second.
   //
@@ -144,7 +145,7 @@ export const ObjectGridRenderer: React.FC<{ schema: any; [key: string]: any }> =
       {(bound) => <ObjectGrid schema={bound} {...rest} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 /**
  * The authoring surface for this block's query filter, in ONE spelling.

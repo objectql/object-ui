@@ -10,6 +10,7 @@ import React, { useContext } from 'react';
 import { isElementDataSourceConfig } from '@object-ui/core';
 import {
   ElementDataSourceGate,
+  elementDataSourceBlock,
   SchemaRendererContext,
   type ElementDataSourceMapping,
 } from '@object-ui/react';
@@ -98,7 +99,7 @@ const LIST_VIEW_DATA_SOURCE: ElementDataSourceMapping = {
  * a named view to "all records" is the failure class the binding exists to
  * remove, and the one an AI-authored page hides best.
  */
-const ListViewBlock = React.forwardRef<ListViewHandle, ListViewProps>((props, ref) => {
+const ListViewBlock = elementDataSourceBlock(React.forwardRef<ListViewHandle, ListViewProps>((props, ref) => {
   const context = useContext(SchemaRendererContext as React.Context<any>);
 
   // Defence in depth for the collision above: even though SchemaRenderer no
@@ -122,7 +123,7 @@ const ListViewBlock = React.forwardRef<ListViewHandle, ListViewProps>((props, re
       {(schema) => <ListView ref={ref} {...props} schema={schema} dataSource={adapter} />}
     </ElementDataSourceGate>
   );
-});
+}));
 ListViewBlock.displayName = 'ListViewBlock';
 
 export { ListViewBlock };

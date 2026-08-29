@@ -82,6 +82,7 @@
 import * as React from 'react';
 import {
   isElementDataSourceConfig,
+  markElementDataSourceBlock,
   mergeFilterNodes,
   type ElementDataSourceConfig,
 } from '@object-ui/core';
@@ -388,6 +389,52 @@ export function NoDataSourcePanel({
       {message ? <p className="text-sm mt-1">{message}</p> : null}
     </div>
   );
+}
+
+/**
+ * The wrapping seam — mark `renderer` as one that wraps {@link
+ * ElementDataSourceGate}, so its registrations DECLARE the `dataSource` key this
+ * gate READS (objectui#6678).
+ *
+ * ```tsx
+ * export const ObjectMapRenderer = elementDataSourceBlock<React.FC<any>>(({ schema }) => (
+ *   <ElementDataSourceGate schema={schema} testId="object-map" …>
+ *     {(bound) => <ObjectMap schema={bound} />}
+ *   </ElementDataSourceGate>
+ * ));
+ * ```
+ *
+ * ## What this closes
+ *
+ * `PageComponentSchema.dataSource` is the one spelling that resolves a saved
+ * view for an object-bound block. It works — and because no registration
+ * declared it, `sdui-parser`'s `validateTree` reported it with the SAME
+ * `unknown-prop` warning it gives the spellings that do nothing. On the tier
+ * built to accept AI-authored pages the diagnostic IS the contract, so the
+ * tier's only signal pointed away from the one key that works.
+ *
+ * ## Why a seam and not nine declarations
+ *
+ * Maintainer ruling, 2026-08-29: option B **in the injection form**. Nine
+ * hand-written copies across nine packages is the shape that ruling refused —
+ * they drift, and the tenth block forgets. Passing through here is the only
+ * thing a block does; `Registry.register` emits the declaration
+ * (`withElementDataSourceInput`), and `ELEMENT_DATA_SOURCE_INPUT` in
+ * `@object-ui/core` is its single copy, beside the binding's own semantics.
+ *
+ * ## And it cannot be forgotten
+ *
+ * `scripts/check-element-data-source-declaration.mjs` fails any source that
+ * renders `ElementDataSourceGate` for a registration without passing that
+ * registration's renderer through this function. That is the mechanical half of
+ * "a tenth block gets it automatically"; this function is the seam it enforces.
+ *
+ * Returns the renderer UNCHANGED (the mark is held in a `WeakSet`), so it is safe
+ * over a `React.forwardRef` object, over `React.memo`, and over a component that
+ * something else already re-exports by reference.
+ */
+export function elementDataSourceBlock<C>(renderer: C): C {
+  return markElementDataSourceBlock(renderer);
 }
 
 export interface ElementDataSourceGateProps<S> {
