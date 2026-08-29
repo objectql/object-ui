@@ -115,18 +115,40 @@ export function resolveLabel(label: unknown, fallback: string): string {
  * target any other way is a PRODUCER defect, and must fail visibly here so it is
  * fixed there.
  *
- * The string / array / `{ object }` CARRIERS are untouched: they are a separate
- * axis from the spelling, and narrowing them needs its own census.
+ * The CARRIER — the shape the value may take — is narrowed on the same evidence
+ * standard as of objectui#6648. `FieldSchema.reference` is a plain `z.string()`,
+ * and `ObjectSchema.safeParse` (spec 17.2.0) REFUSES the other two carriers on
+ * the canonical key while ACCEPTING the bare name (the positive control):
+ * `reference: ['crm_account']` is `invalid_type: expected string, received
+ * array`, `reference: { object: 'crm_account' }` is `expected string, received
+ * object`.
+ *
+ * The carrier census walked STRUCTURE, not text — JSON/YAML parsed and walked,
+ * TS/TSX through the TypeScript compiler API — recording each hit's ancestor
+ * property chain and its enclosing object's sibling keys, so a FIELD DEF is
+ * separated from the other tiers that also spell `reference` (a form field
+ * literally named `reference`, its translation entries, a JSON-Schema property
+ * descriptor, a liveness-ledger row). Across both trees: 607 hits at the
+ * field-def key position, 587 of them the bare-string carrier, and ZERO array
+ * or `{ object }` carriers from any producer. Every dynamic initializer at that
+ * position resolved to a string source, and every `reference` TYPE declaration
+ * in either tree declares `string`. The detector is not blind to the shape it
+ * hunted: it DID report array and `{ object }` carriers — the two green pins
+ * that asserted this tolerance, and one framework lint FIXTURE whose own rule
+ * (`refOf`) already reads string-only.
+ *
+ * The array branch was also a silent PRODUCT decision: handed a multi-target
+ * value it returned `raw[0]` and discarded the rest. Nothing declares such a
+ * value — polymorphic lookup is an open Tier-3 gap in the spec's own audit
+ * report ("Current `reference` only supports a single target"), and the
+ * platform's one polymorphic reference (ADR-0018 `xRef`) is a STRING with a
+ * sibling discriminator, never a list. If multi-target lookups land they land
+ * as a declared spec shape; until then, silently taking element zero is data
+ * loss wearing a compatibility shim.
  */
 export function resolveReferenceTo(def: Record<string, unknown>): string | undefined {
   const raw = def.reference;
-  if (typeof raw === 'string' && raw) return raw;
-  if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
-  if (raw && typeof raw === 'object') {
-    const obj = (raw as { object?: unknown }).object;
-    if (typeof obj === 'string' && obj) return obj;
-  }
-  return undefined;
+  return typeof raw === 'string' && raw ? raw : undefined;
 }
 
 /** Map a framework field type onto a dataset dimension type. */

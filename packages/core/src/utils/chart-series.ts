@@ -942,8 +942,10 @@ function fieldDefsOf(schema: unknown): Record<string, unknown> | null {
  *
  * The target lives under `reference` — the ONLY spelling read here, and the same
  * canonicalization as the dataset designer's `resolveReferenceTo`, which is
- * narrowed to match in the same pass (objectui#6528). The value may still carry
- * a bare name, a one-element array, or `{ object }`.
+ * narrowed to match in the same pass (objectui#6528). As of objectui#6648 the
+ * CARRIER matches too: a bare string and nothing else. The two helpers are one
+ * doctrine in two files and must never drift — a divergence recreates the
+ * defect one file over.
  *
  * The three legacy spellings this dropped (`reference_to` / `referenceTo` /
  * `reference_to_object`) were censused against every producer, with `reference`
@@ -967,6 +969,25 @@ function fieldDefsOf(schema: unknown): Record<string, unknown> | null {
  * `reference` was already HEAD of the old chain, so any doc carrying both is
  * unaffected.
  *
+ * The array and `{ object }` CARRIERS this used to accept were censused on the
+ * same standard and removed with the same reasoning (objectui#6648).
+ * `FieldSchema.reference` is a plain `z.string()`; `ObjectSchema.safeParse`
+ * (spec 17.2.0) ACCEPTS `reference: 'crm_account'` and REFUSES both
+ * `['crm_account']` and `{ object: 'crm_account' }` as `invalid_type`. A
+ * structure-walking, key-position-aware census of both trees found 587
+ * bare-string carriers at the field-def key position and ZERO array or
+ * `{ object }` carriers from any producer — the only ones in either tree were
+ * the green pins asserting this very tolerance. See `resolveReferenceTo` for
+ * the full census, including why a multi-target lookup is NOT what the array
+ * branch was serving: it returned `raw[0]` and discarded the rest, and
+ * polymorphic lookup remains an undeclared, open spec gap.
+ *
+ * This path matters MORE than the designer's for the same reason the spelling
+ * narrowing did: it reads the metadata document directly, with no `readFields`
+ * door in between, so a non-string carrier now degrades visibly (the walk
+ * yields no entry and the caller keeps the raw value) instead of being absorbed
+ * here.
+ *
  * The **type gate is deliberate**: only a declared relationship is walked, so a
  * path segment naming a plain field can never be turned into an object name and
  * fetched speculatively.
@@ -980,13 +1001,7 @@ export function resolveRelationshipTarget(fieldDef: unknown): string | undefined
   const type = typeof def.type === 'string' ? def.type.toLowerCase() : '';
   if (!RELATIONSHIP_FIELD_TYPES.has(type)) return undefined;
   const raw = def.reference;
-  if (typeof raw === 'string' && raw) return raw;
-  if (Array.isArray(raw) && typeof raw[0] === 'string' && raw[0]) return raw[0];
-  if (raw && typeof raw === 'object') {
-    const obj = (raw as { object?: unknown }).object;
-    if (typeof obj === 'string' && obj) return obj;
-  }
-  return undefined;
+  return typeof raw === 'string' && raw ? raw : undefined;
 }
 
 /**

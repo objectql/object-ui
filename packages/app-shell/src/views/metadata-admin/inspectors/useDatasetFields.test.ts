@@ -27,11 +27,32 @@ describe('resolveReferenceTo', () => {
     expect(resolveReferenceTo({ reference: 'account' })).toBe('account');
   });
 
-  it('reads array + object carriers off `reference`', () => {
-    // The CARRIER (bare name / one-element array / `{ object }`) is a separate
-    // axis from the SPELLING, and objectui#6528 narrowed only the latter.
-    expect(resolveReferenceTo({ reference: ['account', 'lead'] })).toBe('account');
-    expect(resolveReferenceTo({ reference: { object: 'account' } })).toBe('account');
+  /**
+   * objectui#6648 — the CARRIER axis, pinned exactly like the SPELLING axis
+   * below and for the same reason. These two assertions used to read
+   * `.toBe('account')`: they were the tolerance written down, not evidence for
+   * it.
+   *
+   * `FieldSchema.reference` is a plain `z.string()`, and `ObjectSchema.safeParse`
+   * (spec 17.2.0) REFUSES both carriers — `invalid_type: expected string,
+   * received array` / `received object` — while ACCEPTING the bare name
+   * asserted above as the positive control. A structure-walking,
+   * key-position-aware census of both trees found 587 bare-string carriers at
+   * the field-def key position and ZERO producers of either carrier below, so
+   * resolving one could only re-hide a producer defect (AGENTS.md #0.1).
+   *
+   * The array case was the worse of the two: it returned element zero and
+   * silently DISCARDED the rest of a multi-target value. No such value is
+   * declared anywhere — polymorphic lookup is an open, unbuilt spec gap — so
+   * the branch was data loss wearing a compatibility shim. Deleting the
+   * narrowing turns this RED.
+   */
+  it.each([
+    { carrier: 'array', reference: ['account', 'lead'] as unknown },
+    { carrier: 'multi-element array (the discarded-rest case)', reference: ['account', 'lead', 'case'] as unknown },
+    { carrier: '`{ object }`', reference: { object: 'account' } as unknown },
+  ])('refuses the $carrier carrier on `reference` — a producer emitting it is the bug', ({ reference }) => {
+    expect(resolveReferenceTo({ reference })).toBeUndefined();
   });
 
   /**

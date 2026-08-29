@@ -196,11 +196,30 @@ describe('relabelDimensions + buildChartSeries (the value≠label chart bug, clo
 
 describe('resolveRelationshipTarget (objectui#4053)', () => {
   it('reads the target off the spec spelling `reference`', () => {
+    // The positive control: the one carrier `ObjectSchema.safeParse` ACCEPTS,
+    // and the one every zero below is measured against.
     expect(resolveRelationshipTarget({ type: 'lookup', reference: 'crm_account' })).toBe('crm_account');
-    // Array and `{ object }` carriers. The CARRIER is a separate axis from the
-    // SPELLING, and objectui#6528 narrowed only the latter.
-    expect(resolveRelationshipTarget({ type: 'lookup', reference: ['crm_account'] })).toBe('crm_account');
-    expect(resolveRelationshipTarget({ type: 'lookup', reference: { object: 'crm_account' } })).toBe('crm_account');
+  });
+
+  /**
+   * objectui#6648 — the mirror of the dataset designer's CARRIER refusal pin,
+   * kept in lockstep for the same reason the spelling pins are (see below): the
+   * two canonicalizations are one doctrine in two files, and a divergence
+   * recreates the defect one file over.
+   *
+   * These two used to assert `.toBe('crm_account')` — the tolerance written
+   * down. The census that removed them walked STRUCTURE, not text, across both
+   * trees and found ZERO producers of either carrier at the field-def key
+   * position, against 587 bare-string carriers there. `ObjectSchema.safeParse`
+   * (spec 17.2.0) REFUSES both as `invalid_type`, and the array branch also
+   * discarded every element after the first.
+   */
+  it.each([
+    { carrier: 'array', reference: ['crm_account'] as unknown },
+    { carrier: 'multi-element array (the discarded-rest case)', reference: ['crm_account', 'crm_lead'] as unknown },
+    { carrier: '`{ object }`', reference: { object: 'crm_account' } as unknown },
+  ])('refuses the $carrier carrier on `reference` — a producer emitting it is the bug', ({ reference }) => {
+    expect(resolveRelationshipTarget({ type: 'lookup', reference })).toBeUndefined();
   });
 
   /**
