@@ -65,5 +65,17 @@
   },
   // `src/**/*.d.ts` picks up `src/global.d.ts`, whose ambient declarations the
   // test files rely on.
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.d.ts"]
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.d.ts"],
+  // ...but NOT `src/browser-process-shim.d.ts`. That file is the browser
+  // `process` shim the package SOURCE needs (its project has no `@types/node`
+  // at all). Globbed in here it does not augment the node global `types: ["node"]`
+  // above provides — it REPLACES it, and `@types/node` spelling its module as
+  // `export = process` means it also becomes what `import process from
+  // 'node:process'` resolves to. Every spelling of `process.cwd()` in this
+  // package's tests then failed `TS2339: Property 'cwd' does not exist on type
+  // '{ env: { NODE_ENV: string; }; }'` while `types: ["node"]` sat right here,
+  // configured and correct — objectui#6809. Excluding the one file is what makes
+  // the shim source-only; `src/__tests__/browser-process-shim-scope.test.ts`
+  // pins both halves.
+  "exclude": ["src/browser-process-shim.d.ts"]
 }
