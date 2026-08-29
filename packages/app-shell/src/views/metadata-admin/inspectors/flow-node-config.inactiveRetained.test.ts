@@ -65,6 +65,15 @@ describe('inactiveRetainedKind — the escalation instance the card measured', (
   it('an absent controller value resolves through the spec defaultValue, not to "off"', () => {
     // `escalation.enabled` declares defaultValue 'false', so an omitted key is
     // off — and a stored dependent under it is therefore retained-but-inactive.
+    //
+    // ⚠️ Coupled to objectui#6620 ON PURPOSE. That card is the mirror defect:
+    // `@objectstack/spec` flipped `ApprovalEscalation.enabled` to `default(true)`
+    // upstream, so once this repo consumes a spec release carrying the flip, this
+    // descriptor's `defaultValue: 'false'` becomes wrong and must follow. When it
+    // does, THIS assertion flips to `toBeNull()` — an omitted key will mean ON,
+    // and a stored dependent under it is live, not retained. Measured here on
+    // 2026-08-29: installed spec is 17.2.0, still `.default(false)`, so the two
+    // agree and #6620 is latent. The failure is the intended signal, not a break.
     const node = { id: 'a', type: 'approval', config: { escalation: { timeoutHours: 24 } } };
     expect(inactiveRetainedKind(timeout(), node, fields)).toBe('controller-off');
   });
