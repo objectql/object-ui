@@ -147,7 +147,7 @@ describe('pin 1 — a malformed row date refuses instead of throwing (objectui#6
   });
 
   it('the diagnostic NAMES the offending value and where it was authored', () => {
-    const { container } = gantt(MALFORMED);
+    gantt(MALFORMED);
 
     const el = screen.getByTestId(TESTID);
     // #6655's shape, copied: an alert, not a silent panel.
@@ -211,7 +211,7 @@ describe('pin 2 — an inverted pinned range refuses instead of drawing nonsense
   const INVERTED = { items: [GOOD_ROW], minDate: '2030-01-01', maxDate: '2026-03-15' };
 
   it('the diagnostic names BOTH ends of the inverted range', () => {
-    const { container } = gantt(INVERTED);
+    gantt(INVERTED);
 
     const el = screen.getByTestId(TESTID);
     expect(el.getAttribute('role')).toBe('alert');
