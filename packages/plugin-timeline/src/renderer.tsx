@@ -255,7 +255,10 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
   // objectui#6759 — a list whose dates do not PARSE is a different input class
   // and is refused by the caller, above this function, naming the offending
   // value. So by the time control reaches the reduce below, every entry parses
-  // and `Math.min` / `Math.max` are finite. Do NOT add a second guard here: a
+  // and `Math.min` / `Math.max` are finite. objectui#6770 added `null` to that
+  // same refusal, which is what keeps the EPOCH out of this reduce: `null`
+  // parses to `0`, so it would have arrived here as a perfectly finite 1970
+  // bound and anchored the axis fifty-four years early. Do NOT add a second guard here: a
   // sentinel substituted for a value the author got wrong is the consumer-side
   // tolerance both #6750 and #6759 rejected — see `findUnusableGanttDate`.
 
@@ -277,6 +280,11 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
  * vanishing into the sentence; `undefined` and `null` are spelled as
  * themselves, which is how an author reads a key they forgot to write versus
  * one they wrote as empty; and everything else falls back to `String`.
+ *
+ * The `null` branch was written by #6759 ahead of a caller: `null` parses to
+ * the epoch, so `findUnusableGanttDate` could not reach it and no resolved
+ * `minDate` / `maxDate` can be `null` (the caller's `||` discards it). It went
+ * live with objectui#6770, which refuses a `null` ROW date.
  *
  * Total by construction, including the `symbol` branch that looks like padding:
  * `String(Symbol())` THROWS, and a helper that crashes while reporting an
@@ -333,31 +341,82 @@ type UnusableGanttDate = { path: string; value: unknown };
  *
  * Only a TRUTHY pin is judged. `schema.minDate: ''` is falsy, so the caller's
  * `||` discards it and the computed range is used instead; judging a value the
- * render will never read would refuse a chart that draws correctly.
+ * render will never read would refuse a chart that draws correctly. `null` is
+ * falsy as well, so a PINNED `null` stays unjudged for that same reason even
+ * though a ROW `null` is refused below (objectui#6770) — measured: `minDate:
+ * null, maxDate: null` draws the rows' own range, `['Jan 2024','Feb 2024','Mar
+ * 2024']`. The asymmetry is the caller's `||`, which row dates have nothing
+ * equivalent to.
  *
  * Rows before pins, which is the order the caller resolves them in — compute
  * from the rows, then let a pin override. When both are wrong the diagnostic
  * names the one a reader tracing the render reaches first.
  *
- * ⚠️ `null` is deliberately NOT a fault here. `new Date(null).getTime()` is
- * `0`, not `NaN` — the epoch, not an invalid date — so a `null` date has always
- * drawn a bar anchored at 1970 rather than crashing. Refusing it would be a
- * behaviour change on an input class this card did not measure or adjudicate;
- * it is filed separately instead.
+ * ## `null` is a fault too — the one that PARSES (objectui#6770)
+ *
+ * `new Date(null).getTime()` is `0`, not `NaN` — the epoch, not an invalid
+ * date — so a `null` date passes every parse check there is and flows into the
+ * arithmetic as `1970-01-01`. #6759 left it alone as an input class it had not
+ * measured; #6770 measured it, on c6732825d, i.e. WITH the guard above already
+ * in the tree, one row item and a throwaway probe:
+ *
+ *     CASE-NULL-END   endDate: null   -> alert: null, axis 649 columns
+ *                     (Jan 1970 … Jan 2024), bars ["left: 100%; width: -100%;"]
+ *     CASE-NULL-START startDate: null -> alert: null, axis 651 columns,
+ *                     bars ["left: 0%; width: 100%;"]
+ *     CASE-NULL-BOTH  both null       -> alert: null, axis ["Jan 1970"],
+ *                     bars ["left: 0%; width: 100%;"]
+ *
+ * The last two are the reason this is refused rather than drawn: they do not
+ * even look broken. A full-width bar under a one-bucket `Jan 1970` axis is a
+ * chart a reader believes.
+ *
+ * ## Why refused, rather than read as "open-ended" or as "absent"
+ *
+ * Not a new adjudication: #6759 already refuses an ABSENT date — `new
+ * Date(undefined)` is `NaN` — and pins it ("an ABSENT date is the same input
+ * class and is named as `undefined`"). `null` is that same absence with a
+ * different spelling: a record mapping that omits the key and one that emits
+ * `null` report the same unset field upstream. Treating them differently would
+ * make the chart depend on how a mapping layer spells "no value" — something
+ * no author writes and none can predict. The two other readings both fail the
+ * same test: "runs to the end of the axis" is a new rendering behaviour that
+ * would need a spec key of its own rather than a meaning smuggled into `null`,
+ * and "fall back to `startDate`" substitutes a plausible value for one the
+ * document does not carry — the consumer-side tolerance #6750 and #6759 both
+ * rejected. `spellGanttDateValue` was already written to spell `null` as
+ * itself, for "one they wrote as empty"; until this card that branch could not
+ * be reached.
+ *
+ * ## Where the line is: `null`, not "coerces to the epoch"
+ *
+ * The test is `value === null` and deliberately nothing wider. `0` coerces to
+ * the epoch too (measured: the same 649-column axis) — but `0` is a legitimate
+ * epoch timestamp, indistinguishable from an author who means 1970-01-01, and
+ * `startDate: 1704067200000` renders 2024 correctly today. `null` is not a
+ * timestamp at all; it is what a data source hands you for a field that is
+ * unset. That is the value refused here.
  */
 function findUnusableGanttDate(
   items: any[],
   pinnedMinDate: unknown,
   pinnedMaxDate: unknown,
 ): UnusableGanttDate | undefined {
-  const doesNotParse = (value: unknown) => Number.isNaN(new Date(value as any).getTime());
+  /**
+   * Two ways a gantt date is unusable. Everything but `null` is judged by
+   * whether it parses; `null` has to be named separately precisely because it
+   * DOES parse — to the epoch — while meaning the opposite of a date
+   * (objectui#6770, see the header).
+   */
+  const isUnusable = (value: unknown) =>
+    value === null || Number.isNaN(new Date(value as any).getTime());
 
   for (let rowIndex = 0; rowIndex < items.length; rowIndex++) {
     const rowItems = (items[rowIndex]?.items || []) as any[];
     for (let itemIndex = 0; itemIndex < rowItems.length; itemIndex++) {
       for (const key of ['startDate', 'endDate'] as const) {
         const value = rowItems[itemIndex]?.[key];
-        if (doesNotParse(value)) {
+        if (isUnusable(value)) {
           return { path: `items[${rowIndex}].items[${itemIndex}].${key}`, value };
         }
       }
@@ -368,7 +427,7 @@ function findUnusableGanttDate(
     ['minDate', pinnedMinDate],
     ['maxDate', pinnedMaxDate],
   ] as const) {
-    if (value && doesNotParse(value)) return { path, value };
+    if (value && isUnusable(value)) return { path, value };
   }
 
   return undefined;
