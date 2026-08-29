@@ -84,6 +84,47 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
     );
   }
 
+  /**
+   * ⚠️ What `e.target.value` can actually hold here — MEASURED in a real
+   * browser, not inferred from the spec (objectui#6765).
+   *
+   * Both edit paths below read the box with a bare `parseFloat` and no
+   * whole-string guard of their own. That is deliberate, and it is NOT the
+   * objectui#6715 defect wearing a different hat. This is a `type="number"`
+   * input, and a real browser never exposes non-numeric residue through
+   * `.value`: keystrokes and pastes are filtered before the change event, and
+   * the HTML value-sanitization algorithm keeps the value either wholly a
+   * valid floating-point number or the empty string.
+   *
+   * Measured on Chromium 141.0.7390.37 (Playwright 1.62.1), driving THIS
+   * widget through the routes a user actually has:
+   *
+   * ```
+   * typed  "12abc" -> box.value "12"    onChange(12)
+   * pasted "12abc" -> box.value "12"    onChange(12)
+   * typed  "1.2.3" -> box.value "1.23"  onChange(1.23)
+   * pasted "0x10"  -> box.value "010"   onChange(10)
+   * typed  "1e"    -> box.value ""      onChange(null)   validity.badInput
+   * ```
+   *
+   * ⛔ So objectui#6715's anchored `WHOLE_NUMBER_TEXT` is deliberately NOT
+   * copied here. It would accept every string this box can produce and reject
+   * only strings the TEST environment fabricates — happy-dom does not
+   * implement the sanitization (`input.value = '12abc'` stays `'12abc'`), so a
+   * unit test that fires a `change` carrying residue drives a path no browser
+   * takes. Adding the guard would buy nothing in the product and would pin a
+   * truncation no user reaches. The oracle-vs-product table is pinned in
+   * `__tests__/NumberInputWidgets.environmentDivergence.test.tsx`.
+   *
+   * ⚠️ OPEN (objectui#6765): the last row is a SILENT drop. The box still
+   * DISPLAYS `1e` while `.value` reads `''`, so this widget emits `null`,
+   * `aria-invalid` stays `false` and no diagnostic is drawn — objectui#6716's
+   * class, measured here rather than assumed. It is NOT fixed here: the same
+   * drop belongs to every `type="number"` widget in this package
+   * (`NumberField`, `GeolocationField`), and the truncating rows above cannot
+   * be refused by any widget-side guard at all, so the route out was escalated
+   * rather than applied to two widgets of the four.
+   */
   // Parse and format on blur to ensure valid currency format
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -115,6 +156,10 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
         type="number"
         value={value ?? ''}
         onChange={(e) => {
+          // Bare `parseFloat`, deliberately — see the measured note on
+          // `handleBlur` above (objectui#6765). The empty string is the
+          // browser's ONLY refusal channel on a number input, and it is also
+          // how it reports text it is still displaying but cannot read.
           const val = e.target.value === '' ? null : parseFloat(e.target.value);
           onChange(val as any);
         }}

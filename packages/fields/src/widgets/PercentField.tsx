@@ -37,6 +37,39 @@ export function PercentField({ value, onChange, field, readonly, error, classNam
   const displayValue = value != null ? toDisplay(value) : '';
   const sliderValue = value != null ? toDisplay(value) : 0;
 
+  /**
+   * ⚠️ What `e.target.value` can actually hold here — MEASURED in a real
+   * browser, not inferred from the spec (objectui#6765).
+   *
+   * The bare `parseFloat` below has no whole-string guard of its own, and that
+   * is deliberate rather than objectui#6715's defect repeated. This is a
+   * `type="number"` input, and a real browser never exposes non-numeric
+   * residue through `.value` — keystrokes and pastes are filtered before the
+   * change event fires.
+   *
+   * Measured on Chromium 141.0.7390.37 (Playwright 1.62.1), driving THIS
+   * widget (fraction convention, `precision: 2`):
+   *
+   * ```
+   * typed  "12abc" -> box.value "12"    onChange(0.12)
+   * typed  "1.2.3" -> box.value "1.23"  onChange(0.0123)
+   * pasted "0x10"  -> box.value "010"   onChange(0.1)
+   * typed  "1e"    -> box.value ""      onChange(null)   validity.badInput
+   * ```
+   *
+   * ⛔ objectui#6715's anchored `WHOLE_NUMBER_TEXT` is deliberately NOT copied
+   * here: it accepts every string this box can produce and rejects only
+   * strings the TEST environment fabricates, because happy-dom does not
+   * implement the sanitization. See the fuller note in `CurrencyField.tsx`,
+   * and the pinned oracle-vs-product table in
+   * `__tests__/NumberInputWidgets.environmentDivergence.test.tsx`.
+   *
+   * ⚠️ OPEN (objectui#6765): the last row is a SILENT drop — the box keeps
+   * DISPLAYING `1e` while `.value` reads `''`, so this emits `null` with
+   * `aria-invalid` still `false` and no diagnostic drawn (objectui#6716's
+   * class). Escalated, not fixed here — it is shared by every `type="number"`
+   * widget in this package.
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value === '') {
       onChange(null as any);
