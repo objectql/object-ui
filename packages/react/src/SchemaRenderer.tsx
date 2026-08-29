@@ -30,6 +30,7 @@ import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
+import { reportDroppedPropsBag } from './utils/propsBagDiagnostic.js';
 import {
   reportUnresolvableVisibilityPredicate,
   reportAdapterOnlyDataPredicate,
@@ -1330,6 +1331,44 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     );
   }
 
+  // The legacy `props` alias, narrowed exactly as objectui#5123 ruled: for a
+  // key BOTH bags declare, `properties` wins here as it already wins in
+  // `readProps()`, so one key has one answer on both channels.
+  //
+  // HOISTED out of the `createElement` call below (objectui#6708) so the
+  // diagnostic and the spread read the SAME bag. It is the same pure call with
+  // the same arguments producing the same object in the same spread position —
+  // nothing about what any renderer receives moves — but it removes the one way
+  // this diagnostic could go wrong: reporting a set of keys that is not the set
+  // actually handed to the component.
+  const outgoingPropsBag = propsWithoutCanonicalKeys(
+    evaluatedSchema.props,
+    evaluatedSchema.properties
+  );
+
+  // Dev-build diagnostic (objectui#6708, maintainer ruling 2026-08-29, option
+  // 2): those keys are spread as React props and never hoisted onto the node,
+  // so a renderer that reads its config from `schema` — every family except
+  // `element:*`'s `readProps()` — drops them without a word.
+  //
+  // Sited HERE, beside its objectui#4795 neighbour and after the metadata
+  // destructure, for the same reason: this is the point where what leaves this
+  // component for the renderer is finally known. Read-only — it reports what
+  // the line above already computed and changes nothing that is rendered.
+  //
+  // The AUTHORED bag comes from `schema`, not `evaluatedSchema`: the evaluation
+  // memo rebuilds `props` with an object spread, which turns a degenerate
+  // `props: 'text'` into `{ '0': 't', … }` long before this line. See
+  // `collectDroppedPropsKeys`.
+  if (__DEV__) {
+    reportDroppedPropsBag(
+      evaluatedSchema.type,
+      evaluatedSchema.id,
+      (schema as { props?: unknown } | null | undefined)?.props,
+      outgoingPropsBag
+    );
+  }
+
   // SDUI scoped styling (ADR-0065) — computed in the memo hoisted above the
   // early returns; see the doc comment there for why it cannot live here.
   const { scopeClass, scopedCss, mergedClassName, schemaForComponent } = scopedStyling;
@@ -1361,11 +1400,10 @@ export const SchemaRenderer: ForwardRefExoticComponent<
         schema: schemaForComponent,
         ...componentProps,  // Spread non-metadata schema properties as props
         // The legacy `props` alias still overrides plain top-level keys, but no
-        // longer overrides the canonical `properties` bag: for a key BOTH bags
-        // declare, `properties` wins here exactly as it already wins in
-        // `readProps()`, so one key has one answer on both channels
-        // (objectui#5123, maintainer ruling 2026-08-18).
-        ...propsWithoutCanonicalKeys(evaluatedSchema.props, evaluatedSchema.properties),
+        // longer overrides the canonical `properties` bag (objectui#5123,
+        // maintainer ruling 2026-08-18). Computed above rather than inline, so
+        // the objectui#6708 diagnostic names this exact bag — see there.
+        ...outgoingPropsBag,
         ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
         ...debugAttrs, // Debug-mode data attributes
         disabled: __disabled || undefined,
