@@ -45,17 +45,27 @@
  * the limit is pinned against. The real provider still gets a case of its own
  * (WIRING below), so nothing here rests solely on an imitation.
  *
- * ## RED-FIRST — measured on the merge-base (d06059f24), this file only
+ * ## ABLATION — guard removed (this file restored to d06059f24), this file only
  *
- * 1 red / 8 green. The red is PIN 2, and it is the whole fix:
+ * 2 red / 6 green. Both reds are the same assertion asked twice, once of the
+ * stub and once of the real provider — which is what says the fix is wired to
+ * the actual gate and not only to the shape of a double:
  *
  *   x PIN 2 — a declared field the principal cannot read is NOT rendered
  *       -> AssertionError: expected [ 'Opportunity Name', 'Salary' ] to deeply
  *          equal [ 'Opportunity Name' ]
+ *   x WIRING — the REAL PermissionProvider gate drops the denied column
+ *       -> AssertionError: expected [ 'Opportunity Name', 'Salary' ] to deeply
+ *          equal [ 'Opportunity Name' ]
  *
- * PIN 1, PIN 3 and the five controls are green on both sides by construction —
- * they are the boundaries the guard must not cross, not restatements of it.
- * Reported in both directions in the PR body.
+ * PIN 1, PIN 3, PIN 3b and the three controls DID NOT MOVE, which is the half
+ * that says the guard is narrow: they are the boundaries it must not cross, not
+ * restatements of it. Restoring the guard returns the file to 8 green.
+ *
+ * `vitest.config.mts` aliases every `@object-ui/*` specifier to that package's
+ * `src`, and this file imports `../ObjectGrid` relatively, so no build step
+ * stands between the edit and the run — the ablation reads source directly, and
+ * the mutation was confirmed on disk by blob hash before the run.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
