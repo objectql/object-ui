@@ -144,17 +144,68 @@ function coordinateText(value: unknown): string {
 }
 
 /**
+ * The one place this widget says what "a number" is (objectui#6715).
+ *
+ * ⚠️ This is `parseFloat`'s OWN grammar, ANCHORED — not a second, stricter
+ * notion of a number invented here. `parseFloat` reads the longest PREFIX of
+ * its argument matching this grammar and returns what it got, discarding the
+ * rest; the anchors are what turn "there is a number at the front" into "the
+ * whole text IS that number". Nothing else about the reading changes, which is
+ * why {@link parseDraft} still asks `parseFloat` for the value itself.
+ *
+ * The defect the anchors exist for: `parseFloat('12abc')` is `12`, so
+ * `"12abc, 34"` emitted `{ lat: 12, lng: 34 }` — a coordinate the user never
+ * typed, which `valueSchemaFor({ type: 'location' })` ACCEPTS, so unlike
+ * objectui#6714 no downstream check could ever catch it. Measured on
+ * `b76ca6764` through a real `ObjectForm`: `dataSource.create` was handed
+ * `{"lat":12,"lng":34}` with `aria-invalid="false"` and no diagnostic drawn.
+ * Truncation is not confined to obvious junk, either — the same reading turns
+ * `"0x10"` into `0` (objectui#6272's `|| 0`, arriving through a different
+ * door) and `"12.5 N, 34 E"` into `{ lat: 12.5, lng: 34 }`, dropping the
+ * hemisphere so a southern coordinate would be stored as a northern one.
+ *
+ * ⛔ `Number()` is NOT this test, although it looks like the same idea: it
+ * reads `'0x10'` as `16`, `'0b11'` as `3` and `''` as `0`. A hex literal is
+ * not a coordinate notation, and none of those readings is what was typed.
+ *
+ * ⛔ Nor is this degree/hemisphere PARSING. `12°N` stays refused, deliberately
+ * — the maintainer ruling of 2026-08-29 adopts the refusal and declines the
+ * notation, because the paste route is unmeasured; it is its own feature card
+ * if real demand arrives.
+ *
+ * `Infinity` IS in the grammar, deliberately. `parseFloat` reads it whole, so
+ * it carries no residue and this gate has nothing to say about it; it is
+ * refused one step later by {@link isSpecAcceptedLocation}, exactly as it is
+ * today (objectui#6714). The range arm keeps its own case rather than having
+ * it quietly moved into this one.
+ */
+const WHOLE_NUMBER_TEXT = /^[+-]?(?:Infinity|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+/** The two coordinates, in the order they are typed, named for the diagnostic. */
+const COORDINATE_LABELS = ['latitude', 'longitude'] as const;
+
+/** One half of the typed pair that carried non-numeric residue. */
+type ResidueHalf = { label: string; text: string };
+
+/**
  * What the typed text means to this widget, as ONE reading (objectui#6716).
  *
- * The three outcomes are exactly the three the emission rule already had —
- * cleared / not a coordinate pair / a pair — lifted out of `handleChange` so
- * the DRAFT-SYNC guard below judges the text by the same rule that decides
- * whether to emit it. Two copies of "is this a coordinate pair" would be two
+ * The outcomes are exactly the ones the emission rule already had — cleared /
+ * not a coordinate pair / a pair — lifted out of `handleChange` so the
+ * DRAFT-SYNC guard below judges the text by the same rule that decides whether
+ * to emit it. Two copies of "is this a coordinate pair" would be two
  * contracts, and the one in the effect would be the one nobody tests.
+ *
+ * objectui#6715 adds a fourth, `residue`, splitting what used to be one
+ * reading of "the half is a number" into the two different things `parseFloat`
+ * was conflating: no number at the front at all (still `unparsable`, still the
+ * pre-existing FORMAT arm) versus a number at the front with text after it.
+ * Only the second is new; the first keeps its message and its #6716 pins.
  */
 type ParsedDraft =
   | { kind: 'cleared' }
   | { kind: 'unparsable' }
+  | { kind: 'residue'; residue: ResidueHalf[] }
   | { kind: 'pair'; lat: number; lng: number };
 
 function parseDraft(text: string): ParsedDraft {
@@ -163,7 +214,15 @@ function parseDraft(text: string): ParsedDraft {
   if (parts.length !== 2) return { kind: 'unparsable' };
   const lat = parseFloat(parts[0]);
   const lng = parseFloat(parts[1]);
+  // No number at the front of a half AT ALL (`abc`, `NaN`, `--1`): the
+  // pre-existing FORMAT arm, deliberately left where it was so its sentence
+  // and its objectui#6716 pins keep saying exactly what they said.
   if (isNaN(lat) || isNaN(lng)) return { kind: 'unparsable' };
+  // A number at the front, but not all the way to the end (objectui#6715).
+  const residue = COORDINATE_LABELS
+    .map((label, i): ResidueHalf => ({ label, text: parts[i] }))
+    .filter(half => !WHOLE_NUMBER_TEXT.test(half.text));
+  if (residue.length > 0) return { kind: 'residue', residue };
   return { kind: 'pair', lat, lng };
 }
 
@@ -179,7 +238,10 @@ function parseDraft(text: string): ParsedDraft {
 function draftDenotes(text: string, value: unknown): boolean {
   const parsed = parseDraft(text);
   if (parsed.kind === 'cleared') return !isLocationValue(value);
-  if (parsed.kind === 'unparsable') return false;
+  // Text this widget REFUSES denotes no stored value — `unparsable`, and since
+  // objectui#6715 `residue` too. Written as "not a pair" rather than as a list
+  // of refusal kinds, so a future arm cannot be forgotten here.
+  if (parsed.kind !== 'pair') return false;
   return isLocationValue(value) && value.lat === parsed.lat && value.lng === parsed.lng;
 }
 
@@ -215,6 +277,28 @@ function refusedRangeMessage(candidate: LocationValue): string {
     .map(issue => `${issue.path.join('.') || 'value'}: ${issue.message}`)
     .join('; ');
   return `Not saved: ${detail}`;
+}
+
+/**
+ * What the box says when a half of the pair is only PARTLY a number
+ * (objectui#6715).
+ *
+ * ⛔ Deliberately NOT {@link REFUSED_FORMAT_MESSAGE}. "Enter a latitude,
+ * longitude pair" is unusable advice to someone who typed `12abc, 34`: they
+ * DID type a pair, and that sentence gives them nothing to correct. This
+ * refusal names the half that could not be read and quotes it back, because
+ * the residue IS the content of this refusal — the same principle by which the
+ * format arm names the format and the range arm reports the spec's own
+ * complaint.
+ *
+ * ⛔ It does not suggest a notation to convert FROM (no `12°N` advice): the
+ * ruling declines that parse, so pointing at it would advertise a route this
+ * widget refuses.
+ */
+function refusedResidueMessage(residue: readonly ResidueHalf[]): string {
+  const named = residue.map(half => `${half.label} "${half.text}"`).join(' and ');
+  const verb = residue.length > 1 ? 'are not numbers' : 'is not a number';
+  return `Not saved: ${named} ${verb}. Enter plain decimals (example: 30.2741, 120.1551).`;
 }
 
 /**
@@ -329,6 +413,16 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
       // The text is not a coordinate pair. The prior value stands — and since
       // objectui#6716 the box says so instead of swallowing the edit.
       setRefusalError(REFUSED_FORMAT_MESSAGE);
+      return;
+    }
+
+    if (parsed.kind === 'residue') {
+      // objectui#6715: a half that is only PARTLY a number is a NON-COORDINATE,
+      // not a number to truncate. Refused, and announced through the very same
+      // `setRefusalError` the other two arms use — a third SILENT refusal is
+      // precisely the defect objectui#6716 had just finished removing, which is
+      // why this card was held until #6716 landed.
+      setRefusalError(refusedResidueMessage(parsed.residue));
       return;
     }
 
