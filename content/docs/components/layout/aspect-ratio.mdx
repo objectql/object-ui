@@ -21,11 +21,17 @@ The Aspect Ratio component maintains a consistent width to height ratio for cont
 
 ## Schema
 
+The box holds its content one of two ways, and the renderer reads exactly one of them:
+set `image` for a photo, which is drawn to fill the box; otherwise the box renders
+`children`.
+
 ```plaintext
 interface AspectRatioSchema {
   type: 'aspect-ratio';
-  ratio: number;                  // Width / Height ratio
-  content: ComponentSchema;       // Content to display
+  ratio?: number;                  // Width / Height ratio (default: 16 / 9)
+  image?: string;                  // Image URL, drawn to fill the box
+  alt?: string;                    // Alt text for `image`
+  children?: SchemaNode | SchemaNode[];   // Content, when no `image` is set
   className?: string;
 }
 ```
