@@ -30,6 +30,14 @@
  *    `expandFields` alone and leaves `perms` (keyed on `[ctx]`) cached, which
  *    is what lets a failure here name `expandFields` and nothing else.
  *
+ * Both statements above describe the UNFIXED source, which is what the first
+ * case has to be red against. The fix keys the effect on that memo's own
+ * INPUTS (`schema.columns`, the view-binding blocks, `objectDef?.fields` —
+ * props and state, which a discard cannot move) instead of on its output, so
+ * afterwards `perms` is the effect's only memo-derived dependency. The proxy's
+ * scope is unchanged either way: the marker is `schema.columns`, which only
+ * the `expandFields` memo names.
+ *
  * See `plugin-detail/src/__tests__/RelatedList.discardedMemoIdentity.test.tsx`
  * for why the discard has to be forced at the module level: `ListView` reaches
  * `useMemo` through `import * as React from 'react'`, and that namespace is a
@@ -169,6 +177,30 @@ describe('ListView — the data fetch survives a discarded `expandFields` memo (
     } finally {
       restore();
     }
+  });
+
+  /**
+   * The counterpart to the case above, and the one a value key over
+   * `expandFields` gets WRONG. `buildExpandFields` collapses the whole
+   * collected set down to the relation roots, so adding a plain `text` column
+   * leaves `$expand` byte-identical — a key derived from that result cannot
+   * see the change, and the list goes on serving rows without the new column.
+   * `$select` is the assertion because `$select` is what actually moves.
+   */
+  it('still DOES re-fetch when the columns change WITHOUT changing what must be expanded', async () => {
+    const ds = makeDataSource();
+    const { rerender } = render(listElement(ds, SCHEMA));
+    await waitFor(() => expect(ds.find).toHaveBeenCalledTimes(1));
+    expect(ds.find.mock.calls[0][1].$select).not.toContain('status');
+    expect(ds.find.mock.calls[0][1].$expand).toEqual(['account']);
+
+    rerender(listElement(ds, schemaWith(['name', 'account', 'status'])));
+
+    await waitFor(() => expect(ds.find.mock.calls.length).toBeGreaterThan(1));
+    const last = ds.find.mock.calls[ds.find.mock.calls.length - 1][1];
+    // The expand set is unchanged — only the projection moved.
+    expect(last.$expand).toEqual(['account']);
+    expect(last.$select).toContain('status');
   });
 
   it('still DOES re-fetch when the column set genuinely changes what must be expanded', async () => {
