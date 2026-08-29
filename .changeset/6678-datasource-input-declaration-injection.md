@@ -33,9 +33,12 @@ form**:
 - `ELEMENT_DATA_SOURCE_INPUT` is the single declaration, in `@object-ui/core`
   beside the binding's own semantics; `Registry.register` emits it for any
   registration whose renderer passed through the new `elementDataSourceBlock()`
-  seam, exported from `@object-ui/react` next to `ElementDataSourceGate`. One
-  mechanism, one copy — not a hand-kept declaration per block, which is the
-  shape that drifts and that a new block forgets.
+  seam. One mechanism, one copy — not a hand-kept declaration per block, which is
+  the shape that drifts and that a new block forgets. The seam lives in
+  `@object-ui/core` and is re-exported by `@object-ui/react` beside
+  `ElementDataSourceGate` for discoverability; call sites take the core import,
+  because a registration runs at module scope and this repo's suites partially
+  mock `@object-ui/react`.
 - Seventeen renderers, in thirteen files across twelve packages, reach the seam
   and now publish the key to the save gate, the parser whitelist, the generated
   JSX authoring types and the block list. The card named nine blocks; the tree
