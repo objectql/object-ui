@@ -34,6 +34,7 @@ import {
   mergeServerFlowFields,
   localizeFlowFields,
   isFieldVisible,
+  inactiveRetainedKind,
   getFieldValue,
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
@@ -454,6 +455,13 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
             scopeGroups={scopeGroups}
             approvalScopeGroups={approvalExpressionGroups}
             triggerScope={triggerScope}
+            // objectui#6499 — a gated field that survived the filter above ONLY
+            // because it holds a stored value is inert config wearing a live
+            // control's clothes. Name it, and offer the deliberate clear.
+            // Computed from `field` (not `effField`): the read is by `path`,
+            // which the nested-branch rewrite above does not touch.
+            inactiveRetained={inactiveRetainedKind(field, node, fields)}
+            onClearInactive={readOnly ? undefined : () => setField(field, undefined)}
           />
         );
       })}

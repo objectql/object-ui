@@ -1084,8 +1084,44 @@ export function isFieldVisible(
   fields: FlowConfigField[],
 ): boolean {
   if (!field.showWhen) return true;
+  // ⛔ THE STORED-VALUE RE-SHOW RULE — do not weaken it, and do not invert it
+  // into a prune. objectui#6499 ruled (maintainer, 2026-08-27, Option C) that a
+  // hidden-but-stored dependent value is KEPT: the author sees it and clears it
+  // deliberately. Deleting it on save is the rejected option precisely because
+  // this line is what stops config an author entered from vanishing unseen.
+  if (hasStoredValue(field, node)) return true;
+  return controllerAdmits(field, node, fields);
+}
+
+/**
+ * Whether this field currently holds a stored value — the input to the
+ * re-show rule above, named so {@link inactiveRetainedKind} asks the same
+ * question in the same words rather than re-deriving "empty".
+ */
+function hasStoredValue(
+  field: FlowConfigField,
+  node: Record<string, unknown> | null | undefined,
+): boolean {
   const own = getFieldValue(node, field);
-  if (own !== undefined && own !== null && own !== '') return true;
+  return own !== undefined && own !== null && own !== '';
+}
+
+/**
+ * Whether a gated field's CONTROLLER admits it — the `showWhen` predicate on
+ * its own, deliberately blind to the field's own stored value.
+ *
+ * Split out of {@link isFieldVisible} (behaviour unchanged — it is that
+ * function's former tail) so the affordance below and the visibility filter
+ * read ONE definition of "the controller says yes". Duplicating the resolution
+ * would let the two drift, and the drift would be silent: the affordance would
+ * quietly stop matching the fields it is supposed to annotate.
+ */
+function controllerAdmits(
+  field: FlowConfigField,
+  node: Record<string, unknown> | null | undefined,
+  fields: FlowConfigField[],
+): boolean {
+  if (!field.showWhen) return true;
   const controller = fields.find((f) => f.id === field.showWhen!.field);
   if (!controller) return false;
   const raw = getFieldValue(node, controller);
@@ -1093,6 +1129,48 @@ export function isFieldVisible(
   // Boolean controllers (e.g. `escalation.enabled`) compare against 'true'/'false'.
   const value = typeof resolved === 'boolean' ? String(resolved) : resolved;
   return typeof value === 'string' && field.showWhen.equals.includes(value);
+}
+
+/**
+ * Why a gated field is on screen when its controller does not admit it.
+ *
+ * `'controller-off'` — the descriptor names a controller that EXISTS in this
+ * node's field set and currently resolves to something outside `equals`. The
+ * author can turn it back on, so the affordance says so.
+ *
+ * `'no-controller'` — the descriptor's `showWhen.field` resolves to no field
+ * at all. The `__legacy__` sentinel (`equals: []`, no such field) is the
+ * deliberate instance: a render-only key that is never offered for fresh
+ * authoring and appears solely because a value is stored. There is nothing to
+ * switch back on, so the affordance must NOT tell the author to go find a
+ * toggle — that would be a new small lie on a screen whose whole defect was
+ * showing inert config as if it were live.
+ */
+export type InactiveRetainedKind = 'controller-off' | 'no-controller';
+
+/**
+ * The "inactive values retained" predicate (objectui#6499, Option C).
+ *
+ * True exactly when a field is rendered ONLY because {@link isFieldVisible}'s
+ * stored-value re-show rule fired — i.e. the value is stored, the controller
+ * does not admit it, and so what the author sees is retained-but-inert config.
+ * Returns `null` for every other field, including a gated field the controller
+ * genuinely admits and a gated field holding nothing.
+ *
+ * This is a READ. It changes no stored value, and nothing on the save path
+ * consults it; clearing is an ordinary author-initiated field commit through
+ * the inspector's existing `setField`, exactly as if the author had emptied the
+ * control by hand.
+ */
+export function inactiveRetainedKind(
+  field: FlowConfigField,
+  node: Record<string, unknown> | null | undefined,
+  fields: FlowConfigField[],
+): InactiveRetainedKind | null {
+  if (!field.showWhen) return null;
+  if (!hasStoredValue(field, node)) return null;
+  if (controllerAdmits(field, node, fields)) return null;
+  return fields.some((f) => f.id === field.showWhen!.field) ? 'controller-off' : 'no-controller';
 }
 
 /** Node types offered in the inspector's type picker (spec `FlowNodeAction`). */

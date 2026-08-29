@@ -7,14 +7,14 @@
  */
 
 import * as React from 'react';
-import type { FlowConfigField } from './flow-node-config.js';
+import type { FlowConfigField, InactiveRetainedKind } from './flow-node-config.js';
 import { t } from '../i18n.js';
 import {
   InspectorNumberField,
   InspectorSelectField,
   InspectorCheckboxField,
 } from './_shared.js';
-import { Label } from '@object-ui/components';
+import { Button, Label } from '@object-ui/components';
 import { FlowKeyValueField } from './FlowKeyValueField.js';
 import { FlowStringListField } from './FlowStringListField.js';
 import { FlowObjectListField } from './FlowObjectListField.js';
@@ -65,9 +65,26 @@ export interface FlowNodeConfigFieldProps {
    * the value.
    */
   triggerScope?: TriggerScope;
+  /**
+   * objectui#6499 — set when this field is on screen ONLY because it holds a
+   * stored value its `showWhen` controller does not currently admit. Supplied
+   * by the host inspector, which owns the node and the sibling field set (this
+   * component sees neither), and computed by `inactiveRetainedKind`.
+   *
+   * `undefined`/`null` is the normal case and renders exactly as before, so a
+   * caller that does not pass it is unaffected.
+   */
+  inactiveRetained?: InactiveRetainedKind | null;
+  /**
+   * Clears the retained value — an ordinary field commit of `undefined`, the
+   * same write the author would make by emptying the control by hand. The
+   * ruling keeps hidden values by default; this is how the author discards one
+   * DELIBERATELY. Omit to render the notice without the button.
+   */
+  onClearInactive?: () => void;
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups, triggerScope }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups, triggerScope, inactiveRetained, onClearInactive }: FlowNodeConfigFieldProps) {
   const refMode: 'expression' | 'template' =
     field.refMode ?? (field.kind === 'expression' ? 'expression' : 'template');
   // objectui#6226 — the row-based condition builder, on the fields that opted in
@@ -281,6 +298,44 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
   return (
     <div className="space-y-1">
       {control}
+      {/*
+        objectui#6499 — the "inactive values retained" affordance. Rendered
+        ABOVE the expression/scope notes and independently of them: those judge
+        the value's CONTENT, this one says the value is not in effect at all,
+        and an author who cannot see the second will misread the first.
+        Deliberately not a `disabled` control — the value is still editable, it
+        just is not live, and greying it out would hide the very text the
+        ruling asks the author to be able to read and act on.
+      */}
+      {inactiveRetained && (
+        <div
+          className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5"
+          role="note"
+          data-testid="inactive-retained"
+          data-inactive-retained={inactiveRetained}
+        >
+          <p className="flex-1 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+            {t(
+              inactiveRetained === 'no-controller'
+                ? 'engine.inspector.flowNode.inactiveRetainedOrphan'
+                : 'engine.inspector.flowNode.inactiveRetained',
+              locale,
+            )}
+          </p>
+          {onClearInactive && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-2 text-[11px] text-amber-700 dark:text-amber-400"
+              onClick={onClearInactive}
+              disabled={disabled}
+            >
+              {t('engine.inspector.flowNode.inactiveRetainedClear', locale)}
+            </Button>
+          )}
+        </div>
+      )}
       {exprIssue && (
         <p className="text-[11px] leading-snug text-destructive" role="alert">
           {exprIssue.message}
