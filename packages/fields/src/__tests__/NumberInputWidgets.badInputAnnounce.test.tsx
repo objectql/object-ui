@@ -67,89 +67,76 @@ import {
 afterEach(() => cleanup());
 
 /**
- * The four widgets of the class, each with the example its own message quotes.
- *
- * `mount` returns the box the guard watches plus the `onChange` spy. The host
- * ECHOES the emission back into `value` the way a real form does — with a bare
- * spy the control never moves off its initial value and React suppresses the
- * second change (the same coupling the objectui#6765 suite needed).
+ * Every widget of this class takes the same three runtime props, but their
+ * `value` and `field` types differ (a number here, a `GeolocationValue` there).
+ * ONE structural type expresses that, so the suite needs a single `unknown`
+ * cast per widget instead of an `any` at every call site (AGENTS.md #6).
  */
+type NumberishWidget = React.ComponentType<{
+  value: unknown;
+  onChange: (v: unknown) => void;
+  field: Record<string, unknown>;
+  onBlur?: React.FocusEventHandler<HTMLElement>;
+}>;
+
+const asWidget = (w: unknown) => w as NumberishWidget;
+
+/**
+ * Mount a widget with a host that ECHOES the emission back into `value`, the
+ * way a real form does. Not decoration: these are CONTROLLED inputs, so with a
+ * bare spy host `value` never moves and React suppresses the second change —
+ * the same coupling the objectui#6765 suite needed.
+ */
+function mountWidget(
+  Widget: NumberishWidget,
+  field: Record<string, unknown>,
+  initial: unknown,
+  extra: { onBlur?: React.FocusEventHandler<HTMLElement> } = {},
+) {
+  const onChange = vi.fn();
+  const Host = () => {
+    const [value, setValue] = React.useState<unknown>(initial);
+    return (
+      <Widget
+        value={value}
+        onChange={v => { onChange(v); setValue(v); }}
+        field={field}
+        {...extra}
+      />
+    );
+  };
+  const { container } = render(<Host />);
+  const boxes = container.querySelectorAll('input[type=number]');
+  return { container, onChange, boxes, box: boxes[0] as HTMLInputElement };
+}
+
+/** The four widgets of the class, each with the example its own message quotes. */
 const WIDGETS = [
   {
     name: 'CurrencyField',
     example: '1234.56',
-    mount: () => {
-      const onChange = vi.fn();
-      const Host = () => {
-        const [value, setValue] = React.useState<number | null>(null);
-        return (
-          <CurrencyField
-            value={value as any}
-            onChange={((v: any) => { onChange(v); setValue(v); }) as any}
-            field={{ name: 'amount', type: 'currency', currency: 'USD', precision: 2 } as any}
-          />
-        );
-      };
-      const { container } = render(<Host />);
-      return { container, onChange, box: container.querySelector('input[type=number]') as HTMLInputElement };
-    },
+    mount: () =>
+      mountWidget(
+        asWidget(CurrencyField),
+        { name: 'amount', type: 'currency', currency: 'USD', precision: 2 },
+        null,
+      ),
   },
   {
     name: 'PercentField',
     example: '12.5',
-    mount: () => {
-      const onChange = vi.fn();
-      const Host = () => {
-        const [value, setValue] = React.useState<number | null>(null);
-        return (
-          <PercentField
-            value={value as any}
-            onChange={((v: any) => { onChange(v); setValue(v); }) as any}
-            field={{ name: 'rate', type: 'percent', precision: 2 } as any}
-          />
-        );
-      };
-      const { container } = render(<Host />);
-      return { container, onChange, box: container.querySelector('input[type=number]') as HTMLInputElement };
-    },
+    mount: () =>
+      mountWidget(asWidget(PercentField), { name: 'rate', type: 'percent', precision: 2 }, null),
   },
   {
     name: 'NumberField',
     example: '1234',
-    mount: () => {
-      const onChange = vi.fn();
-      const Host = () => {
-        const [value, setValue] = React.useState<number | null>(null);
-        return (
-          <NumberField
-            value={value as any}
-            onChange={((v: any) => { onChange(v); setValue(v); }) as any}
-            field={{ name: 'qty', type: 'number' } as any}
-          />
-        );
-      };
-      const { container } = render(<Host />);
-      return { container, onChange, box: container.querySelector('input[type=number]') as HTMLInputElement };
-    },
+    mount: () => mountWidget(asWidget(NumberField), { name: 'qty', type: 'number' }, null),
   },
   {
     name: 'GeolocationField (latitude)',
     example: '30.2741',
-    mount: () => {
-      const onChange = vi.fn();
-      const Host = () => {
-        const [value, setValue] = React.useState<any>({});
-        return (
-          <GeolocationField
-            value={value}
-            onChange={((v: any) => { onChange(v); setValue(v); }) as any}
-            field={{ name: 'where', type: 'geolocation' } as any}
-          />
-        );
-      };
-      const { container } = render(<Host />);
-      return { container, onChange, box: container.querySelectorAll('input[type=number]')[0] as HTMLInputElement };
-    },
+    mount: () => mountWidget(asWidget(GeolocationField), { name: 'where', type: 'geolocation' }, {}),
   },
 ] as const;
 
@@ -298,19 +285,11 @@ describe('objectui#6780 fires on input a real browser can produce', () => {
 
 describe('GeolocationField reads its two boxes independently (objectui#6780)', () => {
   const mountGeo = () => {
-    const onChange = vi.fn();
-    const Host = () => {
-      const [value, setValue] = React.useState<any>({});
-      return (
-        <GeolocationField
-          value={value}
-          onChange={((v: any) => { onChange(v); setValue(v); }) as any}
-          field={{ name: 'where', type: 'geolocation' } as any}
-        />
-      );
-    };
-    const { container } = render(<Host />);
-    const boxes = container.querySelectorAll('input[type=number]');
+    const { container, boxes } = mountWidget(
+      asWidget(GeolocationField),
+      { name: 'where', type: 'geolocation' },
+      {},
+    );
     return { container, lat: boxes[0] as HTMLInputElement, lng: boxes[1] as HTMLInputElement };
   };
 
@@ -363,27 +342,21 @@ describe('the added onBlur composes the host handler instead of replacing it', (
     ['PercentField', PercentField, { name: 'rate', type: 'percent' }],
     ['NumberField', NumberField, { name: 'qty', type: 'number' }],
     ['GeolocationField', GeolocationField, { name: 'where', type: 'geolocation' }],
-  ])('%s still calls a host onBlur', (_name, Widget: any, field: any) => {
+  ])('%s still calls a host onBlur', (_name, Widget, field) => {
     const hostBlur = vi.fn();
-    const { container } = render(
-      <Widget value={undefined} onChange={() => {}} field={field} onBlur={hostBlur} />,
-    );
-    const box = container.querySelector('input[type=number]') as HTMLInputElement;
+    const { box } = mountWidget(asWidget(Widget), field, undefined, { onBlur: hostBlur });
     fireEvent.blur(box);
     expect(hostBlur).toHaveBeenCalledTimes(1);
   });
 
   it('and still announces on that same blur', () => {
     const hostBlur = vi.fn();
-    const { container } = render(
-      <NumberField
-        value={undefined as any}
-        onChange={() => {}}
-        field={{ name: 'qty', type: 'number' } as any}
-        onBlur={hostBlur}
-      />,
+    const { container, box } = mountWidget(
+      asWidget(NumberField),
+      { name: 'qty', type: 'number' },
+      undefined,
+      { onBlur: hostBlur },
     );
-    const box = container.querySelector('input[type=number]') as HTMLInputElement;
     box.value = '1e';
     fireEvent.blur(box);
     expect(hostBlur).toHaveBeenCalledTimes(1);
