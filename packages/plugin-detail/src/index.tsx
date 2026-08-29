@@ -65,8 +65,34 @@ export {
  *
  * No new module enters the eager closure: `renderers/record-activity`, already
  * imported above, pulls `recordActivityFeed` in.
+ *
+ * ## The CONSTRUCTOR joins the table here (objectui#5896)
+ *
+ * Publishing the table alone left the mirror one level up: `RecordDetailView`
+ * read this object and then built the `FeedItem` around it with its own inline
+ * loop, and the two constructions had already drifted three ways — the console
+ * copy dropped an unmapped type SILENTLY where {@link activityRowToFeedItem}
+ * renders it through {@link UNMAPPED_ACTIVITY_FEED_TYPE} and says so once
+ * (objectstack#11507 direction 4, ruled 2026-08-24), and its timestamp
+ * fallback could leave `createdAt` `undefined` where the helper yields `''`.
+ *
+ * So the exported surface is the whole reading — table, fallback, and the
+ * constructor that applies both — not the lookup table on its own. A consumer
+ * that needs a `FeedItem` from a `sys_activity` row calls
+ * `activityRowToFeedItem`; there is no supported way to assemble one from the
+ * table by hand, because that is precisely what drifted.
+ *
+ * `resetUnknownActivityTypeWarnings` comes with it: the warn-once bucket is
+ * module state, so any surface that ASSERTS the diagnostic needs the same test
+ * seam the block's own tests use.
  */
-export { ACTIVITY_TYPE_TO_FEED_TYPE } from './renderers/recordActivityFeed';
+export {
+  ACTIVITY_TYPE_TO_FEED_TYPE,
+  UNMAPPED_ACTIVITY_FEED_TYPE,
+  activityRowToFeedItem,
+  resetUnknownActivityTypeWarnings,
+} from './renderers/recordActivityFeed';
+export type { SysActivityRow } from './renderers/recordActivityFeed';
 
 export { RecordDetailDrawer, deriveRecordPageHref } from './RecordDetailDrawer';
 export type { RecordDetailDrawerProps } from './RecordDetailDrawer';

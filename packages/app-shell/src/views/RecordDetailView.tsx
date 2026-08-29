@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { ACTIVITY_TYPE_TO_FEED_TYPE, RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
+import { activityRowToFeedItem, RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField, useRecordEditable } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -1582,16 +1582,26 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // true), so this surface gives us a Salesforce-style "what happened
     // on this record" feed without any per-app glue.
     //
-    // The sys_activity.type -> FeedItemType reading is `record:activity`'s
-    // exported `ACTIVITY_TYPE_TO_FEED_TYPE` (@object-ui/plugin-detail), NOT a
-    // copy of it (objectui#5878). This merge and that block read the SAME rows
-    // of the SAME system table, so two tables can only ever be a bug: until
-    // this import, objectui#5840's `scheduled` -> `event` entry existed in the
-    // renderer and not here, and a scheduled meeting therefore rendered on a
-    // hand-authored record page and vanished on the console record page. The
-    // shared table's docblock carries which types map where and why
-    // `commented` / `mentioned` / `login` / `logout` deliberately map to
-    // nothing; do not restate it here, and never re-declare the table.
+    // The whole row -> FeedItem reading is `record:activity`'s exported
+    // `activityRowToFeedItem` (@object-ui/plugin-detail), NOT a copy of it.
+    // This merge and that block read the SAME rows of the SAME system table,
+    // so two readings can only ever be a bug.
+    //
+    // objectui#5878 shared the TYPE TABLE (until then, #5840's `scheduled` ->
+    // `event` entry existed in the renderer and not here, so a scheduled
+    // meeting rendered on a hand-authored record page and vanished on the
+    // console one). objectui#5896 shares the CONSTRUCTION around it, which had
+    // drifted the same way one level up: this loop dropped a type the table
+    // does not contain SILENTLY, while the block renders it through
+    // `UNMAPPED_ACTIVITY_FEED_TYPE` and warns once. `sys_activity.type` is
+    // author-extensible (objectstack#11507 direction 4, ruled 2026-08-24) and
+    // is never validated on write, so that drop made every author-extended
+    // row stored, queryable and INVISIBLE on the surface where a shipped
+    // producer's rows are most likely to be watched — objectui#5840's failure
+    // mode, reached by another route. The helper's docblock carries which
+    // types map where and why `commented` / `mentioned` / `login` / `logout`
+    // deliberately map to nothing; do not restate it here, and never
+    // re-declare the table or rebuild the item by hand.
     //
     // sys_activity is system-owned so a 404 ("table not provisioned",
     // older schemas without activities) is silently tolerated.
@@ -1602,29 +1612,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     })
       .then((res: any) => {
         if (!res?.data?.length) return;
+        const systemActorLabel = t('detail.systemActor', { defaultValue: 'System' });
         const mapped: FeedItem[] = [];
         for (const row of res.data) {
-          const feedType = ACTIVITY_TYPE_TO_FEED_TYPE[row.type];
-          if (!feedType) continue;
-          // Prefer the explicit `timestamp` column, but tolerate older
-          // rows where the driver leaked the literal "NOW()" — fall
-          // back to created_at (always a real ISO date).
-          let when = row.timestamp;
-          if (!when || when === 'NOW()' || Number.isNaN(Date.parse(when))) {
-            when = row.created_at;
-          }
-          mapped.push({
-            id: row.id,
-            type: feedType,
-            actor: row.actor_name ?? t('detail.systemActor', { defaultValue: 'System' }),
-            actorAvatarUrl: row.actor_avatar_url ?? undefined,
-            body: row.summary ?? '',
-            createdAt: when,
-            // ADR-0052 ActivityPointer: drill from the summary to the source
-            // rich entity (sys_email row, call/meeting task, …) when present.
-            sourceObject: row.source_object ?? undefined,
-            sourceId: row.source_id ?? undefined,
-          } as FeedItem);
+          // `null` is the ONE outcome that drops a row, and it means exactly
+          // one thing: a type the shared table maps to `undefined` ON PURPOSE
+          // (`commented` / `mentioned` / `login` / `logout` — their content
+          // lives in `sys_comment`, or they are account events rather than
+          // record activity). Everything else comes back as an item, including
+          // a type nobody has mapped yet.
+          const item = activityRowToFeedItem(row, systemActorLabel);
+          if (item) mapped.push(item);
         }
         if (!mapped.length) return;
         // Merge by id into THIS record's slice (timeline events are
