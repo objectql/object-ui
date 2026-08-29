@@ -206,7 +206,7 @@ describe('the `dataSource` declaration is emitted at the gate-wrapping seam (#66
     expect(
       undeclared,
       'These registrations render ElementDataSourceGate but publish no `dataSource` input. '
-        + 'Wrap the registered renderer in `elementDataSourceBlock(...)` from @object-ui/react — '
+        + 'Wrap the registered renderer in `elementDataSourceBlock(...)` from @object-ui/core — '
         + 'do NOT hand-write the input.',
     ).toEqual([]);
 

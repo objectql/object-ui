@@ -206,9 +206,11 @@ if (missing.length > 0) {
       'publishes an authoring surface with no `dataSource` input, so the html tier reports the one\n' +
       'spelling that resolves a saved view as `unknown-prop` -- objectui#6678, on the tier where the\n' +
       'diagnostic is the contract.\n\n' +
-      'Fix: wrap the RENDERER this file registers in `elementDataSourceBlock(...)` from\n' +
-      '@object-ui/react. The declaration itself is emitted by Registry.register; do not write a\n' +
-      '`dataSource` input by hand -- nine hand-kept copies is the shape the 2026-08-29 ruling refused.',
+      'Fix: wrap the RENDERER this file registers in `elementDataSourceBlock(...)`, imported from\n' +
+      '@object-ui/core (see the import-source rule below -- @object-ui/react re-exports the same\n' +
+      'function, but a module-scope read of it breaks every suite that mocks that package). The\n' +
+      'declaration itself is emitted by Registry.register; do not write a `dataSource` input by\n' +
+      'hand -- hand-kept copies is the shape the 2026-08-29 ruling refused.',
   );
   process.exit(1);
 }
