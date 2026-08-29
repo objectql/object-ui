@@ -368,17 +368,17 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
     "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
     "groupByField": "owner",
     "assigneeField": "owner",
-    "effortField": "effort"
+    "effortField": "effort",
+    "quickFilters": [
+      { "field": "status", "label": "状态" },
+      { "field": "project", "label": "项目" },
+      { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
+    ],
+    "autoZoomToFilter": true
   },
   "criticalPath": true,
   "skipWeekends": true,
   "holidays": ["2026-01-01", "2026-12-25"],
-  "quickFilters": [
-    { "field": "status", "label": "状态" },
-    { "field": "project", "label": "项目" },
-    { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
-  ],
-  "autoZoomToFilter": true,
   "readOnly": false,
   "bind": "project_task"
 }
@@ -418,8 +418,19 @@ view** (see below). The gantt field config may also be hoisted to top-level
 | `lockField: "is_locked"` | Marks a row **view-only / 仅查看** when the field is truthy: its bar can't be dragged/resized, progress can't be dragged, no dependency connector dot, and inline-edit + context-menu edit/delete are hidden. **Clicking still works** (open drawer / jump). Independent of `readOnly`, so you can freeze just one level (e.g. 派工单) while siblings stay editable. |
 | `defaultCollapsedDepth: 2` | **Auto-collapse 默认折叠** every tree node at or below this 0-indexed depth that has children, on first render. Roots are depth 0. The user can still expand any of them — this only seeds the initial state. Example: in a 项目(0)→产品(1)→排产计划(2)→派工单(3) tree, `2` starts with every 排产计划 (and its 派工单) folded. Omit to start fully expanded. |
 
-**Top-level display / behavior options** (siblings of `gantt` on `props`, not
-field mappings):
+**Gantt config options** (`GanttConfig` members — set them INSIDE `gantt`, or hoist
+the whole config as above; beside a `gantt` block a top-level copy is IGNORED):
+
+| Option (under `gantt`) | Effect |
+|--------|--------|
+| `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks; each task adds `effortField` units (default 1) over its span, and any column whose summed load exceeds `capacity` is painted as over-allocated. |
+| `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`; loads above it flag overload). |
+| `quickFilters: [{ field, label?, options? }]` | Render a **快速筛选 (quick filter)** bar above the grid — one multi-select dropdown per entry that narrows the visible task bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (full domain) → a `lookup`/`master_detail`'s referenced records (pulled in full via the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
+| `autoZoomToFilter: true` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span so bars keep their absolute position while filtering. |
+| `viewMode: "day"\|"week"\|"month"\|"quarter"\|"year"` | Initial timeline granularity (default `day`); the toolbar segmented control switches it live. `year` widens the axis to one column per year with a decade (`2020s`) band above. |
+
+**Node-level display / behavior options** (true siblings of `gantt` on the node
+itself, not `GanttConfig` members — they apply with either face):
 
 | Option | Effect |
 |--------|--------|
@@ -427,12 +438,7 @@ field mappings):
 | `showBaselines: false` | Hide the baseline strips even when baseline fields are mapped (default `true`). |
 | `skipWeekends: true` | Working-calendar math: auto-schedule + critical path count working days only, snapping reschedules off Sat/Sun. In **day mode** this also folds weekend columns out of the timeline (非线性工作时间轴) — Friday sits against Monday and a one-column drag advances one working day. Coarser scales stay linear. |
 | `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). In day mode these columns fold out of the axis too. |
-| `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks; each task adds `effortField` units (default 1) over its span, and any column whose summed load exceeds `capacity` is painted as over-allocated. |
-| `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`; loads above it flag overload). Also usable as field mappings under `gantt`. |
-| `quickFilters: [{ field, label?, options? }]` | Render a **快速筛选 (quick filter)** bar above the grid — one multi-select dropdown per entry that narrows the visible task bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (full domain) → a `lookup`/`master_detail`'s referenced records (pulled in full via the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
-| `autoZoomToFilter: true` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span so bars keep their absolute position while filtering. |
 | `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
-| `viewMode: "day"\|"week"\|"month"\|"quarter"\|"year"` | Initial timeline granularity (default `day`); the toolbar segmented control switches it live. `year` widens the axis to one column per year with a decade (`2020s`) band above. |
 | `persistLayout: false` | Disable layout persistence. By default the toolbar's **保存布局 (save layout)** button snapshots the current granularity + zoom + task-list collapse to `localStorage` (key `gantt-layout:<object>:<view>`) and restores it on next load; set `false` to opt out. |
 | `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. A 🔒 只读 badge shows in the toolbar, and the right-click menu drops to view-only (or is suppressed when nothing is actionable). Task click + granularity switching still work. Use for dashboards / shared read-only views. |
 | `mobileReadOnly: false` | On a narrow viewport (≤ 640px) the chart **auto-enters read-only** to give touch users a clean, scrollable thumbnail (移动端只读缩略) — same gating as `readOnly`, applied only while narrow. Enabled by default; set `false` to keep editing live on small screens. |
