@@ -133,6 +133,12 @@ const heavyDomTests = [
   // sibling handoff pin registers) is standing in for one side of the
   // disagreement and cannot see it. Same reason, same route as the entry above.
   'packages/plugin-list/src/__tests__/htmlTierListViewDefaultColumns-6598.test.tsx',
+  // objectui#6598 — the reporter's eight `columns` spellings as a matrix,
+  // each through the real live registration and the REAL object-grid. Same
+  // reason and same route as the entry above: the card's own claim is about
+  // all eight at once, and a stub grid stands in for one side of the
+  // ListView/ObjectGrid disagreement it has to observe.
+  'packages/plugin-list/src/__tests__/htmlTierColumnSpellings-6598.test.tsx',
 ];
 
 export default defineConfig({
