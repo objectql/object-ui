@@ -450,6 +450,14 @@ surface whose renderer ignores it would make the metadata lie (#6111), so the
 key stops at the boundary until each surface enforces it. Track #6237 for
 both.
 
+Both **No** rows now **report themselves** rather than failing silently. Authoring
+a section `visibleWhen` on `formType: 'tabbed'` or `formType: 'wizard'` logs a
+console warning naming the layout and the sections whose predicate is being
+dropped. This is an interim diagnostic (ruled 2026-08-29, alongside the decision
+to design the real repair as **one** section/group predicate contract shared by
+every layout arm): it changes no behaviour, it only stops the drop from being
+invisible. Nothing warns on the four arms that honour the key.
+
 ### Wizard steps and `allowSkip`
 
 `allowSkip` lets the user jump to any step from the indicator instead of walking

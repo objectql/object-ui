@@ -26,6 +26,7 @@ import {
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
+import { sectionPredicateUnsupportedWarning } from './sectionPredicateDiagnostic';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
 import { SplitForm } from './SplitForm';
@@ -199,8 +200,36 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   // page. Skipped in view mode (read-only detail uses related lists instead).
   // For drawer/modal formTypes we fall through to DrawerForm/ModalForm, which
   // host the master-detail form INSIDE their envelope.
-  if ((schema as any).subforms?.length && schema.mode !== 'view'
-      && schema.formType !== 'drawer' && schema.formType !== 'modal') {
+  const routesToMasterDetail = !!(schema as any).subforms?.length && schema.mode !== 'view'
+      && schema.formType !== 'drawer' && schema.formType !== 'modal';
+
+  // ── objectui#6237 interim diagnostic (maintainer ruling, 2026-08-29) ────────
+  // `tabbed` and `wizard` are the two routes below that drop an authored section
+  // `visibleWhen` (see `sectionPredicateUnsupportedWarning`). Report the gap
+  // instead of dropping it in silence. This declares no key and hides nothing —
+  // making these arms honour the predicate is the ruled design task's job.
+  //
+  // Deliberately NOT reported for the master-detail branch: that branch re-enters
+  // `ObjectForm` through `MasterDetailForm`'s parent schema, which is where the
+  // real layout is decided (a master-detail `wizard` parent renders `simple`,
+  // which DOES honour the predicate). Reporting here as well would double-report
+  // the tabbed parent and false-report the wizard one.
+  const inertPredicateLayout = !routesToMasterDetail
+    && (schema.formType === 'tabbed' || schema.formType === 'wizard')
+    ? schema.formType
+    : null;
+  // Joined to a string on purpose: the effect's deps must be primitives, or a
+  // fresh array identity each render would re-report on every keystroke.
+  const inertPredicateSections = (schema.sections ?? [])
+    .filter((s: any) => s?.visibleWhen != null)
+    .map((s: any) => s?.name || s?.label || '(unnamed)')
+    .join(', ');
+  useEffect(() => {
+    if (!inertPredicateLayout || !inertPredicateSections) return;
+    console.warn(sectionPredicateUnsupportedWarning(inertPredicateLayout, inertPredicateSections));
+  }, [inertPredicateLayout, inertPredicateSections]);
+
+  if (routesToMasterDetail) {
     return (
       <MasterDetailForm
         schema={{
