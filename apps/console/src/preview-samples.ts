@@ -13,7 +13,14 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
       { name: 'amount', label: 'Amount', type: 'currency' },
       { name: 'status', label: 'Status', type: 'select', options: ['Draft', 'Open', 'Closed'] },
       { name: 'close_date', label: 'Close Date', type: 'date' },
-      { name: 'account', label: 'Account', type: 'lookup', reference_to: 'account' },
+      // The lookup target is `reference` (objectui#6647). `reference_to` is
+      // refused BY NAME by `FieldSchema` — `unrecognized_keys` with its own
+      // did-you-mean — and the designer never read it either:
+      // `ObjectFieldInspector` seeds its Lookup-target box from `def.reference`,
+      // so the old spelling rendered that box EMPTY on the very sample that
+      // exists to demonstrate a lookup. (The retired camelCase twin
+      // `referenceTo` is tombstoned to the same spec key, objectui#6041.)
+      { name: 'account', label: 'Account', type: 'lookup', reference: 'account' },
       { name: 'is_priority', label: 'Priority', type: 'boolean' },
       { name: 'notes', label: 'Notes', type: 'textarea' },
     ],
