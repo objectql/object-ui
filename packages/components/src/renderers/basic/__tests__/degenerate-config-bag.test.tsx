@@ -27,7 +27,7 @@
  *   readProps({ type, props: 'not-a-bag' })
  *     -> keys ["0","1","2","3","4","5","6","7","8"]
  *   readProps({ type, props: { content: 'X' }, properties: 'not-a-bag' })
- *     -> keys ["content","0","1","2","3","4","5","6","7","8"]
+ *     -> keys ["0","1","2","3","4","5","6","7","8","content"]
  *   readProps({ type, properties: ['a','b'] })
  *     -> keys ["0","1"]
  *
@@ -36,8 +36,10 @@
  *
  * ## What did NOT move, also measured on the same base
  *
- * Every DOM assertion in "what the guard does not buy" below is GREEN on the
- * pre-fix tree as well. That is the honest reading of this card and it is
+ * Ablating this card back to the pre-fix tree — the shared reader's body
+ * returned to `?? {}` AND all five modules restored from `107babef6` — moves
+ * 7 of the 16 assertions below and leaves 9 standing. Every DOM assertion in
+ * "what the guard does not buy" is among the 9. That is the honest reading of this card and it is
  * recorded rather than smoothed over: all five renderers read NAMED keys off
  * this bag, and the single onward spread — `metadata-viewer`'s
  * `<StateMachineView {...props} />` — hands the bag to components that
@@ -87,8 +89,11 @@ describe('objectui#6783 — a degenerate config bag contributes no keys', () => 
   });
 
   it('a degenerate bag on ONE side leaves the other side intact', () => {
-    // BASE_READING: ["content","0" … "8"] — the authored key survived even
-    // pre-fix, so what this pins is the ABSENCE of the nine, not `content`.
+    // BASE_READING: ["0" … "8","content"], in that order — the ablation
+    // corrected the prediction here. The nine indices sort AHEAD of the
+    // authored key whatever the spread order, because integer-like keys come
+    // first in JS property order; `content` itself survived pre-fix, so what
+    // this pins is the ABSENCE of the nine, not the presence of `content`.
     expect(keysOf({ props: { content: 'X' }, properties: 'not-a-bag' })).toEqual(['content']);
     expect(keysOf({ props: 'not-a-bag', properties: { content: 'Y' } })).toEqual(['content']);
   });
