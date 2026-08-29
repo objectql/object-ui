@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useInsertionEffect } from 'react';
 
 /**
  * Persistence adapter interface for schema save/load operations.
@@ -233,10 +233,46 @@ function callableRefusalMessage(id: string, paths: string[]): string {
 export function useSchemaPersistence(
   adapter?: SchemaPersistenceAdapter,
 ): SchemaPersistenceResult {
-  const defaultAdapter = useRef(createLocalStorageAdapter());
-  const adapterRef = useRef(adapter ?? defaultAdapter.current);
-  // Keep the ref up to date if the adapter prop changes
-  adapterRef.current = adapter ?? defaultAdapter.current;
+  // Built once per hook instance. `useRef(createLocalStorageAdapter())` ran the
+  // factory on EVERY render and discarded all but the first result; `useMemo`
+  // runs it once and — unlike a ref — needs no `.current` read during render.
+  // Re-creating it would be harmless either way: the adapter is a stateless
+  // facade over `localStorage`, so a fresh one behaves identically to the one
+  // it replaces, and nothing outside this hook ever sees its identity.
+  const defaultAdapter = useMemo(() => createLocalStorageAdapter(), []);
+  const resolvedAdapter = adapter ?? defaultAdapter;
+
+  // The four callbacks below are created once (`[]` deps) and read the adapter
+  // at CALL time, so the latest adapter must reach them without changing their
+  // identity. That is the whole job of this ref.
+  //
+  // The write lives in `useInsertionEffect` — not in the render body, where it
+  // used to be, and not in `useEffect`/`useLayoutEffect`:
+  //
+  //   - Render body: a render React discards or replays (StrictMode, a
+  //     Suspense retry, a concurrent interruption) still performed the write,
+  //     so a save could be routed through an adapter from a render that never
+  //     committed. That is what `react-hooks/refs` flags.
+  //   - `useEffect`: runs after paint, so a call made from any layout effect in
+  //     the same commit would still reach the PREVIOUS adapter.
+  //   - `useLayoutEffect`: a child's layout effects run BEFORE its parent's, so
+  //     a child calling `save()` from its own layout effect would still see the
+  //     previous adapter.
+  //
+  // Insertion effects run in the mutation phase — before every layout effect in
+  // the tree, before paint, and before any event handler can fire — so every
+  // call site that may legally invoke `save`/`load`/`list`/`remove` observes
+  // exactly what the old render-body write gave it. The single window that did
+  // change is a read during the render phase itself, which no legal consumer
+  // has: these calls are side effects and are never allowed during render.
+  //
+  // `useSchemaPersistence.adapterTracking.test.tsx` pins both halves — that a
+  // changed `adapter` prop is tracked, and that it is already in place by the
+  // time a child's layout effect runs in that same commit.
+  const adapterRef = useRef(resolvedAdapter);
+  useInsertionEffect(() => {
+    adapterRef.current = resolvedAdapter;
+  }, [resolvedAdapter]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isDirty, setIsDirty] = useState(false);
