@@ -363,13 +363,14 @@ const elementDataSourceBlocks = new WeakSet<object>();
  *
  * ## Two import paths, ONE name and ONE function
  *
- * `@object-ui/react` re-exports this beside `ElementDataSourceGate`, which is
- * where a block that renders the gate should import it from — the seam reads
- * best next to the thing it is about.
+ * `@object-ui/react` re-exports this beside `ElementDataSourceGate` so the seam is
+ * findable next to the thing it is about. That export is for DISCOVERABILITY:
+ * every CALL SITE imports from here, and
+ * `scripts/check-element-data-source-declaration.mjs` enforces it.
  *
- * Import it from HERE instead when the calling module is in a widely-imported
- * package and the call is at MODULE SCOPE, as `element:record_picker`'s
- * registration in `@object-ui/components` is. 101 suites in this repo partially
+ * The rule is measured, not stylistic. A registration runs at MODULE SCOPE, and
+ * `element:record_picker`'s registration in `@object-ui/components` is the
+ * worked example. 101 suites in this repo partially
  * mock `@object-ui/react` by hand-listing the exports they return, and a
  * module-scope read of a name those lists do not carry throws at COLLECTION
  * time — the importing test file fails before it runs a single assertion.

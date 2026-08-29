@@ -432,13 +432,19 @@ export function NoDataSourcePanel({
  * over a `React.forwardRef` object, over `React.memo`, and over a component that
  * something else already re-exports by reference.
  *
- * Re-exported from `@object-ui/core`, where the marker and the declaration live,
- * rather than wrapped here — ONE function under ONE name, reachable from either
- * package. Import it from there instead when the call is at MODULE SCOPE inside a
- * widely-imported package: 101 suites hand-list the `@object-ui/react` exports
- * their partial mocks return, and a module-scope read of a name absent from such
- * a list throws at COLLECTION time. `@object-ui/core` is not mocked anywhere in
- * this repo. The core declaration carries the measurement.
+ * ⚠️ Re-exported from `@object-ui/core` — where the marker and the declaration
+ * live — rather than wrapped here: ONE function under ONE name. This export
+ * exists for DISCOVERABILITY, so the seam is findable beside the gate it is
+ * about; **call sites must import it from `@object-ui/core`**, and
+ * `check:element-data-source-declaration` enforces that.
+ *
+ * The rule is measured, not stylistic. A registration runs at MODULE SCOPE, 101
+ * suites in this repo partially mock `@object-ui/react` by hand-listing the
+ * exports they return, and a module-scope read of a name absent from such a list
+ * throws at COLLECTION time — the importing test file dies before running one
+ * assertion. Taking the seam from here reddened 17 files across all four CI
+ * shards with zero failed assertions among them. Nothing mocks `@object-ui/core`,
+ * and every registration module already imports `ComponentRegistry` from it.
  */
 export { elementDataSourceBlock } from '@object-ui/core';
 
