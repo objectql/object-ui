@@ -767,7 +767,12 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       showWhen: { field: 'escalation.enabled', equals: ['true'] },
     },
     { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'reference', ref: { kind: 'position' }, placeholder: 'position machine name / user id', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
-    { id: 'escalation.notifySubmitter', path: ['config', 'escalation', 'notifySubmitter'], label: 'Notify submitter', kind: 'boolean', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
+    // `defaultValue` mirrors the spec's `.default(true)` (#6794): an escalation
+    // block that omits the key parses as NOTIFYING, so a table that declares no
+    // default asserts the opposite of what the runtime does. The engine-published
+    // configSchema already carries it (`json-schema-to-fields` turns JSON-Schema
+    // `default: true` into `defaultValue: 'true'`) — this is the offline half.
+    { id: 'escalation.notifySubmitter', path: ['config', 'escalation', 'notifySubmitter'], label: 'Notify submitter', kind: 'boolean', defaultValue: 'true', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     // ADR-0044 send-back-for-revision guard. Surfaces from the engine's
     // published configSchema when online; this hardcoded copy keeps it visible
     // offline / on an older backend. Only meaningful once the node has a
