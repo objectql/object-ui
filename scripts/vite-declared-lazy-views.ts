@@ -55,14 +55,24 @@ import type { Plugin, Rollup } from 'vite';
  *
  * The fix is to tell the CONSOLE's build what is true of these specific
  * modules: they are pure React components, so `moduleSideEffects: false`. That
- * is deliberately narrower than adding `"sideEffects"` to
- * `packages/app-shell/package.json`, which would be the general fix and is NOT
- * done here — measured on this branch, `"sideEffects": false` on that package
- * silently DROPS three real SDUI widget registrations from the bundle
- * (`mcp:connect-agent`, `cloud:onboarding-next`, `cloud:ai-model-status`, all
- * registered by bare side-effect imports in the barrel), and an incomplete
- * `sideEffects` ARRAY would do the same to third-party embedders with nothing
- * to catch it. That is a published-contract decision, not this card's repair.
+ * was deliberately narrower than adding `"sideEffects"` to
+ * `packages/app-shell/package.json`, which is the general fix and was reserved
+ * as a published-contract decision rather than taken in-lane.
+ *
+ * ⚠️ That decision has since been taken (objectui#6683, maintainer ruling of
+ * 2026-08-29): the package now declares a precise `sideEffects` ARRAY, guarded
+ * by `scripts/check-side-effects-array.mjs`. `"sideEffects": false` stays
+ * disproven and is NOT what shipped — measured, it silently DROPS three real
+ * SDUI widget registrations (`mcp:connect-agent`, `cloud:onboarding-next`,
+ * `cloud:ai-model-status`, all registered through bare side-effect imports in
+ * the barrel). The ARRAY names those modules, and
+ * `scripts/check-sdui-registration-pins.mjs` weighs the built console for them.
+ *
+ * This plugin is NOT made redundant by that. It is scoped to AppContent's
+ * declared-lazy route views, which are pure components with no registration of
+ * their own, so the package array does not — and must not — name them; the
+ * console-local declaration is what keeps them shakeable, and the ledger below
+ * is what keeps the agreement honest in both directions.
  *
  * ## Defect 2 — edges the barrel has nothing to do with (three views)
  *
@@ -128,37 +138,37 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  * (`scripts/__tests__/vite-declared-lazy-views.test.ts` checks that, and that
  * every entry still names a file that exists).
  *
- * All three stand for reasons that are NOT the barrel re-export this card
- * removed, and none of the three is fixable by an import spelling. Measured on
- * `ece68882`, from the emitted chunks' own module lists:
+ * One entry stands, and it stands for a reason that is NOT the barrel
+ * re-export objectui#6535 removed:
  *
  *  - `RecordDetailView` — a real static edge.
  *    `packages/app-shell/src/views/ObjectView.tsx` imports it by name, and
  *    `ObjectView` sits in AppContent's own "eagerly loaded — always needed"
  *    block. Splitting it would mean giving `ObjectView` a lazy boundary.
  *
- *  - `RecordFormPage` — CHUNK CO-TENANCY, not an import of the view at all.
- *    Rolldown emits it in a chunk it shares with
- *    `packages/app-shell/src/providers/expressionUser.ts` (objectui#6515's leaf
- *    module), which `AppContent` imports statically and the barrel re-exports
- *    to the console's `InternalFormRoute`. The co-tenant is eager, so the whole
- *    chunk is — the view's bytes ride along.
+ * ## Two entries were REMOVED here, and that removal is a recorded win
  *
- *  - `ReportView` — the same shape. Its chunk also carries
- *    `views/ReportConfigPanel.tsx` and `views/RuntimeDraftBar.tsx`, and
- *    `views/ViewConfigPanel.tsx` (a barrel export the console uses) imports
- *    `RuntimeDraftBar` statically.
+ * `RecordFormPage` and `ReportView` were pinned for a third reason, the one no
+ * `grep` over the source shows: CHUNK CO-TENANCY (objectui#6680). Rolldown
+ * emitted each of them in a chunk shared with a module that IS eagerly used —
+ * `providers/expressionUser.ts` for the first, `views/RuntimeDraftBar.tsx` for
+ * the second — so the whole chunk was eager and the view's bytes rode along
+ * with no import edge to the view itself.
  *
- * The last two are a different defect from the one objectui#6535 names, they
- * are not repaired by anything in the console's import graph, and the obvious
- * lever — an `advancedChunks` group that isolates the shared leaves — is a
- * chunking-policy change that needs its own measurement. Filed separately;
- * pinned here so the bytes are recorded rather than implied.
+ * objectui#6683 declared `"sideEffects"` on `@object-ui/app-shell` as a precise
+ * ARRAY, which makes those co-tenant modules shakeable in their own right; the
+ * chunks they anchored stopped being eager and both views fell out of the
+ * closure. The `missing` half of this ledger fired on that build and named both
+ * views by path, which is what a recorded win looks like here — the lines are
+ * deleted because the build said so, not because the walk was assumed healthy.
+ *
+ * ⚠️ Deleting a line is a MEASUREMENT, never a repair. Counter-probe 1 below
+ * (every declared view must be found in SOME chunk) is what separates "the view
+ * became lazy" from "the matcher stopped matching", and it ran green on the
+ * same build.
  */
 export const DECLARED_LAZY_VIEWS_STILL_EAGER: readonly string[] = Object.freeze([
   'packages/app-shell/src/views/RecordDetailView.tsx',
-  'packages/app-shell/src/views/RecordFormPage.tsx',
-  'packages/app-shell/src/views/ReportView.tsx',
 ]);
 
 /**

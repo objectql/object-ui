@@ -263,6 +263,27 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:self-import
 
+      # `sideEffects` is a PUBLISHED CONTRACT, and an ARRAY form of it fails in
+      # the one direction nothing can witness: an INCOMPLETE array drops a
+      # registration inside a CONSUMER's bundle, with no error, no warning and
+      # exit 0 — the same failure mode as `"sideEffects": false`, only quieter.
+      # `@object-ui/app-shell` declares one because both simpler answers are
+      # measurably wrong for it (objectui#6683; `false` drops three live SDUI
+      # widget registrations, measured in objectui#6535). This gate re-derives
+      # the enumeration from the module bodies and fails when the array and the
+      # derivation disagree in EITHER direction — a missing registrar, or a
+      # stale name whose module no longer registers anything.
+      #
+      # Placed here rather than with the build steps for the same reason as the
+      # two above: it parses sources with `typescript` and reads package
+      # manifests, so it needs the install and nothing built. The artifact half
+      # of the same contract — do the registrations survive a real bundler —
+      # cannot run here at all and lives in `performance-budget.yml`, which
+      # builds the console.
+      - name: Verify every `sideEffects` array names exactly its registering modules
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:side-effects-array
+
       # Node's ESM resolver does not extension-search relative specifiers, so an
       # extensionless `./SchemaRenderer` in a published `dist/` is unloadable
       # under plain Node — `@object-ui/react`'s entry died with

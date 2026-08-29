@@ -48,9 +48,9 @@
  *
  *   - It must PASS on today's `main`. A gate that lands red is a gate someone
  *     disables, and this one replaced a gate nobody could fail. Headroom above
- *     the current 3,299,898 bytes: 45,102 (1.37%).
+ *     the current 3,254,004 bytes: 45,996 (1.41%).
  *   - The headroom must stay SMALLER than the regression the gate exists to
- *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,102 < 91,136, so this
+ *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,996 < 91,136, so this
  *     ceiling would have failed on that change. Widening the headroom past ~89
  *     KiB would leave the gate green through a repeat of its own motivating
  *     incident.
@@ -128,6 +128,25 @@
  * triage disposition 3) rather than silently, which is what the "Raising it"
  * note below asks of a re-baseline in either direction.
  *
+ * objectui#6683 lowered it again, to 3,300,000 over 3,254,004 — and this one was
+ * EARNED rather than drifted into. `@object-ui/app-shell` now publishes a
+ * precise `sideEffects` array (guarded by
+ * `scripts/check-side-effects-array.mjs`), which made 56,668 gzipped bytes of
+ * the barrel's closure shakeable. That is LARGER than the 45,102 bytes of
+ * headroom the 3,345,000 ceiling carried, so the ceiling had to move with it or
+ * the aggregate gauge would sit at 1.00x its own sensitivity — the blind band
+ * reopening the same day it was measured shut. The two numbers move in ONE
+ * commit for the reason the paragraph above gives.
+ *
+ * ⚠️ Read the direction correctly: the closure did NOT fall by the 242.6 KB the
+ * objectui#6683 card projected. That figure was measured for
+ * `"sideEffects": false`, which is closed by measurement because it also DROPS
+ * three live SDUI widget registrations. The precise array keeps them, and
+ * keeping them keeps their import closure eager; 56,668 bytes is what the
+ * correct declaration actually buys. The gap is not a defect in the array — it
+ * is the price of the correctness the ruling required, and the difference is
+ * recorded here rather than smoothed over.
+ *
  * ⛔ The floor is unchanged and applies to a LOWERING too: never put a ceiling
  * below a measured figure to express an aspiration. That is not a tighter
  * ratchet, it is a gate that lands red on `main`, which is how a budget gets
@@ -191,14 +210,24 @@ import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,299,898 on `48e53814e`.
+ * how this number was chosen; measured 3,254,004 on `SHA_PLACEHOLDER`.
  *
- * Re-baselined DOWNWARD by objectui#5924 from 4,086,000 (derived from the
- * 4,005,911 reading on `4c1623c0c`, which the payload had since fallen 706,013
- * bytes below). Headroom is now 45,102 bytes — 0.49x
- * {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}, where it had drifted to 8.6x.
+ * Re-baselined DOWNWARD twice, each time toward a measurement the payload had
+ * already fallen to:
+ *
+ *   - objectui#5924, from 4,086,000 (derived from the 4,005,911 reading on
+ *     `4c1623c0c`) to 3,345,000 over 3,299,898 on `48e53814e`.
+ *   - objectui#6683, to 3,300,000 over 3,254,004. `@object-ui/app-shell` now
+ *     declares a precise `sideEffects` ARRAY, which took 56,668 gzipped bytes
+ *     out of the closure — more than the 45,102 of headroom the previous
+ *     ceiling had, so leaving it in place would have parked the aggregate gauge
+ *     at 1.00x its own sensitivity and, on the next byte of shrink, tripped the
+ *     exit-2 verdict about the gauge. Lowering it in the SAME change is the
+ *     tightening the maintainer ruling of 2026-08-29 asked for.
+ *
+ * Headroom is 45,996 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
  */
-export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_345_000;
+export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_300_000;
 
 /**
  * The measurement the ceiling above was derived from. Exported so the two
@@ -209,10 +238,10 @@ export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_345_000;
  */
 export const BASELINE = Object.freeze({
   /** `emitEagerClosureReport`'s `eagerGzipBytes` on this commit. */
-  gzipBytes: 3_299_898,
-  chunks: 52,
-  totalChunks: 508,
-  commit: '48e53814e',
+  gzipBytes: 3_254_004,
+  chunks: 48,
+  totalChunks: 513,
+  commit: 'SHA_PLACEHOLDER',
 });
 
 /**

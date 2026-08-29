@@ -56,6 +56,8 @@
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
     "check:doc-fences": "node scripts/check-doc-fence-languages.mjs",
     "check:eager-closure": "node scripts/check-eager-closure-budget.mjs",
+    "check:side-effects-array": "node scripts/check-side-effects-array.mjs",
+    "check:sdui-registration-pins": "node scripts/check-sdui-registration-pins.mjs",
     "check:docs-route-closure": "node scripts/check-docs-route-eager-closure.mjs",
     "check:entry-guard": "node scripts/check-entry-guard.mjs",
     "check:upstream-port-parity": "node scripts/check-upstream-port-parity.mjs",
