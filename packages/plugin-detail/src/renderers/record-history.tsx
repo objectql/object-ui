@@ -87,7 +87,13 @@ export const RecordHistoryRenderer: React.FC<RecordHistoryRendererProps> = ({
     )
       .then((res: any) => {
         if (cancelled) return;
-        const rows: any[] = res?.data ?? res?.records ?? [];
+        // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+        // declares. A `res?.records` arm sat behind it until objectui#6726 — a
+        // below-the-adapter spelling (`ObjectStackAdapter.normalizeQueryResult`
+        // maps the server/SDK `records` envelope to `data` before returning),
+        // so no producer emits it at this `DataSource.find()` seam and the arm
+        // was dead. Pinned by `record-history.contractEnvelope-6726.test.tsx`.
+        const rows: any[] = res?.data ?? [];
         const mapped: HistoryEntry[] = rows
           .filter((r) => HISTORY_TYPES.has(r?.type))
           .map((r) => {

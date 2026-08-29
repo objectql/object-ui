@@ -417,7 +417,15 @@ function ElementNumberRenderer({ schema }: { schema: any }) {
           // Last-resort: pull all rows and aggregate client-side. Costly
           // but matches the chart renderer fallback path.
           const res = await adapter.find(props.object, props.filter ? { $filter: props.filter } : undefined);
-          const records: any[] = res?.data ?? res?.records ?? (Array.isArray(res) ? res : []);
+          // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+          // declares; the bare-array arm stays because fakes at this seam
+          // really do answer with a plain array. A `res?.records` arm sat
+          // between them until objectui#6726 — a below-the-adapter spelling
+          // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+          // `records` envelope to `data` before returning), so no producer
+          // emits it here. Pinned by
+          // `element-number.contractEnvelope-6726.test.tsx`.
+          const records: any[] = res?.data ?? (Array.isArray(res) ? res : []);
           let v: number | null = null;
           if (props.aggregate === 'count') v = records.length;
           else if (props.field) {
