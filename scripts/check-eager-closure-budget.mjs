@@ -291,6 +291,40 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * group is renamed or removed in `vite.config.ts`, this gate stops the build
  * and says so, and the mapping is re-pinned deliberately.
  *
+ * ## Why `framework` moved (objectui#6759)
+ *
+ * From 502,000 over a 492,399 reading on `2c8474c04` to 512,000 over 502,405
+ * on `a64e96ca8`. What the added bytes buy is user-facing diagnostic text, in
+ * ten locales, for two ordinary author mistakes that used to be unreported:
+ *
+ *   - a malformed or absent gantt date crashed the render outright
+ *     (`RangeError: Invalid time value`), and
+ *   - an inverted author-pinned range drew a bar at `width: -4.3%` under a
+ *     header row with zero cells, and said nothing at all.
+ *
+ * A hard crash and a confidently-wrong render, both reachable from a typo in
+ * authored metadata, replaced by a refusal that names the offending value.
+ *
+ * The CODE that fix added buys none of this chunk, which is why there was
+ * nothing to trim instead: `plugin-timeline` is lazy and is not in the eager
+ * closure at all, so the guard, the value speller and both refusal branches
+ * cost this budget zero. Every byte of the growth is `packages/i18n` locale
+ * data, which lands here. Measured on the built chunk by deleting the twenty
+ * strings and re-gzipping: the ten locales' message text is 1,999 of the
+ * ~2,283 bytes the chunk grew by, and PER MESSAGE it costs 1,000 bytes
+ * against the 1,002 that objectui#6655's single refusal — the neighbour whose
+ * shape this one copied — already costs in the same chunk. The only lever
+ * left was to say less, in ten languages, about what the author got wrong.
+ *
+ * ⚠️ Most of the headroom this consumed was not spent by that card. The
+ * previous ceiling carried 9,601 bytes and `main` had already drifted to
+ * 488.4 KB of the 490.2 KB it allowed — 1.8 KB left, 0.02x the regression
+ * this gate must catch — before objectui#6759 added a byte (`b98352a15`,
+ * this PR's base, the gate's own printed line). Re-pinning the baseline onto
+ * a fresh measurement is what puts the gauge back in range. The drift itself,
+ * and that nobody could say which side moved it, is objectui#6631; this card
+ * does not close it and deliberately leaves the other two entries alone.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -306,15 +340,25 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 967_000,
-  framework: 502_000,
+  framework: 512_000,
   'ui-components': 399_000,
 });
 
 /**
- * The measurement {@link PER_CHUNK_GZIP_CEILINGS} was derived from: one
- * `vite build` of `apps/console` on `2c8474c04`, read out of the report that
- * build wrote. Exported so the ceilings are CHECKED against it instead of
- * merely asserted in this comment.
+ * The measurement {@link PER_CHUNK_GZIP_CEILINGS} was derived from, read out of
+ * the report a `vite build` of `apps/console` wrote. Provenance is per KEY, not
+ * per file, and saying so is the point — a comment that names one commit for
+ * three numbers taken on two is the drift objectui#6631 is open about:
+ *
+ *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
+ *   - `framework` — `a64e96ca8` (objectui#6759); see "Why `framework` moved"
+ *     above. Safe to state rather than hope, for the reason {@link BASELINE}
+ *     gives about its own commit: the console build's turbo `inputs` cover
+ *     `scripts/vite-*.ts`, not `scripts/check-*.mjs`, so the commit that
+ *     records this figure cannot have changed the figure.
+ *
+ * Exported so the ceilings are CHECKED against it instead of merely asserted
+ * in this comment.
  *
  * ⚠️ This is a DIFFERENT and LATER reading than {@link BASELINE} above, which
  * still carries `4c1623c0c`. On `2c8474c04` the same build measures the closure
@@ -335,7 +379,7 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
   'vendor-objectstack': 948_461,
-  framework: 492_399,
+  framework: 502_405,
   'ui-components': 391_095,
 });
 
