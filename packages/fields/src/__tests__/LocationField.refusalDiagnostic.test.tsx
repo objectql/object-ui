@@ -29,8 +29,8 @@
  * arms, because a refusal means `onChange` never fires, so the typed text never
  * becomes a form value at all — while the same branch fires correctly for a
  * STORED out-of-range pair. `buildValidationRules` compiles value-shaped rules;
- * a refusal has no value. It still has no `location` branch and this card does
- * not give it one.
+ * a refusal has no value. It HAS one as of objectui#6744 — for that STORED
+ * case, never for these refusal arms — and this card did not give it one.
  *
  * So the state is the widget's own, following `ObjectField`'s live precedent in
  * this same directory: a second name (`parseError` there, `refusalError` here),
