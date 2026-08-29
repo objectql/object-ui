@@ -16,9 +16,10 @@ import type { ViewSwitcherSchema, ViewType } from '@object-ui/types';
 // Mock @object-ui/react to avoid circular dependency issues; mirrors
 // ObjectView.test.tsx, including the data-invalidation bus that
 // @object-ui/components imports at module-eval time.
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => (
       <div data-testid="schema-renderer" data-schema-type={schema?.type}>
         {schema?.type}

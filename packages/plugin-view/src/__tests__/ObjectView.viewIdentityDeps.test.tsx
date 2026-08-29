@@ -60,9 +60,10 @@ import type { ObjectViewSchema } from '@object-ui/types';
 
 const deliveries: any[][] = [];
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema, data }: any) => {
       if (Array.isArray(data) && data.length > 0) {
         const g = (globalThis as any).__objectViewChurnDeliveries as any[][] | undefined;

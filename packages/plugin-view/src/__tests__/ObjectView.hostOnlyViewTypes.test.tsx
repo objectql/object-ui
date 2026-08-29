@@ -57,9 +57,10 @@ const rendered: any[] = [];
 /** Every schema handed to the ViewSwitcher, in order. */
 const switcherSchemas: any[] = [];
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => {
       rendered.push(schema);
       return <div data-testid="schema-renderer">{schema?.type}</div>;

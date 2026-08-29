@@ -44,7 +44,8 @@ const state = vi.hoisted(() => {
 // graphs. LookupField's own behaviour (search, hydration through `id_field`,
 // commit-on-select) is covered in the fields package — this suite verifies
 // the WIRING: which cell renders per kind, and what binding it receives.
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => state.adapter,
   // @object-ui/components wires this at module scope (related-count-store).
   subscribeDataChanges: () => () => {},

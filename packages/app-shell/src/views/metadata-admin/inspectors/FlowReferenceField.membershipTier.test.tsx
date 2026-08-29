@@ -64,7 +64,8 @@ const state = vi.hoisted(() => {
   };
 });
 
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => null,
   // @object-ui/components wires this at module scope (related-count-store).
   subscribeDataChanges: () => () => {},

@@ -36,9 +36,10 @@ import { convertSortToQueryParams } from '@object-ui/core';
 import { ObjectView } from '../ObjectView';
 import type { ObjectViewSchema } from '@object-ui/types';
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => <div data-testid="schema-renderer">{schema?.type}</div>,
     SchemaRendererContext: React.createContext(null),
     subscribeDataChanges: () => () => {},
