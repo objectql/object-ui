@@ -29,9 +29,16 @@
  * published objectui#3222 `error` slot. Measured: that route cannot see a
  * refusal at all — a refusal means `onChange` never fires, so the typed text
  * never becomes a form value, and a `location` branch installed there was
- * invoked with `undefined` in both arms. The last test in this file pins the
- * consequence that keeps the sibling file's docblock true: `buildValidationRules`
- * STILL has no `location` branch, and this card did not give it one.
+ * invoked with `undefined` in both arms.
+ *
+ * ⚠️ `buildValidationRules` DOES have a `location` branch now — objectui#6744
+ * added one, for the different defect of a STORED out-of-range coordinate that
+ * was never validated on an edit form. That does not weaken the reason above,
+ * it is the reason above seen from the other side: the branch adjudicates a
+ * value, and a refusal has no value to adjudicate. The last test in this file
+ * is now the pin for THAT — the rule exists and answers `true` for the
+ * `undefined` it is handed here — so the announcement stays the widget's, and
+ * this card is still not the one that installed the branch.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor, fireEvent } from '@testing-library/react';
@@ -137,18 +144,21 @@ describe('ObjectForm shows WHY a location was refused (objectui#6716)', () => {
   });
 });
 
-describe('the fix did NOT give `buildValidationRules` a location branch (objectui#6716)', () => {
-  it('compiles no rule for a `location` field', () => {
-    // The sibling #6714 pin's docblock states this as fact; it stays true under
-    // the widget-local route, and this is what keeps the two files honest. The
-    // measured reason it is not worth changing: a refusal never becomes a form
-    // value, so a rule here is handed `undefined`.
-    // It compiles rules key by key and returns `undefined` when none applied —
-    // so `undefined` here is "no branch matched a location field", not "the
-    // helper is missing".
-    expect(buildValidationRules({ type: 'location', name: 'place' })).toBeUndefined();
+describe('the announcement is still the widget\'s, not the host rule\'s (objectui#6716)', () => {
+  it('the `location` rule objectui#6744 added is handed `undefined` by a refusal', () => {
+    // This pin used to read "compiles no rule for a `location` field". #6744
+    // answered that question — the branch exists, for STORED values — so the
+    // pin now asserts the property that actually kept #6716 widget-local, and
+    // that a future edit could still break: the host rule adjudicates a VALUE,
+    // and a refusal produces none.
+    const rules = buildValidationRules({ type: 'location', name: 'place' });
+    expect(typeof rules.validate.location).toBe('function');
+    // What the rule sees in both refusal arms above, because `onChange` never
+    // fired: nothing. A rule that answered anything but `true` here would be
+    // reporting a refusal it cannot observe.
+    expect(rules.validate.location(undefined)).toBe(true);
     // A control from the same call, so the reading above cannot be an artefact
-    // of a helper that returns `undefined` for everything.
+    // of a helper that answers the same way for everything.
     expect(buildValidationRules({ type: 'text', name: 'title', required: true })).toEqual({ required: true });
   });
 });

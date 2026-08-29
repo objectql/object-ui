@@ -8,7 +8,11 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, type ComponentMeta } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, type ComponentMeta } from '@object-ui/core';
+// The platform's own value-shape contract, asked rather than restated
+// (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
+// runtime import in the barrel and not a hand-written coordinate range.
+import { valueSchemaFor } from '@objectstack/spec/data';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -2544,6 +2548,96 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Per-field-definition cache of the spec's derived value schema
+ * (objectui#6744).
+ *
+ * `valueSchemaFor` states the requirement itself: "Pure derivation — no caching
+ * here; runtime consumers MUST cache per field definition (building a
+ * `z.object` per write is an order of magnitude costlier than parsing)." This
+ * is the same `WeakMap`-on-the-field-def idiom the platform's own write-path
+ * validator uses (`shapeSchemaFor`,
+ * `packages/objectql/src/validation/record-validator.ts`), so the hit rate is
+ * governed by the same condition there and here: whether the host hands the
+ * same field object back.
+ *
+ * ⛔ The def is passed through VERBATIM, never rebuilt from keys picked out of
+ * it. `valueSchemaFor` decides for itself what a location value is and how a
+ * field's multiplicity participates; a reconstructed def would be a second
+ * reading of the contract, free to drift from the first (AGENTS.md #0.1).
+ */
+const locationStoredValueSchemas = new WeakMap<object, ReturnType<typeof valueSchemaFor>>();
+
+function locationStoredValueSchemaFor(field: any): ReturnType<typeof valueSchemaFor> {
+  let schema = locationStoredValueSchemas.get(field);
+  if (!schema) {
+    schema = valueSchemaFor(field, 'stored');
+    locationStoredValueSchemas.set(field, schema);
+  }
+  return schema;
+}
+
+/**
+ * The STORED-value rule for a `type: 'location'` field (objectui#6744).
+ *
+ * ## What was missing
+ *
+ * `buildValidationRules` is the producer of the host-side `error` prop that
+ * every field widget's published objectui#3222 slot reads, and it had no
+ * `location` branch. So a coordinate that is ALREADY IN THE RECORD and violates
+ * the spec's range was never validated on an edit form: the control rendered
+ * it, nothing marked it invalid, and submitting re-wrote it unchanged.
+ *
+ * ⚠️ This is a different defect from objectui#6714/#6716, which are about a
+ * refusal at INPUT time — the user types something the widget will not emit. A
+ * refusal never becomes a form value, so this rule is handed `undefined` in
+ * both of those arms; the two do not overlap and neither replaces the other.
+ *
+ * ## Why the whole value is handed to the spec, not a range test
+ *
+ * ⛔ The bounds are NOT restated here as `-90`/`90` literals — the same
+ * discipline `LocationField`'s own `isSpecAcceptedLocation` follows, and for the
+ * same reason: a hand-copied range is a SECOND contract that drifts from the
+ * spec silently (AGENTS.md #0.1).
+ *
+ * Asking `valueSchemaFor(field, 'stored')` also makes this rule agree, by
+ * construction, with the platform's own write path. The engine's record
+ * validator checks a stored `location` against THIS schema (ADR-0104 D1,
+ * `record-validator.ts`), warn-first until a deployment's `os migrate
+ * value-shapes` scan certifies zero violations and rejecting afterwards. So a
+ * value this rule marks invalid is a value the platform itself already refuses
+ * or has recorded as an admitted violation — the form now surfaces that
+ * verdict where the person who can correct it is standing, rather than
+ * inventing a verdict of its own.
+ *
+ * ## Absence is `required`'s business, not this rule's
+ *
+ * The spec's schema describes a PRESENT value — it refuses `null` and
+ * `undefined` outright, and its docblock says so ("null/undefined/required
+ * handling stays with the caller"). Deciding presence HERE would be a second
+ * definition of "empty" competing with the one `required` uses, so this asks
+ * core's `isMissingForRequired` — the repo's single presence contract, the same
+ * predicate the form renderer's own `required` validator calls. That is what
+ * keeps a CREATE form with an untouched location field valid.
+ *
+ * ## The message is the spec's own complaint
+ *
+ * Built from the schema's issues, exactly as `LocationField`'s
+ * `refusedRangeMessage` builds the widget-side sentence, so the day the schema
+ * moves both sentences move with it and neither can quote a stale bound.
+ */
+function buildLocationStoredValueValidator(field: any): (value: unknown) => true | string {
+  return (value: unknown) => {
+    if (isMissingForRequired(value)) return true;
+    const parsed = locationStoredValueSchemaFor(field).safeParse(value);
+    if (parsed.success) return true;
+    const detail = parsed.error.issues
+      .map((issue: any) => `${issue.path.join('.') || 'value'}: ${issue.message}`)
+      .join('; ');
+    return `Invalid location: ${detail}`;
+  };
+}
+
+/**
  * Build validation rules from field metadata
  * @param field - Field metadata from ObjectStack
  * @returns Validation rule object compatible with react-hook-form
@@ -2636,6 +2730,26 @@ export function buildValidationRules(field: any): any {
   // Custom validation function
   if (field.validate) {
     rules.validate = field.validate;
+  }
+
+  // Stored-value validation for `location` (objectui#6744). See
+  // `buildLocationStoredValueValidator` for what this rule is and what it is
+  // deliberately not.
+  //
+  // Emitted in react-hook-form's OBJECT form so a field-authored `validate`
+  // keeps running under its own key instead of being replaced — the same
+  // normalisation the form renderer applies when it adds its `required` entry
+  // (`packages/components/src/renderers/form/form.tsx`), spelled the same way
+  // so the two compose rather than clobber. RHF reports an object-form failure
+  // under its key, so this surfaces as `type: 'location'`.
+  if (field.type === 'location') {
+    const authoredValidate = rules.validate;
+    rules.validate = {
+      ...(typeof authoredValidate === 'function'
+        ? { validate: authoredValidate }
+        : (authoredValidate ?? {})),
+      location: buildLocationStoredValueValidator(field),
+    };
   }
 
   return Object.keys(rules).length > 0 ? rules : undefined;

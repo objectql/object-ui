@@ -50,11 +50,12 @@
  * ⛔ Degree/hemisphere notation is NOT parsed — the ruling declines it because
  * the paste route is unmeasured. The refusal is the whole change.
  *
- * ⛔ `buildValidationRules` still has NO `location` branch, and this card did
- * not give it one — the last test is the pin that keeps
- * `ObjectForm.locationRange.test.tsx`'s docblock true. It could not have one:
- * a refusal means `onChange` never fires, so the typed text never becomes a
- * form value for a value-shaped rule to see (measured on objectui#6716).
+ * ⛔ This card did not give `buildValidationRules` a `location` branch — the
+ * last test is the pin for that. objectui#6744 later did, for the different
+ * defect of a STORED out-of-range coordinate on an edit form, and the pin was
+ * rewritten to assert the property that survives: a refusal means `onChange`
+ * never fires, so the typed text never becomes a form value, and the host rule
+ * — which adjudicates a value — is handed `undefined` (measured on #6716).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor, fireEvent } from '@testing-library/react';
@@ -217,16 +218,18 @@ describe('ObjectForm still stores every clean numeric pair (objectui#6715)', () 
 /* The scope fence objectui#6744 owns.                                         */
 /* -------------------------------------------------------------------------- */
 
-describe('objectui#6715 did not give buildValidationRules a `location` branch', () => {
-  it('compiles no rules for a location field', () => {
-    // The fact `ObjectForm.locationRange.test.tsx`'s docblock asserts, kept
-    // true here as well. objectui#6744 owns the question of whether it should
-    // have one; this card did not answer it.
-    // It compiles rules key by key and returns `undefined` when none applied,
-    // so `undefined` here means "no branch matched a location field".
-    expect(buildValidationRules({ type: 'location', name: 'place' })).toBeUndefined();
+describe('the residue refusal is the widget\'s, not a host rule\'s (objectui#6715)', () => {
+  it('the `location` rule objectui#6744 added is handed `undefined` by a refusal', () => {
+    // This pin used to read "compiles no rules for a location field", with the
+    // note that objectui#6744 owned the question. #6744 answered it: the branch
+    // exists, and it validates a STORED value. So the pin now asserts what kept
+    // this card's refusal widget-local in the first place.
+    const rules = buildValidationRules({ type: 'location', name: 'place' });
+    expect(typeof rules.validate.location).toBe('function');
+    // A residue refusal emits nothing, so the host rule sees nothing.
+    expect(rules.validate.location(undefined)).toBe(true);
     // A control from the same call, so the reading above cannot be an artefact
-    // of a helper that returns `undefined` for everything.
+    // of a helper that answers the same way for everything.
     expect(buildValidationRules({ type: 'text', name: 'title', required: true })).toEqual({ required: true });
   });
 });
