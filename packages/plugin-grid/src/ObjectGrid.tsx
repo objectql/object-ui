@@ -2256,8 +2256,47 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         });
     }
 
-    // Legacy support: use 'fields' if columns not provided
-    if (hasInlineData) {
+    // Legacy support: use 'fields' if columns not provided.
+    //
+    // ⭐ THE ORDER OF THIS PATH AND THE OBJECT-SCHEMA PATH BELOW IS
+    // LOAD-BEARING (objectui#6677).
+    //
+    // `hasInlineData` is `dataConfig.provider === 'value'`, and `dataConfig` is
+    // built as `provider: 'value'` from the `data` PROP before anything else.
+    // So this path is taken by EVERY grid whose rows were handed down instead
+    // of fetched — which is every object-bound grid reached through a fetching
+    // host (`ListView`, `ObjectView`, …). It used to return unconditionally
+    // whenever rows were present, which made the object-schema path below
+    // unreachable for all of them: the branch that knows the object was the one
+    // that never ran. Measured, same page / source / object, one variable:
+    // grid-fetches rendered the policy's 5 columns, host-fetches rendered 10 —
+    // the payload's keys, including `id` (`hidden: true`) and the four audit
+    // columns (`system`), exactly what the policy exists to exclude.
+    //
+    // The yield is as NARROW as the defect. Only the ROW-KEY FALLBACK
+    // (`Object.keys(inlineData[0])`) is wrong for an object-bound grid, so only
+    // that is given up, and only once there is a policy to give it up TO:
+    //
+    //   - `schemaFields` present ⇒ this path keeps it. An authored projection
+    //     is the author's contract, and the schema path would silently drop a
+    //     name the object does not declare (`if (!field) return;`) — a host may
+    //     legitimately join or derive keys. `!schemaFields` is exactly the
+    //     condition under which the `||` below reaches for the row keys, so the
+    //     gate and the fallback cannot drift apart.
+    //   - `objectSchema` still `null` ⇒ this path keeps it. ⚠️ Gating on
+    //     `objectName` ALONE is the trap: the schema arrives from an async
+    //     fetch, so `objectSchema` is null on first paint and the grid would
+    //     fall straight through to `if (!objectSchema) return []` and render an
+    //     empty header row before flipping — a worse defect than this one. It
+    //     is also the graceful fallback when the schema fetch fails or the data
+    //     source has no `getObjectSchema`: the row keys stay the answer instead
+    //     of the grid going blank.
+    //
+    // Both are pinned in `hostFetchedDefaultColumns-6677.test.tsx`, together
+    // with the case this file's own comment calls the right one for this path:
+    // inline data with no object behind it at all.
+    const rowKeysWouldOutrankSchemaPolicy = !schemaFields && !!objectName && !!objectSchema;
+    if (hasInlineData && !rowKeysWouldOutrankSchemaPolicy) {
       const inlineData = dataConfig?.provider === 'value' ? dataConfig.items as any[] : [];
       if (inlineData.length > 0) {
         const fieldsToShow = schemaFields || Object.keys(inlineData[0]);
@@ -2381,7 +2420,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     });
 
     return generatedColumns;
-  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName, perms]);
+  }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, objectName, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName, perms]);
 
   // Formats this grid can actually deliver (objectui#2942): the server stream
   // handles csv/xlsx/json, the client fallback only csv/json. Declared-but-dead
