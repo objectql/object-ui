@@ -95,11 +95,93 @@ export function createLocalStorageAdapter(prefix = 'objectui-schema'): SchemaPer
 }
 
 /**
+ * Cap on how many offending paths the refusal message spells out in full. A
+ * schema that puts callables on every row would otherwise produce an error
+ * string nobody can read; the count is always reported exactly.
+ */
+const MAX_REPORTED_CALLABLE_PATHS = 20;
+
+/**
+ * Collect the path of every function-valued property reachable in `value`.
+ *
+ * Walks own enumerable properties — the same set `JSON.stringify` serializes —
+ * so a key this finds is exactly a key that would have been dropped. Arrays are
+ * walked by index (`columns[2].cell`), which is the realistic shape: handlers
+ * live on column/field entries, not only at the top level. A `seen` set keeps a
+ * cyclic schema from recursing forever (`JSON.stringify` throws on those; this
+ * guard runs first and must not hang before it can).
+ */
+function collectCallablePaths(
+  value: unknown,
+  path: string,
+  out: string[],
+  seen: Set<object>,
+): void {
+  if (typeof value === 'function') {
+    out.push(path || '(root)');
+    return;
+  }
+  if (value === null || typeof value !== 'object') return;
+  if (seen.has(value)) return;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectCallablePaths(item, `${path}[${index}]`, out, seen));
+    return;
+  }
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    collectCallablePaths(child, path ? `${path}.${key}` : key, out, seen);
+  }
+}
+
+/**
+ * The paths of every function-valued key anywhere in a schema, in walk order.
+ * Empty means the schema is fully declarative and serializes without loss.
+ */
+function findCallablePaths(schema: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  collectCallablePaths(schema, '', out, new Set());
+  return out;
+}
+
+/**
+ * The refusal an author sees instead of a save that quietly lost their handler.
+ *
+ * It names the exact offending paths and both escapes, because an error that
+ * only says "no" leaves the author guessing at a defect whose symptom would
+ * otherwise have surfaced at render or click time, in another component, with
+ * no link back to the save that caused it.
+ */
+function callableRefusalMessage(id: string, paths: string[]): string {
+  const shown = paths.slice(0, MAX_REPORTED_CALLABLE_PATHS);
+  const listed = shown.join(', ');
+  const elided =
+    paths.length > shown.length ? ` (and ${paths.length - shown.length} more)` : '';
+  const plural = paths.length === 1 ? 'key is' : 'keys are';
+  return (
+    `useSchemaPersistence: refusing to save schema "${id}" — ` +
+    `${paths.length} function-valued ${plural} not serializable, and JSON.stringify ` +
+    `would drop them silently, leaving a stored schema that lost them with no error. ` +
+    `Offending paths: ${listed}${elided}. ` +
+    'Two ways forward: strip the callables before saving (persist only the serializable ' +
+    'data and re-attach the handlers after load), or express the behaviour in the ' +
+    'declarative form of these keys so it survives the round trip.'
+  );
+}
+
+/**
  * Hook for persisting designer schemas (save/load/list/delete).
  * Implements schema persistence for @object-ui/plugin-designer.
  *
  * Accepts a pluggable adapter for connecting to any backend.
  * Falls back to a localStorage adapter for development use.
+ *
+ * `save()` refuses a schema carrying function-valued keys anywhere in it —
+ * every adapter ends in a `JSON.stringify`, which drops callables silently, so
+ * the save would report success and the reload would hand back a schema that
+ * lost them. The refusal sets `error` (naming the offending key paths and both
+ * escapes), returns `null`, leaves `lastSavedAt` untouched, and never reaches
+ * the adapter. Fully declarative schemas are unaffected.
  *
  * @example
  * ```tsx
@@ -139,6 +221,13 @@ export function useSchemaPersistence(
       setLoading(true);
       setError(null);
       try {
+        // Refuse BEFORE the adapter runs, so the guard covers a host-injected or
+        // REST adapter too — every one of them ends in a `JSON.stringify` that
+        // drops callables without a word (objectui#6658).
+        const callablePaths = findCallablePaths(schema);
+        if (callablePaths.length > 0) {
+          throw new Error(callableRefusalMessage(id, callablePaths));
+        }
         const result = await adapterRef.current.save(id, schema);
         setIsDirty(false);
         setLastSavedAt(new Date());
