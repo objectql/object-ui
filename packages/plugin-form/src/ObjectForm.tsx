@@ -203,19 +203,23 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   const routesToMasterDetail = !!(schema as any).subforms?.length && schema.mode !== 'view'
       && schema.formType !== 'drawer' && schema.formType !== 'modal';
 
-  // ── objectui#6237 interim diagnostic (maintainer ruling, 2026-08-29) ────────
-  // `tabbed` and `wizard` are the two routes below that drop an authored section
-  // `visibleWhen` (see `sectionPredicateUnsupportedWarning`). Report the gap
-  // instead of dropping it in silence. This declares no key and hides nothing —
-  // making these arms honour the predicate is the ruled design task's job.
+  // ── objectui#6237 diagnostic, now scoped to the ONE arm still inert ────────
+  // The interim diagnostic ruled on 2026-08-29 covered `tabbed` AND `wizard`,
+  // the two routes that dropped an authored section `visibleWhen`. The tabbed
+  // arm now HONOURS it (the map below copies the key, `TabbedForm` puts it on
+  // the tab it synthesises, and the renderer evaluates it), so warning about it
+  // would be a false alarm about a working feature — the same boundary the four
+  // control rows of the diagnostic's pin defend. `wizard` stays inert by
+  // DESIGN, not by omission: a step predicate is a different contract, not a
+  // port (see `WizardStepConfig`), so its gap is still reported rather than
+  // silently dropped.
   //
   // Deliberately NOT reported for the master-detail branch: that branch re-enters
   // `ObjectForm` through `MasterDetailForm`'s parent schema, which is where the
   // real layout is decided (a master-detail `wizard` parent renders `simple`,
   // which DOES honour the predicate). Reporting here as well would double-report
   // the tabbed parent and false-report the wizard one.
-  const inertPredicateLayout = !routesToMasterDetail
-    && (schema.formType === 'tabbed' || schema.formType === 'wizard')
+  const inertPredicateLayout = !routesToMasterDetail && schema.formType === 'wizard'
     ? schema.formType
     : null;
   // Joined to a string on purpose: the effect's deps must be primitives, or a
@@ -274,6 +278,18 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            // ADR-0089 section predicate (objectui#6237) — key-by-key rebuild,
+            // so an uncopied key is silently dropped before TabbedForm ever
+            // sees it, exactly as it was on this route until this card. The
+            // split/drawer/modal maps below have carried it since #6111; this
+            // is the tabbed arm joining them.
+            //
+            // Read WITHOUT an `as any` cast on purpose, unlike those three:
+            // `ObjectFormSection.visibleWhen` is declared, so the compiler is
+            // able to catch a rename here. Through a cast it would keep
+            // compiling and silently copy `undefined` — the exact silent-drop
+            // failure this line exists to fix.
+            visibleWhen: s.visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),

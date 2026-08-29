@@ -7,38 +7,39 @@
  */
 
 /**
- * The layout arms that DROP an authored `FormSection.visibleWhen` (objectui#6237).
+ * The one layout arm that still DROPS an authored `FormSection.visibleWhen`
+ * (objectui#6237).
  *
- * Of the five layout routes in `ObjectForm`, three rebuild each section key by key
- * and DO copy the predicate (`split` / `drawer` / `modal`), and the flat arm carries
- * it on the `section-divider` pseudo-field — those four honour it. `tabbed`
- * (`TabbedForm`) and `wizard` (`WizardForm`) rebuild the section the same way but
- * copy no predicate, so an authored key never reaches a renderer at all.
+ * Of the six layout routes in `ObjectForm`, five honour the predicate:
+ * `split` / `drawer` / `modal` rebuild each section key by key and copy it
+ * (#6111), the flat arm carries it on the `section-divider` pseudo-field
+ * (#6236), and `tabbed` joined them by copying it onto the tab `TabbedForm`
+ * synthesises, where the renderer evaluates it (#6237). `wizard` is the
+ * remainder.
  *
- * Making those two arms actually honour it is a DESIGN task, ruled 2026-08-29
- * (option A): ONE renderer-side section/group contract with a predicate slot,
- * designed once for every layout arm rather than patched arm by arm. Ruled as part
- * of that option, this diagnostic lands FIRST so the gap stops being silent — an
- * author who writes the key on one of these arms is told it is not yet supported
- * here instead of watching it do nothing.
+ * ⛔ The wizard's gap is a DESIGN boundary, not an oversight, and it is not one
+ * copy line away. A step predicate would be step-boundary reactive against the
+ * ruled live-record reactivity, and it needs navigation, indicator, final-gate
+ * and re-selection semantics that the tab arm's machinery does not supply —
+ * `WizardStepConfig` carries the full measurement. Until that contract is ruled,
+ * an author who writes the key on a wizard is told so rather than watching it do
+ * nothing.
  *
- * Single-sourced so both inert arms report the gap in one voice, and so a test can
- * pin the wording without restating it.
+ * Single-sourced so the runtime report and the pin that holds its wording cannot
+ * drift apart.
  */
 export function sectionPredicateUnsupportedWarning(
-  layout: 'tabbed' | 'wizard',
+  layout: 'wizard',
   sectionNames: string,
 ): string {
-  const surface = layout === 'tabbed'
-    ? "the `tabbed` layout's tabs"
-    : "the `wizard` layout's steps";
   return '[ObjectForm] Section `visibleWhen` is not yet supported on this layout: '
-    + `${surface} drop the predicate, so section(s) ${sectionNames} render `
-    + 'unconditionally. Support is being designed as ONE grouping contract across '
-    + 'every layout arm (objectui#6237); until it lands, use '
-    + "`formType: 'modal' | 'drawer' | 'split'` or the flat layout — each honours a "
-    + 'section `visibleWhen` — or move the predicate onto the individual fields, '
-    + 'whose own `visibleWhen` is evaluated on every layout.';
+    + `the \`${layout}\` layout's steps drop the predicate, so section(s) `
+    + `${sectionNames} render unconditionally. A wizard STEP predicate is a `
+    + 'separate contract still being designed (objectui#6237) — it is not the '
+    + 'tab predicate with a different name. Today, use '
+    + "`formType: 'tabbed' | 'modal' | 'drawer' | 'split'` or the flat layout — "
+    + 'each honours a section `visibleWhen` — or move the predicate onto the '
+    + 'individual fields, whose own `visibleWhen` is evaluated on every layout.';
 }
 
 /*
