@@ -11,6 +11,7 @@ import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { ChatbotSchema } from '@object-ui/types';
 import { Chatbot } from './index';
 import { ChatbotEnhanced } from './ChatbotEnhanced';
+import type { ChatbotSurface } from './ChatbotEnhanced';
 import { FloatingChatbot } from './FloatingChatbot';
 import { useObjectChat } from './useObjectChat';
 import type { ObjectChatMessage } from './useObjectChat';
@@ -271,6 +272,17 @@ ComponentRegistry.register('chatbot-enhanced',
   ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema & {
     enableMarkdown?: boolean; 
     enableFileUpload?: boolean;
+    /**
+     * Visual chrome for the chat surface (objectui#6687, maintainer ruling
+     * 2026-08-29). `card` keeps the embeddable bordered panel; `plain` removes
+     * the panel chrome for a full-page chat workspace. Declared here, on the
+     * registration that actually renders `<ChatbotEnhanced>`, because that is
+     * the only one with a `surface` prop to forward it to — `chatbot` and
+     * `chatbot-floating` render different components and do not gain the key.
+     * Typed by importing `ChatbotSurface` rather than re-spelling the union:
+     * one contract, not two dialects (AGENTS.md #0.1).
+     */
+    surface?: ChatbotSurface;
     showTimestamp?: boolean;
     disabled?: boolean;
     userAvatarUrl?: string;
@@ -346,6 +358,10 @@ ComponentRegistry.register('chatbot-enhanced',
         enableMarkdown={schema.enableMarkdown ?? true}
         enableFileUpload={schema.enableFileUpload ?? false}
         processVisibility={schema.processVisibility}
+        // Passed through undefined when unauthored, so `<ChatbotEnhanced>`'s own
+        // `surface = 'card'` default keeps applying — the absent case is
+        // unchanged by this wiring (objectui#6687).
+        surface={schema.surface}
         className={className}
       />
     );
@@ -361,6 +377,7 @@ ComponentRegistry.register('chatbot-enhanced',
       { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
       { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
       { name: 'processVisibility', type: 'enum', label: 'Agent Process Visibility', defaultValue: 'summary' },
+      { name: 'surface', type: 'enum', label: 'Surface Chrome', defaultValue: 'card', description: "'card' bordered panel, or 'plain' frameless full-page workspace" },
       { name: 'userAvatarUrl', type: 'string', label: 'User Avatar URL' },
       { name: 'userAvatarFallback', type: 'string', label: 'User Avatar Fallback', defaultValue: 'You' },
       { name: 'assistantAvatarUrl', type: 'string', label: 'Assistant Avatar URL' },
