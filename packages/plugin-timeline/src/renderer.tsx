@@ -95,6 +95,26 @@ export function resolveTimelineScale(schema: { scale?: unknown }): string {
  * own defaults table, which is what the channel serves with no `I18nProvider`
  * mounted, so 3- and 4-argument call sites keep producing byte-identical
  * English.
+ *
+ * ## The empty/degenerate range — the second of #6750's three sites
+ *
+ * objectui#6750 asked the same empty-list question at all three stops on the
+ * gantt branch, so that fixing the one `throw` did not just move the crash two
+ * stations down. This one needed no change, and that verdict is recorded here
+ * rather than left to be re-derived: the guard on the next line already refuses
+ * an unparseable or inverted range by returning NO headers, and a DEGENERATE
+ * range (`minDate === maxDate`, which is what `emptyGanttDateRange` hands it)
+ * is not inverted — `start > end` is false when they are equal, so the loop
+ * runs exactly once and every scale emits exactly one bucket. Measured on
+ * b76ca6764, min = max = '2026-03-15': hour `["Mar 15, 12 AM"]`, day
+ * `["Mar 15"]`, week `["Week 1"]`, month `["Mar 2026"]`, quarter `["Q1 2026"]`,
+ * year `["2026"]`.
+ *
+ * So the empty gantt gets a real one-column axis, not a header row with zero
+ * cells. That composition is what
+ * `./__tests__/timeline-gantt-empty-items.test.tsx` pins — separately from the
+ * other two sites, so a later change that fixes one and not the others goes
+ * red.
  */
 export function generateTimeScaleHeaders(
   scale: string,
@@ -161,15 +181,64 @@ export function generateTimeScaleHeaders(
   return headers;
 }
 
+/**
+ * The date range a gantt falls back to when the rows carry NO dates at all —
+ * an authored `items: []`, or rows whose `items` are all empty.
+ *
+ * ## Why a sentinel and not a throw (objectui#6750)
+ *
+ * `calculateDateRange` used to reduce the empty list directly: `Math.min()`
+ * over no arguments is `Infinity`, and `new Date(Infinity).toISOString()`
+ * throws `RangeError: Invalid time value` during render. An empty gantt is not
+ * a malformed document — it is the ORDINARY empty state of a valid schema. Any
+ * author or generator that builds `items` from a collection produces `items:
+ * []` the moment the collection is empty: a filtered project list with no
+ * matches, a fresh workspace, a plan whose rows are yet to be added. Crashing
+ * the render on that is a correctness defect, not a strict-input policy.
+ *
+ * ## Why TODAY, and why a single day
+ *
+ * An empty plan carries no dates of its own, so the axis has to be anchored on
+ * something outside the data, and "now" is the only anchor that is not
+ * arbitrary. The span is ONE day — the smallest coherent range — because how
+ * much time an empty gantt should show is a question about what an empty gantt
+ * should LOOK like, and the 2026-08-29 triage on #6750 deliberately left that
+ * open (「不要崩」 is the correctness floor it ruled on; 「崩改成空态面板还是零行
+ * 图表」 is the product option it did not). A one-day window makes the smallest
+ * possible claim: `generateTimeScaleHeaders` turns it into exactly one bucket
+ * on every scale, so the axis is valid and non-empty, and the grid below it has
+ * zero rows.
+ *
+ * ## What this deliberately does NOT do
+ *
+ * It does not reach the caller when the author pinned a range. The gantt branch
+ * resolves `schema.minDate || dateRange.minDate`, so an author who pinned an
+ * explicit `minDate` / `maxDate` gets EXACTLY that range with no rows in it —
+ * most likely what they wanted, and free. Pinned by
+ * `./__tests__/timeline-gantt-empty-items.test.tsx`.
+ */
+function emptyGanttDateRange(): { minDate: string; maxDate: string } {
+  const today = new Date().toISOString().split('T')[0];
+  return { minDate: today, maxDate: today };
+}
+
 // Helper function to calculate date range from items
 function calculateDateRange(items: any[]): { minDate: string; maxDate: string } {
   const allDates = items.flatMap((row: any) =>
     (row.items || []).flatMap((item: any) => [item.startDate, item.endDate])
   );
-  
+
+  // objectui#6750 — the empty list is an ordinary state, not an error. Guarding
+  // it HERE rather than at the call site is what keeps the whole gantt branch
+  // coherent: the caller's `schema.minDate || dateRange.minDate` still resolves,
+  // `generateTimeScaleHeaders` still gets a parseable min <= max and so still
+  // emits an axis, and `calculateBarDimensions` is simply never reached because
+  // there are no rows to draw bars for. See `emptyGanttDateRange` above.
+  if (allDates.length === 0) return emptyGanttDateRange();
+
   const minTimestamp = Math.min(...allDates.map((d: string) => new Date(d).getTime()));
   const maxTimestamp = Math.max(...allDates.map((d: string) => new Date(d).getTime()));
-  
+
   return {
     minDate: new Date(minTimestamp).toISOString().split('T')[0],
     maxDate: new Date(maxTimestamp).toISOString().split('T')[0],
@@ -191,6 +260,30 @@ function calculateBarDimensions(
   const totalDuration = max - min;
   const startOffset = start - min;
   const duration = end - start;
+
+  /**
+   * objectui#6750 — the DEGENERATE axis, the third site of the same empty-list
+   * question and the one that fails silently instead of loudly.
+   *
+   * `totalDuration` is `0` whenever the axis has no width: every task starting
+   * and ending on the same day (a one-day plan, or a single same-day task), or
+   * an author pinning `minDate === maxDate`. Both divisions below then evaluate
+   * `0 / 0`, which is `NaN`, and the bar is handed `left: NaN%; width: NaN%`.
+   * That is not a crash and not a visible error — the CSSOM REJECTS both
+   * declarations, so React leaves the element with no `style` attribute at all
+   * and the bar renders unpositioned and zero-width. Measured on b76ca6764:
+   * a single `{ startDate: '2024-05-01', endDate: '2024-05-01' }` row produced
+   * `<div class="absolute h-8 rounded-md …">` carrying no `style`.
+   *
+   * On a zero-width axis every task covers the whole of it, by definition —
+   * there is no sub-interval for a bar to occupy. `{ start: 0, width: 100 }` is
+   * that answer written down, and it keeps the bar visible instead of
+   * collapsing it. Guarded on `totalDuration === 0` and nothing looser, so the
+   * normal path is arithmetically untouched.
+   */
+  if (totalDuration === 0) {
+    return { start: 0, width: 100 };
+  }
 
   return {
     start: (startOffset / totalDuration) * 100,

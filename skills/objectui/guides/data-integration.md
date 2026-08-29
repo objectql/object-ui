@@ -63,12 +63,13 @@ interface DataSource<T = any> {
 
 ```typescript
 interface QueryParams {
-  filter?: Record<string, any>;   // WHERE conditions
-  sort?: SortConfig[];            // ORDER BY [{field, direction}]
-  limit?: number;                 // LIMIT (page size)
-  offset?: number;                // OFFSET (for pagination)
-  fields?: string[];              // SELECT specific fields
-  expand?: string[];              // JOIN/expand related objects
+  $select?: string[];             // SELECT specific fields
+  $filter?: Record<string, any> | FilterArray;  // WHERE conditions (FilterArray: @objectstack/spec/data)
+  $orderby?: string | Record<string, 'asc' | 'desc'> | string[] | Array<{ field: string; order?: 'asc' | 'desc' }>;
+  $skip?: number;                 // OFFSET (for pagination)
+  $top?: number;                  // LIMIT (page size)
+  $expand?: string[];             // JOIN/expand related objects
+  [key: string]: any;             // why an unprefixed `limit` type-checks — and is then dropped
 }
 ```
 
@@ -76,12 +77,13 @@ interface QueryParams {
 
 ```typescript
 interface QueryResult<T = any> {
-  records?: T[];                  // Returned data array
-  pageSize?: number;              // Items per page
-  pageNumber?: number;            // Current page (1-indexed)
+  data: T[];                      // Returned data array — required, and NOT named `records`
   total?: number;                 // Total count for pagination
+  page?: number;                  // Current page (1-indexed)
+  pageSize?: number;              // Items per page
   hasMore?: boolean;              // Cursor-based pagination flag
   cursor?: string;                // Next page cursor
+  metadata?: Record<string, any>; // Additional metadata
 }
 ```
 
@@ -268,11 +270,11 @@ function MyPlugin() {
 
   const loadData = async () => {
     const result = await dataSource.find('contacts', {
-      filter: { active: true },
-      sort: [{ field: 'name', direction: 'asc' }],
-      limit: 20,
+      $filter: { active: true },
+      $orderby: [{ field: 'name', order: 'asc' }],
+      $top: 20,
     });
-    return result.records;
+    return result.data;
   };
 }
 ```
@@ -358,18 +360,18 @@ export class RestApiAdapter implements DataSource {
 
   async find(resource: string, params?: QueryParams): Promise<QueryResult> {
     const url = new URL(`${this.baseUrl}/${resource}`);
-    if (params?.filter) url.searchParams.set('filter', JSON.stringify(params.filter));
-    if (params?.limit) url.searchParams.set('limit', String(params.limit));
-    if (params?.offset) url.searchParams.set('offset', String(params.offset));
-    if (params?.sort) url.searchParams.set('sort', JSON.stringify(params.sort));
+    if (params?.$filter) url.searchParams.set('filter', JSON.stringify(params.$filter));
+    if (params?.$top) url.searchParams.set('limit', String(params.$top));
+    if (params?.$skip) url.searchParams.set('offset', String(params.$skip));
+    if (params?.$orderby) url.searchParams.set('sort', JSON.stringify(params.$orderby));
 
     const res = await fetch(url.toString());
-    const data = await res.json();
+    const body = await res.json();
 
     return {
-      records: data.items,
-      total: data.totalCount,
-      pageSize: params?.limit,
+      data: body.items,
+      total: body.totalCount,
+      pageSize: params?.$top,
     };
   }
 
@@ -429,6 +431,7 @@ unsubscribe?.();
 
 ## Common data integration mistakes
 
+- Spelling `QueryParams` options without the `$` prefix (`limit`, `filter`, `sort`): the index signature accepts them, nothing reads them, and a dropped `$top` fetches the whole table.
 - Importing `fetch` directly in components instead of using DataSource from context.
 - Forgetting to await `startMockServer()` before rendering — MSW intercepts aren't ready.
 - Mismatched `baseUrl` between MSW plugin and ObjectStackAdapter — requests bypass mocks.

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Input, EmptyValue } from '@object-ui/components';
+import React, { useEffect, useRef, useState } from 'react';
+import { Input, EmptyValue, cn } from '@object-ui/components';
 import { LocationValueSchema } from '@objectstack/spec/data';
 import type { LocationValue } from '@objectstack/spec/data';
 import { FieldWidgetComponentProps } from './types.js';
@@ -136,6 +136,172 @@ function carryOptionalKeys(lat: number, lng: number, previous: unknown): Locatio
 }
 
 /**
+ * The canonical `"lat, lng"` text for a stored value — empty for anything this
+ * widget cannot read (objectui#6272's unreadable shapes included).
+ */
+function coordinateText(value: unknown): string {
+  return isLocationValue(value) ? `${value.lat}, ${value.lng}` : '';
+}
+
+/**
+ * The one place this widget says what "a number" is (objectui#6715).
+ *
+ * ⚠️ This is `parseFloat`'s OWN grammar, ANCHORED — not a second, stricter
+ * notion of a number invented here. `parseFloat` reads the longest PREFIX of
+ * its argument matching this grammar and returns what it got, discarding the
+ * rest; the anchors are what turn "there is a number at the front" into "the
+ * whole text IS that number". Nothing else about the reading changes, which is
+ * why {@link parseDraft} still asks `parseFloat` for the value itself.
+ *
+ * The defect the anchors exist for: `parseFloat('12abc')` is `12`, so
+ * `"12abc, 34"` emitted `{ lat: 12, lng: 34 }` — a coordinate the user never
+ * typed, which `valueSchemaFor({ type: 'location' })` ACCEPTS, so unlike
+ * objectui#6714 no downstream check could ever catch it. Measured on
+ * `b76ca6764` through a real `ObjectForm`: `dataSource.create` was handed
+ * `{"lat":12,"lng":34}` with `aria-invalid="false"` and no diagnostic drawn.
+ * Truncation is not confined to obvious junk, either — the same reading turns
+ * `"0x10"` into `0` (objectui#6272's `|| 0`, arriving through a different
+ * door) and `"12.5 N, 34 E"` into `{ lat: 12.5, lng: 34 }`, dropping the
+ * hemisphere so a southern coordinate would be stored as a northern one.
+ *
+ * ⛔ `Number()` is NOT this test, although it looks like the same idea: it
+ * reads `'0x10'` as `16`, `'0b11'` as `3` and `''` as `0`. A hex literal is
+ * not a coordinate notation, and none of those readings is what was typed.
+ *
+ * ⛔ Nor is this degree/hemisphere PARSING. `12°N` stays refused, deliberately
+ * — the maintainer ruling of 2026-08-29 adopts the refusal and declines the
+ * notation, because the paste route is unmeasured; it is its own feature card
+ * if real demand arrives.
+ *
+ * `Infinity` IS in the grammar, deliberately. `parseFloat` reads it whole, so
+ * it carries no residue and this gate has nothing to say about it; it is
+ * refused one step later by {@link isSpecAcceptedLocation}, exactly as it is
+ * today (objectui#6714). The range arm keeps its own case rather than having
+ * it quietly moved into this one.
+ */
+const WHOLE_NUMBER_TEXT = /^[+-]?(?:Infinity|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+/** The two coordinates, in the order they are typed, named for the diagnostic. */
+const COORDINATE_LABELS = ['latitude', 'longitude'] as const;
+
+/** One half of the typed pair that carried non-numeric residue. */
+type ResidueHalf = { label: string; text: string };
+
+/**
+ * What the typed text means to this widget, as ONE reading (objectui#6716).
+ *
+ * The outcomes are exactly the ones the emission rule already had — cleared /
+ * not a coordinate pair / a pair — lifted out of `handleChange` so the
+ * DRAFT-SYNC guard below judges the text by the same rule that decides whether
+ * to emit it. Two copies of "is this a coordinate pair" would be two
+ * contracts, and the one in the effect would be the one nobody tests.
+ *
+ * objectui#6715 adds a fourth, `residue`, splitting what used to be one
+ * reading of "the half is a number" into the two different things `parseFloat`
+ * was conflating: no number at the front at all (still `unparsable`, still the
+ * pre-existing FORMAT arm) versus a number at the front with text after it.
+ * Only the second is new; the first keeps its message and its #6716 pins.
+ */
+type ParsedDraft =
+  | { kind: 'cleared' }
+  | { kind: 'unparsable' }
+  | { kind: 'residue'; residue: ResidueHalf[] }
+  | { kind: 'pair'; lat: number; lng: number };
+
+function parseDraft(text: string): ParsedDraft {
+  if (!text.trim()) return { kind: 'cleared' };
+  const parts = text.split(',').map(p => p.trim());
+  if (parts.length !== 2) return { kind: 'unparsable' };
+  const lat = parseFloat(parts[0]);
+  const lng = parseFloat(parts[1]);
+  // No number at the front of a half AT ALL (`abc`, `NaN`, `--1`): the
+  // pre-existing FORMAT arm, deliberately left where it was so its sentence
+  // and its objectui#6716 pins keep saying exactly what they said.
+  if (isNaN(lat) || isNaN(lng)) return { kind: 'unparsable' };
+  // A number at the front, but not all the way to the end (objectui#6715).
+  const residue = COORDINATE_LABELS
+    .map((label, i): ResidueHalf => ({ label, text: parts[i] }))
+    .filter(half => !WHOLE_NUMBER_TEXT.test(half.text));
+  if (residue.length > 0) return { kind: 'residue', residue };
+  return { kind: 'pair', lat, lng };
+}
+
+/**
+ * Does the text in the box already MEAN the stored value?
+ *
+ * Compared by meaning, not by string: `"30.270, 120.150"` and
+ * `"30.27, 120.15"` denote the same coordinate, and rewriting the first into
+ * the second while someone is typing moves their caret for no reason. This is
+ * the same property `ObjectField`'s sync effect tests with a `JSON.stringify`
+ * round-trip, expressed for a coordinate pair.
+ */
+function draftDenotes(text: string, value: unknown): boolean {
+  const parsed = parseDraft(text);
+  if (parsed.kind === 'cleared') return !isLocationValue(value);
+  // Text this widget REFUSES denotes no stored value — `unparsable`, and since
+  // objectui#6715 `residue` too. Written as "not a pair" rather than as a list
+  // of refusal kinds, so a future arm cannot be forgotten here.
+  if (parsed.kind !== 'pair') return false;
+  return isLocationValue(value) && value.lat === parsed.lat && value.lng === parsed.lng;
+}
+
+/**
+ * What the box says when it refused text that is not a coordinate pair
+ * (objectui#6716) — the arm that has been silent since long before #6714.
+ *
+ * ⛔ Deliberately NOT the published `error` slot's text. `error`
+ * (objectui#3222) has exactly one author — the form renderer, from
+ * react-hook-form — and its text is drawn by `<FormMessage/>`. This sentence
+ * belongs to the widget's own refusal state; see it for why no host can
+ * produce one.
+ *
+ * It names the format AND shows it, because the format is the whole content of
+ * this refusal: the pair is what the box cannot read.
+ */
+const REFUSED_FORMAT_MESSAGE =
+  'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).';
+
+/**
+ * What the box says when the pair PARSED but the platform refuses its range.
+ *
+ * ⛔ The bounds are NOT written here, for the same reason
+ * {@link isSpecAcceptedLocation} does not test them by hand: a hand-copied
+ * range is a second contract that drifts silently (AGENTS.md #0.1). The
+ * sentence is built from the SPEC's own issues, so the day the schema moves,
+ * this message moves with it.
+ */
+function refusedRangeMessage(candidate: LocationValue): string {
+  const parsed = LocationValueSchema.safeParse(candidate);
+  if (parsed.success) return '';
+  const detail = parsed.error.issues
+    .map(issue => `${issue.path.join('.') || 'value'}: ${issue.message}`)
+    .join('; ');
+  return `Not saved: ${detail}`;
+}
+
+/**
+ * What the box says when a half of the pair is only PARTLY a number
+ * (objectui#6715).
+ *
+ * ⛔ Deliberately NOT {@link REFUSED_FORMAT_MESSAGE}. "Enter a latitude,
+ * longitude pair" is unusable advice to someone who typed `12abc, 34`: they
+ * DID type a pair, and that sentence gives them nothing to correct. This
+ * refusal names the half that could not be read and quotes it back, because
+ * the residue IS the content of this refusal — the same principle by which the
+ * format arm names the format and the range arm reports the spec's own
+ * complaint.
+ *
+ * ⛔ It does not suggest a notation to convert FROM (no `12°N` advice): the
+ * ruling declines that parse, so pointing at it would advertise a route this
+ * widget refuses.
+ */
+function refusedResidueMessage(residue: readonly ResidueHalf[]): string {
+  const named = residue.map(half => `${half.label} "${half.text}"`).join(' and ');
+  const verb = residue.length > 1 ? 'are not numbers' : 'is not a number';
+  return `Not saved: ${named} ${verb}. Enter plain decimals (example: 30.2741, 120.1551).`;
+}
+
+/**
  * LocationField - Geographic coordinate input for a `type: 'location'` value.
  *
  * Reads and writes `@objectstack/spec`'s `LocationValue` (`{ lat, lng }`) and
@@ -152,58 +318,151 @@ function carryOptionalKeys(lat: number, lng: number, previous: unknown): Locatio
  */
 export function LocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<LocationValue | null>) {
   const config = field;
-  // For display, convert the stored pair to a "lat, lng" string.
-  const displayValue = isLocationValue(value) ? `${value.lat}, ${value.lng}` : '';
+
+  /**
+   * The text in the box, held HERE rather than re-derived from `value` on every
+   * render (objectui#6716).
+   *
+   * ⚠️ This is the one piece of controlled-input semantics this card changes,
+   * and it was taken on a measurement, not on taste. With the box's value
+   * derived straight from `value`, a refusal means no state update follows the
+   * change event, so React restores the control in the SAME tick and the typed
+   * text is gone before anything can be said about it. Measured on
+   * `faac0d935`, typing a perfectly valid `30.27, 120.15` one character at a
+   * time: the box read `""` after all 13 keystrokes, `dataSource.create` was
+   * called with `place: null`, and a refusal diagnostic — which each of those
+   * keystrokes legitimately triggers, since `"3"` is not a pair — stayed lit
+   * through 12 of them. A diagnostic with no draft to point at cannot tell
+   * "refused" from "still typing", so announcing the refusal REQUIRES holding
+   * the text that was refused. `ObjectField` couples the two for the same
+   * reason.
+   */
+  const [draft, setDraft] = useState(() => coordinateText(value));
+
+  /**
+   * This widget's OWN refusal state (objectui#6716).
+   *
+   * Named `refusalError`, NOT `error`: `error` is the published validation slot
+   * on the widget contract (objectui#3222) and is destructured above — it keeps
+   * exactly one author, the form renderer. The same discipline, and the same
+   * two-name shape, as `ObjectField`'s `parseError`.
+   *
+   * It has to live here because no host can produce it: a refusal means
+   * `onChange` never fires, so the typed text never becomes a form value and
+   * `buildValidationRules` — which compiles value-shaped rules — is handed
+   * `undefined`. That was measured on this card before the route was chosen: a
+   * real `location` branch installed in `buildValidationRules` saw `undefined`
+   * in both refusal arms, while the same branch fired correctly for a STORED
+   * out-of-range pair. `buildValidationRules` still has no `location` branch,
+   * and this card does not give it one.
+   */
+  const [refusalError, setRefusalError] = useState<string | null>(null);
+
+  /**
+   * Adopt a value that changed OUTSIDE this box — a record finishing its load,
+   * a host resetting the form.
+   *
+   * ⚠️ The trigger is the VALUE changing, tracked against what this widget last
+   * saw — never "the draft disagrees with the value". That second rule was
+   * written first and measured wrong: a host that does not echo an emission
+   * back (an `onChange` spy, a debounced or normalising host) leaves `value`
+   * behind the draft permanently, so the rule fired on every keystroke and
+   * erased the text as it was typed — the very defect this card is fixing,
+   * moved into its fix. Driving the standalone widget caught it: typing
+   * `30.27, 120.15` left `20.15` in the box.
+   *
+   * Two guards then decide whether an external change is worth overwriting
+   * what the person is holding:
+   *
+   *  - the draft is text this widget REFUSED ⇒ leave it standing. It is the
+   *    text the diagnostic is about, and an unsaved edit is not a background
+   *    refresh's to discard (AGENTS.md #8).
+   *  - the draft already DENOTES the new value ⇒ leave the user's own spelling
+   *    alone (see {@link draftDenotes}).
+   */
+  const lastSeenValue = useRef(value);
+  useEffect(() => {
+    if (Object.is(lastSeenValue.current, value)) return;
+    lastSeenValue.current = value;
+    if (refusalError) return;
+    if (draftDenotes(draft, value)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Required for controlled component sync
+    setDraft(coordinateText(value));
+  }, [value, draft, refusalError]);
 
   if (readonly) {
-    return <span className="text-sm">{displayValue || <EmptyValue />}</span>;
+    // The STORED value, never the draft: a readonly field renders what is
+    // saved, and nothing can have been typed into it.
+    return <span className="text-sm">{coordinateText(value) || <EmptyValue />}</span>;
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (!val.trim()) {
+    const text = e.target.value;
+    // The box keeps what was typed — including text about to be refused, which
+    // is the only thing the diagnostic below can point at (objectui#6716).
+    setDraft(text);
+
+    const parsed = parseDraft(text);
+    if (parsed.kind === 'cleared') {
+      setRefusalError(null);
       onChange(null);
       return;
     }
 
-    // Parse as coordinates (latitude, longitude)
-    const parts = val.split(',').map(p => p.trim());
-    if (parts.length === 2) {
-      const lat = parseFloat(parts[0]);
-      const lng = parseFloat(parts[1]);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        // The typed pair replaces `lat`/`lng`; `altitude`/`accuracy` survive
-        // the edit (objectui#6664). Key-by-key, never a spread — see above.
-        const emitted = carryOptionalKeys(lat, lng, value);
-        // objectui#6714: the SAME refusal the line below already applies to
-        // text that isn't a coordinate pair, extended from format to RANGE.
-        // Measured before choosing this: nothing downstream rejects or repairs
-        // the value — a real `ObjectForm` submit hands `{ lat: 999, lng: 999 }`
-        // straight to `dataSource.create`, with no error raised anywhere — so
-        // refusing HERE is the only thing standing between a typo and storage.
-        if (isSpecAcceptedLocation(emitted)) {
-          onChange(emitted);
-        }
-      }
-      // If the text is not a coordinate pair, or the pair is one the spec
-      // refuses, don't update the value — the prior value stands.
+    if (parsed.kind === 'unparsable') {
+      // The text is not a coordinate pair. The prior value stands — and since
+      // objectui#6716 the box says so instead of swallowing the edit.
+      setRefusalError(REFUSED_FORMAT_MESSAGE);
+      return;
     }
+
+    if (parsed.kind === 'residue') {
+      // objectui#6715: a half that is only PARTLY a number is a NON-COORDINATE,
+      // not a number to truncate. Refused, and announced through the very same
+      // `setRefusalError` the other two arms use — a third SILENT refusal is
+      // precisely the defect objectui#6716 had just finished removing, which is
+      // why this card was held until #6716 landed.
+      setRefusalError(refusedResidueMessage(parsed.residue));
+      return;
+    }
+
+    // The typed pair replaces `lat`/`lng`; `altitude`/`accuracy` survive the
+    // edit (objectui#6664). Key-by-key, never a spread — see above.
+    const emitted = carryOptionalKeys(parsed.lat, parsed.lng, value);
+    // objectui#6714: the SAME refusal applied to text that isn't a coordinate
+    // pair, extended from format to RANGE. Measured before choosing this:
+    // nothing downstream rejects or repairs the value — a real `ObjectForm`
+    // submit hands `{ lat: 999, lng: 999 }` straight to `dataSource.create`,
+    // with no error raised anywhere — so refusing HERE is the only thing
+    // standing between a typo and storage.
+    if (isSpecAcceptedLocation(emitted)) {
+      setRefusalError(null);
+      onChange(emitted);
+      return;
+    }
+    // objectui#6716: the refusal STANDS — this card does not reverse #6714. It
+    // only stops the refusal from being silent.
+    setRefusalError(refusedRangeMessage(emitted));
   };
 
   return (
-    <Input
-      // DOM pass-through onto the real focusable control (objectui#3318).
-      {...toDomProps(props)}
-      type="text"
-      value={displayValue}
-      onChange={handleChange}
-      placeholder={config?.placeholder || 'latitude, longitude'}
-      disabled={readonly || props.disabled}
-      className={props.className}
-      // AFTER the spread so this widget's own computation wins: `error` is
-      // the published validation slot (#3222), `!!undefined` → explicit
-      // "false".
-      aria-invalid={!!error}
-    />
+    <div className="space-y-1">
+      <Input
+        // DOM pass-through onto the real focusable control (objectui#3318).
+        {...toDomProps(props)}
+        type="text"
+        value={draft}
+        onChange={handleChange}
+        placeholder={config?.placeholder || 'latitude, longitude'}
+        disabled={readonly || props.disabled}
+        className={cn(refusalError ? 'border-red-500 focus-visible:ring-red-500' : '', props.className)}
+        // AFTER the spread so this widget's own computation wins: `error` is
+        // the published validation slot (#3222) the HOST authors, and
+        // `refusalError` is this widget's own refusal, which no host can
+        // produce (objectui#6716). Same OR, and same reason, as `ObjectField`.
+        aria-invalid={!!error || !!refusalError}
+      />
+      {refusalError && <p className="text-xs text-red-500">{refusalError}</p>}
+    </div>
   );
 }
