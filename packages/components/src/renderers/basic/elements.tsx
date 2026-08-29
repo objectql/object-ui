@@ -39,18 +39,11 @@ import {
 import { cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { Button, Separator } from '../../ui';
+import { readProps } from './readProps';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
-
-function readProps<T extends Record<string, any>>(schema: any): T {
-  // Per spec, element components carry their config in `schema.properties`.
-  // Tolerate `schema.props` (legacy alias) so JSON written either way works.
-  const fromProperties = (schema?.properties ?? {}) as T;
-  const fromProps = (schema?.props ?? {}) as T;
-  return { ...fromProps, ...fromProperties };
-}
 
 function ariaAttrs(aria?: Record<string, any>): Record<string, string> {
   if (!aria || typeof aria !== 'object') return {};

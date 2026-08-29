@@ -1,0 +1,12 @@
+---
+'@object-ui/components': patch
+'@object-ui/react': minor
+---
+
+`element:*` renderers stop re-reading a degenerate config bag as its own character indices — the third and last channel of the objectui#6752 / objectui#6760 hazard (objectui#6783).
+
+Five modules under `packages/components/src/renderers/basic/` — `elements.tsx`, `data-list.tsx`, `text-input.tsx`, `record-picker.tsx`, `metadata-viewer.tsx` — each carried a copy of the same reader, `{ ...(schema?.props ?? {}), ...(schema?.properties ?? {}) }`. `??` only replaces `null`/`undefined`, so a non-object bag went into the object spread and came back out as indexed keys: for `properties: 'not-a-bag'`, the config bag a renderer received was `{ '0': 'n', '1': 'o', … '8': 'g' }` — nine keys nobody authored. The five copies are now one `readProps` (`renderers/basic/readProps.ts`) that asks `isConfigBag`, and a degenerate bag on either side contributes no keys.
+
+`@object-ui/react` exports `isConfigBag` from its package entry. That is the API addition here, and it is the reason the fix is not a sixth spelling of the predicate: objectui#6761 converged six occurrences of "is this a real config bag?" behind one definition in `packages/react/src/utils/configBag.ts` and pinned it, but the pin scans `packages/react/src` only — a copy written one package over would be invisible to it. `@object-ui/components` already depends on `@object-ui/react` (all five modules import from it today), so the reachable answer was to publish the definition rather than retell it. Same reason the node-gate predicate reporter is exported at that entry (objectui#6038): one definition, read by every package that asks.
+
+**What this does not change, measured rather than predicted.** No rendered output moves on today's tree. All five renderers read named keys off this bag, and the single onward spread — `metadata-viewer`'s `<StateMachineView {...props} />` — hands it to components that destructure named fields, so the indexed keys were computed and then dropped. The census behind objectui#6708 found zero authored nodes carrying a degenerate config bag, so this was a latent shape, not a live failure. What the guard buys is what objectui#6752 measured its own guard buys, one channel further down: the authored value's shape is not reinterpreted. objectui#5123's precedence is untouched — `properties` still wins a contested key, and a degenerate bag declares no key for either side to win.

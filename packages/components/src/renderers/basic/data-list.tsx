@@ -21,12 +21,7 @@ import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useAdapter } from '@object-ui/react';
 import { cn } from '../../lib/utils';
-
-function readProps<T extends Record<string, any>>(schema: any): T {
-  const fromProperties = (schema?.properties ?? {}) as T;
-  const fromProps = (schema?.props ?? {}) as T;
-  return { ...fromProps, ...fromProperties };
-}
+import { readProps } from './readProps';
 
 function toText(v: unknown): string {
   if (v == null || v === '') return '—';

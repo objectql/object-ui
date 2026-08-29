@@ -19,6 +19,17 @@ export * from './element-data-source/ElementDataSourceGate.js';
 // i18n utilities
 export { resolveKeyedI18nLabel } from './utils/i18n.js';
 
+// "Is this a real config bag?" — the ONE definition of that question
+// (objectui#6761), exported at the package entry for the same reason the node-gate
+// reporter above is (objectui#6038): a surface in `@object-ui/components`, which
+// depends on this package, asks it too. `element:*` renderers there read their
+// config out of `{ ...schema.props, ...schema.properties }`, the third channel of
+// the degenerate-bag hazard objectui#6752 / objectui#6760 closed here
+// (objectui#6783). A second copy one package over would be a spelling that
+// `utils/configBag.pin.test.ts` — which scans `packages/react/src` — cannot see,
+// which is the drift that pin exists to stop.
+export { isConfigBag } from './utils/configBag.js';
+
 // Node-gate predicate diagnostics. Exported at the package entry (objectui#6038)
 // so every surface that evaluates a node `visibleWhen` reports a fault through
 // ONE reporter and ONE dedupe `Set` — `page:tabs` item predicates live in
