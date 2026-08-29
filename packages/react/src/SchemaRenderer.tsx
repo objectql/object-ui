@@ -140,6 +140,27 @@ function resolveAriaProps(schema: Record<string, any>): Record<string, string | 
 const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
 
 /**
+ * A real config bag: an object, and not an array pretending to be one
+ * (objectui#6752).
+ *
+ * One predicate for BOTH bags. It existed only as the `properties` branch's
+ * inline guard in the evaluation memo, spelled again inline in
+ * {@link propsWithoutCanonicalKeys}; `props` had no equivalent at either site,
+ * which is the whole of objectui#6752. `typeof null === 'object'` is covered by
+ * the truthiness test.
+ *
+ * ⚠️ This is the FOURTH spelling of this one question in this package —
+ * `propsBagDiagnostic.ts` and `unevaluatedExpression.ts` each carry their own,
+ * and the visibility block below carries a fifth inline. Only the two in THIS
+ * file are unified here: the other two live in objectui#6708's and
+ * objectui#4795's modules, and merging them is a refactor across cards rather
+ * than this one's to make. Filed rather than smuggled in.
+ */
+function isConfigBag(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
  * The legacy `props` bag, minus every key the canonical `properties` bag also
  * declares (objectui#5123).
  *
@@ -191,19 +212,24 @@ const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
  * position on whether either should exist.
  */
 function propsWithoutCanonicalKeys(
-  propsBag: Record<string, any> | undefined,
+  propsBag: unknown,
   propertiesBag: unknown
 ): Record<string, any> {
-  if (!propsBag) return {};
-  // Only a real object bag can win a key. `typeof null === 'object'` is covered
-  // by the truthiness check; arrays are excluded for the same reason the
-  // evaluation guard excludes them — a degenerate `properties` must not have
-  // its shape reinterpreted here.
-  if (
-    !propertiesBag ||
-    typeof propertiesBag !== 'object' ||
-    Array.isArray(propertiesBag)
-  ) {
+  // A degenerate `props` contributes NO keys (objectui#6752). This used to be a
+  // bare `if (!propsBag)`, so a non-object bag was returned as-is and the
+  // `createElement` spread below re-enumerated it: measured on `b76ca6764`,
+  // `props: 'not-a-bag'` reached the element as nine React props named `0` … `8`.
+  // Returning `{}` also makes the declared return type true — the old signature
+  // said `Record<string, any>` while this line could hand back a string.
+  //
+  // This does NOT move objectui#5123's precedence. That rule only decides which
+  // of two co-present values a key carries, and a degenerate bag declares no
+  // key for either bag to win: the indices were never authored, they are the
+  // object spread's reading of a string.
+  if (!isConfigBag(propsBag)) return {};
+  // Only a real object bag can win a key — the same predicate, for the reason
+  // stated there: a degenerate bag must not have its shape reinterpreted here.
+  if (!isConfigBag(propertiesBag)) {
     return propsBag;
   }
   let narrowed: Record<string, any> | null = null;
@@ -892,19 +918,29 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // source today). Deepening that is a separate decision and would have to be
     // taken for both spellings at once — not smuggled in on one side here.
     //
-    // The guard is wider than the `props` branch's bare truthiness on purpose:
-    // this value FEEDS the hoist, so re-shaping a degenerate `properties`
-    // (a string, an array) via the object spread would propagate. Non-objects
-    // skip evaluation and reach the hoist exactly as they do today.
+    // Guarded by {@link isConfigBag}: a degenerate value must not have its shape
+    // reinterpreted by an object spread. Non-objects skip evaluation and reach
+    // the hoist exactly as they do today.
+    //
+    // ⚠️ This guard used to say it was wider than the `props` branch BECAUSE
+    // this value feeds the hoist. That reason does not survive measurement
+    // (objectui#6752). Ablating this guard to bare truthiness and re-rendering
+    // `{ type, properties: 'not-a-bag' }` on `b76ca6764` leaves the indexed
+    // keys the hoist puts on the node completely UNCHANGED — `0` … `8` either
+    // way, because the hoist's own `Object.entries` walk enumerates a string's
+    // character indices whatever this line did — and moves exactly one thing:
+    // whether `schema.properties` still holds the value the author wrote
+    // (`'not-a-bag'` guarded, `{ '0': 'n', … }` ablated). So what this buys is
+    // the AUTHORED value's shape, which is channel-independent, and the `props`
+    // branch below now carries the same guard for the same reason.
     // Snapshotted BEFORE evaluation — objectui#5756's diagnostic below reads
     // the RAW (pre-collapse) text from this reference, since `newSchema.properties`
     // is about to be replaced with the evaluated copy.
-    const rawPropertiesBag: Record<string, unknown> | undefined =
-      newSchema.properties &&
-      typeof newSchema.properties === 'object' &&
-      !Array.isArray(newSchema.properties)
-        ? (newSchema.properties as Record<string, unknown>)
-        : undefined;
+    const rawPropertiesBag: Record<string, unknown> | undefined = isConfigBag(
+      newSchema.properties
+    )
+      ? newSchema.properties
+      : undefined;
 
     if (rawPropertiesBag) {
       const newProperties: Record<string, any> = { ...rawPropertiesBag };
@@ -989,8 +1025,28 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       newSchema.content = evaluator.evaluate(newSchema.content);
     }
     
-    // Evaluate 'props'
-    if (newSchema.props) {
+    // Evaluate 'props' — the legacy alias of the config bag.
+    //
+    // The guard MIRRORS the `properties` branch above rather than testing bare
+    // truthiness (objectui#6752). Same predicate, both channels: a degenerate
+    // bag must not have its shape reinterpreted by an object spread.
+    //
+    // Measured on `b76ca6764` through the real `SchemaRenderer`, before this
+    // guard existed: a node written `{ type: 'card', props: 'not-a-bag' }`
+    // reached `createElement` carrying NINE React props named `0` … `8`, one
+    // per character, because `{ ...'not-a-bag' }` enumerates a string's
+    // character indices. Nothing threw and nothing was logged, so the symptom
+    // (a component handed nine props it never declared) sits a long way from
+    // the `props` value that caused it.
+    //
+    // This guard is HALF the fix and does not on its own remove those props —
+    // also measured, on the same base with only this line widened: the bag
+    // reached `propsWithoutCanonicalKeys` as the authored string, was returned
+    // unchanged, and `{ ...outgoingPropsBag }` at the `createElement` call
+    // re-enumerated it. The other half is that function's own guard. What this
+    // line buys is that `schema.props` keeps the value the author wrote instead
+    // of the spread's reading of it.
+    if (isConfigBag(newSchema.props)) {
       const newProps = { ...newSchema.props };
       for (const [key, val] of Object.entries(newProps)) {
         newProps[key] = evaluator.evaluate(val as any);
