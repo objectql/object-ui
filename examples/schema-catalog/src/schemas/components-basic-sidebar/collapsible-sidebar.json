@@ -68,9 +68,9 @@
       "type": "sidebar-inset",
       "body": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4",
-          "body": [
+          "children": [
             {
               "type": "sidebar-trigger"
             },

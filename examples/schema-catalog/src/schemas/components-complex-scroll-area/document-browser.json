@@ -4,7 +4,7 @@
   "className": "rounded-md border",
   "children": [
     {
-      "type": "div",
+      "type": "box",
       "className": "divide-y",
       "children": [
         {
@@ -19,7 +19,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -47,7 +47,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -75,7 +75,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -103,7 +103,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -131,7 +131,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -159,7 +159,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -187,7 +187,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -215,7 +215,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -243,7 +243,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -271,7 +271,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -299,7 +299,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -327,7 +327,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -355,7 +355,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -383,7 +383,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -411,7 +411,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -439,7 +439,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -467,7 +467,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -495,7 +495,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -523,7 +523,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",
@@ -551,7 +551,7 @@
               "className": "text-2xl"
             },
             {
-              "type": "div",
+              "type": "box",
               "children": [
                 {
                   "type": "text",

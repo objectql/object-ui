@@ -9,7 +9,7 @@
       "minSize": 15,
       "content": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4 h-full border-r",
           "children": [
             {
@@ -40,7 +40,7 @@
       "defaultSize": 40,
       "content": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4 h-full border-r",
           "children": [
             {
@@ -61,7 +61,7 @@
       "defaultSize": 40,
       "content": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4 h-full",
           "children": [
             {

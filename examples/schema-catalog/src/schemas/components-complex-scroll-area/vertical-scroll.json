@@ -4,7 +4,7 @@
   "className": "rounded-md border p-4",
   "children": [
     {
-      "type": "div",
+      "type": "box",
       "children": [
         {
           "type": "text",

@@ -28,7 +28,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -65,7 +65,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -102,7 +102,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -139,7 +139,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -176,7 +176,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -213,7 +213,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -250,7 +250,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -287,7 +287,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -324,7 +324,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -361,7 +361,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -398,7 +398,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -435,7 +435,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -472,7 +472,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -509,7 +509,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {
@@ -546,7 +546,7 @@
               ]
             },
             {
-              "type": "div",
+              "type": "box",
               "className": "flex-1",
               "children": [
                 {

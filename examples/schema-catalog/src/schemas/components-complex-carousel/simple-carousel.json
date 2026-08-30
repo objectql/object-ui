@@ -6,7 +6,7 @@
   "items": [
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 border rounded bg-blue-50",
         "children": [
           {
@@ -18,7 +18,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 border rounded bg-green-50",
         "children": [
           {
@@ -30,7 +30,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 border rounded bg-purple-50",
         "children": [
           {

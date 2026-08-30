@@ -96,7 +96,7 @@
                       ]
                     },
                     {
-                      "type": "div",
+                      "type": "box",
                       "className": "text-sm",
                       "children": [
                         {

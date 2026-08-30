@@ -6,7 +6,7 @@
   "items": [
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 bg-slate-50 rounded-lg text-center",
         "children": [
           {
@@ -24,7 +24,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 bg-slate-50 rounded-lg text-center",
         "children": [
           {
@@ -42,7 +42,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-8 bg-slate-50 rounded-lg text-center",
         "children": [
           {

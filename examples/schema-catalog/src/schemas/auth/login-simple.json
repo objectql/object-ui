@@ -74,7 +74,7 @@
       ]
     },
     {
-      "type": "div",
+      "type": "box",
       "className": "text-center text-sm pt-2",
       "children": [
         { "type": "text", "content": "Don't have an account? ", "className": "text-muted-foreground" },

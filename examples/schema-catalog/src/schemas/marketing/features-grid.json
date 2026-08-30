@@ -4,7 +4,7 @@
   "padding": 0,
   "children": [
     {
-      "type": "div",
+      "type": "box",
       "className": "text-center mb-12",
       "children": [
         {

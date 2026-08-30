@@ -91,9 +91,9 @@
       "type": "sidebar-inset",
       "body": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4",
-          "body": [
+          "children": [
             {
               "type": "text",
               "content": "Main content area"

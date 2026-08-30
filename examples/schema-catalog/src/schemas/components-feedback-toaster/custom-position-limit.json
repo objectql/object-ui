@@ -1,5 +1,5 @@
 {
-  "type": "div",
+  "type": "box",
   "children": [
     {
       "type": "toaster",

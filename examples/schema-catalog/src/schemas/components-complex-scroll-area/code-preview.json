@@ -6,7 +6,7 @@
   "className": "rounded-md border bg-slate-950 text-slate-50",
   "children": [
     {
-      "type": "div",
+      "type": "box",
       "className": "p-4 font-mono text-sm",
       "children": [
         {
