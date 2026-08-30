@@ -66,6 +66,7 @@
     "governed": "node scripts/check-governed-queue-guard.mjs --test",
     "check:pre-install-import-graph": "node scripts/check-pre-install-import-graph.mjs",
     "check:vi-mock-specifiers": "node scripts/check-vi-mock-specifiers.mjs",
+    "check:vi-mock-inherit": "node scripts/check-vi-mock-inherit.mjs",
     "check:shell-escape-residue": "node scripts/check-shell-escape-residue.mjs",
     "check:readme-exports": "node scripts/check-readme-exports.mjs",
     "cli": "node packages/cli/dist/cli.js",

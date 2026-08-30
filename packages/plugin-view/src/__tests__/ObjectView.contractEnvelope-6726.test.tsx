@@ -42,9 +42,15 @@ import type { ObjectViewSchema } from '@object-ui/types';
 /** Every `data` prop the view handed to SchemaRenderer, in order. */
 const delivered: unknown[][] = [];
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    // Inherit the real export surface, then override only what this pin reads.
+    // A hand-listed factory freezes the mock at whatever was typed that day, and
+    // the next export any module in this file's import graph reads at module
+    // scope kills the file during COLLECTION -- zero failed assertions, tests
+    // that never ran (objectui#6768 / #6849).
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ data }: any) => {
       if (Array.isArray(data)) delivered.push(data);
       return <div data-testid="schema-renderer" />;
