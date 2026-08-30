@@ -118,6 +118,7 @@ export type {
 // ============================================================================
 export type {
   DivSchema,
+  BoxSchema,
   TextSpanSchema,
   TextSchema,
   ImageSchema,

@@ -31,6 +31,31 @@ export interface DivSchema extends BaseSchema {
 }
 
 /**
+ * Neutral block container — the class-transparent box (objectui#3965).
+ *
+ * Minted by the 2026-08-29 maintainer ruling (方案 A) as the JSON surface's
+ * replacement for the deprecated `div`: the vocabulary had no neutral block
+ * box, which is why `div` could never actually retire — every candidate the
+ * deprecation notice names (`card` / `flex` / `container` / `stack` / `grid`)
+ * injects layout of its own, so none is a drop-in for a bare styled wrapper.
+ *
+ * The contract, per the ruling: renders `children`, emits the authored
+ * `className` verbatim, injects ZERO classes of its own. Unlike `div`, this
+ * type reads `children` only — never `body` (the `div` renderer's
+ * `children || body` fallback is exactly what made a mechanical swap unsafe;
+ * see `examples/schema-catalog/test/deprecated-component-types.test.ts`).
+ * The renderer contract is pinned in
+ * `packages/components/src/renderers/__tests__/box-neutral-container.test.tsx`.
+ */
+export interface BoxSchema extends BaseSchema {
+  type: 'box';
+  /**
+   * Child components
+   */
+  children?: SchemaNode | SchemaNode[];
+}
+
+/**
  * Text span component for inline text
  */
 export interface TextSpanSchema extends BaseSchema {
@@ -766,6 +791,7 @@ export interface PageSlotMap {
  */
 export type LayoutSchema =
   | DivSchema
+  | BoxSchema
   | TextSpanSchema
   | TextSchema
   | ImageSchema

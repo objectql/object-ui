@@ -168,8 +168,8 @@ function validateComponent(config: unknown) {
 - `BaseSchema` - Foundation for all components
 - `SchemaNodeSchema` - Recursive schema node type
 
-### Layout Components (17)
-- `DivSchema`, `SpanSchema`, `TextSchema`
+### Layout Components (18)
+- `DivSchema`, `BoxSchema`, `SpanSchema`, `TextSchema`
 - `ImageSchema`, `IconSchema`, `SeparatorSchema`
 - `ContainerSchema`, `FlexSchema`, `StackSchema`
 - `GridSchema`, `CardSchema`, `TabsSchema`

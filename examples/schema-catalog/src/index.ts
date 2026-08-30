@@ -254,6 +254,8 @@ import components_layout_aspect_ratio_4_3 from './schemas/components-layout-aspe
 import components_layout_aspect_ratio_square from './schemas/components-layout-aspect-ratio/square.json' with { type: 'json' };
 import components_layout_aspect_ratio_ultrawide from './schemas/components-layout-aspect-ratio/ultrawide.json' with { type: 'json' };
 import components_layout_aspect_ratio_video_aspect_ratio from './schemas/components-layout-aspect-ratio/video-aspect-ratio.json' with { type: 'json' };
+import components_layout_box_basic_box from './schemas/components-layout-box/basic-box.json' with { type: 'json' };
+import components_layout_box_nested_boxes from './schemas/components-layout-box/nested-boxes.json' with { type: 'json' };
 import components_layout_card_basic_card from './schemas/components-layout-card/basic-card.json' with { type: 'json' };
 import components_layout_card_inventory_table_card from './schemas/components-layout-card/inventory-table-card.json' with { type: 'json' };
 import components_layout_card_profile_detail_card from './schemas/components-layout-card/profile-detail-card.json' with { type: 'json' };
@@ -2645,6 +2647,26 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-layout-aspect-ratio',
     },
     schema: components_layout_aspect_ratio_video_aspect_ratio,
+  },
+  'components-layout-box/basic-box': {
+    id: 'components-layout-box/basic-box',
+    meta: {
+      title: "Basic Box",
+      description: "A neutral block container: authored classes pass through verbatim, nothing is injected.",
+      category: 'components-layout-box',
+      tags: ["box", "container", "layout"],
+    },
+    schema: components_layout_box_basic_box,
+  },
+  'components-layout-box/nested-boxes': {
+    id: 'components-layout-box/nested-boxes',
+    meta: {
+      title: "Nested Boxes",
+      description: "Boxes nested for pure grouping — each level shows only its own authored classes.",
+      category: 'components-layout-box',
+      tags: ["box", "container", "nesting"],
+    },
+    schema: components_layout_box_nested_boxes,
   },
   'components-layout-card/basic-card': {
     id: 'components-layout-card/basic-card',

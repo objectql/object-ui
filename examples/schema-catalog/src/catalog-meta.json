@@ -270,5 +270,23 @@
       "breadcrumb",
       "icon"
     ]
+  },
+  "components-layout-box/basic-box": {
+    "title": "Basic Box",
+    "description": "A neutral block container: authored classes pass through verbatim, nothing is injected.",
+    "tags": [
+      "box",
+      "container",
+      "layout"
+    ]
+  },
+  "components-layout-box/nested-boxes": {
+    "title": "Nested Boxes",
+    "description": "Boxes nested for pure grouping — each level shows only its own authored classes.",
+    "tags": [
+      "box",
+      "container",
+      "nesting"
+    ]
   }
 }
