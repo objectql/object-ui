@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useMemo, useCallback } from 'react';
+import React from 'react';
 import type {
   RoleDefinition,
   ObjectPermissionConfig,
@@ -16,6 +16,7 @@ import type {
 } from '@object-ui/types';
 import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
 import { evaluatePermission } from './evaluator.js';
+import { createDiscardProofCache } from './discardProofCache.js';
 
 export interface PermissionProviderProps {
   /** Role definitions */
@@ -30,6 +31,51 @@ export interface PermissionProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * [objectui#6813] One cache per cached thing, each keyed on exactly the inputs
+ * that thing is derived from — the same sets the `useCallback`/`useMemo`
+ * dependency arrays named before, so nothing churns more often than it did.
+ * What changes is that React can no longer discard them: a discard used to
+ * hand `PermCtx.Provider` a NEW value with every permission it carries
+ * unchanged, which moves the key `usePermissions()` caches on (objectui#6724)
+ * and re-runs every consumer effect downstream. See `discardProofCache.ts` for
+ * why this is a module-level `WeakMap` and not a `useMemo` or a `useRef`.
+ */
+const CHECK = createDiscardProofCache<PermissionContextValue['check']>();
+const CHECK_FIELD = createDiscardProofCache<PermissionContextValue['checkField']>();
+const GET_FIELD_PERMISSIONS = createDiscardProofCache<PermissionContextValue['getFieldPermissions']>();
+const GET_ROW_FILTER = createDiscardProofCache<PermissionContextValue['getRowFilter']>();
+const VALUE = createDiscardProofCache<PermissionContextValue>();
+
+/**
+ * Stands in for an absent `user` prop, which is optional and therefore cannot
+ * key a `WeakMap` on its own. One module-level object, so "no user" is a
+ * stable identity rather than a hole in the key tuple.
+ */
+const NO_USER: object = { user: 'absent' };
+
+/**
+ * [#3391] Role-based provider does not model the server's effective API
+ * operation set — return undefined so consumers keep current behavior.
+ *
+ * [objectui#6813] Module-level rather than a literal rebuilt inside the value
+ * factory: three consumers name this function in a dependency array
+ * (`RecordDetailView`, `ObjectDataPage`, `ObjectView`), and a constant that
+ * answers `undefined` for every object has nothing per-provider to close over.
+ */
+const NO_API_OPERATIONS: PermissionContextValue['getObjectApiOperations'] = () => undefined;
+
+/**
+ * This role-based provider has no backend answer to give — it never fetches
+ * /me/permissions — so ADR-0066 system capabilities are simply unreported here
+ * (`systemPermissions: undefined` below, not `[]`; objectui#4656). A literal
+ * `[]` would claim "reported, holds nothing", which this provider cannot back
+ * up. `hasCapabilities` stays fail-open to match. The console uses
+ * MePermissionsProvider, which wires the real systemPermissions from
+ * /me/permissions.
+ */
+const ALL_CAPABILITIES: PermissionContextValue['hasCapabilities'] = () => true;
+
 export function PermissionProvider({
   roles,
   permissions,
@@ -37,7 +83,9 @@ export function PermissionProvider({
   user,
   children,
 }: PermissionProviderProps) {
-  const check = useCallback(
+  const userKey = user ?? NO_USER;
+
+  const check = CHECK([roles, permissions, userRoles, userKey], () =>
     (object: string, action: PermissionAction, record?: Record<string, unknown>): PermissionCheckResult => {
       return evaluatePermission({
         roles,
@@ -49,10 +97,9 @@ export function PermissionProvider({
         record,
       });
     },
-    [roles, permissions, userRoles, user],
   );
 
-  const checkField = useCallback(
+  const checkField = CHECK_FIELD([permissions, userRoles], () =>
     (object: string, field: string, action: 'read' | 'write'): boolean => {
       const objectConfig = permissions.find((p) => p.object === object);
       if (!objectConfig) return true; // No config means no restrictions
@@ -81,10 +128,9 @@ export function PermissionProvider({
 
       return true; // Default allow
     },
-    [permissions, userRoles],
   );
 
-  const getFieldPermissions = useCallback(
+  const getFieldPermissions = GET_FIELD_PERMISSIONS([permissions, userRoles], () =>
     (object: string): FieldLevelPermission[] => {
       const objectConfig = permissions.find((p) => p.object === object);
       if (!objectConfig) return [];
@@ -100,10 +146,9 @@ export function PermissionProvider({
       }
       return fieldPerms;
     },
-    [permissions, userRoles],
   );
 
-  const getRowFilter = useCallback(
+  const getRowFilter = GET_ROW_FILTER([permissions, userRoles], () =>
     (object: string): string | undefined => {
       const objectConfig = permissions.find((p) => p.object === object);
       if (!objectConfig) return undefined;
@@ -118,36 +163,27 @@ export function PermissionProvider({
       }
       return undefined;
     },
-    [permissions, userRoles],
   );
 
-  const value = useMemo<PermissionContextValue>(
-    () => ({
-      check,
-      checkField,
-      getFieldPermissions,
-      getRowFilter,
-      // [#3391] Role-based provider does not model the server's effective API
-      // operation set — return undefined so consumers keep current behavior.
-      getObjectApiOperations: () => undefined,
-      roles: userRoles,
-      // [objectui#5683] Role-based provider never learns who the user IS —
-      // unreported (`null`), so create-form current_user seeding stays
-      // server-side under this provider.
-      userId: null,
-      // This role-based provider has no backend answer to give — it never
-      // fetches /me/permissions — so ADR-0066 system capabilities are simply
-      // unreported here: `undefined`, not `[]` (objectui#4656; a literal `[]`
-      // would claim "reported, holds nothing", which this provider cannot
-      // back up). `hasCapabilities` stays fail-open to match. The console
-      // uses MePermissionsProvider, which wires the real systemPermissions
-      // from /me/permissions.
-      systemPermissions: undefined,
-      hasCapabilities: () => true,
-      isLoaded: true,
-    }),
-    [check, checkField, getFieldPermissions, getRowFilter, userRoles],
-  );
+  // Keyed on the union of what the members above are keyed on, so this value
+  // is rebuilt exactly when one of them is and never captures a stale member.
+  const value = VALUE([roles, permissions, userRoles, userKey], () => ({
+    check,
+    checkField,
+    getFieldPermissions,
+    getRowFilter,
+    getObjectApiOperations: NO_API_OPERATIONS,
+    roles: userRoles,
+    // [objectui#5683] Role-based provider never learns who the user IS —
+    // unreported (`null`), so create-form current_user seeding stays
+    // server-side under this provider.
+    userId: null,
+    // [objectui#4656] Unreported, not a reported-empty grant — see
+    // `ALL_CAPABILITIES` above for the full reasoning.
+    systemPermissions: undefined,
+    hasCapabilities: ALL_CAPABILITIES,
+    isLoaded: true,
+  }));
 
   return <PermCtx.Provider value={value}>{children}</PermCtx.Provider>;
 }
