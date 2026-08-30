@@ -304,9 +304,13 @@ paid_on:   Field.date({
 }
 ```
 
-The predicate binds the row three ways — `record.status` (canonical), bare
-`status`, and `data.status` (legacy) — plus the host predicate scope
-(`features.*`, `user.*`). The legacy ObjectUI shapes still work and are
+The predicate binds the row three ways — `record.status` (**canon**), bare
+`status` and `data.status` (both **deprecated** here: still bound, warned
+once in dev, retiring after a stored-metadata survey — see
+`packages/core/src/evaluator/rowPredicateCanon.ts`) — plus the host
+predicate scope (`features.*`, `user.*`). `data.*` is the trap: the server's
+authoring oracle accepts it silently, then binds nothing at runtime — a
+constant `false`, not an error. The legacy ObjectUI shapes still work and are
 translated to CEL transparently: the native `{ field, operator, value }` form
 (`operator` ∈ `equals` / `not_equals` / `greater_than` / `less_than` /
 `contains` / `in`) and the `{ expression: "${…}" }` template form. A string
