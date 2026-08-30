@@ -313,6 +313,10 @@ export const ChartTypeSchema = SpecChartTypeSchema;
 export const ChartDataSeriesSchema = z.object({
   name: z.string().describe('Series name'),
   data: z.array(z.number()).describe('Series data points'),
+  // Mirrors `ChartDataSeries.type` (objectui#6121). The three families are the
+  // ones `normalizeChartSchema` actually honours as a per-series override; see
+  // the TS declaration for the read this narrowness is taken from.
+  type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
   color: z.string().optional().describe('Series color'),
 });
 
