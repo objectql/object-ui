@@ -66,6 +66,15 @@ import {
  * figure did not, and it came back POSITIVE. The measured numbers are the ones
  * above.)
  *
+ * ⚠️ And a second, INDEPENDENT rebuild of the same variant disagreed with that
+ * closure figure on its SIGN: −7 B where the run above measured +211 B. Both
+ * stand as what their run measured; together they say only that this delta is
+ * small and sensitive to the exact byte-form of the edit, so the sign is not a
+ * finding and neither is the "it costs bytes" reading of it. What both
+ * rebuilds reproduced identically IS the finding: the chunk stays EAGER and the
+ * eager chunk count stays 45 of 513 (build exit 0, every gate green). Cite
+ * those two, never a signed byte delta.
+ *
  * So: a `lazy()` in this file is only ever true when nothing in the package's
  * EAGER graph still names the same module statically. Check the barrel first,
  * and measure from `apps/console/dist/eager-closure.json` and the emitted

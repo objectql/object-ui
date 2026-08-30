@@ -230,6 +230,13 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  * neither can see a static edge that lives in another module. That trap is
  * written up beside the code in `builtinComponents.tsx`.
  *
+ * Read that 211 as a magnitude, not a direction: an INDEPENDENT rebuild of the
+ * same variant measured the closure delta at -7 bytes. Both figures stand as
+ * what their run measured, and the disagreement is the point — the delta is
+ * small and sensitive to the byte-form of the edit, so its sign is not a
+ * finding. The finding is the pair that reproduced on both rebuilds: the chunk
+ * stayed EAGER and the eager chunk count did not move (45 of 513).
+ *
  * ⛔ What has NOT changed: the five registrations are still load-bearing and
  * still unshakeable. {@link declaredSideEffectful} — not
  * {@link bareSideEffectImport}, which returns `null` for a top-level CALL —
