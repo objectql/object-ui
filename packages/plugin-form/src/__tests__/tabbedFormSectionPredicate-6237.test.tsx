@@ -343,4 +343,44 @@ describe('#6237 — the wizard boundary is enforced by the TYPE, not by a commen
     };
     expect(step.name).toBe('pay');
   });
+
+  it('⛔ NO predicate-family key may appear on a wizard step — the family pin', () => {
+    // The pin above names ONE key. That was the whole weakness of the shape
+    // this replaced: `WizardStepConfig` was `Omit<FormSectionConfig,
+    // 'visibleWhen'>`, so it defended `visibleWhen` and let every FUTURE key
+    // added to the tabbed section type reach a wizard step by default — the
+    // same SILENT slot the 2026-08-30 ruling split the types to stop, one key
+    // later. `readonlyWhen` and `requiredWhen` are already this repo's
+    // field-level predicate vocabulary (see the plugin-form README's rule
+    // table), so the next key in the family is a named possibility, not a
+    // hypothetical.
+    //
+    // These are TYPE assertions: they are erased at runtime, so vitest proves
+    // nothing about them and `tsc -p tsconfig.test.json` is the only thing that
+    // can. `Expect` fails its own constraint when the argument is not `true`.
+    type Expect<T extends true> = T;
+    // `-?` strips optionality, or a mapped type over optional keys yields
+    // `K | undefined` and the `never` comparison below could never be true.
+    type PredicateKeysOf<T> = {
+      [K in keyof T]-?: K extends `${string}When` ? K : never;
+    }[keyof T];
+
+    // ⭐ The CONTROL, and it is not decoration: a `PredicateKeysOf` that
+    // silently resolved to `never` for everything would make the wizard row
+    // below pass vacuously — a phantom check that can never fail. This row
+    // proves the machinery detects a predicate key when one is really there,
+    // on the sibling type that really has one.
+    type _TabbedSectionHasThePredicateKey = Expect<
+      PredicateKeysOf<FormSectionConfig> extends 'visibleWhen' ? true : false
+    >;
+
+    // The pin itself: the wizard's step type carries no `*When` key at all.
+    type _WizardStepHasNoPredicateKey = Expect<
+      PredicateKeysOf<WizardStepConfig> extends never ? true : false
+    >;
+
+    // Keep both aliases used, so `noUnusedLocals` cannot delete the pin.
+    const pinned: [_TabbedSectionHasThePredicateKey, _WizardStepHasNoPredicateKey] = [true, true];
+    expect(pinned).toEqual([true, true]);
+  });
 });

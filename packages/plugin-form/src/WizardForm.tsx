@@ -33,15 +33,37 @@ import {
 } from './submitRedirectNavigation';
 import { useOccSave } from './occSave';
 import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
-import type { FormSectionConfig } from './TabbedForm';
 
 /**
- * A wizard STEP — the tabbed layout's section config minus its predicate slot
- * (objectui#6237).
+ * A wizard STEP — the wizard's OWN authored group shape (objectui#6237).
  *
- * The wizard borrows the tabbed arm's section shape because the two describe the
- * same authored thing: a named group of fields. It must NOT borrow the predicate
- * slot, and the omission is the enforcement, not a comment:
+ * ## Why this is declared here rather than derived from the tabbed layout
+ *
+ * It used to be `Omit<FormSectionConfig, 'visibleWhen'>`, which subtracted the
+ * predicate slot from `TabbedForm`'s section type. That closed the hole for the
+ * ONE key it named and left the mechanism wide open: `FormSectionConfig` is the
+ * predicate-CARRYING type, so every key added to it lands here by default and
+ * the author has to remember to widen the `Omit`. The defect the 2026-08-30
+ * ruling closes is the SILENCE — "在共享 `FormSectionConfig` 上声明 `visibleWhen`
+ * 会**静默**给 WizardForm 的 step 也发一个谓词槽而那侧无实现" — and a subtractive
+ * derivation reproduces that silence for the next key in the same family
+ * (`readonlyWhen` / `requiredWhen`, both already this repo's field-level
+ * predicate vocabulary). Declaring the step shape independently flips the
+ * derivation from subtractive to additive: a key reaches a wizard step only
+ * because someone wrote it here, on the type whose renderer has to honour it.
+ *
+ * This is also simply the house pattern. `SplitFormSectionConfig`,
+ * `ModalFormSectionConfig` and `DrawerFormSectionConfig` each declare their own
+ * group shape, each documents `className` / `gridClassName` in ITS layout's
+ * terms, and each declares `visibleWhen` only because its layout honours it
+ * (`SplitFormSectionConfig` even carries a key — `pane` — that exists nowhere
+ * else). The wizard borrowing the tabbed layout's interface was the exception,
+ * and it cost real accuracy: a wizard author reading the shared type was told
+ * `name` is "used as tab value", `label` is "used as tab trigger text", and
+ * `className` is "Unused in the tabbed layout" — while this renderer uses all
+ * three, `className` at the step container (`FormSectionContainer` below).
+ *
+ * ## ⛔ Why there is no predicate slot, and why that is not an oversight
  *
  * A step predicate is not a port of the tab predicate, it is a different
  * contract. Steps are wizard component state keyed by section INDEX, only the
@@ -55,19 +77,65 @@ import type { FormSectionConfig } from './TabbedForm';
  * stability while hiding is live, re-selection when the CURRENT step hides, and
  * a final-gate exclusion for a hidden step's required fields.
  *
- * Declaring the key on the shared type would make it WRITABLE on a step while
- * this renderer ignores it — precisely the declared-but-unenforced shape this
- * card family exists to close. Omitting it means TypeScript rejects the key on a
- * wizard step literal, which is where an author (or an agent authoring metadata)
- * finds out. `ObjectForm` additionally reports the gap at runtime for a section
- * predicate arriving on the wizard route, since untyped JSON reaches it too.
+ * Declaring the key on a type this renderer ignores would make it WRITABLE on a
+ * step — precisely the declared-but-unenforced shape this card family exists to
+ * close. Its absence means TypeScript rejects the key on a wizard step literal,
+ * which is where an author (or an agent authoring metadata) finds out.
+ * `ObjectForm` additionally reports the gap at runtime for a section predicate
+ * arriving on the wizard route, since untyped JSON reaches it too. Both halves
+ * are pinned in `__tests__/tabbedFormSectionPredicate-6237.test.tsx`, including
+ * a FAMILY-level pin that fails the build if any `*When` key ever appears here,
+ * not just the one this card was about.
  *
- * ⚠️ This omission changes nothing that used to work: `FormSectionConfig` did
- * not declare `visibleWhen` before objectui#6237 either, so a wizard step
- * literal carrying it was already a type error. The wizard's surface is exactly
- * what it was; only the tabbed arm widened.
+ * ⚠️ This changes nothing that used to work. The published surface is exactly
+ * the key set `WizardStepConfig` already had — the derivation changed, not the
+ * type — and `visibleWhen` was already a type error on a wizard step literal.
  */
-export type WizardStepConfig = Omit<FormSectionConfig, 'visibleWhen'>;
+export interface WizardStepConfig {
+  /**
+   * Step identifier. Used as the step's test handle
+   * (`data-testid="wizard-step:<name>"`) and, with `label`, as what the
+   * indicator names; falls back to the step INDEX when absent.
+   */
+  name?: string;
+
+  /**
+   * Step label — the text the step indicator shows.
+   * Falls back to `Step <n>`.
+   */
+  label?: string;
+
+  /**
+   * Step description, rendered under the step heading.
+   */
+  description?: string;
+
+  /**
+   * How densely this step fills the grid (1–4). Outranked by the form view's
+   * own `columns` (spec `FormView.columns`), which sets the grid WIDTH.
+   * @default 1
+   */
+  columns?: 1 | 2 | 3 | 4;
+
+  /**
+   * Field names or configurations in this step.
+   */
+  fields: (string | FormField)[];
+
+  /**
+   * Custom CSS class for this step's container.
+   *
+   * Honoured, unlike its tabbed counterpart: a wizard mounts ONE step at a
+   * time inside its own `FormSectionContainer`, so the step has a container to
+   * carry it.
+   */
+  className?: string;
+
+  /**
+   * Custom CSS class for this step's field grid (overrides the column classes).
+   */
+  gridClassName?: string;
+}
 
 /**
  * What the submitter is told when a DECLARED `navigateOnSuccess` produced no

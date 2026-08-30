@@ -70,11 +70,16 @@ export interface FormSectionConfig {
    * see the boundary note on `WizardStepConfig` and objectui#6237 for the
    * measured reason the server cannot read this predicate.
    *
-   * ⛔ Deliberately NOT on the wizard's step type. `WizardForm` used to borrow
-   * this very interface for its steps, and declaring the key on a type the
-   * wizard renderer never reads would manufacture the declared-but-unenforced
-   * shape this card family exists to close. `WizardStepConfig` omits it, so the
-   * key is writable exactly where it is honoured.
+   * ⛔ Deliberately NOT on the wizard's step type, and that boundary is now
+   * structural rather than subtractive (maintainer ruling 2026-08-30,
+   * objectui#6237). `WizardForm` used to type its steps as
+   * `Omit<FormSectionConfig, 'visibleWhen'>` — a derivation that defended the
+   * one key it named while every FUTURE key added here still reached a wizard
+   * step by default. `WizardStepConfig` is now declared independently, exactly
+   * as `SplitFormSectionConfig` / `ModalFormSectionConfig` /
+   * `DrawerFormSectionConfig` already are, so this type and the wizard's share
+   * nothing: a key is authorable on a wizard step only if someone writes it
+   * there, on the type whose renderer has to honour it.
    */
   visibleWhen?: string | { dialect?: string; source: string };
 

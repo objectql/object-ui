@@ -406,9 +406,9 @@ the renderer distribute the fields:
 - Fields no tab claims render above the tab strip rather than disappearing.
 - Needs at least two tabs, and is ignored when the form uses `children`.
 
-`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this. Of
-the two, only `ModalForm` forwards a section's `visibleWhen` onto its tab — see
-the support table below.
+`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this, and
+both forward a section's `visibleWhen` onto the tab they synthesise — see the
+support table below.
 
 #### Conditional tabs (`FormFieldTab.visibleWhen`)
 
@@ -465,21 +465,29 @@ and only where the renderer actually evaluates it:
 | --- | --- |
 | `type: 'form'` with `fieldTabs[].visibleWhen` (as above) | **Yes** — evaluated by the form renderer |
 | `ModalForm` / `formType: 'modal'` with `contentLayout: 'tabbed'` | **Yes** — the section's `visibleWhen` is copied onto its tab |
-| `TabbedForm` / `formType: 'tabbed'` sections | **No** — a section `visibleWhen` is dropped before the renderer sees it; the tab always renders |
+| `TabbedForm` / `formType: 'tabbed'` sections | **Yes** — the section's `visibleWhen` is copied onto the tab `TabbedForm` synthesises; a single-section form, which draws no tab strip, gates the group through the flat layout's own section-divider mechanism instead |
 | `WizardForm` / `formType: 'wizard'` steps | **No** — steps are not tabs; nothing evaluates a step-level predicate |
 
-The two **No** rows are deliberate, not oversights: declaring the key on a
+The remaining **No** row is deliberate, not an oversight: declaring the key on a
 surface whose renderer ignores it would make the metadata lie (#6111), so the
-key stops at the boundary until each surface enforces it. Track #6237 for
-both.
+key stops at the boundary until each surface enforces it.
 
-Both **No** rows now **report themselves** rather than failing silently. Authoring
-a section `visibleWhen` on `formType: 'tabbed'` or `formType: 'wizard'` logs a
-console warning naming the layout and the sections whose predicate is being
-dropped. This is an interim diagnostic (ruled 2026-08-29, alongside the decision
-to design the real repair as **one** section/group predicate contract shared by
-every layout arm): it changes no behaviour, it only stops the drop from being
-invisible. Nothing warns on the four arms that honour the key.
+⛔ **A wizard step has no predicate slot at all, and that is enforced by the
+type.** A step predicate is not the tab predicate under another name — steps are
+mounted one at a time and keyed by index, so a step predicate would be
+step-boundary reactive where a tab's is live-record reactive, and it would need
+navigation, indicator, `isLastStep`, final-gate and re-selection semantics that
+none of the tab machinery supplies. So `WizardStepConfig` is declared
+independently of `FormSectionConfig` (maintainer ruling 2026-08-30, #6237) and
+simply does not carry the key: `visibleWhen` on a wizard step literal is a
+**compile error**, not a silently ignored key. Track #6237 for the step
+contract.
+
+That row also **reports itself** rather than failing silently. Authoring a
+section `visibleWhen` on `formType: 'wizard'` logs a console warning naming the
+layout and the sections whose predicate is being dropped — untyped JSON reaches
+the renderer too, so the compile-time half cannot be the only one. Nothing warns
+on the five arms that honour the key.
 
 ### Wizard steps and `allowSkip`
 
