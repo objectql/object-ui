@@ -1322,8 +1322,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Deliberately NOT converged on `size: 'lg'`: that bucket is
   // `min(92vw, 960px)`, which agrees with the above only at viewport >=
   // 1600px and is up to 53% wider below it. Whether the renderers should move
-  // to the bucket is open (#6259), and spans kanban/calendar/RecordDetailDrawer
-  // as one decision (#6303).
+  // to the bucket was asked here (#6259) and then carried across
+  // kanban/calendar/RecordDetailDrawer as one decision (#6303); both of those
+  // cards closed on their `width` half, and the bucket half was RULED AGAINST
+  // on its own card: objectui#6584, 2026-08-27 — stays on the CSS literal; no
+  // bucket convergence. All four surfaces keep today's pixels. The question is
+  // CLOSED, not open — do not re-open it as a cleanup. If bucket-vocabulary
+  // unification ever becomes a product direction that is a fresh ruling, with
+  // visual-regression evidence across all four surfaces in one stroke.
   const navConfig = schema.navigation ?? { mode: 'drawer' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
