@@ -429,9 +429,41 @@ function getDataConfig(schema: ObjectGridSchema): ViewData | null {
  * (label/currency/precision/…), which is why an inline-edited lookup showed the
  * raw id after moving to another row. Copy them from the object-schema field
  * definition onto the built `fieldMeta` for every column-building path.
+ *
+ * ## ⛔ `reference_to_field` was in this list and is RETIRED (objectui#6711)
+ *
+ * Every key here has to have a measured reader on this grid's own render path —
+ * the cell renderers and inline editors in `@object-ui/fields` that
+ * `getCellRenderer` dispatches into. `reference_to_field` had none: swept across
+ * `packages/` and `apps/` (and again across the producer repo), the only
+ * occurrences of the identifier anywhere were this array literal — the write —
+ * and prose recording that nothing reads it. No member access, no destructuring,
+ * no bracket read. `@objectstack/spec`'s FieldSchema does not declare it either,
+ * so nothing authorable produces it.
+ *
+ * The control that makes that zero a reading, not an artefact of how the sweep
+ * was written: the same sweep over its list-mates finds real readers for each of
+ * them — `reference_to` / `reference` / `display_field` in `LookupCellRenderer`,
+ * `id_field` / `description_field` / `lookup_filters` / `lookupFilters` in
+ * `LookupField` / `UserField`. ⚠️ One exception, measured and deliberately NOT
+ * acted on here: `titleFormat` has no FIELD-meta reader either — every reader
+ * takes it off the OBJECT schema, which reaches the picker through
+ * `useRefObjectSchema(reference_to)` (`plugin-dashboard/src/recordFields.tsx`
+ * records the same measurement). Retiring it is a separate adjudication.
+ *
+ * ⚠️ The sweep bounds these two repos. A host application outside them could
+ * still be reading the key off `fieldMeta`; the repo's own contract is what this
+ * retirement is about.
+ *
+ * ⛔ Do not re-add a key for symmetry with the object-schema field def. A
+ * member written from the def on every column build and read by nothing is
+ * exactly what objectui#6625 (`decimals`) and objectui#6597 (`referenceTo`)
+ * retired from the sibling producer. Add a key when a reader on THIS path is
+ * measured, not before. The absence is pinned in
+ * `__tests__/relationalMetaCopySet-6711.test.tsx`.
  */
 const RELATIONAL_META_KEYS = [
-  'reference_to', 'reference', 'reference_to_field',
+  'reference_to', 'reference',
   'display_field', 'id_field', 'description_field',
   'lookup_filters', 'lookupFilters', 'titleFormat',
 ] as const;
