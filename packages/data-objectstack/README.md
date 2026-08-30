@@ -175,6 +175,43 @@ one condition of an `and` would widen the result set and report success.
 Non-array filters are passed through unchanged on the aggregate path: a
 MongoDB-style object is already what `/analytics/query` accepts.
 
+#### `aggregate({ where })` does NOT lower — it refuses
+
+The lowering above is the `filter` parameter, on the analytics path.
+`aggregate()` has a second, spec-shape branch — entered when the params carry
+an array `groupBy`, an array `aggregations`, or **any** `where` key — which
+posts `where` to `POST /data/:object/query` verbatim. That `where` is the spec
+Query DSL's `where`, so it must ALREADY be lowered, and since objectui#6825 an
+array that the spec's own `isFilterAST` gate rejects is refused here rather
+than shipped:
+
+```typescript
+// ✅ lowered — reaches the wire unchanged
+await dataSource.aggregate('opportunity', {
+  groupBy: ['stage'],
+  aggregations: [{ function: 'count', field: 'id', alias: 'n' }],
+  where: ['stage', '=', 'won'],
+});
+
+// ⛔ throws UnloweredAggregateWhereError — authoring sugar, not a filter
+await dataSource.aggregate('opportunity', {
+  groupBy: ['stage'],
+  aggregations: [{ function: 'count', field: 'id', alias: 'n' }],
+  where: [{ field: 'stage', operator: 'equals', value: 'won' }],
+});
+```
+
+This is a producer-side refusal of a value the server already refused (`is not
+a filter`, `400 INVALID_FILTER`): the point is that you now find out at the call
+site, with the offending value named, instead of on the wire — or not at all,
+with a chart quietly rendering unfiltered numbers. Lower the rules in whatever
+built the params, or use the analytics branch (`filter` + the legacy `field` /
+`function` / `groupBy` params), which lowers for you.
+
+Two shapes are deliberately NOT refused, because the receiving door accepts
+them: a `FilterCondition` object (`{ stage: 'won' }` — what `QuerySchema.where`
+declares), and an empty array (`[]` means "no filter").
+
 ### Sorting
 
 ```typescript
@@ -305,6 +342,16 @@ import {
                            // SYMBOL is prefixed because @objectstack/spec/kernel
                            // owns `ValidationError` for a { field, message, code? }
                            // record (objectui#3160).
+  MalformedFilterError,    // A filter rule that cannot be translated (400
+                           // INVALID_FILTER) — thrown rather than dropped,
+                           // because dropping one condition of an `and` widens
+                           // the result set and reports success.
+  UnloweredAggregateWhereError, // aggregate()'s spec-shape `where` was an array
+                           // the spec's filter-AST gate rejects (400
+                           // INVALID_FILTER). See "aggregate({ where }) does
+                           // NOT lower" above.
+  isMalformedFilterError,  // Recognises BOTH of the two above, and the server's
+                           // own version of the same refusal.
 } from '@object-ui/data-objectstack';
 ```
 
@@ -362,6 +409,8 @@ All errors include unique error codes for programmatic handling:
 - `CONNECTION_ERROR` - Connection/network error
 - `AUTHENTICATION_ERROR` - Authentication failure
 - `VALIDATION_ERROR` - Data validation error
+- `INVALID_FILTER` - A filter the adapter refuses to send (`MalformedFilterError`,
+  `UnloweredAggregateWhereError`); matches the data API's own code for the same refusal
 - `UNSUPPORTED_OPERATION` - Unsupported operation
 - `NOT_FOUND` - Resource not found
 - `UNKNOWN_ERROR` - Unknown error

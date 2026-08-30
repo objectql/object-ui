@@ -957,6 +957,12 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     why: "The Node this repository's CI runs, anchored on the node-version declarations in .github/workflows and ASSERTED against them by the workflow-version assertion below (objectui#6400) rather than restated here. Both halves of the reason this replaces were false by the time anyone read them: it named a declaration count the tree had since doubled, in a spelling one lane does not use, and it credited this page's own pin test with covering the line - ci-cd-pipeline-doc.test.ts contains no node-version and no 22 at all (control, same file: 28 mentions of ci.yml). Nothing re-measured either half, which is the whole reason the count moved into a run.",
   },
   {
+    file: 'content/docs/guide/layout.md',
+    claim: '@objectstack/spec 17.0.0',
+    kind: 'unanchored',
+    why: 'A verbatim quotation of the icon tombstone\'s own refusal message — "`page:header` property `icon` was removed in @objectstack/spec 17.0.0 (#6946, ADR-0087 D2)" — kept verbatim on purpose (objectui#5923 / PR #6082): the page quotes what the canonical node actually tells an author holding the key, rather than inventing a rationale, so a reader learns why their schema is rejected in the words that reject it. The version names when a removal SHIPPED — a historical fact that cannot go stale the way a "current version" claim does — but nothing in this tree re-reads the installed spec\'s describe text, so if @objectstack/spec ever rewords the tombstone this quote drifts from the message while the fact underneath stays true. That drift risk is the price of quoting, accepted deliberately over paraphrase.',
+  },
+  {
     file: 'content/docs/guide/plugins.md',
     claim: 'react": "^18.0.0',
     kind: 'sample',
