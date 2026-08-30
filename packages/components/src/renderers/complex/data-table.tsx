@@ -1002,11 +1002,37 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // don't double-commit (Enter) or resurrect a cancelled value (Escape).
   const skipBlurSaveRef = useRef(false);
   // DOM node of a host-injected widget editor (rendered via `renderCellEditor`),
-  // captured while it's mounted. The built-in `<input>` editors commit via their
-  // own onBlur, but the injected widgets (text, number, date, lookup, …) have no
-  // such handler — a document-level pointerdown listener (see below) uses this
-  // node to detect click-outside and commit them. Null ⇒ no injected editor is
-  // active (a built-in editor, or nothing, is showing).
+  // captured while it's mounted, so the document-level pointerdown listener
+  // below can tell "inside this editor" from "outside" and exit edit mode.
+  // Null ⇒ no injected editor is active (a built-in editor, or nothing, is
+  // showing).
+  //
+  // This used to justify itself with "the injected widgets (text, number, date,
+  // lookup, …) have no such handler". That claim is no longer true and is no
+  // longer the reason (objectui#6859). `onBlur` is a DECLARED DOM pass-through
+  // key — named in `FieldWidgetDomProps` (`@object-ui/fields`), named in
+  // `SDUI_DOM_PASS_THROUGH_KEYS` (`@object-ui/core`), forwarded by
+  // `toDomProps` — and every widget reachable as an inline editor spreads that
+  // whitelist onto a real control (26 of the 27 components in `EDIT_WIDGETS`
+  // call `toDomProps` directly; `UserField` delegates its whole props object to
+  // `LookupField`, which does). The five widgets that own a blur handler now
+  // COMPOSE the host's rather than overriding it (objectui#6780, #6802).
+  //
+  // The listener is still needed, for a different reason: NOTHING EVER HANDS
+  // THE WIDGET ONE. The wrapper below carries `onKeyDown` alone, and the
+  // context object `renderCellEditor` receives — `{ column, row, value, stage,
+  // commit, cancel }` — has no DOM-props slot to put an `onBlur` in. The
+  // in-repo factory behind that seam, `@object-ui/fields`' `FieldEditWidget`,
+  // forwards `autoFocus` and nothing else out of the DOM block, so a host
+  // handler could not reach the control through it even if one were passed.
+  //
+  // Note also what the listener is NOT load-bearing for. Its job is exiting
+  // EDIT MODE, not rescuing the value: injected widgets stage on every change
+  // (the host wires the widget's `onChange` to `stageEdit` below), so a typed
+  // value is already in `pendingChanges` before any exit event — measured in a
+  // real browser on the text, date and number editors for objectui#6859.
+  // Retiring this listener would strand cells in edit mode; it would not drop
+  // edits.
   const injectedEditorElRef = useRef<HTMLDivElement | null>(null);
   // Snapshot of the active cell's pending value when editing began, so Escape /
   // cancel can revert this session's changes. Injected widgets stage on every
@@ -1728,10 +1754,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
   // Commit a host-injected widget editor on click-outside (objectui#2321).
   //
-  // Built-in `<input>` editors commit via their own onBlur (handleEditBlur), but
-  // the widgets injected through `renderCellEditor` (text, number, date, lookup,
-  // …) have no such handler, so without this they stay stuck in edit mode when
-  // the user clicks away. A capture-phase document listener (capture so a cell's
+  // Built-in `<input>` editors commit via their own onBlur (handleEditBlur). The
+  // widgets injected through `renderCellEditor` (text, number, date, lookup, …)
+  // never receive one — not because they cannot deliver it (they can, and do:
+  // see `injectedEditorElRef` above and objectui#6859) but because nothing on
+  // this seam passes it to them — so without this they stay stuck in edit mode
+  // when the user clicks away. A capture-phase document listener (capture so a cell's
   // own `stopPropagation` can't hide it) commits the staged value and exits edit
   // mode when the pointer goes down truly outside the editor — but NOT inside a
   // Radix overlay the widget itself opened (a lookup popover / record-picker
@@ -2302,6 +2330,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     // picker's `<button>` trigger or a multi-line
                                     // textarea it's left alone so Enter opens the
                                     // dropdown / inserts a newline as usual.
+                                    //
+                                    // Tab is deliberately NOT in that list, and
+                                    // tabbing out therefore does not leave edit
+                                    // mode — measured, objectui#6859. It costs
+                                    // nothing: the widget has already staged
+                                    // every keystroke into `pendingChanges`, so
+                                    // the value is safe; the cell simply stays
+                                    // open until Enter, Escape, or a pointer
+                                    // press outside closes it.
                                     return (
                                       <div
                                         ref={(n) => { injectedEditorElRef.current = n; }}
