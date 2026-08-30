@@ -470,10 +470,11 @@ describe('ceiling sensitivity, judged live (objectui#5924)', () => {
     ]);
     // A passing run still prints every measurement, so a reader watching a
     // ceiling drift upward sees it coming rather than the day it reds. The
-    // literal is `BASELINE.gzipBytes` rendered, re-taken when objectui#6683
-    // re-baselined it downward — a rendering derived in the test would agree
-    // with the renderer by construction and pin nothing.
-    expect(result.message).toContain('3177.7');
+    // literal is `BASELINE.gzipBytes` rendered, re-taken each time the baseline
+    // moves (objectui#6683 down to 3177.7, objectui#6776 down to 3146.8) — a
+    // rendering derived in the test would agree with the renderer by
+    // construction and pin nothing.
+    expect(result.message).toContain('3146.8');
   });
 
   it('is exactly one regression wide, from either side of the line', () => {
@@ -648,7 +649,7 @@ describe('main', () => {
     expect(code).toBe(0);
     expect(outputs.closure_status).toBe('pass');
     expect(outputs.closure_chunks).toBe('5');
-    expect(outputs.closure_gzip_kb).toBe('3177.7');
+    expect(outputs.closure_gzip_kb).toBe('3146.8');
   });
 
   it('exits 1 — a verdict about the BUNDLE — when over budget', () => {
