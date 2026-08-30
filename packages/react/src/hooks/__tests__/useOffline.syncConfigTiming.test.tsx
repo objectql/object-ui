@@ -10,13 +10,21 @@
  *
  * Who reads that ref, measured on this base: exactly ONE reader —
  * `sync`, at `const batchSize = syncConfigRef.current?.batchSize ?? queue.length`.
- * That makes this hook the odd one of the three: `sync` is NOT a stable
- * callback (deps `[enabled, queue]`), so the ref is not protecting an identity
+ * That made this hook the odd one of the three: `sync` was NOT a stable
+ * callback (deps `[enabled, queue]`), so the ref was not protecting an identity
  * the way the other two hooks' refs are. What it protects is RETAINED closures:
  * a config-only change keeps the same `sync` alive, and the auto-sync effect
  * deliberately captures one and fires it 100ms later. Pin 1 is that exact
  * property — the ref's only job — and it is what rules out the alternative fix
  * of dropping the ref and adding `syncConfig?.batchSize` to `sync`'s deps.
+ *
+ * objectui#6818 then gave the QUEUE the same commit-phase mirror, which took
+ * `queue` out of `sync`'s deps: `sync` is keyed `[enabled]` today and is stable
+ * across queued mutations. Every pin below still measures what it measured —
+ * a retained closure reading the newest `batchSize` — and pin 1 still fails
+ * under the rejected `syncConfig?.batchSize`-in-deps alternative, because that
+ * alternative is exactly what would make `sync` unstable again. The dep lists
+ * quoted below are updated where they would otherwise mislead.
  *
  * The write now happens in `useInsertionEffect`. Pin 3 is the discriminating
  * one: the `batchSize` read is SYNCHRONOUS, before `sync`'s first `await`, so a
@@ -50,12 +58,14 @@ function Harness({ config, trigger }: { config: OfflineConfig; trigger: number }
 }
 
 function CommitPhaseCaller({ sync, trigger }: { sync: () => Promise<void>; trigger: number }) {
-  // Fire EXACTLY once. `sync` drains the queue, which re-renders and hands this
-  // effect a new `sync` (it is keyed on `[enabled, queue]`), so an unguarded
-  // effect re-fires and drains the queue batch-by-batch until it is empty — the
-  // end state is then 0 whatever `batchSize` the first call read, and the pin
-  // measures nothing about timing. Measured: with no guard this test passed
-  // even with the ref write moved to `useEffect`.
+  // Fire EXACTLY once. On the base this pin was written against, `sync` drains
+  // the queue, which re-renders and hands this effect a new `sync` (it was
+  // keyed on `[enabled, queue]`), so an unguarded effect re-fires and drains
+  // the queue batch-by-batch until it is empty — the end state is then 0
+  // whatever `batchSize` the first call read, and the pin measures nothing
+  // about timing. Measured: with no guard this test passed even with the ref
+  // write moved to `useEffect`. The guard stays now that `sync` is stable
+  // (objectui#6818): it is what keeps this pin honest if the deps move back.
   const fired = useRef(false);
   useLayoutEffect(() => {
     if (trigger > 0 && !fired.current) {
@@ -103,8 +113,10 @@ describe('useOffline — sync config ref is refreshed in the commit, not in rend
 
     const syncBefore = result.current.sync;
     rerender({ batchSize: 5 });
-    // `sync` is keyed on [enabled, queue]; neither moved, so the SAME closure
-    // survived the config change. That is the precondition of this pin.
+    // `sync` is keyed on [enabled]; it did not move, so the SAME closure
+    // survived the config change. That is the precondition of this pin — and
+    // the assertion still fails under the rejected alternative, which would put
+    // `batchSize` in those deps.
     expect(result.current.sync).toBe(syncBefore);
 
     await act(async () => {

@@ -279,6 +279,19 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
   useInsertionEffect(() => {
     syncConfigRef.current = syncConfig;
   });
+  // The queue reaches `sync` through the SAME commit-phase mirror the sync
+  // config uses (objectui#6818). It used to come from `sync`'s own closure
+  // while `batchSize` came from the ref above, so the two halves of one call
+  // disagreed about how current they were: a retained `sync` — and the
+  // auto-sync effect below deliberately retains one and fires it 100ms later —
+  // batched a queue snapshot from an older render against the newest
+  // `batchSize`. Mirroring the queue makes both halves the newest COMMITTED
+  // value, and it is what takes `queue` out of `sync`'s dependency list, so
+  // `sync` stops changing identity on every queued mutation.
+  const queueRef = useRef(queue);
+  useInsertionEffect(() => {
+    queueRef.current = queue;
+  });
 
   // Persist queue to localStorage whenever it changes
   useEffect(() => {
@@ -320,13 +333,15 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
   }, []);
 
   const sync = useCallback(async () => {
-    if (!enabled || queue.length === 0) return;
+    // Newest committed queue, not this closure's snapshot — see `queueRef`.
+    const pending = queueRef.current;
+    if (!enabled || pending.length === 0) return;
     setSyncState('syncing');
     try {
       // In a real implementation, this would batch-send mutations to the server.
       // For now, we simulate a successful sync by clearing the queue.
-      const batchSize = syncConfigRef.current?.batchSize ?? queue.length;
-      const batch = queue.slice(0, batchSize);
+      const batchSize = syncConfigRef.current?.batchSize ?? pending.length;
+      const batch = pending.slice(0, batchSize);
 
       // Simulate network round-trip
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -337,18 +352,44 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
     } catch {
       setSyncState('error');
     }
-  }, [enabled, queue]);
+  }, [enabled]);
 
-  // Auto-sync when coming back online (short stabilization delay)
+  // Auto-sync while online and holding queued mutations (short stabilization
+  // delay).
+  //
+  // The dependency list used to be `[isOnline, enabled]` with
+  // `react-hooks/exhaustive-deps` suppressed, on the stated grounds that
+  // re-running "on every queue change" would restart the 100ms timer once per
+  // queued mutation. That reason is real and is preserved below — the
+  // dependency is the BOOLEAN `hasPendingMutations`, never `queue` and never
+  // `queue.length`, so queueing a second mutation while a timer is already
+  // armed does not re-run this effect and does not restart the timer.
+  //
+  // What the suppression also did, and never justified, was evaluate the
+  // emptiness guard against a queue snapshot from whenever `isOnline` or
+  // `enabled` last changed. `queueMutation` accepts entries whenever the hook
+  // is enabled — it has never been conditional on being offline — so anything
+  // queued while ALREADY online found this effect asleep and had no auto-sync
+  // path at all; only an explicit `sync()` drained it (objectui#6818). Keying
+  // on the boolean re-evaluates the guard exactly when it can change answer.
+  //
+  // `sync` is now stable across queue changes (it reads the queue through
+  // `queueRef`), so naming it here costs no extra timer restart and the array
+  // is genuinely exhaustive — the suppression is gone rather than reworded.
+  //
+  // Known remaining edge, deliberately not widened here: a `batchSize` smaller
+  // than the queue drains one batch and leaves `hasPendingMutations` true, so
+  // the remainder waits for the next transition rather than chaining a second
+  // batch. Whether one auto-sync should drain the whole queue batch-by-batch is
+  // a separate semantics question for `batchSize`, not this guard's bug.
+  const hasPendingMutations = queue.length > 0;
   useEffect(() => {
-    if (!enabled || !isOnline || queue.length === 0) return;
+    if (!enabled || !isOnline || !hasPendingMutations) return;
     const timer = setTimeout(() => {
       void sync();
     }, 100);
     return () => clearTimeout(timer);
-    // Only trigger on isOnline changes, not on every queue change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, enabled]);
+  }, [isOnline, enabled, hasPendingMutations, sync]);
 
   return useMemo<OfflineResult>(
     () => ({
