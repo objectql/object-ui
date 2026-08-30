@@ -756,7 +756,10 @@ export interface ViewSwitcherSchema extends BaseSchema {
    */
   position?: 'top' | 'bottom' | 'left' | 'right';
   /**
-   * View change callback
+   * Event name dispatched on `window` when the view changes
+   * (`detail: { view }`) — an event NAME, not a callback or a handler
+   * expression. Read at `plugin-view/src/ViewSwitcher.tsx` as
+   * `new CustomEvent(schema.onViewChange, …)` (objectui#6124).
    */
   onViewChange?: string;
   /**
@@ -820,7 +823,10 @@ export interface FilterUISchema extends BaseSchema {
    */
   values?: Record<string, any>;
   /**
-   * Filter change callback
+   * Event name dispatched on `window` when the filters change
+   * (`detail: { values }`) — an event NAME, not a callback or a handler
+   * expression. Read at `plugin-view/src/FilterUI.tsx` as
+   * `new CustomEvent(schema.onChange, …)` (objectui#6124).
    */
   onChange?: string;
   /**
@@ -870,7 +876,10 @@ export interface SortUISchema extends BaseSchema {
     direction: 'asc' | 'desc';
   }>;
   /**
-   * Sort change callback
+   * Event name dispatched on `window` when the sort changes
+   * (`detail: { sort }`) — an event NAME, not a callback or a handler
+   * expression. Read at `plugin-view/src/SortUI.tsx` as
+   * `new CustomEvent(schema.onChange, …)` (objectui#6124).
    */
   onChange?: string;
   /**
