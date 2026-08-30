@@ -129,10 +129,10 @@ const STRIPPED_LINE: Record<DroppedFieldsEvent['reason'], StrippedLine> = {
  * What to say for a reason THIS bundle's spec pin has never heard of.
  *
  * A real runtime state rather than a limb the types already ruled out: the
- * adapter's `notifyDroppedFields` reads `reason` structurally off the wire and
- * asserts the entry into `DroppedFieldsEvent` without ever checking the value
- * against the spec enum, so a server running ahead of the bundle's pin delivers
- * one the table above cannot possibly have an arm for. Both of the other
+ * adapter's `notifyDroppedFields` PARSES `reason` against the spec enum and
+ * routes a value the enum does not name onto its explicit skew arm, whose
+ * `UNRECOGNIZED_DROP_REASON` is by construction not a key of the table above —
+ * so a server running ahead of the bundle's pin still arrives here. Both of the other
  * dispositions are worse: indexing blindly would throw inside an `async`
  * function the adapter invokes as `void emitWriteWarning(...)`, so the rejection
  * goes unhandled and the user loses the whole toast INCLUDING the reasons that
@@ -149,8 +149,10 @@ const strippedLineUnknownReason: StrippedLine = (t: TranslateFn, fields: string)
 /**
  * Resolve one reason to its sentence.
  *
- * The PARAMETER carries the spec union — that is what makes {@link STRIPPED_LINE}
- * exhaustive-checked at its declaration above. The LOOKUP is done through a
+ * The PARAMETER carries the two-arm notice union, not the spec union.
+ * {@link STRIPPED_LINE}'s exhaustiveness has never come from this signature —
+ * it comes from that table's own declaration above being keyed by
+ * `DroppedFieldsEvent['reason']`. The LOOKUP is done through a
  * widened view of the same table, because the runtime value may sit outside that
  * union (see {@link strippedLineUnknownReason}); the `undefined` this branch
  * handles is therefore reachable, not dead.
