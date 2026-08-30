@@ -266,6 +266,14 @@ const ru = {
       editAsJson: "Редактировать как JSON",
       useVisualBuilder: "Использовать визуальный конструктор",
     },
+    object: {
+      invalidJson: "Некорректный JSON",
+    },
+    location: {
+      refusedFormat:
+        "Не сохранено: введите пару широта, долгота (например: 30.2741, 120.1551).",
+      refusedRange: "Не сохранено: {{detail}}",
+    },
     tags: {
       placeholder: "Введите и нажмите Enter, чтобы добавить…",
     },

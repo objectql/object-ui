@@ -260,6 +260,14 @@ const fr = {
       editAsJson: "Modifier en JSON",
       useVisualBuilder: "Utiliser le constructeur visuel",
     },
+    object: {
+      invalidJson: "JSON invalide",
+    },
+    location: {
+      refusedFormat:
+        "Non enregistré : saisissez une paire latitude, longitude (exemple : 30.2741, 120.1551).",
+      refusedRange: "Non enregistré : {{detail}}",
+    },
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
     },

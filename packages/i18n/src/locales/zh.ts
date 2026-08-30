@@ -267,6 +267,14 @@ const zh = {
       editAsJson: '以 JSON 编辑',
       useVisualBuilder: '使用可视化构建器',
     },
+    object: {
+      invalidJson: 'JSON 无效',
+    },
+    location: {
+      refusedFormat:
+        '未保存：请输入纬度, 经度坐标对（例如 30.2741, 120.1551）。',
+      refusedRange: '未保存：{{detail}}',
+    },
     tags: {
       placeholder: '输入后回车添加…',
     },

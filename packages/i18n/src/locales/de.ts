@@ -260,6 +260,14 @@ const de = {
       editAsJson: "Als JSON bearbeiten",
       useVisualBuilder: "Visuellen Builder verwenden",
     },
+    object: {
+      invalidJson: "Ungültiges JSON",
+    },
+    location: {
+      refusedFormat:
+        "Nicht gespeichert: Geben Sie ein Paar aus Breitengrad, Längengrad ein (Beispiel: 30.2741, 120.1551).",
+      refusedRange: "Nicht gespeichert: {{detail}}",
+    },
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
     },

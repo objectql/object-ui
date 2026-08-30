@@ -264,6 +264,14 @@ const ar = {
       editAsJson: "التحرير بصيغة JSON",
       useVisualBuilder: "استخدام المُنشئ المرئي",
     },
+    object: {
+      invalidJson: "JSON غير صالح",
+    },
+    location: {
+      refusedFormat:
+        "لم يتم الحفظ: أدخل زوجًا من خط العرض وخط الطول (مثال: 30.2741, 120.1551).",
+      refusedRange: "لم يتم الحفظ: {{detail}}",
+    },
     tags: {
       placeholder: "اكتب واضغط Enter للإضافة…",
     },

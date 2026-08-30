@@ -264,6 +264,14 @@ const es = {
       editAsJson: "Editar como JSON",
       useVisualBuilder: "Usar el constructor visual",
     },
+    object: {
+      invalidJson: "JSON no válido",
+    },
+    location: {
+      refusedFormat:
+        "No guardado: introduce un par latitud, longitud (ejemplo: 30.2741, 120.1551).",
+      refusedRange: "No guardado: {{detail}}",
+    },
     tags: {
       placeholder: "Escriba y pulse Intro para añadir…",
     },

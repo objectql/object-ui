@@ -260,6 +260,14 @@ const ko = {
       editAsJson: "JSON으로 편집",
       useVisualBuilder: "비주얼 빌더 사용",
     },
+    object: {
+      invalidJson: "잘못된 JSON",
+    },
+    location: {
+      refusedFormat:
+        "저장되지 않았습니다: 위도, 경도 쌍으로 입력하세요(예: 30.2741, 120.1551).",
+      refusedRange: "저장되지 않았습니다: {{detail}}",
+    },
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
     },

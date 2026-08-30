@@ -87,6 +87,26 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'fields.filterCondition.jsonOnly': 'This criteria can only be edited as JSON',
   'fields.filterCondition.editAsJson': 'Edit as JSON',
   'fields.filterCondition.useVisualBuilder': 'Use visual builder',
+  // objectui#6755 — the two widgets whose OWN refusal sentence was a string
+  // literal: `ObjectField`'s unparsable draft and `LocationField`'s format and
+  // range refusals (objectui#6716/#6714). Every one of them is what a person
+  // reads to recover from an edit the widget declined, and none of them could
+  // be reached by a locale — inside a package 11 of whose 55 widgets already
+  // read this map.
+  //
+  // Values are byte-identical to the literals they replace, so English and
+  // provider-less rendering are unchanged and the pins in
+  // `LocationField.refusalDiagnostic.test.tsx` and `plugin-form`'s two refusal
+  // suites keep asserting what they asserted.
+  //
+  // `refusedRange` carries the spec's OWN complaint in `{{detail}}`: the widget
+  // refuses to restate `LocationValueSchema`'s bounds (a hand-copied range is a
+  // second contract), so this key translates the frame and interpolates what
+  // the schema said.
+  'fields.object.invalidJson': 'Invalid JSON',
+  'fields.location.refusedFormat':
+    'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
+  'fields.location.refusedRange': 'Not saved: {{detail}}',
   // objectui#3342 — the tags widget's input hint. Used only when the field
   // author declared no `placeholder` of their own (author declaration wins).
   'fields.tags.placeholder': 'Type and press Enter to add…',

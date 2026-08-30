@@ -260,6 +260,14 @@ const ja = {
       editAsJson: "JSON で編集",
       useVisualBuilder: "ビジュアルビルダーを使用",
     },
+    object: {
+      invalidJson: "JSON が不正です",
+    },
+    location: {
+      refusedFormat:
+        "保存されていません: 緯度, 経度 の組で入力してください（例: 30.2741, 120.1551）。",
+      refusedRange: "保存されていません: {{detail}}",
+    },
     tags: {
       placeholder: "入力してEnterキーで追加…",
     },

@@ -259,6 +259,14 @@ const pt = {
       editAsJson: "Editar como JSON",
       useVisualBuilder: "Usar o construtor visual",
     },
+    object: {
+      invalidJson: "JSON inválido",
+    },
+    location: {
+      refusedFormat:
+        "Não salvo: informe um par latitude, longitude (exemplo: 30.2741, 120.1551).",
+      refusedRange: "Não salvo: {{detail}}",
+    },
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",
     },

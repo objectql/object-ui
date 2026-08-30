@@ -4,6 +4,13 @@ import { LocationValueSchema } from '@objectstack/spec/data';
 import type { LocationValue } from '@objectstack/spec/data';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
+// The package's declared shape for a `t` forwarded out of a component into a
+// message producer — `file-size-guard.ts` exports it and `FileField` /
+// `ImageField` already pass `t as TranslateFn` through it. Imported rather than
+// re-declared: a second identical type is a second contract, and the name is
+// about the FUNCTION, not about files.
+import { type TranslateFn } from './file-size-guard.js';
 
 /**
  * The stored shape of a `type: 'location'` value — RE-EXPORTED from
@@ -257,9 +264,15 @@ function draftDenotes(text: string, value: unknown): boolean {
  *
  * It names the format AND shows it, because the format is the whole content of
  * this refusal: the pair is what the box cannot read.
+ *
+ * objectui#6755 — the sentence is a locale KEY as of the 2026-08-29 ruling, not
+ * a literal. The `en` value in `FIELD_DEFAULTS` is byte-identical to the literal
+ * it replaces, so English and provider-less rendering are unchanged and
+ * objectui#6716's pins keep saying exactly what they said.
  */
-const REFUSED_FORMAT_MESSAGE =
-  'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).';
+function refusedFormatMessage(t: TranslateFn): string {
+  return t('fields.location.refusedFormat');
+}
 
 /**
  * What the box says when the pair PARSED but the platform refuses its range.
@@ -269,21 +282,27 @@ const REFUSED_FORMAT_MESSAGE =
  * range is a second contract that drifts silently (AGENTS.md #0.1). The
  * sentence is built from the SPEC's own issues, so the day the schema moves,
  * this message moves with it.
+ *
+ * objectui#6755 keys the FRAME — the part this widget authors — and leaves
+ * `{{detail}}` as whatever the spec said. That division is deliberate and is
+ * the honest limit of this card: the interpolated complaint is the schema's own
+ * text, so translating it belongs to whoever owns those messages, not to a
+ * widget that must not restate them.
  */
-function refusedRangeMessage(candidate: LocationValue): string {
+function refusedRangeMessage(t: TranslateFn, candidate: LocationValue): string {
   const parsed = LocationValueSchema.safeParse(candidate);
   if (parsed.success) return '';
   const detail = parsed.error.issues
     .map(issue => `${issue.path.join('.') || 'value'}: ${issue.message}`)
     .join('; ');
-  return `Not saved: ${detail}`;
+  return t('fields.location.refusedRange', { detail });
 }
 
 /**
  * What the box says when a half of the pair is only PARTLY a number
  * (objectui#6715).
  *
- * ⛔ Deliberately NOT {@link REFUSED_FORMAT_MESSAGE}. "Enter a latitude,
+ * ⛔ Deliberately NOT {@link refusedFormatMessage}. "Enter a latitude,
  * longitude pair" is unusable advice to someone who typed `12abc, 34`: they
  * DID type a pair, and that sentence gives them nothing to correct. This
  * refusal names the half that could not be read and quotes it back, because
@@ -294,6 +313,12 @@ function refusedRangeMessage(candidate: LocationValue): string {
  * ⛔ It does not suggest a notation to convert FROM (no `12°N` advice): the
  * ruling declines that parse, so pointing at it would advertise a route this
  * widget refuses.
+ *
+ * ⚠️ Still a LITERAL, alone among the three arms, and deliberately so:
+ * objectui#6755's ruling locks its scope to the three sentences that existed
+ * when it was written, and this arm landed after. objectui#6888 carries the
+ * gap — including the one question the other two did not have to answer, which
+ * is how `verb` (English grammar, not data) should be keyed.
  */
 function refusedResidueMessage(residue: readonly ResidueHalf[]): string {
   const named = residue.map(half => `${half.label} "${half.text}"`).join(' and ');
@@ -358,6 +383,10 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
    * this card did not give it one.
    */
   const [refusalError, setRefusalError] = useState<string | null>(null);
+  // objectui#6755 — the two keyed arms below read their sentences from the
+  // package's locale channel. Called with the other hooks, ABOVE the readonly
+  // early return, so hook order is the same on both branches.
+  const { t } = useFieldTranslation();
 
   /**
    * Adopt a value that changed OUTSIDE this box — a record finishing its load,
@@ -413,7 +442,7 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
     if (parsed.kind === 'unparsable') {
       // The text is not a coordinate pair. The prior value stands — and since
       // objectui#6716 the box says so instead of swallowing the edit.
-      setRefusalError(REFUSED_FORMAT_MESSAGE);
+      setRefusalError(refusedFormatMessage(t as TranslateFn));
       return;
     }
 
@@ -443,7 +472,7 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
     }
     // objectui#6716: the refusal STANDS — this card does not reverse #6714. It
     // only stops the refusal from being silent.
-    setRefusalError(refusedRangeMessage(emitted));
+    setRefusalError(refusedRangeMessage(t as TranslateFn, emitted));
   };
 
   return (

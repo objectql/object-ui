@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Textarea, cn, EmptyValue } from '@object-ui/components';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
+import { useFieldTranslation } from './useFieldTranslation.js';
 
 /**
  * ObjectField - JSON object editor
@@ -20,6 +21,11 @@ export function ObjectField({ value, onChange, field, readonly, error, ...props 
   // Named `parseError`, NOT `error`: `error` is the published validation slot
   // on the widget contract (#3222) and is destructured above.
   const [parseError, setParseError] = useState<string | null>(null);
+  // objectui#6755 — this widget's ONE diagnostic sentence goes through the
+  // package's locale channel, the same one 11 of its 55 widgets already read.
+  // Called here, ABOVE the readonly early return below, so hook order is the
+  // same on both branches (the `AddressField` discipline).
+  const { t } = useFieldTranslation();
 
   // Sync internal string state when value changes externally
   // This is a controlled component pattern where we need to sync external changes
@@ -65,8 +71,15 @@ export function ObjectField({ value, onChange, field, readonly, error, ...props 
       const parsed = JSON.parse(str);
       onChange(parsed);
     } catch (e) {
-      // Invalid JSON - don't propagate change to parent, but keep local state
-      setParseError("Invalid JSON");
+      // Invalid JSON - don't propagate change to parent, but keep local state.
+      // The sentence is produced HERE, when the draft is refused, rather than
+      // at render: `LocationField`'s two arms carry data measured at refusal
+      // time (the spec's complaint about the pair that was refused), and the
+      // two widgets say their refusals the same way on purpose. The cost is
+      // stated rather than hidden: a language switched WHILE a refusal is lit
+      // leaves that one sentence in the language it was produced in until the
+      // next keystroke.
+      setParseError(t('fields.object.invalidJson'));
     }
   };
 

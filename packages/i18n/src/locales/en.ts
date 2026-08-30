@@ -296,6 +296,39 @@ const en = {
       editAsJson: 'Edit as JSON',
       useVisualBuilder: 'Use visual builder',
     },
+    // objectui#6755 — a widget's OWN refusal sentence: `ObjectField`'s
+    // unparsable JSON draft, and `LocationField`'s format and range refusals
+    // (objectui#6716 / #6714). They were string literals in the widgets, so a
+    // zh / ja / ar user who mistyped a coordinate or a JSON blob was told why in
+    // English inside a form whose every other word was translated.
+    //
+    // KEYED, where objectui#4028 DROPPED the five address placeholders in the
+    // namespace below — and the difference is what that decision's own comment
+    // records about them: "The right example is a function of the address's
+    // COUNTRY, not the reader's language", and "Each box here already has a
+    // visible label naming exactly what it wants". Neither reaches a refusal
+    // sentence: nothing else on the screen says why the edit was refused, and
+    // what that sentence must say IS a function of the reader's language. What
+    // #4028 does establish for both is the COST — ten pack entries per key,
+    // bound from then on by `check:i18n-drift` — and the 2026-08-29 maintainer
+    // ruling accepted that cost for these three sentences.
+    //
+    // Values are byte-identical to the literals they replace (`FIELD_DEFAULTS`
+    // in `packages/fields/src/widgets/useFieldTranslation.ts` carries the same
+    // three), so English and provider-less rendering are unchanged.
+    //
+    // `{{detail}}` is the SPEC's own complaint about the refused pair.
+    // `LocationField` refuses to restate `LocationValueSchema`'s bounds — a
+    // hand-copied range is a second contract — so this key translates the frame
+    // and interpolates whatever the schema said.
+    object: {
+      invalidJson: 'Invalid JSON',
+    },
+    location: {
+      refusedFormat:
+        'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
+      refusedRange: 'Not saved: {{detail}}',
+    },
     // objectui#3342 — the tags widget's input hint, shown while the tag list
     // is empty. The author-declared `field.placeholder` always wins over this.
     tags: {
