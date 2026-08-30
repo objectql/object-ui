@@ -980,17 +980,32 @@ export interface DataTableSchema extends BaseSchema {
    */
   rowStyle?: (row: any, index: number) => React.CSSProperties | undefined;
   /**
-   * Extra CSS classes folded into EVERY body cell of the table
-   * (objectui#6882) — the table-level twin of {@link TableColumn.cellClassName},
-   * which styles one column. Both apply when both are present.
+   * Extra CSS classes folded into the table's UTILITY body cells
+   * (objectui#6882) — and ONLY those three, each rendered only when its
+   * feature is on: the leading selection-checkbox cell (`selectable`), the
+   * row-number cell (`showRowNumbers`), and the trailing row-actions cell
+   * (`rowActions`).
    *
-   * Its live use is row density: a host that renders compact / short / tall
-   * rows sets the per-cell padding here, because row height is a property of
-   * the cells, not of the `<tr>` — `rowClassName` cannot express it.
+   * ⚠️ It does NOT reach a data cell. A data cell folds
+   * {@link TableColumn.cellClassName} — the per-column key — and nothing else,
+   * so the two class slots style DISJOINT cells and never combine on one cell.
+   * (The empty-state cell and the add-record row cell take neither.) The
+   * population is checkable: `data-table.tsx` folds this key at exactly three
+   * `cn(cellClassName, …)` call sites, and the data-cell one folds
+   * `col.cellClassName`.
+   *
+   * Its live use is row density, and it is only half of that. Row height is a
+   * property of the cells, not of the `<tr>` — `rowClassName` cannot express
+   * it — so a host that renders compact / short / tall rows sets the per-cell
+   * padding on BOTH slots: `ObjectGrid` folds its density class into every
+   * column's `cellClassName` and passes the same class here, which is what
+   * keeps the checkbox and row-number cells the same height as the data beside
+   * them. Setting only this key leaves every data cell at the table
+   * primitive's default `p-4`.
    *
    * ⚠️ Declared as of objectui#6882 (maintainer ruling 2026-08-30). `data-table`
-   * has destructured this key off the schema and folded it into every body
-   * cell's class all along; only the declaration was missing. `string` matches
+   * has destructured this key off the schema and folded it into those three
+   * cells all along; only the declaration was missing. `string` matches
    * {@link BaseSchema.className} and {@link TableColumn.cellClassName} — the
    * renderer passes it through `cn()`, which would also swallow an array or an
    * object, but one authored spelling for a class slot is the contract.

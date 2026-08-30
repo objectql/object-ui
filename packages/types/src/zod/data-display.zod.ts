@@ -244,7 +244,7 @@ export const DataTableSchema = BaseSchema.extend({
   }).optional().describe('Per-record CEL predicates for the built-in row Delete item (objectui#2614)'),
   onSelectionChange: z.function().optional().describe('Selection change handler'),
   onColumnsReorder: z.function().optional().describe('Column reorder handler'),
-  cellClassName: z.string().optional().describe('Extra classes folded into every body cell — the table-level twin of the per-column `cellClassName`; carries row-density padding (objectui#6882)'),
+  cellClassName: z.string().optional().describe('Extra classes folded into the utility body cells only — the selection, row-number and row-actions cells; data cells fold the per-column `cellClassName` instead, so row density has to be set on both (objectui#6882)'),
   renderCellEditor: z.function().optional().describe('Host-supplied inline cell editor; returning null falls through to the built-in text/number/date inputs (objectui#6882)'),
   frozenColumns: z.number().optional().describe('Number of frozen columns'),
   showRowNumbers: z.boolean().optional().describe('Show row numbers'),

@@ -58,7 +58,8 @@ interface DataTableSchema {
 
   // Styling
   className?: string;                    // Tailwind CSS classes on the table wrapper
-  cellClassName?: string;                // Tailwind CSS classes on EVERY body cell
+  cellClassName?: string;                // Tailwind CSS classes on the utility cells only
+                                         // (select / row number / row actions)
   
   // Base properties
   id?: string;
@@ -69,25 +70,42 @@ interface DataTableSchema {
 
 ## Cell styling
 
-`className` styles the table wrapper; `cellClassName` is folded into **every body
-cell**, which is where per-cell padding has to go — row height is a property of the
-cells, not of the row element, so `rowClassName` cannot express it. A host rendering
-compact rows sets it once on the schema:
+`className` styles the table wrapper. Body cells have **two** class slots, and they
+reach **disjoint** cells — neither is a superset of the other, and no cell gets both:
+
+- `TableColumn.cellClassName` — the **data** cells of that one column.
+- `DataTableSchema.cellClassName` — the table's **utility** cells only: the leading
+  selection-checkbox cell (`selectable`), the row-number cell (`showRowNumbers`), and
+  the trailing row-actions cell (`rowActions`). It never reaches a data cell.
+
+(The empty-state cell and the add-record row take neither.)
+
+Row density is therefore a **pair** of settings, not one. Per-cell padding is where
+row height has to be expressed — height is a property of the cells, not of the row
+element, so `rowClassName` cannot express it — so a compact table sets the same
+density class on every column *and* on the schema, the second so the checkbox and
+row-number cells stay the same height as the data beside them. That is exactly what
+`object-grid` does for its `rowHeight` modes:
 
 ```json
 {
   "type": "data-table",
+  "selectable": true,
+  "showRowNumbers": true,
   "cellClassName": "px-2 py-1 text-sm",
   "columns": [
-    { "header": "Name", "accessorKey": "name" },
-    { "header": "Amount", "accessorKey": "amount", "cellClassName": "text-right" }
+    { "header": "Name", "accessorKey": "name", "cellClassName": "px-2 py-1 text-sm" },
+    { "header": "Amount", "accessorKey": "amount", "cellClassName": "px-2 py-1 text-sm text-right" }
   ],
-  "data": []
+  "data": [
+    { "name": "Ada Lovelace", "amount": 120 },
+    { "name": "Grace Hopper", "amount": 340 }
+  ]
 }
 ```
 
-The per-column `cellClassName` on `TableColumn` styles one column; both apply when
-both are present.
+Drop the per-column half and the data cells stay at the table primitive's default
+`p-4` — the schema-level key alone does not compact a row.
 
 ## Inline editing
 
