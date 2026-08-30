@@ -7,7 +7,8 @@
  */
 
 /**
- * objectui#3965 — the catalog-scoped ratchet on DEPRECATED component types.
+ * objectui#3965 — the catalog-scoped gate on DEPRECATED component types,
+ * CLOSED at zero.
  *
  * Every catalog entry is an exemplar: the corpus is what a human copies from,
  * and what few-shot retrieval over these examples hands a generating model. A
@@ -22,112 +23,59 @@
  *
  *   - `catalog-gallery-render.test.tsx` (objectui#4616) asserts
  *     `ComponentRegistry.get(type)` is truthy and that no OBJUI-001 panel
- *     paints. `div` is registered and renders, so the suite is green with all
+ *     paints. `div` is registered and renders, so the suite was green with all
  *     85 deprecated nodes present — measured, not assumed.
  *   - `scripts/check-doc-component-types.mjs` asks the same existence question
  *     and walks `content/docs` and nothing else (`DOCS_ROOT = 'content/docs'`),
  *     so `examples/**` is outside its scan surface entirely.
  *
- * It was worse than the usual declared-but-unenforced shape: when this file
- * landed, the deprecation was not declared anywhere MACHINE-READABLE.
- * `RegistryComponentMetaExtras` carried `tier` / `namespace` / `skipFallback` /
- * `labelling` and no `deprecated` field, so the only statements of it were a
- * `console.warn` string literal in `div.tsx` / `span.tsx` and the
- * human-readable label `'Container (Deprecated)'`. This file was therefore
- * built on a hand-kept mirror whose premise arm READ THE RENDERER'S SOURCE and
- * regex-matched that console literal — the closest thing to asking "is this
- * type deprecated?" that existed.
- *
- * ## What objectui#6674 changed, and what it did not
- *
- * The registration now DECLARES it: `deprecated: { surfaces: ['json'],
- * replacement: … }`, read back through `ComponentRegistry.deprecationFor(type,
- * surface)`. So `the deprecation this ratchet mirrors is still declared` asks
- * the registry instead of grepping a `.tsx` for a console string, and
- * `no LOADED registration declares a deprecation this list omits` is the new
- * arm that direction makes possible at all.
+ * The deprecation itself is declared machine-readably since objectui#6674
+ * (`deprecated: { surfaces: ['json'], replacement: … }` on the registration,
+ * read back through `ComponentRegistry.deprecationFor(type, surface)`), which
+ * is what the premise arm and the omission arm below consult.
  *
  * ⚠️ `DEPRECATED_TYPES` stays HAND-KEPT on purpose, and deriving it wholesale
  * from the registry would be a regression rather than the obvious next step.
  * This file loads `@object-ui/components` and nothing else; a type declared
  * deprecated by a plugin package it does not import would silently drop out of
  * a derived list, and the census would shrink to green. The list is the
- * ratchet's authority precisely because it is complete by construction. What
+ * gate's authority precisely because it is complete by construction. What
  * the declaration buys is that the list can now be CHECKED — in both directions
  * — against something a machine can read.
  *
- * ## Why this ratchet freezes the stock instead of demanding zero
+ * ## From ratchet to closed gate (the objectui#3965 arc)
  *
- * The 2026-08-29 ruling adopted "replace, worklist-form, with the closing
- * lint": convert the catalog's deprecated `div` nodes to the replacements the
- * deprecation notice itself names, then add this lint "so the stock never
- * regrows". The conversion half is NOT mechanical, and the measurement that
- * says so is recorded here because it is the reason this file ships ahead of
- * it. Rendered through the real `SchemaRenderer` on `9486ac672`, given the
- * identical authored input `{ className: 'p-4', children: [...] }`:
+ * When this file landed (PR #6732) it FROZE a stock of 25 files / 80 authored
+ * `div` nodes, because the conversion was not mechanical: `div` is
+ * class-transparent while every replacement the deprecation notice names
+ * injects layout, and `div` reads `children || body` while `container` /
+ * `flex` / `stack` / `grid` read `children` only — four sidebar fixtures
+ * authored `body`, and a blind swap would have dropped their content silently
+ * AT AN UNCHANGED ELEMENT COUNT (measured on the real `basic-sidebar.json`:
+ * 21 elements before and after, "Main content area" gone). That measurement
+ * is why two sweep rulings were superseded.
  *
- *   div        <div class="p-4">AB</div>
- *   container  <div class="w-full max-w-xl mx-auto sm:p-3 md:p-4 p-4">AB</div>
- *   flex       <div class="flex flex-row justify-start items-start gap-1.5 sm:gap-2 p-4">AB</div>
- *   stack      <div class="flex flex-col justify-start items-stretch gap-1.5 sm:gap-2 p-4">AB</div>
- *   grid       <div class="grid grid-cols-2 gap-4 p-4">AB</div>
- *   card       <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-4"><div class="p-6 pt-0">AB</div></div>
+ * The 2026-08-29 ruling (方案 A) minted what the vocabulary was missing — the
+ * neutral, class-transparent `box` (renders `children`, authored `className`
+ * verbatim, zero injected classes; contract pinned in
+ * `packages/components/src/renderers/__tests__/box-neutral-container.test.tsx`)
+ * — and the stock then drained in one mechanical pass: 25 files / 80 nodes
+ * retyped `div`→`box`, the four `body`-authoring nodes moving their content
+ * into `children`, each fixture verified through the real `SchemaRenderer`
+ * with the ruled dual assertion (element count + text content). So the
+ * BASELINE table this file used to carry is gone: the catalog now tolerates
+ * ZERO JSON-authored `div` outside the documentation exemption, exactly like
+ * `span` all along.
  *
- * `div` is class-TRANSPARENT — it emits the authored className and nothing
- * else. Every replacement the notice names injects layout: a display mode
- * (`flex` / `grid`), a width and centering (`container`), or a border, a shadow
- * and an extra `CardContent` wrapper element (`card`). Note `container`'s
- * output in particular: `twMerge` does not strip the injected `sm:p-3 md:p-4`,
- * because those are different responsive variants from the authored `p-4` — so
- * the box keeps the authored padding at the base breakpoint and silently gets
- * SMALLER padding from `sm` up. None of the 85 nodes carries a flex or grid
- * display class, and none authors a single layout prop (the only keys present
- * across all 85 are `type`, `className`, `children`, `body`), so there is no
- * authored intent to carry over — the injection is pure addition.
+ * ## Why `components-basic-div/` is exempt rather than refused
  *
- * The second class of difference is not cosmetic at all. `container`, `flex`,
- * `stack` and `grid` render `schema.children` ONLY; `div` renders
- * `schema.children || schema.body`. Four of the 85 nodes author `body` — the
- * `components-basic-sidebar` family, whose whole subtree is `body`-authored.
- * Measured on the real `basic-sidebar.json` fixture, swapping only its `div`:
- *
- *   as authored (div)  elements=21  text="Menu…Settings Main content area"
- *   swapped -> stack   elements=21  text="Menu…Settings"          <- content GONE
- *   swapped -> flex    elements=21  text="Menu…Settings"          <- content GONE
- *   swapped -> container / grid  — same, content GONE
- *
- * The element count is UNCHANGED at 21, so the loss is invisible to any
- * element-count check, and `catalog-gallery-render`'s `drewSomething` control
- * still passes because the sidebar beside it draws. That is the silent
- * catalog-wide regression a find-and-replace would have shipped, and it is
- * worse than the warning it would have removed.
- *
- * So the stock is FROZEN here and drains through the worklist, one judged
- * batch at a time. This file's job is only to guarantee it never grows.
- *
- * ## What the deprecation costs today, measured
- *
- * The card's headline — "one deprecation warning per docs-site thumbnail" — is
- * already false. `DivRenderer` reports once per module load (objectui#3998) and
- * exempts `kind:'html'` nodes by provenance (objectui#4000). Rendering all 431
- * catalog entries through the real `SchemaRenderer` with a `console.warn` spy
- * active from the first entry: `entries_rendered=431 total_warns=4
- * div_deprecation_notices=1`. The other three warns (react-i18next, a
- * `visibleWhen` predicate, an expression failure) are the positive control that
- * the spy was capturing, so `1` is a measurement and not a silent spy. The
- * console cost is therefore closed; what remains, and what this file guards, is
- * the authoring-contract cost.
- *
- * ## Why `components-basic-div/` is exempt rather than baselined
- *
- * That category IS the migration guidance for this deprecation: it ships
- * `use-card-instead`, `flex-layout` and `grid-layout` beside `nested-divs` and
- * `custom-card`. A category documenting the deprecated type must author the
- * deprecated type — sweeping it would delete the before-and-after that teaches
- * the migration. Same class as the two deliberate legacy examples in
- * `div.mdx`, exempted on 2026-08-09 in any option. The exemption is a
- * DIRECTORY, and it is checked for non-vacuity below so it cannot quietly
- * become a hole nothing uses.
+ * That category DOCUMENTS the deprecated type: it ships `use-card-instead`,
+ * `flex-layout` and `grid-layout` beside `nested-divs` and `custom-card`. A
+ * category documenting the deprecated type must author the deprecated type —
+ * sweeping it would delete the before-and-after that teaches the migration.
+ * Same class as the two deliberate legacy examples in `div.mdx`, exempted on
+ * 2026-08-09 in any option. The exemption is a DIRECTORY, and it is checked
+ * for non-vacuity below so it cannot quietly become a hole nothing uses.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -144,7 +92,7 @@ const SCHEMAS_ROOT = fileURLToPath(new URL('../src/schemas', import.meta.url));
 
 /**
  * The surface this corpus is authored on. Every fixture under `SCHEMAS_ROOT` is
- * JSON metadata, so the question this ratchet asks the registry is scoped to
+ * JSON metadata, so the question this gate asks the registry is scoped to
  * it: `div` and `span` are ALSO permanent vocabulary of the `kind:'html'` tier
  * (objectui#4000), where the parser compiles the plain tag straight through and
  * no other spelling exists to migrate to. A gate that dropped the scope would
@@ -153,9 +101,9 @@ const SCHEMAS_ROOT = fileURLToPath(new URL('../src/schemas', import.meta.url));
 const CORPUS_SURFACE = 'json' as const;
 
 /**
- * The deprecated JSON-authored component types this ratchet refuses. Hand-kept
+ * The deprecated JSON-authored component types this gate refuses. Hand-kept
  * — see the header for why deriving it from the registry would shrink the
- * census silently — and now checked in BOTH directions against the
+ * census silently — and checked in BOTH directions against the
  * machine-readable declaration the registrations carry (objectui#6674).
  */
 const DEPRECATED_TYPES = ['div', 'span'] as const;
@@ -165,44 +113,6 @@ const DEPRECATED_TYPES = ['div', 'span'] as const;
  * A directory prefix, relative to `SCHEMAS_ROOT`.
  */
 const DOC_EXEMPT_DIRS = ['components-basic-div/'] as const;
-
-/**
- * The frozen stock, measured on `origin/main` @ `9486ac672`: file path relative
- * to `SCHEMAS_ROOT` -> count of deprecated nodes in it. 25 files, 80 nodes;
- * `components-basic-div/` adds the 2 exempt files / 5 exempt nodes that make up
- * the 27 / 85 a raw `grep` reports.
- *
- * ⛔ This table may only ever SHRINK. Growth is the regression this file
- * exists to refuse; shrinkage without updating the table leaves slack that
- * would silently re-admit what a batch just removed, so both directions are red.
- */
-const BASELINE: Readonly<Record<string, number>> = {
-  'auth/login-simple.json': 1,
-  'auth/signup.json': 1,
-  'auth/two-factor.json': 1,
-  'components-basic-sidebar/basic-sidebar.json': 1,
-  'components-basic-sidebar/collapsible-sidebar.json': 1,
-  'components-basic-sidebar/grouped-sidebar.json': 1,
-  'components-basic-sidebar/sidebar-with-badges.json': 1,
-  'components-complex-carousel/customer-reviews.json': 3,
-  'components-complex-carousel/no-arrows.json': 3,
-  'components-complex-carousel/simple-carousel.json': 3,
-  'components-complex-resizable/complex-layout.json': 3,
-  'components-complex-resizable/editor-interface.json': 2,
-  'components-complex-resizable/mail-layout.json': 3,
-  'components-complex-resizable/triple-split.json': 3,
-  'components-complex-resizable/vertical-split.json': 2,
-  'components-complex-scroll-area/chat-messages.json': 15,
-  'components-complex-scroll-area/code-preview.json': 1,
-  'components-complex-scroll-area/document-browser.json': 21,
-  'components-complex-scroll-area/vertical-scroll.json': 1,
-  'components-feedback-toaster/custom-position-limit.json': 1,
-  'ecommerce/order-summary.json': 1,
-  'marketing/features-grid.json': 1,
-  'marketing/pricing-table.json': 1,
-  'marketing/testimonials.json': 1,
-  'theme/semantic-color-palette.json': 8,
-};
 
 /** Every `*.json` fixture, path relative to `SCHEMAS_ROOT`, sorted. */
 function fixtureFiles(): string[] {
@@ -254,105 +164,50 @@ const isDocExempt = (rel: string) => DOC_EXEMPT_DIRS.some((dir) => rel.startsWit
 const total = (counts: Map<string, number>) =>
   [...counts.values()].reduce((a, b) => a + b, 0);
 
-describe('deprecated component types in the catalog are ratcheted (#3965)', () => {
+describe('deprecated component types are refused across the catalog (#3965, closed)', () => {
   const measured = census();
 
-  it('no fixture outside the frozen stock authors a deprecated component type', () => {
+  it('no fixture outside the documentation exemption authors a deprecated component type', () => {
     const offenders = [...measured]
-      .filter(([rel]) => !isDocExempt(rel) && !(rel in BASELINE))
+      .filter(([rel]) => !isDocExempt(rel))
       .map(([rel, counts]) => `${rel} — ${[...counts].map(([t, n]) => `${n}x "${t}"`).join(', ')}`);
 
     expect(
       offenders,
-      'A NEW catalog fixture authors a deprecated component type. Every catalog ' +
+      'A catalog fixture authors a deprecated component type. Every catalog ' +
         'entry is an exemplar — this is the corpus a human copies from and that ' +
         'few-shot retrieval hands a generating model — so a deprecated spelling ' +
-        'here teaches itself forward. Author the supported type instead. If the ' +
-        'entry exists specifically to DOCUMENT the deprecated type, it belongs ' +
-        'in a DOC_EXEMPT_DIRS category, not in this list.',
+        'here teaches itself forward. The stock drained to ZERO when the ' +
+        'neutral `box` container landed (objectui#3965): author `box` for a ' +
+        'bare styled wrapper, or `card` / `flex` / `container` / `stack` / ' +
+        '`grid` when their layout semantics are wanted. If the entry exists ' +
+        'specifically to DOCUMENT the deprecated type, it belongs in a ' +
+        'DOC_EXEMPT_DIRS category, not outside it.',
     ).toEqual([]);
   });
 
-  it('no baselined fixture grows more deprecated nodes', () => {
-    const grown = Object.entries(BASELINE)
-      .map(([rel, allowed]) => {
-        const now = total(measured.get(rel) ?? new Map());
-        return now > allowed ? `${rel} — baseline ${allowed}, now ${now}` : null;
-      })
-      .filter((x): x is string => x !== null);
-
-    expect(
-      grown,
-      'A fixture already carrying deprecated nodes gained MORE. The stock is ' +
-        'frozen and may only drain; editing one of these files is not licence ' +
-        'to add to it.',
-    ).toEqual([]);
-  });
-
-  it('the ratchet has no slack — the table matches the corpus exactly', () => {
-    const slack = Object.entries(BASELINE)
-      .map(([rel, allowed]) => {
-        const now = total(measured.get(rel) ?? new Map());
-        if (now === allowed) return null;
-        if (now === 0) return `${rel} — baseline ${allowed}, now 0: drop this line`;
-        return `${rel} — baseline ${allowed}, now ${now}: lower it to ${now}`;
-      })
-      .filter((x): x is string => x !== null);
-
-    expect(
-      slack,
-      'Deprecated nodes were REMOVED without lowering BASELINE. That is good ' +
-        'work with a stale ledger: the leftover allowance would silently ' +
-        're-admit exactly what this batch just removed. Update the table in the ' +
-        'same PR — that is what makes it a ratchet rather than a ceiling.',
-    ).toEqual([]);
-  });
-
-  it('`span` is zero-tolerance — the catalog has never carried one', () => {
-    const spans = [...measured]
-      .map(([rel, counts]) => [rel, counts.get('span') ?? 0] as const)
-      .filter(([, n]) => n > 0)
-      .map(([rel, n]) => `${rel} — ${n}`);
-
-    expect(
-      spans,
-      '`span` carries the same deprecation as `div` and, unlike `div`, has no ' +
-        'stock in this corpus to drain — measured at 0 nodes across every ref ' +
-        'this card was verified on. There is nothing to grandfather, so it is ' +
-        'refused outright rather than baselined.',
-    ).toEqual([]);
-  });
-
-  it('the deprecation this ratchet mirrors is still declared', () => {
+  it('the deprecation this gate mirrors is still declared', () => {
     // The mirror's premise. If a type is UN-deprecated, this file must die
     // loudly rather than keep refusing a spelling that became legal again.
-    //
-    // This arm used to `readFileSync` the renderer and regex-match its
-    // `console.warn` literal, because that string was one of only two places a
-    // deprecation was stated and the only one a test could reach. It now asks
-    // the registry, which is objectui#6674's whole delivery: the question "is
-    // this type deprecated?" has an asker.
     const undeclared = DEPRECATED_TYPES.filter(
       (type) => ComponentRegistry.deprecationFor(type, CORPUS_SURFACE) === undefined,
     );
 
     expect(
       undeclared,
-      'A type this ratchet refuses no longer DECLARES a deprecation for the ' +
+      'A type this gate refuses no longer DECLARES a deprecation for the ' +
         'json authoring surface. Either it was un-deprecated — in which case ' +
-        'drop it from DEPRECATED_TYPES and retire the matching baseline — or ' +
-        'the declaration moved and this mirror needs re-pointing. (A type ' +
-        'whose `surfaces` no longer lists `json` reads as un-deprecated HERE ' +
-        'and is still deprecated elsewhere; that is the objectui#4000 scope ' +
-        'working, not a bug in this arm.)',
+        'drop it from DEPRECATED_TYPES — or the declaration moved and this ' +
+        'mirror needs re-pointing. (A type whose `surfaces` no longer lists ' +
+        '`json` reads as un-deprecated HERE and is still deprecated elsewhere; ' +
+        'that is the objectui#4000 scope working, not a bug in this arm.)',
     ).toEqual([]);
   });
 
   it('no LOADED registration declares a deprecation this list omits', () => {
-    // The direction the hand-kept mirror could never check. Before the
-    // declaration existed there was nothing to enumerate: a third deprecated
-    // type could have been added to `@object-ui/components` with a console
-    // string and a label, and this file would have gone on refusing exactly two.
+    // The direction the hand-kept mirror could never check before objectui#6674:
+    // a third deprecated type added to `@object-ui/components` must join
+    // DEPRECATED_TYPES or this arm goes red.
     //
     // Scoped honestly to what this file LOADS — `@object-ui/components`. A
     // plugin package's declaration is out of range here, which is the reason
@@ -363,9 +218,9 @@ describe('deprecated component types in the catalog are ratcheted (#3965)', () =
     // turns the premise arm red first. The two hold each other up.
     const listed = new Set<string>(DEPRECATED_TYPES);
     // A namespaced registration answers under BOTH spellings (`ui:div` and
-    // `div`); the corpus authors the bare one and the baseline is keyed on it.
-    // Either spelling being listed counts, and the raw key is what gets
-    // reported so the message names something that exists in the registry.
+    // `div`); the corpus authors the bare one. Either spelling being listed
+    // counts, and the raw key is what gets reported so the message names
+    // something that exists in the registry.
     const bare = (key: string) => (key.includes(':') ? key.slice(key.indexOf(':') + 1) : key);
     const missing = ComponentRegistry.getKnownTypes()
       .filter((type) => ComponentRegistry.deprecationFor(type, CORPUS_SURFACE))
@@ -375,28 +230,23 @@ describe('deprecated component types in the catalog are ratcheted (#3965)', () =
     expect(
       missing,
       'A loaded registration declares a json-surface deprecation that this ' +
-        'ratchet does not refuse. Add it to DEPRECATED_TYPES — and if the ' +
-        'corpus already authors it, baseline the existing stock in the same PR ' +
-        'rather than leaving the type unguarded.',
+        'gate does not refuse. Add it to DEPRECATED_TYPES so the corpus ' +
+        'cannot start teaching it.',
     ).toEqual([]);
   });
 
-  it('the stock is exactly what this card measured, and the exemption is not a hole', () => {
-    const baselined = [...measured].filter(([rel]) => !isDocExempt(rel));
+  it('the exemption is not a hole, and not a leak', () => {
     const exempt = [...measured].filter(([rel]) => isDocExempt(rel));
 
-    // Non-vacuity, both halves. A walker that silently returned nothing would
-    // satisfy every arm above; an exemption covering no real fixture would be
-    // dead licence sitting open for a future author to walk through.
-    expect(
-      baselined.reduce((n, [, c]) => n + total(c), 0),
-      'the frozen stock, as measured on 9486ac672',
-    ).toBe(80);
-    expect(baselined.length, 'files carrying the frozen stock').toBe(25);
+    // Non-vacuity: an exemption covering no real fixture would be dead licence
+    // sitting open for a future author to walk through. The documentation
+    // category must really author the type it documents — 2 files / 5 `div`
+    // nodes, as measured at every ref of the objectui#3965 arc.
     expect(
       exempt.reduce((n, [, c]) => n + total(c), 0),
       'the documentation category must really author the type it documents',
     ).toBe(5);
+    expect(exempt.length, 'files inside the documentation exemption').toBe(2);
   });
 
   it('the detector actually detects — counter-probe', () => {
