@@ -138,6 +138,26 @@
  * reopening the same day it was measured shut. The two numbers move in ONE
  * commit for the reason the paragraph above gives.
  *
+ * objectui#6776 lowered it a third time, to 3,268,000 over 3,222,314, and this
+ * one was earned the same way. `views/metadata-admin/index.ts` stopped being a
+ * registering module — its five load-time registrations moved to a leaf the
+ * PACKAGE ENTRY bare-imports — so the `sideEffects` array stopped naming it, the
+ * package barrel's 25 runtime re-exports were re-pointed at leaf modules, and
+ * the whole `metadata-admin` chunk (172,945 gzipped bytes, 144 modules) left the
+ * eager closure: 3,254,230 -> 3,222,314, −31,916 bytes, measured on two full
+ * console builds. The maintainer ruling of 2026-08-30 made the re-baseline part
+ * of the change rather than a follow-up, in its own words:
+ *
+ *     ⛔ ceiling 处置写死(不作实施者临场判断):-31KB 把余量推到 ~0.89x 门禁
+ *     89KB 回归阈值(近盲),同批重设 `MAX_EAGER_CLOSURE_GZIP_BYTES`;抬 ceiling
+ *     是有申报程序的 ratchet,裁决原话引入 PR 正文。
+ *
+ * Measured, the drift was 0.85x rather than 0.89x — the gate printed
+ * `headroom 75.9 KB = 0.85x the 89.0 KB regression` on the post-change build
+ * before this constant moved. Either way it is the blind band reopening, and the
+ * direction of this edit is DOWN: no build that passed before it and measures
+ * under 3,268,000 fails after it.
+ *
  * ⚠️ Read the direction correctly: the closure did NOT fall by the 242.6 KB the
  * objectui#6683 card projected. That figure was measured for
  * `"sideEffects": false`, which is closed by measurement because it also DROPS
@@ -157,12 +177,12 @@
  * become an excuse to widen it — a ceiling that rises while the sensitivity
  * relaxes is a gate quietly retiring itself.
  *
- * This is a truthful CURRENT-STATE ceiling, not a target. 3.15 MB gzipped
+ * This is a truthful CURRENT-STATE ceiling, not a target. 3.07 MB gzipped
  * before first render is a bad payload, and the honest long-term line is far
  * below it — but lowering the line to a TARGET is a separate decision with its
  * own work behind it (objectui#5324 names the candidates), and re-baselining
  * onto a fresh measurement is not that. Nothing here should be read as a
- * finding that 3.19 MB is acceptable.
+ * finding that 3.12 MB is acceptable.
  *
  * ## Per-chunk ceilings (objectui#5490)
  *
@@ -210,10 +230,10 @@ import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,254,004 on `bd2a7ec50`.
+ * how this number was chosen; measured 3,222,314 on `3d257c85a`.
  *
- * Re-baselined DOWNWARD twice, each time toward a measurement the payload had
- * already fallen to:
+ * Re-baselined DOWNWARD three times, each time toward a measurement the payload
+ * had already fallen to:
  *
  *   - objectui#5924, from 4,086,000 (derived from the 4,005,911 reading on
  *     `4c1623c0c`) to 3,345,000 over 3,299,898 on `48e53814e`.
@@ -224,10 +244,17 @@ import { isEntrypoint } from './invoked-as.mjs';
  *     at 1.00x its own sensitivity and, on the next byte of shrink, tripped the
  *     exit-2 verdict about the gauge. Lowering it in the SAME change is the
  *     tightening the maintainer ruling of 2026-08-29 asked for.
+ *   - objectui#6776, to 3,268,000 over 3,222,314. The metadata-admin engine's
+ *     five load-time registrations moved out of the page barrel, so the barrel
+ *     stopped being named by the `sideEffects` array and the 172,945-byte
+ *     `metadata-admin` chunk left the eager closure (−31,916 bytes). The
+ *     3,300,000 ceiling was measured carrying 75.9 KB of headroom afterwards —
+ *     0.85x the regression this gate must catch, the blind band reopening — and
+ *     the 2026-08-30 ruling made moving it part of the same change.
  *
- * Headroom is 45,996 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
+ * Headroom is 45,686 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
  */
-export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_300_000;
+export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_268_000;
 
 /**
  * The measurement the ceiling above was derived from. Exported so the two
@@ -240,17 +267,17 @@ export const BASELINE = Object.freeze({
   /**
    * `emitEagerClosureReport`'s `eagerGzipBytes` on this commit.
    *
-   * `bd2a7ec50` is the commit that carries the array and the gates; this
-   * constant was written one commit later, and the two trees differ ONLY by
-   * this recorded identifier. That is safe to state rather than hope: the
+   * `3d257c85a` is the commit that carries the metadata-admin split
+   * (objectui#6776); this constant was written one commit later, and the two
+   * trees differ ONLY by this file. That is safe to state rather than hope, and
+   * it is the same argument the previous baseline (`bd2a7ec50`) made: the
    * console build's turbo `inputs` cover `scripts/vite-*.ts`, not
-   * `scripts/check-*.mjs`, so nothing in this file reaches the bundler. The
-   * figure was re-measured on the later commit and came back identical.
+   * `scripts/check-*.mjs`, so nothing in this file reaches the bundler.
    */
-  gzipBytes: 3_254_004,
+  gzipBytes: 3_222_314,
   chunks: 48,
-  totalChunks: 513,
-  commit: 'bd2a7ec50',
+  totalChunks: 517,
+  commit: '3d257c85a',
 });
 
 /**
