@@ -371,7 +371,7 @@ export const KNOWN_UNHIGHLIGHTED_TS_FENCES = new Map([
   ['content/docs/components/overlay/popover.mdx', 1],
   ['content/docs/components/overlay/sheet.mdx', 1],
   ['content/docs/components/overlay/tooltip.mdx', 1],
-  ['content/docs/core/report-schema.mdx', 11],
+  ['content/docs/core/report-schema.mdx', 8],
   ['content/docs/plugins/plugin-calendar.mdx', 1],
   ['content/docs/plugins/plugin-chatbot.mdx', 2],
   ['content/docs/plugins/plugin-dashboard.mdx', 3],

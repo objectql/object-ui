@@ -35,7 +35,7 @@ ReportComponentSchema provides:
 
 ## Basic Usage
 
-```plaintext
+```ts
 import type { ReportComponentSchema } from '@object-ui/types';
 
 const salesReport: ReportComponentSchema = {
@@ -316,12 +316,12 @@ const comprehensiveReport: ReportComponentSchema = {
       chart: {
         type: 'chart',
         chartType: 'line',
-        data: [],
+        categories: ['January', 'February', 'March'],
         series: [
           {
             name: 'Revenue',
             type: 'line',
-            dataKey: 'revenue'
+            data: [120000, 145000, 132000]
           }
         ]
       }
@@ -402,7 +402,8 @@ const builder: ReportBuilderSchema = {
   type: 'report-builder',
   
   report: {
-    // Initial report configuration
+    type: 'report',
+    title: 'Untitled Report'
   },
   
   dataSources: [
@@ -425,8 +426,12 @@ const builder: ReportBuilderSchema = {
 
 Use `ReportViewerSchema` to display generated reports:
 
-```plaintext
-import type { ReportViewerSchema } from '@object-ui/types';
+```ts
+import type { ReportComponentSchema, ReportViewerSchema } from '@object-ui/types';
+
+// The report defined under "Basic Usage" above, and the rows a run produced.
+declare const salesReport: ReportComponentSchema;
+declare const reportData: Array<Record<string, unknown>>;
 
 const viewer: ReportViewerSchema = {
   type: 'report-viewer',
@@ -441,8 +446,11 @@ const viewer: ReportViewerSchema = {
 
 ## Runtime Validation
 
-```plaintext
+```ts
 import { ReportComponentSchema } from '@object-ui/types/zod';
+
+// The report configuration to validate.
+declare const myReport: unknown;
 
 const result = ReportComponentSchema.safeParse(myReport);
 

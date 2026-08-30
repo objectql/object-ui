@@ -1959,6 +1959,56 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     const cols = normalizeColumns(schemaColumns);
     
     if (cols) {
+      // FLS on the AUTHORED `columns` path (objectui#6799 — maintainer ruling
+      // 2026-08-30, inheriting objectui#6723's 2026-08-29 reasoning verbatim).
+      //
+      // This was the LAST of `generateColumns()`'s three default paths that did
+      // not re-apply field-level security. The object-schema path always did;
+      // the inline-data path does as of objectui#6723. Leaving this one out was
+      // the worst of the three to leave, because it is the MOST REACHABLE:
+      // objectui#6723's path needs a host to hand rows down, while this one runs
+      // whether the grid fetches its own rows or not. Three paths of one
+      // function, two checking and one not, is a bypass around the field gate
+      // rather than an inconsistency.
+      //
+      // ⭐ THE LIMIT IS LOAD-BEARING, NOT AN OPTIMISATION — and it bites harder
+      // here than on the inline-data path. Only keys the OBJECT DECLARES are
+      // judged; everything else passes through untouched. A `ListColumn` carries
+      // `label` / `link` / `action` / `prefix` / `width`, so a column whose
+      // `field` the object does not declare is not a mistake — it is a
+      // legitimate authored derived or host-joined column (`computed_score`, a
+      // flattened `account.name`), and deleting it would destroy authoring work.
+      // `checkField` answers `false` for a field the policy has never heard of,
+      // so asking it about a derived key is not a stricter reading of the same
+      // rule — it is a different, wrong one. `hasOwnProperty` rather than a
+      // truthiness read so an inherited name (`constructor`, `toString`) cannot
+      // be mistaken for a declared field.
+      //
+      // ⛔ THE JUDGED KEY IS READ THROUGH `columnIdentity`, NEVER OFF A BARE
+      // STRING (the ruling says so by name). `columnIdentity` folds the three
+      // authored identity spellings — `'salary'`, `{ field: 'salary' }` and the
+      // legacy `{ name: 'salary' }` — which is why ONE predicate serves both
+      // arms below. A gate reading `col.field` directly would find no identity
+      // on the legacy spelling and wave a denied declared field straight
+      // through. `resolvesToDataColumn` keeps owning its own decisions and runs
+      // first: this gate narrows what survives, it never resurrects a hidden or
+      // unresolvable column.
+      //
+      // Redundant through `ListView`, which filters its own `effectiveFields`
+      // through this same gate before forwarding them as `columns` — and that
+      // redundancy IS the point: the invariant must not rest on every future
+      // host having read the docs. Measured in-repo hosts that do NOT filter
+      // first: `ObjectView`, `ObjectManager`, `FieldDesigner`. Pinned in
+      // `authoredColumnsFls-6799.test.tsx`.
+      const passesFieldGate = (entry: unknown): boolean => {
+        if (!perms?.isLoaded || !schema.objectName) return true;
+        const fieldName = columnIdentity(entry);
+        // No readable identity ⇒ nothing to ask the policy about.
+        if (!fieldName) return true;
+        // Undeclared ⇒ host-joined / derived ⇒ not this gate's business.
+        if (!Object.prototype.hasOwnProperty.call(objectSchema?.fields ?? {}, fieldName)) return true;
+        return perms.checkField(schema.objectName, fieldName, 'read');
+      };
       // ObjectStack's DECLARED column spelling is the only one read
       // (objectui#5068). `ObjectGridSchema.columns` is `string[] | ListColumn[]`,
       // and `ListColumnSchema` in `@objectstack/spec/ui` is a STRICT object:
@@ -1991,6 +2041,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
         // `col?.field && typeof col.field === 'string' && !col.hidden`.
         return (cols as ListColumn[])
           .filter((col) => resolvesToDataColumn(col))
+          .filter((col) => passesFieldGate(col))
           .map((col, colIndex) => {
             // Fall back to the SCHEMA FIELD's label before prettifying the machine
             // name — otherwise a column declared as bare { field } shows an English
@@ -2203,6 +2254,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
       // String array format - enrich with objectDef field metadata for type-aware rendering
       return (cols as string[])
         .filter((fieldName) => typeof fieldName === 'string' && fieldName.trim().length > 0)
+        .filter((fieldName) => passesFieldGate(fieldName))
         .map((fieldName, colIndex) => {
           const fieldDef = objectSchema?.fields?.[fieldName];
           const rawFieldLabel = fieldDef?.label;

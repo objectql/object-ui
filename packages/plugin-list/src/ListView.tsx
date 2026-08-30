@@ -2110,9 +2110,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
    *   2. The author declared some and the gates above removed them all — FLS
    *      denied every one, or every one is hidden. That case must KEEP sending
    *      the empty projection. Falling through to the grid's defaults there
-   *      would show fields the author never asked for, and `ObjectGrid`
-   *      re-applies FLS only on the DERIVED path, not on the explicit-columns
-   *      one — so widening here would be a widening past the field gate.
+   *      would show fields the author never asked for.
+   *
+   *      ⭐ THE REASON CHANGED; THE PREDICATE DID NOT (objectui#6799). This
+   *      clause used to end "…and `ObjectGrid` re-applies FLS only on the
+   *      DERIVED path, not on the explicit-columns one — so widening here would
+   *      be a widening past the field gate." That is no longer true. As of
+   *      objectui#6799 the grid re-applies FLS on ALL THREE of its default
+   *      paths, the authored `columns` one included, so a fall-through here no
+   *      longer escapes the field gate. The predicate stays exactly as it is
+   *      for the half of the sentence that never depended on the grid: an empty
+   *      projection is the AUTHOR's projection after filtering, and handing the
+   *      grid "unauthored" would replace it with the object's default columns —
+   *      fields the author never declared. FLS-checked now, but still not what
+   *      was authored. AUTHORING INTENT is what this predicate protects, and
+   *      that was always the load-bearing half.
    *
    * Hence the question is about the AUTHORED value and never about what
    * survived filtering.

@@ -1123,6 +1123,29 @@ export interface ChartDataSeries {
    */
   data: number[];
   /**
+   * Per-series chart family override, for a combo chart: this series draws as a
+   * line (or bar, or area) on a chart whose own `chartType` is something else.
+   *
+   * Declared because the renderer already READS it and the documentation already
+   * authored it (objectui#6121, maintainer ruling 2026-08-25). The read is
+   * `normalizeChartSchema`'s `normalizeSeries` in `@object-ui/plugin-charts`:
+   *
+   *     const family = str(raw.chartType) ?? str(raw.type);
+   *     if (family === 'bar' || family === 'line' || family === 'area') …
+   *
+   * so `type` is the AUTHOR spelling of the same override `chartType` carries
+   * internally, and it reaches `NormalizedSeries.chartType` either way.
+   *
+   * ⚠️ The union is the three families that read does honour — NOT the full
+   * {@link ChartType}. A `type: 'pie'` on a series is dropped in silence by the
+   * normalizer, so declaring the wider union would advertise a per-series
+   * override that nothing performs. `@objectstack/spec`'s own `ChartSeries.type`
+   * is the wider `ChartType`; this is the objectui inline-data node's series, a
+   * deliberately separate shape (objectstack#4115 — see this interface's header),
+   * and it declares what its own renderer enforces.
+   */
+  type?: 'bar' | 'line' | 'area';
+  /**
    * Series color
    */
   color?: string;
