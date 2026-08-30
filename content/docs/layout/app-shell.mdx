@@ -41,7 +41,7 @@ interface AppShellProps {
   children: React.ReactNode;     // Main content area
   className?: string;            // Additional CSS classes for content area
   defaultOpen?: boolean;         // Sidebar default state (default: true)
-  branding?: AppShellBranding;   // App branding — see AppShellBranding
+  branding?: AppShellBranding;   // App branding — four theme fields, see Branding
   rightRail?: React.ReactNode;   // Optional right rail beside the content, not
                                  // over it (ADR-0057 P3a)
 }
@@ -78,6 +78,32 @@ The main content area features:
 - Automatic scrolling
 - Flexible height (fills viewport)
 - Custom className support
+
+### Branding
+
+`branding` is theming, not chrome — the shell hands it to `useAppShellBranding`, and all
+four of the fields it declares are read:
+
+- `primaryColor` / `accentColor` — a six-digit hex (`#3B82F6`; the leading `#` is
+  optional, three-digit shorthand is not accepted), translated into the Shadcn theme
+  tokens listed under Styling below. A value that does not parse that way is ignored
+  silently.
+- `favicon` — overwrites the `href` of the icon link the page already has (`#favicon`,
+  otherwise `link[rel="icon"]`). It never creates one, so a document with no icon link is
+  left unchanged.
+- `title` — assigned to `document.title` as given. It is the whole title, not a suffix:
+  the caller composes the string it wants (the console passes
+  `"App label — Product name"`).
+
+All of it acts on the document rather than on the shell's subtree, and the colour
+properties are removed again when the shell unmounts.
+
+### Right Rail
+
+`rightRail` renders your node as a flex sibling of the content area, so the rail sits
+**beside** the content and reflows it rather than overlaying it (ADR-0057 P3a). The shell
+adds no wrapper and no width around it — the node you pass owns its width, border and
+scrolling; omit it and the layout is the unchanged single pane.
 
 ## Layout Structure
 
@@ -254,6 +280,16 @@ The AppShell uses Tailwind CSS and Shadcn UI components:
 
 - `SidebarProvider`: Manages sidebar state
 - `SidebarInset`: Content area wrapper
+
+Brand colours arrive as Shadcn theme tokens rather than as per-component styles: each hex
+from `branding` is converted to the `H S% L%` triple those tokens carry and set as a CSS
+custom property on `document.documentElement`. `primaryColor` writes `--primary`,
+`--primary-foreground`, `--ring`, `--sidebar-primary` and `--sidebar-ring`; `accentColor`
+writes `--accent` and `--accent-foreground`. Tailwind's utilities resolve through the same
+tokens (`--color-primary: hsl(var(--primary))`), so every `bg-primary` / `text-primary` /
+`ring-primary` / `bg-accent` consumer picks the brand colour up with no per-component
+wiring. In dark mode a lighter variant of the same hue is used instead, and the shell
+re-applies the values whenever the `dark` class on the `html` element changes.
 
 ## Accessibility
 
