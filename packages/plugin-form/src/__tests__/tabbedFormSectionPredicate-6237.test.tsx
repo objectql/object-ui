@@ -370,8 +370,16 @@ describe('#6237 — the wizard boundary is enforced by the TYPE, not by a commen
     // below pass vacuously — a phantom check that can never fail. This row
     // proves the machinery detects a predicate key when one is really there,
     // on the sibling type that really has one.
+    //
+    // ⚠️ The DIRECTION is the whole control. Written the other way round
+    // (`PredicateKeysOf<FormSectionConfig> extends 'visibleWhen'`) it would be
+    // vacuous for exactly the failure it is meant to catch: `never` is
+    // assignable to everything, so a broken helper returning `never` would
+    // satisfy it too — and then BOTH rows would pass while measuring nothing.
+    // Asking whether `'visibleWhen'` is assignable TO the helper's result is
+    // the assertion a `never` result fails.
     type _TabbedSectionHasThePredicateKey = Expect<
-      PredicateKeysOf<FormSectionConfig> extends 'visibleWhen' ? true : false
+      'visibleWhen' extends PredicateKeysOf<FormSectionConfig> ? true : false
     >;
 
     // The pin itself: the wizard's step type carries no `*When` key at all.
