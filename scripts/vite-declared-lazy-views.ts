@@ -222,11 +222,13 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  *     edge 2 without touching `registerAppComponent`'s signature.
  *
  * ⚠️ The `lazy()` in `builtinComponents.tsx` is the half that looks sufficient
- * and is not: on its own it is worth −30 bytes, GROWS the `metadata-admin`
- * chunk, leaves it EAGER, and passes every gate — including
- * `scripts/vite-ineffective-dynamic-imports.ts`, which cannot see a static edge
- * that lives in another module. That trap is written up beside the code in
- * `builtinComponents.tsx`.
+ * and is not. Measured on `fab4802e3` with ONLY that half applied: the eager
+ * closure went UP by 211 bytes, the `metadata-admin` chunk went up by 396, the
+ * eager chunk count did not move, the chunk stayed EAGER — and the build exited
+ * 0 with this plugin printing "2 eager, all pinned" and
+ * `scripts/vite-ineffective-dynamic-imports.ts` printing its usual 43, because
+ * neither can see a static edge that lives in another module. That trap is
+ * written up beside the code in `builtinComponents.tsx`.
  *
  * ⛔ What has NOT changed: the five registrations are still load-bearing and
  * still unshakeable. {@link declaredSideEffectful} — not

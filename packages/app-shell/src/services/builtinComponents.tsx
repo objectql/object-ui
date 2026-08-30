@@ -42,16 +42,29 @@ import {
  * the other half is the smallest, most in-fence-looking version of this change,
  * and it is worth almost nothing:
  *
- *   measured, this file's `lazy()` alone   − 30 B off the eager closure,
- *                                          + 189 B on the `metadata-admin`
- *                                            chunk, which stays EAGER
+ * Measured on `fab4802e3` — a full console build of that commit with ONLY this
+ * file's two registrations turned into `lazy()` values, against the same
+ * commit unmodified:
  *
- * ...and every gate stays GREEN while it does. The `ineffective-dynamic-import`
- * ledger (`scripts/vite-ineffective-dynamic-imports.ts`) cannot see it, because
- * the static edge that defeats the `import()` does not live in this module at
- * all — it lives in the package barrel's re-export. That is the objectui#5486
- * shape: code that CLAIMS a code split it does not have, with a loading fallback
- * no user can ever reach.
+ *   eager closure         3,254,230 -> 3,254,441 B gzipped   (+211 B)
+ *   `metadata-admin` chunk  172,945 ->   173,341 B gzipped   (+396 B)
+ *   eager chunk count            45 ->        45 of 513      (UNCHANGED)
+ *   the chunk itself                        still EAGER
+ *
+ * So it does not merely fail to pay — it costs bytes in both places, and it is
+ * the `lazy()`/`Suspense` scaffolding itself that it spends them on. And every
+ * gate stays GREEN while it does: that build exits 0, the
+ * `ineffective-dynamic-import` ledger prints its usual 43 pinned entries with no
+ * 44th, and `declared-lazy-views` prints "2 eager, all pinned". The ledger
+ * cannot see this because the static edge that defeats the `import()` does not
+ * live in this module at all — it lives in the package barrel's re-export. That
+ * is the objectui#5486 shape: code that CLAIMS a code split it does not have,
+ * with a loading fallback no user can ever reach.
+ *
+ * (The ruling that ordered this comment predicted −30 B and +189 B. The
+ * direction of the chunk growth and the green gates reproduced; the closure
+ * figure did not, and it came back POSITIVE. The measured numbers are the ones
+ * above.)
  *
  * So: a `lazy()` in this file is only ever true when nothing in the package's
  * EAGER graph still names the same module statically. Check the barrel first,
