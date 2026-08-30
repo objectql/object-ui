@@ -244,6 +244,8 @@ export const DataTableSchema = BaseSchema.extend({
   }).optional().describe('Per-record CEL predicates for the built-in row Delete item (objectui#2614)'),
   onSelectionChange: z.function().optional().describe('Selection change handler'),
   onColumnsReorder: z.function().optional().describe('Column reorder handler'),
+  cellClassName: z.string().optional().describe('Extra classes folded into every body cell — the table-level twin of the per-column `cellClassName`; carries row-density padding (objectui#6882)'),
+  renderCellEditor: z.function().optional().describe('Host-supplied inline cell editor; returning null falls through to the built-in text/number/date inputs (objectui#6882)'),
   frozenColumns: z.number().optional().describe('Number of frozen columns'),
   showRowNumbers: z.boolean().optional().describe('Show row numbers'),
   emptyAction: SchemaNodeSchema.optional().describe('Optional schema node rendered inside the empty-state, e.g. an "Add record" button. Lets the empty state become an actionable invitation rather than a dead end.'),

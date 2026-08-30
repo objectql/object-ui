@@ -43,9 +43,22 @@ interface DataTableSchema {
   // Advanced features
   resizableColumns?: boolean;            // Allow column resizing (default: true)
   reorderableColumns?: boolean;          // Allow column reordering (default: true)
-  
+
+  // Inline editing
+  editable?: boolean;                    // Enable inline cell editing (default: false)
+  singleClickEdit?: boolean;             // Enter edit mode on single click (default: false)
+  renderCellEditor?: (ctx: {             // Host-supplied editor widget; null -> built-in input
+    column: any;
+    row: any;
+    value: any;
+    stage: (v: any) => void;
+    commit: (v?: any) => void;
+    cancel: () => void;
+  }) => ReactNode;
+
   // Styling
-  className?: string;                    // Tailwind CSS classes
+  className?: string;                    // Tailwind CSS classes on the table wrapper
+  cellClassName?: string;                // Tailwind CSS classes on EVERY body cell
   
   // Base properties
   id?: string;
@@ -53,6 +66,45 @@ interface DataTableSchema {
   testId?: string;
 }
 ```
+
+## Cell styling
+
+`className` styles the table wrapper; `cellClassName` is folded into **every body
+cell**, which is where per-cell padding has to go — row height is a property of the
+cells, not of the row element, so `rowClassName` cannot express it. A host rendering
+compact rows sets it once on the schema:
+
+```json
+{
+  "type": "data-table",
+  "cellClassName": "px-2 py-1 text-sm",
+  "columns": [
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Amount", "accessorKey": "amount", "cellClassName": "text-right" }
+  ],
+  "data": []
+}
+```
+
+The per-column `cellClassName` on `TableColumn` styles one column; both apply when
+both are present.
+
+## Inline editing
+
+With `editable: true` a cell enters edit mode on double-click (or on single click
+with `singleClickEdit: true`) and the table renders one of its built-in editors —
+text, number, date — chosen from the column's `type`.
+
+`renderCellEditor` lets the host supply a widget instead. The table calls it first
+for every cell it is about to edit; return a node to use it, or `null` to fall
+through to the built-in editor for that column. This is how `object-grid` gives a
+`select` or `lookup` cell the same dedicated control the form uses, without the
+component layer having to re-implement it.
+
+The returned node is wrapped by the table so it inherits the exit-edit
+affordances the built-in editors have: Enter commits from a single-line input,
+Escape cancels, and a click outside commits. Use `stage` to record a value while
+staying in edit mode, `commit` to save, and `cancel` to discard.
 
 ## Examples
 

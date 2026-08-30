@@ -2266,16 +2266,17 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 // re-implement select/boolean/etc. down here in the
                                 // (fields-free) component layer. Returning null means "no
                                 // widget for this type" → fall through to the built-ins.
-                                const injectEditor = (schema as any).renderCellEditor as
-                                  | ((ctx: {
-                                      column: any;
-                                      row: any;
-                                      value: any;
-                                      stage: (v: any) => void;
-                                      commit: (v?: any) => void;
-                                      cancel: () => void;
-                                    }) => React.ReactNode)
-                                  | undefined;
+                                //
+                                // This used to be `(schema as any).renderCellEditor as
+                                // (…) => React.ReactNode` — a cast that existed for one
+                                // reason only: `DataTableSchema` did not declare the key
+                                // this renderer has always read, so the read had to
+                                // re-state the contract locally and the schema had to be
+                                // opened up to let it. objectui#6882 declared it (the
+                                // 2026-08-30 ruling), so the read is typed at its source
+                                // and the ctx shape below is checked against the
+                                // declaration instead of asserted against nothing.
+                                const injectEditor = schema.renderCellEditor;
                                 if (typeof injectEditor === 'function') {
                                   const node = injectEditor({
                                     column: col,
