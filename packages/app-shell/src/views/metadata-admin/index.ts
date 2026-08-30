@@ -66,30 +66,26 @@ export type {
   MetadataAnchor,
 } from './registry.js';
 
-// Side-effect: register the built-in anchor relationships so the Related
-// tab works out of the box for objects (hooks, views, pages, …).
-import { registerBuiltinAnchors } from './anchors.js';
-registerBuiltinAnchors();
-
-// Side-effect: register fallback JSONSchemas for the 12 writable types
-// so the generic SchemaForm renders a real form (vs raw-JSON fallback)
-// until the framework wires Zod→JSONSchema generation into /meta/types.
-import { registerDefaultMetadataSchemas } from './default-schemas.js';
-registerDefaultMetadataSchemas();
-import { registerDatasourceResource } from './datasource/register.js';
-registerDatasourceResource();
-
-// Side-effect: register built-in Preview-tab renderers (page, view,
-// dashboard, report, app, object, email_template). Plugins can add or
-// override entries via `registerMetadataPreview()`.
-import { registerBuiltinPreviews } from './previews/index.js';
-registerBuiltinPreviews();
-
-// Side-effect: register built-in scoped inspectors (dashboard widget,
-// …). Plugins can add or override entries via
-// `registerMetadataInspector()`.
-import { registerBuiltinInspectors } from './inspectors/index.js';
-registerBuiltinInspectors();
+/**
+ * ⛔ NO LOAD-TIME REGISTRATION BELONGS IN THIS FILE (objectui#6776).
+ *
+ * The five built-in registrations (`registerBuiltinAnchors`,
+ * `registerDefaultMetadataSchemas`, `registerDatasourceResource`,
+ * `registerBuiltinPreviews`, `registerBuiltinInspectors`) used to run here.
+ * They now live in `./register-builtins.js`, which the PACKAGE ENTRY
+ * (`packages/app-shell/src/index.ts`) bare-imports; that file carries the
+ * reasoning. In one line: a module that registers at load time is named by
+ * `@object-ui/app-shell`'s published `sideEffects` array, an array entry is
+ * unshakeable, and the package barrel re-exports 25 runtime values from HERE —
+ * so a registration in this file drags every page, preview and inspector under
+ * `views/metadata-admin/` into the console's eager closure, past the six
+ * `lazy()` boundaries `AppContent` declares for it.
+ *
+ * That also rules out the tidy-looking version of the same mistake: a bare
+ * `import './register-builtins.js';` on THIS module. `bareSideEffectImport` in
+ * `scripts/vite-declared-lazy-views.ts` reads that line and refuses to declare
+ * this barrel pure, which puts the closure straight back.
+ */
 
 export {
   registerMetadataPreview,

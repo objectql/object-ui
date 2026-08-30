@@ -188,17 +188,22 @@ describe('declaredSideEffectful', () => {
     expect(declaredSideEffectful(['./src/**/*.css'], 'src/views/Alpha.tsx')).toContain('glob');
   });
 
-  it('agrees with the real package: metadata-admin/index.ts is declared side-effectful', () => {
+  it('agrees with the real package: register-builtins.ts is declared side-effectful', () => {
     // The subject. This is the file whose FIVE top-level registration calls
     // `bareSideEffectImport` cannot see, so without this guard the plugin would
     // declare it pure the moment someone deleted its ledger line
-    // (objectui#6681).
-    const owner = nearestPackage('packages/app-shell/src/views/metadata-admin/index.ts', REPO_ROOT);
+    // (objectui#6681). objectui#6776 MOVED those five calls out of the page
+    // barrel and into this leaf; the guard's job and its blind spot are
+    // unchanged, only the file that carries them.
+    const owner = nearestPackage(
+      'packages/app-shell/src/views/metadata-admin/register-builtins.ts',
+      REPO_ROOT,
+    );
     expect(owner?.packageJsonPath).toBe('packages/app-shell/package.json');
-    expect(owner?.packageRelative).toBe('src/views/metadata-admin/index.ts');
+    expect(owner?.packageRelative).toBe('src/views/metadata-admin/register-builtins.ts');
     const manifest = JSON.parse(read(owner!.packageJsonPath)) as { sideEffects?: unknown };
     expect(declaredSideEffectful(manifest.sideEffects, owner!.packageRelative)).toBe(
-      './src/views/metadata-admin/index.ts',
+      './src/views/metadata-admin/register-builtins.ts',
     );
     // The positive control in the same query shape: a declared-lazy module the
     // array does NOT name, so a matcher that answered "side-effectful" to
@@ -206,6 +211,21 @@ describe('declaredSideEffectful', () => {
     expect(
       declaredSideEffectful(manifest.sideEffects, 'src/console/marketplace/MarketplacePage.tsx'),
     ).toBeNull();
+  });
+
+  it('the page barrel is NOT declared side-effectful any more (objectui#6776)', () => {
+    // The other half of the move, stated as a pin rather than left to the
+    // ledger: `views/metadata-admin/index.ts` is what the console's six
+    // `lazy()` declarations name, and it is shakeable ONLY while the published
+    // `sideEffects` array does not name it. Re-adding it there — or putting a
+    // bare `import './register-builtins.js';` back on the barrel, which
+    // `bareSideEffectImport` reads as the same claim — puts 172,945 gzipped
+    // bytes back into every console page load, silently.
+    const owner = nearestPackage('packages/app-shell/src/views/metadata-admin/index.ts', REPO_ROOT);
+    expect(owner?.packageJsonPath).toBe('packages/app-shell/package.json');
+    const manifest = JSON.parse(read(owner!.packageJsonPath)) as { sideEffects?: unknown };
+    expect(declaredSideEffectful(manifest.sideEffects, owner!.packageRelative)).toBeNull();
+    expect(bareSideEffectImport(read('packages/app-shell/src/views/metadata-admin/index.ts'))).toBeNull();
   });
 
   it('the source-reading guard is blind to it, which is why this one exists', () => {

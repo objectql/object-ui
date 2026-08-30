@@ -309,57 +309,88 @@ import './views/record-approvals-renderer.js';
 // `global:notifications`.
 import './views/global-search-renderer.js';
 import './views/global-notifications-renderer.js';
+// The metadata-admin engine's five load-time registrations (built-in anchors,
+// default JSONSchemas, the datasource resource, built-in previews, built-in
+// inspectors). objectui#6776 moved them OUT of `views/metadata-admin/index.ts`
+// into this leaf so the page barrel became shakeable; the bare import lives
+// HERE, on the package entry, and must not be moved onto the page barrel —
+// `scripts/vite-declared-lazy-views.ts` reads a bare import as "this module is
+// not pure" and the whole eager closure comes back. See the leaf's own header.
+import './views/metadata-admin/register-builtins.js';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type
 // list / edit / create components, and host apps can compose the
 // page primitives directly when needed.
+//
+// ⚠️ These 25 runtime re-exports name the LEAF modules, never
+// `./views/metadata-admin/index.js` (objectui#6776). The names and their types
+// are unchanged — an out-of-package consumer imports exactly what it imported
+// before — but a named re-export is an ordinary STATIC EDGE, and the console's
+// entry imports this barrel, so pointing them at the page barrel made that
+// barrel (and every page, preview and inspector it reaches) eager on every
+// console page load, past the six `lazy()` declarations `AppContent` writes for
+// it. The 11 TYPE-ONLY re-exports below are erased at build and carry no edge;
+// they are grouped separately for that reason and not because they are less
+// public.
+export { MetadataDirectoryPage } from './views/metadata-admin/DirectoryPage.js';
+export { MetadataResourceRouter } from './views/metadata-admin/ResourceRouter.js';
+export { MetadataResourceListPage } from './views/metadata-admin/ResourceListPage.js';
+export { MetadataResourceEditPage } from './views/metadata-admin/ResourceEditPage.js';
+export { MetadataResourceHistoryPage } from './views/metadata-admin/ResourceHistoryPage.js';
+export { MetadataDiagnosticsPage } from './views/metadata-admin/DiagnosticsPage.js';
+export { MetadataQuickFind } from './views/metadata-admin/QuickFind.js';
+export { PageShell as MetadataPageShell } from './views/metadata-admin/PageShell.js';
+export { SchemaForm } from './views/metadata-admin/SchemaForm.js';
+export { LayeredDiff } from './views/metadata-admin/LayeredDiff.js';
 export {
-  MetadataDirectoryPage,
-  MetadataResourceRouter,
-  MetadataResourceListPage,
-  MetadataResourceEditPage,
-  MetadataResourceHistoryPage,
-  MetadataDiagnosticsPage,
-  MetadataQuickFind,
-  MetadataPageShell,
-  SchemaForm,
-  LayeredDiff,
   registerMetadataResource,
   getMetadataResource,
   listMetadataResources,
   resolveResourceConfig,
+} from './views/metadata-admin/registry.js';
+export {
   useMetadataClient,
   useMetadataTypes,
   useTypesIndex,
   useGlobalDiagnostics,
   matchesQuery,
+} from './views/metadata-admin/useMetadata.js';
+export {
   registerMetadataPreview,
   getMetadataPreview,
   listMetadataPreviewTypes,
+} from './views/metadata-admin/preview-registry.js';
+export {
   registerMetadataInspector,
   getMetadataInspector,
   listMetadataInspectorTypes,
-} from './views/metadata-admin/index.js';
+} from './views/metadata-admin/inspector-registry.js';
 export type {
   MetadataResourceConfig,
   MetadataDomain,
-  RichMetadataTypeEntry,
+} from './views/metadata-admin/registry.js';
+export type { RichMetadataTypeEntry } from './views/metadata-admin/useMetadata.js';
+export type {
   MetadataPreview,
   MetadataPreviewProps,
   MetadataSelection,
+} from './views/metadata-admin/preview-registry.js';
+export type {
   MetadataInspector,
   MetadataInspectorProps,
-  // The form authoring surface, in ONE declaration per layer: the field
-  // (objectui#5040 / #5542) and the two containers above it (objectui#5596).
-  // `apps/console` renders the same authored `FormView` documents this
-  // package's metadata-admin does; before it could import these names it kept
-  // its own hand-written copies of all three shapes. See the note on the
-  // re-export in `views/metadata-admin/index.ts`.
+} from './views/metadata-admin/inspector-registry.js';
+// The form authoring surface, in ONE declaration per layer: the field
+// (objectui#5040 / #5542) and the two containers above it (objectui#5596).
+// `apps/console` renders the same authored `FormView` documents this package's
+// metadata-admin does; before it could import these names it kept its own
+// hand-written copies of all three shapes. See the note on the re-export in
+// `views/metadata-admin/index.ts`.
+export type {
   FormFieldSpec,
   FormSectionSpec,
   FormViewSpec,
-} from './views/metadata-admin/index.js';
+} from './views/metadata-admin/form-spec.js';
 
 // Studio WYSIWYG design surface (ADR-0080) — the open-source design surface.
 // The left AI copilot is an injected `aiSlot`; OSS renders three zones.

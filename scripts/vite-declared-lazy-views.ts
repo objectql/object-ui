@@ -104,7 +104,7 @@ import type { Plugin, Rollup } from 'vite';
  *
  * | chunk                      | gz eager | mechanism                          |
  * |----------------------------|----------|------------------------------------|
- * | `metadata-admin`           | 172,651  | real static edges — PINNED below   |
+ * | `metadata-admin`           | 172,651  | real static edges — FIXED, #6776   |
  * | `MarketplacePackagePage`   |    7,647 | chunk co-tenancy — FIXED           |
  * | `MarketplaceInstalledPage` |    1,836 | chunk co-tenancy — FIXED           |
  * | `MarketplacePage`          |        0 | already lazy (the control)         |
@@ -178,52 +178,64 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  * (`scripts/__tests__/vite-declared-lazy-views.test.ts` checks that, and that
  * every entry still names a file that exists).
  *
- * Two entries stand, and neither stands for the barrel re-export objectui#6535
- * removed:
+ * ONE entry stands, and it does not stand for the barrel re-export
+ * objectui#6535 removed:
  *
  *  - `RecordDetailView` — a real static edge.
  *    `packages/app-shell/src/views/ObjectView.tsx` imports it by name, and
  *    `ObjectView` sits in AppContent's own "eagerly loaded — always needed"
  *    block. Splitting it would mean giving `ObjectView` a lazy boundary.
  *
- *  - `views/metadata-admin/index.ts` — the LARGEST single entry this ledger has
- *    ever carried (172,651 bytes gzipped, 144 modules, 5.3% of the whole eager
- *    closure) and the one most likely to be "fixed" by someone who has not read
- *    why it stands. It is the target of SIX `lazy()` declarations in AppContent
- *    and it is statically imported by two modules that are eager by
- *    construction, both measured from the emitted chunk's module list on
- *    `b98352a15` (objectui#6681):
+ * ## `views/metadata-admin/index.ts` was the third removal — objectui#6776
  *
- *      1. `packages/app-shell/src/index.ts` — the package barrel, which
- *         re-exports eleven runtime values from it (`registerMetadataPreview`,
- *         `useMetadataClient`, …). The console's entry imports that barrel.
- *      2. `packages/app-shell/src/services/builtinComponents.tsx` — which the
- *         barrel BARE-imports (`import './services/builtinComponents.js';`) for
- *         its ComponentRegistry registrations, and which imports
- *         `MetadataDirectoryPage` and `MetadataResourceRouter` from this module
- *         BY VALUE. A registry entry that names a component must hold the
- *         component.
+ * It was the LARGEST single entry this ledger ever carried: 172,945 bytes
+ * gzipped over 144 modules, 5.3% of the eager closure, the target of SIX
+ * `lazy()` declarations in AppContent that deferred nothing. Two static edges
+ * held it, both measured from the emitted chunk's module list (objectui#6681):
  *
- *    Neither edge is removable inside a bundling change, and the module cannot
- *    be declared pure: it performs FIVE top-level registrations at module load
- *    (`registerBuiltinAnchors`, `registerDefaultMetadataSchemas`,
- *    `registerDatasourceResource`, `registerBuiltinPreviews`,
- *    `registerBuiltinInspectors`), which is why
- *    `@object-ui/app-shell`'s own `sideEffects` array names it (objectui#6683).
- *    ⚠️ Those five are CALLS, not bare imports, so {@link bareSideEffectImport}
- *    returns `null` for this file — the guard that actually refuses to declare
- *    it pure is {@link declaredSideEffectful}, reading the package's own array.
+ *   1. `packages/app-shell/src/index.ts` — the package barrel re-exported 25
+ *      runtime values from it (`registerMetadataPreview`, `useMetadataClient`,
+ *      …; the earlier note here said eleven, which counted only part of the
+ *      list and omitted the 11 type-only names that carry no edge at all —
+ *      corrected by objectui#6785). The console's entry imports that barrel.
+ *   2. `packages/app-shell/src/services/builtinComponents.tsx` — which the
+ *      barrel BARE-imports for its ComponentRegistry registrations, and which
+ *      imported `MetadataDirectoryPage` and `MetadataResourceRouter` from this
+ *      module BY VALUE. A registry entry that names a component must hold the
+ *      component.
  *
- *    The six pages the declarations name (`DirectoryPage`, `StudioHomePage`,
- *    `ResourceListPage`, `ResourceEditPage`, `ResourceHistoryPage`,
- *    `DiagnosticsPage`) have NO dynamic importer of their own in the emitted
- *    graph — they are reached only through this barrel's static re-exports —
- *    so no chunking policy separates them from it. Making this lazy means
- *    changing what `registerAppComponent` accepts (a component VALUE today) and
- *    what the package barrel re-exports; that is a published-contract decision,
- *    not a bundling one, and it is recorded as such rather than attempted here.
+ * The note that stood here said neither edge was removable inside a bundling
+ * change, and that was right — the repair was NOT a bundling change. Under the
+ * maintainer ruling of 2026-08-30 (objectui#6776), three things moved together:
  *
- * ## Two entries were REMOVED here, and that removal is a recorded win
+ *   - the five top-level registrations (`registerBuiltinAnchors`,
+ *     `registerDefaultMetadataSchemas`, `registerDatasourceResource`,
+ *     `registerBuiltinPreviews`, `registerBuiltinInspectors`) moved to
+ *     `views/metadata-admin/register-builtins.ts`, bare-imported by the PACKAGE
+ *     ENTRY, so they stay exactly as eager as they were while the page barrel
+ *     stops being side-effectful. `@object-ui/app-shell`'s `sideEffects` array
+ *     names the new leaf instead of the barrel;
+ *   - the package barrel's 25 runtime re-exports now name the LEAF modules,
+ *     same names and same types, which removes edge 1; and
+ *   - `builtinComponents.tsx` registers the two pages as `lazy()` values, each
+ *     behind its own `Suspense` inside the registration value, which removes
+ *     edge 2 without touching `registerAppComponent`'s signature.
+ *
+ * ⚠️ The `lazy()` in `builtinComponents.tsx` is the half that looks sufficient
+ * and is not: on its own it is worth −30 bytes, GROWS the `metadata-admin`
+ * chunk, leaves it EAGER, and passes every gate — including
+ * `scripts/vite-ineffective-dynamic-imports.ts`, which cannot see a static edge
+ * that lives in another module. That trap is written up beside the code in
+ * `builtinComponents.tsx`.
+ *
+ * ⛔ What has NOT changed: the five registrations are still load-bearing and
+ * still unshakeable. {@link declaredSideEffectful} — not
+ * {@link bareSideEffectImport}, which returns `null` for a top-level CALL —
+ * is the guard that refuses to declare their module pure, and it now reads
+ * `register-builtins.ts` out of the package's own array. Moving the bare import
+ * back onto the page barrel would re-arm the whole defect under a new name.
+ *
+ * ## Two entries were REMOVED here BEFORE that, and both removals are wins
  *
  * `RecordFormPage` and `ReportView` were pinned for a third reason, the one no
  * `grep` over the source shows: CHUNK CO-TENANCY (objectui#6680). Rolldown
@@ -246,7 +258,6 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  */
 export const DECLARED_LAZY_VIEWS_STILL_EAGER: readonly string[] = Object.freeze([
   'packages/app-shell/src/views/RecordDetailView.tsx',
-  'packages/app-shell/src/views/metadata-admin/index.ts',
 ]);
 
 /**

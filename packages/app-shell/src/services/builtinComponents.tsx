@@ -15,12 +15,9 @@
  * metadata type.
  */
 
+import { lazy, Suspense } from 'react';
 import { registerAppComponent } from './componentRegistry.js';
-import {
-  MetadataDirectoryPage,
-  MetadataResourceRouter,
-  registerMetadataResource,
-} from '../views/metadata-admin/index.js';
+import { registerMetadataResource } from '../views/metadata-admin/registry.js';
 import { PermissionMatrixEditPage } from '../views/metadata-admin/PermissionMatrixEditor.js';
 import { PackagesPage } from '../views/metadata-admin/PackagesPage.js';
 import { PackagedAutomationPage } from '../views/setup/PackagedAutomationPage.js';
@@ -33,18 +30,74 @@ import {
 /* 1) Top-level admin pages — bound to `metadata:directory` + `metadata:resource` */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * ⚠️ TRAP — read this before "just making something here lazy" (objectui#6776).
+ *
+ * The two registrations below hold their pages behind `lazy()` + `Suspense`, and
+ * that is ONE HALF of a two-part change. The other half is that
+ * `packages/app-shell/src/index.ts` re-exports the metadata-admin names from
+ * their LEAF modules rather than from `views/metadata-admin/index.ts`, and that
+ * the five load-time registrations moved to
+ * `views/metadata-admin/register-builtins.ts`. Doing the `lazy()` here WITHOUT
+ * the other half is the smallest, most in-fence-looking version of this change,
+ * and it is worth almost nothing:
+ *
+ *   measured, this file's `lazy()` alone   − 30 B off the eager closure,
+ *                                          + 189 B on the `metadata-admin`
+ *                                            chunk, which stays EAGER
+ *
+ * ...and every gate stays GREEN while it does. The `ineffective-dynamic-import`
+ * ledger (`scripts/vite-ineffective-dynamic-imports.ts`) cannot see it, because
+ * the static edge that defeats the `import()` does not live in this module at
+ * all — it lives in the package barrel's re-export. That is the objectui#5486
+ * shape: code that CLAIMS a code split it does not have, with a loading fallback
+ * no user can ever reach.
+ *
+ * So: a `lazy()` in this file is only ever true when nothing in the package's
+ * EAGER graph still names the same module statically. Check the barrel first,
+ * and measure from `apps/console/dist/eager-closure.json` and the emitted
+ * chunk's own module list — never from a source-level search, which cannot see
+ * chunk co-tenancy (objectui#6680, objectui#6681).
+ */
+const MetadataDirectoryPage = lazy(() =>
+  import('../views/metadata-admin/index.js').then((m) => ({ default: m.MetadataDirectoryPage })),
+);
+const MetadataResourceRouter = lazy(() =>
+  import('../views/metadata-admin/index.js').then((m) => ({ default: m.MetadataResourceRouter })),
+);
+
+function MetadataAdminFallback({ label }: { label: string }) {
+  return <div className="p-6 text-sm text-muted-foreground">Loading {label}…</div>;
+}
+
+/**
+ * The Suspense boundary lives INSIDE the registration value, which is the shape
+ * every other lazy `registerAppComponent` entry already uses
+ * (`apps/console/src/registerAccountComponents.tsx`,
+ * `registerDeveloperComponents.tsx`, `registerApprovalsComponents.tsx`). It
+ * keeps `registerAppComponent`'s published signature unchanged — a component
+ * VALUE, as before — and it means no render site has to learn about pending.
+ */
 registerAppComponent({
   ref: 'metadata:directory',
   label: 'All Metadata Types',
   source: '@object-ui/app-shell',
-  component: MetadataDirectoryPage,
+  component: (props: any) => (
+    <Suspense fallback={<MetadataAdminFallback label="metadata types" />}>
+      <MetadataDirectoryPage {...props} />
+    </Suspense>
+  ),
 });
 
 registerAppComponent({
   ref: 'metadata:resource',
   label: 'Metadata Resource',
   source: '@object-ui/app-shell',
-  component: MetadataResourceRouter,
+  component: (props: any) => (
+    <Suspense fallback={<MetadataAdminFallback label="metadata resource" />}>
+      <MetadataResourceRouter {...props} />
+    </Suspense>
+  ),
 });
 
 registerAppComponent({
