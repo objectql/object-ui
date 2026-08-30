@@ -41,4 +41,4 @@ difference.
 Not changed here: a `batchSize` smaller than the queue still drains one batch
 and leaves the remainder for the next transition, because whether one auto-sync
 should chain batches until the queue is empty is a separate question about what
-`batchSize` means, not about this guard.
+`batchSize` means, not about this guard. Filed as objectui#6857.

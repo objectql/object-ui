@@ -380,8 +380,10 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
   // Known remaining edge, deliberately not widened here: a `batchSize` smaller
   // than the queue drains one batch and leaves `hasPendingMutations` true, so
   // the remainder waits for the next transition rather than chaining a second
-  // batch. Whether one auto-sync should drain the whole queue batch-by-batch is
-  // a separate semantics question for `batchSize`, not this guard's bug.
+  // batch. That is the pre-existing behaviour, not a regression. Whether one
+  // auto-sync should drain the whole queue batch-by-batch is a semantics
+  // question about `batchSize` rather than a bug in this guard, and it is
+  // filed separately as objectui#6857.
   const hasPendingMutations = queue.length > 0;
   useEffect(() => {
     if (!enabled || !isOnline || !hasPendingMutations) return;
