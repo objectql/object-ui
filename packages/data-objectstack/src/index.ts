@@ -13,6 +13,12 @@ import type { DroppedFieldsEvent } from '@objectstack/spec/data';
 // is read off the pin instead of hand-copied here (a hand copy is the drift
 // this seam already paid for once — see `DroppedFieldsEvent`'s comment below).
 import { DroppedFieldsEventSchema } from '@objectstack/spec/data';
+// #6825 — the spec's OWN filter-AST gate, imported as a VALUE for the same
+// reason: `aggregate()`'s spec-shape branch decides whether a `where` is a
+// filter by asking the contract, not by a hand-rolled shape sniff that could
+// disagree with the door it is protecting. Same predicate the server ingress
+// runs, so the producer-side refusal and the wire-side one cannot drift.
+import { isFilterAST } from '@objectstack/spec/data';
 import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
@@ -178,6 +184,87 @@ export function isMalformedFilterError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const e = error as Record<string, unknown>;
   return e.code === 'INVALID_FILTER' || e.name === 'MalformedFilterError';
+}
+
+/**
+ * A `where` that reached `aggregate()`'s SPEC-SHAPE branch as an array the spec
+ * cannot read as a filter — an unlowered `ViewFilterRule[]` above all.
+ *
+ * WHY THIS IS A REFUSAL AND NOT A LOWERING (objectui#6825, maintainer ruling
+ * 2026-08-30, option A). The two branches of `aggregate()` take a filter by
+ * different names: the analytics branch takes `filter` and lowers it through
+ * `translateFilterArray` (objectui#6302), the spec-shape branch takes `where`
+ * and posts it to `POST /data/:object/query` verbatim. Lowering here too was
+ * option B and was REFUSED: it is the tolerant-consumer direction AGENTS.md
+ * #0.1 exists to stop, and it would bless as supported a params shape
+ * `AggregateParams` does not even declare. Retiring the branch was option D and
+ * was refused as the riskier move — this repo has no producer that can reach it
+ * (`ObjectChart`'s gate requires a non-array `aggregate.groupBy`, and all three
+ * in-tree constructors pass a string), but `ObjectChart`'s props are `any` and
+ * an out-of-repo host may already send this shape. So the branch stays, and it
+ * says no out loud.
+ *
+ * What that buys is the FAILURE MODE, not a failure count. The receiving engine
+ * already refuses these arrays ("is not a filter" — objectstack's
+ * `engine-filter-array-lowering.test.ts`), so nothing that reaches this point
+ * could have produced a correct number; the pre-existing behaviour was to find
+ * that out on the wire, or worse, to have the predicate quietly dropped while
+ * the chart rendered confident, wrong figures with no signal to their author.
+ * This moves the same refusal to the producer, where the author can act on it.
+ *
+ * Carries the `INVALID_FILTER` / 400 pair its sibling {@link MalformedFilterError}
+ * carries, so `isMalformedFilterError()` recognises it and a failed widget renders
+ * "this filter is malformed" rather than "check your connection" (objectui#3066).
+ */
+export class UnloweredAggregateWhereError extends Error {
+  readonly code = 'INVALID_FILTER';
+  readonly httpStatus = 400;
+  /** The value as received, so a caller can log what its producer actually built. */
+  readonly where: unknown;
+  /** The object `aggregate()` was called for. */
+  readonly resource: string;
+  constructor(where: unknown, resource: string) {
+    const shown = JSON.stringify(where) ?? String(where);
+    super(
+      `aggregate('${resource}'): the spec-shape branch received a \`where\` array `
+      + `that is not a filter — ${shown}. This branch posts \`where\` to `
+      + 'POST /data/:object/query verbatim, so it must ALREADY be lowered: either a '
+      + 'FilterCondition object (`QuerySchema.where`, @objectstack/spec '
+      + 'data/query.zod.ts), or a FilterArray the ingress can lower — a comparison '
+      + "tuple (['stage','=','won']), a logical node (['and',[..],[..]]), or an array "
+      + 'of nodes (data/filter.zod.ts, gate `isFilterAST`). A ViewFilterRule[] '
+      + '([{ field, operator, value }, ...]) is authoring sugar, not a filter: lower it '
+      + 'in the producer that built these aggregate params, not here. Nothing was sent '
+      + 'to the server, so no unfiltered numbers came back.',
+    );
+    this.name = 'UnloweredAggregateWhereError';
+    this.where = where;
+    this.resource = resource;
+  }
+}
+
+/**
+ * Gate the spec-shape branch's `where` on the spec's own AST predicate.
+ *
+ * Scoped to ARRAYS on purpose, and the two carve-outs are measured, not assumed:
+ *
+ * - A NON-array `where` is the declared shape. `QuerySchema.where` is
+ *   `FilterConditionSchema` — the MongoDB-style condition object — so refusing
+ *   `{ stage: 'won' }` here would refuse the contract itself. Untouched.
+ * - An EMPTY array is "no filter", and the engine says so in as many words:
+ *   objectstack's `engine-filter-array-lowering.test.ts` pins `where: []`
+ *   returning every row from `find()` and `3` from `count()`. `isFilterAST([])`
+ *   is `false`, so gating on the predicate alone would refuse a value the
+ *   receiving door accepts — a refusal the ruling did not order.
+ *
+ * Every remaining array is one the receiving door refuses too, so this adds no
+ * new failure — it moves an existing one to where an author can read it.
+ */
+function assertSpecShapeWhereIsFilterAst(where: unknown, resource: string): void {
+  if (!Array.isArray(where)) return;
+  if (where.length === 0) return;
+  if (isFilterAST(where)) return;
+  throw new UnloweredAggregateWhereError(where, resource);
 }
 
 function objectFilterEntryToAST(entry: any): [string, string, any] | null {
@@ -4684,7 +4771,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const queryAst: Record<string, unknown> = {};
       if (Array.isArray(params.groupBy)) queryAst.groupBy = params.groupBy;
       if (Array.isArray(params.aggregations)) queryAst.aggregations = params.aggregations;
-      if (params.where !== undefined) queryAst.where = params.where;
+      if (params.where !== undefined) {
+        // STRICT, deliberately — objectui#6825, maintainer ruling 2026-08-30
+        // (option A). Unlike the analytics branch below, this one does NOT lower:
+        // it refuses. `where` here is the spec Query DSL's `where`, and an array
+        // the spec's AST gate rejects (an unlowered `ViewFilterRule[]`, say) is
+        // off-contract at the PRODUCER. Lowering it here was option B and was
+        // refused; see `UnloweredAggregateWhereError` for the full ruling and
+        // for why the two carve-outs (non-array, empty array) are carve-outs.
+        assertSpecShapeWhereIsFilterAst(params.where, resource);
+        queryAst.where = params.where;
+      }
       if (typeof params.limit === 'number') queryAst.limit = params.limit;
       const result: any = await this.client.data.query(resource, queryAst as any);
       // client.data.query returns { object, records, total, hasMore }
