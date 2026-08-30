@@ -129,7 +129,14 @@ function detectParentField(objectSchema: any, objectName?: string): string | und
   let firstSelfRef: string | undefined;
   for (const [key, def] of Object.entries<any>(fields)) {
     if (def?.type === 'tree') return key;
-    const ref = def?.reference || def?.reference_to || def?.referenceTo;
+    // A third arm, `def?.referenceTo`, was deleted by objectui#6837: no
+    // contract declares that spelling — `@objectstack/spec`'s `FieldSchema`
+    // refuses it by name with `unrecognized_keys` ("Did you mean `referenceTo`
+    // -> `reference`?"), and it is a tombstone in
+    // `RETIRED_FIELD_KEY_TOMBSTONES` (objectui#6041), so the designer read door
+    // strips it. It was not a redundant fallback but invented tolerance
+    // surface. Pinned in `ObjectTree.referenceArms-6837.test.tsx`.
+    const ref = def?.reference || def?.reference_to;
     if (
       !firstSelfRef &&
       (def?.type === 'lookup' || def?.type === 'master_detail') &&

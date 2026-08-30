@@ -1123,9 +1123,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const type: string | undefined = fd?.type;
         if (type !== 'lookup' && type !== 'master_detail') continue;
         // Served schemas key the target as `reference` (ObjectStack
-        // convention); reference_to/referenceTo cover ObjectUI-authored defs.
-        const refObject: string | undefined =
-          fd?.reference_to ?? fd?.reference ?? fd?.referenceTo;
+        // convention); `reference_to` covers ObjectUI-authored defs.
+        //
+        // A third arm, `referenceTo`, was deleted by objectui#6837: no contract
+        // declares that spelling — `@objectstack/spec`'s `FieldSchema` refuses
+        // it by name with `unrecognized_keys` ("Did you mean `referenceTo` ->
+        // `reference`?"), and it is a tombstone in `RETIRED_FIELD_KEY_TOMBSTONES`
+        // (objectui#6041), so the designer read door strips it. It was not a
+        // redundant fallback but invented tolerance surface. Pinned in
+        // `ObjectGantt.referenceArms-6837.test.tsx`.
+        const refObject: string | undefined = fd?.reference_to ?? fd?.reference;
         if (!refObject) continue;
         try {
           const result = await dataSource.find(refObject, { $top: 1000 });
