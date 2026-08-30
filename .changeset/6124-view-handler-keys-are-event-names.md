@@ -13,8 +13,9 @@ siblings.
 
 **What an author feels.** Nothing they write breaks — the type is still
 `string`, so no accept set moves and no existing document changes verdict.
-What changes is that the declaration, the generated JSON Schema description and
-the TS JSDoc now tell them what the string is FOR, and what to listen for:
+What changes is the two places this contract is published — the zod mirror's
+`describe()` text and the TS JSDoc — which now tell them what the string is
+FOR, and what to listen for:
 
 ```json
 { "type": "sort-ui", "fields": [{ "field": "name" }], "onChange": "myapp:sort-changed" }
